@@ -225,6 +225,10 @@ class Report:
     pronunciations: Dict[str, int] = field(default_factory=dict)
     #: {remembered, already, refused, total} for the sentences the source gave as analysed (`learn_structure`).
     structure: Dict[str, int] = field(default_factory=dict)
+    #: The same for the sentences it gave with their happenings' arguments (`learn_arguments`), and with their taught
+    #: meanings, for the composer (`learn_taught_sentences`).
+    arguments: Dict[str, int] = field(default_factory=dict)
+    taught_sentences: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
@@ -253,6 +257,8 @@ class Report:
             f"said of           : {self.said or 'none counted'}",
             f"pronunciations    : {self.pronunciations or 'none stated'}",
             f"sentences analysed: {self.structure or 'none given'}",
+            f"arguments given   : {self.arguments or 'none given'}",
+            f"meanings to learn : {self.taught_sentences or 'none given'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -493,6 +499,25 @@ class TeachingPass:
                 analysed, provenance=self.source.provenance(), quality=float(self.source.quality),
                 progress=(None if not self.progress else
                           lambda done, of: self.progress(done, of, {"phase": "sentences analysed"})))
+            await self._flush()
+
+        # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, from sentences whose happenings' arguments were annotated by hand
+        # (`argued()`: PropBank's), and WHAT A SENTENCE MEANS, from the lessons' sentences each with its taught meaning
+        # (`taught_sentences()`), for the composer: each kept whole by memory, its standing a belief on that memory. A
+        # limited pass takes the first `limit`.
+        for method, learn, phase, field_name in (
+                ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
+                ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences")):
+            if not hasattr(self.source, method):
+                continue
+            items = await asyncio.to_thread(list, getattr(self.source, method)())
+            if self.limit is not None:
+                items = items[:self.limit]
+                report.limit, report.sampled = self.limit, False
+            setattr(report, field_name, await learn(
+                items, provenance=self.source.provenance(), quality=float(self.source.quality),
+                progress=(None if not self.progress else
+                          lambda done, of, phase=phase: self.progress(done, of, {"phase": phase}))))
             await self._flush()
 
         # WHAT EACH WORD IS SAID OF, from a source that counted it in real use (`said_of()`): how English uses a word,

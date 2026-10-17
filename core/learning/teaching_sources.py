@@ -2042,6 +2042,71 @@ def read_propbank_ewt(release: str, treebank: str
             block = []
 
 
+@dataclass
+class PropBankSource:
+    """What PropBank's annotations of the English Web Treebank say of each happening's arguments (CC BY-SA 4.0): each
+    annotated sentence of the training part, with UD's analysis of it and what each argument is said in, in the
+    meaning language (`argument_structure.Argued`, `propbank_roles`). It teaches which phrases are a happening's
+    arguments and what each is (`argued()`, `argument_structure.ArgumentStructureView`), and states nothing else."""
+
+    data: str = SYNTAX_DATA
+    name: str = "propbank_ewt"
+    quality: float = 0.9
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    def provenance(self):
+        return _provenance("propbank_ewt", "propbank_release_ewt")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def argued(self) -> Iterator[Any]:
+        from core.semantics.argument_structure import argued_from_propbank
+        release, frames = os.path.join(self.data, "propbank-release"), os.path.join(self.data, "propbank-frames")
+        treebank = os.path.join(self.data, "UD_English-EWT")
+        for path in (release, frames, treebank):
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"{path} is not there; fetch it first (github.com/propbank/propbank-release and propbank-frames, "
+                    f"UniversalDependencies/UD_English-EWT). A teaching pass does not reach the network.")
+        roles = propbank_roles_of_frames(os.path.join(frames, "frames"))
+        return iter(argued_from_propbank(list(read_propbank_ewt(release, treebank)), roles))
+
+
+@dataclass
+class CompositionSource:
+    """The lessons' sentences, each with the meaning it was taught to have, kept whole so the composer learns from
+    them how a sentence's meaning is composed from how its words go together (`composition.TaughtSentence`,
+    `composition.CompositionView`). It states nothing else: the facts each sentence states are taught by the lessons
+    themselves."""
+
+    paths: Tuple[str, ...] = ()
+    name: str = "composition"
+    quality: float = 0.95
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    def __post_init__(self):
+        if not self.paths:
+            from pathlib import Path
+            self.paths = tuple(str(p) for p in sorted(Path("data/lessons").glob("english_[0-9][0-9].json")))
+
+    def provenance(self):
+        return _provenance("lesson", "english lessons", source_type="USER_SUPPLIED")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def taught_sentences(self) -> Iterator[Any]:
+        """Every sentence of the lessons with its taught meaning, each said in its lesson."""
+        from core.semantics.composition import TaughtSentence
+        for path in self.paths:
+            lesson = os.path.splitext(os.path.basename(path))[0]
+            for sentence, meaning in ListeningSource(paths=(path,)).listening_pairs():
+                yield TaughtSentence(sentence, meaning, lesson)
+
+
 # ── Wikidata ────────────────────────────────────────────────────────────────
 
 @dataclass

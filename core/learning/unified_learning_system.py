@@ -3950,6 +3950,71 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return {"remembered": held["remembered"], "already": held["already"], "refused": 0,
                 "total": held["total"]}
 
+    async def _learn_held(self, items, *, what: str, remember: str, subject_kind: str, provenance: Any,
+                          quality: float, progress: Optional[Callable[[int, int], None]]) -> Dict[str, int]:
+        """Hold items of language knowledge whole in memory (`remember`, a `MemoryAgent` method returning `kept`),
+        each item's standing a belief on its memory, as `learn_structure` holds sentences analysed: one observation
+        from the source, so the same source again moves nothing. Each item has `key()`, `claim()`, and a `detail` for
+        the ledger."""
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+        from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
+        items = list(items)
+        if self._refused_while_frozen(f"{remember} ({len(items)})"):
+            return {"remembered": 0, "already": 0, "refused": len(items), "total": len(items)}
+        if quality < MIN_ADMIT_QUALITY:
+            logger.info("%s REFUSED for %d item(s): evidence quality %.3f < floor %.2f", what, len(items), quality,
+                        MIN_ADMIT_QUALITY)
+            return {"remembered": 0, "already": 0, "refused": len(items), "total": len(items)}
+        producer = getattr(provenance, "producer", "learning")
+        source_id = getattr(provenance, "source_id", None) or "you"
+        agent = await get_memory_agent()
+        held = await getattr(agent, remember)(items, progress=progress)
+        us = get_uncertainty_system()
+        cause = f"learning.{subject_kind}.{producer}"
+        batch = _ledger.begin_batch(cause)
+        updates: List[Any] = []
+        try:
+            for item, memory_id in held["kept"]:
+                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
+                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind=subject_kind, subject_id=item.key(), disposition=_ledger.Disposition.NEW,
+                    domain=dr.ENGLISH_DOMAIN, detail=item.claim()[:500], cause=cause))
+            if updates:
+                from core.database import get_database_manager
+                await _ledger.record_many(get_database_manager(), updates)
+        finally:
+            _ledger.end_batch(batch)
+        return {"remembered": held["remembered"], "already": held["already"], "refused": 0,
+                "total": held["total"]}
+
+    async def learn_arguments(self, argued, *, provenance: Any = None, quality: float,
+                              progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Which phrases are a happening's arguments and what each is, from sentences whose happenings' arguments
+        were annotated by hand (PropBank): `argued` is an iterable of `argument_structure.Argued`. Each is held by
+        memory whole (`MemoryAgent.remember_argued`), its standing a belief on that memory, and read as
+        memory-based learning reads them (`argument_structure.ArgumentStructureView`).
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(argued, what="arguments annotated", remember="remember_argued",
+                                      subject_kind="argued_sentence", provenance=provenance, quality=quality,
+                                      progress=progress)
+
+    async def learn_taught_sentences(self, taught, *, provenance: Any = None, quality: float,
+                                     progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """How a sentence's meaning is composed from how its words go together, from the lessons' sentences each with
+        the meaning it was taught to have: `taught` is an iterable of `composition.TaughtSentence`. Each is held by
+        memory whole (`MemoryAgent.remember_taught_sentences`), its standing a belief on that memory, and the
+        composer learns from them as each is read with the structure memory holds (`composition.CompositionView`).
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(taught, what="sentences taught with their meanings",
+                                      remember="remember_taught_sentences", subject_kind="taught_sentence",
+                                      provenance=provenance, quality=quality, progress=progress)
+
     #: How many things taught a review asks itself about, by default.
     REVIEW_SAMPLE = 200
     #: How many facts a review looks at for each question it means to ask, at most.

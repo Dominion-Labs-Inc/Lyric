@@ -34,9 +34,10 @@ prose of UNDERSTANDS-PROSE-01 with it.
 """
 from __future__ import annotations
 
+import hashlib
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
 from core.semantics.argument_structure import ArgumentStructureView, candidates, phrase
 from core.semantics.argument_structure import situations as argument_situations
@@ -338,15 +339,48 @@ def align(laid: Laid, meaning: Meaning) -> Aligned:
                    {k: frozenset(set.intersection(*v)) for k, v in by_clause.items()}, frozenset(loose))
 
 
+# ── a sentence taught with its meaning ────────────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class TaughtSentence:
+    """A sentence as a lesson taught it, with the meaning it was taught to have. Memory keeps one for each sentence
+    of the lessons (`MemoryAgent.remember_taught_sentences`), and the composer learns from them, each read with the
+    structure and names memory has when it is learned from (`CompositionView.hold`)."""
+
+    sentence: str
+    meaning: Meaning
+    said_in: str = ""
+
+    def key(self) -> str:
+        return hashlib.sha256("\x1e".join([self.said_in, self.sentence, self.meaning.canonical()])
+                              .encode("utf-8")).hexdigest()[:32]
+
+    def claim(self) -> str:
+        """The belief it stands on: that the sentence means what it was taught to."""
+        return f'"{self.sentence}" means {self.meaning.canonical()} ({self.key()[:8]})'
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"sentence": self.sentence, "meaning": self.meaning.to_dict(), "said_in": self.said_in}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "TaughtSentence":
+        return cls(str(data["sentence"]), Meaning.from_dict(data["meaning"]), str(data.get("said_in") or ""))
+
+
 # ── the view ──────────────────────────────────────────────────────────────────────────────────────────────────────
 
 class CompositionView:
     """The lessons' sentences aligned to their meanings, read as memory-based learning reads them; and what stands
     behind them where they say nothing particular: PropBank's arguments (`arguments`) and the relations' senses."""
 
-    def __init__(self, arguments: Optional[ArgumentStructureView] = None) -> None:
+    def __init__(self, arguments: Optional[ArgumentStructureView] = None,
+                 lay_out: Optional[Callable[[str], Optional[Laid]]] = None) -> None:
         self.arguments = arguments
+        #: How a sentence is read and laid out (`lay`), for the sentences held whole (`hold`) and composed
+        #: (`compose_sentence`): memory's structure view and names, on main.
+        self.lay_out = lay_out
         self._held: List[Aligned] = []
+        self._waiting: List[TaughtSentence] = []
         self._ready = False
         self._stands: Dict[Tuple, Counter] = {}
         self._pairs: Dict[Tuple, Counter] = {}
@@ -355,16 +389,27 @@ class CompositionView:
         self._acts: Dict[Tuple, Counter] = {}
 
     def __len__(self) -> int:
-        return len(self._held)
+        return len(self._held) + len(self._waiting)
 
     def learn(self, laid: Laid, meaning: Meaning) -> None:
         """Hold one lesson sentence, laid out, with its taught meaning."""
         self._held.append(align(laid, meaning))
         self._ready = False
 
+    def hold(self, taught: TaughtSentence) -> None:
+        """Hold one taught sentence whole, to be read and laid out (`lay_out`) when the view is next worked out."""
+        self._waiting.append(taught)
+        self._ready = False
+
     def _work_out(self) -> None:
         if self._ready:
             return
+        if self._waiting and self.lay_out is not None:
+            for taught in self._waiting:
+                laid = self.lay_out(taught.sentence)
+                if laid is not None:
+                    self._held.append(align(laid, taught.meaning))
+            self._waiting = []
         grammar_met: Dict[str, Set[int]] = defaultdict(set)
         for n, aligned in enumerate(self._held):
             for labels in aligned.ones.values():
@@ -449,6 +494,17 @@ class CompositionView:
             if between in RELATION_SENSES and (not got or got[0] == "-" or not got[1] or got[1][0] == "p"):
                 return RELATION_SENSES[between]
         return got[0] if got and got[0] != "-" else None
+
+    def compose_sentence(self, sentence: str) -> Optional[Meaning]:
+        """What a sentence means, composed after it is read and laid out (`lay_out`); None where nothing is composed
+        to a meaning."""
+        laid = self.lay_out(sentence) if self.lay_out is not None else None
+        if laid is None or not len(laid):
+            return None
+        try:
+            return self.compose(laid)
+        except ValueError:
+            return None
 
     def compose(self, laid: Laid) -> Meaning:
         """What the sentence laid out means, composed. Raises ValueError where what is composed is no meaning (no

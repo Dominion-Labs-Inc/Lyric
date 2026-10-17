@@ -73,6 +73,7 @@ import functools
 import heapq
 import itertools
 import math
+import os
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -3568,6 +3569,9 @@ class Reading:
     said_for: int = 0
     #: Held fillers it proposed that never stood beside the slot's own fillers anywhere (`stood_beside`).
     apart: int = 0
+    #: Read by composing its meaning from how its words go together (`composition`), where no taught frame read the
+    #: utterance: it holds no construction and no link.
+    composed: bool = False
 
     @property
     def pattern(self) -> Pattern:
@@ -4773,6 +4777,27 @@ def _with_quotation(utterance: "Utterance", quoted: Tuple["Utterance", ...],
 _ENDS_SPANNED = 3
 
 
+#: Whether an utterance no taught frame reads is read by composing its meaning from how its words go together
+#: (`composition.CompositionView`, learned from the lessons' sentences memory holds with their meanings). Off until
+#: UNDERSTANDS-PROSE-01 on main shows a composed meaning right more often than it misleads: a meaning told to a
+#: conversation that remembers is held as so. `LYRIC_COMPOSE=1` turns it on; an experiment may set it.
+COMPOSING = os.environ.get("LYRIC_COMPOSE") == "1"
+
+
+def _composed(utterance: "Utterance") -> "Utterance":
+    """An utterance no taught frame read, read by composing its meaning (`COMPOSING`); as it was where memory is not
+    up in this process or nothing is composed to a meaning."""
+    from core.agents import memory_agent as _memory
+    agent = _memory._memory_agent
+    if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
+        return utterance
+    meaning = agent.composition_view().compose_sentence(surface_of(utterance.pieces))
+    if meaning is None:
+        return utterance
+    return Utterance(utterance.pieces, (Reading((), (), meaning, composed=True),), utterance.partial,
+                     utterance.unknown)
+
+
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
               parts: bool = False) -> Tuple[Utterance, ...]:
     """A text as the consecutive utterances that cover it, each read on its own.
@@ -4834,6 +4859,8 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
             continue
         partial, unknown = _partial(said, view) if parts else ((), ())
         out.append(Utterance(said, (), partial, unknown))
+    if COMPOSING:
+        out = [u if u.readings else _composed(u) for u in out]
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
 
 

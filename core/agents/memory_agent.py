@@ -161,6 +161,10 @@ class MemoryAgent(IMemoryConsolidation):
         self._said_view: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         #: The sentences memory holds as analysed, read as memory-based learning reads them (`structure_view`).
         self._structure_view = None
+        #: The sentences memory holds with their happenings' arguments annotated (`argument_view`), and the lessons'
+        #: sentences it holds with their taught meanings, learned from by the composer (`composition_view`).
+        self._argument_view = None
+        self._composition_view = None
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
         #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
         #: things memory holds at all when they were counted: what each thing's associative strength is measured
@@ -2847,8 +2851,11 @@ class MemoryAgent(IMemoryConsolidation):
             await give_way()
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
         said = await self._said_memories()
-        # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed.
+        # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed; which phrases are a
+        # happening's arguments; and the lessons' sentences with their meanings, which the composer learns from.
         structure = await self._analysed_memories()
+        arguments = await self._argued_memories()
+        composition = await self._composition_memories(arguments)
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
         heard, self._heard_memory = await self._heard_memories()
         for word, (after, two) in heard.items():
@@ -2867,6 +2874,7 @@ class MemoryAgent(IMemoryConsolidation):
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
         self._structure_view = structure
+        self._argument_view, self._composition_view = arguments, composition
         self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
@@ -6321,6 +6329,154 @@ class MemoryAgent(IMemoryConsolidation):
             kept.append((item, memory_id))
             counts["remembered"] += 1
         return {"kept": kept, **counts}
+
+    # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, AND WHAT A SENTENCE MEANS COMPOSED. A sentence whose happenings'
+    # arguments were annotated by hand (PropBank's, `argument_structure.Argued`) is kept whole, one memory for each,
+    # as is each sentence of the lessons with the meaning it was taught to have (`composition.TaughtSentence`); the
+    # composer learns from both (`composition.CompositionView`), each lesson read with the structure and names memory
+    # has when it is learned from. Nothing is reduced to rules when it is kept.
+
+    ARGUED_TAG = "argued_sentence"
+    TAUGHT_SENTENCE_TAG = "taught_sentence"
+
+    async def _argued_memories(self):
+        """The sentences held with their happenings' arguments, read back as the view (`argument_view`)."""
+        from core.semantics.argument_structure import ArgumentStructureView, Argued
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        view = ArgumentStructureView()
+        for row in await self._rows_tagged(self.ARGUED_TAG):
+            await give_way()
+            argued = (row.metadata or {}).get("argued")
+            if argued:
+                view.hold(Argued.from_dict(argued))
+        return view
+
+    async def _composition_memories(self, arguments):
+        """The lessons' sentences held with their meanings, as the composer's view (`composition_view`), the
+        arguments behind them; each is read when the view is first asked."""
+        from core.semantics.composition import CompositionView, TaughtSentence
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        view = CompositionView(arguments if len(arguments) else None, lay_out=self.lay_out)
+        for row in await self._rows_tagged(self.TAUGHT_SENTENCE_TAG):
+            await give_way()
+            taught = (row.metadata or {}).get("taught")
+            if taught:
+                view.hold(TaughtSentence.from_dict(taught))
+        return view
+
+    def argument_view(self):
+        """The sentences held with their happenings' arguments, as the argument view. Synchronous; empty before the
+        first warm."""
+        if self._argument_view is None:
+            from core.semantics.argument_structure import ArgumentStructureView
+            self._argument_view = ArgumentStructureView()
+        return self._argument_view
+
+    def composition_view(self):
+        """The composer, learned from the lessons' sentences memory holds with their meanings (`composition`).
+        Synchronous; empty before the first warm."""
+        if self._composition_view is None:
+            from core.semantics.composition import CompositionView
+            self._composition_view = CompositionView(None, lay_out=self.lay_out)
+        return self._composition_view
+
+    def lay_out(self, sentence: str):
+        """A sentence as the composer reads it (`composition.lay`): split as Lyric splits a sentence, read by
+        memory's structure view, each word named as memory names it (`name_of`). None for a sentence of no words."""
+        from core.semantics.composition import lay
+        from core.semantics.sentence_machine import form_of
+        from core.semantics.structure import words_of
+        words = words_of(form_of(sentence))
+        if not words:
+            return None
+        read = self.structure_view().read(words)
+        return lay(read.words, read.classes, read.heads, read.relations, self.name_of, self.known_name)
+
+    def name_of(self, word: str, word_class: str) -> str:
+        """The thing a word names, as memory names it: of the things held fillers of the word name (a word in
+        another case is the same word), else of the held word it is a shape of ("breathes", `breathe`), the word
+        itself where it is one of them, else the one memory holds a word of this class names, else the first; the
+        word itself where memory holds nothing of it."""
+        from core.semantics.structure import _HELD_AS
+        view = self.pattern_inventory()
+        folded = word.casefold()
+        for written in [folded] + [n for n in view.names_of_shape(folded) if n != folded]:
+            names = list(dict.fromkeys(l.value for l in view.lexicals_with_words((written,), loose=True)))
+            if not names:
+                if written != folded:
+                    return written
+                continue
+            if written in names:
+                return written
+            for name in names:
+                classes = view.word_classes.get(name, {})
+                if any(word_class in _HELD_AS.get(cls, (cls,)) and n > 0 for cls, n in classes.items()):
+                    return name
+            return names[0]
+        return folded
+
+    def known_name(self, words: Sequence[str]) -> bool:
+        """Whether memory holds these words as one name ("blue whale")."""
+        return bool(self.pattern_inventory().lexicals_with_words(tuple(words), loose=True))
+
+    async def remember_argued(self, argued, progress: Optional[Callable[[int, int], None]] = None
+                              ) -> Dict[str, Any]:
+        """Remember sentences with their happenings' arguments (`argument_structure.Argued`), one memory each; one
+        held already is not held again. Returns `kept` (each newly held, with its memory's id), and counts:
+        `remembered`, `already`, `total`."""
+        return await self._remember_whole(
+            argued, view=self.argument_view(), tag=self.ARGUED_TAG, field="argued", progress=progress,
+            content=lambda item: item.said(), add=lambda view, item: view.hold(item))
+
+    async def remember_taught_sentences(self, taught, progress: Optional[Callable[[int, int], None]] = None
+                                        ) -> Dict[str, Any]:
+        """Remember the lessons' sentences with their taught meanings (`composition.TaughtSentence`), one memory
+        each; one held already is not held again. Returns `kept` and counts, as `remember_argued`."""
+        return await self._remember_whole(
+            taught, view=self.composition_view(), tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
+            content=lambda item: item.claim(), add=lambda view, item: view.hold(item))
+
+    async def _remember_whole(self, items, *, view, tag: str, field: str, content, add,
+                              progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:
+        """Keep each item whole, one memory each, as `remember_analysed` keeps sentences analysed, and fold it into
+        the view."""
+        from core.memory.utils.interfaces import Origin
+        if not self._word_classes_warm:
+            await self.warm_word_classes()
+        items = list(items)
+        held: Set[str] = set()
+        for row in await self._rows_tagged(tag):
+            data = (row.metadata or {}).get(field)
+            if data:
+                held.add(self._whole_key(field, data))
+        kept: List[Tuple[Any, str]] = []
+        counts = {"remembered": 0, "already": 0, "total": len(items)}
+        for done, item in enumerate(items, 1):
+            if progress is not None and done % 1000 == 0:
+                progress(done, len(items))
+            if item.key() in held:
+                counts["already"] += 1
+                continue
+            stored, memory_id = await self.store_memory(
+                content=content(item), memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
+                tags=["language", tag], source_context={field: item.to_dict()}, origin=Origin.own("teaching"))
+            if not stored or not memory_id:
+                raise RuntimeError(f"{content(item)[:80]!r} was not kept: the memory was declined")
+            add(view, item)
+            held.add(item.key())
+            kept.append((item, memory_id))
+            counts["remembered"] += 1
+        return {"kept": kept, **counts}
+
+    @staticmethod
+    def _whole_key(field: str, data) -> str:
+        if field == "argued":
+            from core.semantics.argument_structure import Argued
+            return Argued.from_dict(data).key()
+        from core.semantics.composition import TaughtSentence
+        return TaughtSentence.from_dict(data).key()
 
     # WHAT WAS HEARD AFTER WHAT. A construction holds its slots' fillers each apart, so which word went after which
     # is not in it ("might open" and "often opens", one phrase "?slot0 ?slot1"); the sentences taught had it, and it

@@ -33,3 +33,19 @@ def test_the_arguments_are_the_candidates_said_in_something():
                  said.get(candidate, ax.NONE))
     found = view.arguments(("Rex", "kicked", "the", "box", "."), classes, heads, relations, 1)
     assert found == said
+
+
+def test_an_annotated_sentence_is_held_whole_and_learned_from():
+    """An annotation is kept as it was given (`Argued`), and the view learns from it what it learns from its candidates
+    one by one."""
+    from core.semantics.structure import Analysed
+    words, classes = ("Tom", "kicked", "the", "ball", "."), ("NAME", "VERB", "DETERMINER", "NOUN", "PUNCTUATION")
+    heads, relations = (2, 0, 4, 2, 2), ("nsubj", "root", "det", "obj", "punct")
+    argued = ax.Argued.of(Analysed(words, classes, heads, relations, "t:1"),
+                          {1: {0: "fact:done_by", 3: "fact:done_to"}}, {})
+    assert ax.Argued.from_dict(argued.to_dict()) == argued
+    assert argued.said() == '"Tom kicked the ball .": "kicked": "Tom" fact:done_by, "ball" fact:done_to'
+    view = ax.ArgumentStructureView()
+    view.learn(argued)
+    assert view.arguments(("Rex", "kicked", "the", "box", "."), classes, heads, relations, 1) == \
+        {0: "fact:done_by", 3: "fact:done_to"}

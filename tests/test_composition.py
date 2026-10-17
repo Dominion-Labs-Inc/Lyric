@@ -64,3 +64,53 @@ def test_where_the_lessons_say_nothing_a_relation_says_its_own_sense():
     composed = view.compose(_laid("The big cat barked .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
                                   [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"]))
     assert F("has_property", "?x2", "big") in composed.facts
+
+
+def test_a_sentence_taught_with_its_meaning_is_held_whole_and_read_when_the_view_is_next_asked():
+    """Held whole (`hold`), a lesson is read and laid out by the view's own reader when the view is next worked out,
+    as memory reads it at warm: with the structure and names memory has then."""
+    taught = cp.TaughtSentence("The dog barked.", BARKED[1], "english_01")
+    assert cp.TaughtSentence.from_dict(taught.to_dict()) == taught
+    laid_out = {"The dog barked.": BARKED[0],
+                "The cat ran.": _laid("The cat ran .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3],
+                                      ["det", "nsubj", "root", "punct"])}
+    view = cp.CompositionView(lay_out=laid_out.get)
+    view.hold(taught)
+    composed = view.compose_sentence("The cat ran.")
+    assert F("instance_of", "?x2", "run") in composed.facts and F("done_by", "?x2", "?x1") in composed.facts
+    assert view.compose_sentence("Nothing laid out.") is None
+
+
+def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monkeypatch):
+    """`read_text` leaves "The cat ran." unread where nothing taught reads it; with `COMPOSING` on, it is read by the
+    composer memory holds, as one reading marked composed."""
+    from core.agents import memory_agent as memory
+    from core.semantics import derived_reader as dr
+    view = cp.CompositionView(lay_out=lambda sentence: _laid(
+        "The cat ran .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3], ["det", "nsubj", "root", "punct"]))
+    view.learn(*BARKED)
+
+    class Agent:
+        def composition_view(self):
+            return view
+    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(dr, "COMPOSING", False)
+    assert not dr.read_text("The cat ran.", dr.PatternInventory())[0].readings
+    monkeypatch.setattr(dr, "COMPOSING", True)
+    reading, = dr.read_text("The cat ran.", dr.PatternInventory())[0].readings
+    want = Meaning("tell", (F("instance_of", "?a", "cat", given=True), F("instance_of", "?e", "run"),
+                            F("done_by", "?e", "?a"), F("precedes", "?e", "?now")))
+    assert reading.composed and not reading.constructions
+    assert reading.meaning.canonical() == want.canonical()
+
+
+def test_a_word_is_named_as_memory_names_it():
+    """"flies" names what the filler taught for it names (the lessons' `dipterous insect fly`); a word memory holds
+    nothing of names itself."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.derived_reader import Lexical
+    from core.semantics.sentence_machine import Piece
+    agent = MemoryAgent()
+    agent.pattern_inventory().add(Lexical((Piece("Flies", False),), "dipterous insect fly"))
+    assert agent.name_of("flies", "NOUN") == "dipterous insect fly"
+    assert agent.name_of("Cat", "NOUN") == "cat"

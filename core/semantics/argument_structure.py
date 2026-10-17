@@ -25,10 +25,12 @@ depends on it (`phrase`).
 """
 from __future__ import annotations
 
+import hashlib
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
-from core.semantics.structure import StructureView
+from core.semantics.structure import Analysed, StructureView
 
 #: The relations that mark a phrase's part with a word of its own: a preposition ("to Rex"), a subordinator ("if it
 #: rains").
@@ -150,22 +152,79 @@ def taught_arguments(words: Sequence[Any], predicates: Sequence[Any],
     return found, left
 
 
+@dataclass(frozen=True)
+class Argued:
+    """A sentence analysed by hand (`structure.Analysed`) with what an annotation of it says of each happening's
+    arguments, in the meaning language: for each happening (0-based), each argument's head word and what it is said
+    in, and the head words left out (`taught_arguments`). Memory keeps one for each annotated sentence
+    (`MemoryAgent.remember_argued`), and the argument view is learned from them (`ArgumentStructureView.learn`)."""
+
+    analysed: Analysed
+    arguments: Tuple[Tuple[int, Tuple[Tuple[int, str], ...]], ...]
+    left: Tuple[Tuple[int, Tuple[int, ...]], ...] = ()
+
+    def key(self) -> str:
+        """The annotation's identity: the analysis it is of, and what it says."""
+        return hashlib.sha256("\x1e".join([self.analysed.key(), repr(self.arguments), repr(self.left)])
+                              .encode("utf-8")).hexdigest()[:32]
+
+    def claim(self) -> str:
+        """The belief this annotation stands on: that the sentence's happenings have these arguments."""
+        return f'the arguments of the happenings in "{self.analysed.text}" ({self.key()[:8]})'
+
+    def said(self) -> str:
+        """The annotation, said plainly: each happening and what each of its arguments is."""
+        words = self.analysed.words
+        return f'"{self.analysed.text}": ' + "; ".join(
+            f'"{words[at]}": ' + ", ".join(f'"{words[head]}" {said}' for head, said in found)
+            for at, found in self.arguments)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"analysed": self.analysed.to_dict(),
+                "arguments": [[at, [[head, said] for head, said in found]] for at, found in self.arguments],
+                "left": [[at, list(heads)] for at, heads in self.left]}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "Argued":
+        return cls(Analysed.from_dict(data["analysed"]),
+                   tuple((int(at), tuple((int(head), str(said)) for head, said in found))
+                         for at, found in data["arguments"]),
+                   tuple((int(at), tuple(int(h) for h in heads)) for at, heads in data.get("left", ())))
+
+    @classmethod
+    def of(cls, analysed: Analysed, found: Mapping[int, Mapping[int, str]],
+           left: Mapping[int, Set[int]]) -> "Argued":
+        """From `taught_arguments`' two mappings."""
+        return cls(analysed, tuple((at, tuple(sorted(said.items()))) for at, said in sorted(found.items())),
+                   tuple((at, tuple(sorted(heads))) for at, heads in sorted(left.items()) if heads))
+
+
+def argued_from_propbank(sentences: Sequence[Tuple[Any, ...]],
+                         roles: Mapping[Tuple[str, str], Tuple[str, Tuple[str, ...]]],
+                         part: str = "train") -> List[Argued]:
+    """PropBank's annotations of the treebank's sentences of one part (`read_propbank_ewt`'s sentences), each with
+    UD's analysis of it, as `Argued`."""
+    out: List[Argued] = []
+    for got_part, document, index, words, predicates in sentences:
+        if got_part != part:
+            continue
+        found, left = taught_arguments(words, predicates, roles)
+        if not found:
+            continue
+        analysed = Analysed(tuple(w.form for w in words), tuple(w.word_class for w in words),
+                            tuple(w.head for w in words), tuple(w.relation for w in words),
+                            f"propbank_ewt:{document}:{index}")
+        out.append(Argued.of(analysed, found, left))
+    return out
+
+
 def learned_from_propbank(sentences: Sequence[Tuple[Any, ...]],
                           roles: Mapping[Tuple[str, str], Tuple[str, Tuple[str, ...]]]) -> "ArgumentStructureView":
     """The view learned from PropBank's training part over UD's structure (`read_propbank_ewt`'s sentences), every
     candidate of every happening said as its argument is, or `NONE`."""
     view = ArgumentStructureView()
-    for part, _, _, words, predicates in sentences:
-        if part != "train":
-            continue
-        forms, classes = [w.form for w in words], [w.word_class for w in words]
-        heads, relations = [w.head for w in words], [w.relation for w in words]
-        found, left = taught_arguments(words, predicates, roles)
-        for at, said in found.items():
-            for candidate in candidates(heads, at):
-                if candidate not in left[at]:
-                    view.add(situations(forms, classes, heads, relations, at, phrase(candidate, heads)),
-                             said.get(candidate, NONE))
+    for argued in argued_from_propbank(sentences, roles):
+        view.learn(argued)
     return view
 
 
@@ -176,9 +235,27 @@ class ArgumentStructureView:
     def __init__(self) -> None:
         self._met: Dict[Tuple, Counter] = defaultdict(Counter)
         self._held = 0
+        self._waiting: List[Argued] = []
 
     def __len__(self) -> int:
-        return self._held
+        return self._held + len(self._waiting)
+
+    def hold(self, argued: Argued) -> None:
+        """Hold one annotated sentence, learned from when the view is next asked (`learn`): memory holds ten
+        thousand, and a process that warms memory and composes nothing need not learn from them."""
+        self._waiting.append(argued)
+
+    def learn(self, argued: Argued) -> None:
+        """Hold one annotated sentence: every candidate of each of its happenings (`candidates`), said as its
+        argument is, or `NONE`; a head word left out is not held."""
+        a = argued.analysed
+        left = dict(argued.left)
+        for at, found in argued.arguments:
+            said = dict(found)
+            for candidate in candidates(a.heads, at):
+                if candidate not in left.get(at, ()):
+                    self.add(situations(a.words, a.classes, a.heads, a.relations, at, phrase(candidate, a.heads)),
+                             said.get(candidate, NONE))
 
     def add(self, met: Sequence[Tuple], said: str) -> None:
         """Hold one argument: the situations it stood in (`situations`) and what it was said in."""
@@ -189,6 +266,8 @@ class ArgumentStructureView:
     def said(self, met: Sequence[Tuple]) -> Optional[str]:
         """What an argument standing in these situations is said in, as the arguments met in the most specific of
         them were; None when none was met."""
+        while self._waiting:
+            self.learn(self._waiting.pop())
         decided = StructureView._decide((situation, self._met.get(situation)) for situation in met)
         return decided[0] if decided else None
 
