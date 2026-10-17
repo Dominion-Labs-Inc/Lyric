@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6), (7), (8) and (9) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -35,7 +35,10 @@ STRUCTURE-02 measure both ways in one run. With a noun held as a noun or a name,
 measure on main (dev 92.20 / 73.72 / 66.97, test 92.50 / 74.19 / 67.88, lessons 94.4%; "A whale breathes air through
 a blowhole." reads whole), and **main's structure view now asks memory** (`MemoryAgent._new_structure_view`). Then constructions learned
 over phrases. Open for the owner: whether those learn from the lessons only or also from PropBank's annotations of the
-treebank (the research's decision 2; its licence is unchecked).
+treebank (the research's decision 2). **PropBank checked (2026-10-17 (11))**: its annotations and frame files are CC BY-SA
+4.0, its sentences take UD's words, and `core/semantics/propbank_roles.py` says 98.51% of its 100,297 arguments in the
+meaning language (`experiments/PROPBANK-01`); four gaps are the owner's to decide (`docs/research/MEANING_COVERAGE.md`
+§6, with what else is missing: relations between people, rates, poems, and sounds: main holds no pronunciations).
 
 ## 1. What Lyric is
 

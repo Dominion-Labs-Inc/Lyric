@@ -16139,8 +16139,8 @@ the lessons and WordNet), and the structure reader never asked.
   `test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it` ("breathes" after a noun is a noun by its
   ending, a verb when memory holds it one), `test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned`.
 
-**Measured both ways in one run** (the owner's word: "test it both ways and see which one gives us better
-results"): STRUCTURE-01 (the treebank's held-out parts, bars on both ways, and which prose sentences read otherwise)
+**Measured both ways in one run** (the owner asked for both ways to be measured, and the better kept):
+STRUCTURE-01 (the treebank's held-out parts, bars on both ways, and which prose sentences read otherwise)
 and STRUCTURE-02 (the lessons' ceiling). The reader takes memory's classes only if they measure better.
 
 **First run both ways on main** (code 0c624fd; STRUCTURE-01 `results/20261016T231035Z.md`, 15 of 15 checks;
@@ -16193,3 +16193,45 @@ measure "treebank only" beside it, and give main's view back its own setting aft
 11 passed in a cloud session (with a stand-in for `sentence_transformers`, which is not installed there, and
 `psutil`, `aiohttp`, `asyncpg` installed), among them `test_mains_structure_view_asks_what_memory_holds_of_a_word` and
 the CoNLL-U test that could not run there before.
+
+
+## 2026-10-17 (11) — PropBank's roles mapped into the meaning language, all of them; what else is missing
+
+**Why.** Constructions learned over phrases need sentences whose phrases are given roles, and PropBank gives them for
+the treebank (the research's decision 2). The owner asked for every role to be accounted for, not most, and asked
+what else the meaning language lacks: numbers, equations, poems, words that sound or are spelled alike.
+
+**The data** (cloud session, fetched from GitHub; datasets are not pushed): `propbank-release` (annotations, CC BY-SA
+4.0) and `propbank-frames` (CC BY-SA 4.0). The annotations write each word `[WORD]`, pointing into the LDC's copy of
+the text; UD English EWT holds the same sentences: 16,578 of PropBank's 16,579 match one of UD's by document and
+place, and 16,548 have the same number of words, so the words come from UD. 50,262 predicates of 3,387 senses,
+100,495 arguments. 99.7% of numbered arguments have their role in the frame files, all a function tag, 80.6% a
+VerbNet role.
+
+**Built.**
+- `core/semantics/propbank_roles.py`: every label, function tag and VerbNet role to a fact in one of 53 link kinds
+  the meaning language has (each checked), a rule the words settle (`predicated`, `goal`, `addressed`, ...), nothing,
+  or a named gap; the predicates the lessons say in a kind of their own (`have.03` `owns`, `need.01` `requires`,
+  `be.01` predicated, `able.01` `capable_of`); every verb-specific role the treebank uses (64, by what each frame file
+  says it is); and every word that begins a modifier whose kind the label leaves open (the modals, discourse markers
+  and comparisons word by word; time, place, direction, manner, extent and the adverbials by their first word, each
+  with a default). The lessons' conventions decide: "can" `capable_of`, "would" `hypothetical`, "may I" `allowed`,
+  "on" `located_at`, "with a key" `done_with`, "please" a request, "hello" and "thanks" a greeting and a thanking.
+  Nothing is guessed: what it does not name gives None.
+- `experiments/PROPBANK-01`: the mapping on the whole treebank. Tests: `tests/test_propbank_roles.py`, 6 passed.
+
+**Measured** (cloud session): **98.51% of the arguments said in the meaning language**; 1.46% in four named gaps
+(possible 551, necessary 455 and 245 "have to" predicates, between sentences 390, felt 64); 33 unmapped (0.03%), each
+a word PropBank's annotation gives a label it cannot have. WordNet names 99.8% of the happenings (a noun predicate is
+written with its verb's lemma: "agreement" as `agree`). The run went in four steps, each one's misses read: the
+verb-specific roles, the senses the frame files lack ("took place", "has nothing to do with", read from their
+sentences), and the discourse markers, many of them names: a vocative ("Richard, ...") is who is addressed.
+
+**What else is missing** (`docs/research/MEANING_COVERAGE.md`), checked against AMR's relations (written to cover
+English sentences): relations between people ("his mother", "the company's president"; only `owns` exists), rates
+("$5 per hour"), and frequency terms past `often` and `usually`. Numbers and written mathematics are read (number
+words, arithmetic, `arithmetic_reading`'s formulas) and computed (SymPy, Z3); the structure reader parses numbers
+in words apart. Poems: nothing reads rhyme, metre, line or figurative meaning. Sounds and spellings: **main holds no
+pronunciations** (0 memories tagged `pronunciation`; the CMU dictionary's source exists and was never taught); the
+ear hands sound-alike words on together when hearing, but nothing holds that two words sound alike, rhyme, or are
+spelled alike, and nothing ties a way of saying "lead" to its sense.
