@@ -29,6 +29,8 @@ the 33 prose sentences of UNDERSTANDS-PROSE-01 and shows their phrases, and chec
 **Two ways, one run** (since 2026-10-16 (10)): as the treebank alone decides, and with a word no sentence held used
 taking a class memory holds of it (`StructureView.held_classes`, from the reader's word-class view, through the
 shapes it learned: "breathes" as `breathe`). The bars apply to both; the prose shows where the two read otherwise.
+Since 2026-10-17 main's own structure view asks memory (`MemoryAgent._new_structure_view`): it measured better both
+ways; "treebank only" stays measured beside it.
 
 **Run** (from the Lyric folder, after the treebank is taught; starts no substrate):
 
@@ -46,7 +48,9 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | `20261016T212354Z` | 85e5d10: a tie is decided by the next situation | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 9/9 | nothing |
 | `20261016T231035Z` | 0c624fd, treebank only | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 15/15 | nothing |
 | `20261016T231035Z` | 0c624fd, with memory's word classes (a noun held as a noun only) | 91.8% / 73.6% / 66.9% | 92.1% / 74.0% / 67.7% | (same run) | nothing |
+| `20261017T001822Z`, `20261017T013101Z` | 330c932, treebank only | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 15/15 | nothing |
+| `20261017T001822Z`, `20261017T013101Z` | 330c932, with memory's word classes (a noun held as a noun or a name) | **92.2% / 73.7% / 67.0%** | **92.5% / 74.2% / 67.9%** | (same runs) | nothing |
 
 For each run, the same code reading the treebank's files gives the same to four places, and the same reading of
-every prose sentence: memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
+every prose sentence, treebank only (the other way needs main's word classes): memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
 earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7) and (8).

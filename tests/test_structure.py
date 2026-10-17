@@ -117,6 +117,17 @@ def test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned():
     assert of("zorp") == {}
 
 
+def test_mains_structure_view_asks_what_memory_holds_of_a_word():
+    """Memory's own structure view asks the reader's word-class view, as it is when asked, of a word no sentence held
+    used: measured better both ways on main (2026-10-16 (10))."""
+    from core.agents.memory_agent import MemoryAgent
+    agent = MemoryAgent()
+    view = agent.structure_view()
+    assert view.held_classes("whale") == {}
+    agent.pattern_inventory().word_classes = {"whale": {"NOUN": 2}}
+    assert view.held_classes("Whale") == {"NOUN": 2, "NAME": 2}
+
+
 def test_pieces_are_written_as_a_treebank_writes_them():
     assert words_of(["It", "doesn", "'t", "change", "."]) == ("It", "does", "n't", "change", ".")
     assert words_of(["We", "can", "'t", "."]) == ("We", "ca", "n't", ".")

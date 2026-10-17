@@ -6261,10 +6261,10 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def _analysed_memories(self):
         """The sentences held as analysed, read back as the view (`structure_view`)."""
-        from core.semantics.structure import Analysed, StructureView
+        from core.semantics.structure import Analysed
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
-        view = StructureView()
+        view = self._new_structure_view()
         for row in await self._rows_tagged(self.STRUCTURE_TAG):
             await give_way()
             analysed = (row.metadata or {}).get("analysed")
@@ -6275,9 +6275,23 @@ class MemoryAgent(IMemoryConsolidation):
     def structure_view(self):
         """The sentences held as analysed, as the reader reads them. Synchronous; empty before the first warm."""
         if self._structure_view is None:
-            from core.semantics.structure import StructureView
-            self._structure_view = StructureView()
+            self._structure_view = self._new_structure_view()
         return self._structure_view
+
+    def _new_structure_view(self):
+        """An empty structure view that asks what memory holds of a word no sentence held used
+        (`StructureView.held_classes`): measured on main both ways, it read the treebank's held-out parts and the
+        lessons better than the words' endings alone (2026-10-16 (10))."""
+        from core.semantics.structure import StructureView
+        view = StructureView()
+        view.held_classes = self._held_word_classes
+        return view
+
+    def _held_word_classes(self, word: str) -> Dict[str, int]:
+        """What memory holds of a word's classes, by the treebank's names, from the reader's view as it is now
+        (`structure.held_classes`): the word-class view is rebuilt at each warm, so it is looked up when asked."""
+        from core.semantics.structure import held_classes
+        return held_classes(self.pattern_inventory())(word)
 
     async def remember_analysed(self, analysed, progress: Optional[Callable[[int, int], None]] = None
                                 ) -> Dict[str, Any]:

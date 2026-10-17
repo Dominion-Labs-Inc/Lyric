@@ -31,7 +31,8 @@ the store was not written to.
 
 **Two ways, one run** (since 2026-10-16 (10)): the structure as the treebank alone decides it, and with a word no
 sentence held used taking a class memory holds of it (`StructureView.held_classes`); the second way's metrics are
-named "with memory's word classes", its misses in `_missed_with_word_classes.json`.
+named "with memory's word classes", its misses in `_missed_with_word_classes.json`. Since 2026-10-17 main's own
+structure view asks memory, as it measured better both ways; "treebank only" stays measured beside it.
 
 **Run** (from the Lyric folder; starts no substrate; about 5 minutes to load, then the lessons read twice):
 
@@ -50,6 +51,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | `20261016T225042Z` | as above: none placed against the meaning | 2,988 of 3,054 | 96.1% | **93.9%** |
 | `20261016T231429Z` | as above, treebank only | 2,988 of 3,054 | 96.1% | 93.9% |
 | `20261016T231429Z` | as above, with memory's word classes (a noun held as a noun only) | 2,988 of 3,054 | 96.4% | 94.5% |
+| `20261017T002233Z`, `20261017T013500Z` | as above, treebank only | 2,988 of 3,054 | 96.1% | 93.9% |
+| `20261017T002233Z`, `20261017T013500Z` | as above, with memory's word classes (a noun held as a noun or a name) | 2,988 of 3,054 | 96.4% | **94.4%** |
 
 The first form of the second test counted as wrong what the meaning cannot place: a conjunct under the first
 ("three" under "two" in "two plus three"), two slots tied to one thing no word names ("ten minus four", "between the

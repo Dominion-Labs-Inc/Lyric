@@ -80,6 +80,7 @@ async def main() -> int:
 
     # TWO WAYS, ONE LOAD: as the treebank alone decides, and with a word no sentence held used taking a class memory
     # holds of it (`StructureView.held_classes`), so the two are compared on the same view.
+    asked = view.held_classes
     ways = (("treebank only", None), ("with memory's word classes", held_classes(live_view())))
     for way, held in ways:
         view.held_classes = held
@@ -130,7 +131,7 @@ async def main() -> int:
             shown.append({"sentence": sentence, **{way: {"classes": list(read.classes), "heads": list(read.heads),
                                                          "relations": list(read.relations)}
                                                    for way, read in reads.items()}})
-    view.held_classes = None
+    view.held_classes = asked
     EV.metric("prose sentences read otherwise with memory's word classes", changed, unit="sentences")
     say(f"\n  {changed} of {len(shown)} prose sentences read otherwise with memory's word classes")
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())

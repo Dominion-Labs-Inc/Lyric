@@ -254,6 +254,7 @@ async def main() -> int:
 
     # TWO WAYS, ONE LOAD: the structure as the treebank alone decides it, and with a word no sentence held used taking
     # a class memory holds of it (`StructureView.held_classes`).
+    asked = structure.held_classes
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     for way, held, named, file in (("treebank only", None, "", ""),
                                    ("with memory's word classes", held_classes(view), "with memory's word classes: ",
@@ -286,7 +287,7 @@ async def main() -> int:
         (_results() / f"{stamp}_relations{file}.json").write_text(json.dumps(
             [{"role": role, "relation": relation, "slots": n} for (role, relation), n in by_relation.most_common()],
             indent=1))
-    structure.held_classes = None
+    structure.held_classes = asked
 
     await asyncio.sleep(1)
     after = await written()

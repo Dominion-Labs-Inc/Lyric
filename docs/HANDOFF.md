@@ -29,11 +29,11 @@ over phrases (read only; the owner runs it on the Mac, where the lessons are). R
 lesson sentences read through a frame with slots, **93.9%** have every slot on one phrase, none placed against the
 meaning. About half of the 182 that fail come from how words are classed and written before any structure: "Rex"
 read as a verb (a word the treebank never used is classed by its ending alone, as "whale" was in the prose), numbers
-written in words, "Dr." in two pieces. **Under test** (2026-10-16 (10)): the structure reader taking a class
+written in words, "Dr." in two pieces. **Done** (2026-10-16 (10)): the structure reader taking a class
 memory holds for a word the treebank never used (`StructureView.held_classes`, off by default); STRUCTURE-01 and
-STRUCTURE-02 measure both ways in one run, and it is kept only if it measures better. First run: better on the
-lessons (93.9% → 94.5%) and the prose, worse on the treebank's classes (a name memory holds as a noun); fixed (a noun
-held is a noun or a name), to be run again. Then constructions learned
+STRUCTURE-02 measure both ways in one run. With a noun held as a noun or a name, it measured better on every
+measure on main (dev 92.20 / 73.72 / 66.97, test 92.50 / 74.19 / 67.88, lessons 94.4%; "A whale breathes air through
+a blowhole." reads whole), and **main's structure view now asks memory** (`MemoryAgent._new_structure_view`). Then constructions learned
 over phrases. Open for the owner: whether those learn from the lessons only or also from PropBank's annotations of the
 treebank (the research's decision 2; its licence is unchecked).
 

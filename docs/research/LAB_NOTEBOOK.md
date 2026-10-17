@@ -16172,3 +16172,24 @@ view (each lemma's parts of speech; its stemming for the learned shapes), a stan
 
 The prose with it, from the files: "A whale breathes air through a blowhole." still reads whole, "absorbs" is a verb,
 "Eiffel" stays a name. Tests: `tests/test_structure.py`, 9 passed. To be measured both ways on main again.
+
+**Second run both ways on main** (code 330c932, run twice with the same numbers: STRUCTURE-01
+`results/20261017T001822Z.md` and `20261017T013101Z.md`, 15 of 15 checks; STRUCTURE-02 `results/20261017T002233Z.md`
+and `20261017T013500Z.md`, 5 of 5; nothing written: no table moved from 19:56 on 2026-10-16 to 09:01 on 2026-10-17):
+
+| on main | treebank only | with memory's word classes |
+|---|---|---|
+| treebank dev: classes / UAS / LAS | 92.04 / 73.63 / 66.87 | **92.20 / 73.72 / 66.97** |
+| treebank test: classes / UAS / LAS | 92.32 / 73.83 / 67.50 | **92.50 / 74.19 / 67.88** |
+| lessons: every slot one phrase, none against the meaning | 93.9% | **94.4%** |
+
+Better on every measure. The prose: one sentence reads otherwise, "A whale breathes air through a blowhole.", now
+whole; "Eiffel" stays a name; "absorbs" is still a noun on main (memory does not reach `absorb` through a shape it
+learned).
+
+**Switched on.** Main's structure view asks memory (`MemoryAgent._new_structure_view`, for the view made empty and for
+the one each warm builds; `_held_word_classes` reads the reader's view as it is when asked). The experiments still
+measure "treebank only" beside it, and give main's view back its own setting after. Tests: `tests/test_structure.py`,
+11 passed in a cloud session (with a stand-in for `sentence_transformers`, which is not installed there, and
+`psutil`, `aiohttp`, `asyncpg` installed), among them `test_mains_structure_view_asks_what_memory_holds_of_a_word` and
+the CoNLL-U test that could not run there before.
