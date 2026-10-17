@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (16) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (17) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -65,11 +65,13 @@ systems report where there are any.
    composed into a `Meaning`; measured on the lessons (taught meanings), the held-out prose (UNDERSTANDS-PROSE-01)
    and PropBank's held-out roles end to end. **Begun (2026-10-17 (16))**: arguments found end to end
    (`experiments/ROLES-02`: F1 on test, heads 93.2% over UD's structure and 78.1% over Lyric's; heads and what each
-   is said in 76.7% and 60.9%). A first composer (a prototype, not yet in the repository) composes 49% of the
-   lessons' held-out sentences as taught (51% names aside) and a handful of the prose sentences right; the lessons
-   are too narrow to teach prose alone, and PropBank's arguments with one readable sense for each relation of the
-   structure read prose better. The lessons were copied to `logs/lessons/` on the Mac so a cloud session can read
-   them through the gateway.
+   is said in 76.7% and 60.9%). **The composer** (`core/semantics/composition.py`, `experiments/COMPOSE-01`,
+   2026-10-17 (17)): learned from the lessons, with PropBank's arguments and one readable sense for each relation of
+   the structure behind them; 50.1% of the lessons' held-out sentences composed as taught (52.4% names aside); of the
+   prose, about six sentences as a reader means them and six more nearly. The lessons are too narrow to teach prose
+   alone. The lessons were copied to `logs/lessons/` on the Mac so a cloud session can read them through the
+   gateway. Next: the composer into the conversation's reading (`derived_reader.read_text`, where the frames read
+   nothing; no protected module), then UNDERSTANDS-PROSE-01 on main.
 4. **Taught into main** through the learning authority (the owner's run), and read by the conversation.
 5. Then the rest of understanding: the gaps of `docs/research/MEANING_COVERAGE.md` §6.
 

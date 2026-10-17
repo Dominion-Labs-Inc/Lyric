@@ -1,0 +1,91 @@
+{
+  "experiment": "COMPOSE-01",
+  "claim": "what a sentence means is composed from how its words go together, learned from the lessons",
+  "hypothesis": "learned from nine tenths of the lessons, the composer gives the held-out tenth's taught meanings, and composes the prose of UNDERSTANDS-PROSE-01 (no bar: measured)",
+  "started_at": "2026-10-17T18:13:28.668170+00:00",
+  "duration_seconds": 256.508,
+  "environment": {
+    "python": "3.13.16",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "cwd": "/home/user/Lyric",
+    "shadow_mode": null,
+    "git_commit": "71e61510154da146b667651966b915df46b4ef4f",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "postgres",
+      "configuration_source": {
+        "host": "default",
+        "port": "default",
+        "database": "default",
+        "user": "default",
+        "password": "default",
+        "pool_min_size": "default",
+        "pool_max_size": "default",
+        "pool_idle_seconds": "default",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 2,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "lessons held out: as taught",
+      "value": 0.5011,
+      "unit": "fraction",
+      "note": "1381/2756"
+    },
+    {
+      "name": "lessons held out: names aside",
+      "value": 0.5243,
+      "unit": "fraction",
+      "note": "1445/2756"
+    },
+    {
+      "name": "lessons held out: no meaning",
+      "value": 0.0871,
+      "unit": "fraction",
+      "note": "240/2756"
+    },
+    {
+      "name": "prose sentences composed to a meaning",
+      "value": 30,
+      "unit": "sentences",
+      "note": "of 33"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the lessons are on disk",
+      "passed": true,
+      "detail": "41 lessons, 3,054 sentences",
+      "at": "2026-10-17T18:17:36.819548+00:00"
+    },
+    {
+      "label": "a meaning was composed for some lesson held out",
+      "passed": true,
+      "detail": "1,381",
+      "at": "2026-10-17T18:17:45.173721+00:00"
+    }
+  ],
+  "notes": []
+}

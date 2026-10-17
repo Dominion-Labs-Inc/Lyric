@@ -16433,3 +16433,40 @@ a noun is `has_property`, a number `has_count`, a possessor `owned_by`) read pro
 **Next** (step 3 continued): names of several words as one name (a compound or flat run of names, where memory holds
 the name: WordNet has "blue whale" and "carbon dioxide"); the lessons learned over structure read with memory's word
 classes; the composer into `core/semantics` with its experiment, then into the conversation's reading (step 4).
+
+## 2026-10-17 (17) — The composer in the repository: COMPOSE-01
+
+The prototype of (16), rewritten as `core/semantics/composition.py`, reproduces its numbers exactly on the same
+reading of the lessons (48.9% as taught, 51.0% names aside), with these changes measured first:
+
+| Change | Lessons held out: as taught | names aside |
+|---|---|---|
+| (16)'s last row | 48.6% | 50.4% |
+| a word the treebank never used limited to the classes WordNet gives it (memory's word classes stand-in) | 48.8% | 50.7% |
+| a word's plain form by WordNet ("breathes" `breathe`, "bigger" `big`), else the treebank's lemmas | 49.2% | 50.8% |
+| a run joined as compound or flat one name; an adjective and its noun one where known ("blue whale") | 49.2% | 50.8% |
+| a tense said by how the word differs from its plain form before the most general situation | 49.8% | 51.5% |
+| a general situation gone by only where met 5 times, saying one thing 4 in 5 (`TRUST`) | 48.9% | 51.0% |
+
+Names of several words leave the lessons as they were and read the prose: "blue whale", "carbon dioxide", "Guido van
+Rossum", "Eiffel Tower", "prime number" ("Seven is a prime number." is `isa(7, prime number)`). `TRUST` costs the
+lessons 0.9 points and takes from the prose what the lessons' few cases put there (`antonym_of` between "new" and
+"anomaly", a hiring counted three); kept, the prose being what the composer is for.
+
+**COMPOSE-01** (`experiments/COMPOSE-01`, run `20261017T181328Z`, code 71e6151, files only; the lessons read through
+the gateway from the Mac's `logs/lessons/`): each lesson sentence split as Lyric splits a sentence (`form_of`,
+`words_of`) rather than by the prototype's own rule: **50.1%** of the lessons held out composed as taught, **52.4%**
+names aside, 8.7% to no meaning. The prose: 29 of 33 composed to a meaning; about six as a reader means them
+("Whales are mammals.", "They live in the ocean.", "A whale breathes air through a blowhole.", "The valve is closed.",
+"Seven is a prime number.", the hiring but for "in May"), about six more nearly ("Whales feed their young with milk."
+with the milk done to, "The Eiffel Tower was built in 1889." without the year), the rest wrong. Tests:
+`tests/test_composition.py`, 5 passed; `tests/test_argument_structure.py`, 3 passed. PropBank's arguments for a
+happening are learned by `argument_structure.learned_from_propbank` (ROLES-02 now reads them through
+`taught_arguments`, the same code moved).
+
+**What is left for step 3**, by what the prose shows: the structure (a verb read as a noun leaves "They release
+oxygen." without a fact, "If the valve is closed, the tank is full." without its main clause); "take in" and other
+verbs of two words; a superlative ("the largest animal"), which the lessons write with a degree of no word; a date
+or a place after a happening ("in 1889", "in May"), which PropBank says and the lessons' tables overrule; and the
+composer reaching the conversation (step 4), so UNDERSTANDS-PROSE-01 measures it. A meaning of more than six unknowns
+is refused by `Meaning` (`MAX_FREE_VARIABLES`), which long prose sentences reach.
