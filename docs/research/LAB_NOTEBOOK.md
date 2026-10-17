@@ -16383,3 +16383,53 @@ word classes dev 93.24% / 78.39% / 71.78%, test 93.81% / 79.59% / 73.30%. STRUCT
 slot on one phrase, none against the meaning, 94.24% treebank only (2,816) and 94.31% with memory's word classes
 (2,818), from 94.0% and 94.1% before the capital was read as met (the old reader's best, 94.4%, is within 3
 sentences). "If the valve is closed, the tank is full." still heads on "closed".
+
+## 2026-10-17 (16) — Step 3 begun: arguments found end to end (ROLES-02); a first composer, measured on the lessons and read on the prose
+
+**Arguments end to end** (`experiments/ROLES-02`, run `20261017T173945Z`, code 1ac6aac). With nothing given but the
+happening, the words that may head its arguments are its dependents and, going up, each word above it and that
+word's dependents (`argument_structure.candidates`; 99.6% of the training part's argument heads among them); each is
+learned with what it was said in or `NONE`. F1 on test: argument heads 93.2% over UD's structure, 78.1% over Lyric's;
+heads and what each is said in 76.7% and 60.9%. Tests: `tests/test_argument_structure.py`, 3 passed.
+
+**A first composer** (a prototype in the cloud session's scratch space, not yet in the repository). The lessons, all
+3,054 sentences with their taught meanings, were copied on the Mac to `logs/lessons/` (ignored by git, served by the
+gateway; owner's run) and read here, each sentence's structure read by Lyric's reader. The composer learns, as
+counts over situations of the structure, decided by the most specific situation met: what each word stands for
+(nothing, a name, a thing, a known thing, the speaker, the listener, the thing before, here, there, what is asked);
+what fact two words' places in the structure say (the path between them, the words on it, the function words on
+each, a denial; a conjunct standing where its first conjunct stands); what fact a word brings with a term of the
+situation's (`precedes ?now` by its tense, `has_property ... hypothetical` by "would", `unexpected` by "even" or
+"although"); which flags a clause puts on its facts (`condition` under "if", `unasserted` under "think" or "say",
+`alternative` with "or" in a question), each fact belonging to its subject's clause; and the act. Measured ten ways
+(learned from nine tenths of the sentences, each sentence of the tenth held out composed and compared whole with the
+taught meaning, written canonically), the 298 sentences of arithmetic left to the arithmetic reader:
+
+| Composer | as taught | names aside |
+|---|---|---|
+| the five decisions, situations of words and classes | 34.4% (of all 3,054) | |
+| the thing before, here and there; verbs between two words ("has" is `owns`); the arithmetic apart | 44.5% | 46.5% |
+| tense, titles, "even"; a fact of its subject's clause; a possessive; the word above | 49.0% | 50.8% |
+| every situation weighed (Witten-Bell) in place of the most specific | 49.6% | 51.4% |
+| PropBank's arguments where the lessons say nothing particular; a relation's own sense last | 48.6% | 50.4% |
+
+"Names aside" counts a meaning right whose names alone differ: the lessons name some things by sense ("metal" as
+`metallic element`, "bike" as `bicycle`), which the main model's memory gives and a lemma learned from the treebank
+cannot. What else fails: the structure (a verb read as a noun beside a noun teaches the composer that a compound is
+`done_by`), comparisons ("taller than" holds two degrees, one of no word), groups ("we"), times ("a year ago").
+
+**On the prose** (the 33 sentences of UNDERSTANDS-PROSE-01, as main read them on 2026-10-17 17:02). Composed with
+everything learned from the lessons: "Whales are mammals." is `isa(whale, mammal)`, "They live in the ocean." a
+living by the thing before, `located_in` the known ocean, "The valve is closed." `has_property(valve, closed)`,
+"The company hired three engineers in May." a hiring by the company of three engineers. Most are wrong: names of
+several words come apart ("Eiffel Tower", "carbon dioxide", "Guido van Rossum"), what the lessons' misread
+structures taught is carried into prose (`antonym_of`, `has_count` of a hiring), "Whales feed" is read as past (the
+lessons hold few plural verbs in the present). The lessons are too narrow to teach composition for prose alone: an
+adjective before a noun is `has_property` in 13 lesson sentences and something else in 35. Where the lessons say
+nothing particular, PropBank's arguments and one readable sense for each relation of the structure (an adjective on
+a noun is `has_property`, a number `has_count`, a possessor `owned_by`) read prose better ("the green pigment",
+"significant indentation", "unlabeled data") and cost the lessons 0.4 points.
+
+**Next** (step 3 continued): names of several words as one name (a compound or flat run of names, where memory holds
+the name: WordNet has "blue whale" and "carbon dioxide"); the lessons learned over structure read with memory's word
+classes; the composer into `core/semantics` with its experiment, then into the conversation's reading (step 4).
