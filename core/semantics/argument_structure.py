@@ -15,6 +15,13 @@ memory-based learning, as the structure itself is decided.
 
 What each argument was said in comes from the meaning language (`propbank_roles`): a fact in a link kind
 (`done_by`, `located_in`), a rule its words settle (`predicated`), nothing, or a named gap.
+
+WHICH PHRASES ARE ARGUMENTS. Not every word near a predicate heads one of its arguments. The words that may
+(`candidates`) are its dependents and, going up the structure from it, each word above it and that word's
+dependents: "Tom" in "Tom wanted to leave" is an argument of "leave" two steps up (the pruning of dependency role
+labelling, Zhao, Chen, Kit & Zhou 2009). Learned with every candidate that heads none said as `NONE`, the same view
+finds the arguments and says each (`ArgumentStructureView.arguments`), each as a phrase: the word with all that
+depends on it (`phrase`).
 """
 from __future__ import annotations
 
@@ -28,6 +35,8 @@ from core.semantics.structure import StructureView
 MARKING = ("case", "mark")
 #: The longest path kept whole; a longer one is its first steps and "…".
 LONGEST_PATH = 4
+#: What a candidate that heads no argument is said in.
+NONE = "none"
 
 
 def head_of(span: Tuple[int, int], heads: Sequence[int]) -> int:
@@ -35,6 +44,38 @@ def head_of(span: Tuple[int, int], heads: Sequence[int]) -> int:
     start, end = span
     outside = [i for i in range(start, end) if not start <= heads[i] - 1 < end]
     return outside[0] if outside else start
+
+
+def candidates(heads: Sequence[int], predicate: int) -> List[int]:
+    """The words that may head an argument of the predicate (0-based; `heads` 1-based, 0 the root): its dependents,
+    then, going up, each word above it and that word's dependents."""
+    under: Dict[int, List[int]] = defaultdict(list)
+    for i, head in enumerate(heads):
+        under[head - 1].append(i)
+    found: List[int] = []
+    at = predicate
+    while True:
+        found += [i for i in under[at] if i != predicate and i not in found]
+        up = heads[at] - 1
+        if up < 0:
+            return found
+        if up not in found:
+            found.append(up)
+        at = up
+
+
+def phrase(at: int, heads: Sequence[int]) -> Tuple[int, int]:
+    """The words word `at` heads, itself with all that depends on it: (start, end), 0-based, end past the last."""
+    under: Dict[int, List[int]] = defaultdict(list)
+    for i, head in enumerate(heads):
+        under[head - 1].append(i)
+    span, waiting = [at], [at]
+    while waiting:
+        for i in under[waiting.pop()]:
+            if i not in span:
+                span.append(i)
+                waiting.append(i)
+    return min(span), max(span) + 1
 
 
 def path(predicate: int, argument: int, heads: Sequence[int], relations: Sequence[str]) -> str:
@@ -80,19 +121,30 @@ class ArgumentStructureView:
 
     def __init__(self) -> None:
         self._met: Dict[Tuple, Counter] = defaultdict(Counter)
-        self.arguments = 0
+        self._held = 0
 
     def __len__(self) -> int:
-        return self.arguments
+        return self._held
 
     def add(self, met: Sequence[Tuple], said: str) -> None:
         """Hold one argument: the situations it stood in (`situations`) and what it was said in."""
         for situation in met:
             self._met[situation][said] += 1
-        self.arguments += 1
+        self._held += 1
 
     def said(self, met: Sequence[Tuple]) -> Optional[str]:
         """What an argument standing in these situations is said in, as the arguments met in the most specific of
         them were; None when none was met."""
         decided = StructureView._decide((situation, self._met.get(situation)) for situation in met)
         return decided[0] if decided else None
+
+    def arguments(self, words: Sequence[str], classes: Sequence[str], heads: Sequence[int],
+                  relations: Sequence[str], predicate: int) -> Dict[int, str]:
+        """The predicate's arguments: each candidate (`candidates`) said in something other than `NONE`, as {its
+        head word (0-based): what it is said in}. Learned with `NONE` for the candidates that head none."""
+        found: Dict[int, str] = {}
+        for at in candidates(heads, predicate):
+            said = self.said(situations(words, classes, heads, relations, predicate, phrase(at, heads)))
+            if said and said != NONE:
+                found[at] = said
+        return found
