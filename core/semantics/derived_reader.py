@@ -4784,7 +4784,7 @@ _ENDS_SPANNED = 3
 COMPOSING = os.environ.get("LYRIC_COMPOSE") == "1"
 
 
-def _composed(utterance: "Utterance") -> "Utterance":
+def _read_by_composing(utterance: "Utterance") -> "Utterance":
     """An utterance no taught frame read, read by composing its meaning (`COMPOSING`); as it was where memory is not
     up in this process or nothing is composed to a meaning."""
     from core.agents import memory_agent as _memory
@@ -4860,7 +4860,7 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
         partial, unknown = _partial(said, view) if parts else ((), ())
         out.append(Utterance(said, (), partial, unknown))
     if COMPOSING:
-        out = [u if u.readings else _composed(u) for u in out]
+        out = [u if u.readings else _read_by_composing(u) for u in out]
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
 
 
