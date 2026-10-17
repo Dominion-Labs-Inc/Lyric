@@ -1,0 +1,472 @@
+[
+ {
+  "role": "kind",
+  "relation": "nsubj",
+  "slots": 1006
+ },
+ {
+  "role": "doing",
+  "relation": "root",
+  "slots": 817
+ },
+ {
+  "role": "thing",
+  "relation": "nsubj",
+  "slots": 806
+ },
+ {
+  "role": "kind",
+  "relation": "root",
+  "slots": 649
+ },
+ {
+  "role": "quality",
+  "relation": "root",
+  "slots": 447
+ },
+ {
+  "role": "thing",
+  "relation": "root",
+  "slots": 299
+ },
+ {
+  "role": "kind",
+  "relation": "obj",
+  "slots": 168
+ },
+ {
+  "role": "thing",
+  "relation": "nmod",
+  "slots": 131
+ },
+ {
+  "role": "thing",
+  "relation": "obj",
+  "slots": 129
+ },
+ {
+  "role": "kind",
+  "relation": "nmod",
+  "slots": 126
+ },
+ {
+  "role": "closed",
+  "relation": "nummod",
+  "slots": 117
+ },
+ {
+  "role": "thing",
+  "relation": "obl",
+  "slots": 92
+ },
+ {
+  "role": "kind",
+  "relation": "nsubj:pass",
+  "slots": 79
+ },
+ {
+  "role": "closed",
+  "relation": "root",
+  "slots": 72
+ },
+ {
+  "role": "doing",
+  "relation": "xcomp",
+  "slots": 70
+ },
+ {
+  "role": "kind",
+  "relation": "compound",
+  "slots": 67
+ },
+ {
+  "role": "kind",
+  "relation": "obl",
+  "slots": 55
+ },
+ {
+  "role": "closed",
+  "relation": "nmod",
+  "slots": 53
+ },
+ {
+  "role": "quality",
+  "relation": "conj",
+  "slots": 49
+ },
+ {
+  "role": "kind",
+  "relation": "conj",
+  "slots": 45
+ },
+ {
+  "role": "thing",
+  "relation": "nsubj:pass",
+  "slots": 42
+ },
+ {
+  "role": "thing",
+  "relation": "nmod:unmarked",
+  "slots": 41
+ },
+ {
+  "role": "doing",
+  "relation": "ccomp",
+  "slots": 40
+ },
+ {
+  "role": "doing",
+  "relation": "advcl",
+  "slots": 38
+ },
+ {
+  "role": "thing",
+  "relation": "nummod",
+  "slots": 38
+ },
+ {
+  "role": "thing",
+  "relation": "compound",
+  "slots": 33
+ },
+ {
+  "role": "closed",
+  "relation": "conj",
+  "slots": 31
+ },
+ {
+  "role": "quality",
+  "relation": "amod",
+  "slots": 29
+ },
+ {
+  "role": "quality",
+  "relation": "advmod",
+  "slots": 28
+ },
+ {
+  "role": "closed",
+  "relation": "compound",
+  "slots": 28
+ },
+ {
+  "role": "thing",
+  "relation": "amod",
+  "slots": 27
+ },
+ {
+  "role": "doing",
+  "relation": "conj",
+  "slots": 26
+ },
+ {
+  "role": "doing",
+  "relation": "obj",
+  "slots": 25
+ },
+ {
+  "role": "closed",
+  "relation": "nsubj",
+  "slots": 25
+ },
+ {
+  "role": "quality",
+  "relation": "ccomp",
+  "slots": 23
+ },
+ {
+  "role": "doing",
+  "relation": "acl",
+  "slots": 22
+ },
+ {
+  "role": "kind",
+  "relation": "appos",
+  "slots": 22
+ },
+ {
+  "role": "quality",
+  "relation": "aux",
+  "slots": 21
+ },
+ {
+  "role": "quality",
+  "relation": "nsubj",
+  "slots": 21
+ },
+ {
+  "role": "thing",
+  "relation": "conj",
+  "slots": 20
+ },
+ {
+  "role": "closed",
+  "relation": "advmod",
+  "slots": 20
+ },
+ {
+  "role": "kind",
+  "relation": "advcl",
+  "slots": 17
+ },
+ {
+  "role": "closed",
+  "relation": "amod",
+  "slots": 17
+ },
+ {
+  "role": "closed",
+  "relation": "obl",
+  "slots": 17
+ },
+ {
+  "role": "doing",
+  "relation": "acl:relcl",
+  "slots": 16
+ },
+ {
+  "role": "kind",
+  "relation": "obl:unmarked",
+  "slots": 15
+ },
+ {
+  "role": "closed",
+  "relation": "flat",
+  "slots": 15
+ },
+ {
+  "role": "thing",
+  "relation": "flat",
+  "slots": 14
+ },
+ {
+  "role": "kind",
+  "relation": "amod",
+  "slots": 12
+ },
+ {
+  "role": "doing",
+  "relation": "nsubj",
+  "slots": 11
+ },
+ {
+  "role": "name",
+  "relation": "root",
+  "slots": 10
+ },
+ {
+  "role": "doing",
+  "relation": "obl",
+  "slots": 9
+ },
+ {
+  "role": "kind",
+  "relation": "ccomp",
+  "slots": 9
+ },
+ {
+  "role": "quality",
+  "relation": "discourse",
+  "slots": 9
+ },
+ {
+  "role": "thing",
+  "relation": "obl:unmarked",
+  "slots": 8
+ },
+ {
+  "role": "quality",
+  "relation": "acl:relcl",
+  "slots": 7
+ },
+ {
+  "role": "kind",
+  "relation": "nmod:unmarked",
+  "slots": 7
+ },
+ {
+  "role": "thing",
+  "relation": "vocative",
+  "slots": 6
+ },
+ {
+  "role": "kind",
+  "relation": "nmod:poss",
+  "slots": 6
+ },
+ {
+  "role": "thing",
+  "relation": "ccomp",
+  "slots": 6
+ },
+ {
+  "role": "thing",
+  "relation": "acl:relcl",
+  "slots": 5
+ },
+ {
+  "role": "quality",
+  "relation": "obl",
+  "slots": 5
+ },
+ {
+  "role": "quality",
+  "relation": "advcl",
+  "slots": 5
+ },
+ {
+  "role": "thing",
+  "relation": "xcomp",
+  "slots": 5
+ },
+ {
+  "role": "doing",
+  "relation": "obl:unmarked",
+  "slots": 5
+ },
+ {
+  "role": "thing",
+  "relation": "discourse",
+  "slots": 5
+ },
+ {
+  "role": "closed",
+  "relation": "obj",
+  "slots": 5
+ },
+ {
+  "role": "kind",
+  "relation": "nummod",
+  "slots": 4
+ },
+ {
+  "role": "doing",
+  "relation": "nmod",
+  "slots": 4
+ },
+ {
+  "role": "thing",
+  "relation": "iobj",
+  "slots": 4
+ },
+ {
+  "role": "thing",
+  "relation": "advmod",
+  "slots": 4
+ },
+ {
+  "role": "thing",
+  "relation": "reparandum",
+  "slots": 3
+ },
+ {
+  "role": "doing",
+  "relation": "appos",
+  "slots": 3
+ },
+ {
+  "role": "thing",
+  "relation": "appos",
+  "slots": 3
+ },
+ {
+  "role": "quality",
+  "relation": "appos",
+  "slots": 3
+ },
+ {
+  "role": "doing",
+  "relation": "nsubj:outer",
+  "slots": 3
+ },
+ {
+  "role": "kind",
+  "relation": "xcomp",
+  "slots": 2
+ },
+ {
+  "role": "thing",
+  "relation": "acl",
+  "slots": 2
+ },
+ {
+  "role": "doing",
+  "relation": "amod",
+  "slots": 2
+ },
+ {
+  "role": "doing",
+  "relation": "compound",
+  "slots": 2
+ },
+ {
+  "role": "quality",
+  "relation": "xcomp",
+  "slots": 2
+ },
+ {
+  "role": "kind",
+  "relation": "parataxis",
+  "slots": 2
+ },
+ {
+  "role": "closed",
+  "relation": "det",
+  "slots": 2
+ },
+ {
+  "role": "thing",
+  "relation": "det",
+  "slots": 2
+ },
+ {
+  "role": "kind",
+  "relation": "advmod",
+  "slots": 2
+ },
+ {
+  "role": "thing",
+  "relation": "aux",
+  "slots": 1
+ },
+ {
+  "role": "quality",
+  "relation": "mark",
+  "slots": 1
+ },
+ {
+  "role": "quality",
+  "relation": "acl",
+  "slots": 1
+ },
+ {
+  "role": "thing",
+  "relation": "parataxis",
+  "slots": 1
+ },
+ {
+  "role": "doing",
+  "relation": "case",
+  "slots": 1
+ },
+ {
+  "role": "thing",
+  "relation": "nmod:poss",
+  "slots": 1
+ },
+ {
+  "role": "closed",
+  "relation": "appos",
+  "slots": 1
+ },
+ {
+  "role": "thing",
+  "relation": "advcl",
+  "slots": 1
+ },
+ {
+  "role": "quality",
+  "relation": "parataxis",
+  "slots": 1
+ }
+]
