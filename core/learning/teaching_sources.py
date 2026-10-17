@@ -20,6 +20,7 @@ import gzip
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
@@ -1931,6 +1932,114 @@ class TreebankSource:
                 f"the treebank is not at {self.path}; fetch it first (UniversalDependencies/UD_English-EWT). A "
                 f"teaching pass does not reach the network.")
         return read_conllu(self.path, self.name)
+
+
+# ── PropBank ────────────────────────────────────────────────────────────────
+
+#: Where PropBank is kept on disk beside the treebank (datasets are not in the repository): its annotations and its
+#: frame files, each cloned from github.com/propbank (CC BY-SA 4.0).
+SYNTAX_DATA = os.path.dirname(os.path.dirname(EWT_TRAIN))
+
+
+@dataclass(frozen=True)
+class PropBankWord:
+    """A word of a treebank sentence PropBank annotates, as UD English EWT writes it: the word, its lemma, its class
+    by Lyric's names, the word it depends on (1 for the first, 0 for the root) and as what."""
+
+    form: str
+    lemma: str
+    word_class: str
+    head: int
+    relation: str
+
+
+@dataclass(frozen=True)
+class PropBankPredicate:
+    """One predicate PropBank annotates: where it stands (0 for the first word), its sense (`give.01`), its Penn tag,
+    and its arguments: each label with the spans it covers, (start, end) of the sentence's words."""
+
+    at: int
+    roleset: str
+    tag: str
+    arguments: Tuple[Tuple[str, Tuple[Tuple[int, int], ...]], ...]
+
+
+def propbank_roles_of_frames(frames: str) -> Dict[Tuple[str, str], Tuple[str, Tuple[str, ...]]]:
+    """(sense, ARGn) -> (function tag, VerbNet 3.4 roles), from PropBank's frame files."""
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+    roles: Dict[Tuple[str, str], Tuple[str, Tuple[str, ...]]] = {}
+    for path in Path(frames).glob("*.xml"):
+        try:
+            tree = ET.parse(path)
+        except ET.ParseError:
+            continue
+        for roleset in tree.iter("roleset"):
+            for role in roleset.iter("role"):
+                verbnet = tuple(sorted({link.text.strip().lower() for link in role.iter("rolelink")
+                                        if link.get("resource") == "VerbNet" and link.get("version") == "verbnet3.4"
+                                        and link.text}))
+                roles[(roleset.get("id"), "ARG" + str(role.get("n")).upper())] = (role.get("f", ""), verbnet)
+    return roles
+
+
+def read_propbank_ewt(release: str, treebank: str
+                      ) -> Iterator[Tuple[str, str, int, Tuple[PropBankWord, ...], Tuple[PropBankPredicate, ...]]]:
+    """PropBank's annotations of the English Web Treebank with the words and structure of UD English EWT: each
+    sentence as (part, document, index, words, predicates), its part UD's (train, dev, test).
+
+    PropBank writes each word `[WORD]`, pointing into the LDC's copy of the text; UD holds the same sentences, matched
+    here by document and place, and a sentence is read only where both have the same number of words (16,548 of
+    16,579)."""
+    from pathlib import Path
+    words_of: Dict[Tuple[str, int], Tuple[str, Tuple[PropBankWord, ...]]] = {}
+    for part in ("train", "dev", "test"):
+        sent_id, words = None, []
+        with open(Path(treebank) / f"en_ewt-ud-{part}.conllu", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("# sent_id"):
+                    sent_id = line.split("=", 1)[1].strip()
+                elif not line.strip():
+                    found = re.match(r"[a-z]+-(.+)-(\d+)$", sent_id or "")
+                    if found:
+                        words_of[(found.group(1), int(found.group(2)) - 1)] = (part, tuple(words))
+                    sent_id, words = None, []
+                elif not line.startswith("#"):
+                    cols = line.rstrip("\n").split("\t")
+                    if cols[0].isdigit():
+                        words.append(PropBankWord(cols[1], cols[2].lower(), _UD_CLASS.get(cols[3], cols[3]),
+                                                  int(cols[6]), cols[7]))
+    for path in sorted(Path(release, "data", "google", "ewt").rglob("*.gold_skel")):
+        block: List[List[str]] = []
+        with open(path, encoding="utf-8") as handle:
+            lines = list(handle) + [""]
+        for line in lines:
+            cols = line.split()
+            if cols:
+                block.append(cols)
+                continue
+            if not block:
+                continue
+            document, index = block[0][0].split("/")[-1].replace(".xml", ""), int(block[0][1])
+            found = words_of.get((document, index))
+            if found is not None and len(found[1]) == len(block):
+                heads = [(i, row[7], row[4]) for i, row in enumerate(block) if row[7] != "-"]
+                predicates = []
+                for k, (at, roleset, tag) in enumerate(heads):
+                    spans: Dict[str, List[Tuple[int, int]]] = {}
+                    opened: List[List[Any]] = []
+                    for i, row in enumerate(block):
+                        cell = row[8 + k] if 8 + k < len(row) else "*"
+                        for name in re.findall(r"\(([^*()]+)\*", cell):
+                            opened.append([name, i])
+                        for _ in range(cell.count(")")):
+                            if opened:
+                                name, start = opened.pop()
+                                spans.setdefault(name, []).append((start, i + 1))
+                    predicates.append(PropBankPredicate(at, roleset, tag, tuple(
+                        (label, tuple(found_spans)) for label, found_spans in spans.items() if label != "V")))
+                yield found[0], document, index, found[1], tuple(predicates)
+            block = []
 
 
 # ── Wikidata ────────────────────────────────────────────────────────────────

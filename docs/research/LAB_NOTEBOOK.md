@@ -16235,3 +16235,31 @@ in words apart. Poems: nothing reads rhyme, metre, line or figurative meaning. S
 pronunciations** (0 memories tagged `pronunciation`; the CMU dictionary's source exists and was never taught); the
 ear hands sound-alike words on together when hearing, but nothing holds that two words sound alike, rhyme, or are
 spelled alike, and nothing ties a way of saying "lead" to its sense.
+
+
+## 2026-10-17 (12) — Argument-structure constructions learned over phrases: ROLES-01
+
+**The plan.** The owner set the course: finish the plan (constructions learned over phrases), then the rest of
+understanding, toward a reader as good as a language model or better, each step measured on held-out text. The steps
+are in the handoff ("The plan now").
+
+**Built.**
+- `read_propbank_ewt` and `propbank_roles_of_frames` (`core/learning/teaching_sources.py`): PropBank's annotations of
+  the English Web Treebank with UD's words, lemmas, classes and structure, by UD's parts (train, dev, test).
+- `core/semantics/argument_structure.py`: an argument stands to its predicate in situations, most specific first: the
+  predicate's word, the path between them in the structure ("↓nsubj", "↑xcomp↓nsubj"), the word marking it ("to",
+  "in", "if"), the predicate's voice and class, the class of the argument's head, its first word. It is said as the
+  arguments met in the most specific situation like it were (`StructureView._decide`, backing off on a tie).
+- `experiments/ROLES-01`: learned from the training part's 73,089 arguments of happenings, each in the meaning
+  language (`propbank_roles`; a pivot no predicate says is its doer); read on dev and test, the arguments given.
+
+**Measured** (cloud session, from the files):
+
+| Held-out arguments, given | over UD's structure | over Lyric's structure | the path alone |
+|---|---|---|---|
+| dev (8,526) | 80.2% | 65.5% | 56.5% |
+| test (8,320) | 80.5% | 65.8% | 55.7% |
+
+The most frequent confusion is `done_to` for `done_by` and back (the door that opened was opened; a stimulus is what
+is seen). Read with UD's lemmas instead of the words as written it was 81.7% and 82.0%; the reader has no lemmas of
+its own, so the experiment reads the words. Lyric's structure (UAS 74%) costs 15 points: the next step.
