@@ -16263,3 +16263,33 @@ are in the handoff ("The plan now").
 The most frequent confusion is `done_to` for `done_by` and back (the door that opened was opened; a stimulus is what
 is seen). Read with UD's lemmas instead of the words as written it was 81.7% and 82.0%; the reader has no lemmas of
 its own, so the experiment reads the words. Lyric's structure (UAS 74%) costs 15 points: the next step.
+
+
+## 2026-10-17 (13) — The structure reader: what raises it, measured; beam search kept
+
+Step 2 of the plan: the structure reader's UAS (74%) costs the roles 15 points (ROLES-01). Each idea measured from
+the treebank's files (held out: dev, and test where kept), counts only, nothing learned past counts:
+
+| Tried | dev UAS | |
+|---|---|---|
+| as built | 73.63% (79.97% with the treebank's own classes) | |
+| a richer step context, its 17 features ordered by gain ratio, one prefix deciding | 66.00% (71.06%) | worse: the words come early, the long prefixes are seldom met, and the reader backs off past what matters |
+| every situation deciding at once, each weighed as Witten-Bell weighs it | 73.83% (80.06%) | +0.2 |
+| that, and a beam of 8 partial structures, each kept by how likely its steps were | 74.52%; test 75.03% (from 73.83%) | **+0.9 dev, +1.2 test: kept** |
+| the six CC BY-SA English treebanks UD has besides EWT added (9,813 sentences: Atis, ESLSpok, PUD, CTeTex, LittlePrince, Pronouns) | 74.25% | +0.6; mostly other kinds of text |
+| a quarter, a half and all of EWT's training part | 67.30%, 70.44%, 73.63% | each doubling about +3.2 UAS and +1.7 classes |
+
+GUM, LinES, ParTUT and GENTLE (another 424,000 words) are licensed non-commercial (CC BY-NC-SA 4.0) and are left
+out. The learning curve says what raises a memory-based reader most: more analysed text of the kind it reads.
+
+**Kept** (`core/semantics/structure.py`): `StructureView.structure` searches the steps with a beam (`BEAM = 8`), each
+partial structure kept by the sum of its steps' log chances (`_chances`: every situation met, Witten-Bell). Classes
+are decided as before. From the files: dev 92.04% / 74.52% / 67.97% (classes / UAS / LAS), test 92.32% / 75.03% /
+68.76%. Tests: `tests/test_structure.py`, 11 passed. ROLES-01 over Lyric's structure: 65.5% to 66.3% (dev), 65.8% to
+66.5% (test). Main reads with it once pulled; STRUCTURE-01 on main measures it with memory's word classes.
+
+**What is left to raise it** (the plan's step 2 stays open): the structure is decided step by step from a few
+situations; published count-based dependency models that score whole trees (Eisner's, with each dependent
+conditioned on its head, direction, the sibling before it and distance) reached about 85 to 90% on news text, and
+the curve above says more analysed text of the web's kind helps most. Lyric reading text and keeping each sentence
+whose reading its memory confirms as analysed would grow exactly that.

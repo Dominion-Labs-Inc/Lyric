@@ -53,4 +53,6 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 
 For each run, the same code reading the treebank's files gives the same to four places, and the same reading of
 every prose sentence, treebank only (the other way needs main's word classes): memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
-earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7) and (8).
+earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-16 (7) and (8). Since 2026-10-17
+(13) the structure is searched with a beam: from the files, treebank only, dev 92.0% / 74.5% / 68.0%, test 92.3% /
+75.0% / 68.8%.

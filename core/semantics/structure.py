@@ -20,6 +20,7 @@ measures the same from what the main model holds).
 from __future__ import annotations
 
 import hashlib
+import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -31,6 +32,10 @@ _OPEN_CLASS = "NOUN"
 _RARE = 5
 #: The word everything else depends on through the root.
 ROOT = "<root>"
+#: How many partial structures are kept while a sentence is read (`StructureView.structure`): one is the likeliest
+#: step each time; eight let a later step outweigh an earlier one. Measured on the treebank's held-out parts
+#: (2026-10-17 (13)): UAS dev 73.6% to 74.5%, test 73.8% to 75.0%.
+BEAM = 8
 
 
 @dataclass(frozen=True)
@@ -348,34 +353,69 @@ class StructureView:
             chosen.append(decided[0] if decided else _OPEN_CLASS)
         return tuple(chosen)
 
+    @staticmethod
+    def _chances(met: Iterable[Tuple[Tuple, Optional[Counter]]], allowed: Callable[[str], bool]) -> Dict[str, float]:
+        """How likely each allowed step is here, from every situation met: the least specific first, each more
+        specific one counting as Witten-Bell weighs it (met n times with t different steps, n/(n+t) of the way, the
+        rest left to the less specific). Counts only."""
+        chances: Dict[str, float] = {}
+        for _, did in reversed(list(met)):
+            if not did:
+                continue
+            options = {step: n for step, n in did.items() if allowed(step)}
+            if not options:
+                continue
+            n = sum(options.values())
+            weight = n / (n + len(options))
+            chances = {step: weight * options.get(step, 0) / n + (1 - weight) * chances.get(step, 0.0)
+                       for step in set(chances) | set(options)}
+        return chances
+
     def structure(self, words: Sequence[str], classes: Sequence[str]) -> Structure:
-        """Which word each depends on, and as what, built step by step."""
+        """Which word each depends on, and as what: the steps that build it searched with a beam (`BEAM`), each
+        partial structure kept by how likely its steps were (`_chances`), so a later step can outweigh an earlier
+        one where taking the likeliest step each time could not."""
         self._work_out()
         lowered = (ROOT,) + tuple(word.lower() for word in words)
         with_root = ("ROOT",) + tuple(classes)
-        stack, waiting = [0], list(range(1, len(lowered)))
-        heads: List[int] = [0] * len(lowered)
-        under: Dict[int, List[int]] = defaultdict(list)
-        relation: Dict[int, str] = {}
 
-        def allowed(step: str) -> bool:
-            if step == "S":
-                return bool(waiting)
-            if len(stack) < 2:
-                return False
-            if step.startswith("L"):
-                return stack[-2] != 0
-            return stack[-2] != 0 or not waiting
-        while waiting or len(stack) > 1:
-            situations = self._step_situations(lowered, with_root, stack, waiting, under, relation)
-            decided = self._decide(((s, level.get(s)) for level, s in zip(self._steps, situations)), allowed)
-            step = decided[0] if decided else ("S" if waiting else "R:dep")
-            attached = self._take(step, stack, waiting, under, relation)
-            if attached is not None:
-                dependent, head = attached
-                heads[dependent] = head
-                if head == 0:
-                    relation[dependent] = "root"
+        def allowed(stack: Sequence[int], waiting: Sequence[int]) -> Callable[[str], bool]:
+            def ok(step: str) -> bool:
+                if step == "S":
+                    return bool(waiting)
+                if len(stack) < 2:
+                    return False
+                if step.startswith("L"):
+                    return stack[-2] != 0
+                return stack[-2] != 0 or not waiting
+            return ok
+        beam = [(0.0, [0], list(range(1, len(lowered))), [0] * len(lowered), defaultdict(list), {})]
+        while any(waiting or len(stack) > 1 for _, stack, waiting, _, _, _ in beam):
+            grown = []
+            for score, stack, waiting, heads, under, relation in beam:
+                if not waiting and len(stack) <= 1:
+                    grown.append((score, stack, waiting, heads, under, relation))
+                    continue
+                situations = self._step_situations(lowered, with_root, stack, waiting, under, relation)
+                chances = self._chances(((s, level.get(s)) for level, s in zip(self._steps, situations)),
+                                        allowed(stack, waiting))
+                if not chances:
+                    chances = {("S" if waiting else "R:dep"): 1.0}
+                for step, chance in sorted(chances.items(), key=lambda kv: (-kv[1], kv[0]))[:BEAM]:
+                    if chance <= 0:
+                        continue
+                    stack2, waiting2, heads2 = list(stack), list(waiting), list(heads)
+                    under2 = defaultdict(list, {k: list(v) for k, v in under.items()})
+                    relation2 = dict(relation)
+                    attached = self._take(step, stack2, waiting2, under2, relation2)
+                    if attached is not None:
+                        dependent, head = attached
+                        heads2[dependent] = head
+                        if head == 0:
+                            relation2[dependent] = "root"
+                    grown.append((score + math.log(chance), stack2, waiting2, heads2, under2, relation2))
+            beam = sorted(grown, key=lambda kept: -kept[0])[:BEAM]
+        _, _, _, heads, _, relation = beam[0]
         return Structure(tuple(words), tuple(classes), tuple(heads[1:]),
                          tuple(relation.get(d, "dep") for d in range(1, len(lowered))))
 
