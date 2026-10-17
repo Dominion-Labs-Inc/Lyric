@@ -44,7 +44,7 @@ def test_an_annotated_sentence_is_held_whole_and_learned_from():
     argued = ax.Argued.of(Analysed(words, classes, heads, relations, "t:1"),
                           {1: {0: "fact:done_by", 3: "fact:done_to"}}, {})
     assert ax.Argued.from_dict(argued.to_dict()) == argued
-    assert argued.said() == '"Tom kicked the ball .": "kicked": "Tom" fact:done_by, "ball" fact:done_to'
+    assert argued.said() == '"Tom kicked the ball ."\n"kicked": "Tom" fact:done_by, "ball" fact:done_to'
     view = ax.ArgumentStructureView()
     view.learn(argued)
     assert view.arguments(("Rex", "kicked", "the", "box", "."), classes, heads, relations, 1) == \
@@ -71,10 +71,12 @@ def test_memory_keeps_an_annotated_sentence_once_and_folds_it_into_its_view():
         return True, f"m{len(stored)}"
 
     async def rows_tagged(tag):
-        return [SimpleNamespace(metadata=s["source_context"]) for s in stored if tag in s["tags"]]
+        return [SimpleNamespace(memory_id=f"m{k}", metadata=s["source_context"])
+                for k, s in enumerate(stored, 1) if tag in s["tags"]]
     agent.store_memory, agent._rows_tagged = store_memory, rows_tagged
     first = asyncio.run(agent.remember_argued([argued]))
     assert (first["remembered"], first["already"]) == (1, 0) and first["kept"] == [(argued, "m1")]
     assert stored[0]["source_context"] == {"argued": argued.to_dict()} and len(agent.argument_view()) == 1
     again = asyncio.run(agent.remember_argued([argued]))
     assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1
+    assert again["held_already"] == [(argued, "m1")] and "\n" in stored[0]["content"]

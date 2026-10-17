@@ -173,11 +173,14 @@ class Argued:
         return f'the arguments of the happenings in "{self.analysed.text}" ({self.key()[:8]})'
 
     def said(self) -> str:
-        """The annotation, said plainly: each happening and what each of its arguments is."""
+        """The annotation, said plainly: the sentence, then a line for each happening and what each of its arguments
+        is. Several lines, so memory keeps it as a record and never reads it as a claim (`_readable_claim`): a short
+        sentence's annotation on one line was read by the whole reader, and one stopped a pass on main for an hour
+        (2026-10-17 (19))."""
         words = self.analysed.words
-        return f'"{self.analysed.text}": ' + "; ".join(
+        return "\n".join([f'"{self.analysed.text}"'] + [
             f'"{words[at]}": ' + ", ".join(f'"{words[head]}" {said}' for head, said in found)
-            for at, found in self.arguments)
+            for at, found in self.arguments])
 
     def to_dict(self) -> Dict[str, Any]:
         return {"analysed": self.analysed.to_dict(),

@@ -6436,7 +6436,7 @@ class MemoryAgent(IMemoryConsolidation):
         each; one held already is not held again. Returns `kept` and counts, as `remember_argued`."""
         return await self._remember_whole(
             taught, view=self.composition_view, tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
-            content=lambda item: item.claim(), add=lambda view, item: view.hold(item))
+            content=lambda item: item.said(), add=lambda view, item: view.hold(item))
 
     async def _remember_whole(self, items, *, view, tag: str, field: str, content, add,
                               progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:
@@ -6447,17 +6447,19 @@ class MemoryAgent(IMemoryConsolidation):
             await self.warm_word_classes()
         view = view()
         items = list(items)
-        held: Set[str] = set()
+        held: Dict[str, str] = {}
         for row in await self._rows_tagged(tag):
             data = (row.metadata or {}).get(field)
             if data:
-                held.add(self._whole_key(field, data))
+                held[self._whole_key(field, data)] = row.memory_id
         kept: List[Tuple[Any, str]] = []
+        already: List[Tuple[Any, str]] = []
         counts = {"remembered": 0, "already": 0, "total": len(items)}
         for done, item in enumerate(items, 1):
             if progress is not None and done % 1000 == 0:
                 progress(done, len(items))
             if item.key() in held:
+                already.append((item, held[item.key()]))
                 counts["already"] += 1
                 continue
             stored, memory_id = await self.store_memory(
@@ -6466,10 +6468,10 @@ class MemoryAgent(IMemoryConsolidation):
             if not stored or not memory_id:
                 raise RuntimeError(f"{content(item)[:80]!r} was not kept: the memory was declined")
             add(view, item)
-            held.add(item.key())
+            held[item.key()] = memory_id
             kept.append((item, memory_id))
             counts["remembered"] += 1
-        return {"kept": kept, **counts}
+        return {"kept": kept, "held_already": already, **counts}
 
     @staticmethod
     def _whole_key(field: str, data) -> str:

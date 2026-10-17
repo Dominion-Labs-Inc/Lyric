@@ -632,7 +632,46 @@ class StructureView:
         none holds still worth `UNHELD`). Measured (2026-10-17 (14)): UAS on dev 74.5% by the beam alone, 78.0% so.
         Each dependency is as the beam's likeliest tree says where that tree holds it, else as the pairs joined in
         the most specific situation like it were."""
+        return self.readings_apart(words, classes)[0]
+
+    def readings_apart(self, words: Sequence[str], classes: Sequence[str]
+                       ) -> Tuple[Structure, Tuple[int, ...], Tuple[int, ...]]:
+        """The structure read (`structure`), with the head of each word as each reading alone has it: the tree the
+        steps' beam likes best, and the tree the pairs alone like best (`_best_tree` over the pairs' chances, nothing
+        of the beam's). Learned apart from the same sentences, the two err apart: where they agree, the reading is
+        confirmed, and a sentence never taught can be kept as analysed so (`experiments/SELF-TEACH-01`)."""
         self._work_out()
+        beam = self._beam(words, classes)
+        n = len(words)
+        best = beam[0][0]
+        shares = [math.exp(score - best) for score, *_ in beam]
+        held = np.zeros((n + 1, n + 1))
+        for (_, _, _, heads, _, _), share in zip(beam, shares):
+            for d in range(1, n + 1):
+                held[heads[d], d] += share / sum(shares)
+        laid, chances = self._pair_chances(words, classes)
+        heads = _best_tree(chances + np.log(held + UNHELD))
+        _, _, _, beam_heads, _, beam_relation = beam[0]
+        relations = tuple("root" if heads[d - 1] == 0 else beam_relation.get(d, "dep")
+                          if heads[d - 1] == beam_heads[d] else self._pairs.relation(laid, heads[d - 1], d)
+                          for d in range(1, n + 1))
+        return (Structure(tuple(words), tuple(classes), tuple(heads), relations), tuple(beam_heads[1:]),
+                tuple(_best_tree(chances)))
+
+    def _pair_chances(self, words: Sequence[str], classes: Sequence[str]) -> Tuple[Tuple, "np.ndarray"]:
+        """The sentence laid out for its pairs, and the log chance that word h is the head of word d, `[h, d]`."""
+        n = len(words)
+        laid = _Pairs.laid(words, classes)
+        chances = np.full((n + 1, n + 1), -1e9)
+        for d in range(1, n + 1):
+            for h in range(n + 1):
+                if h != d:
+                    chances[h, d] = math.log(max(self._pairs.chance(laid, h, d), 1e-12))
+        return laid, chances
+
+    def _beam(self, words: Sequence[str], classes: Sequence[str]) -> List[Tuple]:
+        """The structures the steps' beam keeps at the end (`BEAM`), likeliest first: each (score, stack, waiting,
+        heads by word from 1, dependents, relations)."""
         lowered = (ROOT,) + tuple(word.lower() for word in words)
         with_root = ("ROOT",) + tuple(classes)
 
@@ -672,25 +711,7 @@ class StructureView:
                             relation2[dependent] = "root"
                     grown.append((score + math.log(chance), stack2, waiting2, heads2, under2, relation2))
             beam = sorted(grown, key=lambda kept: -kept[0])[:BEAM]
-        n = len(words)
-        best = beam[0][0]
-        shares = [math.exp(score - best) for score, *_ in beam]
-        held = np.zeros((n + 1, n + 1))
-        for (_, _, _, heads, _, _), share in zip(beam, shares):
-            for d in range(1, n + 1):
-                held[heads[d], d] += share / sum(shares)
-        laid = _Pairs.laid(words, classes)
-        scores = np.full((n + 1, n + 1), -1e9)
-        for d in range(1, n + 1):
-            for h in range(n + 1):
-                if h != d:
-                    scores[h, d] = math.log(max(self._pairs.chance(laid, h, d), 1e-12)) + math.log(held[h, d] + UNHELD)
-        heads = _best_tree(scores)
-        _, _, _, beam_heads, _, beam_relation = beam[0]
-        relations = tuple("root" if heads[d - 1] == 0 else beam_relation.get(d, "dep")
-                          if heads[d - 1] == beam_heads[d] else self._pairs.relation(laid, heads[d - 1], d)
-                          for d in range(1, n + 1))
-        return Structure(tuple(words), tuple(classes), tuple(heads), relations)
+        return beam
 
     def read(self, words: Sequence[str]) -> Structure:
         """How these words go together: their classes, then their structure."""

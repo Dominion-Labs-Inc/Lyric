@@ -3952,10 +3952,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _learn_held(self, items, *, what: str, remember: str, subject_kind: str, provenance: Any,
                           quality: float, progress: Optional[Callable[[int, int], None]]) -> Dict[str, int]:
-        """Hold items of language knowledge whole in memory (`remember`, a `MemoryAgent` method returning `kept`),
-        each item's standing a belief on its memory, as `learn_structure` holds sentences analysed: one observation
-        from the source, so the same source again moves nothing. Each item has `key()`, `claim()`, and a `detail` for
-        the ledger."""
+        """Hold items of language knowledge whole in memory (`remember`, a `MemoryAgent` method returning `kept` and
+        `held_already`), each item's standing a belief on its memory, as `learn_structure` holds sentences analysed:
+        one observation from the source, so the same source again moves nothing. An item memory held already is
+        observed again, which moves nothing where it was observed and gives its standing to one a pass stopped
+        before observing (memories are kept first, observed after). Each item has `key()` and `claim()`."""
         from core.memory import knowledge_ledger as _ledger
         from core.memory import get_memory_agent
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
@@ -3977,6 +3978,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         batch = _ledger.begin_batch(cause)
         updates: List[Any] = []
         try:
+            for item, memory_id in held.get("held_already", ()):
+                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
+                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
             for item, memory_id in held["kept"]:
                 us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
                                  observation=f"{source_id}:{subject_kind}", memory_id=memory_id)

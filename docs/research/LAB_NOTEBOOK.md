@@ -16508,3 +16508,16 @@ is defined twice (checked over each module's definitions). Then both passes ran 
 kept 50 sentences with their arguments (43 s, beliefs +50), `--source composition --limit 50` 50 lesson sentences
 with their meanings (84 s, beliefs +50), no error, nothing else moved; the gateway counts 50 memories of each tag on
 `lyric_dev`, each holding its record whole where the warm reads it (`argued`, `taught`), and none on main.
+
+## 2026-10-17 (19) — The PropBank pass on main stopped short; the records written to be kept, not read
+
+`--source propbank` on main (owner's run, from 19:38 UTC) kept 566 annotated sentences in 42 minutes, then wrote
+nothing for an hour while running: its connections to the store idle since 20:20 UTC, so the process was in Python,
+not waiting on the store. Storing a memory reads its content as a claim with the whole reader when it is one line of
+200 characters or fewer (`MemoryAgent._readable_claim`); a short sentence's annotation is such a line, quotes and
+colons in it, and the reader over main's inventory does not come back from some of them (the sandbox's 50 lesson
+records, all short, took 1.7 s each). These records are language knowledge kept whole, not claims: each is now written
+over several lines (`Argued.said`, `TaughtSentence.said`), which memory keeps and never reads. And a pass keeps every
+memory first and observes their beliefs after, so the 566 kept had no standing yet: a pass now observes again what
+memory held already (`held_already`), which moves nothing where it was observed (`observe_claim` is idempotent per
+witness) and gives the 566 theirs when the pass is run again.

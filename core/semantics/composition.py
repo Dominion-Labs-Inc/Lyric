@@ -359,6 +359,10 @@ class TaughtSentence:
         """The belief it stands on: that the sentence means what it was taught to."""
         return f'"{self.sentence}" means {self.meaning.canonical()} ({self.key()[:8]})'
 
+    def said(self) -> str:
+        """The sentence and its meaning, on two lines: memory keeps it as a record, never reads it as a claim."""
+        return f'"{self.sentence}"\nmeans {self.meaning.canonical()}'
+
     def to_dict(self) -> Dict[str, Any]:
         return {"sentence": self.sentence, "meaning": self.meaning.to_dict(), "said_in": self.said_in}
 
