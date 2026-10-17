@@ -31,7 +31,6 @@ def main() -> int:
     from experiments._evidence import RunRecord
     from core.learning.teaching_sources import propbank_roles_of_frames, read_conllu, read_propbank_ewt
     from core.semantics import argument_structure as ax
-    from core.semantics import propbank_roles as pr
     from core.semantics.structure import StructureView
     data = Path(sys.argv[sys.argv.index("--data") + 1]) if "--data" in sys.argv else ROOT / "test_data" / "syntax"
     EV = RunRecord("ROLES-02",
@@ -45,30 +44,7 @@ def main() -> int:
     say(f"{len(sentences):,} sentences read, {time.perf_counter() - started:.0f}s")
 
     def arguments(words, predicates):
-        """{happening: {head word: what it is said in}}, and {happening: head words left out}: a relative
-        pronoun or a continuation, which takes its argument's part, and an argument the mapping does not say."""
-        heads = [w.head for w in words]
-        found, left = defaultdict(dict), defaultdict(set)
-        for predicate in predicates:
-            if pr.predicate(predicate.roleset, predicate.tag) is not None:
-                continue
-            found[predicate.at]
-            for label, spans in predicate.arguments:
-                base, stands = pr.label_of(label)
-                tag, verbnet = roles.get((predicate.roleset, base), ("", ()))
-                for span in spans:
-                    head = ax.head_of(span, heads)
-                    said = None if stands else pr.said(
-                        label, roleset=predicate.roleset, function_tag=tag, verbnet=verbnet,
-                        words=tuple(w.form for w in words[span[0]:span[0] + 2]), first_class=words[span[0]].word_class)
-                    if said is not None and said.how == "rule" and said.rule == "pivot":
-                        said = pr.fact("done_by")   # a pivot not said by its predicate is its doer (`RULES`)
-                    if said is None or head == predicate.at:
-                        left[predicate.at].add(head)
-                        continue
-                    found[predicate.at][head] = ":".join(
-                        x for x in (said.how, said.kind or said.rule or said.needs, "" if said.positive else "not") if x)
-        return found, left
+        return ax.taught_arguments(words, predicates, roles)
 
     view = ax.ArgumentStructureView()
     met = Counter()

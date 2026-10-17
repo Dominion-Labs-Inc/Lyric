@@ -26,7 +26,7 @@ depends on it (`phrase`).
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple
 
 from core.semantics.structure import StructureView
 
@@ -113,6 +113,60 @@ def situations(words: Sequence[str], classes: Sequence[str], heads: Sequence[int
             ("voice", voice, its_class, between, mark, head_class, first),
             ("voice", voice, its_class, between, mark, head_class), ("voice", voice, its_class, between, mark),
             ("path", between, mark), ("path", between), ("class", head_class, mark), ("class", head_class)]
+
+
+def taught_arguments(words: Sequence[Any], predicates: Sequence[Any],
+                     roles: Mapping[Tuple[str, str], Tuple[str, Tuple[str, ...]]]
+                     ) -> Tuple[Dict[int, Dict[int, str]], Dict[int, Set[int]]]:
+    """What PropBank's annotation of a sentence says of each happening's arguments, in the meaning language
+    (`propbank_roles.said`): {happening: {head word: what it is said in}}, both 0-based, and {happening: head words
+    left out}, a relative pronoun or a continuation (which takes its argument's part) and an argument the mapping does
+    not say. `words` are `PropBankWord`s, `predicates` `PropBankPredicate`s (`read_propbank_ewt`), `roles` the frame
+    files' function tags and VerbNet roles (`propbank_roles_of_frames`). Auxiliaries, `be.02` and light verbs are no
+    happening (`propbank_roles.predicate`)."""
+    from core.semantics import propbank_roles as pr
+    heads = [w.head for w in words]
+    found: Dict[int, Dict[int, str]] = defaultdict(dict)
+    left: Dict[int, Set[int]] = defaultdict(set)
+    for predicate in predicates:
+        if pr.predicate(predicate.roleset, predicate.tag) is not None:
+            continue
+        found[predicate.at]
+        for label, spans in predicate.arguments:
+            base, stands = pr.label_of(label)
+            tag, verbnet = roles.get((predicate.roleset, base), ("", ()))
+            for span in spans:
+                head = head_of(span, heads)
+                said = None if stands else pr.said(
+                    label, roleset=predicate.roleset, function_tag=tag, verbnet=verbnet,
+                    words=tuple(w.form for w in words[span[0]:span[0] + 2]), first_class=words[span[0]].word_class)
+                if said is not None and said.how == "rule" and said.rule == "pivot":
+                    said = pr.fact("done_by")   # a pivot not said by its predicate is its doer (`RULES`)
+                if said is None or head == predicate.at:
+                    left[predicate.at].add(head)
+                    continue
+                found[predicate.at][head] = ":".join(
+                    x for x in (said.how, said.kind or said.rule or said.needs, "" if said.positive else "not") if x)
+    return found, left
+
+
+def learned_from_propbank(sentences: Sequence[Tuple[Any, ...]],
+                          roles: Mapping[Tuple[str, str], Tuple[str, Tuple[str, ...]]]) -> "ArgumentStructureView":
+    """The view learned from PropBank's training part over UD's structure (`read_propbank_ewt`'s sentences), every
+    candidate of every happening said as its argument is, or `NONE`."""
+    view = ArgumentStructureView()
+    for part, _, _, words, predicates in sentences:
+        if part != "train":
+            continue
+        forms, classes = [w.form for w in words], [w.word_class for w in words]
+        heads, relations = [w.head for w in words], [w.relation for w in words]
+        found, left = taught_arguments(words, predicates, roles)
+        for at, said in found.items():
+            for candidate in candidates(heads, at):
+                if candidate not in left[at]:
+                    view.add(situations(forms, classes, heads, relations, at, phrase(candidate, heads)),
+                             said.get(candidate, NONE))
+    return view
 
 
 class ArgumentStructureView:
