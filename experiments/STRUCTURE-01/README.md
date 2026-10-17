@@ -49,7 +49,9 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | `20261016T231035Z` | 0c624fd, treebank only | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 15/15 | nothing |
 | `20261016T231035Z` | 0c624fd, with memory's word classes (a noun held as a noun only) | 91.8% / 73.6% / 66.9% | 92.1% / 74.0% / 67.7% | (same run) | nothing |
 | `20261017T001822Z`, `20261017T013101Z` | 330c932, treebank only | 92.0% / 73.6% / 66.9% | 92.3% / 73.8% / 67.5% | 15/15 | nothing |
-| `20261017T001822Z`, `20261017T013101Z` | 330c932, with memory's word classes (a noun held as a noun or a name) | **92.2% / 73.7% / 67.0%** | **92.5% / 74.2% / 67.9%** | (same runs) | nothing |
+| `20261017T001822Z`, `20261017T013101Z` | 330c932, with memory's word classes (a noun held as a noun or a name) | 92.2% / 73.7% / 67.0% | 92.5% / 74.2% / 67.9% | (same runs) | nothing |
+| `20261017T161856Z` | 44259a9: classes read beside their words, the tree chosen whole, treebank only | 93.1% / 78.0% / 71.2% | 93.4% / 79.2% / 72.7% | 15/15 | nothing |
+| `20261017T161856Z` | 44259a9, with memory's word classes | **93.2% / 78.1% / 71.4%** | **93.5% / 79.4% / 73.0%** | (same run) | nothing |
 
 For each run, the same code reading the treebank's files gives the same to four places, and the same reading of
 every prose sentence, treebank only (the other way needs main's word classes): memory holds what was taught. The file numbers above (91.9%, 73.1%, 66.2%) were measured with an
@@ -57,4 +59,6 @@ earlier state of `structure.py`; the bars stand as fixed. Lab notebook 2026-10-1
 (13) the structure is searched with a beam: from the files, treebank only, dev 92.0% / 74.5% / 68.0%, test 92.3% /
 75.0% / 68.8%. Since 2026-10-17 (14) classes are read beside their words and the tree is chosen whole (beam and
 pairs, learned over the classes as read too): from the files, treebank only, dev 93.1% / 78.0% / 71.2%, test 93.4% /
-79.2% / 72.7%. The view now takes about three minutes and 1.65 GB to set up.
+79.2% / 72.7%, as main measured (`20261017T161856Z`, to four places). Since 2026-10-17 (15) a capitalised word met
+only in lower case is read by what it was met as: from the files, dev 93.1% / 78.3% / 71.6%, test 93.7% / 79.5% /
+73.1%. The view now takes about three minutes and 1.65 GB to set up.

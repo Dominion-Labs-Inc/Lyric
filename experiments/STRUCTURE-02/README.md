@@ -53,6 +53,8 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 | `20261016T231429Z` | as above, with memory's word classes (a noun held as a noun only) | 2,988 of 3,054 | 96.4% | 94.5% |
 | `20261017T002233Z`, `20261017T013500Z` | as above, treebank only | 2,988 of 3,054 | 96.1% | 93.9% |
 | `20261017T002233Z`, `20261017T013500Z` | as above, with memory's word classes (a noun held as a noun or a name) | 2,988 of 3,054 | 96.4% | **94.4%** |
+| `20261017T162732Z` | 44259a9 (classes read beside their words, the tree chosen whole), treebank only | 2,988 of 3,054 | 96.2% | 94.0% |
+| `20261017T162732Z` | 44259a9, with memory's word classes | 2,988 of 3,054 | 96.3% | 94.1% |
 
 The first form of the second test counted as wrong what the meaning cannot place: a conjunct under the first
 ("three" under "two" in "two plus three"), two slots tied to one thing no word names ("ten minus four", "between the

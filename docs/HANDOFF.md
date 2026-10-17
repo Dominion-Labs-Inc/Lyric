@@ -1,7 +1,7 @@
 # Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (14) in
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (15) in
 `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
@@ -48,8 +48,10 @@ systems report where there are any.
    language (`propbank_roles`); held-out arguments given, the fact each is said in is right for **80.5%** (test) over
    UD's structure and **65.8%** over Lyric's own, against 55.7% for the path alone (lab notebook 2026-10-17 (12)).
    Classic role labellers given gold structure reach about 90% on this kind of task.
-2. **The structure reader** (UAS 74%) cost the roles 15 points. **Raised to UAS 78.0% dev, 79.2% test** (from the
-   files; LAS 71.2%, 72.7%; classes 93.1%, 93.4%), counts only (2026-10-17 (13), (14)): a beam over the steps; a
+2. **The structure reader** (UAS 74%) cost the roles 15 points. **Raised to UAS 78.3% dev, 79.5% test** (from the
+   files; LAS 71.6%, 73.1%; classes 93.1%, 93.7%; main measured the same, 2026-10-17 (15)), and by as much on UD's
+   other open English treebanks, never learned from (news and Wikipedia 71.5% to 75.5%, a novel 76.8% to 80.8%),
+   counts only (2026-10-17 (13) to (15)): a beam over the steps; a
    word's class read beside the words around it, every situation weighed (classes 92.0% to 93.1%); the tree chosen
    whole, of the beam's trees and every two words weighed by how often two words standing so were joined (Eisner's
    algorithm); the steps and pairs learned over the classes reading gives as well as those given. Setting up from

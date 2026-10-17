@@ -23,8 +23,9 @@ read. All counts, kept as met.
 
 Measured on UD English EWT, learned from its 12,544 training sentences, on its held-out ones (from the files): first
 (2026-10-16) dev classes 91.9% right, the word each depends on (UAS) 73.1%, and as what (LAS) 66.2%; since
-2026-10-17 (14) dev 93.1% / 78.0% / 71.2%, test 93.4% / 79.2% / 72.7% (`experiments/STRUCTURE-01` measures the same
-from what the main model holds). Published for this treebank, the words given, roughly: 85% UAS for a parser with
+2026-10-17 (15) dev 93.1% / 78.3% / 71.6%, test 93.7% / 79.5% / 73.1% (`experiments/STRUCTURE-01` measures the same
+from what the main model holds). On UD's other English treebanks of open licence, never learned from, UAS rose as
+much: news and Wikipedia (PUD) 71.5% to 75.5%, fiction (The Little Prince) 76.8% to 80.8%. Published for this treebank, the words given, roughly: 85% UAS for a parser with
 learned weights and no word vectors (UDPipe 1), 91 to 93% for neural ones (UDPipe 2, Stanza).
 """
 from __future__ import annotations
@@ -221,8 +222,9 @@ class _Classes:
         return "|".join(sorted(classes)) if classes else "?"
 
     def situations(self, words: Sequence[str], classes: Sequence[str], i: int, *, met: bool) -> List[Tuple]:
-        """The situations word `i` stands in, the most specific first, the words before it read as `classes`."""
-        word = words[i]
+        """The situations word `i` stands in, the most specific first, the words before it read as `classes`. A word
+        met only as written otherwise ("Snow" first in a sentence, met as "snow") stands as it was met."""
+        word = words[i] if not met or words[i] in self._classes_of else words[i].lower()
         before = classes[i - 1] if i >= 1 else "<s>"
         after = self._ambiguity(words[i + 1] if i + 1 < len(words) else None)
         if met:
@@ -627,7 +629,7 @@ class StructureView:
         (`_chances`), so a later step can outweigh an earlier one. And every two words are weighed whole, by how often
         two words standing so were joined (`_Pairs`). The tree taken is the one whose dependencies are likeliest by
         both (`_best_tree`): each by its pair's chance, times the share of the beam's trees that hold it (a dependency
-        none holds still worth `UNHELD`). Measured (2026-10-17 (14)): UAS on dev 74.5% by the beam alone, 78.2% so.
+        none holds still worth `UNHELD`). Measured (2026-10-17 (14)): UAS on dev 74.5% by the beam alone, 78.0% so.
         Each dependency is as the beam's likeliest tree says where that tree holds it, else as the pairs joined in
         the most specific situation like it were."""
         self._work_out()

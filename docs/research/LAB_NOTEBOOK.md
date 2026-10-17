@@ -16336,3 +16336,42 @@ words never met (71% of their classes right; main asks memory's word classes, +0
 a word's other dependents (Eisner's siblings); and more analysed text of the web's kind (each doubling about +3). Where
 the two readings agree on a sentence is a check Lyric's own reading can give, a way to grow analysed text from text
 read.
+
+## 2026-10-17 (15) — The new structure reader on main, on other kinds of text, and a capitalised word
+
+**On main** (owner's run, code 44259a9; the record counts uncommitted changes, which were the runs' own results and
+an edit to `docs/OFFERINGS_RESEARCH.md`, no code). STRUCTURE-01 `20261017T161856Z`, 15 of 15, nothing written:
+treebank only dev 93.07% / 78.03% / 71.21%, test 93.41% / 79.21% / 72.73%, the files' numbers to four places; with
+memory's word classes dev 93.18% / 78.13% / 71.41%, test 93.52% / 79.37% / 72.98%. The dev part, the view's
+set-up with it, took 143 seconds on the Mac (the test part 30). STRUCTURE-02 `20261017T162732Z` (the lessons): every slot on one phrase, none against the
+meaning, 93.9% to 94.0% treebank only and 94.4% to 94.1% with memory's word classes (2,813 of 2,988; 37 sentences
+newly right, among them the clause links "The dog barked before the cat ran." and "If the door is open then the room
+is cold.", the titles "Mr. Jones is kind."; 46 newly wrong, most of them numbers in words, lists of three or four
+nouns and relative clauses "The ball that Tom kicked is red."). Of the 33 prose sentences, 17 read otherwise than
+on 2026-10-17 01:31, about as many better ("Plants take in carbon dioxide and water.", "Chlorophyll is the green
+pigment that absorbs the light." now whole) as worse ("If the valve is closed, the tank is full." now heads on
+"closed").
+
+**Other kinds of text.** A sample of 33 sentences and lessons of one kind cannot say whether the reader got better.
+UD's English treebanks of open licence besides EWT (CC BY-SA; never learned from) can: each read with the reader
+learned from EWT's training part only, from the files, UAS:
+
+| Treebank (words) | kind of text | beam (2723dbb) | 3e91b25 | with the capital read as met |
+|---|---|---|---|---|
+| EWT dev / test (25,148 / 25,094) | web | 74.52% / 75.03% | 78.03% / 79.21% | **78.27% / 79.49%** |
+| PUD (21,180) | news and Wikipedia | 71.53% | 75.38% | 75.46% |
+| LittlePrince (6,852) | a novel | 76.78% | 80.88% | 80.84% |
+| CTeTex (9,273) | technical | 60.19% | 64.49% | 64.82% |
+| ESLSpok (2,266) | learners speaking | 82.26% | 85.35% | 85.57% |
+| Atis (6,580) | flight queries, lower case | 58.54% | 63.94% | 63.91% |
+| Pronouns (1,705) | pronoun test sentences | 75.19% | 76.83% | 76.19% |
+
+The gain holds on every kind of text, +1.6 to +5.4. LAS: PUD 64.80% to 68.47%, LittlePrince 69.38% to 73.29%.
+
+**A capitalised word met only in lower case** ("Snow" first in a sentence, met as "snow"; "Seven", "Nine") counted
+as met, but its situations were asked as written, never met so, and it fell to its ending: "Snow and milk are white."
+read "Snow" as a verb, "Seven" and "Nine" as names. `_Classes.situations` now asks it as it was met (last column
+above): EWT dev classes 93.07% to 93.12%, test 93.41% to 93.71%. Kept. Tests: `tests/test_structure.py`, 11 passed.
+
+Seen in the lessons and left for now: "the handle" read as a verb (in EWT "handle" is mostly a verb, and a situation
+met once is trusted a fifth of the way, `CLASS_DOUBT`); numbers in words; lists of several nouns.
