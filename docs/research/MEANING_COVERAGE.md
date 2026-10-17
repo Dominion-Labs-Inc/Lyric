@@ -9,7 +9,7 @@ answer below is measured or read from the code, the store or the data, and says 
 `core/semantics/propbank_roles.py` maps every label PropBank's annotations of the English Web Treebank use, every
 function tag and VerbNet role of a numbered argument, and every word that begins a modifier whose kind the label
 leaves open. `experiments/PROPBANK-01` measures it on all 16,579 annotated sentences (100,297 arguments), with the
-words from UD English EWT (`results/20261017T135037Z.md`):
+words from UD English EWT (`experiments/PROPBANK-01/results/20261017T135256Z.md`):
 
 | | Arguments |
 |---|---|

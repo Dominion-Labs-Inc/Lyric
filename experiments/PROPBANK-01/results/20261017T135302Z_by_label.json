@@ -1,0 +1,207 @@
+{
+ "ARG1": {
+  "fact": 24269,
+  "rule": 7296,
+  "other side": 1729,
+  "nothing": 5
+ },
+ "ARG0": {
+  "fact": 18058,
+  "rule": 631,
+  "other side": 11
+ },
+ "ARG2": {
+  "rule": 8356,
+  "other side": 219,
+  "fact": 3468,
+  "nothing": 8,
+  "needs": 12,
+  "negates": 9
+ },
+ "ARGM-TMP": {
+  "fact": 6400,
+  "negates": 3
+ },
+ "ARGM-ADV": {
+  "nothing": 1133,
+  "fact": 3110,
+  "rule": 174,
+  "condition": 767,
+  "needs": 196
+ },
+ "ARGM-MOD": {
+  "fact": 3578,
+  "needs": 792,
+  "unmapped": 10
+ },
+ "ARGM-NEG": {
+  "negates": 2340
+ },
+ "ARGM-ADJ": {
+  "fact": 2162
+ },
+ "ARGM-LOC": {
+  "fact": 2070
+ },
+ "ARGM-MNR": {
+  "fact": 1807
+ },
+ "ARGM-DIS": {
+  "act": 381,
+  "nothing": 748,
+  "needs": 460,
+  "rule": 152,
+  "happening": 25,
+  "unmapped": 18,
+  "fact": 5
+ },
+ "ARGM-EXT": {
+  "fact": 1085
+ },
+ "ARGM-PRP": {
+  "fact": 848
+ },
+ "ARG3": {
+  "fact": 535,
+  "rule": 258,
+  "nothing": 1
+ },
+ "R-ARG1": {
+  "same": 771
+ },
+ "R-ARG0": {
+  "same": 770
+ },
+ "ARGM-CAU": {
+  "fact": 710
+ },
+ "ARGM-PRR": {
+  "fact": 694
+ },
+ "ARGM-LVB": {
+  "nothing": 693
+ },
+ "ARGM-DIR": {
+  "fact": 589
+ },
+ "ARGM-PRD": {
+  "fact": 553
+ },
+ "C-ARG1": {
+  "same": 546
+ },
+ "ARG4": {
+  "rule": 428,
+  "fact": 78
+ },
+ "ARGM-GOL": {
+  "rule": 272
+ },
+ "C-V": {
+  "nothing": 190
+ },
+ "ARGM-CXN": {
+  "fact": 138,
+  "unmapped": 5
+ },
+ "ARGM-COM": {
+  "fact": 139
+ },
+ "C-ARG2": {
+  "same": 101
+ },
+ "C-ARGM-CXN": {
+  "same": 82
+ },
+ "R-ARGM-LOC": {
+  "same": 74
+ },
+ "R-ARGM-TMP": {
+  "same": 50
+ },
+ "R-ARG2": {
+  "same": 48
+ },
+ "C-ARG0": {
+  "same": 33
+ },
+ "R-ARGM-ADV": {
+  "same": 32
+ },
+ "ARGM-REC": {
+  "rule": 28
+ },
+ "C-ARG3": {
+  "same": 26
+ },
+ "R-ARGM-MNR": {
+  "same": 19
+ },
+ "C-ARGM-LOC": {
+  "same": 16
+ },
+ "C-ARG1-DSP": {
+  "same": 11
+ },
+ "R-ARG3": {
+  "same": 10
+ },
+ "R-ARGM-CAU": {
+  "same": 10
+ },
+ "ARG1-DSP": {
+  "fact": 10
+ },
+ "ARG5": {
+  "rule": 3,
+  "fact": 3
+ },
+ "C-ARG4": {
+  "same": 6
+ },
+ "ARGA": {
+  "fact": 3
+ },
+ "C-ARGM-MNR": {
+  "same": 3
+ },
+ "C-ARGM-TMP": {
+  "same": 3
+ },
+ "C-ARGM-EXT": {
+  "same": 3
+ },
+ "C-ARGM-DIR": {
+  "same": 2
+ },
+ "C-ARGM-PRR": {
+  "same": 2
+ },
+ "R-ARG4": {
+  "same": 2
+ },
+ "R-ARGM-DIR": {
+  "same": 2
+ },
+ "R-ARGM-GOL": {
+  "same": 2
+ },
+ "R-ARGM-COM": {
+  "same": 2
+ },
+ "C-ARGM-PRP": {
+  "same": 2
+ },
+ "C-ARGM-GOL": {
+  "same": 1
+ },
+ "C-ARGM-ADV": {
+  "same": 1
+ },
+ "C-ARGM-COM": {
+  "same": 1
+ },
+ "R-ARGM-ADJ": {
+  "same": 1
+ }
+}

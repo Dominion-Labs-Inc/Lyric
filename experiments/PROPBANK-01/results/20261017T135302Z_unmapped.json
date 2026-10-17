@@ -1,0 +1,102 @@
+[
+ {
+  "label": "ARGM-DIS",
+  "word": "for",
+  "arguments": 5
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "i",
+  "arguments": 3
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "a",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "most",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-CXN",
+  "word": "the",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-CXN",
+  "word": "a",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "if",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "in",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "lazy",
+  "arguments": 2
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "with",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "a",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "made",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "at",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "to",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "worse",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "the",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "cold",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-CXN",
+  "word": "3",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-DIS",
+  "word": "scottish",
+  "arguments": 1
+ },
+ {
+  "label": "ARGM-MOD",
+  "word": "my",
+  "arguments": 1
+ }
+]

@@ -1,0 +1,235 @@
+{
+  "experiment": "PROPBANK-01",
+  "claim": "every role PropBank gives the English Web Treebank is said in Lyric's meaning language",
+  "hypothesis": "each argument maps to a fact in a link kind the meaning language has, a rule its words settle, or nothing; what does not is a named gap (a kind or term to decide) or listed",
+  "started_at": "2026-10-17T13:52:56.174961+00:00",
+  "duration_seconds": 6.288,
+  "environment": {
+    "python": "3.13.16",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "cwd": "/home/user/Lyric",
+    "shadow_mode": null,
+    "git_commit": "35027300cd0641b181a4d323a48637f64e69803d",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "postgres",
+      "configuration_source": {
+        "host": "default",
+        "port": "default",
+        "database": "default",
+        "user": "default",
+        "password": "default",
+        "pool_min_size": "default",
+        "pool_max_size": "default",
+        "pool_idle_seconds": "default",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 1,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 4,
+    "passed": 4,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences annotated",
+      "value": 16579,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "sentences with UD's words",
+      "value": 16548,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "arguments",
+      "value": 100297,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "arguments: fact",
+      "value": 70312,
+      "unit": "arguments",
+      "note": "70.10%"
+    },
+    {
+      "name": "arguments: rule",
+      "value": 17598,
+      "unit": "arguments",
+      "note": "17.55%"
+    },
+    {
+      "name": "arguments: same",
+      "value": 2632,
+      "unit": "arguments",
+      "note": "2.62%"
+    },
+    {
+      "name": "arguments: other side",
+      "value": 1959,
+      "unit": "arguments",
+      "note": "1.95%"
+    },
+    {
+      "name": "arguments: negates",
+      "value": 2352,
+      "unit": "arguments",
+      "note": "2.35%"
+    },
+    {
+      "name": "arguments: condition",
+      "value": 767,
+      "unit": "arguments",
+      "note": "0.76%"
+    },
+    {
+      "name": "arguments: act",
+      "value": 381,
+      "unit": "arguments",
+      "note": "0.38%"
+    },
+    {
+      "name": "arguments: happening",
+      "value": 25,
+      "unit": "arguments",
+      "note": "0.02%"
+    },
+    {
+      "name": "arguments: nothing",
+      "value": 2778,
+      "unit": "arguments",
+      "note": "2.77%"
+    },
+    {
+      "name": "arguments: needs",
+      "value": 1460,
+      "unit": "arguments",
+      "note": "1.46%"
+    },
+    {
+      "name": "arguments: unmapped",
+      "value": 33,
+      "unit": "arguments",
+      "note": "0.03%"
+    },
+    {
+      "name": "arguments said in the meaning language",
+      "value": 0.9851,
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "needs: possible",
+      "value": 551,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "needs: necessary",
+      "value": 455,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "needs: between sentences",
+      "value": 390,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "needs: predicate: necessary",
+      "value": 245,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "needs: felt",
+      "value": 64,
+      "unit": "arguments",
+      "note": ""
+    },
+    {
+      "name": "arguments nothing maps",
+      "value": 33,
+      "unit": "arguments",
+      "note": "ARGM-DIS 'for' 5; ARGM-MOD 'i' 3; ARGM-DIS 'a' 2; ARGM-MOD 'most' 2; ARGM-CXN 'the' 2; ARGM-CXN 'a' 2; ARGM-DIS 'if' 2; ARGM-DIS 'in' 2; ARGM-DIS 'lazy' 2; ARGM-MOD 'with' 1; ARGM-MOD 'a' 1; ARGM-MOD 'made' 1; ARGM-DIS 'at' 1; ARGM-DIS 'to' 1; ARGM-DIS 'worse' 1; ARGM-DIS 'the' 1; ARGM-MOD 'cold' 1; ARGM-CXN '3' 1; ARGM-DIS 'scottish' 1; ARGM-MOD 'my' 1"
+    },
+    {
+      "name": "predicates: happening",
+      "value": 40215,
+      "unit": "predicates",
+      "note": ""
+    },
+    {
+      "name": "predicates: nothing",
+      "value": 6861,
+      "unit": "predicates",
+      "note": ""
+    },
+    {
+      "name": "predicates: quality",
+      "value": 2845,
+      "unit": "predicates",
+      "note": ""
+    },
+    {
+      "name": "predicates: needs",
+      "value": 245,
+      "unit": "predicates",
+      "note": ""
+    },
+    {
+      "name": "happenings whose word WordNet holds a sense of, in its part of speech",
+      "value": 0.9982,
+      "unit": "fraction",
+      "note": "not: xray/n 5, text/v 3, problematic/n 3, blackline/v 3, cc/v 2, pend/v 2, yahoo/v 2, unreported/v 2, poop/v 1, incept/n 1, precut/v 1, rewind/v 1, preorder/v 1, reapply/v 1, showcase/v 1, deworm/n 1, fungate/v 1, brumate/n 1, playfight/v 1, reprioritize/v 1, rescope/v 1, resubstantiate/n 1, finesse/v 1, crossreference/v 1, dole/v 1"
+    }
+  ],
+  "checks": [
+    {
+      "label": "every link kind the mapping names is one the meaning language has",
+      "passed": true,
+      "detail": "53 kinds; not held: none",
+      "at": "2026-10-17T13:52:56.175352+00:00"
+    },
+    {
+      "label": "PropBank's sentences take UD's words",
+      "passed": true,
+      "detail": "16,548 of 16,579",
+      "at": "2026-10-17T13:52:59.173873+00:00"
+    },
+    {
+      "label": "every label is mapped",
+      "passed": true,
+      "detail": "all",
+      "at": "2026-10-17T13:52:59.174008+00:00"
+    },
+    {
+      "label": "every numbered argument is mapped",
+      "passed": true,
+      "detail": "0 not",
+      "at": "2026-10-17T13:52:59.174047+00:00"
+    }
+  ],
+  "notes": []
+}
