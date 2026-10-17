@@ -49,3 +49,32 @@ def test_an_annotated_sentence_is_held_whole_and_learned_from():
     view.learn(argued)
     assert view.arguments(("Rex", "kicked", "the", "box", "."), classes, heads, relations, 1) == \
         {0: "fact:done_by", 3: "fact:done_to"}
+
+
+def test_memory_keeps_an_annotated_sentence_once_and_folds_it_into_its_view():
+    """`MemoryAgent.remember_argued`, the store stood in for: kept, one memory with the annotation whole, and held by
+    the argument view; given again, held already."""
+    import asyncio
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.structure import Analysed
+    argued = ax.Argued.of(Analysed(("Tom", "kicked", "the", "ball", "."),
+                                   ("NAME", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"), (2, 0, 4, 2, 2),
+                                   ("nsubj", "root", "det", "obj", "punct"), "t:1"),
+                          {1: {0: "fact:done_by", 3: "fact:done_to"}}, {})
+    agent = MemoryAgent()
+    agent._word_classes_warm = True
+    stored = []
+
+    async def store_memory(**kwargs):
+        stored.append(kwargs)
+        return True, f"m{len(stored)}"
+
+    async def rows_tagged(tag):
+        return [SimpleNamespace(metadata=s["source_context"]) for s in stored if tag in s["tags"]]
+    agent.store_memory, agent._rows_tagged = store_memory, rows_tagged
+    first = asyncio.run(agent.remember_argued([argued]))
+    assert (first["remembered"], first["already"]) == (1, 0) and first["kept"] == [(argued, "m1")]
+    assert stored[0]["source_context"] == {"argued": argued.to_dict()} and len(agent.argument_view()) == 1
+    again = asyncio.run(agent.remember_argued([argued]))
+    assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1

@@ -6427,7 +6427,7 @@ class MemoryAgent(IMemoryConsolidation):
         held already is not held again. Returns `kept` (each newly held, with its memory's id), and counts:
         `remembered`, `already`, `total`."""
         return await self._remember_whole(
-            argued, view=self.argument_view(), tag=self.ARGUED_TAG, field="argued", progress=progress,
+            argued, view=self.argument_view, tag=self.ARGUED_TAG, field="argued", progress=progress,
             content=lambda item: item.said(), add=lambda view, item: view.hold(item))
 
     async def remember_taught_sentences(self, taught, progress: Optional[Callable[[int, int], None]] = None
@@ -6435,16 +6435,17 @@ class MemoryAgent(IMemoryConsolidation):
         """Remember the lessons' sentences with their taught meanings (`composition.TaughtSentence`), one memory
         each; one held already is not held again. Returns `kept` and counts, as `remember_argued`."""
         return await self._remember_whole(
-            taught, view=self.composition_view(), tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
+            taught, view=self.composition_view, tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
             content=lambda item: item.claim(), add=lambda view, item: view.hold(item))
 
     async def _remember_whole(self, items, *, view, tag: str, field: str, content, add,
                               progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:
         """Keep each item whole, one memory each, as `remember_analysed` keeps sentences analysed, and fold it into
-        the view."""
+        the view (`view()`, asked after memory is warm: a warm builds the view anew)."""
         from core.memory.utils.interfaces import Origin
         if not self._word_classes_warm:
             await self.warm_word_classes()
+        view = view()
         items = list(items)
         held: Set[str] = set()
         for row in await self._rows_tagged(tag):

@@ -16496,6 +16496,6 @@ Checked here without a store: a `MemoryAgent` given the views a warm would build
 through `read_text` with composing on: 29 of 33 composed, the meanings COMPOSE-01's (`isa(whale, mammal)`,
 `isa(7, prime number)`, the hiring by the company of three engineers). With no lexicon in memory, words keep their
 written form and the lessons barely align ("whales" never meets `whale`): 22 of 33, mostly wrong. On main, memory's
-lexicon names them. Tests: `tests/test_composition.py` 8 passed, `tests/test_argument_structure.py` 4,
+lexicon names them. Tests: `tests/test_composition.py` 8 passed, `tests/test_argument_structure.py` 5 (with memory's remember path, the store stood in for),
 `tests/test_structure.py` 11. The teaching paths that write to memory are not run here (no store in a cloud
 session): the sandbox first, then main, on the owner's word.
