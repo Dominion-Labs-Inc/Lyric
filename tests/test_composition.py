@@ -145,7 +145,8 @@ def test_a_word_held_only_as_another_class_is_named_through_its_shape():
     view = agent.pattern_inventory()
     view.add(Lexical((Piece("hired", False),), "hired"))
     view.add(Lexical((Piece("hire", False),), "hire"))
-    view.word_classes = {"hired": {"ADJECTIVE": 3}, "hire": {"VERB": 5}}
+    # Memory counts a word's classes by how it is written: "hired" is counted a verb too.
+    view.word_classes = {"hired": {"ADJECTIVE": 3, "VERB": 1}, "hire": {"VERB": 5}}
     view.names_of_shape = lambda word: ["hire"] if word == "hired" else []
     assert agent.name_of("hired", "VERB") == "hire"
     assert agent.name_of("hired", "ADJECTIVE") == "hired"

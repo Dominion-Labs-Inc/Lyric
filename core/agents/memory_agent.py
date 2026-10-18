@@ -6443,17 +6443,19 @@ class MemoryAgent(IMemoryConsolidation):
 
     def name_of(self, word: str, word_class: str) -> str:
         """The thing a word names, as memory names it: the word itself, or the held word it is a shape of, where
-        memory holds that word as this class ("hired" read as a verb is `hire`, though memory holds "hired" the
-        adjective, so a telling composed meets the question its frame reads: "Did the company hire engineers?",
-        UNDERSTANDS-PROSE-01, 2026-10-18). Else, of the things held fillers of the word name (a word in another case
-        is the same word), else of the held word it is a shape of ("breathes", `breathe`), the word itself where it
-        is one of them, else the one memory holds a word of this class names, else the first; the word itself where
+        memory holds that word as this class; a verb's shape first ("hired" read as a verb is `hire`, as the frames
+        read "breathes" `breathe`, so a telling composed meets the question its frame reads: "Did the company hire
+        engineers?", UNDERSTANDS-PROSE-01, 2026-10-18; memory holds "hired" too, the adjective, and counts its
+        classes by how it is written). Else, of the things held fillers of the word name (a word in another case is
+        the same word), else of the held word it is a shape of ("breathes", `breathe`), the word itself where it is
+        one of them, else the one memory holds a word of this class names, else the first; the word itself where
         memory holds nothing of it. Never another sense of this class in the word's place: "help" the noun stays
         `help`, not `aid`."""
         from core.semantics.structure import _HELD_AS
         view = self.pattern_inventory()
         folded = word.casefold()
-        written_as = [folded] + [n for n in view.names_of_shape(folded) if n != folded]
+        shapes = [n for n in view.names_of_shape(folded) if n != folded]
+        written_as = [folded] + shapes
 
         def held_names(written: str) -> List[str]:
             return list(dict.fromkeys(l.value for l in view.lexicals_with_words((written,), loose=True)))
@@ -6461,7 +6463,7 @@ class MemoryAgent(IMemoryConsolidation):
         def of_class(name: str) -> bool:
             return any(word_class in _HELD_AS.get(cls, (cls,)) and n > 0
                        for cls, n in view.word_classes.get(name, {}).items())
-        for written in written_as:
+        for written in (shapes + [folded] if word_class == "VERB" else written_as):
             if of_class(written) and written in held_names(written):
                 return written
         for written in written_as:
