@@ -68,10 +68,27 @@ async def main() -> int:
         return out
     conversation._incoming_relations, conversation.resolve_name, derived_reader.say = incoming, resolved, said
 
+    view = derived_reader.live_view()
     for sentence in text["text"]:
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             u = await conversation.understand(sentence, look_up=False)
         say(f"\ntold {sentence!r}\n   -> {(u.reply or '').strip()[:300]!r}")
+        # HOW EACH WORD WAS NAMED: the reading taken, its words and what each names; for a word named otherwise
+        # than as held, what memory holds of it and the held words it is written as a shape of.
+        for utterance in conversation._read(sentence):
+            chosen = derived_reader.meant(utterance.readings, heard=conversation._heard(sentence))
+            if chosen is None:
+                say(f"   no one reading taken of {utterance.text!r} ({len(utterance.readings)} readings)")
+                continue
+            say(f"   reading taken{' (composed)' if getattr(chosen, 'composed', False) else ''}: "
+                f"{chosen.meaning.canonical()[:240]}")
+            for construction in chosen.constructions:
+                if isinstance(construction, derived_reader.Lexical):
+                    words = " ".join(construction.words)
+                    held = sorted({lx.value for lx in view.lexicals_with_words(tuple(construction.words), loose=True)})
+                    if construction.value not in held:
+                        say(f"      {words!r} named {construction.value!r}; held as {held[:6]}; a shape of "
+                            f"{view.names_of_shape(construction.words[0])[:6]}")
     from core.agents.memory_agent import memory_agent
     say("\nheld in working memory for this conversation:")
     for row in memory_agent().working_relations([conversation._actor]):
