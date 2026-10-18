@@ -16553,3 +16553,83 @@ The composer as it is reads more than the frames and asks worse than them: of th
 COMPOSE-01's terms, "Is the valve closed?" was the valve alone, "Is key a function?" something done to a function.
 Composing stays off by default; it is the composer's reading of questions, and the frames' reading of a quality, that
 the next steps have to raise.
+
+## 2026-10-18 (21) — What raises the structure reader, measured: word groups counted from raw text, more analysed English; and two prose questions traced to their causes
+
+**Prose, traced, not guessed.** `scripts/trace_question.py` tells one of UNDERSTANDS-PROSE-01's texts to a conversation
+that keeps it in working memory only, and prints, per sentence, what it was read as (each word named otherwise than
+memory holds it, and the likeliest readings with their weights where none is taken), and per question the reading,
+what it binds, each step of matching it to the happenings told, and the reply; `--word W` prints what is held of one
+word and what a shape would make of it. Run on main by the owner, it found:
+- "Do whales breathe air?" was found and not answered: a happening found holding everything a question names answers
+  it though nothing taught says the telling (`_asked_of_events`): yes, or what fills what was asked. On main: "Yes".
+- "breathes" was read as `breathese`, never held, so the question's `breathe` met nothing. A first change (undo to a
+  word memory holds, 7261175) was made before the trace said why and did not help. The trace then showed the cause:
+  the held word "breathes" said more than its concept, and the shaped meanings of its phrase (`shaped_phrases`) took
+  the change "bit" shows of "bite". A held word read in its shape now stands as itself, met as often as it was, and
+  says what its own shape says (`PatternInventory.said_in_shape`, 91be21c, 9045a96). On main: breathes → breathe.
+- Still open in "A whale breathes air through a blowhole.": "A whale" read as one unnamed whale, not whales in
+  general; the shape's phrase adds "done by what was spoken of", bound to the ocean of the sentence before; "air
+  through" read as a quality.
+
+**The structure reader's errors fall on words it met rarely.** Learned from EWT's training part, it gives the right
+head to 78.3% of EWT dev's words and 68.9% of the 4,614 met fewer than ten times in training. An LLM knows a rare word
+by the company it keeps in a great deal of text. Three ways were measured of giving the reader that, all counts
+except the one asked for:
+- **Word groups counted from raw text** (`core/semantics/word_groups.py`): WikiText-103's 100 million words, every one
+  of the 100,000 most frequent put in one of 256 groups (and 48) by the exchange algorithm over a class bigram model.
+  The reader with each word's two groups beside it (`StructureView.grouping`, 98589c8): EWT dev UAS 78.3% → 79.2%,
+  PUD 75.5% → 76.4%, rare words 68.9% → 70.8%. The groups read as they stand: "make take get see give", "more less
+  rather better longer".
+- **MiniLM's vectors** (asked for 2026-10-18), grouped the same way (k-means, 256 and 48, its fourth and sixth layer,
+  1,024 groups, and with the counted groups together): EWT dev 79.1% to 79.2%, PUD 75.4% to 76.3%. No better than the
+  counted groups on either, worse on PUD; together, no better than the counted groups alone. Nothing of it is kept.
+- **Self-taught text** (SELF-TEACH-01's design, measured in scratch; the recorded run died twice with the container):
+  of 199,505 Wikipedia sentences read, those the reader's two readings agree on, added beside the treebank: at best
+  +0.3 points on EWT dev (12,544 agreeing on 90% of their words), +0.9 on PUD; more of them, no better. Far under the
+  bar of 1.6.
+- **More hand-analysed English**: UD's other English treebanks beside EWT, their training and development parts,
+  each as the teaching pass takes it (`experiments/STRUCTURE-03`, 7 of 7): with Atis and ESL Spoken (licensed as EWT
+  is) EWT dev 78.7%, PUD 75.3%, GUM's held-out test 75.4%, against 78.3%, 75.5%, 75.7% for EWT alone; with GUM
+  80.2%, 78.2%, 79.0%; with every treebank (GUM, LinES, ParTUT, Atis, ESL Spoken) 80.2%, 78.7%, 79.4%; with the
+  groups beside them 80.3%, 78.8%, 80.1% (LAS 73.8%, 73.2%, 73.9%). With this much analysed text the reader meets
+  few words rarely, and the groups add little but on GUM's test. GUM, LinES and ParTUT are CC BY-NC-SA
+  (non-commercial), taken on the owner's word. CHILDES (children's speech) added nothing in scratch and is not taught.
+
+In the repository: `word_groups.counted_groups` and `grouping` (791d2c2); `TREEBANKS`, `TreebankSource.of` and
+`teach.py --treebank` (each treebank under its own source); `experiments/GROUPS-01` and `experiments/STRUCTURE-03`
+record the two measurements again from the repository's code (`results/20261018T170523Z`, 3 of 3;
+`results/20261018T173729Z`, 7 of 7). Memory holds the groups one memory a group (`MemoryAgent.remember_word_groups`,
+`teach.py --source word-groups`, from GROUPS-01's tables in `data/word_groups`), and the structure view weighs
+each word by the groups held from the next warm.
+
+**A copy of main in the cloud.** Each trace was a round trip through the owner's Mac. Main's memories, beliefs and
+their evidence, and its concept graph and small tables, are copied through the gateway, read only, each table paged
+in the order of a column (the first copy, paged in no order, held 926,567 of 1,444,559 memories: pages overlapped),
+each checked whole against the gateway's count; then loaded into a Postgres in the container with main's own columns,
+where Lyric looks by default (`scripts/copy_main.py`). The whales trace on the copy gives what it gave on the Mac.
+Recall by meaning needs the embeddings the copy leaves out: recomputed from each memory's text, 993 of 1,000 of
+main's are identical (the 7 others are memories whose text was rewritten after their embedding was made).
+
+**Why "A whale breathes air through a blowhole." is read wrong, traced on the copy.** None of main's frames fits it:
+its 36 readings all suppose much past its words (the best: six links never taught, two fillers written against
+their slots, "air through" taken as one new name), and the listener, weighing them only against each other, takes
+one once the sentences before break a tie between two senses of "blowhole". The composer, asked only where no frame
+reads at all, reads it right: `done_by(?v0, whale) & done_to(?v0, air) & instance_of(?v0, breathe) &
+moves_through(?v0, blowhole)`. Over the prose: where the frames' reading is forced, the composer's is mostly the
+better ("The company hired three engineers in May.": the frames take the engineer for the happening, the composer
+reads the company hiring three engineers); the frames read questions better. And a telling composed would still miss
+the question its frame reads: the composer named "hired" `hired`, the adjective memory holds, where the question
+reads `hire`. A word is now named as memory holds it for its class, through the word it is a shape of
+(`MemoryAgent.name_of`). A word's reading forced is measured by what it supposed (`Reading.supposed`), against what
+the lessons' readings suppose. Measured, before any choice is made: of 70 prose readings, none names a thing by words
+that do not stand together in the structure, so that is not the test.
+
+**Main's size, measured** (its tables through the gateway, 1,000 of its memories sampled): 15.3 GB, memories 10.4 GB
+for 1,444,559 rows, 99.99% language knowledge. A memory is about 7 KB: about 350 bytes what it knows, about 3 KB the
+state copied into it when it formed (mood, thinking record, admission), about 3 KB its embedding and index.
+Compaction (`docs/research/MEMORY_COMPACTION_PLAN.md`) waits until teaching, understanding, reading and learning
+hold; then a fresh full teaching, then compaction (the owner's order); proposed, the compact layout built before the
+fresh teaching so it writes compact from the start. Warm-up loads the reader's language knowledge whole, and the
+structure reader works out its counts at every warm (from every treebank 11 minutes, with the groups 14): to be tried
+two ways, the worked-out counts kept as memory, and language recalled per sentence, the better kept (docs/HANDOFF.md §0).

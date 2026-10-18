@@ -1,9 +1,58 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-16 evening)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-18)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to (18) in
-`docs/research/LAB_NOTEBOOK.md`.
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to
+2026-10-18 (21) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
+
+## 0. Where it stands (2026-10-18)
+
+**A copy of main in a cloud session** (`scripts/copy_main.py`): main's memories, beliefs, their evidence, the
+concept graph and the small tables, fetched read only through the gateway and loaded into the container's own
+Postgres (port 5433, where Lyric looks by default), each table checked whole against main's count. About 90
+minutes to fetch, limited by the Mac's upload. A cloud session then reads, traces and runs the prose test with main's
+own knowledge, without the owner's Mac. Faithful: the whales trace gives what the Mac gave. The container also needs
+`sentence-transformers` and NLTK's `wordnet`, `omw-1.4`, `brown`, `cmudict` (fetched as zips from
+raw.githubusercontent.com/nltk/nltk_data, `packages/corpora/<name>.zip`, into `~/nltk_data/corpora`). Recall by
+meaning needs pgvector (`apt-get install postgresql-16-pgvector`) and the embeddings, which the copy leaves out:
+recomputed from each memory's text (all-MiniLM-L6-v2, the JSON-decoded content), 993 of 1,000 identical to main's.
+The container restarts without warning (three times on 2026-10-18): keep a long run's results written as it goes.
+
+**Measured (lab notebook 2026-10-18 (21)):** word groups counted from WikiText-103 (`experiments/GROUPS-01`, no
+model; MiniLM's vectors grouped the same way read no better) and UD's other English treebanks
+(`experiments/STRUCTURE-03`: EWT dev 78.3% to 80.2% UAS, PUD 75.5% to 78.7%, GUM's test 75.7% to 79.4%; the groups
+beside them +0.1, +0.1, +0.6). Built, not yet taught to main: `teach.py --treebank NAME`, `teach.py --source
+word-groups`.
+
+**Being traced: why the prose is read wrong.** "Do whales breathe air?" is not answered because the told sentence
+"A whale breathes air through a blowhole." is read by a frame that fits it badly ("air through" a quality, the
+breathing done by the ocean before), while the composer reads it right (`done_by whale, done_to air, moves_through
+blowhole`). The composer is asked only where no frame reads at all. Measured on the prose: where a frame's reading is
+forced, the composer's is mostly right; questions the frames read better. Two parts to the fix: (1) a telling the
+frames read only by supposing past its words (misfits with new names or fillers never seen together:
+`Reading.supposed`) is composed instead, the boundary taken from what the lessons' readings suppose, not chosen;
+(2) the composer names a word as memory holds it for its class ("hired" the verb is `hire`, not the adjective
+`hired`: `MemoryAgent.name_of`, done). Then UNDERSTANDS-PROSE-01 before and after, on the copy.
+
+**Order agreed with the owner:** teaching, understanding, reading and learning locked down first; then a fresh full
+teaching of main; then compaction (`docs/research/MEMORY_COMPACTION_PLAN.md`). Main is 15.3 GB: memories 10.4 GB for
+1,444,559 rows, of which about 350 bytes a memory is what it knows and the rest the state copied into it (about
+3 KB) and its embedding and index (about 3 KB). 99.99% are language knowledge, found by their words, never by
+resemblance. Proposed: build the compact layout (state kept once per moment; no embedding where nothing finds a
+memory by resemblance) before the fresh teaching, so the fresh teaching writes compact from the start.
+
+**Warm-up, to try two ways and keep the better (the owner's decision, 2026-10-18).** Recall serves knowledge on
+demand; the reader's language knowledge is loaded whole at warm (constructions, word classes, heard-after, the
+treebank's sentences, PropBank's and the lessons'; and the reasoner's beliefs), because reading one sentence looks it
+up thousands of times. The structure reader works out its counts from every sentence again at each warm: from EWT 4.7
+minutes, from every treebank 11, with the groups 14 (STRUCTURE-03's build times), so teaching main the treebanks adds
+that to every start. Two ways, each measured on start-up time, memory and reading (STRUCTURE-01, the lessons, the
+prose):
+1. **Keep what the work-out produces**: the reader's worked-out counts held as memory and loaded ready-made, worked
+   out again only when what they are counted from changes.
+2. **Recall language per sentence**: only the constructions and counts for the words of the sentence being read,
+   recalled by their words from the store and kept while used.
+Before main is taught every treebank.
 
 **A cloud session (no Mac, no store) reads main through the API gateway** (§5, "From a cloud session"): the cloud
 environment holds `GATEWAY_BASE` and `LYRIC_STORE_TOKEN`. That is how a session checks a run the owner started.
