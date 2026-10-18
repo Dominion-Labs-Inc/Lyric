@@ -4,6 +4,7 @@ torchvision>=0.15.0
 numpy>=1.24.0
 scipy>=1.10.0
 pandas>=2.0.0
+pyarrow>=14.0.0  # WikiText-103 read as parquet (experiments/GROUPS-01, SELF-TEACH-01)
 scikit-learn>=1.3.0
 
 # Audio processing
