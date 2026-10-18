@@ -1,0 +1,127 @@
+{
+  "experiment": "UNDERSTANDS-PROSE-01",
+  "claim": "the substrate reads prose as its sources write it and reasons over what it read: it understands the sentences, answers what they say and what follows, and does not answer wrongly what it did not understand",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-17T22:48:49.300150+00:00",
+  "duration_seconds": 1706.34,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "29caa750398cda0dd08564f2f248c843b79ab32e",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 8,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 3,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 0.4848,
+      "unit": "fraction",
+      "note": "16/33"
+    },
+    {
+      "name": "questions answered right",
+      "value": 0.2703,
+      "unit": "fraction",
+      "note": "10/37"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.0811,
+      "unit": "fraction",
+      "note": "3/37"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-17T22:52:12.889739+00:00"
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": false,
+      "detail": "16/33 = 48.5%",
+      "at": "2026-10-17T23:17:14.598031+00:00"
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": false,
+      "detail": "10/37 = 27.0%",
+      "at": "2026-10-17T23:17:14.598058+00:00"
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": false,
+      "detail": "3/37 = 8.1%",
+      "at": "2026-10-17T23:17:14.598067+00:00"
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-10-17T23:17:14.598074+00:00"
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-17T23:17:15.628719+00:00"
+    }
+  ],
+  "notes": [
+    "composing on: an utterance no taught frame reads is read by composing its meaning (LYRIC_COMPOSE=1)",
+    "encyclopedia: sentences 3/5, questions right 2/6, wrong 0",
+    "science: sentences 2/4, questions right 1/5, wrong 1",
+    "webpage: sentences 2/5, questions right 0/4, wrong 0",
+    "code documentation: sentences 1/3, questions right 0/3, wrong 0",
+    "mathematics: sentences 2/3, questions right 4/4, wrong 0",
+    "premises: sentences 2/2, questions right 2/2, wrong 0",
+    "history: sentences 1/3, questions right 1/4, wrong 0",
+    "paper abstract: sentences 1/3, questions right 0/3, wrong 0",
+    "security log: sentences 1/3, questions right 0/3, wrong 1",
+    "news: sentences 1/2, questions right 0/3, wrong 1"
+  ]
+}
