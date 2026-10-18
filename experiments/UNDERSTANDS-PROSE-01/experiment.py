@@ -106,6 +106,10 @@ async def main() -> int:
     EV.note(f"composing {composing}: an utterance no taught frame reads is "
             f"{'read by composing its meaning (LYRIC_COMPOSE=1)' if composing == 'on' else 'left unread'}")
     say(f"composing {composing} (LYRIC_COMPOSE=1 turns it on)")
+    if derived_reader.COMPOSING and derived_reader.COMPOSING_FORCED:
+        EV.note("a telling every frame reads only by supposing more than any lesson read as taught is composed "
+                "instead (LYRIC_COMPOSE_FORCED=1)")
+        say("forced tellings composed (LYRIC_COMPOSE_FORCED=1)")
     quiet = io.StringIO()
     say("loading memory, the beliefs and the language view (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):

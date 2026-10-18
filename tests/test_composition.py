@@ -104,6 +104,40 @@ def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monk
     assert reading.meaning.canonical() == want.canonical()
 
 
+def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monkeypatch):
+    """`_read_forced_by_composing`: a telling whose every reading supposes more than a lesson read as taught ever did
+    (more than two links never taught, or a filler written against its slot) is read by the composer; one supposing
+    no more than the lessons, a question, or one the composer reads nothing of, stays as the frames read it."""
+    from core.agents import memory_agent as memory
+    from core.semantics import derived_reader as dr
+    composed = Meaning("tell", (F("instance_of", "?e", "breathe"), F("done_by", "?e", "whale")))
+
+    class View:
+        def compose_sentence(self, sentence):
+            return composed
+
+    class Agent:
+        def composition_view(self):
+            return View()
+    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    told = Meaning("tell", (F("has_property", "?e", "air through"),))
+    pieces = (dr.Piece("Whales", True), dr.Piece("breathe", False), dr.Piece(".", False))
+
+    def utterance(*readings):
+        return dr.Utterance(pieces, readings)
+    forced = dr.Reading((), (), told, proposed=("link",) * 3)
+    misfit = dr.Reading((), (), told, proposed=("link",), misfits=1)
+    as_taught = dr.Reading((), (), told, proposed=("link",) * 2)
+    asked = dr.Reading((), (), Meaning("ask", told.facts), proposed=("link",) * 6)
+    for readings in [(forced,), (misfit,), (forced, misfit)]:
+        reading, = dr._read_forced_by_composing(utterance(*readings)).readings
+        assert reading.composed and reading.meaning == composed
+    for readings in [(as_taught,), (forced, as_taught), (asked,)]:
+        assert dr._read_forced_by_composing(utterance(*readings)).readings == readings
+    monkeypatch.setattr(View, "compose_sentence", lambda self, sentence: None)
+    assert dr._read_forced_by_composing(utterance(forced)).readings == (forced,)
+
+
 def test_a_composed_meaning_of_known_things_alone_is_no_reading(monkeypatch):
     """"Is the valve closed?" composed as the valve alone (given instance_of(?x2, valve)) asks nothing: the utterance
     is left unread, as it is where nothing is composed."""

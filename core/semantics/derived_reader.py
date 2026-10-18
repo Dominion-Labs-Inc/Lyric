@@ -4829,6 +4829,39 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
                      utterance.unknown)
 
 
+#: Whether a telling the frames read only by supposing more than any lesson read as taught ever supposed is read by
+#: composing instead (`_read_forced_by_composing`), with `COMPOSING`. Off until UNDERSTANDS-PROSE-01 on main shows it
+#: right more often than it misleads. `LYRIC_COMPOSE_FORCED=1` turns it on.
+COMPOSING_FORCED = os.environ.get("LYRIC_COMPOSE_FORCED") == "1"
+#: How many links never taught a reading of a lesson sentence read as taught proposes, at most: of the 3,054 lesson
+#: sentences, 3,037 were read as taught on a copy of main (2026-10-18), 2,895 supposing nothing, 132 one link, 10 two;
+#: none read loosely, with a word taken as a new name, a filler written against its slot or one never seen beside the
+#: slot's own.
+TAUGHT_PROPOSES = 2
+
+
+def _forced(reading: Reading) -> bool:
+    """Whether a reading supposes more than any lesson sentence read as taught supposed (`TAUGHT_PROPOSES`)."""
+    loose, new, proposed, misfits, apart = reading.supposed
+    return bool(loose or new or misfits or apart or proposed > TAUGHT_PROPOSES)
+
+
+def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
+    """A telling every frame reads only by supposing more than the lessons ever did, read by composing its meaning
+    (`COMPOSING_FORCED`); as it was where it is asked, a frame reads it as taught reads, or nothing is composed.
+
+    "A whale breathes air through a blowhole." fits no taught frame: its 36 readings each propose six links never
+    taught and write fillers against their slots ("air through" one new name, the breathing done by the ocean told
+    before), and the listener took one. The composer reads it as said, the whale breathing air through a blowhole,
+    and "Do whales breathe air?" is answered (UNDERSTANDS-PROSE-01 on a copy of main, 2026-10-18). Questions stay the
+    frames': the composer reads them worse."""
+    if not utterance.readings or not all(r.meaning.act == "tell" and not r.composed and _forced(r)
+                                         for r in utterance.readings):
+        return utterance
+    composed = _read_by_composing(Utterance(utterance.pieces, (), utterance.partial, utterance.unknown))
+    return composed if composed.readings else utterance
+
+
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
               parts: bool = False) -> Tuple[Utterance, ...]:
     """A text as the consecutive utterances that cover it, each read on its own.
@@ -4892,6 +4925,8 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
         out.append(Utterance(said, (), partial, unknown))
     if COMPOSING:
         out = [u if u.readings else _read_by_composing(u) for u in out]
+        if COMPOSING_FORCED:
+            out = [_read_forced_by_composing(u) for u in out]
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
 
 
