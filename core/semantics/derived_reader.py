@@ -4286,10 +4286,10 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
         # "breathes" was `breathese` before now, by the change "bit" shows of "bite", and `breath` done by what was
         # spoken of (UNDERSTANDS-PROSE-01, 2026-10-18, by `scripts/trace_question.py --word breathes`). Only a word
         # none holds is undone afresh.
-        shaped = ([(lx.value, says, tuple(view._shape_groups.get(says, ()))) for lx in held
+        saying = ([(lx.value, says, tuple(view._shape_groups.get(says, ()))) for lx in held
                    for says in view.said_in_shape(lx.words[0], lx.value)] if held
                   else view.shaped_phrases(span[0].text))
-        for name, says, held in shaped:
+        for name, says, held in saying:
             anchor = "?x"
             facts = (MeaningFact("instance_of", anchor, name),) + tuple(
                 MeaningFact(relation, anchor if subject == "@" else subject, anchor if obj == "@" else obj, positive)
