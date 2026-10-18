@@ -93,7 +93,22 @@ async def main() -> int:
         for utterance in conversation._read(sentence):
             chosen = derived_reader.meant(utterance.readings, heard=conversation._heard(sentence))
             if chosen is None:
-                say(f"   no one reading taken of {utterance.text!r} ({len(utterance.readings)} readings)")
+                say(f"   no one reading taken of {utterance.text!r} ({len(utterance.readings)} readings); the likeliest, "
+                    f"as the listener weighs them (`meant`):")
+                worths = view.listening_worths()
+                best = {}
+                for reading in utterance.readings:
+                    best.setdefault(reading.meaning.canonical(), reading)
+                weighed = derived_reader.weighed(list(best.values()), view, heard=conversation._heard(sentence))
+
+                def score(w):
+                    return round(w.activation + w.derivation + sum(
+                        worths.get((evidence, level), 0.0)
+                        for evidence, level in derived_reader.listening_levels(w).items()), 6)
+                for w in sorted(weighed, key=score, reverse=True)[:6]:
+                    named = [c.value for c in w.reading.constructions if isinstance(c, derived_reader.Lexical)]
+                    say(f"      {score(w):9.3f} (activation {w.activation:.3f}, derivation {w.derivation:.3f}) "
+                        f"{w.reading.meaning.canonical()[:200]}\n                names {named[:8]}")
                 continue
             say(f"   reading taken{' (composed)' if getattr(chosen, 'composed', False) else ''}: "
                 f"{chosen.meaning.canonical()[:240]}")
