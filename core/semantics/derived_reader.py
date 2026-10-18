@@ -2912,6 +2912,20 @@ class PatternInventory:
         held = [says for says, members in self._shape_groups.items() if (word, name) in members.values()]
         return held or [says for made, says, _ in self.shaped_phrases(word) if made == name]
 
+    def said_in_shape(self, word: str, name: str) -> List[FrozenSet[Tuple[Any, ...]]]:
+        """What a word written from a name memory holds it for says more than that name: as `said_by`, else what the
+        phrases written in the word's own change say of a happening, as `says_more` finds it ("breathes" from
+        `breathe` is written in `s`, as "barks" and "heals" are: done by what was spoken of)."""
+        found = self.said_by(word, name)
+        if found:
+            return found
+        change = self.shape_between(_fold(word), _fold(name))
+        if change is None:
+            return []
+        least = self._least(change)
+        return [says for says, members in self._shape_groups.items()
+                if len(members) >= 2 and least in self._group_changes.get(says, ()) and _says_of_happening(says)]
+
     def shaped_phrases(self, word: str) -> List[Tuple[str, FrozenSet[Tuple[Any, ...]], Tuple[str, ...]]]:
         """For a word none holds, what each shape that says more than a kind would make of it: the name it is written
         from, what the shape says (with `@` for the thing named), and the held phrases that show it ("jumped":
@@ -4267,7 +4281,15 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
     held = view.lexicals_with_words((_fold(span[0].text),), loose=True) if len(span) == 1 else ()
     if extend and len(span) == 1 and all(view.says_more(lx.words[0], lx.value) for lx in held) \
             and _may_be_new(span, view, 1):
-        for name, says, held in view.shaped_phrases(span[0].text):
+        # A WORD HELD, SAYING MORE THAN ITS CONCEPT, IS THE CONCEPT IT IS HELD FOR, saying what its own shape says
+        # (`said_in_shape`): "breathes", held for `breathe`, is a breathing done by what was spoken of. Undone afresh by each shape's best change,
+        # "breathes" was `breathese` before now, by the change "bit" shows of "bite", and `breath` done by what was
+        # spoken of (UNDERSTANDS-PROSE-01, 2026-10-18, by `scripts/trace_question.py --word breathes`). Only a word
+        # none holds is undone afresh.
+        shaped = ([(lx.value, says, tuple(view._shape_groups.get(says, ()))) for lx in held
+                   for says in view.said_in_shape(lx.words[0], lx.value)] if held
+                  else view.shaped_phrases(span[0].text))
+        for name, says, held in shaped:
             anchor = "?x"
             facts = (MeaningFact("instance_of", anchor, name),) + tuple(
                 MeaningFact(relation, anchor if subject == "@" else subject, anchor if obj == "@" else obj, positive)

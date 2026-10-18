@@ -2298,3 +2298,18 @@ def test_a_word_never_held_is_undone_to_a_word_memory_holds():
     assert view.unshaped_in("?p", "?slot0", "breathes") == "breathese"
     view._fillers_by_word["breathe"] = {"breathe"}
     assert view.unshaped_in("?p", "?slot0", "breathes") == "breathe"
+
+
+def test_a_held_word_saying_more_says_what_its_own_shape_says():
+    """"breathes", held for `breathe`, is written from it in `s`, as "heals" and "barks" are from theirs: what it says
+    more is what phrases written in `s` say of a happening (done by what was spoken of), not what a shape that would
+    undo it afresh to another word says ("breathese" before now, by the change "bit" shows of "bite")."""
+    view = dr.PatternInventory()
+    did = frozenset({("done_by", "@", "?previous", True)})
+    before = frozenset({("precedes", "@", "?now", True)})
+    view._shape_groups = {did: {"a": ("heals", "heal"), "b": ("barks", "bark"), "c": ("aches", "ach"),
+                                "d": ("mixes", "mix")},
+                          before: {"e": ("bit", "bite"), "f": ("hid", "hide"), "g": ("barked", "bark")}}
+    view._group_changes = {did: {("s", ""), ("es", "")}, before: {("", "e"), ("ed", "")}}
+    assert view.said_in_shape("breathes", "breathe") == [did]
+    assert view.said_in_shape("breathes", "pause rest") == []
