@@ -137,7 +137,7 @@ def test_a_word_is_named_as_memory_names_it():
 def test_a_word_held_only_as_another_class_is_named_through_its_shape():
     """"hired" read as a verb is `hire`, the verb memory holds, though memory holds "hired" the adjective; read as an
     adjective it is `hired`. So a telling composed ("The company hired three engineers.") meets the question its frame
-    reads ("Did the company hire engineers?")."""
+    reads ("Did the company hire engineers?"). "help" the noun stays `help`, never `aid`, another of its senses."""
     from core.agents.memory_agent import MemoryAgent
     from core.semantics.derived_reader import Lexical
     from core.semantics.sentence_machine import Piece
@@ -150,3 +150,8 @@ def test_a_word_held_only_as_another_class_is_named_through_its_shape():
     assert agent.name_of("hired", "VERB") == "hire"
     assert agent.name_of("hired", "ADJECTIVE") == "hired"
     assert agent.name_of("hire", "VERB") == "hire"
+    # Never another sense of the class in the word's place: "help" held as a verb, "aid" as a noun.
+    view.add(Lexical((Piece("help", False),), "help"))
+    view.add(Lexical((Piece("help", False),), "aid"))
+    view.word_classes.update({"help": {"VERB": 4}, "aid": {"NOUN": 2}})
+    assert agent.name_of("help", "NOUN") == "help"
