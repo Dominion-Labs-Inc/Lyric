@@ -2137,6 +2137,45 @@ class CompositionSource:
                 yield TaughtSentence(sentence, meaning, lesson)
 
 
+#: Where the word groups counted from WikiText-103 are kept on disk (data is not in the repository;
+#: `experiments/GROUPS-01` writes them): `groups_<n>.tsv`, a word and its group a line, a file for each count of groups.
+WORD_GROUPS_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
+                                "data", "word_groups")
+
+
+@dataclass
+class WordGroupsSource:
+    """Words grouped by the company they keep in WikiText-103's raw training text (about 100 million words of
+    Wikipedia, CC BY-SA), counted, no model learned (`word_groups.counted_groups`, `experiments/GROUPS-01`): the
+    100,000 most frequent words, into 256 groups and into 48. It teaches which words keep the same company
+    (`word_groups()`), for the structure reader to weigh a word it met rarely or never by its group, and states
+    nothing else. Counted, not checked by hand: it is not curated."""
+
+    data: str = WORD_GROUPS_DATA
+    name: str = "wikitext_103_word_groups"
+    quality: float = 0.9
+    curated: bool = False
+    vocabulary_only: bool = True
+
+    def provenance(self):
+        return _provenance("word_groups", "wikitext_103_raw_v1")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def word_groups(self) -> Iterator[Any]:
+        """Every group of every count, the fewest groups' first."""
+        from core.semantics.word_groups import groups_of, read_groups
+        counted = sorted((int(m.group(1)), name) for name in (os.listdir(self.data) if os.path.isdir(self.data) else ())
+                         for m in [re.fullmatch(r"groups_(\d+)\.tsv", name)] if m)
+        if not counted:
+            raise FileNotFoundError(
+                f"no word groups in {self.data}; count them first (experiments/GROUPS-01 writes groups_256.tsv and "
+                f"groups_48.tsv there). A teaching pass does not reach the network.")
+        for of, name in counted:
+            yield from groups_of(read_groups(os.path.join(self.data, name)), of, "wikitext_103")
+
+
 # ── Wikidata ────────────────────────────────────────────────────────────────
 
 @dataclass

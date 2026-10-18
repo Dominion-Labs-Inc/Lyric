@@ -517,6 +517,13 @@ class StructureView:
             self._grouped[key] = tuple((str(coarse), str(fine)) for coarse, fine in self.grouping(key))
         return self._grouped[key]
 
+    def group_by(self, grouping: Optional[Grouping]) -> None:
+        """Stand each word's groups beside it by this grouping from now on (None, none), the situations worked out
+        again when next read."""
+        self.grouping = grouping
+        self._grouped = {}
+        self._ready = False
+
     def add(self, analysed: Analysed) -> bool:
         """Hold one analysed sentence. False if it was held."""
         key = analysed.key()

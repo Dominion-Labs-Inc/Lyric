@@ -161,6 +161,8 @@ class MemoryAgent(IMemoryConsolidation):
         self._said_view: Dict[Tuple[str, str, str], Dict[str, Any]] = {}
         #: The sentences memory holds as analysed, read as memory-based learning reads them (`structure_view`).
         self._structure_view = None
+        #: The word groups memory holds (`word_groups`), which the structure view stands beside each word.
+        self._word_groups = None
         #: The sentences memory holds with their happenings' arguments annotated (`argument_view`), and the lessons'
         #: sentences it holds with their taught meanings, learned from by the composer (`composition_view`).
         self._argument_view = None
@@ -2853,7 +2855,8 @@ class MemoryAgent(IMemoryConsolidation):
         said = await self._said_memories()
         # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed; which phrases are a
         # happening's arguments; and the lessons' sentences with their meanings, which the composer learns from.
-        structure = await self._analysed_memories()
+        groups = await self._word_group_memories()
+        structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
         composition = await self._composition_memories(arguments)
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
@@ -2873,7 +2876,7 @@ class MemoryAgent(IMemoryConsolidation):
         inventory.word_classes = index
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
-        self._structure_view = structure
+        self._structure_view, self._word_groups = structure, groups
         self._argument_view, self._composition_view = arguments, composition
         self._fan_view, self._things_held = {}, None
         logger.info(
@@ -6267,12 +6270,13 @@ class MemoryAgent(IMemoryConsolidation):
 
     STRUCTURE_TAG = "analysed_sentence"
 
-    async def _analysed_memories(self):
-        """The sentences held as analysed, read back as the view (`structure_view`)."""
+    async def _analysed_memories(self, groups=None):
+        """The sentences held as analysed, read back as the view (`structure_view`), each word's groups beside it where
+        groups are held (`_word_group_memories`)."""
         from core.semantics.structure import Analysed
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
-        view = self._new_structure_view()
+        view = self._new_structure_view(groups)
         for row in await self._rows_tagged(self.STRUCTURE_TAG):
             await give_way()
             analysed = (row.metadata or {}).get("analysed")
@@ -6283,17 +6287,59 @@ class MemoryAgent(IMemoryConsolidation):
     def structure_view(self):
         """The sentences held as analysed, as the reader reads them. Synchronous; empty before the first warm."""
         if self._structure_view is None:
-            self._structure_view = self._new_structure_view()
+            self._structure_view = self._new_structure_view(self.word_groups())
         return self._structure_view
 
-    def _new_structure_view(self):
+    def _new_structure_view(self, groups=None):
         """An empty structure view that asks what memory holds of a word no sentence held used
         (`StructureView.held_classes`): measured on main both ways, it read the treebank's held-out parts and the
-        lessons better than the words' endings alone (2026-10-16 (10))."""
+        lessons better than the words' endings alone (2026-10-16 (10)); and stands each word's groups beside it
+        where memory holds word groups (`StructureView.grouping`): learned from the treebank, it read EWT dev and PUD
+        nearly a point better with them (`experiments/GROUPS-01`)."""
         from core.semantics.structure import StructureView
         view = StructureView()
         view.held_classes = self._held_word_classes
+        if groups is not None:
+            view.group_by(groups.grouping())
         return view
+
+    # WHICH WORDS KEEP THE SAME COMPANY. Words grouped by the company they keep in a great deal of text, counted
+    # (`word_groups.counted_groups`), are kept ONE MEMORY FOR EACH GROUP, its words whole; the structure reader weighs
+    # a word it met rarely or never by its group (`StructureView.grouping`).
+
+    WORD_GROUP_TAG = "word_group"
+
+    async def _word_group_memories(self):
+        """The word groups held, read back as the view (`word_groups`)."""
+        from core.semantics.word_groups import WordGroup, WordGroups
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        groups = WordGroups()
+        for row in await self._rows_tagged(self.WORD_GROUP_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("word_group")
+            if data:
+                groups.hold(WordGroup.from_dict(data))
+        return groups
+
+    def word_groups(self):
+        """The word groups memory holds. Synchronous; empty before the first warm."""
+        if self._word_groups is None:
+            from core.semantics.word_groups import WordGroups
+            self._word_groups = WordGroups()
+        return self._word_groups
+
+    async def remember_word_groups(self, groups, progress: Optional[Callable[[int, int], None]] = None
+                                   ) -> Dict[str, Any]:
+        """Remember word groups (`word_groups.WordGroup`), one memory each; one held already is not held again. The
+        structure view stands the groups held beside each word from now on. Returns `kept` and counts, as
+        `remember_argued`."""
+        held = await self._remember_whole(
+            groups, view=self.word_groups, tag=self.WORD_GROUP_TAG, field="word_group", progress=progress,
+            content=lambda item: item.said(), add=lambda view, item: view.hold(item))
+        if held["remembered"]:
+            self.structure_view().group_by(self.word_groups().grouping())
+        return held
 
     def _held_word_classes(self, word: str) -> Dict[str, int]:
         """What memory holds of a word's classes, by the treebank's names, from the reader's view as it is now
@@ -6478,6 +6524,9 @@ class MemoryAgent(IMemoryConsolidation):
         if field == "argued":
             from core.semantics.argument_structure import Argued
             return Argued.from_dict(data).key()
+        if field == "word_group":
+            from core.semantics.word_groups import WordGroup
+            return WordGroup.from_dict(data).key()
         from core.semantics.composition import TaughtSentence
         return TaughtSentence.from_dict(data).key()
 

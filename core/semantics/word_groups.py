@@ -16,7 +16,8 @@ from __future__ import annotations
 
 import time
 from array import array
-from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -116,6 +117,81 @@ def counted_groups(sentences: Iterable[Sequence[str]], groups: int, words: int =
         if moved < len(order) / 500:
             break
     return {str(names[k]): int(grouped[k]) for k in order}
+
+
+def read_groups(path: str) -> Dict[str, int]:
+    """A table of word to group as `counted_groups` gives it and GROUPS-01 writes it: a word and its group a line,
+    split by a tab, the most frequent word first."""
+    with open(path, encoding="utf-8") as handle:
+        return {word: int(group) for word, group in (line.rstrip("\n").split("\t") for line in handle if line.strip())}
+
+
+@dataclass(frozen=True)
+class WordGroup:
+    """One group of words that keep the same company, as counted from a text (`counted_groups`): the text, how many
+    groups it was counted into, the group's number and its words, the most frequent first. Memory holds each group
+    whole, one memory a group (`MemoryAgent.remember_word_groups`)."""
+
+    counted_from: str
+    of: int
+    group: int
+    words: Tuple[str, ...]
+
+    def key(self) -> str:
+        return f"{self.counted_from}:{self.of}:{self.group}"
+
+    def claim(self) -> str:
+        """The belief this group stands on: that these words keep the same company in the text."""
+        return f"the words of group {self.group} of {self.of} keep the same company in {self.counted_from}"
+
+    def said(self) -> str:
+        """The group, said plainly over two lines, so memory keeps it as a record and never reads it as a claim
+        (`_readable_claim`)."""
+        return f"Words keeping the same company in {self.counted_from}, group {self.group} of {self.of}:\n" + \
+            ", ".join(self.words)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"counted_from": self.counted_from, "of": self.of, "group": self.group, "words": list(self.words)}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "WordGroup":
+        return cls(str(data["counted_from"]), int(data["of"]), int(data["group"]), tuple(data["words"]))
+
+
+def groups_of(table: Mapping[str, int], of: int, counted_from: str) -> List[WordGroup]:
+    """A table of word to group (`counted_groups`, `read_groups`), counted into `of` groups, as its groups in the order
+    of their numbers."""
+    members: Dict[int, List[str]] = {}
+    for word, group in table.items():
+        members.setdefault(int(group), []).append(word)
+    return [WordGroup(counted_from, of, group, tuple(members[group])) for group in sorted(members)]
+
+
+class WordGroups:
+    """The word groups memory holds, by the counting each is of: what the structure reader stands beside each word
+    (`grouping`)."""
+
+    def __init__(self) -> None:
+        self._held: Dict[Tuple[str, int], Dict[int, WordGroup]] = {}
+
+    def __len__(self) -> int:
+        return sum(len(groups) for groups in self._held.values())
+
+    def hold(self, group: WordGroup) -> None:
+        self._held.setdefault((group.counted_from, group.of), {})[group.group] = group
+
+    def grouping(self) -> Optional[Callable[[Tuple[str, ...]], Sequence[Tuple[str, str]]]]:
+        """Each word's coarse and fine group, as `grouping` gives them, from the groups held of one text: its counting
+        into the most groups the fine, into the fewest the coarse. None where none is held. Of several texts, the one
+        with the most groups held."""
+        if not self._held:
+            return None
+        text = max({t for t, _ in self._held}, key=lambda t: sum(len(g) for (u, _), g in self._held.items() if u == t))
+        counts = sorted(of for t, of in self._held if t == text)
+
+        def table(of: int) -> Dict[str, int]:
+            return {word: group.group for group in self._held[(text, of)].values() for word in group.words}
+        return grouping(table(counts[-1]), table(counts[0]))
 
 
 def grouping(fine: Dict[str, int], coarse: Dict[str, int]) -> Callable[[Tuple[str, ...]], Sequence[Tuple[str, str]]]:

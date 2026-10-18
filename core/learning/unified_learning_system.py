@@ -4019,6 +4019,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                       remember="remember_taught_sentences", subject_kind="taught_sentence",
                                       provenance=provenance, quality=quality, progress=progress)
 
+    async def learn_word_groups(self, groups, *, provenance: Any = None, quality: float,
+                                progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Which words keep the same company, from words grouped by counting a great deal of text: `groups` is an
+        iterable of `word_groups.WordGroup`. Each is held by memory whole (`MemoryAgent.remember_word_groups`), its
+        standing a belief on that memory, and the structure reader stands each word's groups beside it.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(groups, what="word groups", remember="remember_word_groups",
+                                      subject_kind="word_group", provenance=provenance, quality=quality,
+                                      progress=progress)
+
     #: How many things taught a review asks itself about, by default.
     REVIEW_SAMPLE = 200
     #: How many facts a review looks at for each question it means to ask, at most.

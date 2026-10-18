@@ -229,6 +229,8 @@ class Report:
     #: meanings, for the composer (`learn_taught_sentences`).
     arguments: Dict[str, int] = field(default_factory=dict)
     taught_sentences: Dict[str, int] = field(default_factory=dict)
+    #: The same for the word groups it gave, counted from text (`learn_word_groups`).
+    word_groups: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
@@ -259,6 +261,7 @@ class Report:
             f"sentences analysed: {self.structure or 'none given'}",
             f"arguments given   : {self.arguments or 'none given'}",
             f"meanings to learn : {self.taught_sentences or 'none given'}",
+            f"word groups       : {self.word_groups or 'none given'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -503,11 +506,13 @@ class TeachingPass:
 
         # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, from sentences whose happenings' arguments were annotated by hand
         # (`argued()`: PropBank's), and WHAT A SENTENCE MEANS, from the lessons' sentences each with its taught meaning
-        # (`taught_sentences()`), for the composer: each kept whole by memory, its standing a belief on that memory. A
-        # limited pass takes the first `limit`.
+        # (`taught_sentences()`), for the composer; and WHICH WORDS KEEP THE SAME COMPANY, from words grouped by counting
+        # text (`word_groups()`), for the structure reader: each kept whole by memory, its standing a belief on that
+        # memory. A limited pass takes the first `limit`.
         for method, learn, phase, field_name in (
                 ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
-                ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences")):
+                ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),
+                ("word_groups", learning.learn_word_groups, "word groups", "word_groups")):
             if not hasattr(self.source, method):
                 continue
             items = await asyncio.to_thread(list, getattr(self.source, method)())

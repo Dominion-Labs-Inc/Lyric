@@ -1,0 +1,115 @@
+{
+  "experiment": "GROUPS-01",
+  "claim": "words grouped by the company they keep, counted from raw text, help the structure reader read",
+  "hypothesis": "with each word's groups beside it, the reader learned from EWT's training part reads EWT dev and PUD at least 0.5 points of UAS better",
+  "started_at": "2026-10-18T17:05:23.116255+00:00",
+  "duration_seconds": 1220.27,
+  "environment": {
+    "python": "3.13.16",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "cwd": "/home/user/Lyric",
+    "shadow_mode": null,
+    "git_commit": "7cc752919509bec0b432d15fe3c43f5e466d4fd6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "postgres",
+      "configuration_source": {
+        "host": "default",
+        "port": "default",
+        "database": "default",
+        "user": "default",
+        "password": "default",
+        "pool_min_size": "default",
+        "pool_max_size": "default",
+        "pool_idle_seconds": "default",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 0,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "words given one of 256 groups",
+      "value": 100000,
+      "unit": "",
+      "note": "255 groups used; 461s"
+    },
+    {
+      "name": "words given one of 48 groups",
+      "value": 100000,
+      "unit": "",
+      "note": "47 groups used; 671s"
+    },
+    {
+      "name": "EWT dev, without groups: classes / UAS / LAS",
+      "value": "93.12% / 78.27% / 71.55%",
+      "unit": "",
+      "note": "UAS on the 4,614 words met fewer than 10 times: 68.90%"
+    },
+    {
+      "name": "PUD, without groups: classes / UAS / LAS",
+      "value": "93.35% / 75.46% / 68.47%",
+      "unit": "",
+      "note": "UAS on the 5,506 words met fewer than 10 times: 69.98%"
+    },
+    {
+      "name": "EWT dev, with groups: classes / UAS / LAS",
+      "value": "93.72% / 79.21% / 72.68%",
+      "unit": "",
+      "note": "UAS on the 4,614 words met fewer than 10 times: 70.89%"
+    },
+    {
+      "name": "PUD, with groups: classes / UAS / LAS",
+      "value": "94.24% / 76.36% / 69.87%",
+      "unit": "",
+      "note": "UAS on the 5,506 words met fewer than 10 times: 71.29%"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the words are grouped",
+      "passed": true,
+      "detail": "100,000 words in 255 groups",
+      "at": "2026-10-18T17:16:34.049788+00:00"
+    },
+    {
+      "label": "EWT dev: the groups add at least 0.5 points of UAS",
+      "passed": true,
+      "detail": "+0.94 points",
+      "at": "2026-10-18T17:25:43.386387+00:00"
+    },
+    {
+      "label": "PUD: the groups add at least 0.5 points of UAS",
+      "passed": true,
+      "detail": "+0.89 points",
+      "at": "2026-10-18T17:25:43.386428+00:00"
+    }
+  ],
+  "notes": [
+    "in make's group of 256: make take get see give find provide create leave keep allow reach",
+    "in more's group of 256: more less rather better longer faster fewer worse slower cheaper taller brighter",
+    "in whale's group of 256: cross horse bowl hair blues sky knight card mario eagle hole globe",
+    "in blue's group of 256: white black young red female green blue dark christian male super iron",
+    "in because's group of 256: because instead outside ahead consisted consists consisting regardless consist traces deprived disapproved"
+  ]
+}

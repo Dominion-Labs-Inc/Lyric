@@ -31,7 +31,7 @@ So this starts the substrate and teaches it while it is running:
     nothing else.
 
   --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | listening | treebank | propbank | composition
-             | wikidata | closed-classes | lesson
+             | word-groups | wikidata | closed-classes | lesson
              wordnet-examples: WordNet's examples of English and none of its facts, for a store WordNet was taught
              to before they were said: its nouns' plurals ("Hawks are raptors."), its verbs' forms ("Tom strolled.")
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
@@ -48,6 +48,9 @@ So this starts the substrate and teaches it while it is running:
              sentence kept whole, its standing a belief; --limit N takes the first N
              composition: the lessons' sentences each with its taught meaning (data/lessons), kept whole for the
              composer to learn what a sentence means from how its words go together; --limit N takes the first N
+             word-groups: which words keep the same company, counted from WikiText-103's raw text into 256 groups
+             and 48 (data/word_groups, written by experiments/GROUPS-01): each group kept whole, its standing a
+             belief, and the structure reader weighs each word by its groups
   --relations grammar | practical | taxonomy      (conceptnet only)
   --limit N  teach a uniform sample of N across the WHOLE source
   --small N  a uniform sample of N, and of what the source states about its whole vocabulary (word classes, usage,
@@ -92,7 +95,7 @@ def build_source(args):
                                                 CompositionSource, ConceptNetSource, ListeningSource,
                                                 PropBankSource, TreebankSource, WikidataSource,
                                                 WordNetExamplesSource,
-                                                WordNetSource, WordNetUsageSource)
+                                                WordGroupsSource, WordNetSource, WordNetUsageSource)
     if args.source == "conceptnet":
         relations = ConceptNetSource.RELATION_SETS.get(args.relations)
         if relations is None:
@@ -114,6 +117,8 @@ def build_source(args):
         return PropBankSource()
     if args.source == "composition":
         return CompositionSource()
+    if args.source == "word-groups":
+        return WordGroupsSource()
     if args.source == "closed-classes":
         # The finite classes of English. No facts, only what class each word
         # has -- which is the half of language a taxonomy source cannot state.
@@ -237,7 +242,8 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "listening",
-                                 "treebank", "propbank", "composition", "wikidata", "closed-classes", "lesson"))
+                                 "treebank", "propbank", "composition", "word-groups", "wikidata", "closed-classes",
+                                 "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)

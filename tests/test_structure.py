@@ -183,3 +183,55 @@ def test_another_treebank_is_taught_under_its_own_source(tmp_path):
     taught = list(source.analysed())
     assert [a.said_in for a in taught] == ["ud_english_gum:train", "ud_english_gum:dev"]
     assert source.provenance().source_id == "ud_english_gum" and TreebankSource.of("ewt").name == "ud_english_ewt"
+
+
+def test_word_groups_are_taught_as_counted_and_held_as_the_files_group(tmp_path):
+    """`WordGroupsSource` teaches each group of each count GROUPS-01 wrote, its words the most frequent first; the
+    groups held (`WordGroups`) group a sentence's words as the files do, coarse beside fine, a word in neither
+    ungrouped."""
+    from core.learning.teaching_sources import WordGroupsSource
+    from core.semantics.word_groups import WordGroup, WordGroups, grouping, read_groups
+    (tmp_path / "groups_4.tsv").write_text("the\t1\ncat\t2\ndog\t2\nruns\t3\n")
+    (tmp_path / "groups_2.tsv").write_text("the\t1\ncat\t1\ndog\t1\nruns\t1\n")
+    taught = list(WordGroupsSource(data=str(tmp_path)).word_groups())
+    assert [(g.of, g.group, g.words) for g in taught] == [
+        (2, 1, ("the", "cat", "dog", "runs")), (4, 1, ("the",)), (4, 2, ("cat", "dog")), (4, 3, ("runs",))]
+    held = WordGroups()
+    for group in taught:
+        held.hold(WordGroup.from_dict(group.to_dict()))
+    files = grouping(read_groups(str(tmp_path / "groups_4.tsv")), read_groups(str(tmp_path / "groups_2.tsv")))
+    words = ("The", "dog", "runs", "home")
+    assert list(held.grouping()(words)) == list(files(words)) == [("1", "1"), ("1", "2"), ("1", "3"), ("?", "?")]
+    assert WordGroups().grouping() is None and "\n" in taught[0].said()
+
+
+def test_memory_keeps_a_word_group_once_and_the_reader_weighs_words_by_it():
+    """`MemoryAgent.remember_word_groups`, the store stood in for: kept, one memory with the group whole; given again,
+    held already; and the structure view stands the groups held beside each word from then on."""
+    import asyncio
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.word_groups import WordGroup
+    group = WordGroup("text", 4, 2, ("cat", "dog"))
+    agent = MemoryAgent()
+    agent._word_classes_warm = True
+    stored = []
+
+    async def store_memory(**kwargs):
+        stored.append(kwargs)
+        return True, f"m{len(stored)}"
+
+    async def rows_tagged(tag):
+        return [SimpleNamespace(memory_id=f"m{k}", metadata=s["source_context"])
+                for k, s in enumerate(stored, 1) if tag in s["tags"]]
+    agent.store_memory, agent._rows_tagged = store_memory, rows_tagged
+    assert agent.structure_view().grouping is None
+    first = asyncio.run(agent.remember_word_groups([group]))
+    assert (first["remembered"], first["already"]) == (1, 0) and first["kept"] == [(group, "m1")]
+    assert stored[0]["source_context"] == {"word_group": group.to_dict()} and len(agent.word_groups()) == 1
+    assert list(agent.structure_view().grouping(("Dogs", "dog"))) == [("?", "?"), ("2", "2")]
+    again = asyncio.run(agent.remember_word_groups([group]))
+    assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1
+    assert again["held_already"] == [(group, "m1")]
+    warmed = asyncio.run(agent._word_group_memories())
+    assert len(warmed) == 1 and list(warmed.grouping()(("cat",))) == [("2", "2")]
