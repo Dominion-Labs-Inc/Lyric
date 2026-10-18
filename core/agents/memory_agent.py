@@ -6443,26 +6443,29 @@ class MemoryAgent(IMemoryConsolidation):
 
     def name_of(self, word: str, word_class: str) -> str:
         """The thing a word names, as memory names it: of the things held fillers of the word name (a word in
-        another case is the same word), else of the held word it is a shape of ("breathes", `breathe`), the word
-        itself where it is one of them, else the one memory holds a word of this class names, else the first; the
-        word itself where memory holds nothing of it."""
+        another case is the same word), else of the held word it is a shape of ("breathes", `breathe`), the one
+        memory holds a word of this class names, the word itself first. A word held only as another class is read
+        through the word it is a shape of: "hired" read as a verb is `hire`, though memory holds "hired" the
+        adjective, so a telling composed meets the question read by its frame ("Did the company hire engineers?",
+        UNDERSTANDS-PROSE-01, 2026-10-18). Where no held name is of this class, the word itself where it is one of
+        them, else the first; the word itself where memory holds nothing of it."""
         from core.semantics.structure import _HELD_AS
         view = self.pattern_inventory()
         folded = word.casefold()
+        otherwise: Optional[str] = None
         for written in [folded] + [n for n in view.names_of_shape(folded) if n != folded]:
             names = list(dict.fromkeys(l.value for l in view.lexicals_with_words((written,), loose=True)))
             if not names:
                 if written != folded:
                     return written
                 continue
-            if written in names:
-                return written
-            for name in names:
+            for name in sorted(names, key=lambda n: n != written):
                 classes = view.word_classes.get(name, {})
                 if any(word_class in _HELD_AS.get(cls, (cls,)) and n > 0 for cls, n in classes.items()):
                     return name
-            return names[0]
-        return folded
+            if otherwise is None:
+                otherwise = written if written in names else names[0]
+        return otherwise if otherwise is not None else folded
 
     def known_name(self, words: Sequence[str]) -> bool:
         """Whether memory holds these words as one name ("blue whale")."""

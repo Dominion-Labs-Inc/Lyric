@@ -132,3 +132,21 @@ def test_a_word_is_named_as_memory_names_it():
     agent.pattern_inventory().add(Lexical((Piece("Flies", False),), "dipterous insect fly"))
     assert agent.name_of("flies", "NOUN") == "dipterous insect fly"
     assert agent.name_of("Cat", "NOUN") == "cat"
+
+
+def test_a_word_held_only_as_another_class_is_named_through_its_shape():
+    """"hired" read as a verb is `hire`, the verb memory holds, though memory holds "hired" the adjective; read as an
+    adjective it is `hired`. So a telling composed ("The company hired three engineers.") meets the question its frame
+    reads ("Did the company hire engineers?")."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.derived_reader import Lexical
+    from core.semantics.sentence_machine import Piece
+    agent = MemoryAgent()
+    view = agent.pattern_inventory()
+    view.add(Lexical((Piece("hired", False),), "hired"))
+    view.add(Lexical((Piece("hire", False),), "hire"))
+    view.word_classes = {"hired": {"ADJECTIVE": 3}, "hire": {"VERB": 5}}
+    view.names_of_shape = lambda word: ["hire"] if word == "hired" else []
+    assert agent.name_of("hired", "VERB") == "hire"
+    assert agent.name_of("hired", "ADJECTIVE") == "hired"
+    assert agent.name_of("hire", "VERB") == "hire"
