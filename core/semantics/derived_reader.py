@@ -4286,10 +4286,12 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
         # "breathes" was `breathese` before now, by the change "bit" shows of "bite", and `breath` done by what was
         # spoken of (UNDERSTANDS-PROSE-01, 2026-10-18, by `scripts/trace_question.py --word breathes`). Only a word
         # none holds is undone afresh.
-        saying = ([(lx.value, says, tuple(view._shape_groups.get(says, ()))) for lx in held
+        # The held word stands in the reading as itself, met as often as it was, and is no new word: a reading through
+        # it was weighed as a guess, and lost to every phrase held for another sense of the word.
+        saying = ([(lx.value, says, tuple(view._shape_groups.get(says, ())), lx) for lx in held
                    for says in view.said_in_shape(lx.words[0], lx.value)] if held
-                  else view.shaped_phrases(span[0].text))
-        for name, says, held in saying:
+                  else [(name, says, like, None) for name, says, like in view.shaped_phrases(span[0].text)])
+        for name, says, held, word in saying:
             anchor = "?x"
             facts = (MeaningFact("instance_of", anchor, name),) + tuple(
                 MeaningFact(relation, anchor if subject == "@" else subject, anchor if obj == "@" else obj, positive)
@@ -4298,7 +4300,8 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
                 made = Phrase(span, anchor, facts)
             except ValueError:
                 continue
-            out.append(_Filling(anchor, facts, (made,), new=(Lexical(span, name),), like=held))
+            out.append(_Filling(anchor, facts, (made, word), like=held) if word is not None else
+                       _Filling(anchor, facts, (made,), new=(Lexical(span, name),), like=held))
     for phrase in view.phrases_reading(have):
         if not view.counts(phrase) or (phrase.slots and not view.may_read(phrase.key, have, loose)):
             continue
