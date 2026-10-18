@@ -46,6 +46,21 @@ async def main() -> int:
         if not getattr(db, "initialized", False):
             await db.initialize()
     from core.semantics import derived_reader
+    if "--word" in sys.argv:
+        # HOW ONE WORD IS READ ON ITS OWN: what memory holds of it, whether each holding says more than its concept,
+        # whether it may be read as new, and what a shape that says more would make of it, with the words showing it.
+        view, word = derived_reader.live_view(), sys.argv[sys.argv.index("--word") + 1]
+        held = view.lexicals_with_words((word.lower(),), loose=True)
+        say(f"{word!r} held as: {[(lx.value, view.counts(lx), view.says_more(lx.words[0], lx.value)) for lx in held]}")
+        say(f"   (value, counts, says more); may be new: "
+            f"{derived_reader._may_be_new((derived_reader.Piece(word, False),), view, 1)}")
+        say(f"   a shape of: {view.names_of_shape(word)}")
+        for made, says, members in view.shaped_phrases(word):
+            shown = sorted({c for w, n in [view._shape_groups[says][m] for m in members]
+                            for c in view.changes_between(w, n)})[:12] if says in view._shape_groups else []
+            say(f"   shaped: {made!r} says {sorted(says)}; {len(members)} words show it, e.g. "
+                f"{[view._shape_groups[says][m] for m in members][:8]}; changes {shown}")
+        return 0
     conversation = get_conversation(f"trace_question_{name}", remembers=False)
 
     # ── each step, watched, not changed ──────────────────────────────────────────────────────────────────────────
