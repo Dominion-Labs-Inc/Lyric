@@ -3020,16 +3020,21 @@ class PatternInventory:
         """The name a word never held has in a slot whose fillers are written in a shape: the word with the most
         particular change of theirs that it ends in undone, of those productive in saying (`said_shapes`: the slot's
         fillers are concepts said in a shape) ("jumps", where "barks" and "climbs" stand, is `jump`); None when the
-        slot takes no shape, or the word ends in none of its changes."""
+        slot takes no shape, or the word ends in none of its changes.
+
+        A WORD MEMORY HOLDS IS WHAT IT UNDOES TO, where one of the changes undoes it to one; the most particular
+        change only where none does. Undone by the most particular change alone, "breathes" stood as `breathese`, a
+        word nothing holds, where `breathe` is held (UNDERSTANDS-PROSE-01, 2026-10-18)."""
         writing = self.changed_writing(pattern, slot)
         if not writing:
             return None
         word = _fold(word)
-        for written, names in sorted(self.said_shapes()[1], key=lambda c: (-len(c[1]), -len(c[0]), c)):
-            if self._least((written, names)) in writing and word.endswith(written) \
-                    and len(word) - len(written) + len(names) >= 2:
-                return word[:len(word) - len(written)] + names
-        return None
+        undone = [word[:len(word) - len(written)] + names
+                  for written, names in sorted(self.said_shapes()[1], key=lambda c: (-len(c[1]), -len(c[0]), c))
+                  if self._least((written, names)) in writing and word.endswith(written)
+                  and len(word) - len(written) + len(names) >= 2]
+        return next((name for name in undone if name in self._fillers_by_word or self._lexical_value.get(name)),
+                    undone[0] if undone else None)
 
     @staticmethod
     def _least(change: Tuple[str, str]) -> Tuple[str, str]:

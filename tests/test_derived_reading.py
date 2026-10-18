@@ -2286,3 +2286,15 @@ def test_what_only_a_happening_has_is_never_said_of_a_thing():
     assert any(f[0] == "moves_through" for r in read("The dog ran through the door.", view) for f in _facts(r))
     for reading in read("The dog through the door is big.", view):
         assert ("moves_through", True) not in _facts(reading), reading.meaning.canonical()
+
+
+def test_a_word_never_held_is_undone_to_a_word_memory_holds():
+    """"breathes", never held, where the slot's fillers are written in a shape: of the changes that undo it, the one
+    that makes a word memory holds (`breathe`) is taken, not the most particular (`breathese`, from a change adding
+    "e" that a slot's fillers also show); with no held word among them, the most particular, as before."""
+    view = dr.PatternInventory()
+    view.changed_writing = lambda pattern, slot: {("", "e"), ("s", "")}
+    view.said_shapes = lambda: ({}, frozenset({("es", "ese"), ("s", "")}))
+    assert view.unshaped_in("?p", "?slot0", "breathes") == "breathese"
+    view._fillers_by_word["breathe"] = {"breathe"}
+    assert view.unshaped_in("?p", "?slot0", "breathes") == "breathe"
