@@ -8,9 +8,10 @@ Martin, Liermann & Ney 1998). What comes out is a table, word to group, as reada
 take, get, see, give" stand together, and "more, less, rather, better, longer".
 
 Counted over WikiText-103's 100 million words, the structure reader with each word's group beside it read EWT dev
-78.3% to 79.2% UAS, PUD 75.5% to 76.4%; with UD's other English treebanks too, 80.5%, 78.8% and GUM's held-out test
-79.9% (`experiments/GROUPS-01`, `experiments/STRUCTURE-03`). MiniLM's vectors, grouped the same way, read no better
-(lab notebook 2026-10-18).
+78.3% to 79.2% UAS, PUD 75.5% to 76.4% (`experiments/GROUPS-01`). Learned from UD's other English treebanks too, the
+reader meets far fewer words rarely, and the groups add less: EWT dev 80.2% to 80.3%, PUD 78.7% to 78.8%, GUM's
+held-out test 79.4% to 80.1%; LAS on PUD and GUM's test 0.6 and 0.7 points (`experiments/STRUCTURE-03`). MiniLM's
+vectors, grouped the same way, read no better (lab notebook 2026-10-18 (21)).
 """
 from __future__ import annotations
 

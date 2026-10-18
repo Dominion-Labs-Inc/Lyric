@@ -1929,7 +1929,7 @@ class TreebankSource:
     so it has no records (`vocabulary_only`).
 
     More analysed English is what raises the structure reader: learned from EWT with GUM, LinES, ParTUT, Atis and
-    ESL Spoken beside it, UAS on EWT dev 78.3% to 80.2%, on PUD 75.5% to 78.6%, on GUM's held-out test 75.7% to 79.5%
+    ESL Spoken beside it, UAS on EWT dev 78.3% to 80.2%, on PUD 75.5% to 78.7%, on GUM's held-out test 75.7% to 79.4%
     (`experiments/STRUCTURE-03`)."""
 
     path: str = EWT_TRAIN

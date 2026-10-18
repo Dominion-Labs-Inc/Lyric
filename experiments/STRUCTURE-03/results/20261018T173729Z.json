@@ -1,0 +1,194 @@
+{
+  "experiment": "STRUCTURE-03",
+  "claim": "more hand-analysed English raises the structure reader, and the counted word groups beside it raise it further",
+  "hypothesis": "with every treebank the teaching pass takes, UAS rises at least 1.5 points on EWT dev and 3 on GUM's test; the groups raise it on all three",
+  "started_at": "2026-10-18T17:37:29.940787+00:00",
+  "duration_seconds": 1618.745,
+  "environment": {
+    "python": "3.13.16",
+    "executable": "/usr/bin/python3",
+    "platform": "Linux-6.18.44-fc-v139-x86_64-with-glibc2.39",
+    "cwd": "/home/user/Lyric",
+    "shadow_mode": null,
+    "git_commit": "4a4934956d842df4a59fb31e1fb51baa60de43f6",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "postgres",
+      "configuration_source": {
+        "host": "default",
+        "port": "default",
+        "database": "default",
+        "user": "default",
+        "password": "default",
+        "pool_min_size": "default",
+        "pool_max_size": "default",
+        "pool_idle_seconds": "default",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 0,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 7,
+    "passed": 7,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "EWT dev, EWT alone: classes / UAS / LAS",
+      "value": "93.12% / 78.27% / 71.55%",
+      "unit": "",
+      "note": "learned from 12,544 sentences"
+    },
+    {
+      "name": "PUD, EWT alone: classes / UAS / LAS",
+      "value": "93.35% / 75.46% / 68.47%",
+      "unit": "",
+      "note": "learned from 12,544 sentences"
+    },
+    {
+      "name": "GUM test, EWT alone: classes / UAS / LAS",
+      "value": "93.26% / 75.65% / 68.43%",
+      "unit": "",
+      "note": "learned from 12,544 sentences"
+    },
+    {
+      "name": "EWT dev, EWT, Atis, ESL Spoken (CC BY-SA): classes / UAS / LAS",
+      "value": "93.03% / 78.69% / 71.91%",
+      "unit": "",
+      "note": "learned from 19,478 sentences"
+    },
+    {
+      "name": "PUD, EWT, Atis, ESL Spoken (CC BY-SA): classes / UAS / LAS",
+      "value": "93.14% / 75.32% / 68.09%",
+      "unit": "",
+      "note": "learned from 19,478 sentences"
+    },
+    {
+      "name": "GUM test, EWT, Atis, ESL Spoken (CC BY-SA): classes / UAS / LAS",
+      "value": "93.19% / 75.44% / 67.95%",
+      "unit": "",
+      "note": "learned from 19,478 sentences"
+    },
+    {
+      "name": "EWT dev, EWT and GUM: classes / UAS / LAS",
+      "value": "93.78% / 80.17% / 73.78%",
+      "unit": "",
+      "note": "learned from 25,433 sentences"
+    },
+    {
+      "name": "PUD, EWT and GUM: classes / UAS / LAS",
+      "value": "94.72% / 78.22% / 72.18%",
+      "unit": "",
+      "note": "learned from 25,433 sentences"
+    },
+    {
+      "name": "GUM test, EWT and GUM: classes / UAS / LAS",
+      "value": "95.25% / 79.04% / 73.15%",
+      "unit": "",
+      "note": "learned from 25,433 sentences"
+    },
+    {
+      "name": "EWT dev, every treebank: classes / UAS / LAS",
+      "value": "93.82% / 80.19% / 73.75%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    },
+    {
+      "name": "PUD, every treebank: classes / UAS / LAS",
+      "value": "94.60% / 78.70% / 72.57%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    },
+    {
+      "name": "GUM test, every treebank: classes / UAS / LAS",
+      "value": "95.08% / 79.42% / 73.16%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    },
+    {
+      "name": "EWT dev, every treebank, with groups: classes / UAS / LAS",
+      "value": "94.01% / 80.27% / 73.81%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    },
+    {
+      "name": "PUD, every treebank, with groups: classes / UAS / LAS",
+      "value": "95.07% / 78.78% / 73.20%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    },
+    {
+      "name": "GUM test, every treebank, with groups: classes / UAS / LAS",
+      "value": "95.32% / 80.06% / 73.85%",
+      "unit": "",
+      "note": "learned from 38,879 sentences"
+    }
+  ],
+  "checks": [
+    {
+      "label": "every treebank is on disk",
+      "passed": true,
+      "detail": "under /tmp/claude-0/-home-user-Lyric/acfe2937-c969-5fac-b1b9-536faac15259/scratchpad/syntax",
+      "at": "2026-10-18T17:37:29.940971+00:00"
+    },
+    {
+      "label": "the groups are on disk",
+      "passed": true,
+      "detail": "/tmp/claude-0/-home-user-Lyric/acfe2937-c969-5fac-b1b9-536faac15259/scratchpad/word_groups",
+      "at": "2026-10-18T17:37:29.941021+00:00"
+    },
+    {
+      "label": "EWT dev: every treebank adds at least 1.5 points of UAS",
+      "passed": true,
+      "detail": "+1.92 points",
+      "at": "2026-10-18T18:04:28.685602+00:00"
+    },
+    {
+      "label": "GUM test: every treebank adds at least 3.0 points of UAS",
+      "passed": true,
+      "detail": "+3.78 points",
+      "at": "2026-10-18T18:04:28.685652+00:00"
+    },
+    {
+      "label": "EWT dev: the groups beside every treebank raise UAS",
+      "passed": true,
+      "detail": "+0.08 points",
+      "at": "2026-10-18T18:04:28.685659+00:00"
+    },
+    {
+      "label": "PUD: the groups beside every treebank raise UAS",
+      "passed": true,
+      "detail": "+0.08 points",
+      "at": "2026-10-18T18:04:28.685663+00:00"
+    },
+    {
+      "label": "GUM test: the groups beside every treebank raise UAS",
+      "passed": true,
+      "detail": "+0.64 points",
+      "at": "2026-10-18T18:04:28.685667+00:00"
+    }
+  ],
+  "notes": [
+    "UD_English-EWT: train; CC BY-SA 4.0",
+    "UD_English-GUM: train, dev; CC BY-NC-SA 4.0",
+    "UD_English-LinES: train, dev; CC BY-NC-SA 4.0",
+    "UD_English-ParTUT: train, dev; CC BY-NC-SA 4.0",
+    "UD_English-Atis: train, dev; CC BY-SA 4.0",
+    "UD_English-ESLSpok: train, dev; CC BY-SA 4.0"
+  ]
+}

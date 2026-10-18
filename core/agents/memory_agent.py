@@ -6294,8 +6294,9 @@ class MemoryAgent(IMemoryConsolidation):
         """An empty structure view that asks what memory holds of a word no sentence held used
         (`StructureView.held_classes`): measured on main both ways, it read the treebank's held-out parts and the
         lessons better than the words' endings alone (2026-10-16 (10)); and stands each word's groups beside it
-        where memory holds word groups (`StructureView.grouping`): learned from the treebank, it read EWT dev and PUD
-        nearly a point better with them (`experiments/GROUPS-01`)."""
+        where memory holds word groups (`StructureView.grouping`): learned from EWT, it read EWT dev and PUD nearly a
+        point better with them (`experiments/GROUPS-01`); from every treebank taught, 0.1 point better, and GUM's
+        held-out test 0.6 (`experiments/STRUCTURE-03`)."""
         from core.semantics.structure import StructureView
         view = StructureView()
         view.held_classes = self._held_word_classes
