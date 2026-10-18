@@ -20925,6 +20925,15 @@ class Conversation:
             if said:
                 (qualified if qualities else answers).append(
                     Answer(candidate, "", (), verdict=None if meaning.asked or qualities else True, told=said[0]))
+            elif not qualities:
+                # FOUND IS ANSWERED, SAID OR NOT. Nothing taught may say the telling ("Whales live in the ocean.":
+                # no construction says a living in a place), and the event still holds all the question names:
+                # asked yes or no, yes; asked what, what fills it, by its name, a particular by its kind. Dropped
+                # unsaid, "Do whales live in the ocean?" went unanswered with the living found (UNDERSTANDS-PROSE-01,
+                # 2026-10-18, by `scripts/trace_question.py`).
+                found = tuple(kinds.get(filled[a], filled[a]) for a in meaning.asked if a in filled)
+                if not meaning.asked or found:
+                    answers.append(Answer(candidate, "", found, verdict=None if meaning.asked else True))
         return answers or qualified
 
     @staticmethod

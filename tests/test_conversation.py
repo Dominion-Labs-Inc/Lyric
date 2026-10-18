@@ -416,6 +416,46 @@ async def test_a_question_that_only_names_what_was_found_is_not_answered(talk, m
     assert await talk._reasoned_answers("Is the valve closed?", [], None) == [] and not asked
 
 
+@pytest.mark.asyncio
+async def test_a_happening_found_answers_its_question_though_nothing_taught_says_it(talk, monkeypatch):
+    """Told "They live in the ocean." (a living, done by the whale, in `ocean_1`), "Do whales live in the ocean?" finds
+    the living, and nothing taught says "Whales live in the ocean.": the answer is still yes. "Where do whales live?"
+    is answered by what fills it, the ocean by its kind. Dropped unsaid, both went unanswered with the living found."""
+    from types import SimpleNamespace
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import MeaningFact
+    living = "live_a2cf4070"
+    incoming = {"whale": [(living, "done by", "whale", True)], "live": [(living, "instance of", "live", True)],
+                "ocean_1": [(living, "located in", "ocean_1", True)]}
+    asked = {
+        "Do whales live in the ocean?": Meaning("ask", (
+            MeaningFact("done_by", "?e", "whale"), MeaningFact("instance_of", "?e", "live"),
+            MeaningFact("located_in", "?e", "ocean_1"))),
+        "Where do whales live?": Meaning("ask", (
+            MeaningFact("done_by", "?e", "whale"), MeaningFact("instance_of", "?e", "live"),
+            MeaningFact("located_in", "?e", "?x")), ("?x",))}
+
+    async def found(meaning, *, telling=False):
+        return {}
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=[("instance of", "live"), ("done by", "whale"),
+                                                      ("located in", "ocean_1")])
+
+    async def kind_of(name):
+        return "ocean" if name == "ocean_1" else None
+
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked[sentence])
+    monkeypatch.setattr(talk, "_known_of", found)
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    monkeypatch.setattr(talk, "_kind_of", kind_of)
+    monkeypatch.setattr(dr, "say", lambda *a, **k: ())
+    yes, = await talk._asked_of_events("Do whales live in the ocean?", incoming)
+    assert (yes.about, yes.others, yes.verdict) == (living, (), True), yes
+    where, = await talk._asked_of_events("Where do whales live?", incoming)
+    assert (where.about, where.others, where.verdict) == (living, ("ocean",), None), where
+
+
 def test_what_is_not_known_of_a_question_naming_only_a_known_thing_is_not_said():
     """A question of one fact that only names a known thing (given instance_of(?t0, light)) holds or not of nothing:
     what is not known of it is not said, and saying the reply goes on (the reply stopped there, 2026-10-17)."""
