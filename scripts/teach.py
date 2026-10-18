@@ -41,7 +41,8 @@ So this starts the substrate and teaches it while it is running:
              meanings say which reading was meant; nothing else is taught
              treebank: how the words of a sentence go together, from sentences analysed by hand (the English Web
              Treebank's training part, test_data/syntax/UD_English-EWT): each kept whole, its standing a belief;
-             --limit N takes the first N sentences
+             --limit N takes the first N sentences; --treebank NAME another of UD's English treebanks beside it
+             (gum, lines, partut, atis, eslspok: test_data/syntax/UD_English-*), kept under its own source
              propbank: which phrases are a happening's arguments and what each is, from PropBank's annotations of the
              same treebank's training part (test_data/syntax/propbank-release and propbank-frames): each annotated
              sentence kept whole, its standing a belief; --limit N takes the first N
@@ -108,7 +109,7 @@ def build_source(args):
     if args.source == "listening":
         return ListeningSource()
     if args.source == "treebank":
-        return TreebankSource()
+        return TreebankSource.of(args.treebank) if args.treebank else TreebankSource()
     if args.source == "propbank":
         return PropBankSource()
     if args.source == "composition":
@@ -245,6 +246,8 @@ async def main() -> int:
     parser.add_argument("--section", default=None)
     parser.add_argument("--dump", default=None)
     parser.add_argument("--relations", default="grammar")
+    parser.add_argument("--treebank", default=None, choices=("ewt", "gum", "lines", "partut", "atis", "eslspok"),
+                        help="treebank: which of UD's English treebanks (default ewt)")
     parser.add_argument("--lesson", action="append", default=None,
                         help="a lesson file; give it several times to teach several, in order, in one run")
     parser.add_argument("--definitions", action="store_true",

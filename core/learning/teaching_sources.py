@@ -1908,30 +1908,60 @@ def read_conllu(path: str, said_in: str) -> Iterator[Any]:
                        tuple(h for _, _, h, _ in words), tuple(r for _, _, _, r in words), f"{said_in}:{sent_id}")
 
 
+#: UD's other English treebanks a teaching pass can take, by the name it is asked for: the parts taught (their test
+#: part never, it is held out), and the licence each is released under. Each is kept under its own source, so what
+#: one taught can be found, and withdrawn, by it: the non-commercial ones (`NC`) are not for a store that is sold.
+TREEBANKS = {
+    "ewt": ("UD_English-EWT", ("train",), "CC BY-SA 4.0"),
+    "gum": ("UD_English-GUM", ("train", "dev"), "CC BY-NC-SA 4.0"),
+    "lines": ("UD_English-LinES", ("train", "dev"), "CC BY-NC-SA 4.0"),
+    "partut": ("UD_English-ParTUT", ("train", "dev"), "CC BY-NC-SA 4.0"),
+    "atis": ("UD_English-Atis", ("train", "dev"), "CC BY-SA 4.0"),
+    "eslspok": ("UD_English-ESLSpok", ("train", "dev"), "CC BY-SA 4.0"),
+}
+
+
 @dataclass
 class TreebankSource:
     """Sentences analysed by hand, each word's class and the word it depends on and as what: a Universal Dependencies
-    treebank (CoNLL-U), the English Web Treebank by default (CC BY-SA 4.0). It teaches how the words of a sentence go
-    together (`analysed()`, `structure`), and states nothing else, so it has no records (`vocabulary_only`)."""
+    treebank (CoNLL-U), the English Web Treebank by default (CC BY-SA 4.0), or another of `TREEBANKS` by its name
+    (`of`). It teaches how the words of a sentence go together (`analysed()`, `structure`), and states nothing else,
+    so it has no records (`vocabulary_only`).
+
+    More analysed English is what raises the structure reader: learned from EWT with GUM, LinES, ParTUT, Atis and
+    ESL Spoken beside it, UAS on EWT dev 78.3% to 80.2%, on PUD 75.5% to 78.6%, on GUM's held-out test 75.7% to 79.5%
+    (`experiments/STRUCTURE-03`)."""
 
     path: str = EWT_TRAIN
     name: str = "ud_english_ewt"
     quality: float = 0.9
     curated: bool = True
     vocabulary_only: bool = True
+    paths: Tuple[str, ...] = ()
+
+    @classmethod
+    def of(cls, treebank: str, data: str = "") -> "TreebankSource":
+        """The source teaching the treebank of this name (`TREEBANKS`), from where the datasets are kept."""
+        folder, parts, _ = TREEBANKS[treebank]
+        root = os.path.join(data or SYNTAX_DATA, folder)
+        stem = folder.split("-", 1)[1].lower()
+        return cls(path=os.path.join(root, f"en_{stem}-ud-{parts[0]}.conllu"), name=f"ud_english_{stem}",
+                   paths=tuple(os.path.join(root, f"en_{stem}-ud-{part}.conllu") for part in parts))
 
     def provenance(self):
-        return _provenance("ud_english_ewt", "ud_english_ewt_2.18")
+        return _provenance(self.name, "ud_english_ewt_2.18" if self.name == "ud_english_ewt" else self.name)
 
     def records(self) -> Iterator[TaughtRecord]:
         return iter(())
 
     def analysed(self) -> Iterator[Any]:
-        if not os.path.exists(self.path):
-            raise FileNotFoundError(
-                f"the treebank is not at {self.path}; fetch it first (UniversalDependencies/UD_English-EWT). A "
-                f"teaching pass does not reach the network.")
-        return read_conllu(self.path, self.name)
+        paths = self.paths or (self.path,)
+        for path in paths:
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"the treebank is not at {path}; fetch it first (github.com/UniversalDependencies, "
+                    f"{os.path.basename(os.path.dirname(path))}). A teaching pass does not reach the network.")
+        return (analysed for path in paths for analysed in read_conllu(path, self.name))
 
 
 # ── PropBank ────────────────────────────────────────────────────────────────

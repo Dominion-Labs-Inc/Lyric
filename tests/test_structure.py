@@ -158,3 +158,28 @@ def test_a_treebank_is_read_with_its_classes_named_as_lyric_names_them(tmp_path)
     assert analysed.classes == ("PRONOUN", "AUXILIARY", "PARTICLE", "VERB", "NAME", "PUNCTUATION")
     assert analysed.heads == (4, 4, 4, 0, 4, 4)
     assert analysed.said_in == "test:s-1"
+
+
+def test_words_keeping_the_same_company_are_counted_into_one_group():
+    """Counted over sentences alone, the words that stand where each other stand share a group: "cat" and "dog",
+    "runs" and "sleeps", "the" and "a"; and the three groups are apart (`word_groups.counted_groups`)."""
+    from core.semantics.word_groups import counted_groups
+    said = ["the cat runs .", "the dog runs .", "the cat sleeps .", "the dog sleeps .", "a cat runs .", "a dog sleeps ."]
+    group = counted_groups([s.split() for s in said] * 10, 5, 100, 12)
+    assert group["cat"] == group["dog"] and group["runs"] == group["sleeps"] and group["the"] == group["a"]
+    assert len({group["cat"], group["runs"], group["the"], group["."]}) == 4
+
+
+def test_another_treebank_is_taught_under_its_own_source(tmp_path):
+    """`TreebankSource.of("gum")` teaches GUM's training and development parts, never its test part, each sentence
+    under GUM's own name, so what it taught can be found by it (its licence is not EWT's)."""
+    from core.learning.teaching_sources import TreebankSource
+    folder = tmp_path / "UD_English-GUM"
+    folder.mkdir()
+    sentence = "# sent_id = {0}\n1\tDogs\tdog\tNOUN\t_\t_\t2\tnsubj\t_\t_\n2\tbark\tbark\tVERB\t_\t_\t0\troot\t_\t_\n\n"
+    for part in ("train", "dev", "test"):
+        (folder / f"en_gum-ud-{part}.conllu").write_text(sentence.format(part))
+    source = TreebankSource.of("gum", str(tmp_path))
+    taught = list(source.analysed())
+    assert [a.said_in for a in taught] == ["ud_english_gum:train", "ud_english_gum:dev"]
+    assert source.provenance().source_id == "ud_english_gum" and TreebankSource.of("ewt").name == "ud_english_ewt"
