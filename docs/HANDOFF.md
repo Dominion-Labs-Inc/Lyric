@@ -1,11 +1,61 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-18)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-19)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to
-2026-10-18 (21) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-19 (23) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-18)
+## 0. Where it stands (2026-10-19)
+
+**THE READER MULTIPLIES OUT WORD SENSES, AND A LONG SENTENCE NEVER FINISHES (measured 2026-10-19, lab notebook (23)).
+This is the first thing to fix; nothing else can be measured on the prose until it is.** UNDERSTANDS-PROSE-01 on main
+at 7a10174 sat on "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself."
+for over 30 minutes and was stopped. Measured on the copy of main (py-spy and counters, probes in the cloud session):
+- The frame search builds every reading whole, every sense of every word crossed with every other, then keeps a few:
+  "The function sorted returns a new list." 18,101 readings built, 168 that could survive the final choice
+  (`_read_pieces`); "Its design philosophy emphasizes ..." 109,120 and 384; "Guido van Rossum began working on Python
+  in the late 1980s." 49,424 and 280; "The argument key is a function that is applied to each element." 78,132 and
+  13,440, handing the listener **3,360** readings.
+- The primes sentence built no whole reading in 10 minutes: 1.2 million slot-filling combinations tried; one slot over
+  "natural number greater than 1 that has no divisors" held **25,164 fillings of 36 groupings**, all supposing the same,
+  so the existing cut (least supposed per phrase, `_phrase_fillings`) cuts none. The explosion is senses, not
+  groupings.
+- Not the cause (counted, each happens once a run): the structure reader's training at the first composed sentence
+  (about 190 s on the copy, the "They live in the ocean." minutes in every run), and the listener's vocabulary counts
+  (`parts_met`, 14.5 s). Nothing is added to the reader's view while a conversation reads.
+- Fixed and committed (7756bcd, branch then main): `PatternInventory.said_by` and `shaped_phrases` worked out again
+  over every shape group for every candidate reading (72% of "sorted"'s minutes before the cut above was found); now
+  kept per word until anything more is held. Tests 134 passed. It changes no reading, and does not fix the primes
+  sentence.
+
+**The fix, agreed in outline (2026-10-19):**
+1. **Now: a measured cap on sense combinations**, a switch like `LYRIC_COMPOSE`: for each grouping of the words, only
+   the N sense combinations whose words were met most often (the listener's own first evidence, `_met`). Before the
+   owner runs anything, measured against the uncapped reader on every lesson and prose sentence that finishes uncapped:
+   same readings and the same choice by `meant`, or exactly which changed. Then UNDERSTANDS-PROSE-01 on main.
+2. **Then the real fix: senses chosen over the sentence's structure, never multiplied out.** The listener's score
+   (`weighed`, `meant`) is per word (`_met`, `related`), per link (`_derivation`) and per pair of words (`selected`,
+   `held`, `defined`: what memory knows of the fact two senses make), the last capped in levels. Per-word choice alone
+   would differ where a pair decides ("A bus is a vehicle."); the pairs follow the structure, so the best choice can be
+   found over it by dynamic programming. Read the groupings once with each word's senses kept together, then choose.
+   This is also the top accuracy cause below (senses that do not fit the conversation): the choice is made for the
+   whole sentence's combination at the end, not for each word in its place.
+
+**Done 2026-10-19 on main (pushed), not yet measured whole because the run stalled:**
+- **Treebank word forms taught to main** (3beeb10; `teach.py --treebank ewt` teaches the lemma and feature columns):
+  3,703 remembered, beliefs +3,703, the pass's review 181/200. A word no filler holds is read as the held word a
+  treebank showed it a form of (`PatternInventory.held_forms`): "hired" is `hire`. Other treebanks' forms are not
+  taught yet ("logged" is in GUM, not EWT; the Mac needs GUM, LinES, ParTUT and Atis cloned under `test_data/syntax`).
+- **A thing told of by a description is named in a conversation** (0f4a085; `teaching.told_events(..., described=True)`
+  from `_telling`, and `_asked_of_events` meeting a kind a question names with a particular of it told of). On the copy:
+  "The company hired three engineers in May." then "Did the company hire engineers?" is Yes, holding three engineers.
+- **A question opening with a question word, composed asking for nothing, is not its reading** (7a10174): "How many
+  engineers did the company hire?" was answered Yes; now unanswered.
+- **The first half of the prose run on main at 7a10174** (before the stall): sentences read 15 of the first 17
+  (whales 5/5, photosynthesis 2/4, python 5/5, sorted 3/3; the last run 10 of 17), questions right 7 of 18 (as
+  before), wrong 0. Python's tellings all read now but none of its questions is answered ("Is Python a programming
+  language?": "I do not know whether a python is a programming language."); "Chlorophyll is the green pigment that
+  absorbs the light." went from read to unread. Both to trace once runs finish.
 
 **A copy of main in a cloud session** (`scripts/copy_main.py`): main's memories, beliefs, their evidence, the
 concept graph and the small tables, fetched read only through the gateway and loaded into the container's own
@@ -32,14 +82,12 @@ only by supposing more than any lesson read as taught ever did (`derived_reader.
 3,037 lessons read as taught, none read loosely, with a new name, a misfit or fillers apart, none with more than two
 links never taught) is composed instead; questions stay the frames'. **Composing and this rule are on by default**
 (`LYRIC_COMPOSE=0`, `LYRIC_COMPOSE_FORCED=0` turn them off). Built beside it: a verb named by its base form for the
-composer (`MemoryAgent.name_of`); measured to change no sentence on main, so why "hired" stays `hired` is still to
-trace.
+composer (`MemoryAgent.name_of`); measured to change no sentence on main, because "hired" had no shape: "-ed" is not
+productive in Lyric's own fillers (94 of 1,008 in Yang's count, its slots holding verbs in every tense). Fixed
+2026-10-19 by the treebank's word forms, above.
 
-**What still goes wrong, traced from that run (next, in this order):**
-1. **Things told of by a description are never held** (about five questions): "three engineers", "their young",
-   "five failed attempts", "two of them", "divisors". A happening told of is named (`teaching.told_events`); any other
-   thing only described is not, so "the company hired three engineers" holds the hiring and drops the engineers, and
-   "Did the company hire engineers?" finds nothing. Name a described thing as a happening is named.
+**What still goes wrong, traced from that run (next, in this order, after the sense fix above):**
+1. ~~Things told of by a description are never held~~: done 2026-10-19 (0f4a085), above; to measure on main.
 2. **The sense taken does not fit the conversation** (five questions): "key" the lock's, not "the argument key" told
    just before; "anomaly" a person; "locked" embraced; "Tower" the verb (so "Is the Eiffel Tower in Paris?" is read as a
    telling); "log" a tree trunk. The listener weighs senses, but not against what the conversation is about.

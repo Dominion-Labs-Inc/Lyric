@@ -16669,3 +16669,44 @@ no name for yet") is fixed English written in the conversation, not said from me
 **Working on a copy of main** (`scripts/copy_main.py`) made each trace a probe of seconds against main's own knowledge
 once loaded. The cloud container restarted four times in the day; long runs now save each result as it comes and
 resume.
+
+## 2026-10-19 (23) — Word forms and described things on main; the prose run stalls, and why: every sense of every word multiplied out
+
+**Taught and pushed to main.** The treebank pass now teaches the forms its words are written in, from the analysts'
+base forms and features (`word_forms.forms_from_conllu`, `teach.py --treebank ewt`): on main 3,703 remembered, 12,544
+analysed sentences already held, beliefs +3,703, the review 181 of 200. "hired" had no shape before: "-ed" was not
+productive in Lyric's own fillers (94 of 1,008 in Yang's count, its slots holding verbs in every tense), so memory named
+it `hired`; a word no filler holds is now read as the held word a treebank showed it a form of (`held_forms`), and
+"hired" is `hire` on main. A thing told of by a description is now named in a conversation as a happening is
+(`told_events(..., described=True)`), and a kind a question names is met by a particular of it told of: on the copy,
+"Did the company hire engineers?" is Yes after "The company hired three engineers in May.". A question opening with a
+question word that the composer reads as asking for nothing is no longer its reading ("How many engineers did the
+company hire?" had been answered Yes).
+
+**The prose run on main stalled.** At 7a10174 it read 15 of the first 17 sentences (10 before) and answered 7 of the
+first 18 questions right (as before), none wrong, then sat over 30 minutes on "A prime number is a natural number
+greater than 1 that has no divisors other than 1 and itself." and was stopped. The first passages had also slowed:
+"Guido van Rossum began working on Python in the late 1980s." 103 s to 481 s, "The blue whale is the largest animal on
+Earth." 4 s to 142 s.
+
+**Why, measured on the copy of main** (py-spy, and counters on the suspects, not guessed):
+- First found: `said_by` and `shaped_phrases` worked out over every shape group again for every candidate reading,
+  72% of "The function sorted returns a new list.". Kept per word now (7756bcd). It was not the whole cause.
+- Counted and ruled out: the structure reader's training (once a run, about 190 s on the copy, at the first composed
+  sentence) and the listener's vocabulary counts (`parts_met`, once, 14.5 s); nothing is added to the reader's view
+  while a conversation reads.
+- The cause: the frame search builds every reading whole, each word's every sense crossed with every other's, and the
+  final choice (`_read_pieces`) keeps few: "sorted" 18,101 built, 168 that could be kept; "Its design philosophy ..."
+  109,120 and 384; "Guido ..." 49,424 and 280; "The argument key is a function that is applied to each element."
+  78,132 and 13,440, with 3,360 readings handed to the listener. The primes sentence built none whole in 10 minutes:
+  1.2 million combinations tried, one slot over "natural number greater than 1 that has no divisors" holding 25,164
+  fillings of 36 groupings, all supposing the same, so the least-supposed cut kept them all. Senses, not groupings.
+  The word forms gave more words a held base word, so more senses, and the product grew at every level of nesting.
+
+**What follows.** The listener's score is per word (how often a sense was met, what the conversation raises), per
+link (the structure's probability) and per pair of words (what memory knows of the fact two senses make), so senses
+can be chosen over the sentence's structure without multiplying them out, and that is the fix. First a measured cap
+on sense combinations per grouping, by how often their words were met, checked against the uncapped reader on every
+sentence that finishes uncapped, so runs finish; then the choice over the structure. The second is also the cause of
+the senses that do not fit the conversation ("key" the lock's, "locked" embraced): the sense is chosen for the whole
+sentence's combination, never for each word where it stands.
