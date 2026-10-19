@@ -138,6 +138,27 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
     assert dr._read_forced_by_composing(utterance(forced)).readings == (forced,)
 
 
+def test_a_question_asking_for_something_composed_asking_for_nothing_is_not_read(monkeypatch):
+    """"How many engineers did the company hire?" composed as asking whether the company hired is no reading of it: a
+    question opening with a question word asks for something. Asked yes or no, the same meaning is its reading."""
+    from core.agents import memory_agent as memory
+    from core.semantics import derived_reader as dr
+    hired = Meaning("ask", (F("instance_of", "?e", "hire"), F("done_by", "?e", "company_1")))
+
+    class View:
+        def compose_sentence(self, sentence):
+            return hired
+
+    class Agent:
+        def composition_view(self):
+            return View()
+    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(dr, "COMPOSING", True)
+    assert not dr.read_text("How many engineers did the company hire?", dr.PatternInventory())[0].readings
+    reading, = dr.read_text("Did the company hire engineers?", dr.PatternInventory())[0].readings
+    assert reading.composed and reading.meaning == hired
+
+
 def test_a_composed_meaning_of_known_things_alone_is_no_reading(monkeypatch):
     """"Is the valve closed?" composed as the valve alone (given instance_of(?x2, valve)) asks nothing: the utterance
     is left unread, as it is where nothing is composed."""

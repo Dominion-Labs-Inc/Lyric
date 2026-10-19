@@ -4836,6 +4836,13 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
     if meaning is None or all(f.given for f in meaning.facts):
         # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
         return utterance
+    from core.semantics.composition import ASKING
+    first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
+    if meaning.act == "ask" and not meaning.asked and first in ASKING:
+        # A QUESTION THAT ASKS FOR SOMETHING, COMPOSED ASKING FOR NOTHING, IS NOT ITS READING: "How many engineers did
+        # the company hire?" composed without the count or the engineers asked whether the company hired, and was
+        # answered "Yes." once the hiring was held (2026-10-19).
+        return utterance
     return Utterance(utterance.pieces, (Reading((), (), meaning, composed=True),), utterance.partial,
                      utterance.unknown)
 
