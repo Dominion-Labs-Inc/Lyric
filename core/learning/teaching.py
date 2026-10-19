@@ -231,6 +231,8 @@ class Report:
     taught_sentences: Dict[str, int] = field(default_factory=dict)
     #: The same for the word groups it gave, counted from text (`learn_word_groups`).
     word_groups: Dict[str, int] = field(default_factory=dict)
+    #: The same for the forms its words are written in, from a treebank (`learn_word_forms`).
+    word_forms: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
@@ -262,6 +264,7 @@ class Report:
             f"arguments given   : {self.arguments or 'none given'}",
             f"meanings to learn : {self.taught_sentences or 'none given'}",
             f"word groups       : {self.word_groups or 'none given'}",
+            f"word forms        : {self.word_forms or 'none given'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -512,7 +515,8 @@ class TeachingPass:
         for method, learn, phase, field_name in (
                 ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
                 ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),
-                ("word_groups", learning.learn_word_groups, "word groups", "word_groups")):
+                ("word_groups", learning.learn_word_groups, "word groups", "word_groups"),
+                ("word_forms", learning.learn_word_forms, "word forms", "word_forms")):
             if not hasattr(self.source, method):
                 continue
             items = await asyncio.to_thread(list, getattr(self.source, method)())

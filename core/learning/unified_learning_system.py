@@ -4030,6 +4030,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                       subject_kind="word_group", provenance=provenance, quality=quality,
                                       progress=progress)
 
+    async def learn_word_forms(self, forms, *, provenance: Any = None, quality: float,
+                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """The forms words are written in, from treebanks whose analysts gave each word its base form: `forms` is an
+        iterable of `word_forms.WordForms`. Each is held by memory whole (`MemoryAgent.remember_word_forms`), its
+        standing a belief on that memory, and the reader reads a word it holds nothing of by them ("hired", `hire`).
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(forms, what="word forms", remember="remember_word_forms",
+                                      subject_kind="word_forms", provenance=provenance, quality=quality,
+                                      progress=progress)
+
     #: How many things taught a review asks itself about, by default.
     REVIEW_SAMPLE = 200
     #: How many facts a review looks at for each question it means to ask, at most.

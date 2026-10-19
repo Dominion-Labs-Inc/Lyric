@@ -1930,7 +1930,10 @@ class TreebankSource:
 
     More analysed English is what raises the structure reader: learned from EWT with GUM, LinES, ParTUT, Atis and
     ESL Spoken beside it, UAS on EWT dev 78.3% to 80.2%, on PUD 75.5% to 78.7%, on GUM's held-out test 75.7% to 79.4%
-    (`experiments/STRUCTURE-03`)."""
+    (`experiments/STRUCTURE-03`).
+
+    It teaches the forms its words are written in too (`word_forms()`): each word's base form and features, as the
+    treebank's analysts gave them, so "hired" is read as `hire`."""
 
     path: str = EWT_TRAIN
     name: str = "ud_english_ewt"
@@ -1954,14 +1957,29 @@ class TreebankSource:
     def records(self) -> Iterator[TaughtRecord]:
         return iter(())
 
-    def analysed(self) -> Iterator[Any]:
+    def _paths(self) -> Tuple[str, ...]:
         paths = self.paths or (self.path,)
         for path in paths:
             if not os.path.exists(path):
                 raise FileNotFoundError(
                     f"the treebank is not at {path}; fetch it first (github.com/UniversalDependencies, "
                     f"{os.path.basename(os.path.dirname(path))}). A teaching pass does not reach the network.")
-        return (analysed for path in paths for analysed in read_conllu(path, self.name))
+        return paths
+
+    def analysed(self) -> Iterator[Any]:
+        return (analysed for path in self._paths() for analysed in read_conllu(path, self.name))
+
+    def word_forms(self) -> Iterator[Any]:
+        """Each word of the open classes the treebank wrote in a form other than its base, with every such form and
+        what form it is, as the treebank's analysts gave its base form and features (`word_forms`): "hired" is
+        `hire` in the past. The same sentences `analysed` gives, their lemma and features columns read too."""
+        from core.semantics.word_forms import forms_from_conllu
+
+        def lines():
+            for path in self._paths():
+                with open(path, encoding="utf-8") as handle:
+                    yield from handle
+        return iter(forms_from_conllu(lines(), self.name))
 
 
 # ── PropBank ────────────────────────────────────────────────────────────────

@@ -1126,6 +1126,9 @@ class PatternInventory:
         # The classes each word was observed in, with their net evidence (`MemoryAgent.word_classes`): given by the
         # memory that holds them, the same mapping it keeps current as it is taught; none in a view made without it.
         self.word_classes: Mapping[str, Mapping[str, int]] = {}
+        # The base words a written word is a form of, as memory holds the forms treebanks showed (`word_forms`,
+        # `MemoryAgent.remember_word_forms`); none in a view made without memory.
+        self.held_forms: Optional[Callable[[str], Sequence[str]]] = None
         # The word shapes (`_shape_word`): each one-word filler's concepts, the changes that read it rightly, the
         # words ending as each written side, and each change's count and standing.
         self._fillers_by_word: Dict[str, set] = {}
@@ -2512,8 +2515,9 @@ class PatternInventory:
 
     def names_of_shape(self, word: str) -> List[str]:
         """The held words a word no filler holds is written as: the word itself when it is a held concept's own name
-        ("fox", where only "Foxes" is held), then the word written in a productive shape of a held word or name
-        ("tables" is "table" when `s` is a shape), the most particular change first."""
+        ("fox", where only "Foxes" is held), then the held words a treebank showed it a form of (`held_forms`), then
+        the word written in a productive shape of a held word or name ("tables" is "table" when `s` is a shape), the
+        most particular change first."""
         word = _fold(word)
         fillers = self._fillers_by_word
 
@@ -2521,6 +2525,12 @@ class PatternInventory:
             return name in fillers or bool(self._lexical_value.get(name))
 
         out: List[str] = [word] if word not in fillers and self._lexical_value.get(word) else []
+        # A FORM A TREEBANK SHOWED of a held word is that word ("came" `come`, "hired" `hire`), before any change found
+        # productive in the fillers held, which "-ed" never was (`word_forms`, 2026-10-19).
+        if self.held_forms is not None:
+            for base in self.held_forms(word):
+                if held(base) and base not in out:
+                    out.append(base)
         for size in range(len(word) - 1, -1, -1):
             for written, names in sorted(self._productive_by_written.get(word[len(word) - size:], ())):
                 base = word[:len(word) - len(written)] + names

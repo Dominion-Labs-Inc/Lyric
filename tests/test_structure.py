@@ -235,3 +235,73 @@ def test_memory_keeps_a_word_group_once_and_the_reader_weighs_words_by_it():
     assert again["held_already"] == [(group, "m1")]
     warmed = asyncio.run(agent._word_group_memories())
     assert len(warmed) == 1 and list(warmed.grouping()(("cat",))) == [("2", "2")]
+
+
+CONLLU_FORMS = (
+    "# sent_id = 1\n"
+    "1\tThe\tthe\tDET\tDT\tDefinite=Def\t2\tdet\t_\t_\n"
+    "2\tcompany\tcompany\tNOUN\tNN\tNumber=Sing\t3\tnsubj\t_\t_\n"
+    "3\thired\thire\tVERB\tVBD\tTense=Past|VerbForm=Fin\t0\troot\t_\t_\n"
+    "4\tthree\tthree\tNUM\tCD\t_\t5\tnummod\t_\t_\n"
+    "5\tengineers\tengineer\tNOUN\tNNS\tNumber=Plur\t3\tobj\t_\t_\n"
+    "6\t.\t.\tPUNCT\t.\t_\t3\tpunct\t_\t_\n\n"
+    "# sent_id = 2\n"
+    "1\tThey\tthey\tPRON\tPRP\t_\t2\tnsubj\t_\t_\n"
+    "2\thire\thire\tVERB\tVBP\tTense=Pres\t0\troot\t_\t_\n\n")
+
+
+def test_a_treebank_teaches_the_forms_its_words_are_written_in(tmp_path):
+    """`TreebankSource.word_forms`: each open-class word written other than its base, with what form it is, from the
+    lemma and features columns (a closed class's forms and a word written as its base give nothing); held, a form is
+    read as its base ("hired", `hire`)."""
+    from core.learning.teaching_sources import TreebankSource
+    from core.semantics.word_forms import HeldForms, WordForms
+    folder = tmp_path / "UD_English-EWT"
+    folder.mkdir()
+    (folder / "en_ewt-ud-train.conllu").write_text(CONLLU_FORMS)
+    forms = list(TreebankSource.of("ewt", str(tmp_path)).word_forms())
+    assert [(f.base, f.word_class, f.forms) for f in forms] == [
+        ("engineer", "NOUN", (("engineers", "Number=Plur", 1),)),
+        ("hire", "VERB", (("hired", "Tense=Past|VerbForm=Fin", 1),))]
+    assert forms[1].counted_from == "ud_english_ewt" and WordForms.from_dict(forms[1].to_dict()) == forms[1]
+    assert "\n" in forms[1].said()
+    held = HeldForms()
+    for item in forms:
+        held.hold(item)
+    assert held.bases_of("Hired") == ["hire"] and held.bases_of("hire") == []
+
+
+def test_memory_keeps_word_forms_and_reads_a_word_by_them():
+    """`MemoryAgent.remember_word_forms`, the store stood in for: one memory a base word, held once; the language view
+    then reads "hired", which no filler holds, as the held `hire` (`names_of_shape`), and a verb is named so for the
+    composer (`name_of`)."""
+    import asyncio
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.derived_reader import Lexical
+    from core.semantics.sentence_machine import Piece
+    from core.semantics.word_forms import WordForms
+    item = WordForms("hire", "VERB", (("hired", "Tense=Past|VerbForm=Fin", 6),), "ud_english_ewt")
+    agent = MemoryAgent()
+    agent._word_classes_warm = True
+    view = agent.pattern_inventory()
+    view.add(Lexical((Piece("hire", False),), "hire"))
+    view.word_classes = {"hire": {"VERB": 5}}
+    stored = []
+
+    async def store_memory(**kwargs):
+        stored.append(kwargs)
+        return True, f"m{len(stored)}"
+
+    async def rows_tagged(tag):
+        return [SimpleNamespace(memory_id=f"m{k}", metadata=s["source_context"])
+                for k, s in enumerate(stored, 1) if tag in s["tags"]]
+    agent.store_memory, agent._rows_tagged = store_memory, rows_tagged
+    assert "hire" not in view.names_of_shape("hired")
+    first = asyncio.run(agent.remember_word_forms([item]))
+    assert (first["remembered"], first["already"]) == (1, 0) and stored[0]["source_context"] == {"word_forms": item.to_dict()}
+    assert "hire" in view.names_of_shape("hired") and agent.name_of("hired", "VERB") == "hire"
+    again = asyncio.run(agent.remember_word_forms([item]))
+    assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1
+    warmed = asyncio.run(agent._word_form_memories())
+    assert warmed.bases_of("hired") == ["hire"]

@@ -163,6 +163,8 @@ class MemoryAgent(IMemoryConsolidation):
         self._structure_view = None
         #: The word groups memory holds (`word_groups`), which the structure view stands beside each word.
         self._word_groups = None
+        #: The word forms memory holds (`word_forms`), which the language view reads a word it holds nothing of by.
+        self._word_forms = None
         #: The sentences memory holds with their happenings' arguments annotated (`argument_view`), and the lessons'
         #: sentences it holds with their taught meanings, learned from by the composer (`composition_view`).
         self._argument_view = None
@@ -2856,6 +2858,8 @@ class MemoryAgent(IMemoryConsolidation):
         # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed; which phrases are a
         # happening's arguments; and the lessons' sentences with their meanings, which the composer learns from.
         groups = await self._word_group_memories()
+        forms = await self._word_form_memories()
+        inventory.held_forms = forms.bases_of
         structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
         composition = await self._composition_memories(arguments)
@@ -2876,7 +2880,7 @@ class MemoryAgent(IMemoryConsolidation):
         inventory.word_classes = index
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
-        self._structure_view, self._word_groups = structure, groups
+        self._structure_view, self._word_groups, self._word_forms = structure, groups, forms
         self._argument_view, self._composition_view = arguments, composition
         self._fan_view, self._things_held = {}, None
         logger.info(
@@ -6330,6 +6334,43 @@ class MemoryAgent(IMemoryConsolidation):
             self._word_groups = WordGroups()
         return self._word_groups
 
+    # THE FORMS A WORD IS WRITTEN IN. Each word of a treebank analysed by hand is given its base form and what form
+    # it is; kept ONE MEMORY FOR EACH BASE WORD, every form the treebank wrote it in, and read by the language view
+    # for a word it holds nothing of ("hired" is `hire`: `PatternInventory.names_of_shape`).
+
+    WORD_FORMS_TAG = "word_forms"
+
+    async def _word_form_memories(self):
+        """The word forms held, read back as the view (`word_forms`)."""
+        from core.semantics.word_forms import HeldForms, WordForms
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        forms = HeldForms()
+        for row in await self._rows_tagged(self.WORD_FORMS_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("word_forms")
+            if data:
+                forms.hold(WordForms.from_dict(data))
+        return forms
+
+    def word_forms(self):
+        """The word forms memory holds. Synchronous; empty before the first warm."""
+        if self._word_forms is None:
+            from core.semantics.word_forms import HeldForms
+            self._word_forms = HeldForms()
+        return self._word_forms
+
+    async def remember_word_forms(self, forms, progress: Optional[Callable[[int, int], None]] = None
+                                  ) -> Dict[str, Any]:
+        """Remember the forms words are written in (`word_forms.WordForms`), one memory each base word; one held
+        already is not held again. The language view reads a word by them from now on. Returns `kept` and counts, as
+        `remember_argued`."""
+        held = await self._remember_whole(
+            forms, view=self.word_forms, tag=self.WORD_FORMS_TAG, field="word_forms", progress=progress,
+            content=lambda item: item.said(), add=lambda view, item: view.hold(item))
+        self.pattern_inventory().held_forms = self.word_forms().bases_of
+        return held
+
     async def remember_word_groups(self, groups, progress: Optional[Callable[[int, int], None]] = None
                                    ) -> Dict[str, Any]:
         """Remember word groups (`word_groups.WordGroup`), one memory each; one held already is not held again. The
@@ -6544,6 +6585,9 @@ class MemoryAgent(IMemoryConsolidation):
         if field == "word_group":
             from core.semantics.word_groups import WordGroup
             return WordGroup.from_dict(data).key()
+        if field == "word_forms":
+            from core.semantics.word_forms import WordForms
+            return WordForms.from_dict(data).key()
         from core.semantics.composition import TaughtSentence
         return TaughtSentence.from_dict(data).key()
 
