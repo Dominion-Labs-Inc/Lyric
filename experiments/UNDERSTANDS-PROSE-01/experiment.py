@@ -10,7 +10,7 @@ how many it did not answer (it does not know, or did not read), and how many it 
 worse than none, and is counted apart.
 
 WHAT EACH WAS READ AS, AND WHY EACH ANSWER WAS GIVEN, is kept in the transcript: each reading (marked where it was
-composed, `LYRIC_COMPOSE=1`), and what the reasoner was asked and said for each question. A sentence or question that
+composed), and what the reasoner was asked and said for each question. A sentence or question that
 stops the conversation is kept with what stopped it, counted apart, and the run goes on.
 
 ASKED WITHOUT BEING REMEMBERED, SO IT RUNS ON MAIN: each conversation is held with `remembers=False`, keeps what it
@@ -104,12 +104,12 @@ async def main() -> int:
     from core.semantics import derived_reader
     composing = "on" if derived_reader.COMPOSING else "off"
     EV.note(f"composing {composing}: an utterance no taught frame reads is "
-            f"{'read by composing its meaning (LYRIC_COMPOSE=1)' if composing == 'on' else 'left unread'}")
-    say(f"composing {composing} (LYRIC_COMPOSE=1 turns it on)")
+            f"{'read by composing its meaning (on by default; LYRIC_COMPOSE=0 turns it off)' if composing == 'on' else 'left unread'}")
+    say(f"composing {composing} (on by default; LYRIC_COMPOSE=0 turns it off)")
     if derived_reader.COMPOSING and derived_reader.COMPOSING_FORCED:
         EV.note("a telling every frame reads only by supposing more than any lesson read as taught is composed "
-                "instead (LYRIC_COMPOSE_FORCED=1)")
-        say("forced tellings composed (LYRIC_COMPOSE_FORCED=1)")
+                "instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)")
+        say("forced tellings composed (LYRIC_COMPOSE_FORCED=0 turns it off)")
     quiet = io.StringIO()
     say("loading memory, the beliefs and the language view (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):

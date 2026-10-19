@@ -24,15 +24,32 @@ model; MiniLM's vectors grouped the same way read no better) and UD's other Engl
 beside them +0.1, +0.1, +0.6). Built, not yet taught to main: `teach.py --treebank NAME`, `teach.py --source
 word-groups`.
 
-**Being traced: why the prose is read wrong.** "Do whales breathe air?" is not answered because the told sentence
-"A whale breathes air through a blowhole." is read by a frame that fits it badly ("air through" a quality, the
-breathing done by the ocean before), while the composer reads it right (`done_by whale, done_to air, moves_through
-blowhole`). The composer is asked only where no frame reads at all. Measured on the prose: where a frame's reading is
-forced, the composer's is mostly right; questions the frames read better. Two parts to the fix: (1) a telling the
-frames read only by supposing past its words (misfits with new names or fillers never seen together:
-`Reading.supposed`) is composed instead, the boundary taken from what the lessons' readings suppose, not chosen;
-(2) the composer names a word as memory holds it for its class ("hired" the verb is `hire`, not the adjective
-`hired`: `MemoryAgent.name_of`, done). Then UNDERSTANDS-PROSE-01 before and after, on the copy.
+**Measured on main (2026-10-18, `UNDERSTANDS-PROSE-01/results/20261018T234706Z`): sentences 19/33, right 14/37,
+wrong 0/37** (composing off: 7, 9, 0; composing on before: 16, 10, 3). "A whale breathes air through a blowhole." fit
+no taught frame; its readings each supposed far past its words ("air through" one new name, the breathing done by the
+ocean told before) and the listener took one, while the composer read it as said. Now a telling every frame reads
+only by supposing more than any lesson read as taught ever did (`derived_reader._read_forced_by_composing`; of the
+3,037 lessons read as taught, none read loosely, with a new name, a misfit or fillers apart, none with more than two
+links never taught) is composed instead; questions stay the frames'. **Composing and this rule are on by default**
+(`LYRIC_COMPOSE=0`, `LYRIC_COMPOSE_FORCED=0` turn them off). Built beside it: a verb named by its base form for the
+composer (`MemoryAgent.name_of`); measured to change no sentence on main, so why "hired" stays `hired` is still to
+trace.
+
+**What still goes wrong, traced from that run (next, in this order):**
+1. **Things told of by a description are never held** (about five questions): "three engineers", "their young",
+   "five failed attempts", "two of them", "divisors". A happening told of is named (`teaching.told_events`); any other
+   thing only described is not, so "the company hired three engineers" holds the hiring and drops the engineers, and
+   "Did the company hire engineers?" finds nothing. Name a described thing as a happening is named.
+2. **The sense taken does not fit the conversation** (five questions): "key" the lock's, not "the argument key" told
+   just before; "anomaly" a person; "locked" embraced; "Tower" the verb (so "Is the Eiffel Tower in Paris?" is read as a
+   telling); "log" a tree trunk. The listener weighs senses, but not against what the conversation is about.
+3. **A question composed without what it asks**: "When was the Eiffel Tower built?" without the when, the tower the
+   builder.
+4. **"It" and "They" not tied** to what was spoken of ("It is in Paris.", "They release oxygen.").
+5. **What Lyric says of itself is written in the code, not said**: "Part of that is about something I have no name
+   for yet, so I did not hold it" and the conversation's other notes are fixed English strings
+   (`autonomous_coordinator.py`), not said from meaning by `derived_reader.say`. A protected module: changed only when
+   nothing runs.
 
 **Order agreed with the owner:** teaching, understanding, reading and learning locked down first; then a fresh full
 teaching of main; then compaction (`docs/research/MEMORY_COMPACTION_PLAN.md`). Main is 15.3 GB: memories 10.4 GB for

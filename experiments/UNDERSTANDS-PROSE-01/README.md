@@ -53,9 +53,11 @@ about without writing to the store.
 POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-PROSE-01/experiment.py
 ```
 
-With `LYRIC_COMPOSE=1` an utterance no taught frame reads is read by composing its meaning from how its words go
-together (`core/semantics/composition.py`; learned from the lessons' sentences and PropBank's arguments memory holds,
-taught by `--source composition` and `--source propbank`); the record notes whether it was on.
+An utterance no taught frame reads is read by composing its meaning from how its words go together
+(`core/semantics/composition.py`; learned from the lessons' sentences and PropBank's arguments memory holds, taught
+by `--source composition` and `--source propbank`), and so is a telling every frame reads only by supposing more than
+any lesson read as taught (`derived_reader._read_forced_by_composing`); both on by default since 2026-10-18,
+`LYRIC_COMPOSE=0` and `LYRIC_COMPOSE_FORCED=0` turn them off. The record notes which were on.
 
 **Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`. The transcript
 keeps what each sentence and question was read as (a composed reading marked) and, for each question, the answers
@@ -71,6 +73,7 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261016T125637Z` | + a person's rule reaches the reasoner; a question about a known thing asks one fact | 4/33 | 9/37 | 1/37 | nothing |
 | `20261016T140446Z` | + a happening told in a conversation is held, and asked about | 7/33 | 9/37 | 0/37 | nothing |
 | `20261017T224849Z` | 29caa75, composing on (`LYRIC_COMPOSE=1`) | 16/33 | 10/37 | 3/37 | nothing |
+| `20261018T234706Z` | eebbf6a, composing on, forced tellings composed (`LYRIC_COMPOSE_FORCED=1`) | 19/33 | 14/37 | 0/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted

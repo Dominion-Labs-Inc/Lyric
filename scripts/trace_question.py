@@ -5,7 +5,7 @@ with its known things found, the events pointing at what it names, each candidat
 The conversation is held not to remember, as UNDERSTANDS-PROSE-01's are: it writes nothing to the store.
 
 Run (from the Lyric folder; starts no substrate, reads only):
-    LYRIC_COMPOSE=1 POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 scripts/trace_question.py \
+    POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 scripts/trace_question.py \
         [--text NAME]
 with `--text` one of UNDERSTANDS-PROSE-01's texts (default `whales`), its sentences told and its questions asked.
 """

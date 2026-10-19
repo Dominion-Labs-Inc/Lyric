@@ -16633,3 +16633,39 @@ hold; then a fresh full teaching, then compaction (the owner's order); proposed,
 fresh teaching so it writes compact from the start. Warm-up loads the reader's language knowledge whole, and the
 structure reader works out its counts at every warm (from every treebank 11 minutes, with the groups 14): to be tried
 two ways, the worked-out counts kept as memory, and language recalled per sentence, the better kept (docs/HANDOFF.md §0).
+
+## 2026-10-19 (22) — A telling no frame fits is composed; composing on by default; what the prose still misses
+
+**The rule, from the lessons, not chosen.** On the copy of main, every lesson sentence read and what its reading
+supposed past its words (`Reading.supposed`): of 3,054, 3,037 read as taught, 2,895 supposing nothing, 132 one link
+never taught, 10 two; none read loosely, with a word taken as a new name, a filler written against its slot or one
+never seen beside the slot's own. The prose tellings read wrong each supposed more ("A whale breathes air through a
+blowhole.": six links never taught, two fillers against their slots, "air through" a new name). A first test, a
+reading naming a thing by words that do not stand together in the structure, held for none of the 70 prose readings,
+and was dropped before anything was built on it. A second, composing every telling that proposes a link, would have
+taken 142 lessons read as taught from the frames; the lessons ruled it out. Kept: a telling every frame reads only by
+supposing more than any lesson read as taught did is composed instead (`derived_reader._read_forced_by_composing`,
+`TAUGHT_PROPOSES`); a question stays the frames' (the composer read "Are whales mammals?" as nothing and "Do whales
+breathe air?" as the listener breathing).
+
+**On main** (`LYRIC_COMPOSE=1 LYRIC_COMPOSE_FORCED=1`, `results/20261018T234706Z`): sentences 19/33, right 14/37, wrong
+0/37, against 16, 10 and 3 with composing alone (2026-10-17) and 7, 9 and 0 without. Newly right: "Do whales breathe
+air?" (the telling composed as said), "Does sorted return a new list?" (likewise), "Do whales live in the ocean?" and
+"Where do whales live?" (a happening found answers unsaid, 2026-10-18). The three wrong answers of 2026-10-17 are
+unanswered now. Composing and the rule are on by default.
+
+**The composer's names.** A verb is now named by its base form where memory holds it as a verb (`name_of`), and a
+first version that let another sense of the class stand in ("help" `aid`, "key" `cardinal`) was caught by listing
+every name it changed over the lessons and the prose, before any run. Against main's naming, the kept version changes
+no sentence: "hired" stays `hired`, so why memory names it so is still to trace.
+
+**What the prose still misses, from the run's own replies:** things told of by a description are never held ("three
+engineers", "their young", "five failed attempts"; about five questions); the sense taken does not fit the conversation
+("key" the lock's after "the argument key", "anomaly" a person, "locked" embraced, "Tower" the verb, so "Is the Eiffel
+Tower in Paris?" is read as a telling; five questions); a question composed without what it asks ("When was the
+Eiffel Tower built?"); "It" and "They" not tied to what was spoken of. And what Lyric says of itself ("something I have
+no name for yet") is fixed English written in the conversation, not said from meaning.
+
+**Working on a copy of main** (`scripts/copy_main.py`) made each trace a probe of seconds against main's own knowledge
+once loaded. The cloud container restarted four times in the day; long runs now save each result as it comes and
+resume.

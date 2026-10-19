@@ -4808,10 +4808,11 @@ _ENDS_SPANNED = 3
 
 
 #: Whether an utterance no taught frame reads is read by composing its meaning from how its words go together
-#: (`composition.CompositionView`, learned from the lessons' sentences memory holds with their meanings). Off until
-#: UNDERSTANDS-PROSE-01 on main shows a composed meaning right more often than it misleads: a meaning told to a
-#: conversation that remembers is held as so. `LYRIC_COMPOSE=1` turns it on; an experiment may set it.
-COMPOSING = os.environ.get("LYRIC_COMPOSE") == "1"
+#: (`composition.CompositionView`, learned from the lessons' sentences memory holds with their meanings). On since
+#: UNDERSTANDS-PROSE-01 on main showed it right more often than it misleads, with `COMPOSING_FORCED`: sentences read
+#: 19 of 33, questions right 14 of 37, wrong none, against 7, 9 and none without it (2026-10-18). `LYRIC_COMPOSE=0`
+#: turns it off; an experiment may set it.
+COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 
 
 def _read_by_composing(utterance: "Utterance") -> "Utterance":
@@ -4830,9 +4831,10 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
 
 
 #: Whether a telling the frames read only by supposing more than any lesson read as taught ever supposed is read by
-#: composing instead (`_read_forced_by_composing`), with `COMPOSING`. Off until UNDERSTANDS-PROSE-01 on main shows it
-#: right more often than it misleads. `LYRIC_COMPOSE_FORCED=1` turns it on.
-COMPOSING_FORCED = os.environ.get("LYRIC_COMPOSE_FORCED") == "1"
+#: composing instead (`_read_forced_by_composing`), with `COMPOSING`. On since UNDERSTANDS-PROSE-01 on main
+#: (2026-10-18): with it, "Do whales breathe air?" and "Does sorted return a new list?" answered, none wrongly.
+#: `LYRIC_COMPOSE_FORCED=0` turns it off.
+COMPOSING_FORCED = os.environ.get("LYRIC_COMPOSE_FORCED", "1") != "0"
 #: How many links never taught a reading of a lesson sentence read as taught proposes, at most: of the 3,054 lesson
 #: sentences, 3,037 were read as taught on a copy of main (2026-10-18), 2,895 supposing nothing, 132 one link, 10 two;
 #: none read loosely, with a word taken as a new name, a filler written against its slot or one never seen beside the
