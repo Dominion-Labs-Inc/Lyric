@@ -1167,6 +1167,12 @@ class PatternInventory:
         #: The shapes each slot takes to say a word in (`shape_of_slot`), as of `_added`.
         self._slot_shapes: Dict[Tuple[str, str, bool], Tuple[Tuple[str, str], ...]] = {}
         self._slot_shapes_at = -1
+        #: What a word written in a shape says more than its concept (`said_by`, `shaped_phrases`), as of `_added`.
+        #: Found over every shape group's phrases, it was found again for each reading a frame offered: on main, 72%
+        #: of the eight minutes "The function sorted returns a new list." took (2026-10-19).
+        self._said_by_shape: Dict[Tuple[str, str], List[FrozenSet[Tuple[Any, ...]]]] = {}
+        self._phrases_of_shape: Dict[str, List[Tuple[str, FrozenSet[Tuple[Any, ...]], Tuple[str, ...]]]] = {}
+        self._shape_says_at = -1
         # Each slot's concepts, with the changes their words there are written in: none for a word written as its
         # name ("cut", where "barked" stands), None for an irregular form ("flew"). What saying counts a change over.
         self._slot_stems: Dict[Tuple[str, str], Dict[str, set]] = {}
@@ -2919,8 +2925,18 @@ class PatternInventory:
         """What a word written from this name says more than its concept, each way it does (`@` for the thing
         named): as the held phrases of its shape show, or as its change would make of it ("walked": before now)."""
         word, name = _fold(word), _fold(name)
-        held = [says for says, members in self._shape_groups.items() if (word, name) in members.values()]
-        return held or [says for made, says, _ in self.shaped_phrases(word) if made == name]
+        self._shapes_now()
+        found = self._said_by_shape.get((word, name))
+        if found is None:
+            held = [says for says, members in self._shape_groups.items() if (word, name) in members.values()]
+            found = self._said_by_shape[(word, name)] = held or [
+                says for made, says, _ in self.shaped_phrases(word) if made == name]
+        return list(found)
+
+    def _shapes_now(self) -> None:
+        """What `said_by` and `shaped_phrases` worked out, kept until anything more is held."""
+        if self._shape_says_at != self._added:
+            self._said_by_shape, self._phrases_of_shape, self._shape_says_at = {}, {}, self._added
 
     def said_in_shape(self, word: str, name: str) -> List[FrozenSet[Tuple[Any, ...]]]:
         """What a word written from a name memory holds it for says more than that name: as `said_by`, else what the
@@ -2943,6 +2959,10 @@ class PatternInventory:
         ranks first over the words of that shape ending as this one does: taking "ed" off is right for "barked",
         "walked" and "helped", "d" only for "closed" and "tied", so "jumped" is `jump`."""
         word = _fold(word)
+        self._shapes_now()
+        kept = self._phrases_of_shape.get(word)
+        if kept is not None:
+            return list(kept)
         out = []
         for says, members in self._shape_groups.items():
             if len(members) < 2:
@@ -2961,7 +2981,8 @@ class PatternInventory:
             if best is not None and best[0] > 0:
                 written, names = best[3]
                 out.append((word[:len(word) - len(written)] + names, says, tuple(members)))
-        return out
+        self._phrases_of_shape[word] = out
+        return list(out)
 
     def slot_writing(self, pattern: str, slot: str) -> Optional[FrozenSet[Tuple[str, str]]]:
         """How a slot's own one-word fillers are written: None when they are written as their concept's name
