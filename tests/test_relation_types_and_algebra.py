@@ -175,6 +175,32 @@ def test_an_event_participant_stays_a_fact_about_that_event():
     assert answer("listener", R.DONE_BY, "tying_1", edges).verdict == UNKNOWN
 
 
+def test_a_thing_told_of_by_a_description_is_named_in_a_conversation():
+    """`told_events(..., described=True)`, as a conversation names what it is told: "The company hired three
+    engineers." names the hiring and the engineers hired (three of them), each from the telling; the company, a known
+    thing found, is no unknown; what a question asks stays unnamed, and what is not told as so is not named. Teaching
+    names the happening alone, as decided 2026-10-04."""
+    from core.learning.teaching import told_events
+    from core.semantics.derived_reader import Meaning, MeaningFact
+    hired = Meaning("tell", (MeaningFact("instance_of", "?v0", "hire"), MeaningFact("done_by", "?v0", "company_1"),
+                             MeaningFact("done_to", "?v0", "?v2"), MeaningFact("instance_of", "?v2", "engineer"),
+                             MeaningFact("has_count", "?v2", "3"), MeaningFact("precedes", "?v0", "?now")))
+    named = told_events(hired, "The company hired three engineers.", described=True)
+    assert set(named) == {"?v0", "?v2"} and named["?v2"].startswith("engineer_") and named["?v0"].startswith("hire_")
+    assert told_events(hired, "The company hired three engineers.") == {"?v0": named["?v0"]}
+    shoe = Meaning("tell", (MeaningFact("instance_of", "?x", "shoe"), MeaningFact("has_property", "?x", "black")))
+    assert list(told_events(shoe, "Some shoe is black.", described=True)) == ["?x"]
+    asked = Meaning("ask", (MeaningFact("instance_of", "?v0", "eat"), MeaningFact("done_by", "?v0", "wug"),
+                            MeaningFact("done_to", "?v0", "?v1"), MeaningFact("instance_of", "?v1", "food")),
+                    ("?v1",))
+    assert set(told_events(asked, "What food did the wug eat?", described=True)) == {"?v0"}
+    said = Meaning("tell", (MeaningFact("instance_of", "?v0", "say"), MeaningFact("done_by", "?v0", "tom"),
+                            MeaningFact("done_to", "?v0", "?v1"),
+                            MeaningFact("instance_of", "?v1", "dog", unasserted=True),
+                            MeaningFact("has_property", "?v1", "loud", unasserted=True)))
+    assert list(told_events(said, "Tom said a dog was loud.", described=True)) == ["?v0"]
+
+
 def test_a_told_happening_is_named_as_one_event_and_nothing_else_is():
     """"The wug ate a fep.": one eating, done by the wug, named from its telling, the same name taught again and
     another for another telling. "Some shoe is black." names no shoe: only a happening, an unknown something was done

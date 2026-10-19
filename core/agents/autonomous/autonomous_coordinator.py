@@ -20878,6 +20878,13 @@ class Conversation:
                 continue
             holders = {str(s) for s, r, o, positive in rows
                        if positive and _link_kind(r) == (f.relation, False)}
+            if f.relation in EVENT_PARTICIPANTS:
+                # A KIND THE QUESTION NAMES IS MET BY A PARTICULAR OF IT TOLD OF: "Did the company hire engineers?"
+                # by the hiring of the three engineers it was told of (`told_events`, `described`).
+                for particular in {str(s) for s, r, o, positive in rows if positive and str(s) in self._particulars
+                                   and _link_kind(r) == ("instance_of", False)}:
+                    holders |= {str(s) for s, r, o, positive in await self._incoming_relations(particular)
+                                if positive and _link_kind(r) == (f.relation, False)}
             candidates = holders if candidates is None else candidates & holders
         answers: List[Answer] = []
         qualified: List[Answer] = []
@@ -20888,8 +20895,19 @@ class Conversation:
                 kind, denied = _link_kind(relation)
                 if not denied:
                     relations.setdefault(kind, []).append(str(other))
-            if not all(f.obj.lower().replace("_", " ") in {o.lower().replace("_", " ") for o in relations.get(f.relation, ())}
-                       for f in named):
+            async def holds(f) -> bool:
+                """Whether the candidate holds what the question names: the thing itself, or a particular of the
+                kind it names."""
+                wanted = f.obj.lower().replace("_", " ")
+                others = relations.get(f.relation, ())
+                if wanted in {o.lower().replace("_", " ") for o in others}:
+                    return True
+                for other in others:
+                    kind = await self._kind_of(other) if other in self._particulars else None
+                    if kind and kind.lower().replace("_", " ") == wanted:
+                        return True
+                return False
+            if not all([await holds(f) for f in named]):
                 continue
             if any(f.relation not in relations for f in unknown):
                 continue
@@ -21583,13 +21601,15 @@ class Conversation:
             # Named from the telling with its known things found, so a kick of another ball is another kicking and
             # the same telling again names the same one. It is the teller's, as a thing first told of is
             # (`_known_of`). Unnamed, no telling of a happening was ever held: "The dog barked." was "about
-            # something I have no name for yet" (UNDERSTANDS-PROSE-01, 2026-10-16). Any other unknown ("a dog")
-            # still names nothing, and is not held.
+            # something I have no name for yet" (UNDERSTANDS-PROSE-01, 2026-10-16). SO IS A THING TOLD OF BY A
+            # DESCRIPTION, as its own particular: "The company hired three engineers." holds the engineers hired, three
+            # of them, where it held the hiring alone (`told_events`, `described`, 2026-10-19).
             from core.learning.teaching import told_events
             from core.semantics.cognitive_ingress import normalize_term
             from core.semantics.derived_reader import Meaning
             told_of = Meaning(meaning.act, meaning.bound({}, known), meaning.asked)
-            events = {unknown: normalize_term(name) for unknown, name in told_events(told_of, said).items()}
+            events = {unknown: normalize_term(name)
+                      for unknown, name in told_events(told_of, said, described=True).items()}
             for unknown, name in events.items():
                 kind = next(f.obj for f in told_of.facts if f.relation == "instance_of" and f.subject == unknown)
                 self._particulars.pop(name, None)

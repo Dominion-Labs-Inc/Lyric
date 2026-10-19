@@ -269,11 +269,15 @@ class Report:
         ]
 
 
-def told_events(meaning: Any, sentence: str) -> Dict[str, str]:
+def told_events(meaning: Any, sentence: str, described: bool = False) -> Dict[str, str]:
     """`{unknown: name}` for each happening a told meaning tells of: an unknown that is one of a kind
     (`instance_of(?v0, eat)`) and that the meaning says something was done by or done to. Its name is its kind and
     the telling it came from (`eat_` and eight hex digits of the sentence and its meaning), so the same sentence taught
-    again names the same event, and two tellings name two. Any other unknown is not named."""
+    again names the same event, and two tellings name two. Any other unknown is not named, unless `described`: then
+    so is every thing told of by a description, an unknown of a kind the telling says something of ("The company
+    hired three engineers.": the engineers, `engineer_` and its digits, of whom three were hired). Unnamed, what was
+    said of them was not held, and "Did the company hire engineers?" found nothing (UNDERSTANDS-PROSE-01,
+    2026-10-18)."""
     import hashlib
     from core.semantics.derived_reader import EVENT_PARTICIPANTS, SITUATION_VARIABLES, is_variable
     # A happening the telling does not tell as so -- what someone said, thought or wants, what a doing was for -- is
@@ -282,6 +286,8 @@ def told_events(meaning: Any, sentence: str) -> Dict[str, str]:
     kinds = {f.subject: f.obj for f in told
              if f.relation == "instance_of" and f.positive and is_variable(f.subject) and not is_variable(f.obj)}
     done = {f.subject for f in told if f.relation in EVENT_PARTICIPANTS and is_variable(f.subject)}
+    if described:
+        done |= {term for f in told if f.relation != "instance_of" for term in (f.subject, f.obj) if is_variable(term)}
     named: Dict[str, str] = {}
     for unknown in sorted(set(kinds) & done):
         if unknown in SITUATION_VARIABLES or unknown in meaning.asked:
