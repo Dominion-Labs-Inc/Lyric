@@ -21761,7 +21761,7 @@ class Conversation:
 
         from core.domain.concept_ingestion import EvidenceSourceType
         from core.semantics.cognitive_ingress import admissible, normalize_term
-        from core.semantics.derived_reader import is_variable, read_text
+        from core.semantics.derived_reader import is_variable, meant, read_text
         from core.tools import get_tool_registry
 
         registry = get_tool_registry()
@@ -21829,7 +21829,10 @@ class Conversation:
             utterances = read_text(clean.strip())
             for utterance in utterances:
                 for reading in utterance.readings:
-                    if reading.meaning.act != "tell":
+                    # A reading whose words are each held for several things names them as the listener takes them
+                    # (`meant`), never a word's every sense in turn.
+                    reading = meant((reading,)) if reading.senses else reading
+                    if reading is None or reading.meaning.act != "tell":
                         continue
                     for fact in reading.meaning.asserted:
                         if (fact.relation == "isa" and fact.positive

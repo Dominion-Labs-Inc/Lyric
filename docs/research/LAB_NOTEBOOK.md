@@ -16710,3 +16710,146 @@ on sense combinations per grouping, by how often their words were met, checked a
 sentence that finishes uncapped, so runs finish; then the choice over the structure. The second is also the cause of
 the senses that do not fit the conversation ("key" the lock's, "locked" embraced): the sense is chosen for the whole
 sentence's combination, never for each word where it stands.
+
+## 2026-10-19 (24) — A measured bound on the sense combinations of each grouping: built, measured on the sandbox; main's measurement is the owner's run
+
+**Built, off until measured on main** (`derived_reader._senses_kept`, `SENSES_KEPT`, `LYRIC_SENSES=N`; 0, the
+default, keeps every one): the first half of the fix agreed in (23). For each grouping of the words (`_grouping`: frames
+and phrases with slots as themselves, words and phrases of words as their words), the N sense combinations
+(`_senses_of`: what the words name) the listener would weigh highest on what is at hand, its evidence added as
+`meant` adds it: how often the senses were met (`_senses_met`), how probable the structure is (`_derivation_of`,
+`_derivation` for a part), and what the fit is worth (`listening_worths`); first, whether it reaches the listener at
+all (read loosely, words taken as new names). And the one that supposes least, besides: a reading reaches the
+listener when it supposes least or says in its words what one that does says (`_read_pieces`), and what a whole
+reading supposes is the sum of what its parts suppose, so keeping each part's least keeps the whole's least and its
+witnesses. Applied to what may stand in a slot, the phrases and adjuncts over each run of words, and the whole
+readings, on the chart `_read_pieces` builds; learning (`readings_of`, strict) and repairs (their own charts) are never
+bounded. `PatternInventory.fits` (how proposed fillers fit: written against the slot's own, never beside them) is
+`reading`'s own count, taken out so a part is judged as a whole reading is; nothing it computes changed.
+
+**Two first versions were wrong, and the sandbox showed how.**
+- Counting held words, not senses: "Chlorophyll" and "chlorophyll", "Light" and "light" are held apart for the same
+  things, so of "Chlorophyll is the green pigment that absorbs the light." four places kept one light four times over,
+  cut every other sense, and the listener took another reading (52 readings to 2).
+- Ranking what supposed least first: "What absorbs the light?" is taken as the light (met most; one filler never
+  stood beside its slot's own, fit 4) over the source of illumination (fit 3). To the listener fit 3 and 4 are one
+  level, and it adds its evidence: activation 5.19 and derivation -21.45 against 3.91 and -22.72. Kept by what supposed
+  least, four senses that stood there were kept and the light was cut.
+
+**Measured on the sandbox** (`experiments/SENSES-01`, every reading compared with the reader with no bound, the
+listener's choice with memory at hand, no conversation before it): the final version (`results/20261019T212510Z`), every lesson
+(3,054) and every prose sentence and question (70), each read with no bound and with N 1, 2, 4 and 8:
+
+| N | Prose: same choice | Lessons: same choice | Lessons read as taught | Readings to the listener (lessons) |
+|---|---|---|---|---|
+| none | | | 2,913 | 24,372 |
+| 1 | 68 | 3,036 | 2,919 | 3,942 |
+| 2 | 70 | 3,053 | 2,912 | 5,852 |
+| 4 | 70 | 3,054 | 2,913 | 9,136 |
+| 8 | 70 | 3,054 | 2,913 | 13,419 |
+
+At N 2 the one change is "Nine hundred and ninety-nine thousand is a number." (999000 a number, then an amount). At
+N 1, of the 18 lessons whose choice changed, 6 read as taught no longer ("An eagle is a raptor.", "It rains.",
+"Hello."), 11 read as taught now ("It rained in July.", "An engine is part of a car.", "Is a salmon a kind of fish?")
+and 2 stay wrong: the listener's other evidence decides both ways where only the most-met sense is left to it.
+Nothing was written to the store.
+
+**The sandbox cannot measure what the bound is for.** It never explodes: "The function sorted returns a new list."
+builds 80 readings there against 18,101 on main, and all 70 prose sentences and questions read in about 90 s, with no
+bound or with one. So it shows what the bound changes, not what it saves. A read-only probe of main from this session
+(a process loading main once, its memory loops stopped, as `check_forms.py` does) was refused by the permission check;
+main's measurement is the owner's run (handoff §0), with N 4, 8 and 16.
+
+Tests: `tests/test_derived_reading.py` and `tests/test_word_forms.py`, 136 passed on `lyric_dev`; new:
+`test_a_reading_keeps_the_senses_of_each_grouping_weighed_highest_and_the_least_supposed`,
+`test_only_reading_is_bounded_never_the_search_learning_reads_through`.
+
+## 2026-10-20 (25) — Each word's senses kept together, the listener choosing over the structure: the reader no longer multiplies out, and the primes sentence reads
+
+**Why the bound was not the fix.** SENSES-01 on main (the owner's run, 2026-10-19 evening) sat over 30 minutes on the
+primes sentence. Traced on main the same evening (`logs/sense_cap/trace_primes.py`, read only, nothing written):
+with senses bounded, the whole sentence read to nothing, so the conversation read it in parts, 252 stretches each with
+a chart of its own, each stretch's frame multiplying its slots' bracketings (one product 42,240), 15 stretches in 9
+minutes. Senses, bracketings and stretches were one cause: the reader built every combination and kept a few.
+Teaching more makes it worse, every word taught adding senses. The bound was deleted.
+
+**What was built** (`core/semantics/derived_reader.py`):
+- One chart for an utterance (`_span`): what a run of words reads to depends on its pieces, the word after it and
+  whether a word comes before it, so every stretch, end and part of an utterance shares what was read. Exact: on the
+  sandbox 3,074 sentences read to the same readings and choices; the reader's tests twice as fast.
+- A packed word (`Sense`): a word held for several things in a slot carries its senses together, each with what it
+  supposes there; products run over structures only. One stand-in for a run of words.
+- The cuts that keep one reading of each meaning work per choice of senses, as one by one: a phrase's (`_claimed`:
+  fewer constructions, else first), an adjunct's (`_least_claimed`: least supposed, else first), `_read_pieces`'
+  (`_one_thing_twice`: two words naming one thing are worded as one). Each found by comparing, on the sandbox, every
+  meaning and the reading of it kept, old search against packed: per-frame stand-ins hid two phrases saying the same
+  (26 of 52 kept readings differed for the chlorophyll sentence), a whole packed reading judged where a choice should
+  be (the adjunct "the ?slot2" lost "shrub box"), a template worded where its choice is worded otherwise ("wheel" and
+  "bike" both the bicycle).
+- The listener over packed readings: `listening` asks memory about the facts each pairing of senses makes;
+  `meant` finds the best senses over each structure, word by word over the facts that join them (`_choices`), the
+  levels counted (known, defined, fit) a small state, the best few of each kept so ties are found; each meaning
+  weighed by the reading of it the reader puts first, ties in the reader's order (`_best_packed`). `read` and the
+  listener's counts make every choice (`unpacked`); learning and repairs never pack.
+- Two places that took readings as they were: the coordinator's search of a fetched lead for what a phrase is (a packed
+  reading's senses as the listener takes them), and a quotation's surrounding words (made one by one).
+
+**Measured** (`experiments/PACKED-01`: each utterance read packed and read again one by one, charts that do not pack,
+in one load; readings handed the listener, choices, lessons read as taught):
+- Sandbox (`20261020T114435Z`): prose 70 of 70 same readings and same choice; lessons 3,054 of 3,054 both; read as
+  taught 2,913 either way, as the reader before. Nothing written.
+- Main, prose (`20261020T115357Z`): 70 of 70 same readings and same choice, every one finishing; the whole text 201 s
+  packed (the structure reader's first training 81 s, the primes sentence 65 s). "Its design philosophy ..." 0.5 s
+  (52 s the day before), "Guido van Rossum ..." 1.4 s (55 s; 481 s in the run that stalled), "If the valve is closed,
+  the tank is full." 0.3 s against 27 s one by one with 2,352 readings handed the listener. The 35 choices the run of
+  the evening before recorded on main are each the same. Nothing written.
+- Main, prose and lessons (`work/20261020T120432Z_sentences.jsonl`, stopped on purpose at 2,006 lessons, the comparison
+  having done its work): of the lessons the reader one by one finished within the run's limit (120 s), 1,985 of 1,985
+  read to the same readings and the same choice. 21 it did not finish ("The ball is to the left of the box.", "The
+  dog is big but the cat is small."), each read packed in about a second. Read as taught, packed: 2,000 of 2,006.
+  Nothing written.
+
+Tests: `test_derived_reading.py`, `test_word_forms.py`, `test_conversation.py`, `test_reasoning_owner.py`, 164 passed
+on `lyric_dev`. One of them (`test_a_persons_rule_is_reasoned_over_for_them_and_no_one_else`) failed twice early in
+the day and passed every run since, with the code changed and unchanged; the sandbox's connection pool was being
+rebuilt for a new event loop as it failed. A run measuring writes while tests write the same store counts the tests'
+writes: run them apart.
+
+**UNDERSTANDS-PROSE-01 on main with the packed reader** (`results/20261020T133959Z`, on the owner's word, 586 s, every
+sentence finishing, nothing written): sentences 28 of 33 (19 on 2026-10-18), questions right 14 of 37 (14), wrong 1 of
+37, and that one a recital `scored` counts wrong ("How many failed attempts were there?": "I hold things about fail
+that I have not been taught to say yet. Attempts are activities."). The sentences gained since 2026-10-18 are the
+word forms and described things of (23); the packed reader changes no choice and lets the run end. The questions
+missed are the handoff's list: a sense that does not fit the conversation ("anomaly" a person, "locked" embraced, the
+Eiffel "Tower" the verb so "Is the Eiffel Tower in Paris?" is held as a telling), "It", "They" and "them" not tied
+("They release oxygen.", "Two of them work in Berlin." unread), questions composed without what they ask ("When was
+the Eiffel Tower built?", "How many engineers ...?"), and Python held as the snake.
+
+**Next:** senses chosen for the conversation, now the listener chooses over the structure (`related` and the pair
+evidence per word where it stands); then the frame products themselves (a stretch's frame still multiplies its
+slots' bracketings, now without senses: the primes sentence's 66 s are mostly its 252 parts).
+
+## 2026-10-20 (26) — Real English measured: the composer understands little of it, and data alone does not change that; the Parallel Meaning Bank, and worded links
+
+**Where the composer gives nothing.** UD English EWT's held-out dev sentences read with main's structure view and
+composer (`logs/sense_cap/compose_holes.py`, read only): of 8,541 attachments between two words standing for
+something, 67% given a link. Nouns with a preposition after them were the largest hole (about 600, one in five
+linked). Asking PropBank's verb-learned meanings of nouns too raised the share to 74% and was left: "judge of the
+Court" and "District of Columbia" came out done to, "excerpt from the article" done by. **Worded links**
+(`relation_types.worded`): such a link is now held as its preposition (`word_of(capital, france)`), true of what was
+said and never inferred through; 602 attachments that had nothing hold one, and no typed link changed.
+
+**The Parallel Meaning Bank** (Groningen, 5.1.0; annotations ODC-BY 1.0, attributed in `docs/HANDOFF.md`): English
+with whole meanings, WordNet senses and VerbNet roles. `core/semantics/pmb_meanings.py` says its meanings in the
+lessons' conventions; found and fixed by reading samples: a pointer read as a number, a mover taken for what is moved
+("Let's go"), a quality made a thing ("dyed my hair blonde"), negation of what a thing is ("Mary's phone number" not
+hers), the box pointer counted from the wrong box, so "Everybody loves Tom." read as nobody loving him (now a named
+gap: "every"). Gold 8,255 of 12,053 said whole, silver training 50,741 of 146,718.
+
+**The composer learning from it** (main, in memory, nothing written; the PMB's dev split, 842 sentences): whole
+meanings right 3.0% learned from the lessons, 8.0% with the PMB's gold training sentences, 8.2% with silver too; fact
+F1 29.1%, 40.8%, 42.2%. Eight times the data adds 0.2 points: it decides each word and each pair apart, never one
+meaning, so "When was the Eiffel Tower built?" asks a place and "Do whales breathe air?" makes the listener breathe.
+Right with the PMB that were not: "How many engineers did the company hire?", "Was the account locked?" (the lock,
+not the embrace), "Python is a programming language.". **Next:** a composer that composes each word's learned meaning
+piece over the structure, learned from the PMB's word-aligned meanings (handoff §0).

@@ -76,11 +76,11 @@ import math
 import os
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import (AbstractSet, Any, Awaitable, Callable, Collection, Dict, FrozenSet, Iterable, Iterator, List,
                     Mapping, NamedTuple, Optional, Sequence, Set, Tuple, Union)
 
-from core.semantics.relation_types import SemanticRelation
+from core.semantics.relation_types import SemanticRelation, is_worded, worded
 from core.semantics.literals import classify_literal
 from core.semantics.sentence_machine import QUOTED, Piece, form_of, surface_of
 
@@ -339,9 +339,9 @@ class MeaningFact:
 
     def __post_init__(self):
         relation = str(self.relation).strip()
-        if relation not in _KINDS:
+        if relation not in _KINDS and not is_worded(relation):
             raise ValueError(f"{relation!r} is not a link kind the domain system "
-                             f"reasons with")
+                             f"reasons with, nor a link held as its word")
         for role, term in (("subject", self.subject), ("object", self.obj)):
             text = str(term).strip()
             if not text:
@@ -2261,6 +2261,16 @@ class PatternInventory:
                 meaning: Meaning, *, proposed: Tuple[Link, ...] = (), new: Tuple[Lexical, ...] = (),
                 loose: bool = False, said_for: int = 0, sized: int = 0) -> "Reading":
         scores = [self._score(c) for c in constructions]
+        misfits, apart = self.fits(constructions, links, proposed)
+        return Reading(constructions, links, meaning,
+                       sum(s for s, _, _ in scores) / len(scores), sum(u for _, u, _ in scores) / len(scores),
+                       proposed=proposed, new=new, loose=loose, misfits=misfits, said_for=said_for,
+                       apart=sized + apart)
+
+    def fits(self, constructions: Tuple[Construction, ...], links: Tuple[Link, ...],
+             proposed: Tuple[Link, ...]) -> Tuple[int, int]:
+        """How the fillers a reading proposed links for fit where they stand: how many are written otherwise than
+        the slot's own fillers (`written_against`), and how many held ones never stood beside them (`stood_beside`)."""
         # A filler a taught pair linked stands where it was taught; one a link is only proposed for is judged by
         # how the slot's own fillers are written.
         fillers = {c.key: c for c in constructions if isinstance(c, (Lexical, Phrase))}
@@ -2284,11 +2294,9 @@ class PatternInventory:
                                                          _fold(kinds[0]).split()[-1])
 
         misfits = sum(1 for held in proposed if held.lexical in fillers and against(held))
-        apart = sized + sum(1 for held in proposed if held.lexical in self._by_key
-                            and not self.stood_beside(held.pattern, held.slot, held.lexical))
-        return Reading(constructions, links, meaning,
-                       sum(s for s, _, _ in scores) / len(scores), sum(u for _, u, _ in scores) / len(scores),
-                       proposed=proposed, new=new, loose=loose, misfits=misfits, said_for=said_for, apart=apart)
+        apart = sum(1 for held in proposed if held.lexical in self._by_key
+                    and not self.stood_beside(held.pattern, held.slot, held.lexical))
+        return misfits, apart
 
     def stood_beside(self, pattern: str, slot: str, filler: str) -> bool:
         """Whether a held filler has stood, in some other slot, beside one of this slot's own fillers, as the concept
@@ -3622,6 +3630,13 @@ class Reading:
     #: Read by composing its meaning from how its words go together (`composition`), where no taught frame read the
     #: utterance: it holds no construction and no link.
     composed: bool = False
+    #: Its packed words (`Sense`): each stand-in, its senses each with what taking it supposes in this reading
+    #: (links proposed and words read as less than they say, fillers written against their slot, fillers apart), and
+    #: where its link stands among `links` and among `proposed`. A reading with none is one reading; with some, one for
+    #: each choice of their senses (`with_senses`).
+    senses: Tuple[Packed, ...] = ()
+    #: How many numbers it puts where numbers of their size never stood, of `apart`, its packed words' aside.
+    sized: int = 0
 
     @property
     def pattern(self) -> Pattern:
@@ -3642,8 +3657,13 @@ class Reading:
         Last, how many held fillers it proposed that never stood beside the slot's own (`stood_beside`): "snow",
         the stuff, where "It will ?slot0 soon." holds "rain" for `raining`, supposes more than "snow" for `snowing`,
         which stood beside "rain" before."""
-        return (self.loose, sum(len(_loose(lexical.words)) for lexical in self.new),
-                len(self.proposed) + self.said_for, self.misfits, self.apart)
+        proposed, misfits, apart = len(self.proposed) + self.said_for, self.misfits, self.apart
+        # Of a packed reading, the reading of it that supposes least: what each sense supposes adds to the rest, so
+        # each word's least sense makes it.
+        for _, options, _, _ in self.senses:
+            least = min(cost for _, cost in options)
+            proposed, misfits, apart = proposed + least[0], misfits + least[1], apart + least[2]
+        return (self.loose, sum(len(_loose(lexical.words)) for lexical in self.new), proposed, misfits, apart)
 
 
 def _best_first(reading: Reading):
@@ -4044,6 +4064,40 @@ def _frame_says(frame: Union[Pattern, Phrase], slot: str, said: Iterable[FrozenS
         for says in said)
 
 
+#: What a packed word's value begins with (`Sense`): no concept is named so.
+_STAND_IN = "\u27e8"
+
+
+def _stand_in(construction: Any) -> bool:
+    """Whether a construction is a packed word: words held for several things, standing for each of them (`Sense`)."""
+    return isinstance(construction, Lexical) and construction.value.startswith(_STAND_IN)
+
+
+@dataclass(frozen=True)
+class Sense:
+    """One thing a packed word may name where it stands: the word as held for it, the link it stands there through,
+    held or only proposed for a filler of the slot's kind, and what taking it supposes there beyond its link: a filler
+    written otherwise than the slot's own (`written_against`), a held filler never beside them (`stood_beside`), a
+    number of a size never there (`sized_apart`).
+
+    A WORD'S SENSES ARE KEPT TOGETHER, NEVER CROSSED. Read one by one, every sense of every word was crossed with every
+    other into whole readings and nearly all were thrown away: "The function sorted returns a new list." built 18,101
+    readings of which 168 could reach the listener (a copy of main, 2026-10-19). A word held for several things in one
+    slot is one packed word (`_Filling.senses`); which thing it names is chosen over the structure (`meant`)."""
+
+    lexical: Lexical
+    link: Link
+    held: bool
+    sized: int = 0
+    misfits: int = 0
+    apart: int = 0
+
+
+#: A packed word as a reading carries it: its stand-in, its senses with what each supposes in the whole reading, and
+#: where its link stands among the reading's held links and among its proposed links.
+Packed = Tuple[str, Tuple[Tuple[Sense, Tuple[int, int, int]], ...], int, int]
+
+
 @dataclass(frozen=True)
 class _Filling:
     """What stands in one slot, read: the anchor it puts there and the facts it adds, with the constructions and links
@@ -4061,6 +4115,32 @@ class _Filling:
     apart: int = 0
     #: How many of its phrases' own words it read through another said in their place (`_said_for`), as a frame's are.
     said_for: int = 0
+    #: Its packed words (`Sense`): each stand-in, its senses, and where its link stands among these links and among
+    #: these proposed links.
+    senses: Tuple[Tuple[str, Tuple[Sense, ...], int, int], ...] = ()
+    #: For each packed word in the first slot of a phrase proposed for a slot, that proposed link: the phrase is judged
+    #: by the word it writes first (`PatternInventory.fits`), which differs sense by sense.
+    heads: Tuple[Tuple[str, Link], ...] = ()
+    #: The packed word standing in its own construction's first slot, where that is one.
+    head: str = ""
+
+
+def _side_by_side(combo: Sequence[_Filling]) -> Tuple[Tuple[Link, ...], Tuple[Link, ...],
+                                                     Tuple[Tuple[str, Tuple[Sense, ...], int, int], ...],
+                                                     Tuple[Tuple[str, Link], ...]]:
+    """The links, proposed links, packed words and judged heads of fillings standing one after another, each packed
+    word's place among the links moved past the links before it."""
+    links: Tuple[Link, ...] = ()
+    proposed: Tuple[Link, ...] = ()
+    senses: Tuple[Tuple[str, Tuple[Sense, ...], int, int], ...] = ()
+    heads: Tuple[Tuple[str, Link], ...] = ()
+    for filling in combo:
+        senses += tuple((stand_in, options, at + len(links), offered + len(proposed))
+                        for stand_in, options, at, offered in filling.senses)
+        heads += filling.heads
+        links += filling.links
+        proposed += filling.proposed
+    return links, proposed, senses, heads
 
 
 def _composed(facts: Iterable[MeaningFact], anchor: Optional[str],
@@ -4131,6 +4211,15 @@ def _composed_meaning(meaning: Meaning, fillings: Mapping[str, _Filling]) -> Opt
         return None
 
 
+def _span(pieces: Tuple[Piece, ...], start: int, end: int) -> Tuple[Tuple[Piece, ...], str, bool]:
+    """A run of words as a chart keeps what reads it (`_Chart`): its pieces, the word after it, which decides the
+    shape a frame's word is written in before it (`_written_shapes`), and whether a word comes before it, which
+    decides whether a capital on its first word says anything (`_may_stand_new`). Nothing else of where it stands is
+    read: two runs alike in these read alike."""
+    return (pieces[start:end], pieces[end].text if end < len(pieces) else "",
+            any(not _is_mark(p.text) for p in pieces[:start]))
+
+
 class _Chart:
     """What one reading of one run of pieces has read so far, so nothing in it is read twice: the phrases read over
     each span (`_phrase_fillings`), and what may stand in each frame's slot over each span (`_slot_fillings`).
@@ -4139,13 +4228,23 @@ class _Chart:
     same words for every place the second can end -- so without the second, a long run of words read each slot over
     each span as many times as there are ways to cover the rest: twenty times over on a paragraph of prose, for
     minutes. What stands in a slot over a span whose phrases are being read now (`reading`) is not final until that
-    reading ends, and is not kept."""
+    reading ends, and is not kept.
 
-    def __init__(self):
-        self.phrases: Dict[Tuple[int, int], List[_Filling]] = {}
-        self.slots: Dict[Tuple[str, str, int, int], List[_Filling]] = {}
-        self.adjuncts: Dict[Tuple[int, int], List[Tuple[Adjunct, _Filling]]] = {}
-        self.tails: Dict[Tuple[int, int], List[Tuple[Tuple[Adjunct, _Filling], ...]]] = {}
+    WHAT A RUN OF WORDS READS TO DEPENDS ON THE RUN, NOT WHERE IT STANDS (`_span`), so one chart serves every stretch
+    of an utterance: read in parts, "A prime number is a natural number greater than 1 that has no divisors other
+    than 1 and itself." is 252 stretches, each read with a chart of its own, and the phrases inside them were read
+    again in every stretch holding them (on main, 2026-10-19).
+
+    `packing`: words held for several things in a slot are one packed word (`Sense`), as a sentence is read
+    (`_read_pieces`); learning and repairs look for one meaning and read every sense apart."""
+
+    def __init__(self, packing: bool = False):
+        self.packing = packing
+        self.stand_ins: Dict[Tuple, str] = {}
+        self.phrases: Dict[Tuple, List[_Filling]] = {}
+        self.slots: Dict[Tuple, List[_Filling]] = {}
+        self.adjuncts: Dict[Tuple, List[Tuple[Adjunct, _Filling]]] = {}
+        self.tails: Dict[Tuple, List[Tuple[Tuple[Adjunct, _Filling], ...]]] = {}
         self.reading: set = set()
 
 
@@ -4154,7 +4253,8 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
     """Everything that may stand in one slot for `pieces[start:end]`: the lexical fillers `_fillers` finds, and the
     phrases read over those pieces (`_phrase_fillings`) that fill this slot through a held link or, with `extend`, a
     proposed link to a phrase of the slot's kind. Read once per chart."""
-    kept = (frame.key, slot, start, end)
+    span = _span(pieces, start, end)
+    kept = (frame.key, slot, span)
     if kept in chart.slots:
         return chart.slots[kept]
     out: List[_Filling] = []
@@ -4162,28 +4262,44 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
 
     def sized(value: str) -> int:
         return 1 if view.sized_apart(frame.key, slot, value) else 0
+    senses: List[Sense] = []
     for lexical, held, how in _fillers(view, frame, slot, pieces[start:end], extend=extend, loose=loose,
                                        first=not any(not _is_mark(p.text) for p in pieces[:start])):
-        if how == "linked":
+        if chart.packing and how in ("linked", "kind") and not _valued_name(lexical.value):
+            linked = how == "linked"
+            senses.append(Sense(lexical, held, linked, sized(lexical.value),
+                                0 if linked else int(view.written_against(frame.key, slot, lexical)),
+                                0 if linked or lexical.key not in view._by_key
+                                else int(not view.stood_beside(frame.key, slot, lexical.key))))
+        elif how == "linked":
             out.append(_Filling(lexical.value, (), (lexical,), links=(held,), apart=sized(lexical.value)))
         else:
             out.append(_Filling(lexical.value, (), (lexical,), proposed=(held,),
                                 new=(lexical,) if how == "new" else (), apart=sized(lexical.value)))
+    if len(senses) == 1:
+        (sense,) = senses
+        out.append(_Filling(sense.lexical.value, (), (sense.lexical,), links=(sense.link,) if sense.held else (),
+                            proposed=() if sense.held else (sense.link,), apart=sense.sized))
+    elif senses:
+        # ONE STAND-IN FOR A RUN OF WORDS, wherever it stands: two phrases reading the same words to the same meaning
+        # are then alike, and a phrase keeps the first of them, as it keeps the first of two readings one by one.
+        stand_in = chart.stand_ins.setdefault(span, f"{_STAND_IN}{len(chart.stand_ins) + 1}{_STAND_IN}"
+                                                    f"{surface_of(pieces[start:end])}")
+        out.append(_Filling(stand_in, (), (Lexical(pieces[start:end], stand_in),),
+                            senses=((stand_in, tuple(senses), 0, 0),)))
     for filling in _phrase_fillings(view, pieces, start, end, chart, extend=extend, loose=loose):
         top = filling.constructions[0]
         held = view.link_between(frame.key, slot, top.key)
         apart = filling.apart + sized(_valued(filling.facts)[0].get(filling.anchor, filling.anchor)
                                       if filling.facts else filling.anchor)
         if held is not None:
-            out.append(_Filling(filling.anchor, filling.facts, filling.constructions,
-                                filling.links + (held,), filling.proposed, filling.new, apart=apart,
-                                said_for=filling.said_for))
+            out.append(replace(filling, links=filling.links + (held,), apart=apart, like=(), head=""))
         elif extend and (alike(top.key)
                          or any(view.link_between(frame.key, slot, held) is not None
                                 or alike(held) for held in filling.like)):
-            out.append(_Filling(filling.anchor, filling.facts, filling.constructions,
-                                filling.links, filling.proposed + (link(frame, slot, top),), filling.new,
-                                apart=apart, said_for=filling.said_for))
+            offered = link(frame, slot, top)
+            out.append(replace(filling, proposed=filling.proposed + (offered,), apart=apart, like=(), head="",
+                               heads=filling.heads + (((filling.head, offered),) if filling.head else ())))
     # WHAT STANDS HERE, AND AN ADJUNCT AFTER IT, stand here as one: "the largest animal" and "on Earth", in a slot
     # "the largest animal" may stand in. Only in reading, as a link of a slot's kind is.
     if extend:
@@ -4198,7 +4314,7 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
                     joined = _adjoined(frame, slot, head, adjunct, said)
                     if joined is not None:
                         out.append(joined)
-    if (start, end) not in chart.reading:
+    if span not in chart.reading:
         chart.slots[kept] = out
     return out
 
@@ -4209,7 +4325,7 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
     phrase's are, and each of its slots filled as that slot of the frame it was found in is (`_slot_fillings`), so
     "in the ?slot1" takes what "The ?slot0 in the ?slot1 is ?slot2." takes there. The same words saying the same
     through several pairs of frames are read once, as they suppose least. Read once per chart."""
-    key = (start, end)
+    key = _span(pieces, start, end)
     if key in chart.adjuncts:
         return chart.adjuncts[key]
     chart.adjuncts[key] = []
@@ -4220,7 +4336,7 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
     same = (lambda word, text: word == _fold(text)) if loose else str.__eq__
     missing = (lambda piece: _is_mark(piece.text)) if loose else (lambda piece: False)
     shaped, _ = _written_shapes(view, words, pieces[end].text if end < len(pieces) else "", loose=loose)
-    found: Dict[Tuple[bool, bool, str], Tuple[Adjunct, _Filling]] = {}
+    found: Dict[Tuple[bool, bool, str], List[Tuple[Adjunct, _Filling]]] = {}
     for adjunct in view.adjuncts_after(span[0].text):
         frame = view.get(adjunct.frame)
         slots = [e.name for e in adjunct.form if isinstance(e, Slot)]
@@ -4242,16 +4358,63 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
                     composed = _composed(adjunct.facts, ADJOINED, dict(zip(slots, combo)))
                     if composed is None:
                         continue
+                    links, proposed, packed, heads = _side_by_side(combo)
                     filling = _Filling(ADJOINED, composed[1], tuple(x for c in combo for x in c.constructions),
-                                       tuple(x for c in combo for x in c.links),
-                                       tuple(x for c in combo for x in c.proposed),
-                                       tuple(x for c in combo for x in c.new), apart=sum(c.apart for c in combo),
-                                       said_for=said + sum(c.said_for for c in combo))
+                                       links, proposed, tuple(x for c in combo for x in c.new),
+                                       apart=sum(c.apart for c in combo),
+                                       said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads)
                     kept = (adjunct.happening, adjunct.of_happening, _phrase_canonical(ADJOINED, filling.facts))
-                    if kept not in found or _supposes(filling, view) < _supposes(found[kept][1], view):
-                        found[kept] = (adjunct, filling)
-    chart.adjuncts[key] = list(found.values())
+                    found.setdefault(kept, []).append((adjunct, filling))
+    chart.adjuncts[key] = [read for alike in found.values() for read in _least_claimed(alike, view)]
     return chart.adjuncts[key]
+
+
+def _least_claimed(alike: Sequence[Tuple[Adjunct, _Filling]],
+                   view: PatternInventory) -> List[Tuple[Adjunct, _Filling]]:
+    """Of an adjunct's readings saying the same, each meaning once, through the reading that supposes least, else the
+    first (`_adjunct_fillings`). Packed, which supposes least is decided for each choice of senses, as one by one, and
+    each reading keeps the choices it wins (`_Filling.senses` narrowed)."""
+    if len(alike) == 1:
+        return list(alike)
+    if not alike[0][1].senses:
+        return [min(enumerate(alike), key=lambda pair: (_supposes(pair[1][1], view), pair[0]))[1]]
+    words = [stand_in for stand_in, _, _, _ in alike[0][1].senses]
+    each = [sorted({s.lexical.value for read in alike for w, options, _, _ in read[1].senses if w == word
+                    for s in options}) for word in words]
+    won: Dict[int, List[Tuple[str, ...]]] = {}
+    for chosen in itertools.product(*each):
+        best = None
+        for k, (_, filling) in enumerate(alike):
+            narrowed = _narrowed(filling, dict(zip(words, (frozenset((v,)) for v in chosen))))
+            if any(not options for _, options, _, _ in narrowed.senses):
+                continue
+            rank = (_supposes(narrowed, view), k)
+            if best is None or rank < best:
+                best = rank
+        if best is not None:
+            won.setdefault(best[1], []).append(chosen)
+    out = []
+    for k in sorted(won):
+        adjunct, filling = alike[k]
+        out.extend((adjunct, _narrowed(filling, region)) for region in _regions(words, won[k]))
+    return out
+
+
+def _regions(words: Sequence[str], chosen: Sequence[Tuple[str, ...]]) -> List[Dict[str, FrozenSet[str]]]:
+    """Choices of senses (a thing for each packed word) as regions, a set of things for each word, covering exactly
+    them."""
+    if not chosen:
+        return []
+    if len(words) == 1:
+        return [{words[0]: frozenset(c[0] for c in chosen)}]
+    rest: Dict[str, Set[Tuple[str, ...]]] = {}
+    for c in chosen:
+        rest.setdefault(c[0], set()).add(c[1:])
+    by_rest: Dict[FrozenSet[Tuple[str, ...]], Set[str]] = {}
+    for first, tails in rest.items():
+        by_rest.setdefault(frozenset(tails), set()).add(first)
+    return [{words[0]: frozenset(firsts), **region} for tails, firsts in by_rest.items()
+            for region in _regions(words[1:], sorted(tails))]
 
 
 def _adjoined(frame: Union[Pattern, Phrase], slot: str, head: _Filling, adjunct: Adjunct,
@@ -4282,10 +4445,12 @@ def _adjoined(frame: Union[Pattern, Phrase], slot: str, head: _Filling, adjunct:
              if is_variable(t) and not _named(t) and t != ADJOINED}
     names[ADJOINED] = thing
     phrase = adjunct.phrase
+    links, proposed, packed, heads = _side_by_side((head, said))
     return _Filling(thing, tuple(dict.fromkeys(own + tuple(f.renamed(names) for f in said.facts))),
-                    head.constructions + (phrase,) + said.constructions, head.links + said.links,
-                    head.proposed + said.proposed + (link(frame, slot, phrase),), head.new + said.new,
-                    like=head.like, apart=head.apart + said.apart, said_for=head.said_for + said.said_for)
+                    head.constructions + (phrase,) + said.constructions, links,
+                    proposed + (link(frame, slot, phrase),), head.new + said.new,
+                    like=head.like, apart=head.apart + said.apart, said_for=head.said_for + said.said_for,
+                    senses=packed, heads=heads)
 
 
 def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: int,
@@ -4293,7 +4458,7 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
     """Every phrase that reads `pieces[start:end]`, read once and kept in `chart` for every slot that could take it:
     a phrase with no slots whose form is those words, or one whose slots hold fillers of their own, phrases
     included, so phrases nest."""
-    key = (start, end)
+    key = _span(pieces, start, end)
     if key in chart.phrases:
         return chart.phrases[key]
     chart.phrases[key] = []              # read once; a phrase reading itself finds nothing
@@ -4361,12 +4526,14 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
                     if composed is None:
                         continue
                     anchor, facts = composed
+                    links, proposed, packed, heads = _side_by_side(combo)
+                    first = combo[0] if isinstance(phrase.form[0], Slot) else None
                     out.append(_Filling(anchor, facts, (phrase,) + tuple(x for c in combo for x in c.constructions),
-                                        tuple(x for c in combo for x in c.links),
-                                        tuple(x for c in combo for x in c.proposed),
-                                        tuple(x for c in combo for x in c.new),
+                                        links, proposed, tuple(x for c in combo for x in c.new),
                                         apart=sum(c.apart for c in combo),
-                                        said_for=said + sum(c.said_for for c in combo)))
+                                        said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads,
+                                        head=first.anchor if first is not None and _stand_in(first.constructions[0])
+                                        else ""))
     # THESE WORDS, READ THROUGH EACH PHRASE, AS THEY SUPPOSE LEAST. What a reading supposes is the sum of what its
     # parts suppose, and what a phrase reading them adds depends only on which phrase each part is -- so a reading of
     # these words through one phrase that supposes more than another through the same phrase can never be part of a
@@ -4377,15 +4544,15 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
     for filling in out:
         top = filling.constructions[0].key
         least[top] = min(least.get(top, _supposes(filling, view)), _supposes(filling, view))
-    kept: Dict[Tuple[str, str], _Filling] = {}
+    alike: Dict[Tuple[str, str], List[_Filling]] = {}
     for filling in out:
         top = filling.constructions[0].key
         if _supposes(filling, view) != least[top]:
             continue
-        said = (top, _phrase_canonical(filling.anchor, filling.facts))
-        if said not in kept or len(filling.constructions) < len(kept[said].constructions):
-            kept[said] = filling
-    out = list(kept.values())
+        # A packed word in a reading that supposes least keeps the senses that suppose as little (`_least_senses`).
+        filling = _least_senses(filling, view)
+        alike.setdefault((top, _phrase_canonical(filling.anchor, filling.facts)), []).append(filling)
+    out = [kept for fillings in alike.values() for kept in _claimed(fillings)]
     chart.reading.discard(key)
     chart.phrases[key] = out
     return out
@@ -4395,13 +4562,84 @@ def _supposes(filling: _Filling, view: PatternInventory) -> Tuple[int, bool, int
     """How much a reading of a phrase supposes, least first: new words, constructions not held, links proposed and
     words read through another said in their place, and numbers standing where numbers of their size never stood
     (`sized_apart`)."""
-    return (sum(len(_loose(lexical.words)) for lexical in filling.new),
-            any(c.key not in view for c in filling.constructions), len(filling.proposed) + filling.said_for,
-            filling.apart)
+    new = sum(len(_loose(lexical.words)) for lexical in filling.new)
+    unheld = any(c.key not in view for c in filling.constructions if not _stand_in(c))
+    proposed, apart = len(filling.proposed) + filling.said_for, filling.apart
+    costs = [[(sense.lexical.key not in view, 0 if sense.held else 1, sense.sized) for sense in options]
+             for _, options, _, _ in filling.senses]
+    # A sense held as no construction (a word in a shape, `_fillers`) supposes more only where nothing else did.
+    unheld = unheld or any(all(cost[0] for cost in word) for word in costs)
+    for word in costs:
+        least = min(cost[1:] for cost in word if unheld or not cost[0])
+        proposed, apart = proposed + least[0], apart + least[1]
+    return new, unheld, proposed, apart
+
+
+def _least_senses(filling: _Filling, view: PatternInventory) -> _Filling:
+    """A filling that supposes least, each packed word left with the senses that suppose as little there: a sense that
+    supposes more makes a reading that supposes more, which the phrase's readings never keep (`_phrase_fillings`)."""
+    if not filling.senses:
+        return filling
+    new, unheld, _, _ = _supposes(filling, view)
+    kept = []
+    for stand_in, options, at, offered in filling.senses:
+        costs = [((sense.lexical.key not in view), 0 if sense.held else 1, sense.sized) for sense in options]
+        least = min(cost[1:] for cost in costs if unheld or not cost[0])
+        kept.append((stand_in, tuple(sense for sense, cost in zip(options, costs)
+                                     if cost[1:] == least and (unheld or not cost[0])), at, offered))
+    return replace(filling, senses=tuple(kept))
+
+
+def _claimed(fillings: Sequence[_Filling]) -> List[_Filling]:
+    """Of readings of one run of words through one phrase saying the same, each meaning once: the reading with fewer
+    constructions, else the first, as a phrase keeps one of its readings one by one (`_phrase_fillings`). Packed, two
+    such readings are alike for every choice of senses both take, so the later keeps only the choices not already
+    taken (`_Filling.senses` narrowed, in as many packed readings as the choices left need)."""
+    if len(fillings) == 1:
+        return list(fillings)
+    order = sorted(range(len(fillings)), key=lambda k: (len(fillings[k].constructions), k))
+    if not fillings[0].senses:
+        return [fillings[order[0]]]
+    taken: List[Dict[str, FrozenSet[str]]] = []
+    out: List[Tuple[int, _Filling]] = []
+    for k in order:
+        filling = fillings[k]
+        mine = {stand_in: frozenset(s.lexical.value for s in options) for stand_in, options, _, _ in filling.senses}
+        left = [mine]
+        for box in taken:
+            left = [part for region in left for part in _without(region, box)]
+        out.extend((k, _narrowed(filling, region)) for region in left)
+        taken.append(mine)
+    return [filling for _, filling in sorted(out, key=lambda pair: pair[0])]
+
+
+def _without(region: Mapping[str, FrozenSet[str]], box: Mapping[str, FrozenSet[str]]) -> List[Dict[str, FrozenSet[str]]]:
+    """The choices of senses in `region` (a set of things for each packed word) not in `box`, as regions."""
+    if any(not (region[w] & box[w]) for w in region):
+        return [dict(region)]
+    out, inside = [], dict(region)
+    for w in region:
+        rest = region[w] - box[w]
+        if rest:
+            out.append({**inside, w: rest})
+        inside[w] = region[w] & box[w]
+    return out
+
+
+def _narrowed(filling: _Filling, region: Mapping[str, FrozenSet[str]]) -> _Filling:
+    """A packed filling with each packed word's senses narrowed to the things `region` leaves it."""
+    return replace(filling, senses=tuple((stand_in, tuple(s for s in options if s.lexical.value in region[stand_in]),
+                                          at, offered) for stand_in, options, at, offered in filling.senses))
+
+
+def _valued_name(value: str) -> bool:
+    """Whether a concept is a number, a formula or a day or a time, whose writing a meaning reads for its value
+    (`_valued`): never packed, so what is composed of it is composed of its value."""
+    return _quantity(value) or _temporal(value) or _mathematical(value)
 
 
 def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optional[Tuple[Piece, ...]] = None,
-              extend: bool = False, loose: bool = False) -> List[Reading]:
+              extend: bool = False, loose: bool = False, chart: Optional[_Chart] = None) -> List[Reading]:
     """Every reading of these words through constructions still believed, best first.
 
     Strict, as the learner reads: every slot holds a filler linked to it, a word or a phrase. `extend` lets a slot
@@ -4409,7 +4647,8 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
     with words of its own, since those words are what anchor it (`_anchored`). A frame's word may be written in
     another of its shapes, as the word after it asks (`_written_shapes`). `loose` compares with case folded, lets a
     form's marks be missing and sets aside a final mark on what was said; a mark inside what was said is never set
-    aside."""
+    aside. `chart`: what was read of the runs of these words in other stretches of the same utterance, read the same
+    way (`_Chart`); a chart of its own where none is given."""
     if pieces is None:
         pieces = tuple(Piece(w, True) for w in words)
     if loose:
@@ -4432,7 +4671,7 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                 for holophrase in view.with_words(words[:at] + (said,) + words[at + 1:], loose=False):
                     if view.counts(holophrase):
                         out.append(view.reading((holophrase,), (), holophrase.meaning, said_for=1))
-    chart = _Chart()
+    chart = chart if chart is not None else _Chart()
 
     def through(pattern: Pattern, words: Tuple[str, ...], shaped: Optional[Callable[[int, str], bool]],
                 tails: Sequence[Tuple[Tuple[Adjunct, _Filling], ...]] = ((),)) -> None:
@@ -4462,16 +4701,17 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                             continue
                         constructions = (pattern,) + tuple(x for c in combo for x in c.constructions) + tuple(
                             x for adjunct, said in tail for x in (adjunct.phrase,) + said.constructions)
-                        held = tuple(x for c in combo for x in c.links) + tuple(x for _, s in tail for x in s.links)
-                        offered = tuple(x for c in combo for x in c.proposed) + tuple(
-                            x for adjunct, said in tail
-                            for x in said.proposed + (link(pattern, pattern.slots[-1], adjunct.phrase),))
-                        out.append(view.reading(
+                        held, offered, packed, heads = _side_by_side(tuple(combo) + tuple(
+                            replace(said, proposed=said.proposed + (link(pattern, pattern.slots[-1], adjunct.phrase),))
+                            for adjunct, said in tail))
+                        sized = sum(c.apart for c in combo) + sum(s.apart for _, s in tail)
+                        reading = view.reading(
                             constructions, held, whole, proposed=offered,
                             new=new + tuple(x for _, said in tail for x in said.new), loose=loose,
                             said_for=said_for + sum(c.said_for for c in combo) + sum(s.said_for for _, s in tail)
                             + _unsaid(view, constructions, held + offered, whole),
-                            sized=sum(c.apart for c in combo) + sum(s.apart for _, s in tail)))
+                            sized=sized)
+                        out.append(_costed(reading, packed, heads, sized, view) if packed else reading)
 
     shaped, stood = _written_shapes(view, words, loose=loose)
     have = frozenset(words) | stood
@@ -4501,7 +4741,7 @@ def _tails(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: i
            loose: bool) -> List[Tuple[Tuple[Adjunct, _Filling], ...]]:
     """Every way `pieces[start:end]` reads as adjuncts said of a happening, one after another: "into the box in the
     morning"."""
-    key = (start, end)
+    key = _span(pieces, start, end)
     if key in chart.tails:
         return chart.tails[key]
     chart.tails[key] = []
@@ -4538,6 +4778,70 @@ def _with_tail(pattern: Pattern, meaning: Meaning, tail: Sequence[Tuple[Adjunct,
         return Meaning(meaning.act, tuple(facts), meaning.asked)
     except ValueError:
         return None
+
+
+def _costed(reading: Reading, packed: Sequence[Tuple[str, Tuple[Sense, ...], int, int]],
+            heads: Sequence[Tuple[str, Link]], sized: int, view: PatternInventory) -> Reading:
+    """A reading with packed words, each sense with what taking it supposes in this reading, as a reading of the same
+    words with that sense in its place counts it (`Reading.supposed`, `PatternInventory.fits`, `_unsaid`): its link
+    proposed, and the word read as less than it says where it stands in a phrase's slot; written against its slot,
+    and against the slot of a phrase it writes first; never beside its slot's fillers, or a number of a size never
+    there."""
+    items = {c.key: c for c in reading.constructions}
+    placed = {(f.relation, f.subject, f.positive) for f in reading.meaning.facts}
+    costed = []
+    for stand_in, options, at, offered in packed:
+        judged = [l for word, l in heads if word == stand_in]
+        things = {f.subject for f in reading.meaning.facts if f.relation == "instance_of" and f.obj == stand_in}
+        costs = []
+        for sense in options:
+            lexical = sense.lexical
+            unsaid = int(isinstance(items.get(sense.link.pattern), Phrase) and len(lexical.words) == 1
+                         and view.says_more(lexical.words[0], lexical.value)
+                         and not any(says and all((relation, thing, positive) in placed
+                                                  for relation, subject, _, positive in says if subject == "@")
+                                     for thing in things for says in view.said_by(lexical.words[0], lexical.value)))
+            misfits = sense.misfits + sum(1 for l in judged if view.written_against(l.pattern, l.slot, lexical))
+            costs.append((sense, ((0 if sense.held else 1) + unsaid, misfits, sense.sized + sense.apart)))
+        costed.append((stand_in, tuple(costs), at, offered))
+    return replace(reading, senses=tuple(costed), sized=sized)
+
+
+def _inserted(links: Tuple[Link, ...], placed: Sequence[Tuple[int, Link]]) -> Tuple[Link, ...]:
+    """Links with others put in at their places, in order."""
+    out: List[Link] = []
+    at = 0
+    for position, l in placed:
+        out.extend(links[at:position])
+        at = position
+        out.append(l)
+    out.extend(links[at:])
+    return tuple(out)
+
+
+def with_senses(reading: Reading, chosen: Mapping[str, Sense], view: PatternInventory) -> Optional[Reading]:
+    """A packed reading with a sense chosen for each packed word: the reading the words make with those senses in
+    place, as a reading of them one by one makes it; None where those senses make no meaning (two of its facts become
+    one)."""
+    if not reading.senses:
+        return reading
+    names = {stand_in: chosen[stand_in].lexical.value for stand_in, _, _, _ in reading.senses}
+    facts = tuple(replace(f, subject=names.get(f.subject, f.subject), obj=names.get(f.obj, f.obj))
+                  for f in reading.meaning.facts)
+    if len(set(facts)) != len(facts):
+        return None
+    try:
+        meaning = Meaning(reading.meaning.act, facts, reading.meaning.asked)
+    except ValueError:
+        return None
+    constructions = tuple(chosen[c.value].lexical if _stand_in(c) else c for c in reading.constructions)
+    senses = [(chosen[stand_in], at, offered, dict((id(s), cost) for s, cost in options)[id(chosen[stand_in])])
+              for stand_in, options, at, offered in reading.senses]
+    links = _inserted(reading.links, [(at, sense.link) for sense, at, _, _ in senses if sense.held])
+    proposed = _inserted(reading.proposed, [(offered, sense.link) for sense, _, offered, _ in senses if not sense.held])
+    unsaid = sum(cost[0] - (0 if sense.held else 1) for sense, _, _, cost in senses)
+    return view.reading(constructions, links, meaning, proposed=proposed, new=reading.new, loose=reading.loose,
+                        said_for=reading.said_for + unsaid, sized=reading.sized + sum(s.sized for s, _, _, _ in senses))
 
 
 def _unsaid(view: PatternInventory, constructions: Iterable[Construction], links: Iterable[Link],
@@ -4613,18 +4917,26 @@ def readings_of(words: Tuple[str, ...], meaning: Meaning, view: PatternInventory
     return [r for r in _analyses(tuple(words), view) if r.meaning.canonical() == target]
 
 
-def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Reading, ...]:
+def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory,
+                 charts: Optional[Dict[bool, _Chart]] = None) -> Tuple[Reading, ...]:
     """The meanings these pieces read to, best reading of each first, from the readings that had to suppose the
     least: none that had to suppose more is reported beside one that supposed less.
 
     Pieces with a mark before their last that no reading goes on past (`reads_past`) have no reading, and none is
     searched for: a loose reading sets aside only the last mark. Searched, three sentences of prose taken as one,
-    through ends nothing taught runs past, cost minutes."""
+    through ends nothing taught runs past, cost minutes.
+
+    `charts`: what was read of runs of words in other stretches of the same utterance, strictly and loosely, shared
+    (`_Chart`); what is read here is kept in them."""
     if not view.reads_past(pieces):
         return ()
     words = tuple(p.text for p in pieces)
-    found = (_analyses(words, view, pieces=pieces, extend=True)
-             or _analyses(words, view, pieces=pieces, extend=True, loose=True))
+    charts = {} if charts is None else charts
+    for loose in (False, True):
+        if loose not in charts:
+            charts[loose] = _Chart(packing=True)
+    found = (_analyses(words, view, pieces=pieces, extend=True, chart=charts[False])
+             or _analyses(words, view, pieces=pieces, extend=True, loose=True, chart=charts[True]))
     if not found:
         return ()
     least = found[0].supposed
@@ -4642,11 +4954,59 @@ def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Rea
 
     worded = {_worded(reading, view) for reading in found if reading.supposed == least}
     best: Dict[str, Reading] = {}
+    packed: List[Reading] = []
     for reading in found:
         if reading.supposed == least or (settled(reading.supposed) == settled(least)
                                          and _worded(reading, view) in worded):
-            best.setdefault(reading.meaning.canonical(), reading)
-    return tuple(sorted(best.values(), key=_best_first))
+            if reading.senses:
+                # A PACKED READING IS KEPT WHOLE: which reading of a meaning is kept is decided for each choice of
+                # senses (`unpacked`, `meant`), and two packed readings alike may keep different choices. Less the
+                # choices naming one thing with two words, whose wording is their own (`_one_thing_twice`).
+                packed.extend(_one_thing_twice(reading, least, worded, view))
+            else:
+                best.setdefault(reading.meaning.canonical(), reading)
+    return tuple(sorted(list(best.values()) + packed, key=_best_first))
+
+
+def _reading_narrowed(reading: Reading, region: Mapping[str, FrozenSet[str]]) -> Optional[Reading]:
+    """A packed reading with each packed word's senses narrowed to the things `region` leaves it; None where one is
+    left none."""
+    senses = tuple((stand_in, tuple((s, c) for s, c in options if s.lexical.value in region[stand_in]), at, offered)
+                   for stand_in, options, at, offered in reading.senses)
+    return replace(reading, senses=senses) if all(options for _, options, _, _ in senses) else None
+
+
+def _one_thing_twice(reading: Reading, least: Tuple, worded: AbstractSet[str],
+                     view: PatternInventory) -> List[Reading]:
+    """A packed reading `_read_pieces` keeps, less the choices of senses it would not keep one by one: where two of
+    its words name one thing ("wheel" the bicycle, "bike" the bicycle), or a word names what a held word in it names,
+    the reading is worded with one word for both (`_worded`), so it is kept only where that wording is a reading
+    supposing least's, or it supposes least itself. Elsewhere every choice is worded as the packed reading is."""
+    words = [stand_in for stand_in, _, _, _ in reading.senses]
+    values = {stand_in: frozenset(s.lexical.value for s, _ in options) for stand_in, options, _, _ in reading.senses}
+    held = {c.value for c in reading.constructions if isinstance(c, Lexical) and not _stand_in(c)}
+    boxes: List[Dict[str, FrozenSet[str]]] = []
+    for k, a in enumerate(words):
+        for b in words[k + 1:]:
+            boxes.extend({a: frozenset((v,)), b: frozenset((v,))} for v in sorted(values[a] & values[b]))
+        boxes.extend({a: frozenset((v,))} for v in sorted(values[a] & held))
+    if not boxes:
+        return [reading]
+    regions: List[Dict[str, FrozenSet[str]]] = [dict(values)]
+    for box in boxes:
+        whole = {w: box.get(w, values[w]) for w in words}
+        some = with_senses(reading, {w: next(s for s, _ in options if s.lexical.value in whole[w])
+                                     for w, (_, options, _, _) in zip(words, reading.senses)}, view)
+        if some is not None and some.supposed[:2] == least[:2] and _worded(some, view) in worded:
+            continue
+        regions = [part for region in regions for part in _without(region, whole)]
+        # Of these choices, those supposing least are kept as such.
+        cheapest = {w: frozenset(s.lexical.value for s, c in options if c == min(c for _, c in options)) & whole[w]
+                    for w, (_, options, _, _) in zip(words, reading.senses)}
+        narrowed = _reading_narrowed(reading, cheapest)
+        if narrowed is not None and narrowed.supposed == least:
+            regions.append(cheapest)
+    return [r for r in (_reading_narrowed(reading, region) for region in regions) if r is not None]
 
 
 def read(sentence: str, inventory: Optional[PatternInventory] = None) -> Tuple[Reading, ...]:
@@ -4654,13 +5014,14 @@ def read(sentence: str, inventory: Optional[PatternInventory] = None) -> Tuple[R
 
     More than one when the same words were taught, or can be combined, to mean different things. That is reported,
     never resolved here: which one is meant is decided by the situation and the scores, by whoever is listening
-    (`meant`).
+    (`meant`). Every meaning, each choice of its words' senses made (`unpacked`); a conversation reads with its words'
+    senses kept together (`read_text`) and the listener chooses among them over the structure.
     """
     view = inventory if inventory is not None else _live_inventory()
     pieces = form_of(sentence)
     if not pieces:
         return ()
-    return _read_pieces(pieces, view)
+    return unpacked(_read_pieces(pieces, view), view)
 
 
 @dataclass(frozen=True)
@@ -4714,7 +5075,8 @@ class Utterance:
         return tuple(runs)
 
 
-def _partial(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Tuple[Stretch, ...], Tuple[str, ...]]:
+def _partial(pieces: Tuple[Piece, ...], view: PatternInventory,
+             charts: Optional[Dict[bool, _Chart]] = None) -> Tuple[Tuple[Stretch, ...], Tuple[str, ...]]:
     """An utterance nothing reads whole, read in parts: the parts that read on their own covering as many of its
     pieces as they can, and the words outside them that nothing held has.
 
@@ -4729,7 +5091,7 @@ def _partial(pieces: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Tuple[S
             if (i, j) == (0, n):
                 continue
             part = pieces[i:j]
-            readings = _read_pieces(part, view)
+            readings = _read_pieces(part, view, charts)
             if readings:
                 found[(i, j)] = Stretch(i, j, part, readings=readings)
                 continue
@@ -4812,7 +5174,9 @@ def _with_quotation(utterance: "Utterance", quoted: Tuple["Utterance", ...],
     if not utterance.readings or not taken or any(t is None for t in taken):
         return Utterance(utterance.pieces, ())
     readings = []
-    for reading in utterance.readings:
+    # The words around a quotation, each reading of them with its words' senses made (`unpacked`): what was said is
+    # put into each.
+    for reading in unpacked(utterance.readings, view):
         facts = list(reading.meaning.facts)
         for at, said in enumerate(taken):
             own = {t: f"?q{at}_{t[1:]}" for f in said.meaning.facts for t in f.terms()
@@ -4924,10 +5288,11 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     ends = view.ends()
     cuts = [0] + [i + 1 for i, p in enumerate(pieces[:-1]) if _fold(p.text) in ends] + [len(pieces)]
     read_at: Dict[Tuple[int, int], Tuple[Reading, ...]] = {}
+    charts: Dict[bool, _Chart] = {}
 
     def readings(a: int, b: int) -> Tuple[Reading, ...]:
         if (a, b) not in read_at:
-            read_at[(a, b)] = _read_pieces(pieces[a:b], view)
+            read_at[(a, b)] = _read_pieces(pieces[a:b], view, charts)
         return read_at[(a, b)]
 
     # best[k] covers pieces[:cuts[k]]: (pieces read, utterances read, utterances unread, where the last one began).
@@ -4957,11 +5322,11 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
             out.append(Utterance(pieces[a:b], found))
             continue
         said = pieces[a:b]
-        separated = _separated(said, view)
+        separated = _separated(said, view, charts)
         if separated:
             out.extend(separated)
             continue
-        partial, unknown = _partial(said, view) if parts else ((), ())
+        partial, unknown = _partial(said, view, charts) if parts else ((), ())
         out.append(Utterance(said, (), partial, unknown))
     if COMPOSING:
         out = [u if u.readings else _read_by_composing(u) for u in out]
@@ -4970,7 +5335,8 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
 
 
-def _separated(said: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Utterance, ...]:
+def _separated(said: Tuple[Piece, ...], view: PatternInventory,
+               charts: Optional[Dict[bool, _Chart]] = None) -> Tuple[Utterance, ...]:
     """An utterance that does not read whole, as the sentences its inner marks separate, when every stretch between
     them reads as one: each keeps the marks that follow it. Nothing otherwise."""
     inner = [k for k, piece in enumerate(said[:-1]) if k > 0 and _is_mark(piece.text)]
@@ -4982,7 +5348,7 @@ def _separated(said: Tuple[Piece, ...], view: PatternInventory) -> Tuple[Utteran
         if end <= start:
             continue          # a mark already taken as the one before it's own
         stretch = said[start:end]
-        found = _read_pieces(stretch, view) if any(not _is_mark(p.text) for p in stretch) else ()
+        found = _read_pieces(stretch, view, charts) if any(not _is_mark(p.text) for p in stretch) else ()
         if not found:
             return ()
         # The marks that follow a sentence are its own; the next one begins at its first word.
@@ -5099,12 +5465,15 @@ def sense_choices(readings: Sequence[Reading], inventory: Optional[PatternInvent
     the utterance read to more than one and they all say the same words of the same things but for that. Empty
     when it read to one meaning, or when its meanings differ otherwise (what is said of what), which is the
     listener's to ask about."""
+    view = inventory if inventory is not None else _live_inventory()
+    if any(reading.senses for reading in readings):
+        # Of packed readings, the meanings the listener weighs alike, the choice left to the one who said it.
+        readings = _best_packed(readings, view, Heard())
     best: Dict[str, Reading] = {}
     for reading in readings:
         best.setdefault(reading.meaning.canonical(), reading)
     if len(best) < 2:
         return ()
-    view = inventory if inventory is not None else _live_inventory()
     if len({_worded(r, view) for r in best.values()}) != 1:
         return ()
     return tuple(best.values())
@@ -5169,12 +5538,17 @@ def _derivation(reading: Reading, view: PatternInventory) -> float:
     another word for word, has few slots to fill and outweighs the general frames: "One hundred and twenty-three
     trillion ..." read as another number. So it tells apart only structures that supposed as little as each other
     (`meant`); which structures reach the listener is still the reader's least supposed (2026-10-13)."""
+    return _derivation_of(reading.links, reading.proposed, view)
+
+
+def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: PatternInventory) -> float:
+    """How probable the structure these held and proposed links make is (`_derivation`), for a reading or a part."""
     # EACH LINK IS ONE SLOT FILLED, the same phrase filled again where it is used again ("?slot0 ?slot1" in "three
     # hundred and twelve billion five million"): looked up by its frame and slot, every use of a phrase took one
     # filler, and two bracketings of a number scored alike.
     parts = view.parts_met()
     total = 0.0
-    for link, held in [(link, True) for link in reading.links] + [(link, False) for link in reading.proposed]:
+    for link, held in [(link, True) for link in links] + [(link, False) for link in proposed]:
         filler = view._by_key.get(link.lexical)
         uses, fillers = view.slot_filled(link.pattern, link.slot)
         k = view.uses(link) if held else 0.0
@@ -5294,6 +5668,307 @@ def weighed(readings: Sequence[Reading], inventory: Optional[PatternInventory] =
     return out
 
 
+def _one_sense_each(options: Sequence[Tuple[Sense, Tuple[int, int, int]]],
+                    view: PatternInventory) -> Tuple[Tuple[Sense, Tuple[int, int, int]], ...]:
+    """A packed word's senses, one for each thing it names, as the readings of them one by one keep one: of held words
+    naming one thing ("Light" and "light"), in a phrase's slot the first found, as a phrase keeps the first of its
+    readings saying the same (`_phrase_fillings`); in a frame's slot the one a reading of them puts first
+    (`_best_first`: supposing least, then believed, then used)."""
+    best: Dict[str, Tuple[Tuple, Sense, Tuple[int, int, int]]] = {}
+    for at, (sense, cost) in enumerate(options):
+        in_phrase = isinstance(view.get(sense.link.pattern), Phrase)
+        rank = (at,) if in_phrase else (cost, -view.score(sense.lexical), -view.uses(sense.lexical), sense.lexical.key)
+        value = sense.lexical.value
+        if value not in best or rank < best[value][0]:
+            best[value] = (rank, sense, cost)
+    return tuple((sense, cost) for _, sense, cost in best.values())
+
+
+def unpacked(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None) -> Tuple[Reading, ...]:
+    """Every reading packed readings stand for, each choice of their words' senses made (`with_senses`), the reading of
+    each meaning the reader puts first, best first, as `_read_pieces` hands them. Only where every one is wanted: the listener counting what its evidence
+    is worth on taught sentences, a word's senses listed when it is asked which was meant."""
+    view = inventory if inventory is not None else _live_inventory()
+    made: List[Reading] = []
+    for reading in readings:
+        if not reading.senses:
+            made.append(reading)
+            continue
+        words = [stand_in for stand_in, _, _, _ in reading.senses]
+        each = [[sense for sense, _ in _one_sense_each(options, view)] for _, options, _, _ in reading.senses]
+        made.extend(r for r in (with_senses(reading, dict(zip(words, chosen)), view)
+                                for chosen in itertools.product(*each)) if r is not None)
+    # One reading of each meaning, the one the reader puts first of all of them, as `_read_pieces` keeps it.
+    out: Dict[str, Reading] = {}
+    for r in sorted(made, key=_best_first):
+        out.setdefault(r.meaning.canonical(), r)
+    return tuple(out.values())
+
+
+def _named_consts(reading: Reading) -> FrozenSet[str]:
+    """The things a reading's meaning names, its packed words aside."""
+    return frozenset(t for f in reading.meaning.facts for t in f.terms()
+                     if not is_variable(t) and not t.startswith(_STAND_IN))
+
+
+def _listened_terms(reading: Reading) -> FrozenSet[str]:
+    """The things the facts a listener weighs of a reading name (`listening_facts`), its packed words aside."""
+    return frozenset(t for f in listening_facts(reading.meaning) for t in f.terms() if not t.startswith(_STAND_IN))
+
+
+def _always(reading: Reading, terms: FrozenSet[str], view: PatternInventory, listened: bool) -> FrozenSet[str]:
+    """Of the things a reading names, those every reading it stands for names: what it names apart from its packed
+    words, and a packed word's thing where all its senses name one (in the facts weighed, where `listened`)."""
+    named = set(terms)
+    stand_ins = {t for f in (listening_facts(reading.meaning) if listened else reading.meaning.facts)
+                 for t in f.terms() if t.startswith(_STAND_IN)}
+    for stand_in, options, _, _ in reading.senses:
+        values = {sense.lexical.value for sense, _ in options}
+        if len(values) == 1 and stand_in in stand_ins:
+            named |= values
+    return frozenset(named)
+
+
+class _Weighing(NamedTuple):
+    """A reading as the listener weighs it, its packed words' senses still to choose (`_choices`): what does not turn
+    on them, in nats and in the evidence counted in levels (known, defined, fit), and, for each packed word, each
+    sense's own share and the facts it shares with another."""
+    reading: Reading
+    words: Tuple[str, ...]
+    options: Tuple[Tuple[Tuple[Sense, Tuple[int, int, int]], ...], ...]
+    fixed: float
+    counted: Tuple[int, int, int]
+    own: Tuple[Tuple[Tuple[float, int], ...], ...]
+    facts: Tuple[Tuple[Tuple[int, ...], Dict[Tuple[int, ...], Tuple[float, int, int]]], ...]
+
+
+def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: FrozenSet[str],
+              shared: FrozenSet[str]) -> _Weighing:
+    """What the listener weighs of a reading (`weighed`), split by what turns on which sense each packed word takes:
+    how often each sense was met where it names a thing not every reading names (`_met`), what the rest raises
+    (`related`), how probable its link is (`_derivation_of`), what it supposes (fit); and each fact weighed
+    (`listening_facts`) by the senses it joins: what is said of what (`selected`), what memory holds (`held`), what
+    definitions say (`defined`). The things every reading names (`common`, `shared`) weigh alike in each, and are
+    not counted, as `weighed` does not count them."""
+    held, related, selected, _, defined = heard
+    words = tuple(stand_in for stand_in, _, _, _ in reading.senses)
+    options = tuple(_one_sense_each(options, view) for _, options, _, _ in reading.senses)
+    at = {stand_in: k for k, stand_in in enumerate(words)}
+    mine = _named_consts(reading) - common
+
+    def naming(construction: Construction) -> bool:
+        if isinstance(construction, Lexical):
+            return construction.value in mine
+        if isinstance(construction, Phrase):
+            return bool(_named_in(construction) & mine)
+        return isinstance(construction, Pattern) and any(
+            not is_variable(term) and term in mine for f in construction.meaning.facts for term in f.terms())
+    fixed = sum(math.log1p(_met(view, c)) for c in reading.constructions if not _stand_in(c) and naming(c))
+    fixed += sum(related.get(term, 0.0) for term in _listened_terms(reading) - shared)
+    fixed += _derivation_of(reading.links, reading.proposed, view)
+    known = defined_count = 0
+    listened_words = {t for f in listening_facts(reading.meaning) for t in f.terms() if t in at}
+    facts = []
+    for fact in listening_facts(reading.meaning):
+        scope = tuple(sorted({at[t] for t in fact.terms() if t in at}))
+        if not scope:
+            fixed += selected.get(held_key(fact), 0.0)
+            known += held.get(held_key(fact), 0)
+            defined_count += defined.get(held_key(fact), 0)
+            continue
+        table: Dict[Tuple[int, ...], Tuple[float, int, int]] = {}
+        for choice in itertools.product(*(range(len(options[k])) for k in scope)):
+            names = {words[k]: options[k][x][0].lexical.value for k, x in zip(scope, choice)}
+            subject, obj = names.get(fact.subject, fact.subject), names.get(fact.obj, fact.obj)
+            if subject == obj:
+                table[choice] = (0.0, 0, 0)
+                continue
+            key = (fact.relation, subject, obj, fact.positive)
+            table[choice] = (selected.get(key, 0.0), held.get(key, 0), defined.get(key, 0))
+        facts.append((scope, table))
+    own = []
+    for stand_in, choices in zip(words, options):
+        shares = []
+        for sense, cost in choices:
+            value = sense.lexical.value
+            share = math.log1p(_met(view, sense.lexical)) if value not in common else 0.0
+            if stand_in in listened_words and value not in shared:
+                share += related.get(value, 0.0)
+            share += _derivation_of((sense.link,), (), view) if sense.held else _derivation_of((), (sense.link,), view)
+            shares.append((share, sum(cost)))
+        own.append(tuple(shares))
+    fit = len(reading.proposed) + reading.said_for + reading.misfits + reading.apart
+    return _Weighing(reading, words, options, fixed, (known, defined_count, fit), tuple(own), tuple(facts))
+
+
+#: How many of each count of the listener's evidence tell apart, as its levels do (`LISTENING_LEVELS`): known,
+#: defined, fit.
+_LEVELS = (LISTENING_LEVELS["known"] - 1, LISTENING_LEVELS["defined"] - 1, LISTENING_LEVELS["fit"] - 1)
+
+
+def _levelled(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> Tuple[int, int, int]:
+    return (min(a[0] + b[0], _LEVELS[0]), min(a[1] + b[1], _LEVELS[1]), min(a[2] + b[2], _LEVELS[2]))
+
+
+def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
+             best: int) -> List[Tuple[float, Tuple[int, ...]]]:
+    """The `best` choices of senses for a reading's packed words, by the listener's score (`meant`), highest first:
+    (score, the sense each word takes). Found word by word over the facts that join them (variable elimination: each
+    word's senses weighed against the words it shares facts with, then set aside), never every choice crossed: what
+    the listener weighs is a sum over words and over facts between two, and what it counts in levels is a small
+    state (known, defined, fit, each capped at its last level), so the best of the whole is made of the best of its
+    parts for each state. A few kept for each state, so ties are found and asked about."""
+    n = len(weighing.words)
+    # A factor: its words, and for each choice of their senses, a few (score, counted, the senses of words set aside).
+    Entry = Tuple[float, Tuple[int, int, int], Tuple[Tuple[int, int], ...]]
+    factors: List[Tuple[Tuple[int, ...], Dict[Tuple[int, ...], List[Entry]]]] = []
+    for k, shares in enumerate(weighing.own):
+        factors.append(((k,), {(x,): [(share, (0, 0, min(fit, _LEVELS[2])), ())] for x, (share, fit) in enumerate(shares)}))
+    for scope, table in weighing.facts:
+        factors.append((scope, {choice: [(value, (min(h, _LEVELS[0]), min(d, _LEVELS[1]), 0), ())]
+                                for choice, (value, h, d) in table.items()}))
+
+    def kept(entries: Iterable[Entry]) -> List[Entry]:
+        by_state: Dict[Tuple[int, int, int], List[Entry]] = {}
+        for entry in entries:
+            by_state.setdefault(entry[1], []).append(entry)
+        return [e for group in by_state.values() for e in sorted(group, key=lambda e: -e[0])[:best]]
+
+    def joined(a: List[Entry], b: List[Entry]) -> List[Entry]:
+        return kept((x[0] + y[0], _levelled(x[1], y[1]), x[2] + y[2]) for x in a for y in b)
+
+    remaining = list(range(n))
+    while remaining:
+        # The word sharing facts with the fewest others goes first.
+        def neighbours(k: int) -> Set[int]:
+            return {j for scope, _ in factors if k in scope for j in scope if j != k}
+        word = min(remaining, key=lambda k: (len(neighbours(k)), k))
+        remaining.remove(word)
+        touching = [f for f in factors if word in f[0]]
+        factors = [f for f in factors if word not in f[0]]
+        scope = tuple(sorted({j for s, _ in touching for j in s if j != word}))
+        table: Dict[Tuple[int, ...], List[Entry]] = {}
+        for rest in itertools.product(*(range(len(weighing.options[j])) for j in scope)):
+            given = dict(zip(scope, rest))
+            gathered: List[Entry] = []
+            for x in range(len(weighing.options[word])):
+                given[word] = x
+                entries: List[Entry] = [(0.0, (0, 0, 0), ((word, x),))]
+                for s, t in touching:
+                    entries = joined(entries, t[tuple(given[j] for j in s)])
+                gathered.extend(entries)
+            table[rest] = kept(gathered)
+        factors.append((scope, table))
+    entries: List[Entry] = [(weighing.fixed, (min(weighing.counted[0], _LEVELS[0]), min(weighing.counted[1], _LEVELS[1]),
+                                               min(weighing.counted[2], _LEVELS[2])), ())]
+    for _, t in factors:
+        entries = joined(entries, t[()])
+    scored = []
+    for value, counted, chosen in entries:
+        score = round(value + worths.get(("known", counted[0]), 0.0) + worths.get(("defined", counted[1]), 0.0)
+                      + worths.get(("fit", counted[2]), 0.0), 6)
+        senses = dict(chosen)
+        scored.append((score, tuple(senses[k] for k in range(n))))
+    return sorted(scored, key=lambda pair: -pair[0])[:best]
+
+
+def _score_at(weighing: _Weighing, chosen: Sequence[int], worths: Mapping[Tuple[str, int], float]) -> float:
+    """The listener's score of a reading with these senses chosen for its packed words (`_choices`)."""
+    value = weighing.fixed + sum(weighing.own[k][x][0] for k, x in enumerate(chosen))
+    known, defined, fit = weighing.counted
+    fit += sum(weighing.own[k][x][1] for k, x in enumerate(chosen))
+    for scope, table in weighing.facts:
+        selected, held, said = table[tuple(chosen[k] for k in scope)]
+        value, known, defined = value + selected, known + held, defined + said
+    return round(value + worths.get(("known", min(known, _LEVELS[0])), 0.0)
+                 + worths.get(("defined", min(defined, _LEVELS[1])), 0.0)
+                 + worths.get(("fit", min(fit, _LEVELS[2])), 0.0), 6)
+
+
+def _made(weighing: _Weighing, chosen: Sequence[int], view: PatternInventory) -> Optional[Reading]:
+    return with_senses(weighing.reading, {w: weighing.options[k][x][0] for k, (w, x) in
+                                          enumerate(zip(weighing.words, chosen))}, view)
+
+
+def _best_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard") -> List[Reading]:
+    """Where some readings are packed, the meanings the listener weighs highest, alike: each reading's best senses
+    found over its structure (`_choices`), and the meanings these make weighed as `meant` weighs them, each by the
+    reading of it the reader puts first (`_best_first`), as the reader hands the listener one reading of each meaning.
+
+    Searched until nothing unfound can score as high: a meaning's best reading scores at most what its highest
+    reading scores, so once every reading's next choice scores below the best found, the best and every meaning tied
+    with it are found."""
+    concrete: Dict[str, Reading] = {}
+    packed = []
+    for reading in readings:
+        if reading.senses:
+            packed.append(reading)
+        else:
+            concrete.setdefault(reading.meaning.canonical(), reading)
+    every = list(concrete.values()) + packed
+    common = frozenset.intersection(*(_always(r, _named_consts(r), view, False) for r in every))
+    shared = frozenset.intersection(*(_always(r, _listened_terms(r), view, True) for r in every))
+    worths = view.listening_worths()
+    weighings = [_weighing(r, view, heard, common, shared) for r in every]
+
+    def first_reading(meaning: Meaning) -> Optional[Tuple[float, Reading]]:
+        """The reading of this meaning the reader puts first, of every reading, and its score."""
+        named = {t for f in meaning.facts for t in f.terms() if not is_variable(t)}
+        key = meaning.canonical()
+        found: List[Tuple[Tuple, float, Reading]] = []
+        for weighing in weighings:
+            each = [[x for x, (sense, _) in enumerate(options) if sense.lexical.value in named]
+                    for options in weighing.options]
+            for chosen in itertools.product(*each):
+                made = _made(weighing, chosen, view)
+                if made is not None and made.meaning.canonical() == key:
+                    found.append((_best_first(made), _score_at(weighing, chosen, worths), made))
+        if not found:
+            return None
+        _, score, made = min(found, key=lambda item: item[0])
+        return score, made
+
+    best = 2
+    scored: Dict[str, Tuple[float, Reading]] = {}
+    while True:
+        frontier = -math.inf
+        for weighing in weighings:
+            found = _choices(weighing, worths, best)
+            if len(found) >= best and len(found) < math.prod(len(o) for o in weighing.options):
+                frontier = max(frontier, found[-1][0])
+            for _, chosen in found:
+                made = _made(weighing, chosen, view)
+                if made is None:
+                    continue
+                key = made.meaning.canonical()
+                if key not in scored:
+                    first = first_reading(made.meaning)
+                    if first is not None:
+                        scored[key] = first
+        top = max((score for score, _ in scored.values()), default=-math.inf)
+        if frontier < top or frontier == -math.inf:
+            break
+        best *= 2
+    # Alike, in the order the reader hands them (`_best_first`), as the listener weighs them in that order.
+    ranked = sorted(scored.values(), key=lambda pair: (-pair[0], _best_first(pair[1])))
+    return [r for score, r in ranked if score == ranked[0][0]]
+
+
+def _meant_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard") -> Optional[Reading]:
+    """`meant`, where some readings are packed: the meaning the listener weighs highest (`_best_packed`); where two
+    score alike, asked about, unless they differ only in senses that are one coarse sense."""
+    tied = _best_packed(readings, view, heard)
+    if len(tied) <= 1:
+        return next(iter(tied), None)
+    if len({_worded(r, view) for r in tied}) > 1:
+        return None
+    senses, _ = _senses(tied)
+    things = [senses[r.meaning.canonical()] for r in tied]
+    one = all(frozenset((a, b)) in heard.together for i, mine in enumerate(things) for theirs in things[i + 1:]
+              for a in mine for b in theirs if a != b)
+    return tied[0] if one else None
+
+
 def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
           heard: Optional[Heard] = None) -> Optional[Reading]:
     """Which reading of an utterance was meant, as a listener takes it; None when the listener cannot tell.
@@ -5323,6 +5998,9 @@ def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = N
     Readings that weigh alike are asked about unless they differ only in things that are one coarse sense
     (`together`: one a near kind of the other, or both of one thing), which a listener has understood without
     telling them apart. With no memory at hand (`heard` None), nothing memory would say is weighed."""
+    if any(reading.senses for reading in readings):
+        view = inventory if inventory is not None else _live_inventory()
+        return _meant_packed(readings, view, heard if heard is not None else Heard())
     best: Dict[str, Reading] = {}
     for reading in readings:
         best.setdefault(reading.meaning.canonical(), reading)
@@ -5358,7 +6036,38 @@ async def listening(utterances: Iterable[Sequence[Reading]], context: Iterable[s
         # memory holds of each, and the things each takes a word to name that the others do not.
         best: Dict[str, Reading] = {}
         for reading in readings:
-            best.setdefault(reading.meaning.canonical(), reading)
+            if not reading.senses:
+                best.setdefault(reading.meaning.canonical(), reading)
+        packed = [reading for reading in readings if reading.senses]
+        if packed:
+            # A PACKED READING'S FACTS, EACH PAIRING OF ITS WORDS' SENSES: what memory holds of each fact a choice of
+            # senses makes, never of each whole reading.
+            every = list(best.values()) + packed
+            view = _live_inventory()
+            shared = frozenset.intersection(*(_always(r, _listened_terms(r), view, True) for r in every))
+            partners: Set[str] = set()
+            for reading in every:
+                values = {stand_in: [sense.lexical.value for sense, _ in _one_sense_each(options, view)]
+                          for stand_in, options, _, _ in reading.senses}
+                mine = set(_listened_terms(reading) - shared)
+                made = []
+                for fact in listening_facts(reading.meaning):
+                    words = [t for t in dict.fromkeys(fact.terms()) if t in values]
+                    mine.update(v for t in words for v in values[t] if v not in shared)
+                    for chosen in itertools.product(*(values[t] for t in words)):
+                        names = dict(zip(words, chosen))
+                        subject, obj = names.get(fact.subject, fact.subject), names.get(fact.obj, fact.obj)
+                        if subject != obj:
+                            made.append(MeaningFact(fact.relation, subject, obj, fact.positive))
+                for fact in made:
+                    facts.add(held_key(fact))
+                    if fact.subject in mine:
+                        partners.add(fact.obj)
+                    if fact.obj in mine:
+                        partners.add(fact.subject)
+                senses.update(mine)
+            around.update(shared - partners)
+            continue
         if len(best) < 2:
             continue
         choices = list(best.values())
@@ -5402,7 +6111,8 @@ async def listening_counts(pairs: Iterable[Tuple[str, Meaning]], inventory: Opti
     for sentence, meaning in pairs:
         utterances = read_text(sentence, view)
         if len(utterances) == 1 and utterances[0].understood:
-            readings = utterances[0].readings
+            # Every reading weighed as it is (`unpacked`): what the listener counts is each meaning's evidence.
+            readings = unpacked(utterances[0].readings, view)
             found = weighed(readings, view, heard=await listening((readings,)))
             taught = meaning.canonical()
             if len(found) > 1 and any(w.reading.meaning.canonical() == taught for w in found):

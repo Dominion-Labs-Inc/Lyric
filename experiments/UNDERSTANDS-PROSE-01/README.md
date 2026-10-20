@@ -74,6 +74,7 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261016T140446Z` | + a happening told in a conversation is held, and asked about | 7/33 | 9/37 | 0/37 | nothing |
 | `20261017T224849Z` | 29caa75, composing on (`LYRIC_COMPOSE=1`) | 16/33 | 10/37 | 3/37 | nothing |
 | `20261018T234706Z` | eebbf6a, composing on, forced tellings composed (`LYRIC_COMPOSE_FORCED=1`) | 19/33 | 14/37 | 0/37 | nothing |
+| `20261020T133959Z` | word forms and described things (3beeb10 to 7a10174) and the packed reader (each word's senses kept together, the listener choosing over the structure; 2026-10-20, not committed): 586 s, every sentence finishing (the primes sentence 66 s) | 28/33 | 14/37 | 1/37: "How many failed attempts were there?" a recital ("I hold things about fail ...") `scored` counts wrong | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted

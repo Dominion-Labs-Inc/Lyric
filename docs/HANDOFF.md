@@ -1,14 +1,76 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-19)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-20)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to
-2026-10-19 (23) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (26) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-19)
+## 0. Where it stands (2026-10-20)
 
-**THE READER MULTIPLIES OUT WORD SENSES, AND A LONG SENTENCE NEVER FINISHES (measured 2026-10-19, lab notebook (23)).
-This is the first thing to fix; nothing else can be measured on the prose until it is.** UNDERSTANDS-PROSE-01 on main
+**NEXT: A COMPOSER THAT COMPOSES, LEARNED FROM THE PARALLEL MEANING BANK (lab notebook 2026-10-20 (26)).** Lyric does
+not understand English as it is written, and the measurements say why. The composer (`core/semantics/composition.py`)
+reads what no lesson frame reads; it learned from the 3,052 lesson sentences and decides each word's standing and each
+pair of words' fact apart, from the situations met nearby, never one consistent meaning for the sentence. Measured on
+main (read only, in memory, nothing written; `logs/sense_cap/pmb_learn_job.txt`) on the 842 held-out English
+sentences of the PMB's dev split that map whole:
+
+| Composer learned from | Whole meaning right | Fact precision | Fact recall | Fact F1 |
+|---|---|---|---|---|
+| the 3,052 lessons (main as it is) | 3.0% | 34.6% | 25.2% | 29.1% |
+| + the PMB's 6,588 gold training sentences | 8.0% | 50.3% | 34.4% | 40.8% |
+| + its 50,741 silver training sentences | 8.2% | 52.9% | 35.1% | 42.2% |
+
+Eight times the data adds 0.2 points: the design is the limit, not the data. **The work agreed next: rebuild the
+composer to compose.** Each word a learned meaning piece (its kind, the roles it takes and how, what it asks: "when" a
+time, "of" a link between its two nouns), combined over the sentence's structure into one meaning; learned from the
+PMB, whose meanings were built that way and corrected by hand, each line's comment holding the words it stands for (so
+pieces align to words by the data, not by names). Measured each step on the PMB dev split (whole, facts), on
+UNDERSTANDS-PROSE-01, and on a conversation test of the owner's own lines. Teaching the PMB to main is a teaching
+source still to write (`teach.py --source pmb`), after the rebuild measures well.
+- **The PMB** (University of Groningen, release 5.1.0, https://pmb.let.rug.nl/releases/pmb-5.1.0.zip, 1.0 GB):
+  English gold 12,053 documents, silver 147,445. Annotations under ODC-BY 1.0: **attribute the PMB** (Abzianidze et
+  al. 2017, "The Parallel Meaning Bank") in any public use of it or of what is built from it; texts under their
+  sources' licences (`en.met`). On the Mac in `test_data/semantics/pmb/` (git-ignored, never pushed): the zip, and
+  `pmb-5.1.0/data/en/{gold,silver}`, `split/en`, `licenses` extracted.
+- **`core/semantics/pmb_meanings.py`** says a PMB meaning (sequence box notation) in Lyric's meaning language, in the
+  lessons' conventions (a known thing `given`, names as themselves, tense as before or after now, a progressive
+  `during ?now`, a quality `has_property`, a past state, a degree, a question's asked term, negation of what a
+  clause predicates only, pronouns as what they stand for by `ANA`). Gold 8,255 of 12,053 said whole (68.5%); the
+  silver training split 50,741 of 146,718. The rest are named gaps, never guessed: "every" (a negation in a
+  negation), a proposition another clause holds, possibility and necessity (`MEANING_COVERAGE.md` §6), comparisons,
+  unspecific amounts, dates past a year, a day or a clock time, and roles still to map (`Value`, adverbs' roles,
+  `Title`, `Bearer`). No experiment record yet: to make PMB-01 (`experiments/`) when the rebuild starts.
+- **Worded links** (`relation_types.worded`: `word_of`, `word_from`, ...): a preposition's link that nothing known
+  names is held as its word, never dropped; true of what was said, found by a question asked with the same word,
+  never inferred through. The composer holds one for a noun or oblique attachment marked by a preposition that the
+  lessons and PropBank say nothing particular of (`composition.MARKED`); world knowledge takes none
+  (`concept_ingestion`). PropBank's verb meanings asked of nouns were measured and left: "judge of the Court" done to
+  it, "District of Columbia" the same.
+- **Where the composer gives nothing on real English** (`logs/sense_cap/compose_holes.py`, UD English EWT dev, main's
+  composer): of attachments between words standing for something, 67% a link, 9.6% a worded link, 23% nothing
+  ("and" lists 425, whose members take one another's roles, subjects 181, a verb completing a verb 105, adverbs 89);
+  and 1,808 content words taken as standing for nothing ("so", "when", "also"; "thanks", "service"; "other", "more").
+
+**FIXED 2026-10-20 (lab notebook (25), `experiments/PACKED-01`): THE READER KEEPS EACH WORD'S SENSES TOGETHER AND THE
+LISTENER CHOOSES OVER THE STRUCTURE; IT NO LONGER MULTIPLIES OUT, AND THE PRIMES SENTENCE READS (65 s on main).** Built:
+one chart for an utterance (`_span`); a packed word (`Sense`) for a word held for several things in a slot, its senses
+never crossed; the cuts keeping one reading of each meaning working per choice of senses (`_claimed`,
+`_least_claimed`, `_one_thing_twice`); `listening` asking memory about the facts each pairing of senses makes, and
+`meant` finding the best senses over each structure (`_choices`, `_best_packed`). `read` and the listener's counts
+make every choice (`unpacked`); learning and repairs never pack. The sense cap (`SENSES_KEPT`) was a patch and is
+deleted. Measured, the listener handed exactly the readings it was handed before and choosing the same: sandbox 70 of
+70 prose and 3,054 of 3,054 lessons, read as taught 2,913 either way; main prose 70 of 70, each finishing, the whole
+text 201 s; main lessons 1,985 of the 1,985 the old reader finished (it did not finish 21 in 120 s, among them "The ball
+is to the left of the box.", each about 1 s packed), read as taught 2,000 of 2,006 (stopped there on purpose).
+**UNDERSTANDS-PROSE-01 on main
+(`20261020T133959Z`): sentences 28 of 33, right 14 of 37, wrong 1 of 37 (a recital `scored` counts wrong), 586 s,
+every sentence finishing.** After the composer: senses chosen for the conversation (below, "What still goes wrong" 2),
+now that the listener chooses over the structure; and the frame products themselves: a stretch's frame still
+multiplies its slots' bracketings, now without senses (the primes sentence's 66 s are mostly its 252 parts). **Teaching
+more never fixes a stall: every word taught adds senses.**
+
+**WHAT WAS WRONG (2026-10-19, lab notebook (23), (24)): THE READER MULTIPLIED OUT WORD SENSES, AND A LONG SENTENCE
+NEVER FINISHED.** UNDERSTANDS-PROSE-01 on main
 at 7a10174 sat on "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself."
 for over 30 minutes and was stopped. Measured on the copy of main (py-spy and counters, probes in the cloud session):
 - The frame search builds every reading whole, every sense of every word crossed with every other, then keeps a few:
@@ -28,11 +90,52 @@ for over 30 minutes and was stopped. Measured on the copy of main (py-spy and co
   kept per word until anything more is held. Tests 134 passed. It changes no reading, and does not fix the primes
   sentence.
 
-**The fix, agreed in outline (2026-10-19):**
-1. **Now: a measured cap on sense combinations**, a switch like `LYRIC_COMPOSE`: for each grouping of the words, only
-   the N sense combinations whose words were met most often (the listener's own first evidence, `_met`). Before the
-   owner runs anything, measured against the uncapped reader on every lesson and prose sentence that finishes uncapped:
-   same readings and the same choice by `meant`, or exactly which changed. Then UNDERSTANDS-PROSE-01 on main.
+**THE FIX (2026-10-20, done the same day, above): no bound on what multiplies; read into a packed chart and choose
+over it.** Measured on
+main 2026-10-19 (`logs/sense_cap/trace_primes.py`, read only): with senses capped, the primes sentence reads to nothing
+whole, so the conversation reads it in parts (252 stretches); each stretch's frame multiplies the groupings of its
+slots (one product 42,240) and builds every whole reading, 15 stretches in 9 minutes. Senses, groupings and stretches
+are one cause: the reader builds every combination and `_read_pieces` throws away over 98% of them (the copy: "sorted"
+18,101 built, 168 could reach the listener). **Teaching more makes it worse**, never better: every word taught adds
+senses (the word forms took "The blue whale ..." from 4 s to 142 s). Everything the reader and the listener rank by
+adds up over the structure: what a reading supposes per slot and link; how often each sense was met (per word); how
+probable each link is (per link); what memory knows of the fact two senses make (per pair joined in one fact,
+`listening_facts`); known, defined and fit capped in levels (a small state). So:
+- **A. Packed chart.** Each run of words read once (`_span`, shared across an utterance: done, exact on 3,074
+  sentences), each analysis kept as its structure with each word's senses as alternatives, never crossed. What
+  `_read_pieces` hands the listener today is a union of per-word filtered products (the least of a sum is the sum of
+  each part's least), kept packed.
+- **B. The choice over the chart.** `listening` asks memory about the candidate pairs the packed readings hold (not
+  whole readings); `meant` finds the best senses by dynamic programming over each structure (its facts join the words;
+  the capped levels are its state), and the second best for "asked about" ties. Only the chosen reading is built.
+- **Checked:** every lesson and prose sentence that finishes today chooses as today's reader does (SENSES-01's
+  comparison, no bound), and lessons read as taught do not drop; then UNDERSTANDS-PROSE-01 on main, on the owner's
+  word. Then the sense cap (`SENSES_KEPT`, off by default) is deleted.
+
+**The fix, agreed in outline (2026-10-19), superseded by the above:**
+1. **Now: a measured cap on sense combinations. Built 2026-10-19 (lab notebook (24)), off until measured on main.**
+   `derived_reader.SENSES_KEPT`, `LYRIC_SENSES=N` (0, the default for now, keeps every one). For each grouping of the
+   words (`_grouping`: frames and phrases with slots as themselves, words as their words), the N sense combinations
+   (`_senses_of`: what the words name, so "Light" and "light" held apart are one) the listener would weigh highest on
+   what is at hand, its evidence added as `meant` adds it (how often met, `_senses_met`; how probable the structure,
+   `_derivation_of`; the fit's worth), and the least-supposed one besides (so `_read_pieces`' cut and its witnesses are
+   unchanged). In slots, phrases, adjuncts and whole readings, only where a sentence is read; learning and repairs are
+   never bounded. Two first versions were wrong and measured so on the sandbox: counting held words, not senses, spent
+   the places on case twins; ranking by what supposed least first cut the light the listener takes in "What absorbs
+   the light?". Measured by **`experiments/SENSES-01`**: every lesson and every prose sentence and question read with
+   no bound and with each N, readings, the listener's choice and seconds compared. On the sandbox
+   (`results/20261019T212510Z`), which never explodes, so shows what the bound changes and not what it saves: at N 4
+   no choice changed (70 of 70 prose, 3,054 of 3,054 lessons; read as taught 2,913 either way), and the lessons
+   handed the listener 9,136 readings against 24,372; at N 2 one lesson changed, at N 1, 20.
+   **Next: SENSES-01 on main** (read only; the owner's run, since a session's start of a read-only probe of main was
+   refused by the permission check; about 5 minutes to load, then every sentence read four ways, prose first, each
+   written as read to `work/`, `--resume` going on after a stop):
+   ```
+   cd ~/"Dominion Labs/Lyric"
+   POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/SENSES-01/experiment.py --senses 4,8,16
+   ```
+   Then set the default to the smallest N that changes no choice (or name each change), and UNDERSTANDS-PROSE-01 on
+   main.
 2. **Then the real fix: senses chosen over the sentence's structure, never multiplied out.** The listener's score
    (`weighed`, `meant`) is per word (`_met`, `related`), per link (`_derivation`) and per pair of words (`selected`,
    `held`, `defined`: what memory knows of the fact two senses make), the last capped in levels. Per-word choice alone

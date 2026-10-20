@@ -177,6 +177,24 @@ class SemanticRelation(Enum):
     RELATED_TO = "related_to"      # an unrecognised verb: inert, licenses nothing
 
 
+#: What a worded link's name begins with (`worded`).
+WORDED = "word_"
+
+
+def worded(word: str) -> str:
+    """A link held as the word it was said with: "the capital of France" is `word_of(capital, France)`, where nothing
+    known says which link "of" makes there (a part, a member, a name, what it is about). Always true of what was said,
+    found again by a question asked with the same word ("What is the capital of France?"), and never a link the
+    reasoner infers through: it commits to no kind. When memory knows the kind, the kind is said instead."""
+    return WORDED + "_".join(str(word).lower().split())
+
+
+def is_worded(relation: str) -> bool:
+    """Whether a link is held as the word it was said with (`worded`)."""
+    rest = str(relation)[len(WORDED):] if str(relation).startswith(WORDED) else ""
+    return bool(rest) and all(part.isalpha() for part in rest.split("_"))
+
+
 class Transitivity(Enum):
     """Whether A -r-> B -r-> C entails A -r-> C.
 

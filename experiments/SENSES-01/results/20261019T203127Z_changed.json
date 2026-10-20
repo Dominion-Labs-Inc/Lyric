@@ -1,0 +1,173 @@
+{
+ "prose 2": [
+  {
+   "sentence": "Do whales breathe air?",
+   "taught": null,
+   "chosen with no bound": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, air) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now)"
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now) & received_by(?v1, air)"
+   ],
+   "readings with no bound": 4,
+   "readings": 1,
+   "lost": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, air) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, medium air) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, quality air) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, tune) & instance_of(?v0, whale) & instance_of(?v1, breathe) & precedes(?v1, ?now)"
+   ]
+  },
+  {
+   "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+   "taught": null,
+   "chosen with no bound": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)"
+   ],
+   "chosen": [
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & isa(?v0, light) & owned_by(?v0, ?previous)"
+   ],
+   "readings with no bound": 52,
+   "readings": 1,
+   "lost": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, condition light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, position light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, public knowledge light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, source of illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, sparkle) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual property light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual signal light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, condition light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)"
+   ]
+  },
+  {
+   "sentence": "Does sorted return a new list?",
+   "taught": null,
+   "chosen with no bound": [
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list)"
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & done_to(?v1, ?v2) & has_property(?v2, new) & instance_of(?v0, sorte) & instance_of(?v1, return) & instance_of(?v2, list) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list)",
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, position tilt)"
+   ]
+  },
+  {
+   "sentence": "Does sorted change the original list?",
+   "taught": null,
+   "chosen with no bound": [
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, avant-garde original) & instance_of(?v0, change) & instance_of(?v1, list)"
+   ],
+   "chosen": [
+    null
+   ],
+   "readings with no bound": 4,
+   "readings": 2,
+   "lost": [
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, avant-garde original) & instance_of(?v0, change) & instance_of(?v1, list)",
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, avant-garde original) & instance_of(?v0, change) & instance_of(?v1, position tilt)",
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, avant-garde original) & instance_of(?v0, dress change) & instance_of(?v1, list)",
+    "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, avant-garde original) & instance_of(?v0, dress change) & instance_of(?v1, position tilt)"
+   ]
+  },
+  {
+   "sentence": "Do two of the engineers work in Berlin?",
+   "taught": null,
+   "chosen with no bound": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, activity work) & precedes(?v1, ?now)"
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, work)"
+   ],
+   "readings with no bound": 11,
+   "readings": 2,
+   "lost": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, activity work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, energy work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, occupation employment) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, oeuvre) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, product work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, study) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, use work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, workplace) & precedes(?v1, ?now)"
+   ]
+  }
+ ],
+ "prose 4": [
+  {
+   "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+   "taught": null,
+   "chosen with no bound": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)"
+   ],
+   "chosen": [
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & isa(?v0, light) & owned_by(?v0, ?previous)"
+   ],
+   "readings with no bound": 52,
+   "readings": 2,
+   "lost": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, condition light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, position light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, public knowledge light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, source of illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, sparkle) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual property light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual signal light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, condition light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)"
+   ]
+  },
+  {
+   "sentence": "Do two of the engineers work in Berlin?",
+   "taught": null,
+   "chosen with no bound": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, activity work) & precedes(?v1, ?now)"
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, work)"
+   ],
+   "readings with no bound": 11,
+   "readings": 2,
+   "lost": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, activity work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, energy work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, occupation employment) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, oeuvre) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, product work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, study) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, use work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, work) & precedes(?v1, ?now)",
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & during(?v1, limousine berlin) & has_count(?v0, 2) & instance_of(?v0, engineer) & instance_of(?v1, workplace) & precedes(?v1, ?now)"
+   ]
+  }
+ ],
+ "prose 8": []
+}

@@ -1,0 +1,195 @@
+{
+ "prose": [],
+ "lesson": [
+  {
+   "sentence": "Hello.",
+   "taught": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greet)",
+   "packed": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greeting)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greet)"
+   ]
+  },
+  {
+   "sentence": "Thank you.",
+   "taught": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, thank)",
+   "packed": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, thanking)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, thank)"
+   ]
+  },
+  {
+   "sentence": "Tom said, \"The dog barked.\"",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Rex said, \"The cat ran.\"",
+   "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Anna said, \"The bird flew.\"",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, bird) & unasserted instance_of(?v1, fly) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, bird) & unasserted instance_of(?v1, fly) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Tom said, \"The fish swam.\"",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, fish) & unasserted instance_of(?v1, swim) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, fish) & unasserted instance_of(?v1, swim) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Tom said, \"The sky is blue.\"",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, sky) & unasserted has_property(?v1, blue)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, sky) & unasserted has_property(?v1, blue)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Rex said, \"The ice is cold.\"",
+   "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, ice) & unasserted has_property(?v1, cold)",
+   "packed": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, ice) & unasserted has_property(?v1, cold)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Anna said, \"The cup is hot.\"",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, cup) & unasserted has_property(?v1, hot)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, cup) & unasserted has_property(?v1, hot)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Anna said, \"Tom is tall.\"",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted has_property(tom, tall)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted has_property(tom, tall)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The dog barked,\" Tom said.",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The cat ran,\" Anna said.",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The bird flew,\" Rex said.",
+   "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, bird) & unasserted instance_of(?v1, fly) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, bird) & unasserted instance_of(?v1, fly) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The sky is blue,\" Rex said.",
+   "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, sky) & unasserted has_property(?v1, blue)",
+   "packed": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, sky) & unasserted has_property(?v1, blue)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The door is open,\" Tom said.",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, door) & unasserted has_property(?v1, open)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, door) & unasserted has_property(?v1, open)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\"The box is red,\" Anna said.",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, box) & unasserted has_property(?v1, red)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, box) & unasserted has_property(?v1, red)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Tom said, \u201cThe cat is small.\u201d",
+   "taught": "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, cat) & unasserted has_property(?v1, small)",
+   "packed": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, cat) & unasserted has_property(?v1, small)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, tom) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "\u201cThe ball is red,\u201d Rex said.",
+   "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, ball) & unasserted has_property(?v1, red)",
+   "packed": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, ball) & unasserted has_property(?v1, red)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Anna said, \u201cThe dog ran.\u201d",
+   "taught": "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)",
+   "packed": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)"
+   ],
+   "one by one": [
+    "tell: done_by(?v0, anna) & instance_of(?v0, say) & precedes(?v0, ?now)"
+   ]
+  }
+ ]
+}

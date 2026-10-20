@@ -1,0 +1,373 @@
+{
+ "prose 1": [
+  {
+   "sentence": "Do plants release oxygen?",
+   "taught": null,
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & instance_of(?v0, plant) & instance_of(?v1, release) & received_by(?v1, oxygen)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "ask: done_by(?v0, plants) & instance_of(?v0, release) & received_by(?v0, oxygen)"
+   ]
+  },
+  {
+   "sentence": "Do plants take in carbon dioxide?",
+   "taught": null,
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "ask: done_by(?v0, ?previous) & done_by(?v1, ?v0) & instance_of(?v0, plant) & instance_of(?v1, filming take) & located_in(?v1, carbon dioxide)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "ask: done_by(?v0, plants) & instance_of(?v0, filming take) & located_in(?v0, carbon dioxide)"
+   ]
+  }
+ ],
+ "lesson 1": [
+  {
+   "sentence": "A toad is an amphibian.",
+   "taught": "tell: isa(frog, amphibian)",
+   "chosen with no bound": [
+    "tell: isa(frog, amphibian)"
+   ],
+   "chosen": [
+    "tell: isa(toad, amphibian)"
+   ],
+   "readings with no bound": 6,
+   "readings": 4,
+   "lost": [
+    "tell: isa(toad, airplane amphibian)",
+    "tell: isa(toad, motor vehicle amphibian)"
+   ]
+  },
+  {
+   "sentence": "An eagle is a raptor.",
+   "taught": "tell: isa(eagle, bird of prey)",
+   "chosen with no bound": [
+    "tell: isa(eagle, bird of prey)"
+   ],
+   "chosen": [
+    "tell: isa(eagle, raptor)"
+   ],
+   "readings with no bound": 4,
+   "readings": 3,
+   "lost": [
+    "tell: isa(emblem eagle, raptor)"
+   ]
+  },
+  {
+   "sentence": "An owl is a raptor.",
+   "taught": "tell: isa(owl, bird of prey)",
+   "chosen with no bound": [
+    "tell: isa(owl, bird of prey)"
+   ],
+   "chosen": [
+    "tell: isa(owl, raptor)"
+   ],
+   "readings with no bound": 2,
+   "readings": 2,
+   "lost": []
+  },
+  {
+   "sentence": "Flies are insects.",
+   "taught": "tell: isa(dipterous insect fly, insect)",
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "tell: isa(dipterous insect fly, insect)"
+   ],
+   "readings with no bound": 3,
+   "readings": 2,
+   "lost": [
+    "tell: isa(insect fly, insect)"
+   ]
+  },
+  {
+   "sentence": "It rains.",
+   "taught": "tell: instance_of(?v0, precipitate rain)",
+   "chosen with no bound": [
+    "tell: instance_of(?v0, precipitate rain)"
+   ],
+   "chosen": [
+    "tell: instance_of(?v0, raining)"
+   ],
+   "readings with no bound": 2,
+   "readings": 2,
+   "lost": []
+  },
+  {
+   "sentence": "Hello.",
+   "taught": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greet)",
+   "chosen with no bound": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greet)"
+   ],
+   "chosen": [
+    "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greeting)"
+   ],
+   "readings with no bound": 2,
+   "readings": 2,
+   "lost": []
+  },
+  {
+   "sentence": "It rained again.",
+   "taught": "tell: has_property(?v0, again) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)",
+   "chosen with no bound": [
+    "tell: has_property(?v0, again) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ],
+   "chosen": [
+    "tell: has_property(?v0, again) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: has_property(?v0, again) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "It rained and then the dog barked.",
+   "taught": "tell: done_by(?v0, ?v1) & follows(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & instance_of(?v2, precipitate rain) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+   "chosen with no bound": [
+    "tell: done_by(?v0, ?v1) & follows(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & instance_of(?v2, raining) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ],
+   "chosen": [
+    "tell: done_by(?v0, ?v1) & follows(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & instance_of(?v2, precipitate rain) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: done_by(?v0, ?v1) & follows(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & instance_of(?v2, raining) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ]
+  },
+  {
+   "sentence": "Tom is the most famous boy.",
+   "taught": "tell: greatest_of(?v0, boy) & has_degree(tom, ?v0) & instance_of(?v0, celebrated) & instance_of(tom, boy)",
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "tell: greatest_of(?v0, boy) & has_degree(tom, ?v0) & instance_of(?v0, celebrated) & instance_of(tom, boy)"
+   ],
+   "readings with no bound": 6,
+   "readings": 1,
+   "lost": [
+    "tell: greatest_of(?v0, boy) & has_degree(tom, ?v0) & instance_of(?v0, famous) & instance_of(tom, boy)",
+    "tell: greatest_of(?v0, man boy) & has_degree(tom, ?v0) & instance_of(?v0, celebrated) & instance_of(tom, man boy)",
+    "tell: greatest_of(?v0, man boy) & has_degree(tom, ?v0) & instance_of(?v0, famous) & instance_of(tom, man boy)",
+    "tell: greatest_of(?v0, son) & has_degree(tom, ?v0) & instance_of(?v0, celebrated) & instance_of(tom, son)",
+    "tell: greatest_of(?v0, son) & has_degree(tom, ?v0) & instance_of(?v0, famous) & instance_of(tom, son)"
+   ]
+  },
+  {
+   "sentence": "It rained in July.",
+   "taught": "tell: during(?v0, july) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)",
+   "chosen with no bound": [
+    "tell: during(?v0, july) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ],
+   "chosen": [
+    "tell: during(?v0, july) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: during(?v0, july) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "It snowed in January.",
+   "taught": "tell: during(?v0, january) & instance_of(?v0, precipitate snow) & precedes(?v0, ?now)",
+   "chosen with no bound": [
+    "tell: during(?v0, january) & instance_of(?v0, snowing) & precedes(?v0, ?now)"
+   ],
+   "chosen": [
+    "tell: during(?v0, january) & instance_of(?v0, precipitate snow) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: during(?v0, january) & instance_of(?v0, snowing) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "It rained in 1990.",
+   "taught": "tell: during(?v0, 1990) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)",
+   "chosen with no bound": [
+    "tell: during(?v0, 1990) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ],
+   "chosen": [
+    "tell: during(?v0, 1990) & instance_of(?v0, precipitate rain) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: during(?v0, 1990) & instance_of(?v0, raining) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "It snowed in 2010.",
+   "taught": "tell: during(?v0, 2010) & instance_of(?v0, precipitate snow) & precedes(?v0, ?now)",
+   "chosen with no bound": [
+    "tell: during(?v0, 2010) & instance_of(?v0, snowing) & precedes(?v0, ?now)"
+   ],
+   "chosen": [
+    "tell: during(?v0, 2010) & instance_of(?v0, precipitate snow) & precedes(?v0, ?now)"
+   ],
+   "readings with no bound": 2,
+   "readings": 1,
+   "lost": [
+    "tell: during(?v0, 2010) & instance_of(?v0, snowing) & precedes(?v0, ?now)"
+   ]
+  },
+  {
+   "sentence": "Is a salmon a kind of fish?",
+   "taught": "ask: isa(salmon, fish)",
+   "chosen with no bound": [
+    "ask: isa(fish salmon, fish)"
+   ],
+   "chosen": [
+    "ask: isa(salmon, fish)"
+   ],
+   "readings with no bound": 4,
+   "readings": 1,
+   "lost": [
+    "ask: isa(fish salmon, fish)",
+    "ask: isa(fish salmon, solid food fish)",
+    "ask: isa(salmon, solid food fish)"
+   ]
+  },
+  {
+   "sentence": "Are eagles a kind of bird?",
+   "taught": "ask: isa(eagle, bird)",
+   "chosen with no bound": [
+    "ask: isa(eagles, bird)"
+   ],
+   "chosen": [
+    "tell: isa(kind, bird)"
+   ],
+   "readings with no bound": 3,
+   "readings": 1,
+   "lost": [
+    "ask: isa(eagles, bird)",
+    "ask: isa(eagles, meat bird)",
+    "ask: isa(eagles, shuttlecock)"
+   ]
+  },
+  {
+   "sentence": "An engine is part of a car.",
+   "taught": "tell: part_of(engine, car)",
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "tell: part_of(engine, car)"
+   ],
+   "readings with no bound": 16,
+   "readings": 3,
+   "lost": [
+    "tell: part_of(causal agent engine, compartment car)",
+    "tell: part_of(causal agent engine, wheeled vehicle car)",
+    "tell: part_of(engine, cable car)",
+    "tell: part_of(engine, compartment car)",
+    "tell: part_of(engine, wheeled vehicle car)",
+    "tell: part_of(instrument engine, cable car)",
+    "tell: part_of(instrument engine, car)",
+    "tell: part_of(instrument engine, compartment car)",
+    "tell: part_of(instrument engine, wheeled vehicle car)",
+    "tell: part_of(locomotive, cable car)",
+    "tell: part_of(locomotive, car)",
+    "tell: part_of(locomotive, compartment car)",
+    "tell: part_of(locomotive, wheeled vehicle car)"
+   ]
+  },
+  {
+   "sentence": "Is an engine part of a car?",
+   "taught": "ask: part_of(engine, car)",
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "ask: part_of(engine, car)"
+   ],
+   "readings with no bound": 16,
+   "readings": 2,
+   "lost": [
+    "ask: part_of(causal agent engine, car)",
+    "ask: part_of(causal agent engine, compartment car)",
+    "ask: part_of(causal agent engine, wheeled vehicle car)",
+    "ask: part_of(engine, cable car)",
+    "ask: part_of(engine, compartment car)",
+    "ask: part_of(engine, wheeled vehicle car)",
+    "ask: part_of(instrument engine, cable car)",
+    "ask: part_of(instrument engine, car)",
+    "ask: part_of(instrument engine, compartment car)",
+    "ask: part_of(instrument engine, wheeled vehicle car)",
+    "ask: part_of(locomotive, cable car)",
+    "ask: part_of(locomotive, car)",
+    "ask: part_of(locomotive, compartment car)",
+    "ask: part_of(locomotive, wheeled vehicle car)"
+   ]
+  },
+  {
+   "sentence": "Good is the opposite of bad.",
+   "taught": "tell: antonym_of(good, bad)",
+   "chosen with no bound": [
+    null
+   ],
+   "chosen": [
+    "tell: antonym_of(morality good, atrocious bad)"
+   ],
+   "readings with no bound": 15,
+   "readings": 2,
+   "lost": [
+    "tell: antonym_of(advantage good, atrocious bad)",
+    "tell: antonym_of(advantage good, bad)",
+    "tell: antonym_of(advantage good, intense bad)",
+    "tell: antonym_of(advantage good, nonstandard bad)",
+    "tell: antonym_of(morality good, bad)",
+    "tell: antonym_of(morality good, intense bad)",
+    "tell: antonym_of(morality good, nonstandard bad)",
+    "tell: antonym_of(morality good, quality bad)",
+    "tell: antonym_of(quality good, atrocious bad)",
+    "tell: antonym_of(quality good, bad)",
+    "tell: antonym_of(quality good, intense bad)",
+    "tell: antonym_of(quality good, nonstandard bad)",
+    "tell: antonym_of(quality good, quality bad)"
+   ]
+  }
+ ],
+ "prose 2": [],
+ "lesson 2": [
+  {
+   "sentence": "Nine hundred and ninety-nine thousand is a number.",
+   "taught": "tell: isa(999000, number)",
+   "chosen with no bound": [
+    "tell: isa(999000, number)"
+   ],
+   "chosen": [
+    "tell: isa(999000, amount number)"
+   ],
+   "readings with no bound": 9,
+   "readings": 3,
+   "lost": [
+    "tell: isa(999000, grammatical category number)",
+    "tell: isa(999000, merchandise number)",
+    "tell: isa(999000, numeral)",
+    "tell: isa(999000, periodical issue)",
+    "tell: isa(999000, phone number)",
+    "tell: isa(999000, size number)"
+   ]
+  }
+ ],
+ "prose 4": [],
+ "lesson 4": [],
+ "prose 8": [],
+ "lesson 8": []
+}

@@ -1,0 +1,111 @@
+{
+  "experiment": "PACKED-01",
+  "claim": "the reader that keeps each word's senses together, with the listener choosing over the structure, chooses as the reader that builds every reading and the listener that weighs each, and finishes where that one does not",
+  "hypothesis": "every lesson and prose sentence that finishes one by one is taken the same way packed; lessons read as taught do not drop (no bar: what changes is measured)",
+  "started_at": "2026-10-20T11:53:57.722354+00:00",
+  "duration_seconds": 411.345,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "d0d8e52bd2875e4025852673fb0c54147ff43ce2",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 4780,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences read",
+      "value": 70,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "sentences not finished one by one",
+      "value": 0,
+      "unit": "count",
+      "note": "none"
+    },
+    {
+      "name": "prose: the listener handed the same readings packed as one by one",
+      "value": 70,
+      "unit": "count",
+      "note": "of 70: each meaning, and the reading of it kept (supposed, score, uses, constructions, links)"
+    },
+    {
+      "name": "prose: same choice packed as one by one",
+      "value": 70,
+      "unit": "count",
+      "note": "of 70 that finished one by one"
+    },
+    {
+      "name": "prose: seconds packed",
+      "value": 200.9,
+      "unit": "seconds",
+      "note": "70 sentences"
+    },
+    {
+      "name": "prose: seconds one by one",
+      "value": 34.0,
+      "unit": "seconds",
+      "note": "70 sentences that finished"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-20T11:56:53.061188+00:00"
+    },
+    {
+      "label": "memory holds what was taught of English",
+      "passed": true,
+      "detail": "628,380 constructions and links",
+      "at": "2026-10-20T11:56:53.076996+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-20T12:00:49.078650+00:00"
+    }
+  ],
+  "notes": [
+    "the run's own limit on reading one sentence one by one: 60s"
+  ]
+}

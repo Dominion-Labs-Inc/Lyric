@@ -261,3 +261,6 @@ test_data/vision/ukbench/
 
 # Treebanks Lyric learns phrase structure from (datasets are never pushed)
 test_data/syntax/
+
+# The Parallel Meaning Bank (Groningen): English with full meanings, taught to the composer (datasets are never pushed)
+test_data/semantics/

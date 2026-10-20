@@ -42,6 +42,7 @@ from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Opti
 from core.semantics.argument_structure import ArgumentStructureView, candidates, phrase
 from core.semantics.argument_structure import situations as argument_situations
 from core.semantics.derived_reader import Meaning, MeaningFact
+from core.semantics.relation_types import worded
 from core.semantics.structure import StructureView
 
 #: What a word may stand for, and the term each gives it ("thing", "known" and "asked" a variable of its own).
@@ -66,6 +67,10 @@ PARTICULAR = ("n", "v", "ni", "nj")
 #: where it said less, it carried the lessons' few cases into prose (`antonym_of` between "new" and "anomaly").
 #: Measured (2026-10-17 (17)): the lessons held out 49.8% to 48.9%, the prose read far cleaner.
 TRUST = (5, 0.8)
+#: The relations of the structure a word marked by a preposition hangs by ("the capital of France", "killed on
+#: Tuesday"): where nothing known says which link the preposition makes there, the link is held as its word
+#: (`relation_types.worded`).
+MARKED = ("nmod", "obl")
 #: One readable sense of a relation of the structure, gone by last: the fact a word joined so says of its head
 #: ("<": the head is the fact's first term).
 RELATION_SENSES = {"↑amod": "has_property:<", "↓amod": "has_property:>", "↑nummod": "has_count:<",
@@ -547,6 +552,27 @@ class CompositionView:
                     kind, way = label.replace("not ", "").split(":")
                     subject, obj, owner = (term[i], term[j], i) if way == ">" else (term[j], term[i], j)
                     add(kind, subject, obj, holds, flags[owner])
+        # A LINK SAID WITH A WORD THAT NOTHING KNOWN NAMES IS HELD AS THAT WORD, never dropped: "the capital of
+        # France" is `word_of(capital, France)` where neither the lessons nor PropBank's arguments say which link "of"
+        # makes there. Measured on UD English EWT's held-out sentences with main's composer (2026-10-20): of about
+        # 600 nouns with a preposition after them, about one in five had a link; PropBank's verbs, asked of nouns,
+        # said one of every one, mostly wrong ("judge of the Court" done to it). Where the lessons say particularly
+        # that no fact holds, none is held.
+        linked = {frozenset((f.subject, f.obj)) for f in facts}
+        for d in sorted(stands):
+            h = laid.heads[d] - 1
+            if h not in stands or laid.relations[d].split(":")[0] not in MARKED \
+                    or frozenset((term[h], term[d])) in linked:
+                continue
+            marker = " ".join(laid.words[k].lower() for k in laid.under.get(d, ())
+                              if laid.relations[k].split(":")[0] == "case")
+            if not marker or not all(part.isalpha() for part in marker.split()):
+                continue
+            i, j = min(d, h), max(d, h)
+            got = self._decide(self._pairs, _pair_situations(laid, i, j))
+            if got and got[1] and got[1][0] in PARTICULAR and got[0] == "-":
+                continue
+            add(worded(marker), term[h], term[d], True, flags[h])
         for i in stands:
             got = self._decide(self._ones, _one_situations(laid, i))
             for label in (got[0].split("|") if got and got[0] != "-" else ()):

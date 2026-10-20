@@ -1,0 +1,195 @@
+{
+  "experiment": "SENSES-01",
+  "claim": "a bound on the sense combinations of each grouping of the words lets every sentence finish reading and changes no reading the listener chooses",
+  "hypothesis": "with N sense combinations kept per grouping (those supposing least, then met most often), every lesson and prose sentence that finishes with no bound reads to the same readings and the same choice (no bar: what changes is measured)",
+  "started_at": "2026-10-19T21:05:27.097723+00:00",
+  "duration_seconds": 477.926,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "d0d8e52bd2875e4025852673fb0c54147ff43ce2",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 4777,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 3,
+    "passed": 3,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences read",
+      "value": 70,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "sentences not finished with no bound",
+      "value": 0,
+      "unit": "count",
+      "note": "none"
+    },
+    {
+      "name": "prose: seconds reading, bound 0",
+      "value": 89.5,
+      "unit": "seconds",
+      "note": ""
+    },
+    {
+      "name": "prose: readings handed to the listener, bound 0",
+      "value": 338,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "prose: seconds reading, bound 1",
+      "value": 85.2,
+      "unit": "seconds",
+      "note": ""
+    },
+    {
+      "name": "prose: readings handed to the listener, bound 1",
+      "value": 125,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "prose: same readings as with no bound, bound 1",
+      "value": 42,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: same choice as with no bound, bound 1",
+      "value": 69,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: seconds reading, bound 2",
+      "value": 83.2,
+      "unit": "seconds",
+      "note": ""
+    },
+    {
+      "name": "prose: readings handed to the listener, bound 2",
+      "value": 147,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "prose: same readings as with no bound, bound 2",
+      "value": 44,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: same choice as with no bound, bound 2",
+      "value": 70,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: seconds reading, bound 4",
+      "value": 84.9,
+      "unit": "seconds",
+      "note": ""
+    },
+    {
+      "name": "prose: readings handed to the listener, bound 4",
+      "value": 184,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "prose: same readings as with no bound, bound 4",
+      "value": 51,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: same choice as with no bound, bound 4",
+      "value": 70,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: seconds reading, bound 8",
+      "value": 86.4,
+      "unit": "seconds",
+      "note": ""
+    },
+    {
+      "name": "prose: readings handed to the listener, bound 8",
+      "value": 247,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "prose: same readings as with no bound, bound 8",
+      "value": 60,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    },
+    {
+      "name": "prose: same choice as with no bound, bound 8",
+      "value": 70,
+      "unit": "count",
+      "note": "of 70 that finished with no bound"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_dev",
+      "at": "2026-10-19T21:06:14.788176+00:00"
+    },
+    {
+      "label": "memory holds what was taught of English",
+      "passed": true,
+      "detail": "317,527 constructions and links",
+      "at": "2026-10-19T21:06:14.792133+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-19T21:13:25.045873+00:00"
+    }
+  ],
+  "notes": [
+    "bounds measured: [1, 2, 4, 8]; the run's own limit on one sentence read with no bound: 900s"
+  ]
+}

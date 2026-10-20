@@ -1,0 +1,14 @@
+{
+ "prose": [
+  {
+   "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+   "taught": null,
+   "packed": [
+    null
+   ],
+   "one by one": [
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)"
+   ]
+  }
+ ]
+}

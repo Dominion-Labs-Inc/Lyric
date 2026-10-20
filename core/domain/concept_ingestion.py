@@ -465,7 +465,7 @@ class ConceptExtractor:
         properties, so it is counted as declined here.
         """
         from core.semantics.derived_reader import heard_stated
-        from core.semantics.relation_types import SemanticRelation
+        from core.semantics.relation_types import SemanticRelation, is_worded
 
         domain = str((envelope.structured_data or {}).get("domain") or "").strip()
         if not domain:
@@ -489,6 +489,8 @@ class ConceptExtractor:
                 declined += 1
                 continue
             for fact in claims:
+                if is_worded(fact.relation):
+                    continue     # a link held as its word commits to no kind: no edge of the world's
                 kind = SemanticRelation(fact.relation)
                 subject = note(fact.subject, ConceptType.ENTITY)
                 target = note(fact.obj, ConceptType.PROPERTY

@@ -1,0 +1,41 @@
+{
+ "prose 1": [
+  {
+   "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+   "taught": null,
+   "chosen with no bound": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)"
+   ],
+   "chosen": [
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, position light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)"
+   ],
+   "readings with no bound": 52,
+   "readings": 4,
+   "lost": [
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, position light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, public knowledge light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, source of illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, sparkle) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual property light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, visual signal light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, condition light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, illumination light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, inner light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, insight light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, lighter) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, luminosity) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)",
+    "tell: done_by(?v0, chlorophyll) & during(?v0, ?now) & given instance_of(?v1, public knowledge light) & has_property(?v0, green pigment) & instance_of(?v0, absorbs) & owned_by(?v0, ?previous) & received_by(?v0, ?v1)"
+   ]
+  }
+ ],
+ "prose 2": [],
+ "prose 4": [],
+ "prose 8": []
+}
