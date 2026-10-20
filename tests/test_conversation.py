@@ -38,7 +38,7 @@ os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 
 from core.agents.autonomous.autonomous_coordinator import Conversation, phrases
 from core.semantics import derived_reader as dr
-from core.semantics.derived_reader import Meaning, PatternInventory
+from core.semantics.derived_reader import Meaning, MeaningFact as MeaningFact_, PatternInventory
 from core.semantics.sentence_machine import form_of
 
 LESSONS = Path(__file__).resolve().parents[1] / "data" / "lessons"
@@ -196,7 +196,14 @@ async def test_a_name_with_nothing_behind_it_is_not_an_answer(talk):
 async def test_telling_it_something_is_not_asking_it_something(talk):
     """What the speaker wants is part of what the sentence means, taught with
     it: a question asks, a telling tells, a request asks for something done.
-    What does not read is none of them."""
+    What does not read is none of them. (A sentence no frame reads is composed
+    since 2026-10-18, so whether "a firewall blocks network traffic" reads
+    depends on the sentences the store holds with their meanings: what never
+    reads is an utterance of marks alone.) The store is opened first, as a
+    test process has no substrate running to open it: run alone, this test
+    found it closed."""
+    from core.memory import get_memory_agent
+    await get_memory_agent()
     assert talk.is_question("What is a robin?") is True
     assert talk.is_question("is a whale a fish or a mammal") is True
     assert talk.is_question("A robin is a bird.") is False
@@ -204,7 +211,7 @@ async def test_telling_it_something_is_not_asking_it_something(talk):
     assert await talk.classify("What is a robin?") == "question"
     assert await talk.classify("The door is open and the window is closed.") == "telling"
     assert await talk.classify("please open the window") == "job"
-    assert await talk.classify("a firewall blocks network traffic") == "not_understood"
+    assert await talk.classify("...") == "not_understood"
 
 
 @pytest.mark.asyncio
@@ -454,6 +461,130 @@ async def test_a_happening_found_answers_its_question_though_nothing_taught_says
     assert (yes.about, yes.others, yes.verdict) == (living, (), True), yes
     where, = await talk._asked_of_events("Where do whales live?", incoming)
     assert (where.about, where.others, where.verdict) == (living, ("ocean",), None), where
+
+
+@pytest.mark.asyncio
+async def test_what_a_question_asks_of_those_a_happening_was_done_by_is_asked_of_them(talk, monkeypatch):
+    """Told "The account was locked after five failed attempts." (a failing done by `attempt_1`, five of them), "How
+    many failed attempts were there?" finds the failing and asks the count of the attempts it was done by: the attempts
+    hold it, and the answer is five. Read only of the failing, the count was never filled (2026-10-20). Asked of a
+    kind the attempts are not, the failing is no answer."""
+    from types import SimpleNamespace
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import MeaningFact
+    failing = "fail_a8ea4f09"
+    incoming = {"fail": [(failing, "instance of", "fail", True)]}
+    held = {failing: [("instance of", "fail"), ("done by", "attempt_1")],
+            "attempt_1": [("instance of", "attempt"), ("has count", "5")]}
+
+    def asked(kind):
+        return Meaning("ask", (MeaningFact("instance_of", "?x2", "fail"), MeaningFact("instance_of", "?x3", kind),
+                               MeaningFact("has_count", "?x3", "?x0"), MeaningFact("done_by", "?x2", "?x3")), ("?x0",))
+
+    async def found(meaning, *, telling=False):
+        return {}
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=held.get(name, []))
+
+    async def kind_of(name):
+        return "attempt" if name == "attempt_1" else None
+
+    monkeypatch.setattr(talk, "_known_of", found)
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    monkeypatch.setattr(talk, "_kind_of", kind_of)
+    monkeypatch.setattr(talk, "_particulars", {"attempt_1": ("attempt", "person")})
+    monkeypatch.setattr(dr, "say", lambda *a, **k: ())
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked("attempt"))
+    count, = await talk._asked_of_events("How many failed attempts were there?", incoming)
+    assert (count.about, count.others, count.verdict) == (failing, ("5",), None), count
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked("password"))
+    assert await talk._asked_of_events("How many failed passwords were there?", incoming) == []
+
+
+def test_a_known_thing_talked_of_here_is_the_one_meant(talk, monkeypatch):
+    """Told of an account (`account_1`), "Was the account locked?" takes the account as the account, not a record of
+    history, the sense met most: a word marked known names the kind of a particular told of here where it can
+    (`_known_here`), packed among its senses or read apart. Where nothing of that kind was told of, every sense is
+    offered."""
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import Lexical, Link, MeaningFact, Reading, Sense, Utterance
+
+    def sense(value):
+        return Sense(Lexical((dr.Piece("account", False),), value), Link("p", "?slot1", value), True), (0, 0, 0)
+    packed = Reading((), (), Meaning("ask", (MeaningFact("instance_of", "?a", "⟨1⟨account", given=True),
+                                             MeaningFact("done_to", "?e", "?a"))),
+                     senses=(("⟨1⟨account", (sense("record history"), sense("account")), 0, 0),))
+    apart = [Reading((), (), Meaning("ask", (MeaningFact("instance_of", "?a", kind, given=True),
+                                             MeaningFact("done_to", "?e", "?a")))) for kind in ("record history",
+                                                                                               "account")]
+    monkeypatch.setattr(dr, "read_text", lambda text, view, parts=True: (
+        Utterance(form_of(text), (packed,) if "packed" in text else tuple(apart)),))
+    assert [o[0].lexical.value for o in talk._read("packed")[0].readings[0].senses[0][1]] == \
+        ["record history", "account"]
+    talk._particulars["account_1"] = ("account", "person")
+    assert [o[0].lexical.value for o in talk._read("packed")[0].readings[0].senses[0][1]] == ["account"]
+    reading, = talk._read("Was the account locked?")[0].readings
+    assert MeaningFact("instance_of", "?a", "account", given=True) in reading.meaning.facts
+
+
+@pytest.mark.asyncio
+async def test_the_x_is_the_x_talked_of_most(talk, monkeypatch):
+    """"What does the method detect?" after a paper's abstract proposed a method, went on about it, and compared it once
+    with earlier methods: the method is the one talked of most, not the earlier methods told of last."""
+    talk._particulars.update({"method_new": ("method", "person"), "method_earlier": ("method", "person")})
+    talk._mentioned.update({"method_new": 2, "method_earlier": 1})
+    asked = Meaning("ask", (MeaningFact_("instance_of", "?m", "method", given=True), MeaningFact_("done_by", "?e", "?m")))
+    assert await talk._known_of(asked) == {"?m": "method_new"}
+
+
+@pytest.mark.asyncio
+async def test_a_question_is_also_asked_as_the_composer_reads_it(talk, monkeypatch):
+    """Told a locking done to the account (`lock_1`, composed), "Was the account locked?" read by a frame as the account
+    doing an embracing finds nothing told; asked as the composer reads it, a locking done to the account, it finds the
+    locking: yes. Where the composer reads it as the frame did, nothing more is asked."""
+    from types import SimpleNamespace
+    from core.agents import memory_agent as memory
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import MeaningFact
+    framed = Meaning("ask", (MeaningFact("instance_of", "?e", "embrace interlock"), MeaningFact("done_by", "?e", "?a"),
+                             MeaningFact("instance_of", "?a", "account", given=True)))
+    composed = Meaning("ask", (MeaningFact("instance_of", "?e", "lock"), MeaningFact("done_to", "?e", "?a"),
+                               MeaningFact("instance_of", "?a", "account", given=True)))
+    held = {"lock_1": [("instance of", "lock"), ("done to", "account_1")]}
+    pointing = {"lock": [("lock_1", "instance of", "lock", True)],
+                "account_1": [("lock_1", "done to", "account_1", True)]}
+
+    class View:
+        def compose_sentence(self, sentence):
+            return composed
+
+    class Agent:
+        def composition_view(self):
+            return View()
+
+    async def known(meaning, *, telling=False):
+        return {"?a": "account_1"}
+
+    async def incoming(name):
+        return pointing.get(name, [])
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=held.get(name, []))
+
+    async def kind_of(name):
+        return None
+    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: framed)
+    monkeypatch.setattr(talk, "_known_of", known)
+    monkeypatch.setattr(talk, "_incoming_relations", incoming)
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    monkeypatch.setattr(talk, "_kind_of", kind_of)
+    monkeypatch.setattr(dr, "say", lambda *a, **k: ())
+    yes, = await talk._asked_of_events_composed("Was the account locked?")
+    assert (yes.about, yes.verdict) == ("lock_1", True), yes
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: composed)
+    assert await talk._asked_of_events_composed("Was the account locked?") == []
 
 
 def test_what_is_not_known_of_a_question_naming_only_a_known_thing_is_not_said():

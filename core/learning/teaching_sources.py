@@ -2155,6 +2155,79 @@ class CompositionSource:
                 yield TaughtSentence(sentence, meaning, lesson)
 
 
+#: Where the Parallel Meaning Bank is kept on disk (not in the repository): release 5.1.0, from
+#: https://pmb.let.rug.nl/releases/pmb-5.1.0.zip, extracted to `pmb-5.1.0/`.
+PMB_DATA = os.path.join(os.path.dirname(SYNTAX_DATA), "semantics", "pmb", "pmb-5.1.0")
+
+
+@dataclass
+class PMBSource:
+    """English sentences of the Parallel Meaning Bank (University of Groningen; annotations ODC-BY 1.0, texts under
+    their sources' licences: attribute the PMB, Abzianidze et al. 2017, in any public use), each with its meaning
+    said in Lyric's meaning language (`pmb_meanings.meaning_of`) and where in the sentence each of its terms is said
+    (`TaughtSentence.anchors`), kept whole so the composer learns what a sentence means from how its words go
+    together (`composition.CompositionView`). Only the training part (`split/en/train`): the dev and test parts are
+    held out to measure by (`experiments/PMB-01`). A sentence holding what the meaning language does not say yet is
+    left out, never guessed (`pmb_meanings.Said.gaps`). `part` "gold" (checked by hand, 6,822 said whole) or
+    "silver" (checked in part, 52,267 said whole). It states nothing else."""
+
+    data: str = PMB_DATA
+    part: str = "gold"
+    name: str = "parallel_meaning_bank_gold"
+    quality: float = 0.95
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    @classmethod
+    def of(cls, part: str, data: str = "") -> "PMBSource":
+        """The source teaching this part of the PMB's training sentences: "gold" or "silver"."""
+        if part not in ("gold", "silver"):
+            raise ValueError(f"the PMB's training part is gold or silver, not {part!r}")
+        return cls(data=data or PMB_DATA, part=part, name=f"parallel_meaning_bank_{part}",
+                   quality=0.95 if part == "gold" else 0.85, curated=part == "gold")
+
+    def provenance(self):
+        return _provenance(self.name, f"pmb_5.1.0_en_train_{self.part}")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def taught_sentences(self) -> Iterator[Any]:
+        """Each training sentence of the part said whole, with its meaning and its terms' places, said in its
+        document (`pmb/p50/d0779`)."""
+        from nltk.corpus import wordnet as wn
+        from core.semantics import pmb_meanings
+        from core.semantics.composition import TaughtSentence
+        listed = os.path.join(self.data, "split", "en", "train", f"{self.part}.sbn")
+        if not os.path.exists(listed):
+            raise FileNotFoundError(
+                f"{listed} is not there; fetch the PMB first (https://pmb.let.rug.nl/releases/pmb-5.1.0.zip, "
+                f"extracted under {os.path.dirname(self.data)}). A teaching pass does not reach the network.")
+        names = WordNetSource()._sense_names()
+
+        def name_of(sense: str) -> Optional[str]:
+            try:
+                return names.get(wn.synset(sense)) or None
+            except Exception:
+                return None
+        from pathlib import Path
+        root = Path(self.data) / "data" / "en" / self.part
+        for doc_id in pmb_meanings.split_ids(Path(listed)):
+            document = pmb_meanings.read_document(root / doc_id)
+            if document is None:
+                continue
+            said = pmb_meanings.meaning_of(document, name_of)
+            if said.meaning is None:
+                continue
+            anchors = []
+            for term, at in said.anchors.items():
+                lines = tuple((c.span[0], c.span[1], how, c.marked)
+                              for c, how in ((document.concepts[k], how) for k, how in at) if c.span)
+                if lines:
+                    anchors.append((term, lines))
+            yield TaughtSentence(document.text, said.meaning, f"pmb/{doc_id}", tuple(anchors))
+
+
 #: Where the word groups counted from WikiText-103 are kept on disk (data is not in the repository;
 #: `experiments/GROUPS-01` writes them): `groups_<n>.tsv`, a word and its group a line, a file for each count of groups.
 WORD_GROUPS_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

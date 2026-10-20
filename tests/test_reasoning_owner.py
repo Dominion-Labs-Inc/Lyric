@@ -236,3 +236,16 @@ def test_a_persons_rule_is_reasoned_over_for_them_and_no_one_else():
     assert written_while_not_remembered == [], "a conversation not remembered wrote the rule"
     assert stored == [tank], stored
     assert remembered_answers == (proved, None, None), remembered_answers
+
+
+def test_a_question_of_a_link_held_as_its_word_is_not_the_concept_graphs():
+    """"Is the Eiffel Tower in Paris?" read as `word_in(eiffel tower, paris)`, a link held as the word it was said with
+    (`relation_types.worded`): no typed relation names it, so the concept graph's path is not this question's, and
+    says so with None; it raised, and the question was answered "Error: Reasoning failed" (2026-10-20)."""
+    async def run():
+        from core.reasoning.neural_bridge import ReasoningRequest, get_neural_bridge
+        from core.semantics.derived_reader import Meaning, MeaningFact
+        return await get_neural_bridge()._answer_over_concept_graph(ReasoningRequest(
+            query="Is the Eiffel Tower in Paris?",
+            reading=Meaning("ask", (MeaningFact("word_in", "eiffel tower", "paris"),))))
+    assert asyncio.run(run()) is None

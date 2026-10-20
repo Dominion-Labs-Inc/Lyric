@@ -1,5 +1,7 @@
 """Composing what a sentence means from how its words go together (`core/semantics/composition.py`). No store: the
 sentences, their structure and their taught meanings are given here."""
+from collections import Counter
+
 from core.semantics import composition as cp
 from core.semantics.derived_reader import Meaning, MeaningFact as F
 
@@ -38,10 +40,29 @@ def test_an_adjective_and_its_noun_are_one_name_only_where_memory_knows_the_two(
 
 
 def test_a_lesson_is_aligned_to_the_words_of_its_sentence():
-    aligned = cp.align(*BARKED)
+    """By its names: the known dog is "dog", the barking "barked"; the barking done by the dog is a link of the two
+    words, the upper the barking; its time a fact of the barking and now, which no word says."""
+    meaning, words = cp.words_by_names(*BARKED)
+    aligned = cp.align(BARKED[0], meaning, words)
     assert aligned.stands == {1: "known", 2: "thing"}
-    assert aligned.pairs == {(1, 2): ("done_by:<",)}
-    assert aligned.ones == {2: ("precedes:>?now",)}
+    assert aligned.links == {(2, 1): "done_by:ul"}
+    assert aligned.ones == {2: "precedes:>?now"}
+
+
+def test_a_meaning_is_aligned_by_the_words_its_lines_say():
+    """A sentence taught with where each term is said (the Parallel Meaning Bank's lines, `TaughtSentence.anchors`)
+    is aligned by them, not by names: "The hound barked." taught as a dog's barking, the dog said by "hound"."""
+    laid = _laid("The hound barked .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3],
+                 ["det", "nsubj", "root", "punct"])
+    meaning = Meaning("tell", (F("instance_of", "?d", "dog", given=True), F("instance_of", "?e", "bark"),
+                               F("done_by", "?e", "?d"), F("precedes", "?e", "?now")))
+    taught = cp.TaughtSentence("The hound barked.", meaning, "pmb", (("?d", ((0, 9, "head", ("The",)),)),
+                                                                    ("?e", ((10, 16, "head", ()),))))
+    assert cp.TaughtSentence.from_dict(taught.to_dict()) == taught
+    words = cp.words_by_anchors(laid, taught.sentence, taught.anchors)
+    assert words == {"?d": [1], "?e": [2]}
+    aligned = cp.align(laid, meaning, words)
+    assert aligned.stands == {1: "known", 2: "thing"} and aligned.links == {(2, 1): "done_by:ul"}
 
 
 def test_a_sentence_standing_as_a_lesson_does_is_composed_as_it_was_taught():
@@ -55,15 +76,79 @@ def test_a_sentence_standing_as_a_lesson_does_is_composed_as_it_was_taught():
     assert composed.canonical() == want.canonical()
 
 
-def test_where_the_lessons_say_nothing_a_relation_says_its_own_sense():
-    """No lesson holds an adjective on a noun: "big" before "cat" says what an adjective on a noun does, a quality of
-    it (`RELATION_SENSES`)."""
+def _told(subject, verb, negated=False):
+    """"The <subject> <verb>ed ." or "The <subject> did not <verb> .", laid out as the English Web Treebank analyses
+    them, with its meaning."""
+    if negated:
+        laid = _laid(f"The {subject} did not {verb} .", ["DETERMINER", "NOUN", "AUXILIARY", "PARTICLE", "VERB",
+                                                         "PUNCTUATION"], [2, 5, 5, 5, 0, 5],
+                     ["det", "nsubj", "aux", "advmod", "root", "punct"])
+    else:
+        laid = _laid(f"The {subject} {verb}ed .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3],
+                     ["det", "nsubj", "root", "punct"])
+    return laid, Meaning("tell", (F("instance_of", "?t", subject, given=True), F("instance_of", "?e", verb),
+                                  F("done_by", "?e", "?t", not negated), F("precedes", "?e", "?now", not negated)))
+
+
+def test_the_words_that_deny_what_their_clause_says_are_learned():
+    """No word is listed as denying: "not" is found under the words whose facts are not so, met there each time;
+    "did" is met as often where they are so ("did" asks too), and is found no denying word."""
+    view = cp.CompositionView()
+    for subject, verb in (("dog", "bark"), ("cat", "jump"), ("bird", "walk")):
+        view.learn(*_told(subject, verb, negated=True))
+        view.learn(*_told(subject, verb))
+    for subject, verb in (("dog", "kick"), ("cat", "kick"), ("bird", "kick")):
+        view.learn(_laid(f"Did the {subject} {verb} ?", ["AUXILIARY", "DETERMINER", "NOUN", "VERB", "PUNCTUATION"],
+                         [4, 3, 4, 0, 4], ["aux", "det", "nsubj", "root", "punct"]),
+                   Meaning("ask", (F("instance_of", "?t", subject, given=True), F("instance_of", "?e", verb),
+                                   F("done_by", "?e", "?t"), F("precedes", "?e", "?now"))))
+    view._work_out()
+    assert view.negators == {"not"}
+    composed = view.compose(_told("fox", "jump", negated=True)[0])
+    assert F("done_by", "?x4", "?x1", False) in composed.facts
+
+
+def test_words_far_apart_in_the_structure_hold_no_fact_together():
+    """Of two words more than two steps apart (`NEAR`), no fact is weighed, however the lessons decided pairs like
+    them: "The dog of the man of the town barked." holds no fact of the barking and the town."""
     view = cp.CompositionView()
     view.learn(*BARKED)
-    view.learn(*BIG)
-    composed = view.compose(_laid("The big cat barked .", ["DETERMINER", "ADJECTIVE", "NOUN", "VERB", "PUNCTUATION"],
-                                  [3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "punct"]))
-    assert F("has_property", "?x2", "big") in composed.facts
+    laid = _laid("The dog of the man of the town barked .",
+                 ["DETERMINER", "NOUN", "PREPOSITION", "DETERMINER", "NOUN", "PREPOSITION", "DETERMINER", "NOUN",
+                  "VERB", "PUNCTUATION"], [2, 9, 5, 5, 2, 8, 8, 5, 0, 9],
+                 ["det", "nsubj", "case", "det", "nmod", "case", "det", "nmod", "root", "punct"])
+    assert cp.steps(laid, 8, 7) == 3
+    assert not any({f.subject, f.obj} == {"?x8", "?x7"} for f in view.compose(laid).facts)
+
+
+def test_a_word_standing_for_what_another_word_does_takes_its_term():
+    """"Tom washed himself.": the washing done by Tom and to him; "himself" stands for what "Tom" does, found by the
+    situations (`CompositionView._same_situations`), and takes its term."""
+    laid = _laid("Tom washed himself .", ["NAME", "VERB", "PRONOUN", "PUNCTUATION"], [2, 0, 2, 2],
+                 ["nsubj", "root", "obj", "punct"])
+    meaning = Meaning("tell", (F("instance_of", "?e", "wash"), F("done_by", "?e", "tom"), F("done_to", "?e", "tom"),
+                               F("precedes", "?e", "?now")))
+    aligned = cp.align(laid, meaning, {"?e": [1], "tom": [0, 2]})
+    assert aligned.stands == {0: "name", 1: "thing", 2: "same"} and aligned.same == {2: 0}
+    assert aligned.links == {(1, 0): "done_by:ul", (1, 2): "done_to:ul", (0, 2): "-"}
+    view = cp.CompositionView()
+    view.learn(laid, meaning, {"?e": [1], "tom": [0, 2]})
+    rex = _laid("Rex washed himself .", ["NAME", "VERB", "PRONOUN", "PUNCTUATION"], [2, 0, 2, 2],
+                ["nsubj", "root", "obj", "punct"])
+    assert F("done_to", "?x1", "rex") in view.compose(rex).facts
+
+
+def test_a_fact_the_facts_held_would_contradict_is_not_held():
+    """One meaning: a happening is at one time; a second time composed for it is not held, and the rest of the
+    meaning stands."""
+    view = cp.CompositionView()
+    view.learn(*BARKED)
+    view._work_out()
+    view._ones[("c", "VERB", "-", "subject", "root", "-")] = Counter({"precedes:>?now|follows:>?now": 9})
+    composed = view.compose(_laid("The cat jumped .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3],
+                                  ["det", "nsubj", "root", "punct"]))
+    times = [f for f in composed.facts if f.relation in ("precedes", "follows")]
+    assert len(times) == 1 and F("done_by", "?x2", "?x1") in composed.facts
 
 
 def test_a_sentence_taught_with_its_meaning_is_held_whole_and_read_when_the_view_is_next_asked():
@@ -211,3 +296,43 @@ def test_a_word_held_only_as_another_class_is_named_through_its_shape():
     view.add(Lexical((Piece("help", False),), "aid"))
     view.word_classes.update({"help": {"VERB": 4}, "aid": {"NOUN": 2}})
     assert agent.name_of("help", "NOUN") == "help"
+
+
+def test_a_sentence_taught_again_with_a_corrected_meaning_corrects_its_memory():
+    """`MemoryAgent.remember_taught_sentences`, the store stood in for: a sentence taught again from where it was
+    said, with another meaning, corrects the memory holding it (one memory, saying the correction, keeping what it
+    said before), and the composer's view holds the correction alone; the same sentence said elsewhere is its own."""
+    import asyncio
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    denied = Meaning("tell", (F("instance_of", "?e", "bark", False), F("done_by", "?e", "rex", False)))
+    as_taught = Meaning("tell", (F("instance_of", "?e", "bark"), F("done_by", "?e", "rex"),
+                                 F("has_property", "?e", "false")))
+    first, again = (cp.TaughtSentence("Rex did not bark.", m, "pmb/p00/d0001") for m in (denied, as_taught))
+    agent = MemoryAgent()
+    agent._word_classes_warm = True
+    agent.embedding_service = None
+    stored = []
+
+    async def store_memory(**kwargs):
+        stored.append(dict(kwargs, metadata=kwargs["source_context"]))
+        return True, f"m{len(stored)}"
+
+    async def rows_tagged(tag):
+        return [SimpleNamespace(memory_id=f"m{k}", metadata=s["metadata"]) for k, s in enumerate(stored, 1)
+                if tag in s["tags"]]
+
+    async def update_memory(memory_id, updates):
+        stored[int(memory_id[1:]) - 1].update(updates)
+        return True
+    agent.store_memory, agent._rows_tagged, agent.update_memory = store_memory, rows_tagged, update_memory
+    assert asyncio.run(agent.remember_taught_sentences([first]))["remembered"] == 1
+    corrected = asyncio.run(agent.remember_taught_sentences([again]))
+    assert (corrected["remembered"], corrected["corrected"]) == (0, 1)
+    assert corrected["corrected_items"] == [(again, "m1", first)] and len(stored) == 1
+    assert stored[0]["metadata"]["taught"] == again.to_dict() and stored[0]["content"] == again.said()
+    assert stored[0]["metadata"]["superseded"][-1]["was"] == first.to_dict()
+    assert agent.composition_view()._waiting == [again]
+    assert asyncio.run(agent.remember_taught_sentences([again]))["already"] == 1
+    elsewhere = cp.TaughtSentence("Rex did not bark.", denied, "english_12")
+    assert asyncio.run(agent.remember_taught_sentences([elsewhere]))["remembered"] == 1 and len(stored) == 2

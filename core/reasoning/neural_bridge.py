@@ -2516,7 +2516,13 @@ class NeuralSymbolicBridge:
         if fact is None or not fact.positive:
             return None
         subj, obj = fact.subject, fact.obj
-        relation = _SR(fact.relation)
+        try:
+            relation = _SR(fact.relation)
+        except ValueError:
+            # A LINK THE TYPED RELATIONS DO NOT NAME is not this path, as this says above: a link held as the word it
+            # was said with (`relation_types.worded`, "Is the Eiffel Tower in Paris?" read `word_in`) raised here,
+            # and the whole question was answered "Error: Reasoning failed" (UNDERSTANDS-PROSE-01, 2026-10-20).
+            return None
         try:
             from core.database import get_database_manager
             db = get_database_manager()

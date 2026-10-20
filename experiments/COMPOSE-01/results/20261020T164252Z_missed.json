@@ -1,0 +1,1502 @@
+[
+ {
+  "sentence": "The door will be open.",
+  "taught": "tell: follows(?v0, ?now) & given instance_of(?v1, door) & instance_of(?v0, open) & state_of(?v0, ?v1)",
+  "composed": "tell: follows(open, ?now) & given instance_of(?v0, door) & has_property(?v0, open)"
+ },
+ {
+  "sentence": "If the stove is hot then the water is hot.",
+  "taught": "tell: given if instance_of(?v0, stove) & given instance_of(?v1, water) & has_property(?v1, hot) & if has_property(?v0, hot)",
+  "composed": "(no meaning: a condition alone says nothing; a meaning states what holds when it does)"
+ },
+ {
+  "sentence": "Mythology is a study.",
+  "taught": "tell: isa(mythology, knowledge domain discipline)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The dog chased a cat.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & instance_of(?v2, cat) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_to(?v0, cat) & given instance_of(?v1, dog) & instance_of(?v0, chase) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "What is the cat working on?",
+  "taught": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & given instance_of(?v1, cat) & instance_of(?v0, work) ? ?v2",
+  "composed": "ask: about(?v0, ?v1) & done_by(?v2, ?v0) & given instance_of(?v0, cat) & instance_of(?v2, work) & precedes(?v2, ?now) ? ?v1"
+ },
+ {
+  "sentence": "Are owls a kind of raptor?",
+  "taught": "ask: isa(owl, bird of prey)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Although the dog barked, the cat climbed.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & has_property(?v0, unexpected) & instance_of(?v0, climb) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, climb) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "The fish swims after it rains.",
+  "taught": "tell: done_by(?v0, ?v1) & follows(?v0, ?v2) & given instance_of(?v1, fish) & instance_of(?v0, swim) & instance_of(?v2, rain)",
+  "composed": "tell: instance_of(?v0, rain)"
+ },
+ {
+  "sentence": "Ten is greater than two.",
+  "taught": "tell: exceeds(10, 2)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Solve x / 2 = 6.",
+  "taught": "request: done_by(?v0, ?listener) & if equals(x / 2, 6) & instance_of(?v0, solve)",
+  "composed": "request: done_by(?v0, ?listener) & equals(x / 2, 6) & instance_of(?v0, solve)"
+ },
+ {
+  "sentence": "Only the dog barked.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, dog) & has_property(?v2, false) & instance_of(?v0, bark) & instance_of(?v2, bark) & other_than(?v3, ?v1) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom can swim, but Rex cannot.",
+  "taught": "tell: capable_of(tom, swim) & not capable_of(rex, swim)",
+  "composed": "tell: capable_of(tom, swim)"
+ },
+ {
+  "sentence": "Because the cat climbs, the bird flies.",
+  "taught": "tell: causes(?v0, ?v1) & done_by(?v0, ?v2) & done_by(?v1, ?v3) & given instance_of(?v2, cat) & given instance_of(?v3, bird) & instance_of(?v0, climb) & instance_of(?v1, fly)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly)"
+ },
+ {
+  "sentence": "We helped ourselves.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v1) & has_member(?v1, ?speaker) & instance_of(?v0, help) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?speaker) & instance_of(?v0, help) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom is a boy.",
+  "taught": "tell: isa(tom, boy)",
+  "composed": "tell: instance_of(tom, boy)"
+ },
+ {
+  "sentence": "What does a cat eat?",
+  "taught": "ask: eats(cat, ?v0) ? ?v0",
+  "composed": "ask: done_by(?v0, cat) & instance_of(?v0, eat) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "A robin is a song bird.",
+  "taught": "tell: isa(robin, songbird)",
+  "composed": "tell: isa(robin, song bird)"
+ },
+ {
+  "sentence": "Tom used to walk.",
+  "taught": "tell: done_by(?v0, tom) & has_property(?v0, usually) & instance_of(?v0, walk) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & instance_of(?v0, walk)"
+ },
+ {
+  "sentence": "Some birds can swim.",
+  "taught": "tell: capable_of(?v0, swim) & instance_of(?v0, bird)",
+  "composed": "tell: capable_of(bird, swim)"
+ },
+ {
+  "sentence": "Each dog is an animal.",
+  "taught": "tell: isa(dog, animal)",
+  "composed": "tell: given instance_of(?v0, dog) & has_property(?v0, animal)"
+ },
+ {
+  "sentence": "Tom, kick the ball.",
+  "taught": "request: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, ball) & instance_of(?v0, kick)",
+  "composed": "tell: done_to(?v0, ?v1) & given instance_of(?v1, ball) & instance_of(?v0, kick) & owned_by(?v0, tom)"
+ },
+ {
+  "sentence": "Rex is three years old.",
+  "taught": "tell: has_count(?v0, 3) & has_degree(rex, ?v1) & has_measure(?v1, ?v0) & instance_of(?v0, year) & instance_of(?v1, old)",
+  "composed": "tell: has_degree(rex, ?v0) & instance_of(?v0, old)"
+ },
+ {
+  "sentence": "All of the dogs can swim.",
+  "taught": "tell: capable_of(?v0, swim) & given instance_of(?v0, dog)",
+  "composed": "tell: instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "Is the cup on the table?",
+  "taught": "ask: given instance_of(?v0, cup) & given instance_of(?v1, table) & located_at(?v0, ?v1)",
+  "composed": "ask: given instance_of(?v0, cup) & given instance_of(?v1, table) & word_on(?v0, ?v1)"
+ },
+ {
+  "sentence": "The dog is big!",
+  "taught": "tell: given instance_of(?v0, dog) & has_property(?v0, big)",
+  "composed": "tell: given instance_of(?v0, dog) & has_property(?v0, big) & has_property(big, high)"
+ },
+ {
+  "sentence": "That is her book.",
+  "taught": "tell: instance_of(?shown, book) & owned_by(?shown, ?previous)",
+  "composed": "tell: instance_of(?v0, book)"
+ },
+ {
+  "sentence": "Rex is more careful than Tom.",
+  "taught": "tell: exceeds(?v0, ?v1) & has_degree(rex, ?v0) & has_degree(tom, ?v1) & instance_of(?v0, careful) & instance_of(?v1, careful)",
+  "composed": "tell: has_degree(rex, ?v0) & instance_of(?v0, careful)"
+ },
+ {
+  "sentence": "Tom tied the shoe.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, shoe) & instance_of(?v0, tie) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, tie) & instance_of(?v1, shoe) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The girl hit herself.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v1) & given instance_of(?v1, girl) & instance_of(?v0, hit) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, girl) & instance_of(?v0, hit) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "To be apparent is to be obvious.",
+  "taught": "tell: has_property(?v0, obvious) & if has_property(?v0, apparent)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Tom lives in the city.",
+  "taught": "tell: done_by(?v0, tom) & given instance_of(?v1, city) & instance_of(?v0, live) & located_in(?v0, ?v1)",
+  "composed": "request: word_in(tom life, city)"
+ },
+ {
+  "sentence": "It will rain soon.",
+  "taught": "tell: follows(?v0, ?now) & has_property(?v0, soon) & instance_of(?v0, rain)",
+  "composed": "tell: follows(?v0, ?now) & instance_of(?v0, rain)"
+ },
+ {
+  "sentence": "This is your shoe.",
+  "taught": "tell: instance_of(?shown, shoe) & owned_by(?shown, ?listener)",
+  "composed": "tell: instance_of(?v0, shoe) & owned_by(?v0, ?listener)"
+ },
+ {
+  "sentence": "Even the cat barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, unexpected) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The bird flies unless it rains.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & if not instance_of(?v2, rain) & instance_of(?v0, fly)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly) & instance_of(?v2, rain)"
+ },
+ {
+  "sentence": "Tom did open the door.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & has_property(?v0, false) & instance_of(?v0, open) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom gave the dog the bone.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, bone) & given instance_of(?v2, dog) & instance_of(?v0, give) & precedes(?v0, ?now) & received_by(?v0, ?v2)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, bone) & given instance_of(?v2, dog) & instance_of(?v0, give) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "What did the cat chase?",
+  "taught": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, cat) & instance_of(?v0, chase) & precedes(?v0, ?now) ? ?v2",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Tom opened the door so that the dog could run.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & has_purpose(?v0, ?v2) & instance_of(?v0, open) & precedes(?v0, ?now) & unasserted done_by(?v2, ?v3) & unasserted given instance_of(?v3, dog) & unasserted instance_of(?v2, run)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & has_purpose(?v0, ?v2) & instance_of(?v0, open) & precedes(?v0, ?now) & unasserted done_by(?v2, ?v3) & unasserted given instance_of(?v3, dog) & unasserted has_property(?v2, false) & unasserted instance_of(?v2, run)"
+ },
+ {
+  "sentence": "Rex kicked himself.",
+  "taught": "tell: done_by(?v0, rex) & done_to(?v0, rex) & instance_of(?v0, kick) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, rex) & instance_of(?v0, kick) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The dog barked twice.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_count(?v0, 2) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "To be needed is to be necessary.",
+  "taught": "tell: has_property(?v0, necessary) & if has_property(?v0, needed)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat climbs faster than the dog.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & exceeds(?v4, ?v5) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & has_degree(?v0, ?v4) & has_degree(?v2, ?v5) & instance_of(?v0, climb) & instance_of(?v2, climb) & instance_of(?v4, fast) & instance_of(?v5, fast)",
+  "composed": "tell: given instance_of(?v0, dog) & instance_of(?v1, fast)"
+ },
+ {
+  "sentence": "Nine is odd.",
+  "taught": "tell: has_property(9, odd)",
+  "composed": "tell: isa(9, odd)"
+ },
+ {
+  "sentence": "This is our book.",
+  "taught": "tell: has_member(?v0, ?speaker) & instance_of(?shown, book) & owned_by(?shown, ?v0)",
+  "composed": "tell: instance_of(?v0, book)"
+ },
+ {
+  "sentence": "The dog used to bark.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, usually) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: given instance_of(?v0, dog) & has_property(?v0, used) & instance_of(?v1, bark)"
+ },
+ {
+  "sentence": "The bird flies when the cat climbs.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & during(?v0, ?v2) & given instance_of(?v1, bird) & given instance_of(?v3, cat) & instance_of(?v0, fly) & instance_of(?v2, climb)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly)"
+ },
+ {
+  "sentence": "Tom helped us.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & has_member(?v1, ?speaker) & instance_of(?v0, help) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & instance_of(?v0, help) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He is a dog.",
+  "taught": "tell: instance_of(?previous, dog)",
+  "composed": "tell: has_property(?previous, dog)"
+ },
+ {
+  "sentence": "There is much water.",
+  "taught": "tell: has_count(?v0, much) & instance_of(?v0, water)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The dog can climb, but the cat cannot.",
+  "taught": "tell: capable_of(?v0, climb) & given instance_of(?v0, dog) & given instance_of(?v1, cat) & not capable_of(?v1, climb)",
+  "composed": "tell: capable_of(?v0, climb) & given instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "A window is made of glass.",
+  "taught": "tell: made_of(window, glass)",
+  "composed": "tell: has_property(window, closed) & made_of(window, glass)"
+ },
+ {
+  "sentence": "The dog barks louder than the cat.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & exceeds(?v4, ?v5) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & has_degree(?v0, ?v5) & has_degree(?v2, ?v4) & instance_of(?v0, bark) & instance_of(?v2, bark) & instance_of(?v4, loud) & instance_of(?v5, loud)",
+  "composed": "tell: given instance_of(?v0, cat) & instance_of(?v1, loud)"
+ },
+ {
+  "sentence": "I am cold.",
+  "taught": "tell: has_property(?speaker, cold)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Which cat ran?",
+  "taught": "ask: done_by(?v0, ?v1) & instance_of(?v0, run) & instance_of(?v1, cat) & precedes(?v0, ?now) ? ?v1",
+  "composed": "ask: done_by(?v0, ?v1) & instance_of(?v0, run) & instance_of(?v1, cat) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Some cats can swim.",
+  "taught": "tell: capable_of(?v0, swim) & instance_of(?v0, cat)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "It is snowing.",
+  "taught": "tell: during(?v0, ?now) & instance_of(?v0, snow)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The dog hasn't barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, false) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom will have opened the door.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & follows(?v2, ?now) & given instance_of(?v1, door) & instance_of(?v0, open) & precedes(?v0, ?v2)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Can I help you?",
+  "taught": "ask: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & has_property(?v0, allowed) & instance_of(?v0, help)",
+  "composed": "ask: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & done_to(?v0, ?speaker) & instance_of(?v0, help)"
+ },
+ {
+  "sentence": "What is faster than the bike?",
+  "taught": "ask: exceeds(?v0, ?v1) & given instance_of(?v2, bicycle) & has_degree(?v2, ?v1) & has_degree(?v3, ?v0) & instance_of(?v0, fast) & instance_of(?v1, fast) ? ?v3",
+  "composed": "ask: has_degree(?v0, ?v1) & instance_of(?v1, fast) ? ?v0"
+ },
+ {
+  "sentence": "Evaluate 3^3 + 4^3.",
+  "taught": "request: done_by(?v0, ?listener) & done_to(?v0, 3^3 + 4^3) & instance_of(?v0, calculate)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Hi.",
+  "taught": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, greet)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat climbed instead of running.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & given instance_of(?v1, cat) & has_property(?v0, false) & instance_of(?v0, run) & instance_of(?v2, climb) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, climb) & instance_of(?v2, run) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "A table is made of metal.",
+  "taught": "tell: made_of(table, metallic element)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Ten is even.",
+  "taught": "tell: has_property(10, even)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Dogs aren't birds.",
+  "taught": "tell: not isa(dog, bird)",
+  "composed": "tell: isa(dog, bird)"
+ },
+ {
+  "sentence": "The dog sleeps in the house.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & given instance_of(?v2, house) & instance_of(?v0, sleep) & located_in(?v0, ?v2)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & given instance_of(?v2, house) & instance_of(?v0, sleep) & word_in(?v0, ?v2)"
+ },
+ {
+  "sentence": "Every bird can fly.",
+  "taught": "tell: capable_of(bird, fly)",
+  "composed": "tell: capable_of(?v0, fly) & given instance_of(?v0, bird)"
+ },
+ {
+  "sentence": "A boy opened the door.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, door) & instance_of(?v0, open) & instance_of(?v1, boy) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, boy) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open) & owns(boy, bicycle) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom made the dog run.",
+  "taught": "tell: causes(tom, ?v0) & done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, run) & precedes(?v0, ?now)",
+  "composed": "tell: causes(tom, ?v0) & done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, run)"
+ },
+ {
+  "sentence": "Are mammals animals?",
+  "taught": "ask: isa(mammal, animal)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Only Tom can swim.",
+  "taught": "tell: capable_of(tom, swim) & not capable_of(?v0, swim) & other_than(?v0, tom)",
+  "composed": "tell: capable_of(tom, swim)"
+ },
+ {
+  "sentence": "The dog ran on Tuesday.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, tuesday) & given instance_of(?v1, dog) & instance_of(?v0, run) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & during(?v0, tuesday) & given instance_of(?v1, dog) & instance_of(?v0, run) & owned_by(?v1, tuesday) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Rex finished reading.",
+  "taught": "tell: done_by(?v0, rex) & done_by(?v1, rex) & done_to(?v0, ?v1) & instance_of(?v0, finish) & instance_of(?v1, read) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, rex) & instance_of(?v0, finish) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom kicked the ball happily.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, ball) & has_property(?v0, happy) & instance_of(?v0, kick) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, ball) & instance_of(?v0, kick) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I do not know whether birds can swim.",
+  "taught": "tell: done_by(?v0, ?speaker) & either capable_of(bird, swim) & either not capable_of(bird, swim) & has_property(?v0, false) & instance_of(?v0, know)",
+  "composed": "tell: done_by(?v0, ?speaker) & has_property(?v0, false) & instance_of(?v0, know)"
+ },
+ {
+  "sentence": "The dog barked in 1985.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, 1985) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Yes, she can.",
+  "taught": "tell: has_property(?previous, true)",
+  "composed": "tell: has_property(?previous, false)"
+ },
+ {
+  "sentence": "Rex gave the cat the milk.",
+  "taught": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & given instance_of(?v1, milk) & given instance_of(?v2, cat) & instance_of(?v0, give) & precedes(?v0, ?now) & received_by(?v0, ?v2)",
+  "composed": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & during(?v0, milk) & given instance_of(?v1, cat) & instance_of(?v0, give) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom is taller than me.",
+  "taught": "tell: exceeds(?v0, ?v1) & has_degree(?speaker, ?v1) & has_degree(tom, ?v0) & instance_of(?v0, tall) & instance_of(?v1, tall)",
+  "composed": "tell: has_degree(tom, ?v0) & instance_of(?v0, tall)"
+ },
+ {
+  "sentence": "Who does the cup belong to?",
+  "taught": "ask: given instance_of(?v0, cup) & owned_by(?v0, ?v1) ? ?v1",
+  "composed": "ask: given instance_of(?v0, cup)"
+ },
+ {
+  "sentence": "The dog has not barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, false) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom ate an apple.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, eat) & instance_of(?v1, apple) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, apple) & instance_of(?v0, eat) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The story is about a bird.",
+  "taught": "tell: about(?v0, bird) & given instance_of(?v0, story)",
+  "composed": "tell: given instance_of(?v0, story) & has_property(?v0, bird)"
+ },
+ {
+  "sentence": "Tom can also swim.",
+  "taught": "tell: capable_of(tom, swim)",
+  "composed": "tell: isa(tom, swim)"
+ },
+ {
+  "sentence": "The dog barked as soon as the cat ran.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & follows(?v0, ?v2) & given instance_of(?v1, dog) & given instance_of(?v3, cat) & has_property(?v0, immediate) & instance_of(?v0, bark) & instance_of(?v2, run) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & follows(?v0, ?v2) & given instance_of(?v1, dog) & given instance_of(?v3, cat) & instance_of(?v0, bark) & instance_of(?v2, run) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "Only the dog can bark.",
+  "taught": "tell: capable_of(?v0, bark) & given instance_of(?v0, dog) & not capable_of(?v1, bark) & other_than(?v1, ?v0)",
+  "composed": "tell: capable_of(?v0, bark) & given instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "Our house is red.",
+  "taught": "tell: has_member(?v0, ?speaker) & has_property(?v1, red) & instance_of(?v1, house) & owned_by(?v1, ?v0)",
+  "composed": "tell: given instance_of(?v0, house) & has_property(?v0, red)"
+ },
+ {
+  "sentence": "The fish will swim.",
+  "taught": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & given instance_of(?v1, fish) & instance_of(?v0, swim)",
+  "composed": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & given instance_of(?v1, fish) & has_property(?v0, false) & instance_of(?v0, swim)"
+ },
+ {
+  "sentence": "Boxes are big.",
+  "taught": "tell: has_property(box, big)",
+  "composed": "tell: has_property(?v0, big) & instance_of(?v0, box)"
+ },
+ {
+  "sentence": "Tom can swim and so can Rex.",
+  "taught": "tell: capable_of(rex, swim) & capable_of(tom, swim)",
+  "composed": "tell: capable_of(tom, swim) & equals(swim, rex)"
+ },
+ {
+  "sentence": "Is the cup hot/cold?",
+  "taught": "ask: either has_property(?v0, cold) & either has_property(?v0, hot) & given instance_of(?v0, cup)",
+  "composed": "ask: given instance_of(?v0, cup) & has_property(?v0, cold) & has_property(?v0, hot)"
+ },
+ {
+  "sentence": "How did the cat climb?",
+  "taught": "ask: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, ?v2) & instance_of(?v0, climb) & precedes(?v0, ?now) ? ?v2",
+  "composed": "ask: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, ?v2) & has_property(?v0, false) & instance_of(?v0, climb) & precedes(?v0, ?now) ? ?v2"
+ },
+ {
+  "sentence": "Where do cats sleep?",
+  "taught": "ask: done_by(?v0, cat) & instance_of(?v0, sleep) & located_in(?v0, ?v1) ? ?v1",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "You are welcome.",
+  "taught": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?listener) & instance_of(?v0, welcome)",
+  "composed": "tell: has_property(?listener, welcome)"
+ },
+ {
+  "sentence": "If 5z + 1 = 11, what is z?",
+  "taught": "ask: equals(z, ?v0) & if equals(5z + 1, 11) ? ?v0",
+  "composed": "ask: equals(5z + 1, 11) & equals(z, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Rust is brown.",
+  "taught": "tell: has_property(rust, brown)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "May I close the box?",
+  "taught": "ask: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, box) & has_property(?v0, allowed) & instance_of(?v0, close)",
+  "composed": "ask: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, close)"
+ },
+ {
+  "sentence": "Each bird can fly.",
+  "taught": "tell: capable_of(bird, fly)",
+  "composed": "tell: capable_of(?v0, fly) & given instance_of(?v0, bird)"
+ },
+ {
+  "sentence": "A car has wheels.",
+  "taught": "tell: has_part(car, wheel)",
+  "composed": "tell: has_part(bicycle, wheel) & isa(car, wheel)"
+ },
+ {
+  "sentence": "The dog had barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?v2) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The book on the table is red.",
+  "taught": "tell: given instance_of(?v0, book) & given instance_of(?v1, table) & has_property(?v0, red) & located_at(?v0, ?v1)",
+  "composed": "tell: given instance_of(?v0, book) & given instance_of(?v1, table) & has_property(?v0, red) & word_on(?v0, ?v1)"
+ },
+ {
+  "sentence": "The bike is his.",
+  "taught": "tell: given instance_of(?v0, bicycle) & owned_by(?v0, ?previous)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The bag with the handle is blue.",
+  "taught": "tell: given instance_of(?v0, bag) & given instance_of(?v1, handle) & has_part(?v0, ?v1) & has_property(?v0, blue)",
+  "composed": "tell: given instance_of(?v0, bag) & given instance_of(?v1, handle) & has_property(?v0, blue)"
+ },
+ {
+  "sentence": "Monday is before Tuesday.",
+  "taught": "tell: precedes(monday, tuesday)",
+  "composed": "tell: comes_from(monday, tuesday)"
+ },
+ {
+  "sentence": "I am happy.",
+  "taught": "tell: has_property(?speaker, happy)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "It's big.",
+  "taught": "tell: has_property(?previous, big)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "A fish swam.",
+  "taught": "tell: done_by(?v0, ?v1) & instance_of(?v0, swim) & instance_of(?v1, fish) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, fish) & instance_of(?v0, swim) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Because the dog barks, the cat climbs.",
+  "taught": "tell: causes(?v0, ?v1) & done_by(?v0, ?v2) & done_by(?v1, ?v3) & given instance_of(?v2, dog) & given instance_of(?v3, cat) & instance_of(?v0, bark) & instance_of(?v1, climb)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "This is their box.",
+  "taught": "tell: instance_of(?shown, box) & owned_by(?shown, ?previous)",
+  "composed": "tell: instance_of(?v0, box)"
+ },
+ {
+  "sentence": "The dog swam instead of running.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & given instance_of(?v1, dog) & has_property(?v0, false) & instance_of(?v0, run) & instance_of(?v2, swim) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, run) & instance_of(?v2, swim) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "The cat climbed on March 12.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, --03-12) & given instance_of(?v1, cat) & instance_of(?v0, climb) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, climb) & owned_by(?v1, 12) & precedes(?v0, ?now) & word_on(?v0, 12)"
+ },
+ {
+  "sentence": "The dog barked two days ago.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_count(?v2, 2) & instance_of(?v0, bark) & instance_of(?v2, day) & lasts_since(?v2, ?v0) & lasts_until(?v2, ?now) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "To recommend is to propose.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, recommend) & instance_of(?v0, propose)",
+  "composed": "tell: instance_of(?v0, propose) & instance_of(?v0, recommend)"
+ },
+ {
+  "sentence": "Is two prime?",
+  "taught": "ask: has_property(2, prime)",
+  "composed": "ask: capable_of(2, prime)"
+ },
+ {
+  "sentence": "The dog was big.",
+  "taught": "tell: given instance_of(?v0, dog) & instance_of(?v1, big) & precedes(?v1, ?now) & state_of(?v1, ?v0)",
+  "composed": "tell: given instance_of(?v0, dog) & has_property(?v0, big) & precedes(big, ?now)"
+ },
+ {
+  "sentence": "The cat has just climbed.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, recent) & instance_of(?v0, climb) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, climb) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "A bird flew.",
+  "taught": "tell: done_by(?v0, ?v1) & instance_of(?v0, fly) & instance_of(?v1, bird) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, bird) & instance_of(?v0, fly) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "When will the dog bark?",
+  "taught": "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & follows(?v0, ?now) & given instance_of(?v1, dog) & instance_of(?v0, bark) ? ?v2",
+  "composed": "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) ? ?v2"
+ },
+ {
+  "sentence": "The cat does climb.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, climb)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, false) & instance_of(?v0, climb)"
+ },
+ {
+  "sentence": "Each cat can climb.",
+  "taught": "tell: capable_of(cat, climb)",
+  "composed": "tell: capable_of(?v0, climb) & given instance_of(?v0, cat)"
+ },
+ {
+  "sentence": "The girl who swam is happy.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, girl) & has_property(?v1, happy) & instance_of(?v0, swim) & precedes(?v0, ?now)",
+  "composed": "tell: given instance_of(?v0, girl) & has_property(?v0, happy) & instance_of(?v1, swim) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "There is a lot of milk.",
+  "taught": "tell: has_count(?v0, much) & instance_of(?v0, milk)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "There was a cat.",
+  "taught": "tell: has_count(?v0, 1) & instance_of(?v0, cat) & precedes(?v0, ?now)",
+  "composed": "tell: instance_of(?v0, cat)"
+ },
+ {
+  "sentence": "The cup is very hot.",
+  "taught": "tell: given instance_of(?v0, cup) & has_degree(?v0, ?v1) & has_property(?v1, high) & instance_of(?v1, hot)",
+  "composed": "tell: given instance_of(?v0, cup) & has_property(?v0, hot)"
+ },
+ {
+  "sentence": "How much is 81 / 9?",
+  "taught": "ask: equals(81/9, ?v0) ? ?v0",
+  "composed": "ask: equals(81 / 9, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Nobody can fly.",
+  "taught": "tell: not capable_of(person, fly)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Who owns the bike?",
+  "taught": "ask: given instance_of(?v0, bicycle) & owns(?v1, ?v0) ? ?v1",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The dog is going to bark.",
+  "taught": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & given instance_of(?v1, dog) & instance_of(?v0, bark)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark)"
+ },
+ {
+  "sentence": "The bike is slower than the car.",
+  "taught": "tell: exceeds(?v0, ?v1) & given instance_of(?v2, bicycle) & given instance_of(?v3, car) & has_degree(?v2, ?v0) & has_degree(?v3, ?v1) & instance_of(?v0, slow) & instance_of(?v1, slow)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Is the sky blue/green?",
+  "taught": "ask: either has_property(?v0, blue) & either has_property(?v0, green) & given instance_of(?v0, sky)",
+  "composed": "ask: given instance_of(?v0, sky) & has_property(?v0, blue) & has_property(?v0, green)"
+ },
+ {
+  "sentence": "Rex knows who kicked the ball.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, rex) & done_to(?v0, ?v3) & done_to(?v2, ?v1) & given instance_of(?v3, ball) & instance_of(?v0, kick) & instance_of(?v2, know) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, rex) & done_to(?v1, ?v2) & given instance_of(?v2, ball) & instance_of(?v0, know) & instance_of(?v1, kick) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Five boxes are open.",
+  "taught": "tell: has_count(?v0, 5) & has_property(?v0, open) & instance_of(?v0, box)",
+  "composed": "tell: has_property(box, open) & isa(5, box)"
+ },
+ {
+  "sentence": "Your sock is black.",
+  "taught": "tell: has_property(?v0, black) & instance_of(?v0, sock) & owned_by(?v0, ?listener)",
+  "composed": "tell: has_property(?v0, black) & instance_of(?v0, sock) & named(?listener, black) & owned_by(?v0, ?listener)"
+ },
+ {
+  "sentence": "Tom saw me.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?speaker) & instance_of(?v0, see) & precedes(?v0, ?now)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Cats can't fly.",
+  "taught": "tell: not capable_of(cat, fly)",
+  "composed": "tell: instance_of(?v0, cat)"
+ },
+ {
+  "sentence": "Solve x - 4 < 1.",
+  "taught": "request: done_by(?v0, ?listener) & if exceeds(1, x - 4) & instance_of(?v0, solve)",
+  "composed": "request: done_by(?v0, ?listener) & exceeds(x - 4, 1) & instance_of(?v0, solve)"
+ },
+ {
+  "sentence": "The bird flew although it snowed.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & has_property(?v0, unexpected) & instance_of(?v0, fly) & instance_of(?v2, snow) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly) & instance_of(?v2, snow) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "Are eagles a kind of bird?",
+  "taught": "ask: isa(eagle, bird)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Rex said that the cat had run.",
+  "taught": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?v0)",
+  "composed": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted during(?v1, ?v0) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run)"
+ },
+ {
+  "sentence": "Did Tom finish?",
+  "taught": "ask: done_by(?v0, tom) & instance_of(?v0, finish) & precedes(?v0, ?now)",
+  "composed": "ask: instance_of(?v0, tom finish) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "If the dog had barked, the cat would have run.",
+  "taught": "tell: done_by(?v0, ?v1) & given if instance_of(?v2, dog) & given instance_of(?v1, cat) & has_property(?v0, hypothetical) & if done_by(?v3, ?v2) & if instance_of(?v3, bark) & if precedes(?v3, ?now) & instance_of(?v0, run) & precedes(?v0, ?now)",
+  "composed": "(no meaning: a condition alone says nothing; a meaning states what holds when it does)"
+ },
+ {
+  "sentence": "Snow is like ice.",
+  "taught": "tell: similar_to(snow, ice)",
+  "composed": "tell: given instance_of(?v0, ice)"
+ },
+ {
+  "sentence": "Something is hot.",
+  "taught": "tell: has_property(?v0, hot)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat runs whenever the dog barks.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & during(?v0, ?v2) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & has_property(?v0, always) & instance_of(?v0, run) & instance_of(?v2, bark)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, run)"
+ },
+ {
+  "sentence": "Is 10 / 2 equal to 5?",
+  "taught": "ask: equals(10/2, 5)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "\"The sky is blue,\" Rex said.",
+  "taught": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted given instance_of(?v1, sky) & unasserted has_property(?v1, blue)",
+  "composed": "tell: done_by(?v0, rex) & given instance_of(?v1, sky) & has_property(?v1, blue) & instance_of(?v0, say) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Rex has food.",
+  "taught": "tell: owns(rex, food)",
+  "composed": "tell: instance_of(rex, food)"
+ },
+ {
+  "sentence": "It's blue.",
+  "taught": "tell: has_property(?previous, blue)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Tom will be opening the door.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & during(?v0, ?v2) & follows(?v2, ?now) & given instance_of(?v1, door) & instance_of(?v0, open)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open)"
+ },
+ {
+  "sentence": "A pen is used for writing.",
+  "taught": "tell: used_for(pen, writing)",
+  "composed": "tell: given instance_of(?v0, pen)"
+ },
+ {
+  "sentence": "Our car is blue.",
+  "taught": "tell: has_member(?v0, ?speaker) & has_property(?v1, blue) & instance_of(?v1, car) & owned_by(?v1, ?v0)",
+  "composed": "tell: given instance_of(?v0, car) & has_property(?v0, blue)"
+ },
+ {
+  "sentence": "To marry is to unite.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, marry) & instance_of(?v0, unite)",
+  "composed": "tell: instance_of(?v0, marry) & instance_of(?v0, unite)"
+ },
+ {
+  "sentence": "You helped yourself.",
+  "taught": "tell: done_by(?v0, ?listener) & done_to(?v0, ?listener) & instance_of(?v0, help) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?listener) & instance_of(?v0, help) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "3 < 9.",
+  "taught": "tell: exceeds(9, 3)",
+  "composed": "tell: equals(3, 9)"
+ },
+ {
+  "sentence": "Is noon after morning?",
+  "taught": "ask: follows(noon, morning)",
+  "composed": "ask: word_after(noon, morning)"
+ },
+ {
+  "sentence": "The room will be cold.",
+  "taught": "tell: follows(?v0, ?now) & given instance_of(?v1, room) & instance_of(?v0, cold) & state_of(?v0, ?v1)",
+  "composed": "tell: follows(cold, ?now) & given instance_of(?v0, room) & has_property(?v0, cold)"
+ },
+ {
+  "sentence": "Is an owl a bird?",
+  "taught": "ask: isa(owl, bird)",
+  "composed": "ask: isa(owl, bird of prey) & isa(owl, bird)"
+ },
+ {
+  "sentence": "There are a lot of dogs.",
+  "taught": "tell: has_count(?v0, many) & instance_of(?v0, dog)",
+  "composed": "tell: instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "The box is too big to lift.",
+  "taught": "tell: given instance_of(?v0, box) & has_degree(?v0, ?v1) & has_property(?v1, excessive) & instance_of(?v1, big) & prevents(?v1, ?v2) & unasserted done_to(?v2, ?v0) & unasserted instance_of(?v2, lift)",
+  "composed": "tell: given instance_of(?v0, box) & has_property(?v0, big) & unasserted instance_of(?v1, lift)"
+ },
+ {
+  "sentence": "We're kind.",
+  "taught": "tell: has_member(?v0, ?speaker) & has_property(?v0, kind)",
+  "composed": "tell: has_property(?speaker, kind)"
+ },
+ {
+  "sentence": "If the valve is closed, the tank is full.",
+  "taught": "tell: given if instance_of(?v0, valve) & given instance_of(?v1, tank) & has_property(?v1, full) & if has_property(?v0, closed)",
+  "composed": "(no meaning: a condition alone says nothing; a meaning states what holds when it does)"
+ },
+ {
+  "sentence": "No, she did not.",
+  "taught": "tell: has_property(?previous, false)",
+  "composed": "tell: has_property(?previous, true)"
+ },
+ {
+  "sentence": "Rex used to run.",
+  "taught": "tell: done_by(?v0, rex) & has_property(?v0, usually) & instance_of(?v0, run) & precedes(?v0, ?now)",
+  "composed": "tell: unasserted instance_of(?v0, run)"
+ },
+ {
+  "sentence": "Wave to me.",
+  "taught": "request: done_by(?v0, ?listener) & done_to(?v0, ?speaker) & instance_of(?v0, wave)",
+  "composed": "request: done_by(?v0, ?listener) & instance_of(?v0, wave)"
+ },
+ {
+  "sentence": "The cat stays in the box.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & given instance_of(?v2, box) & instance_of(?v0, stay) & located_in(?v0, ?v2)",
+  "composed": "tell: given instance_of(?v0, box) & given instance_of(?v1, cat stays) & located_in(?v1, ?v0)"
+ },
+ {
+  "sentence": "Is Monday before Tuesday?",
+  "taught": "ask: precedes(monday, tuesday)",
+  "composed": "ask: word_before(monday, tuesday)"
+ },
+ {
+  "sentence": "The dog has just barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, recent) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "What color is the grass?",
+  "taught": "ask: given instance_of(?v0, grass) & has_property(?v0, ?v1) & instance_of(?v1, color) ? ?v1",
+  "composed": "ask: instance_of(?v0, color) ? ?v0"
+ },
+ {
+  "sentence": "None of the cats can bark.",
+  "taught": "tell: given instance_of(?v0, cat) & not capable_of(?v0, bark)",
+  "composed": "tell: capable_of(?v0, bark) & instance_of(?v0, cat)"
+ },
+ {
+  "sentence": "To be vigorous is to be energetic.",
+  "taught": "tell: has_property(?v0, energetic) & if has_property(?v0, vigorous)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Was the door open?",
+  "taught": "ask: given instance_of(?v0, door) & instance_of(?v1, open) & precedes(?v1, ?now) & state_of(?v1, ?v0)",
+  "composed": "ask: given instance_of(?v0, door) & has_property(?v0, open)"
+ },
+ {
+  "sentence": "Only the fish can swim.",
+  "taught": "tell: capable_of(?v0, swim) & given instance_of(?v0, fish) & not capable_of(?v1, swim) & other_than(?v1, ?v0)",
+  "composed": "tell: capable_of(?v0, swim) & given instance_of(?v0, fish)"
+ },
+ {
+  "sentence": "I am taller than Tom.",
+  "taught": "tell: exceeds(?v0, ?v1) & has_degree(?speaker, ?v0) & has_degree(tom, ?v1) & instance_of(?v0, tall) & instance_of(?v1, tall)",
+  "composed": "tell: instance_of(?v0, tall)"
+ },
+ {
+  "sentence": "A fish can swim.",
+  "taught": "tell: capable_of(fish, swim)",
+  "composed": "tell: capable_of(?v0, swim) & instance_of(?v0, fish)"
+ },
+ {
+  "sentence": "Even the fish climbed.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, fish) & has_property(?v0, unexpected) & instance_of(?v0, climb) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, fish) & instance_of(?v0, climb) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "A bed is furniture.",
+  "taught": "tell: isa(bed, furniture)",
+  "composed": "tell: given instance_of(?v0, bed) & has_property(?v0, furniture)"
+ },
+ {
+  "sentence": "The lamp is between the bed and the chair.",
+  "taught": "tell: between(?v0, ?v1) & given instance_of(?v0, lamp) & given instance_of(?v2, bed) & given instance_of(?v3, chair) & has_member(?v1, ?v2) & has_member(?v1, ?v3)",
+  "composed": "tell: given instance_of(?v0, bed) & given instance_of(?v1, chair) & given instance_of(?v2, lamp)"
+ },
+ {
+  "sentence": "Rex said that the bird would fly.",
+  "taught": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted follows(?v1, ?v0) & unasserted given instance_of(?v2, bird) & unasserted instance_of(?v1, fly)",
+  "composed": "tell: done_by(?v0, rex) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted capable_of(?v1, fly) & unasserted given instance_of(?v1, bird)"
+ },
+ {
+  "sentence": "Tom said that the dog would bark.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted follows(?v1, ?v0) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted during(?v1, ?v0) & unasserted given instance_of(?v2, dog) & unasserted instance_of(?v1, bark)"
+ },
+ {
+  "sentence": "Someone else closed the box.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, box) & instance_of(?v0, close) & instance_of(?v1, person) & other_than(?v1, ?previous) & precedes(?v0, ?now)",
+  "composed": "tell: done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, close) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom opened the door slowly.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & has_property(?v0, slow) & instance_of(?v0, open) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "To announce is to inform.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, announce) & instance_of(?v0, inform)",
+  "composed": "tell: instance_of(?v0, announce) & instance_of(?v0, inform)"
+ },
+ {
+  "sentence": "Rex has a ball, a hat and a sock.",
+  "taught": "tell: owns(rex, ball) & owns(rex, hat) & owns(rex, sock)",
+  "composed": "tell: instance_of(?v0, hat) & instance_of(?v1, sock) & owns(rex, ball)"
+ },
+ {
+  "sentence": "The dog barks when it rains.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & instance_of(?v2, rain)",
+  "composed": "tell: instance_of(?v0, rain)"
+ },
+ {
+  "sentence": "Bats are not birds.",
+  "taught": "tell: not isa(bat, bird)",
+  "composed": "tell: isa(bat, bird)"
+ },
+ {
+  "sentence": "The dog barked on May 1.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, --05-01) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & owned_by(?v1, 1) & precedes(?v0, ?now) & word_on(?v0, 1)"
+ },
+ {
+  "sentence": "Rex has a ball, a hat, and a sock.",
+  "taught": "tell: owns(rex, ball) & owns(rex, hat) & owns(rex, sock)",
+  "composed": "tell: instance_of(?v0, hat) & instance_of(?v1, sock) & owns(rex, ball)"
+ },
+ {
+  "sentence": "Our dog is big.",
+  "taught": "tell: has_member(?v0, ?speaker) & has_property(?v1, big) & instance_of(?v1, dog) & owned_by(?v1, ?v0)",
+  "composed": "tell: has_property(?v0, big) & instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "The dog has barked since the cat ran.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, run) & instance_of(?v2, bark) & lasts_since(?v2, ?v0) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, run) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "Is water a liquid?",
+  "taught": "ask: isa(water, liquid)",
+  "composed": "ask: isa(liquid, water)"
+ },
+ {
+  "sentence": "No fish can walk.",
+  "taught": "tell: not capable_of(fish, walk)",
+  "composed": "tell: capable_of(?v0, walk) & capable_of(person, walk) & given instance_of(?v0, fish)"
+ },
+ {
+  "sentence": "The dog barks unless it rains.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & if not instance_of(?v2, rain) & instance_of(?v0, bark)",
+  "composed": "tell: instance_of(?v0, rain)"
+ },
+ {
+  "sentence": "A box of balls is on the chair.",
+  "taught": "tell: contains(?v0, ball) & given instance_of(?v1, chair) & instance_of(?v0, box) & located_at(?v0, ?v1)",
+  "composed": "tell: given instance_of(?v0, box) & given instance_of(?v1, chair) & instance_of(?v2, ball) & word_of(?v0, ?v2) & word_on(?v2, ?v1)"
+ },
+ {
+  "sentence": "The ice is too cold to hold.",
+  "taught": "tell: given instance_of(?v0, ice) & has_degree(?v0, ?v1) & has_property(?v1, excessive) & instance_of(?v1, cold) & prevents(?v1, ?v2) & unasserted done_to(?v2, ?v0) & unasserted instance_of(?v2, hold)",
+  "composed": "tell: done_to(?v0, ?v1) & given instance_of(?v1, ice) & has_degree(?v1, ?v2) & instance_of(?v0, hold) & instance_of(?v2, cold) & prevents(?v2, ?v0)"
+ },
+ {
+  "sentence": "Tom kicked the ball a year ago.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, ball) & has_count(?v2, 1) & instance_of(?v0, kick) & instance_of(?v2, year) & lasts_since(?v2, ?v0) & lasts_until(?v2, ?now) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, ball) & instance_of(?v0, kick) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The dog swam without the cat.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & given instance_of(?v2, cat) & instance_of(?v0, swim) & not done_by(?v0, ?v2) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & given instance_of(?v2, cat) & instance_of(?v0, swim) & not done_with(?v0, ?v2) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Solve m + n = 5 and m - n = 1.",
+  "taught": "request: done_by(?v0, ?listener) & if equals(m + n, 5) & if equals(m - n, 1) & instance_of(?v0, solve)",
+  "composed": "request: equals(5, 1) & instance_of(?v0, solve) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The ice is cold!",
+  "taught": "tell: given instance_of(?v0, ice) & has_property(?v0, cold)",
+  "composed": "tell: given instance_of(?v0, ice) & has_property(?v0, cold) & has_property(cold, high)"
+ },
+ {
+  "sentence": "Tom knows what Rex said.",
+  "taught": "tell: done_by(?v0, rex) & done_by(?v1, tom) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & instance_of(?v0, say) & instance_of(?v1, know) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, rex) & done_by(?v1, tom) & instance_of(?v0, say) & instance_of(?v1, know) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "There were four books.",
+  "taught": "tell: has_count(?v0, 4) & instance_of(?v0, book) & precedes(?v0, ?now)",
+  "composed": "tell: has_count(?v0, 4) & instance_of(?v0, book)"
+ },
+ {
+  "sentence": "Does a cow eat grass?",
+  "taught": "ask: eats(cow, grass)",
+  "composed": "ask: done_to(?v0, ?v1) & done_to(?v0, cow) & given instance_of(?v1, grass) & instance_of(?v0, eat) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "That is your blue cup.",
+  "taught": "tell: has_property(?shown, blue) & instance_of(?shown, cup) & owned_by(?shown, ?listener)",
+  "composed": "tell: instance_of(?v0, cup) & owned_by(?v0, ?listener)"
+ },
+ {
+  "sentence": "The dog barked before the cat ran.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, run) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now) & precedes(?v2, ?v0)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, run) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "The bird flew after the dog barked.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & follows(?v0, ?v2) & given instance_of(?v1, bird) & given instance_of(?v3, dog) & instance_of(?v0, fly) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & given instance_of(?v1, bird) & given instance_of(?v3, dog) & instance_of(?v0, fly) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v0, ?v2) & precedes(?v2, ?now) & word_after(?v0, ?v3)"
+ },
+ {
+  "sentence": "The dog is older than the cat.",
+  "taught": "tell: exceeds(?v0, ?v1) & given instance_of(?v2, cat) & given instance_of(?v3, dog) & has_degree(?v2, ?v1) & has_degree(?v3, ?v0) & instance_of(?v0, old) & instance_of(?v1, old)",
+  "composed": "tell: given instance_of(?v0, cat) & given instance_of(?v1, dog) & has_property(?v1, older) & word_than(older, ?v0)"
+ },
+ {
+  "sentence": "Is ten equal to ten?",
+  "taught": "ask: equals(10, 10)",
+  "composed": "ask: exceeds(10, 10)"
+ },
+ {
+  "sentence": "The dog found bones.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, bone) & given instance_of(?v1, dog) & instance_of(?v0, find) & precedes(?v0, ?now)",
+  "composed": "tell: given instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "What is colder than the cup?",
+  "taught": "ask: exceeds(?v0, ?v1) & given instance_of(?v2, cup) & has_degree(?v2, ?v1) & has_degree(?v3, ?v0) & instance_of(?v0, cold) & instance_of(?v1, cold) ? ?v3",
+  "composed": "ask: given instance_of(?v0, cup) & has_degree(?v1, ?v2) & instance_of(?v2, cold) ? ?v1"
+ },
+ {
+  "sentence": "Whose dog barked?",
+  "taught": "ask: done_by(?v0, ?v1) & instance_of(?v0, bark) & instance_of(?v1, dog) & owned_by(?v1, ?v2) & precedes(?v0, ?now) ? ?v2",
+  "composed": "ask: done_by(?v0, ?v1) & instance_of(?v0, bark) & instance_of(?v1, dog) & precedes(?v0, ?now) ? ?v1"
+ },
+ {
+  "sentence": "The girl who owns the car is kind.",
+  "taught": "tell: given instance_of(?v0, car) & given instance_of(?v1, girl) & has_property(?v1, kind) & owns(?v1, ?v0)",
+  "composed": "tell: unasserted given instance_of(?v0, car)"
+ },
+ {
+  "sentence": "The dog barked once.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_count(?v0, 1) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Rex opened the box for Tom.",
+  "taught": "tell: done_by(?v0, rex) & done_for(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, open) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, open) & precedes(?v0, ?now) & word_for(?v0, tom)"
+ },
+ {
+  "sentence": "What is in front of the house?",
+  "taught": "ask: given instance_of(?v0, house) & in_front_of(?v1, ?v0) ? ?v1",
+  "composed": "ask: given instance_of(?v0, house) & right_of(?v1, ?v0) ? ?v1"
+ },
+ {
+  "sentence": "To throw is to propel.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, throw) & instance_of(?v0, propel)",
+  "composed": "tell: instance_of(?v0, propel) & instance_of(?v0, throw)"
+ },
+ {
+  "sentence": "Even though it snowed, the dog swam.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, unexpected) & instance_of(?v0, swim) & instance_of(?v2, snow) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, swim) & instance_of(?v2, snow) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "The box is his.",
+  "taught": "tell: given instance_of(?v0, box) & owned_by(?v0, ?previous)",
+  "composed": "tell: given instance_of(?v0, box)"
+ },
+ {
+  "sentence": "The ninth door is open.",
+  "taught": "tell: has_property(?v0, open) & has_rank(?v0, 9) & instance_of(?v0, door)",
+  "composed": "tell: given instance_of(?v0, ninth door) & has_property(?v0, open)"
+ },
+ {
+  "sentence": "The dog is theirs.",
+  "taught": "tell: given instance_of(?v0, dog) & owned_by(?v0, ?previous)",
+  "composed": "tell: given instance_of(?v0, dog)"
+ },
+ {
+  "sentence": "Rex has $10.",
+  "taught": "tell: has_count(?v0, 10) & instance_of(?v0, dollar) & owns(rex, ?v0)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "You are a girl.",
+  "taught": "tell: instance_of(?listener, girl)",
+  "composed": "tell: given instance_of(?v0, girl)"
+ },
+ {
+  "sentence": "Teeth are white.",
+  "taught": "tell: has_property(tooth, white)",
+  "composed": "tell: has_property(teeth, white)"
+ },
+ {
+  "sentence": "Does Tom want to swim?",
+  "taught": "ask: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, want) & unasserted done_by(?v1, tom) & unasserted instance_of(?v1, swim)",
+  "composed": "ask: done_by(?v0, tom) & instance_of(?v0, swim)"
+ },
+ {
+  "sentence": "To push is to move.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, push) & instance_of(?v0, move)",
+  "composed": "tell: instance_of(?v0, move) & instance_of(?v0, push)"
+ },
+ {
+  "sentence": "The ice is as cold as the snow.",
+  "taught": "tell: given instance_of(?v0, ice) & given instance_of(?v1, snow) & has_degree(?v0, ?v2) & has_degree(?v1, ?v3) & instance_of(?v2, cold) & instance_of(?v3, cold) & not exceeds(?v3, ?v2)",
+  "composed": "tell: given instance_of(?v0, ice) & given instance_of(?v1, snow) & has_property(?v0, cold) & word_as(cold, ?v1)"
+ },
+ {
+  "sentence": "How tall is Rex?",
+  "taught": "ask: has_degree(rex, ?v0) & instance_of(?v0, tall) ? ?v0",
+  "composed": "ask: isa(tall, rex)"
+ },
+ {
+  "sentence": "What is Tom doing?",
+  "taught": "ask: done_by(?v0, tom) & during(?v0, ?now) & instance_of(?v0, ?v1) ? ?v1",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Reading is a skill.",
+  "taught": "tell: isa(reading, skill)",
+  "composed": "tell: done_by(?v0, skill) & during(?v0, ?now) & instance_of(?v0, read)"
+ },
+ {
+  "sentence": "The ice is very cold.",
+  "taught": "tell: given instance_of(?v0, ice) & has_degree(?v0, ?v1) & has_property(?v1, high) & instance_of(?v1, cold)",
+  "composed": "tell: given instance_of(?v0, ice) & has_property(?v0, cold)"
+ },
+ {
+  "sentence": "Bread is made from flour.",
+  "taught": "tell: derived_from(bread, flour)",
+  "composed": "tell: given instance_of(?v0, bread)"
+ },
+ {
+  "sentence": "The other bird flew.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly) & other_than(?v1, ?previous) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, bird) & instance_of(?v0, fly) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "It is green.",
+  "taught": "tell: has_property(?previous, green)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "How much milk is there?",
+  "taught": "ask: has_count(?v0, ?v1) & instance_of(?v0, milk) ? ?v1",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat stopped running.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, cat) & instance_of(?v0, stop) & instance_of(?v2, run) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, cat) & has_property(?v2, false) & instance_of(?v0, stop) & instance_of(?v2, run) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Is a pen used for writing?",
+  "taught": "ask: used_for(pen, writing)",
+  "composed": "ask: given instance_of(?v0, pen)"
+ },
+ {
+  "sentence": "The hat is black.",
+  "taught": "tell: given instance_of(?v0, hat) & has_property(?v0, black)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Is the book yours?",
+  "taught": "ask: given instance_of(?v0, book) & owned_by(?v0, ?listener)",
+  "composed": "ask: given instance_of(?v0, book)"
+ },
+ {
+  "sentence": "What is a wheel part of?",
+  "taught": "ask: part_of(wheel, ?v0) ? ?v0",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "A farewell follows a farewell.",
+  "taught": "tell: follows(farewell, farewell)",
+  "composed": "tell: instance_of(?v0, farewell)"
+ },
+ {
+  "sentence": "Glasses are small.",
+  "taught": "tell: has_property(glass, small)",
+  "composed": "tell: has_property(glasses, small)"
+ },
+ {
+  "sentence": "The fish is swimming.",
+  "taught": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, fish) & instance_of(?v0, swim)",
+  "composed": "tell: given instance_of(?v0, fish)"
+ },
+ {
+  "sentence": "What a tall boy!",
+  "taught": "tell: has_degree(boy, ?v0) & has_property(?v0, high) & instance_of(?v0, tall)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Tuesday follows Monday.",
+  "taught": "tell: follows(tuesday, monday)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "There was a bird.",
+  "taught": "tell: has_count(?v0, 1) & instance_of(?v0, bird) & precedes(?v0, ?now)",
+  "composed": "tell: instance_of(?v0, bird)"
+ },
+ {
+  "sentence": "Tom is more kind than Rex.",
+  "taught": "tell: exceeds(?v0, ?v1) & has_degree(rex, ?v1) & has_degree(tom, ?v0) & instance_of(?v0, kind) & instance_of(?v1, kind)",
+  "composed": "tell: has_property(tom, kind) & isa(tom, rex) & word_than(kind, rex)"
+ },
+ {
+  "sentence": "The cat doesn't fly.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, false) & instance_of(?v0, fly)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, fly)"
+ },
+ {
+  "sentence": "It snowed three weeks ago.",
+  "taught": "tell: has_count(?v0, 3) & instance_of(?v0, week) & instance_of(?v1, snow) & lasts_since(?v0, ?v1) & lasts_until(?v0, ?now) & precedes(?v1, ?now)",
+  "composed": "tell: instance_of(?v0, snow) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Mr. Park has a dog.",
+  "taught": "tell: isa(park, man) & owns(park, dog)",
+  "composed": "tell: owns(park, dog)"
+ },
+ {
+  "sentence": "That's your cup.",
+  "taught": "tell: instance_of(?shown, cup) & owned_by(?shown, ?listener)",
+  "composed": "tell: instance_of(?v0, cup) & owned_by(?v0, ?listener)"
+ },
+ {
+  "sentence": "1990 is a year.",
+  "taught": "tell: isa(1990, year)",
+  "composed": "tell: has_degree(1990, ?v0) & instance_of(?v0, year)"
+ },
+ {
+  "sentence": "To explain is to inform.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, explain) & instance_of(?v0, inform)",
+  "composed": "tell: instance_of(?v0, explain) & instance_of(?v0, inform)"
+ },
+ {
+  "sentence": "Rex needs a ball.",
+  "taught": "tell: requires(rex, ball)",
+  "composed": "tell: owns(rex, ball)"
+ },
+ {
+  "sentence": "The roof of the house is red.",
+  "taught": "tell: given instance_of(?v0, house) & given instance_of(?v1, roof) & has_property(?v1, red) & part_of(?v1, ?v0)",
+  "composed": "tell: given instance_of(?v0, house) & has_property(roof, red) & word_of(roof, ?v0)"
+ },
+ {
+  "sentence": "Every dog is an animal.",
+  "taught": "tell: isa(dog, animal)",
+  "composed": "tell: given instance_of(?v0, dog) & has_property(?v0, animal)"
+ },
+ {
+  "sentence": "Tom knows where the dog ran.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, tom) & done_to(?v2, ?v3) & given instance_of(?v1, dog) & instance_of(?v0, run) & instance_of(?v2, know) & moves_to(?v0, ?v3) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, tom) & done_to(?v2, ?v0) & given instance_of(?v1, dog) & instance_of(?v0, run) & instance_of(?v2, know) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The ice is colder than the snow.",
+  "taught": "tell: exceeds(?v0, ?v1) & given instance_of(?v2, ice) & given instance_of(?v3, snow) & has_degree(?v2, ?v0) & has_degree(?v3, ?v1) & instance_of(?v0, cold) & instance_of(?v1, cold)",
+  "composed": "tell: given instance_of(?v0, ice) & given instance_of(?v1, snow) & has_degree(?v0, ?v2) & instance_of(?v2, cold)"
+ },
+ {
+  "sentence": "A spider has legs.",
+  "taught": "tell: has_part(spider, leg)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat climbs when the dog barks.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & during(?v0, ?v2) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, climb) & instance_of(?v2, bark)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "There are thirteen dogs.",
+  "taught": "tell: has_count(?v0, 13) & instance_of(?v0, dog)",
+  "composed": "tell: instance_of(?v0, thirteen dog)"
+ },
+ {
+  "sentence": "Water is a drink.",
+  "taught": "tell: isa(water, drink)",
+  "composed": "tell: capable_of(water, drink)"
+ },
+ {
+  "sentence": "Why did the dog bark?",
+  "taught": "ask: causes(?v0, ?v1) & done_by(?v1, ?v2) & given instance_of(?v2, dog) & instance_of(?v1, bark) & precedes(?v1, ?now) ? ?v0",
+  "composed": "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now) ? ?v2"
+ },
+ {
+  "sentence": "Fish is eaten by a cat.",
+  "taught": "tell: eaten_by(fish, cat)",
+  "composed": "tell: made_of(fish, cat)"
+ },
+ {
+  "sentence": "If the cat runs, the dog barks.",
+  "taught": "tell: done_by(?v0, ?v1) & given if instance_of(?v2, cat) & given instance_of(?v1, dog) & if done_by(?v3, ?v2) & if instance_of(?v3, run) & instance_of(?v0, bark)",
+  "composed": "(no meaning: a condition alone says nothing; a meaning states what holds when it does)"
+ },
+ {
+  "sentence": "The car is old but fast.",
+  "taught": "tell: given instance_of(?v0, car) & has_property(?v0, fast) & has_property(?v0, old)",
+  "composed": "tell: given instance_of(?v0, car) & has_degree(?v0, ?v1) & has_member(?v1, fast) & has_property(?v0, fast) & instance_of(?v1, old)"
+ },
+ {
+  "sentence": "How are you?",
+  "taught": "ask: has_property(?listener, ?v0) ? ?v0",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The door is not open.",
+  "taught": "tell: given instance_of(?v0, door) & not has_property(?v0, open)",
+  "composed": "tell: given instance_of(?v0, door) & has_property(?v0, open)"
+ },
+ {
+  "sentence": "The sock is hers.",
+  "taught": "tell: given instance_of(?v0, sock) & owned_by(?v0, ?previous)",
+  "composed": "tell: instance_of(?v0, sock)"
+ },
+ {
+  "sentence": "There are fourteen cats.",
+  "taught": "tell: has_count(?v0, 14) & instance_of(?v0, cat)",
+  "composed": "tell: instance_of(?v0, fourteen cat)"
+ },
+ {
+  "sentence": "To fight is to contend.",
+  "taught": "tell: if done_by(?v0, ?v1) & if instance_of(?v0, fight) & instance_of(?v0, contend)",
+  "composed": "tell: instance_of(?v0, contend) & instance_of(?v0, fight)"
+ },
+ {
+  "sentence": "This is our ball.",
+  "taught": "tell: has_member(?v0, ?speaker) & instance_of(?shown, ball) & owned_by(?shown, ?v0)",
+  "composed": "tell: instance_of(?v0, ball)"
+ },
+ {
+  "sentence": "I am a boy.",
+  "taught": "tell: instance_of(?speaker, boy)",
+  "composed": "tell: has_property(?speaker, boy)"
+ },
+ {
+  "sentence": "Does the cat climb?",
+  "taught": "ask: done_by(?v0, ?v1) & given instance_of(?v1, cat) & instance_of(?v0, climb)",
+  "composed": "ask: done_by(?v0, ?v1) & given instance_of(?v1, cat) & has_property(?v0, false) & instance_of(?v0, climb)"
+ },
+ {
+  "sentence": "The fish swims.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, fish) & instance_of(?v0, swim)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The dog recently barked.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, recent) & instance_of(?v0, bark) & precedes(?v0, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "To be concealed is to be invisible.",
+  "taught": "tell: has_property(?v0, invisible) & if has_property(?v0, concealed)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Those are your hats.",
+  "taught": "tell: instance_of(?shown, hat) & owned_by(?shown, ?listener)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "There is little milk.",
+  "taught": "tell: has_count(?v0, little) & instance_of(?v0, milk)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "A car has doors.",
+  "taught": "tell: has_part(car, door)",
+  "composed": "tell: isa(car, door)"
+ },
+ {
+  "sentence": "Jewelry is shiny.",
+  "taught": "tell: has_property(jewelry, glistening)",
+  "composed": "tell: has_property(jewelry, shiny)"
+ },
+ {
+  "sentence": "Tom found keys.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, key) & instance_of(?v0, find) & precedes(?v0, ?now)",
+  "composed": "tell: owns(tom, key)"
+ },
+ {
+  "sentence": "What are you doing?",
+  "taught": "ask: done_by(?v0, ?listener) & during(?v0, ?now) & instance_of(?v0, ?v1) ? ?v1",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The cat ran as soon as the dog barked.",
+  "taught": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & follows(?v0, ?v2) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & has_property(?v0, immediate) & instance_of(?v0, run) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "composed": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & follows(?v0, ?v2) & given instance_of(?v1, cat) & given instance_of(?v3, dog) & instance_of(?v0, run) & instance_of(?v2, bark) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "Is the ball red, blue or green?",
+  "taught": "ask: either has_property(?v0, blue) & either has_property(?v0, green) & either has_property(?v0, red) & given instance_of(?v0, ball)",
+  "composed": "ask: given instance_of(?v0, ball) & has_property(?v0, blue) & has_property(?v0, green) & has_property(?v0, red)"
+ },
+ {
+  "sentence": "Someone kicked the ball.",
+  "taught": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, ball) & instance_of(?v0, kick) & instance_of(?v1, person) & precedes(?v0, ?now)",
+  "composed": "tell: done_to(?v0, ?v1) & given instance_of(?v1, ball) & instance_of(?v0, kick) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Two cats are small.",
+  "taught": "tell: has_count(?v0, 2) & has_property(?v0, small) & instance_of(?v0, cat)",
+  "composed": "tell: has_property(cat, small) & isa(2, cat)"
+ },
+ {
+  "sentence": "Is 1000 < 2^10?",
+  "taught": "ask: exceeds(2^10, 1000)",
+  "composed": "ask: exceeds(1000, 2^10)"
+ },
+ {
+  "sentence": "There are 1,000,000 birds.",
+  "taught": "tell: has_count(?v0, 1000000) & instance_of(?v0, bird)",
+  "composed": "tell: instance_of(?v0, bird)"
+ },
+ {
+  "sentence": "Mrs. Kim has a cat.",
+  "taught": "tell: isa(kim, woman) & owns(kim, cat)",
+  "composed": "tell: isa(kim, doctor) & owns(kim, cat)"
+ },
+ {
+  "sentence": "Tom is very tall.",
+  "taught": "tell: has_degree(tom, ?v0) & has_property(?v0, high) & instance_of(?v0, tall)",
+  "composed": "tell: has_property(tom, tall)"
+ },
+ {
+  "sentence": "Tom has to open the door.",
+  "taught": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & has_property(?v0, necessary) & instance_of(?v0, open)",
+  "composed": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, door) & instance_of(?v0, open)"
+ },
+ {
+  "sentence": "No one can fly.",
+  "taught": "tell: not capable_of(person, fly)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "The fish always swims.",
+  "taught": "tell: done_by(?v0, ?v1) & given instance_of(?v1, fish) & has_property(?v0, always) & instance_of(?v0, swim)",
+  "composed": "tell: given instance_of(?v0, fish)"
+ },
+ {
+  "sentence": "To be rapid is to be fast.",
+  "taught": "tell: has_property(?v0, fast) & if has_property(?v0, rapid)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "What is snow?",
+  "taught": "ask: isa(snow, ?v0) ? ?v0",
+  "composed": "ask: has_degree(?v0, ?v1) & instance_of(?v1, snow) ? ?v0"
+ },
+ {
+  "sentence": "What is 100 / 4?",
+  "taught": "ask: equals(100/4, ?v0) ? ?v0",
+  "composed": "ask: equals(100 / 4, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Rex said that the cat ran.",
+  "taught": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)",
+  "composed": "tell: done_by(?v0, rex) & done_to(?v0, ?v1) & instance_of(?v0, say) & precedes(?v0, ?now) & unasserted done_by(?v1, ?v2) & unasserted during(?v1, ?v0) & unasserted given instance_of(?v2, cat) & unasserted instance_of(?v1, run) & unasserted precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Tom sat down.",
+  "taught": "tell: done_by(?v0, tom) & instance_of(?v0, down) & precedes(?v0, ?now)",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "A saw is a tool.",
+  "taught": "tell: isa(saw, tool)",
+  "composed": "tell: isa(rose, tool)"
+ },
+ {
+  "sentence": "Neither the dog nor the cat can fly.",
+  "taught": "tell: given instance_of(?v0, cat) & given instance_of(?v1, dog) & not capable_of(?v0, fly) & not capable_of(?v1, fly)",
+  "composed": "tell: capable_of(?v0, fly) & given instance_of(?v0, cat) & given instance_of(?v1, dog)"
+ }
+]

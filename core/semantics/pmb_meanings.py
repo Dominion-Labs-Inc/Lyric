@@ -41,8 +41,11 @@ _SENSE = re.compile(r"^(?P<lemma>.+)\.(?P<part>[nvars])\.(?P<number>\d+)$")
 #: A pointer to another concept line, or to another box.
 _POINTER = re.compile(r"^[+-]\d+$")
 _BOX_POINTER = re.compile(r"^[<>]\d+$")
-#: The colour codes some comments are written with.
+#: The colour codes some comments are written with; a word in red is one the line marks as of its grammar.
 _ANSI = re.compile(r"\x1b\[[0-9;]*m")
+_MARKED = re.compile(r"\x1b\[31m(.*?)\x1b\[0m")
+#: Where a line's words are in the text, at the end of its comment: `[8-11]`.
+_SPAN = re.compile(r"\[(\d+)-(\d+)\]\s*$")
 #: The words that make a thing one both know, as "the" does.
 KNOWN = frozenset({"the", "this", "that", "these", "those", "my", "your", "his", "her", "its", "our", "their"})
 
@@ -76,11 +79,14 @@ TOLD_TOGETHER = frozenset({"CONTRAST", "CONJUNCTION", "EXPLANATION", "CONSEQUENC
 @dataclass(frozen=True)
 class Concept:
     """One concept line: its sense, its roles (role, what fills it: a pointer, a constant), the words it stands for,
-    and the box it is in."""
+    the box it is in, where its words are in the text (characters, end excluded; None for a line no word says, as a
+    tense's time), and those of its words the line marks as words of its grammar ("the", "in", "?")."""
     sense: str
     roles: Tuple[Tuple[str, str], ...]
     words: str
     box: int
+    span: Optional[Tuple[int, int]] = None
+    marked: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -104,22 +110,26 @@ def read_document(folder: Path, language: str = "en") -> Optional[Document]:
         if line.startswith("%%%") or not line.strip():
             continue
         body, _, comment = line.partition("%")
+        marked = tuple(m.strip() for m in _MARKED.findall(comment) if m.strip())
         comment = _ANSI.sub("", comment)
-        words = re.sub(r"\[\d+-\d+\]", "", comment).strip()
-        parts = body.split()
+        at = _SPAN.search(comment)
+        span = (int(at.group(1)), int(at.group(2))) if at else None
+        words = _SPAN.sub("", comment).strip()
+        # A name of several words is one value: `Name "Walt Disney"`.
+        parts = re.findall(r'"[^"]*"|\S+', body)
         if not parts:
             continue
         if _SENSE.match(parts[0]):
             rest = parts[1:]
             roles = tuple((rest[k], rest[k + 1]) for k in range(0, len(rest) - 1, 2))
-            concepts.append(Concept(parts[0], roles, words, len(boxes) - 1))
+            concepts.append(Concept(parts[0], roles, words, len(boxes) - 1, span, marked))
         elif len(parts) >= 2 and _BOX_POINTER.match(parts[1]):
             # A box line opens a new box, related to the box its pointer counts back (or on) from the new one.
             opened = len(boxes)
             boxes.append((parts[0], opened - int(parts[1][1:]) if parts[1][0] == "<" else opened + int(parts[1][1:])))
         else:
             # A line neither a concept nor a box: a name or constant the notation spells otherwise. Kept as a gap.
-            concepts.append(Concept("?" + parts[0], tuple(), words, len(boxes) - 1))
+            concepts.append(Concept("?" + parts[0], tuple(), words, len(boxes) - 1, span, marked))
     parent = folder.parent
     return Document(f"{parent.name}/{folder.name}", text, tuple(concepts), tuple(boxes))
 
@@ -139,9 +149,12 @@ def split_ids(path: Path) -> List[str]:
 
 
 class Said(NamedTuple):
-    """What a document means in Lyric's meaning language; None, with the gaps that keep it from being said."""
+    """What a document means in Lyric's meaning language; None, with the gaps that keep it from being said. `anchors`
+    names the lines that say each of the meaning's terms (`meaning_of`): (the line's place among the concepts, "head"
+    where its own words say it, "marked" where the words it marks do: "How many" for a count asked)."""
     meaning: Optional[Meaning]
     gaps: Tuple[str, ...]
+    anchors: Mapping[str, Tuple[Tuple[int, str], ...]] = {}
 
 
 def _date(said: Mapping[str, str]) -> Optional[str]:
@@ -234,6 +247,13 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
     for k, c in enumerate(concepts):
         if c.sense == "time.n.08":
             said = dict(c.roles)
+            if "?" in said.values() and not c.marked:
+                # "WHEN was Walt Disney born?": a time asked by the question word alone, as the lessons say it, the
+                # happening during the time asked ("When did the dog bark?"). "What year", "what time" ask a time
+                # of a kind, not said yet.
+                times[k] = "asked"
+                asked.add(term[k])
+                continue
             for role, value in c.roles:
                 if role == "EQU" and value == "now":
                     times[k] = "present"
@@ -266,11 +286,19 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
             break
     negated = {k for k, c in enumerate(concepts) if negations(c.box) == 1}
 
+    #: The happenings a negated clause says did not happen (`has_property false`, below).
+    denied_happenings: Set[int] = set()
+
     def add(relation: str, subject: str, obj: str, k: int, given: bool = False) -> None:
-        # WHAT A NEGATED CLAUSE PREDICATES IS NOT SO, what its things are and whose they are stays so: "I have
-        # never seen a giraffe" is no seeing, and a giraffe is a giraffe; "Tom doesn't know Mary's phone number" is
-        # no knowing, and the number is still Mary's. A happening's or a quality's facts are what it predicates.
-        holds = k not in negated or part(concepts[k]) == "n"
+        # WHAT A NEGATED CLAUSE PREDICATES IS NOT SO, what its things are and whose they are stays so: "Tom doesn't
+        # know Mary's phone number" is no knowing, and the number is still Mary's. A HAPPENING THAT DID NOT HAPPEN
+        # is said as the lessons say it, the happening with its facts and that it is not so ("The dog did not
+        # bark.": the barking by the dog, before now, `has_property(?v0, false)`); a quality, a state and having are
+        # denied facts ("Tom does not have a car.": `not owns(tom, car)`).
+        happening = part(concepts[k]) == "v" and _SENSE.match(concepts[k].sense).group("lemma") not in ("be", "have")
+        if k in negated and happening:
+            denied_happenings.add(k)
+        holds = k not in negated or part(concepts[k]) == "n" or happening
         try:
             fact = MeaningFact(relation, subject, obj, holds, given=given)
         except ValueError:
@@ -278,6 +306,11 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
             return
         if fact not in facts:
             facts.append(fact)
+
+    def own_words(c: Concept) -> List[str]:
+        """The line's words but those it marks as of its grammar ("singing", not "in")."""
+        marked = set(c.marked)
+        return [w for w in c.words.split() if w not in marked]
 
     def tense(k: int, subject: str) -> None:
         for role, value in concepts[k].roles:
@@ -288,10 +321,12 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                     add("precedes", subject, "?now", k)
                 elif when == "future":
                     add("follows", subject, "?now", k)
-                elif when == "present" and concepts[k].words.split()[-1:] and \
-                        concepts[k].words.split()[-1].rstrip(".,!?").endswith("ing"):
+                elif when == "present" and own_words(concepts[k])[-1:] and \
+                        own_words(concepts[k])[-1].rstrip(".,!?").endswith("ing"):
                     # "The dog is running.": during now; "The dog barks." says no time (the lessons).
                     add("during", subject, "?now", k)
+                elif when == "asked":
+                    add("during", subject, term_of(t), k)
                 if t is not None and t in dates:
                     add("during", subject, dates[t], k)
 
@@ -308,7 +343,18 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
             if not name:
                 gaps.append(f"sense:{c.sense}")
                 continue
-            first = c.words.split()[0].lower() if c.words else ""
+            if here in asked and not c.marked:
+                # THE QUESTION WORD ALONE ASKS ("Where", "Who", "What", "How"): its line's kind (`location`,
+                # `person`, `entity`, `manner`) is what the word asks for, not a kind said; the lessons hold none
+                # ("Where is the book?": `located_in(?t0, ?x)`). "What country", "which car" say one.
+                continue
+            # A THING'S WORDS BEGIN AT THE QUALITIES BEFORE IT: "the closed door" marks "the" on the line of
+            # "closed", not of "door".
+            opening = k
+            while opening > 0 and part(concepts[opening - 1]) in ("a", "s") and any(
+                    _POINTER.match(v) and target(opening - 1, v) == k for _, v in concepts[opening - 1].roles):
+                opening -= 1
+            first = concepts[opening].words.split()[0].lower() if concepts[opening].words else ""
             add("instance_of", here, name, k, given=first in KNOWN and here not in asked)
         elif p == "v":
             lemma = _SENSE.match(c.sense).group("lemma")
@@ -325,6 +371,9 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                 continue
 
     # ── the roles ──
+    #: The terms of lines that only say what a thing is ("a gentleman" in "Tom is a gentleman."): the kind is said
+    #: of the thing, and the line holds nothing of its own (the lessons: `isa(tom, boy)`).
+    predicated: Set[str] = set()
     for k, c in enumerate(concepts):
         if c.sense.startswith("?") or c.sense == "time.n.08":
             continue
@@ -337,9 +386,14 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
         for role, value in c.roles:
             if role in ("Name", "ANA", "Time") or role == "EQU":
                 continue
+            if role == "Value" and p in ("a", "s") and value in ("+", "?"):
+                # A quality's own value: held plainly ("This tree is tall."), or its degree asked ("How tall is
+                # it?"), which its holder's line says below.
+                continue
             other = target(k, value) if _POINTER.match(value) else None
             if role == "Quantity":
-                count = _number(value)
+                # A pointer is no number: "two books" is `book.n.01 Quantity -1`, the line above saying 2.
+                count = _number(value) if not _POINTER.match(value) else None
                 if value == "?":
                     asked_count = f"?q{k}"
                     asked.add(asked_count)
@@ -365,11 +419,23 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                         kind = concepts[other]
                         kind_name = name_of(kind.sense) if part(kind) == "n" and kind.sense not in BARE else None
                         if subject is not None and kind_name and term_of(other).startswith("?") \
-                                and not concepts[other].words.split()[:1] == ["the"]:
-                            who = term_of(subject)
-                            add("isa" if not who.startswith("?") else "instance_of", who, kind_name, k)
+                                and not concepts[other].words.split()[:1] == ["the"] and term_of(other) not in asked:
+                            if k in negated:
+                                # "That black bird is not a blackbird.": what it is said not to be is denied of it.
+                                who = term_of(subject)
+                                add("isa" if not who.startswith("?") else "instance_of", who, kind_name, k)
+                                predicated.add(term_of(other))
+                            else:
+                                # "Bergen is a Norwegian town.": the town is Bergen, and what is said of the town is
+                                # said of Bergen (`isa(bergen, town)`, `part_of(bergen, norway)`), as the lessons say
+                                # "Tom is a boy." (`isa(tom, boy)`).
+                                same[root(other)] = root(subject)
                         elif subject is not None:
-                            same[root(other)] = root(subject)
+                            # "The capital of France is Paris.", "What is his surname?": the one is the other, as
+                            # the lessons say it, what is asked second ("What is the sum of two and three?":
+                            # `equals(?v0, ?v1)`); merged, a name said of a thing was lost.
+                            one, two = term_of(subject), term_of(other)
+                            add("equals", *((two, one) if one in asked else (one, two)), k)
                     elif role in ("Location", "Source") and "Theme" in roles and _POINTER.match(roles["Theme"]):
                         subject = target(k, roles["Theme"])
                         if subject is not None:
@@ -417,7 +483,13 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                     when = next((times.get(target(k, v)) for r, v in c.roles if r == "Time" and _POINTER.match(v)),
                                 None)
                     degree = next((target(k, v) for r, v in c.roles if r == "Degree" and _POINTER.match(v)), None)
-                    if degree is not None:
+                    if ("Value", "?") in c.roles:
+                        # "How big is the dog?": a degree of bigness, the dog's, asked (the lessons).
+                        held = f"?d{k}"
+                        asked.add(held)
+                        add("has_degree", there, held, k)
+                        add("instance_of", held, quality, k)
+                    elif degree is not None:
                         how = name_of(concepts[degree].sense)
                         if not how or how in ("more", "most", "less", "least"):
                             gaps.append("quality:comparison")
@@ -453,9 +525,11 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                     if quality:
                         add("has_property", here, quality, k)
                 elif role == "InstanceOf":
+                    # "this kind of apple": a kind of apple, the apple a kind said, no apple of its own.
                     kind = name_of(concepts[other].sense)
                     if kind:
                         add("isa", here, kind, k)
+                        predicated.add(term_of(other))
                 elif role == "Creator":
                     add("creates", there, here, k)
                 elif role in THING_ROLES:
@@ -464,20 +538,53 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                     gaps.append(f"thing:{role}")
             else:
                 gaps.append(f"{p}:{role}")
+    for k in sorted(denied_happenings):
+        add("has_property", term_of(k), "false", k)
     if gaps:
         return Said(None, tuple(sorted(set(gaps))))
-    # Terms renamed once coreference is known: a pronoun is what it stands for.
-    names = {term[k]: term_of(k) for k in range(n) if k in term and term[k] != term_of(k)}
-    facts = [MeaningFact(f.relation, names.get(f.subject, f.subject), names.get(f.obj, f.obj), f.positive,
-                         f.condition, f.alternative, f.unasserted, f.given and names.get(f.subject, f.subject)
-                         .startswith("?")) for f in facts]
-    facts = list(dict.fromkeys(facts))
+    held = Counter(t for f in facts for t in f.terms())
+    facts = [f for f in facts if not (f.relation == "instance_of" and f.subject in predicated
+                                      and held[f.subject] == 1)]
+    # Terms renamed once coreference is known: a pronoun is what it stands for, and lines standing for one thing
+    # are that thing's name where one of them names it ("He" told of Tom is `tom`).
+    merged: Dict[int, str] = {}
+    for k in sorted(term):
+        r = root(k)
+        if r not in merged or (merged[r].startswith("?v") and not term[k].startswith("?v")):
+            merged[r] = term[k] if not term[k].startswith("?v") or r not in merged else merged[r]
+        merged.setdefault(r, term[r])
+
+    def final(k: int) -> str:
+        return merged.get(root(k), term_of(k))
+    names = {term[k]: final(k) for k in range(n) if k in term and term[k] != final(k)}
+    renamed = []
+    for f in facts:
+        subject, obj = names.get(f.subject, f.subject), names.get(f.obj, f.obj)
+        relation = "isa" if f.relation == "instance_of" and not subject.startswith("?") else f.relation
+        renamed.append(MeaningFact(relation, subject, obj, f.positive, f.condition, f.alternative, f.unasserted,
+                                   f.given and subject.startswith("?")))
+    facts = list(dict.fromkeys(renamed))
     act = "ask" if document.text.rstrip().endswith("?") else "tell"
     asked_now = tuple(sorted({names.get(a, a) for a in asked if any(names.get(a, a) in f.terms() for f in facts)}))
     if not facts:
         return Said(None, ("nothing said",))
+    # WHICH LINES SAY EACH TERM, so a meaning is aligned to its sentence's words by the data, never by names alone:
+    # the term a line stands for; a quality or kind a line names where a fact holds it as a term ("big" in
+    # `has_property(?v1, big)`); a count asked by the words its noun's line marks ("How many"); a degree or a past
+    # state by its quality's line.
+    used = {t for f in facts for t in f.terms()}
+    anchors: Dict[str, Set[Tuple[int, str]]] = {}
+    for k, c in enumerate(concepts):
+        if c.sense.startswith("?") or c.sense == "time.n.08":
+            continue
+        said = [(final(k), "head"), (name_of(c.sense) or "", "head"), (f"?q{k}", "marked"), (f"?d{k}", "head"),
+                (f"?s{k}", "head")]
+        for t, how in said:
+            if t and t in used:
+                anchors.setdefault(t, set()).add((k, how))
     try:
-        return Said(Meaning(act, tuple(facts), asked_now if act == "ask" else ()), ())
+        return Said(Meaning(act, tuple(facts), asked_now if act == "ask" else ()), (),
+                    {t: tuple(sorted(at)) for t, at in anchors.items()})
     except ValueError as error:
         return Said(None, (f"meaning:{str(error)[:60]}",))
 

@@ -1,0 +1,134 @@
+[
+ {
+  "sentence": "Whales are mammals.",
+  "composed": "tell: isa(whale, mammal)"
+ },
+ {
+  "sentence": "They live in the ocean.",
+  "composed": "tell: instance_of(?x1, live) & given instance_of(?x4, ocean) & done_by(?x1, ?previous) & done_to(?x1, ?previous) & located_in(?x1, ?x4)"
+ },
+ {
+  "sentence": "A whale breathes air through a blowhole.",
+  "composed": "tell: instance_of(?x2, breathe) & done_by(?x2, whale) & done_to(?x2, air) & word_through(?x2, blowhole)"
+ },
+ {
+  "sentence": "Whales feed their young with milk.",
+  "composed": "tell: instance_of(?x1, feed) & done_by(?x1, whale) & done_with(?x1, milk)"
+ },
+ {
+  "sentence": "The blue whale is the largest animal on Earth.",
+  "composed": "tell: instance_of(?x5, large) & not isa(blue whale, animal) & word_on(animal, earth)"
+ },
+ {
+  "sentence": "Photosynthesis is the process by which plants make food from light.",
+  "composed": "tell: given instance_of(?x3, process) & instance_of(?x6, plant) & instance_of(?x7, make) & given instance_of(?x10, light) & owns(photosynthesis, ?x6) & done_to(?x7, ?x3) & done_to(?x7, food) & received_by(?x7, ?x10) & word_from(food, ?x10)"
+ },
+ {
+  "sentence": "Plants take in carbon dioxide and water.",
+  "composed": "tell: instance_of(?x1, take) & done_by(?x1, plant) & located_in(?x1, carbon dioxide)"
+ },
+ {
+  "sentence": "They release oxygen.",
+  "composed": "tell: instance_of(?x2, release oxygen) & owned_by(?x2, ?previous)"
+ },
+ {
+  "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+  "composed": "tell: given instance_of(?x4, pigment) & instance_of(?x6, absorb) & given instance_of(?x8, light) & has_property(?x4, green) & done_by(?x6, ?x4) & done_to(?x6, ?x8)"
+ },
+ {
+  "sentence": "Python is a high-level, general-purpose programming language.",
+  "composed": "tell: instance_of(?x3, high) & has_degree(python, ?x3) & isa(python, level) & greatest_of(?x3, level)"
+ },
+ {
+  "sentence": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "composed": "tell: instance_of(?x2, design philosophy) & instance_of(?x3, emphasize) & given instance_of(?x8, use) & owned_by(?x2, ?previous) & done_by(?x3, ?x2) & done_to(?x3, code readability) & done_by(?x3, ?x8) & done_to(?x3, indentation) & word_of(?x8, indentation)"
+ },
+ {
+  "sentence": "Python is dynamically typed and garbage-collected.",
+  "composed": "tell: instance_of(?x7, collect)"
+ },
+ {
+  "sentence": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "composed": "tell: instance_of(?x1, support) & instance_of(?x6, include) & instance_of(?x7, structure) & done_to(?x1, programming paradigm) & done_by(?x6, programming paradigm) & done_to(?x6, ?x7) & done_to(?x7, object)"
+ },
+ {
+  "sentence": "Guido van Rossum began working on Python in the late 1980s.",
+  "composed": "tell: instance_of(?x2, guido van rossum) & instance_of(?x4, work) & given instance_of(?x10, 1980s) & word_on(?x4, python) & moves_to(?x4, ?x10) & word_in(python, ?x10) & has_property(?x10, late) & done_by(?x4, ?listener)"
+ },
+ {
+  "sentence": "The function sorted returns a new list.",
+  "composed": "tell: given instance_of(?x1, function) & instance_of(?x2, sort) & instance_of(?x3, return) & done_by(?x2, ?x1) & done_by(?x3, ?x1) & done_to(?x2, ?x3) & done_to(?x3, list) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "It does not change the original list.",
+  "composed": "tell: instance_of(?x3, change) & given instance_of(?x6, list) & done_to(?x3, ?x6) & has_property(?x6, original) & has_property(?x3, false)"
+ },
+ {
+  "sentence": "The argument key is a function that is applied to each element.",
+  "composed": "tell: instance_of(?x8, apply) & given instance_of(?x11, element) & isa(argument key, function) & moves_to(?x8, ?x11) & during(?x8, ?now)"
+ },
+ {
+  "sentence": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "composed": "tell: given instance_of(?x13, divisor) & word_than(natural number, 1) & has_property(?previous, false)"
+ },
+ {
+  "sentence": "Seven is a prime number.",
+  "composed": "tell: isa(7, prime number)"
+ },
+ {
+  "sentence": "Every prime number greater than 2 is odd.",
+  "composed": "tell: has_property(prime number, odd)"
+ },
+ {
+  "sentence": "If the valve is closed, the tank is full.",
+  "composed": "(no meaning: a condition alone says nothing; a meaning states what holds when it does)"
+ },
+ {
+  "sentence": "The valve is closed.",
+  "composed": "tell: given instance_of(?x1, valve) & has_property(?x1, closed)"
+ },
+ {
+  "sentence": "The Eiffel Tower was built in 1889.",
+  "composed": "tell: instance_of(?x4, build) & done_by(?x4, eiffel tower) & precedes(?x4, ?now)"
+ },
+ {
+  "sentence": "It is in Paris.",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Paris is the capital of France.",
+  "composed": "tell: given instance_of(?x3, capital) & word_of(?x3, france)"
+ },
+ {
+  "sentence": "We propose a new method for detecting anomalies in network traffic.",
+  "composed": "tell: owns(?speaker, method) & isa(propose, detecting anomaly) & antonym_of(new, detecting anomaly) & word_for(method, detecting anomaly) & word_in(detecting anomaly, network traffic)"
+ },
+ {
+  "sentence": "The method learns a model of normal traffic from unlabeled data.",
+  "composed": "tell: given instance_of(?x1, method) & instance_of(?x2, learn) & done_by(?x2, ?x1) & done_to(?x2, model) & done_to(?x2, traffic) & done_with(?x2, data) & antonym_of(normal, data) & word_from(traffic, data)"
+ },
+ {
+  "sentence": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "composed": "tell: instance_of(?x7, detect) & word_on(experiment, dataset) & located_in(?x7, experiment) & isa(3, dataset) & done_to(?x7, dataset) & done_to(?x7, attack) & done_with(?x7, method) & word_than(attack, method)"
+ },
+ {
+  "sentence": "The server logged a failed login from 10.0.0.5.",
+  "composed": "tell: given instance_of(?x1, server) & instance_of(?x2, log) & instance_of(?x4, fail) & done_by(?x2, ?x1) & done_to(?x2, login) & done_with(?x2, 10.0.0.5) & done_to(?x4, login) & word_from(login, 10.0.0.5) & precedes(?x2, ?now) & precedes(?x4, ?now)"
+ },
+ {
+  "sentence": "The account was locked after five failed attempts.",
+  "composed": "tell: given instance_of(?x1, account) & instance_of(?x3, lock) & instance_of(?x6, fail) & instance_of(?x7, attempt) & done_by(?x3, ?x1) & done_by(?x3, ?x7) & has_count(?x7, 5) & precedes(?x3, ?now) & precedes(?x6, ?now)"
+ },
+ {
+  "sentence": "The attacker used a list of common passwords.",
+  "composed": "tell: given instance_of(?x1, attacker) & requires(?x1, list)"
+ },
+ {
+  "sentence": "The company hired three engineers in May.",
+  "composed": "tell: given instance_of(?x1, company) & instance_of(?x2, hire) & instance_of(?x4, engineer) & done_by(?x2, ?x1) & has_count(?x2, 3) & done_to(?x2, ?x4) & has_count(?x4, 3) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "Two of them work in Berlin.",
+  "composed": "tell: instance_of(?x3, work) & word_of(2, ?previous) & done_by(?x3, 2) & during(?x3, berlin)"
+ }
+]

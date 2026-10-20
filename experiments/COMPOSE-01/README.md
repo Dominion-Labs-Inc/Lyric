@@ -8,7 +8,8 @@ say.
 matches (`docs/research/READING_PROSE_AT_SCALE.md`). The plan's step 3 (handoff): compose a sentence's meaning from
 its phrases, so a sentence never taught is read as the sentences that stand as it does were.
 
-**How** (`core/semantics/composition.py`): each lesson sentence, read and laid out with its words named
+**How** (`core/semantics/composition.py`; as built 2026-10-17, rebuilt 2026-10-20 to compose over the structure,
+`experiments/PMB-01`): each lesson sentence, read and laid out with its words named
 (`composition.lay`; a run joined as compound or flat is one name), is aligned to its taught meaning
 (`composition.align`), and five things are counted in the situations they stood in: what each word stands for,
 which facts two words' terms hold, which facts a word holds with a term of the situation's or the grammar's own, the
@@ -44,6 +45,9 @@ held out not composed as taught (`_missed.json`).
 | Run | Where | Lessons held out: as taught | names aside | no meaning | Prose: a meaning composed |
 |---|---|---|---|---|---|
 | `20261017T181328Z` | a cloud session (the lessons read through the gateway), code 71e6151 | 50.1% | 52.4% | 8.7% | 29 of 33 |
+| `20261020T164055Z` | the Mac, files only; the composer rebuilt to compose over the structure (lab notebook 2026-10-20 (27)), learned from the lessons with PropBank's arguments behind them | 50.6% | 52.6% | 8.9% | 31 of 33 |
+| `20261020T185728Z` | the Mac, files only; pronouns named as the lessons name them (lab notebook 2026-10-20 (28)) | 52.5% | 54.4% | 9.1% | 31 of 33 |
+| `20261020T210127Z` | the Mac, files only; a subject stands for nothing only under the verbs it was learned to (lab notebook 2026-10-20 (30)) | 52.1% | 54.0% | 9.1% | 31 of 33 |
 
 Of the prose, about six are composed as a reader means them ("Whales are mammals.", "They live in the ocean.", "A
 whale breathes air through a blowhole.", "The valve is closed.", "Seven is a prime number.", "The company hired

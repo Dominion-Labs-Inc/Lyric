@@ -5,9 +5,50 @@ For an engineer, and their Claude Code session, picking this work up. Read this 
 2026-10-20 (26) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-20)
+## 0. Where it stands (2026-10-20, late)
 
-**NEXT: A COMPOSER THAT COMPOSES, LEARNED FROM THE PARALLEL MEANING BANK (lab notebook 2026-10-20 (26)).** Lyric does
+**DONE 2026-10-20 (lab notebook (27), (28), `experiments/PMB-01`): THE COMPOSER COMPOSES.** `core/semantics/composition.py`
+rebuilt: each word's standing (a thing, a known thing, a thing of no kind, a name, a situation's term, what is asked,
+or what another word stands for) and the facts of each two words the structure joins within two steps (98% of the
+PMB's facts between two words), learned from sentences aligned word by word to their meanings: the PMB by where its
+lines' words are (`pmb_meanings.Said.anchors`, `composition.words_by_anchors`), the lessons by their names. What
+denies is learned, never listed; a fact the others would contradict is not held. On the PMB's 884 dev sentences
+said whole, offline, senses aside (each kind named as the composer names its word; strict in brackets): the composer
+before composed 16.5% (9.3%) whole learned from the lessons and the PMB's gold, this one 42.1% (19.5%), facts F1
+79.3%; with the silver sentences 46.9% (20.8%), F1 82.9% (the one before: 15.6%, more data did nothing). On the lessons held out (COMPOSE-01
+`20261020T164055Z`) 50.6% as taught, against 50.1%. `pmb_meanings` fixed on the way (names of two words, counts
+read as pointers, "is the" as `equals`, "When ...?", Value `+`/`?`, the predicate's thing the subject's).
+
+**NEXT, in this order:**
+1. **UNDERSTANDS-PROSE-01 on main** (the owner's run), against `20261020T193148Z` (28/33, 14/37, 1 wrong). Since
+   then (lab notebook (29), (30)): the PMB's gold corrected on main (295, clean); a question's participants asked of
+   ("How many failed attempts were there?" "5."); "the X" the X talked of most; a known thing as the kind told of here;
+   the reasoner no longer crashing on worded links; "it" given its doer; a question also asked as the composer reads it
+   of what was told ("Does the method learn from unlabeled data?" "Yes."). Traced on main read only.
+   ```
+   cd ~/"Dominion Labs/Lyric"
+   POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-PROSE-01/experiment.py
+   ```
+   Still not answered and why: the passive question inverted ("Was the account locked?": both readings take the
+   account as doing it) and "sorted" read as a verb: the structure reader's question word order (item 4).
+2. **The silver sentences** (`--pmb silver`, 52,267): worth 4.8 points senses aside (1.3 strict), but memory's composer view lays
+   every taught sentence out the first time it is asked (about 200 a second offline): with silver, several minutes
+   more at the first composition after warm. Decide with the warm-up work below (keep what the work-out produces).
+3. **Senses for a composed meaning**: the composer names each word by its word; 48% of the PMB's dev kinds name
+   another sense ("took" `utilize take`). Strict whole is less than half of senses aside: the largest gap now. The
+   listener chooses senses over the structure for frame readings (PACKED-01); a composed reading takes the word's name.
+4. **Question word order**: the structure reader learned from EWT, which holds few questions, reads "Are whales
+   mammals?" as one name and hangs "was" from "When". Learned from EWT, GUM and ATIS (cloned to `test_data/syntax`
+   2026-10-20, measurement only; ATIS is CC BY-SA 4.0; GUM, LinES and ParTUT are CC BY-NC-SA, non-commercial, so
+   whether they may be taught is the owner's call): "Do whales breathe air?" parses, the others still not; the PMB
+   dev +1.0 learned from the PMB.
+5. **Pronouns**: the PMB leaves an unresolved "it", "he" a thing of no kind; the conversation ties `?previous` only.
+   A composed meaning's unnamed things are to be tied to what was spoken of (the list below, 4).
+6. **What the conversion does not say yet** (said whole: gold dev 884 of 1,194): "every" (`box:universal` 429
+   documents of gold), a proposition another clause holds (223), possibility (198), comparisons (181), amounts (233),
+   adverbs' roles (~560), `Bearer`, `Title`, dates past a year or a day.
+
+**Was next (2026-10-20 (26)), done above: A COMPOSER THAT COMPOSES, LEARNED FROM THE PARALLEL MEANING BANK.** Lyric does
 not understand English as it is written, and the measurements say why. The composer (`core/semantics/composition.py`)
 reads what no lesson frame reads; it learned from the 3,052 lesson sentences and decides each word's standing and each
 pair of words' fact apart, from the situations met nearby, never one consistent meaning for the sentence. Measured on

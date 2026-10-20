@@ -31,7 +31,7 @@ So this starts the substrate and teaches it while it is running:
     nothing else.
 
   --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | listening | treebank | propbank | composition
-             | word-groups | wikidata | closed-classes | lesson
+             | pmb | word-groups | wikidata | closed-classes | lesson
              wordnet-examples: WordNet's examples of English and none of its facts, for a store WordNet was taught
              to before they were said: its nouns' plurals ("Hawks are raptors."), its verbs' forms ("Tom strolled.")
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
@@ -48,6 +48,9 @@ So this starts the substrate and teaches it while it is running:
              sentence kept whole, its standing a belief; --limit N takes the first N
              composition: the lessons' sentences each with its taught meaning (data/lessons), kept whole for the
              composer to learn what a sentence means from how its words go together; --limit N takes the first N
+             pmb: the Parallel Meaning Bank's English training sentences (test_data/semantics/pmb/pmb-5.1.0), each
+             with its meaning and where its terms are said, kept whole for the composer as the lessons' are;
+             --pmb gold (default, checked by hand) or silver; --limit N takes the first N
              word-groups: which words keep the same company, counted from WikiText-103's raw text into 256 groups
              and 48 (data/word_groups, written by experiments/GROUPS-01): each group kept whole, its standing a
              belief, and the structure reader weighs each word by its groups
@@ -93,7 +96,7 @@ DUMP = ROOT / "data" / "bulk" / "conceptnet-assertions-5.7.0.csv.gz"
 def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
                                                 CompositionSource, ConceptNetSource, ListeningSource,
-                                                PropBankSource, TreebankSource, WikidataSource,
+                                                PMBSource, PropBankSource, TreebankSource, WikidataSource,
                                                 WordNetExamplesSource,
                                                 WordGroupsSource, WordNetSource, WordNetUsageSource)
     if args.source == "conceptnet":
@@ -117,6 +120,8 @@ def build_source(args):
         return PropBankSource()
     if args.source == "composition":
         return CompositionSource()
+    if args.source == "pmb":
+        return PMBSource.of(args.pmb)
     if args.source == "word-groups":
         return WordGroupsSource()
     if args.source == "closed-classes":
@@ -242,8 +247,8 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "listening",
-                                 "treebank", "propbank", "composition", "word-groups", "wikidata", "closed-classes",
-                                 "lesson"))
+                                 "treebank", "propbank", "composition", "pmb", "word-groups", "wikidata",
+                                 "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)
@@ -254,6 +259,8 @@ async def main() -> int:
     parser.add_argument("--relations", default="grammar")
     parser.add_argument("--treebank", default=None, choices=("ewt", "gum", "lines", "partut", "atis", "eslspok"),
                         help="treebank: which of UD's English treebanks (default ewt)")
+    parser.add_argument("--pmb", default="gold", choices=("gold", "silver"),
+                        help="pmb: which part of the PMB's training sentences (default gold)")
     parser.add_argument("--lesson", action="append", default=None,
                         help="a lesson file; give it several times to teach several, in order, in one run")
     parser.add_argument("--definitions", action="store_true",

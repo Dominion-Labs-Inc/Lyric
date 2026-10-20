@@ -16853,3 +16853,209 @@ meaning, so "When was the Eiffel Tower built?" asks a place and "Do whales breat
 Right with the PMB that were not: "How many engineers did the company hire?", "Was the account locked?" (the lock,
 not the embrace), "Python is a programming language.". **Next:** a composer that composes each word's learned meaning
 piece over the structure, learned from the PMB's word-aligned meanings (handoff §0).
+
+## 2026-10-20 (27) — A composer that composes: each word's standing and each near pair's facts, learned from sentences aligned word by word to their meanings; the Parallel Meaning Bank taught as the lessons are
+
+**What was rebuilt** (`core/semantics/composition.py`; prototyped offline first, the PMB's sentences laid out once
+by the structure reader learned from EWT's training file, names from WordNet, as COMPOSE-01):
+- **Aligned by the data.** Each PMB line holds the characters of its words and marks its grammar's words in red;
+  `pmb_meanings.read_document` keeps both (`Concept.span`, `.marked`) and `meaning_of` says which lines say each term
+  (`Said.anchors`). `composition.words_by_anchors` finds each line's word in Lyric's own reading (the word the others
+  of the line hang from). A lesson is still aligned by its names (`words_by_names`).
+- **Facts only between near words.** Of the PMB's gold facts joining two words, 62% join words one step apart in
+  Lyric's structure, 98% at most two (19,294 facts of 6,588 sentences): no farther pair is weighed (`NEAR`). Each
+  pair decided as the upper word's piece (its name, the relations and markers down to the other), then the lower's
+  ("when", "who"), then a word between ("has", "is"), then classes; each with both words' standings.
+- **Standings**: nothing, a thing, a known thing, a thing of no kind ("it", "someone", the "and" of two things), a
+  name, a situation's term, what is asked with a kind or without, or what another word stands for. A word standing
+  for another's thing ("his" in "Tom wiped away his tears.", three steps from "Tom") is decided over every word with
+  a term, nearest first (`_same_situations`).
+- **What denies, learned**: a word under words whose facts are not so, where no word found so already stands beside
+  it, at least 60% of 3 or more times, the surest first. Learned from the PMB's gold: "not", "n't", "never", "no",
+  "nobody", "nothing", "none", "nor", "any", "anymore", "either", "yet". The first version, counting every word under
+  a denied word alike, took "does" ("doesn't") and so denied "Does he speak English?". `NEGATIONS` is deleted.
+- **One meaning**: a fact the facts held would contradict (a second count, a second time) is not held, and the rest
+  stands; before, the whole meaning failed.
+- Kept where nothing else decides: a preposition's link only the most general situation decides is held as its word
+  (`worded`; measured −2 sentences of 884, kept as the owner's convention); PropBank's arguments where the sentences
+  decide nothing (measured three ways, never helping: −1.2 to −0.1 points; its roles' conventions are not the PMB's;
+  kept at the last place, for the owner to decide). `RELATION_SENSES`, `TRUST` and the all-pairs situations are
+  gone.
+
+**The conversion fixed on the way** (`pmb_meanings`, each found reading the composer's misses): a multi-word name
+was split at its space (`Name "Walt Disney"` read as `walt`); `Quantity -1` (a pointer) read as the count −1, so "two
+books" taught `has_count(books, -1)`; the progressive read off a line's last word ("singing in"); "the closed door"
+not known ("the" is on the line of "closed"); "Tom is a gentleman." held a gentleman besides `isa(tom, gentleman)`;
+"The capital of France is Paris." merged Paris into the capital and lost it (now `equals`, as the lessons say "What
+is the sum of two and three?"); "Bergen is a Norwegian town." held a town apart from Bergen (now the town is Bergen,
+and what is said of it is said of Bergen); a question word alone given its line's stand-in kind (`location` for
+"Where"; the lessons hold none); "When ...?" a gap (now `during` a time asked, as the lessons); a quality's Value `+`
+a gap ("This tree is tall."), Value `?` now its degree asked ("How tall is it?"). Said whole: gold dev 842 → 884,
+train 6,588 → 6,822. `tests/test_pmb_meanings.py` holds each.
+
+**Tried and left** (measured on the PMB's dev split): a situation deciding only once met several times (2 or more:
+−4 points); WordNet's lexicographer groups as a word's kind beside it (−0.5); the lessons' decision standing first
+wherever they met a situation naming a word (PMB dev 38.3% → 30.4%, lessons held out 41.9% → 45.6%), and only for
+pronouns and determiners (32 dev sentences broken, none fixed: the lessons hold "we" the speaker, the PMB a group
+with the speaker in it); unnamed "he"/"she" said as `?previous` (two pronouns of a sentence collapsed into one:
+"She blackmailed him." done by and to the same one); the structure reader learned from EWT, GUM and ATIS (+1.0
+learned from the PMB, −0.9 with the lessons; "Do whales breathe air?" now parses, "When was the Eiffel Tower
+built?" and "Are whales mammals?" still do not: question word order is the structure reader's to learn).
+
+**Measured offline, the same 884 dev sentences, senses aside (strict):**
+
+| Learned from | Composer before (6266d3a) | This composer |
+|---|---|---|
+| the lessons | 6.6% (4.0%), fact F1 53.6% | 7.2% (4.6%), 49.0% |
+| + PMB gold training | 16.5% (9.3%), 64.6% | 42.1% (19.5%), 79.3% |
+| + PMB silver training | 15.6% (9.2%), 64.8% | 46.9% (20.8%), 82.9% |
+
+"Senses aside": each kind and name a word says named as the composer names that word. The composer names a word by
+its word; the PMB names a WordNet sense ("took" `utilize take`), and 48% of the dev kinds differ so: which sense a
+word names is the listener's choice, measured apart. This composer's column is `experiments/PMB-01`
+(`results/20261020T164055Z`, 4 of 4 checks; the one before measured the same way in scratch, from 6266d3a's
+`composition.py`). **Learned from the lessons alone it is about where the one before was** (more whole meanings,
+fewer facts right: it has no fixed senses of the structure's relations to fall back on); on the lessons held out
+(COMPOSE-01 `20261020T164055Z`) 50.6% as taught against 50.1%, the prose 31 of 33 composed against 29. **With more
+data it gains** (gold to silver +4.8 senses aside), where the one before gained nothing: the design was the limit.
+
+**The PMB taught as the lessons are** (`teaching_sources.PMBSource`, `teach.py --source pmb [--pmb gold|silver]`):
+each training sentence said whole kept as a `TaughtSentence` with its anchors (`composition.TaughtSentence.anchors`,
+kept in the memory's metadata); dev and test are never taught. Gold 6,822 sentences, silver 52,267. A small batch on
+the sandbox (`--limit 50`, 54 s): 50 remembered, beliefs +50, nothing refused, no error or warning in the log
+(`logs/pmb_sandbox_run.log`); read back at warm with their anchors, the composer aligning them by their words.
+
+## 2026-10-20 (28) — The prose on main with the PMB taught: pronouns and denied happenings were said the PMB's way and not taken in; both said as the lessons say them; a sentence taught again, corrected, corrects its memory
+
+**The PMB taught to main** (the owner's run, `logs/pmb_production_run.log`, 13:26 to 13:44): 6,822 sentences
+remembered, none refused, beliefs +6,822, no error or warning in the log; the pass's review 185 of 200.
+
+**UNDERSTANDS-PROSE-01 on main** (`results/20261020T175141Z`, the owner's run): sentences 21 of 33 (28 at
+`20261020T133959Z`), right 12 of 37 (14), wrong 0 of 37 (1). Traced against the morning's transcript
+(`results/20261020T134944Z_transcript.json`, `..._180531Z_transcript.json`): five tellings were not taken in because
+a pronoun was composed a thing of no kind, as the PMB leaves a pronoun its document does not tie ("They live in the
+ocean.": something lives in the ocean), and the conversation holds no fact of a thing it cannot name ("part of that is
+about something I have no name for yet", `autonomous_coordinator`); the two whale questions answered before had
+nothing told to answer from. One more ("It does not change the original list.") because a happening that did not
+happen was said the PMB's way (`not instance_of(?e, change)`, `not done_to`). Gained: "Chlorophyll is the green
+pigment that absorbs the light." read; "How many failed attempts were there?" no longer answered wrong.
+
+**Fixed:**
+- **The composer**: a word left a thing of no kind that the lessons say as a term of the situation takes that term
+  ("they", "it", "its", "them", "he", "his" the one spoken of before; "we", "us", "our" the speaker); a word the
+  lessons never met so ("someone") stays unnamed. Only the term changes: the first version changed the word's
+  standing, and its links then took the lessons' own pronouns' labels, which teach two pronouns as one ("They chased
+  them." aligns both to the one spoken of before), so "They live in the ocean." came out done by and to them. And the
+  one spoken of before is one: a second such word ("He fixed it.") stays unnamed, never held as the first. A fact of a
+  thing and itself is not held. Offline, every prose telling then composes with every term named but "It is in
+  Paris." (read by a taught frame on main).
+- **The conversion** (`pmb_meanings`): a happening that did not happen is said as the lessons say it, the happening
+  with its facts and `has_property(?e, false)` ("The dog did not bark."); a quality, a state and having stay denied
+  facts. The composer counts such a happening denied when it learns what denies: without it the denying words lost
+  their evidence (PMB dev −2.3). 296 of the 6,822 gold sentences on main change.
+- **Memory** (`MemoryAgent._remember_whole`, `_correct_whole`; `UnifiedLearningSystem._learn_held`): main held the
+  296 under their earlier meanings, and a sentence kept by its sentence and meaning together would have been kept
+  twice, its two claims both believed. Now an item that says what it is about (`TaughtSentence.identity`: where it
+  was said and the sentence) taught again with another meaning corrects the memory held before the pass: the memory
+  says the correction and keeps what it said (`metadata.superseded`, as `supersede` does), the earlier claim is
+  observed not so by the same witness (a revision, `observe_claim`), the correction so, the ledger records it
+  (`UPDATED`), and the composer's view drops the earlier one (`CompositionView.drop`). No lesson teaches one sentence
+  two ways (3,052 checked). On the sandbox (`--limit 50`, twice taught before): corrected 2, already 48, nothing
+  refused, no error in the log; read back, one memory for each, saying the correction with the earlier kept, the
+  corrected claim's belief 0.945, the earlier 0.055.
+- `test_conversation.py::test_telling_it_something_is_not_asking_it_something` asserted "a firewall blocks network
+  traffic" read as nothing; it read as a telling with the composer before too once the sandbox held 50 PMB sentences
+  (the oracle depended on the sandbox's contents). Now an utterance of marks alone, which never reads; and the store
+  opened first, as the file's other tests do (run alone it found it closed).
+
+**Measured** (files only): PMB-01 `20261020T185728Z`, 4 of 4: learned from the lessons, gold and silver, strict
+17.3%, senses aside 37.6%, and 44.7% with the one spoken of before taken as unnamed, the PMB's way (facts F1 82.7%,
+as before); with gold alone 16.2%, 33.9%, 40.7%. The strict and senses-aside figures fall from the run before
+(20.8%, 46.9%): the PMB's dev counts "they" said as the one spoken of before wrong. COMPOSE-01 `20261020T185728Z`:
+the lessons held out 52.5% as taught (50.6% before these fixes, 50.1% the composer before).
+Tests: `test_composition.py`, `test_pmb_meanings.py`, `test_argument_structure.py`, `test_structure.py`,
+`test_conversation.py`, 71 passed.
+
+**Next:** the owner's run teaching the PMB's gold again (corrects the 296, the rest already held), then
+UNDERSTANDS-PROSE-01 on main.
+
+## 2026-10-20 (29) — The answering traced on main: a question's participants asked of, "the X" as the X talked of most, a known thing as the kind told of here; the reasoner's crash on worded links
+
+**UNDERSTANDS-PROSE-01 on main after the PMB's 295 corrections** (`results/20261020T193148Z`, the owner's run;
+the correction run clean: corrected 295, already 6,527): sentences 28 of 33, right 14 of 37, wrong 1 of 37 (one
+fewer correction than counted: one document says one sentence twice). The 23 questions not answered right, each
+traced from the transcript (`..._194150Z_transcript.json`): five asked with another sense than the telling was held
+with, two read right and told but not found, one asked by another name ("key" for "argument key"), five tellings held
+wrong, nine questions not read or read as something else, one composed with a fact never told.
+
+**Fixed:**
+- **The reasoner crashed on a link held as its word** (`neural_bridge._answer_over_concept_graph`: `'word_in' is not a
+  valid SemanticRelation`, turned into the answer "Error: Reasoning failed" for "Is the Eiffel Tower in Paris?"). An
+  untyped relation is not that path, as its docstring says. `test_reasoning_owner.py`.
+- **What a question asks of those a happening was done by or to** (`Conversation._of_participants`): "How many failed
+  attempts were there?" found the failing done by the attempts and never read the attempts' count; each fact of a
+  participant found is now held of it, filling what it asks. On main (read only, `scripts`-style trace, nothing
+  written): answered "5.".
+- **A known thing talked of here is the one meant** (`_known_here`): "the account" took a record of history, the
+  sense met most, though the account told of was offered; a word marked known now names the kind of a particular told
+  of here where it can. The activation a thing talked of spreads was the kind's, and a kind is connected to too much
+  to tell (ACT-R's fan). On main: the account told of found.
+- **"The X" is the X talked of most, then the latest** (`_known_of`, `_mentioned`): "What does the method detect?"
+  went to the earlier methods compared once, told of last. On main: the method proposed.
+Tests: `test_conversation.py`, `test_reasoning_owner.py`, 34 passed.
+
+**Still not answered, and why** (traced on main): "Was the account locked?" (the frames read the passive question
+as the account doing the locking, and "locked" as an embrace; the telling was composed a locking done to it);
+"Does the method learn from unlabeled data?" (the frames read "unlabeled" as where the learning came from); "What
+does the method detect?" (the composed telling lost its "it": no doer held). Next: a question's composed reading
+offered beside the frames', the conversation's own told facts weighed by the listener as memory's are (`held`); the
+composer keeping "it" as the one spoken of before where a happening has no other doer.
+
+## 2026-10-20 (30) — "It" given its doer, and a question asked as the composer reads it of what was told
+
+**"It" held as a doer** (`composition.py`; traced on main: "In experiments on three datasets, it detects more attacks
+than earlier methods." held a detecting no one did):
+- **A subject stands for nothing only under the verbs it was learned to** (`_empty_subjects`): of the PMB's and
+  the lessons' subjects "it" that stand for nothing, 30 are "It rains.", 11 "It snows.", 8 "It took me ...", so
+  counted by sentences they said "it" stands for nothing under any verb, though most verbs it was learned under had
+  it stand for something (20 against 4). Under any other verb a subject is what else it may stand for.
+- **A word of its head's own line stands for nothing** (`align`): "It is raining." says the raining with "It" in its
+  line; aligned as standing for what its verb does, "it" was learned to be its own verb ("It supports ...": a
+  supporting that is what it supports).
+- **A word standing for another's thing that finds none in its sentence stands for a thing of no kind** (then named as
+  the lessons name the word), decided before the links; and **the term a thing of no kind takes is the one the lessons
+  say the word as wherever they say it as one** ("it": the one spoken of before 21 times; its 101 others are "It
+  rains." and "It is true that ..."), where it was taken from the lessons' decision in the same situation, which is
+  theirs for "It rains.".
+- **Whether the other word is written in a shape of its name** weighs in which word a pronoun stands for: "it" stood
+  for "experiments".
+Offline: every prose telling composed with every term named; "It supports ...", "it detects ..." done by the one spoken
+of before. Not fixed: "It does not change the original list." takes "it" as what is changed (a handful of denied
+verbs with a subject "it" decide it).
+
+**A question is also asked as the composer reads it** (`Conversation._asked_of_events_composed`): a telling no frame
+read is held as the composer read it, a question a frame reads takes the frame's words and senses, and the two met only
+where both were read alike. The happenings the composed reading finds told are answers beside the frame's; the
+reading taken stays the frame's. Traced on main (read only): "Does the method learn from unlabeled data?" answered
+"Yes."; "How many failed attempts were there?" "5." (entry (29)). Still not: "Was the account locked?" (the composer,
+too, reads the inverted question as the account doing the locking, and "the account" not known: question word order,
+the structure reader's), "Does sorted change the original list?" ("sorted" read as a verb, as in the telling).
+
+**Measured** (files only): PMB-01 `20261020T210127Z`, 4 of 4: lessons, gold and silver, strict 16.7%, senses aside
+36.4%, the one spoken of before unnamed 44.0% (44.7% before these), facts F1 82.3% (82.7%). COMPOSE-01
+`20261020T210127Z`: the lessons held out 52.1% (52.5%). The small cost is subjects named under verbs the PMB leaves
+them unnamed under. Tests: composition, PMB conversion, conversation, reasoning, argument structure, structure: 82
+passed.
+
+**Next:** UNDERSTANDS-PROSE-01 on main (the owner's run), against `20261020T193148Z` (28/33, 14/37, 1 wrong).
+
+**UNDERSTANDS-PROSE-01 on main** (`results/20261020T215137Z`, the owner's run, 889 s, nothing written): sentences 29
+of 33, right 18 of 37, wrong 0 of 37 (28, 14, 1 at `20261020T193148Z`): the most this test has had on main. Newly
+right: "How many failed attempts were there?" ("5."), "How many engineers did the company hire?" ("3."), "Does the
+method learn from unlabeled data?", "Do plants take in carbon dioxide?" ("Yes."); "What is the largest animal on
+Earth?" no longer answered wrong; "The argument key is a function that is applied to each element." read. Nothing right
+before is not now. Still held in part: "It supports multiple programming paradigms ..." (its doer the one spoken of
+before, which this conversation left untied after the misread "Python is a high-level ..."), "We propose a new method
+...". The 19 questions still not answered are, as traced: the structure reader's reading of questions (inverted
+passives, "When"/"Who" questions, "Is Paris the capital of France?"), tellings held wrong ("Python is a high-level,
+general-purpose programming language."), and senses ("sorted" a verb, "anomaly" a person).

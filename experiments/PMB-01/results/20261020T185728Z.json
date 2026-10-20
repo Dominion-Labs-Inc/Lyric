@@ -1,0 +1,235 @@
+{
+  "experiment": "PMB-01",
+  "claim": "what a sentence means is composed over its structure, each word's standing and each near pair's facts learned from sentences aligned word by word to their meanings",
+  "hypothesis": "learned from the PMB's gold training sentences, more of its held-out dev meanings are composed right whole than by the composer before this one (8.0% on main, 2026-10-20), and more again with its silver ones",
+  "started_at": "2026-10-20T18:57:28.989266+00:00",
+  "duration_seconds": 402.2,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "6266d3a75d3647d99a18b13ab0500564b66222dc",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 4802,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 4,
+    "passed": 4,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "PMB dev sentences said whole",
+      "value": 884,
+      "unit": "sentences",
+      "note": "of 1,194 listed"
+    },
+    {
+      "name": "the lessons, strict: whole meaning right",
+      "value": 0.0452,
+      "unit": "fraction",
+      "note": "40/884"
+    },
+    {
+      "name": "the lessons, strict: facts precision / recall / F1",
+      "value": [
+        0.349,
+        0.2469,
+        0.2892
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons, senses aside: whole meaning right",
+      "value": 0.0713,
+      "unit": "fraction",
+      "note": "63/884"
+    },
+    {
+      "name": "the lessons, senses aside: facts precision / recall / F1",
+      "value": [
+        0.6193,
+        0.4381,
+        0.5132
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons, senses aside, the one spoken of before unnamed: whole meaning right",
+      "value": 0.0792,
+      "unit": "fraction",
+      "note": "70/884"
+    },
+    {
+      "name": "the lessons, senses aside, the one spoken of before unnamed: facts precision / recall / F1",
+      "value": [
+        0.6193,
+        0.4381,
+        0.5132
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, strict: whole meaning right",
+      "value": 0.1618,
+      "unit": "fraction",
+      "note": "143/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, strict: facts precision / recall / F1",
+      "value": [
+        0.4462,
+        0.4106,
+        0.4277
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, senses aside: whole meaning right",
+      "value": 0.3394,
+      "unit": "fraction",
+      "note": "300/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, senses aside: facts precision / recall / F1",
+      "value": [
+        0.8289,
+        0.7626,
+        0.7944
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, senses aside, the one spoken of before unnamed: whole meaning right",
+      "value": 0.4072,
+      "unit": "fraction",
+      "note": "360/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold training sentences, senses aside, the one spoken of before unnamed: facts precision / recall / F1",
+      "value": [
+        0.8289,
+        0.7626,
+        0.7944
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "PMB silver training sentences learned",
+      "value": 52249,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, strict: whole meaning right",
+      "value": 0.1731,
+      "unit": "fraction",
+      "note": "153/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, strict: facts precision / recall / F1",
+      "value": [
+        0.4587,
+        0.4304,
+        0.4441
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, senses aside: whole meaning right",
+      "value": 0.3756,
+      "unit": "fraction",
+      "note": "332/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, senses aside: facts precision / recall / F1",
+      "value": [
+        0.8539,
+        0.8013,
+        0.8268
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, senses aside, the one spoken of before unnamed: whole meaning right",
+      "value": 0.4468,
+      "unit": "fraction",
+      "note": "395/884"
+    },
+    {
+      "name": "the lessons and the PMB's gold and silver training sentences, senses aside, the one spoken of before unnamed: facts precision / recall / F1",
+      "value": [
+        0.8539,
+        0.8013,
+        0.8268
+      ],
+      "unit": "fraction",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the PMB is on disk",
+      "passed": true,
+      "detail": "/Users/stefan/Dominion Labs/Lyric/test_data/semantics/pmb/pmb-5.1.0",
+      "at": "2026-10-20T18:57:28.989313+00:00"
+    },
+    {
+      "label": "learned from the PMB's gold sentences, more dev meanings right whole than the composer before this one (8.0% on main, 2026-10-20)",
+      "passed": true,
+      "detail": "16.2%",
+      "at": "2026-10-20T18:59:28.185948+00:00"
+    },
+    {
+      "label": "learned from the PMB's gold sentences, more right than from the lessons alone",
+      "passed": true,
+      "detail": "7.1% -> 33.9%",
+      "at": "2026-10-20T18:59:28.185960+00:00"
+    },
+    {
+      "label": "more data, more right: with the silver sentences more right than with the gold alone",
+      "passed": true,
+      "detail": "33.9% -> 37.6%",
+      "at": "2026-10-20T19:04:10.787813+00:00"
+    }
+  ],
+  "notes": []
+}

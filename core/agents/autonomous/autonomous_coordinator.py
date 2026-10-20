@@ -20057,22 +20057,69 @@ class Conversation:
         #: `printer_1`), most recent last, each with its kind and whose it is
         #: ("person", "world"): which "the X" is (`_known_of`).
         self._particulars: Dict[str, Tuple[str, str]] = {}
+        #: How often each particular thing was told of or named here: which "the X" is, the X talked of most
+        #: (`_known_of`).
+        self._mentioned: Dict[str, int] = {}
         #: What the known things of the meanings last asked about and last told
         #: were found to be, by meaning (`_known_of`).
         self._known_now: Dict[bool, Tuple[str, Dict[str, str]]] = {}
 
+    def _reading_key(self, text: str) -> Tuple[str, int, FrozenSet[str]]:
+        """What reading `text` here depends on: the text, what was taught (the reader's view, by its size), and the
+        kinds of the particular things talked of here (`_known_here`)."""
+        from core.semantics.derived_reader import live_view
+        return str(text), len(live_view()), frozenset(kind for kind, _ in self._particulars.values())
+
     def _read(self, text: str) -> Tuple[Any, ...]:
         """What `text` says, utterance by utterance, read by the ONE reader
         (`derived_reader`): through the constructions the substrate was taught,
-        and nothing else. Read once while what was taught is unchanged."""
+        and nothing else, a known thing taken as one talked of here where it can
+        be (`_known_here`). Read once while what was taught and what was talked
+        of are unchanged."""
         from core.semantics.derived_reader import live_view, read_text
-        view = live_view()
-        key = (str(text), len(view))
+        key = self._reading_key(text)
         if self._last_read is not None and self._last_read[0] == key:
             return self._last_read[1]
-        utterances = read_text(str(text), view, parts=True)
+        utterances = self._known_here(read_text(str(text), live_view(), parts=True))
         self._last_read = (key, utterances)
         return utterances
+
+    def _known_here(self, utterances: Tuple[Any, ...]) -> Tuple[Any, ...]:
+        """A KNOWN THING TALKED OF HERE IS THE ONE MEANT. A word marked known ("the account") says there is one both
+        know; where one of the things it can name is the kind of a particular thing this conversation told of, it
+        names that kind, and the others are not offered. Told "The account was locked after five failed attempts.",
+        "Was the account locked?" took the account to be a record of history, the sense met most, though the account
+        told of was offered (UNDERSTANDS-PROSE-01 on main, 2026-10-20), and no known account was found to ask of: the
+        activation an account talked of spreads is the kind's, and a kind is connected to too much to tell. Readings
+        that differ only in that are narrowed the same way."""
+        from dataclasses import replace
+        from core.semantics.cognitive_ingress import normalize_term
+        from core.semantics.derived_reader import is_variable
+        here = {normalize_term(kind) or kind for kind, _ in self._particulars.values()}
+        if not here:
+            return utterances
+
+        def of_here(name: str) -> bool:
+            return (normalize_term(name) or name) in here
+        out = []
+        for utterance in utterances:
+            readings = []
+            for reading in utterance.readings:
+                given = {f.obj for f in reading.meaning.facts if f.relation == "instance_of" and f.given}
+                packed = []
+                for stand_in, options, held_at, proposed_at in reading.senses:
+                    if stand_in in given:
+                        known = tuple(o for o in options if of_here(o[0].lexical.value))
+                        if known and len(known) < len(options):
+                            options = known
+                    packed.append((stand_in, options, held_at, proposed_at))
+                readings.append(replace(reading, senses=tuple(packed)) if reading.senses else reading)
+            found = [sum(1 for f in reading.meaning.facts if f.relation == "instance_of" and f.given
+                         and not is_variable(f.obj) and of_here(f.obj)) for reading in readings]
+            if found and 0 < max(found) and min(found) < max(found):
+                readings = [reading for reading, n in zip(readings, found) if n == max(found)]
+            out.append(replace(utterance, readings=tuple(readings)))
+        return tuple(out)
 
     async def _listen(self, text: str) -> None:
         """Listen to `text` as well as read it: where its words can be taken more
@@ -20083,8 +20130,8 @@ class Conversation:
         it is taken to be about then joins what was talked of. Asked once while
         what was taught is unchanged."""
         from core.semantics.derived_reader import (SITUATION_VARIABLES, Lexical, Pattern, is_variable, listening,
-                                                   listening_facts, live_view, meant)
-        key = (str(text), len(live_view()))
+                                                   listening_facts, meant)
+        key = self._reading_key(text)
         if self._last_heard is not None and self._last_heard[0] == key:
             return
         utterances = self._read(text)
@@ -20109,8 +20156,7 @@ class Conversation:
     def _heard(self, text: str) -> Any:
         """What `_listen` found memory to hold for `text` (`derived_reader.Heard`); None when it was not listened
         to."""
-        from core.semantics.derived_reader import live_view
-        if self._last_heard is not None and self._last_heard[0] == (str(text), len(live_view())):
+        if self._last_heard is not None and self._last_heard[0] == self._reading_key(text):
             return self._last_heard[1]
         return None
 
@@ -20150,8 +20196,12 @@ class Conversation:
         found: Dict[str, str] = {}
         for variable, kind in kinds.items():
             kind = normalize_term(kind) or kind
-            name, whose = next(((n, w) for n, (k, w) in reversed(list(self._particulars.items())) if k == kind),
-                               (None, None))
+            # THE X TALKED OF MOST, then the latest: the method a paper's abstract proposes and goes on about, not the
+            # earlier methods it is compared with once since ("What does the method detect?" asked of those,
+            # UNDERSTANDS-PROSE-01 on main, 2026-10-20).
+            order = {n: at for at, n in enumerate(self._particulars)}
+            name, whose = max(((n, w) for n, (k, w) in self._particulars.items() if k == kind),
+                              key=lambda nw: (self._mentioned.get(nw[0], 0), order[nw[0]]), default=(None, None))
             if name is None and actor:
                 theirs = await store.particulars_of(actor, kind)
                 if theirs:
@@ -20173,6 +20223,7 @@ class Conversation:
             found[variable] = name
             self._particulars.pop(name, None)
             self._particulars[name] = (kind, whose)
+            self._mentioned[name] = self._mentioned.get(name, 0) + 1
         self._known_now[telling] = (key, found)
         return found
 
@@ -20840,7 +20891,8 @@ class Conversation:
         return answers
 
     async def _asked_of_events(self, sentence: str,
-                               incoming: Mapping[str, Sequence[Tuple[str, str, str, bool]]]) -> List["Answer"]:
+                               incoming: Mapping[str, Sequence[Tuple[str, str, str, bool]]],
+                               meaning: Optional[Any] = None) -> List["Answer"]:
         """A question about something that happened, answered by the events held (`teaching.told_events`): "What
         did the wug eat?" asks of an eating, done by the wug, what it was done to. The events pointing at the
         question's named participants (`incoming`) are the candidates; one whose own facts hold everything the
@@ -20856,7 +20908,7 @@ class Conversation:
         from dataclasses import replace
         from core.semantics.derived_reader import (EVENT_PARTICIPANTS, SITUATION_VARIABLES, Meaning, MeaningFact,
                                                    as_known, is_variable, say)
-        meaning = self._meaning(sentence)
+        meaning = meaning if meaning is not None else self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
             return []
         pairs = list(zip(meaning.facts, meaning.bound(self._situation(), await self._known_of(meaning))))
@@ -20912,6 +20964,8 @@ class Conversation:
             if any(f.relation not in relations for f in unknown):
                 continue
             filled = {f.obj: relations[f.relation][0] for f in unknown}
+            if not await self._of_participants(facts, event, filled):
+                continue
             asked_of = {f.obj.lower().replace("_", " ") for f in named if f.relation == "has_property"}
             qualities = [q for q in relations.get("has_property", ()) if q.lower().replace("_", " ") not in asked_of]
             said = ()
@@ -20953,6 +21007,70 @@ class Conversation:
                 if not meaning.asked or found:
                     answers.append(Answer(candidate, "", found, verdict=None if meaning.asked else True))
         return answers or qualified
+
+    async def _asked_of_events_composed(self, sentence: str) -> List["Answer"]:
+        """A QUESTION IS ALSO ASKED AS THE COMPOSER READS IT, of what was told here: a telling no frame read is held as
+        the composer read it, and a question a frame reads takes the frame's words and senses, so the two meet only
+        where both were read alike. Told "The account was locked after five failed attempts." (a locking done to the
+        account), "Was the account locked?" was read by a frame as the account doing an embracing, and found nothing
+        (UNDERSTANDS-PROSE-01 on main, 2026-10-20); composed, it asks of the locking told. The happenings it finds
+        told are answers beside the frame's; the reading taken stays the frame's."""
+        from core.agents import memory_agent as _memory
+        from core.semantics.derived_reader import is_variable
+        agent = _memory._memory_agent
+        if agent is None:
+            # Where memory is not up in this process, nothing is composed (`derived_reader._read_by_composing`).
+            return []
+        composed = agent.composition_view().compose_sentence(sentence)
+        taken = self._meaning(sentence)
+        if composed is None or composed.act != "ask" or (taken is not None and
+                                                         composed.canonical() == taken.canonical()):
+            return []
+        known = await self._known_of(composed)
+        named = {t for f in composed.bound(self._situation(), known) for t in f.terms() if not is_variable(t)}
+        incoming = {name: await self._incoming_relations(name) for name in sorted(named)}
+        return await self._asked_of_events(sentence, incoming, meaning=composed)
+
+    async def _of_participants(self, facts: Sequence[Any], event: str, filled: Dict[str, str]) -> bool:
+        """WHAT A QUESTION SAYS OF THOSE A HAPPENING WAS DONE BY OR TO is asked of them, as they were told of: "How
+        many failed attempts were there?" asks the count of the attempts the failing was done by, which the failing
+        does not hold and the attempts do (`has_count(attempt_1, 5)`). Read only of the happening, the count was
+        never filled, and the question went unanswered with the failing found (UNDERSTANDS-PROSE-01 on main,
+        2026-10-20). Each fact of a participant found (`filled`) is held of it, filling what it asks; a fact the
+        participant does not hold, or a kind it is not, is not this happening's. Fills `filled` in place; whether
+        every fact held."""
+        from core.semantics.derived_reader import is_variable
+
+        def plain(name: str) -> str:
+            return str(name).lower().replace("_", " ")
+        pending = [f for f in facts if f.subject != event and (f.subject in filled or is_variable(f.subject))]
+        while True:
+            ready = [f for f in pending if f.subject in filled]
+            if not ready:
+                return True
+            for f in ready:
+                pending.remove(f)
+                particular = filled[f.subject]
+                if f.relation == "instance_of":
+                    kind = await self._kind_of(particular) if particular in self._particulars else None
+                    if kind and not is_variable(f.obj) and plain(kind) != plain(f.obj) \
+                            and plain(particular) != plain(f.obj):
+                        return False
+                    continue
+                held = await self.resolve_name(particular)
+                theirs: List[str] = []
+                for relation, other in held.relations:
+                    kind, denied = _link_kind(relation)
+                    if kind == f.relation and not denied:
+                        theirs.append(str(other))
+                if is_variable(f.obj) and f.obj not in filled:
+                    if not theirs:
+                        return False
+                    filled[f.obj] = theirs[0]
+                    continue
+                wanted = plain(filled.get(f.obj, f.obj))
+                if wanted not in {plain(o) for o in theirs}:
+                    return False
 
     @staticmethod
     def _render_atom(text: str) -> str:
@@ -21614,6 +21732,7 @@ class Conversation:
                 kind = next(f.obj for f in told_of.facts if f.relation == "instance_of" and f.subject == unknown)
                 self._particulars.pop(name, None)
                 self._particulars[name] = (normalize_term(kind) or kind, "person")
+                self._mentioned[name] = self._mentioned.get(name, 0) + 1
             theirs = theirs | frozenset(events.values())
             for fact_said in meaning.asserted:
                 if fact_said.alternative:
@@ -22303,6 +22422,10 @@ class Conversation:
 
         incoming = {r.phrase: await self._incoming_relations(r.phrase) for r in resolved if r.known}
         answers = self.asked(sentence, resolved, incoming) + await self._asked_of_events(sentence, incoming)
+        if asked:
+            answers += [a for a in await self._asked_of_events_composed(sentence)
+                        if (a.about, a.relation, tuple(a.others)) not in
+                        {(b.about, b.relation, tuple(b.others)) for b in answers}]
         # WAVE 3: the relation actually asked about, which is the most specific
         # thing the turn ever learns.
         recall.refine(*[f"{a.about} {a.relation}" for a in answers], about=subject)

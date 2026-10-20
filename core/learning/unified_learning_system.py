@@ -3987,13 +3987,24 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 updates.append(_ledger.KnowledgeUpdate(
                     subject_kind=subject_kind, subject_id=item.key(), disposition=_ledger.Disposition.NEW,
                     domain=dr.ENGLISH_DOMAIN, detail=item.claim()[:500], cause=cause))
+            # A TEACHING CORRECTED IS ITS WITNESS CHANGING ITS WORD: what the item said before is observed not so by
+            # the same witness (a revision, `observe_claim`: the earlier word withdrawn), what it says now as so.
+            for item, memory_id, was in held.get("corrected_items", ()):
+                us.observe_claim(was.claim(), dr.ENGLISH_DOMAIN, supports=False, quality=quality, source="taught",
+                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
+                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
+                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind=subject_kind, subject_id=item.key(), disposition=_ledger.Disposition.UPDATED,
+                    domain=dr.ENGLISH_DOMAIN, detail=f"corrected: {item.claim()[:240]}; was {was.claim()[:240]}",
+                    cause=cause))
             if updates:
                 from core.database import get_database_manager
                 await _ledger.record_many(get_database_manager(), updates)
         finally:
             _ledger.end_batch(batch)
-        return {"remembered": held["remembered"], "already": held["already"], "refused": 0,
-                "total": held["total"]}
+        return {"remembered": held["remembered"], "already": held["already"],
+                "corrected": held.get("corrected", 0), "refused": 0, "total": held["total"]}
 
     async def learn_arguments(self, argued, *, provenance: Any = None, quality: float,
                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:

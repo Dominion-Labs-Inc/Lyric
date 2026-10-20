@@ -75,6 +75,9 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261017T224849Z` | 29caa75, composing on (`LYRIC_COMPOSE=1`) | 16/33 | 10/37 | 3/37 | nothing |
 | `20261018T234706Z` | eebbf6a, composing on, forced tellings composed (`LYRIC_COMPOSE_FORCED=1`) | 19/33 | 14/37 | 0/37 | nothing |
 | `20261020T133959Z` | word forms and described things (3beeb10 to 7a10174) and the packed reader (each word's senses kept together, the listener choosing over the structure; 2026-10-20, not committed): 586 s, every sentence finishing (the primes sentence 66 s) | 28/33 | 14/37 | 1/37: "How many failed attempts were there?" a recital ("I hold things about fail ...") `scored` counts wrong | nothing |
+| `20261020T175141Z` | the composer rebuilt over the structure, the PMB's gold taught to main (lab notebook 2026-10-20 (27), (28)) | 21/33 | 12/37 | 0/37 | nothing |
+| `20261020T193148Z` | + pronouns as the lessons name them, denied happenings as the lessons say them, the PMB's 295 corrected on main (28) | 28/33 | 14/37 | 1/37 | nothing |
+| `20261020T215137Z` | + a question's participants asked of, "the X" the X talked of most, a known thing as the kind told of here, no crash on worded links, "it" given its doer, a question also asked as the composer reads it (29), (30); 889 s | 29/33 | 18/37 | 0/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted

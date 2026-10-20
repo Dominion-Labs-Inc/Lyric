@@ -6420,9 +6420,10 @@ class MemoryAgent(IMemoryConsolidation):
 
     # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, AND WHAT A SENTENCE MEANS COMPOSED. A sentence whose happenings'
     # arguments were annotated by hand (PropBank's, `argument_structure.Argued`) is kept whole, one memory for each,
-    # as is each sentence of the lessons with the meaning it was taught to have (`composition.TaughtSentence`); the
-    # composer learns from both (`composition.CompositionView`), each lesson read with the structure and names memory
-    # has when it is learned from. Nothing is reduced to rules when it is kept.
+    # as is each sentence of the lessons and of the Parallel Meaning Bank with the meaning it was taught to have
+    # (`composition.TaughtSentence`, the PMB's with where each term is said); the composer learns from both
+    # (`composition.CompositionView`), each sentence read with the structure and names memory has when it is learned
+    # from. Nothing is reduced to rules when it is kept.
 
     ARGUED_TAG = "argued_sentence"
     TAUGHT_SENTENCE_TAG = "taught_sentence"
@@ -6441,8 +6442,8 @@ class MemoryAgent(IMemoryConsolidation):
         return view
 
     async def _composition_memories(self, arguments):
-        """The lessons' sentences held with their meanings, as the composer's view (`composition_view`), the
-        arguments behind them; each is read when the view is first asked."""
+        """The sentences held with their meanings (the lessons', the PMB's), as the composer's view
+        (`composition_view`), the arguments behind them; each is read when the view is first asked."""
         from core.semantics.composition import CompositionView, TaughtSentence
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
@@ -6463,8 +6464,8 @@ class MemoryAgent(IMemoryConsolidation):
         return self._argument_view
 
     def composition_view(self):
-        """The composer, learned from the lessons' sentences memory holds with their meanings (`composition`).
-        Synchronous; empty before the first warm."""
+        """The composer, learned from the sentences memory holds with their meanings (`composition`): the lessons',
+        the PMB's. Synchronous; empty before the first warm."""
         if self._composition_view is None:
             from core.semantics.composition import CompositionView
             self._composition_view = CompositionView(None, lay_out=self.lay_out)
@@ -6536,35 +6537,60 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def remember_taught_sentences(self, taught, progress: Optional[Callable[[int, int], None]] = None
                                         ) -> Dict[str, Any]:
-        """Remember the lessons' sentences with their taught meanings (`composition.TaughtSentence`), one memory
-        each; one held already is not held again. Returns `kept` and counts, as `remember_argued`."""
+        """Remember sentences with their taught meanings (`composition.TaughtSentence`: the lessons', the PMB's), one
+        memory each; one held already is not held again, and one held with another meaning from the same source is
+        corrected (`_correct_whole`). Returns `kept`, `corrected` and counts, as `remember_argued`."""
         return await self._remember_whole(
             taught, view=self.composition_view, tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
-            content=lambda item: item.said(), add=lambda view, item: view.hold(item))
+            content=lambda item: item.said(), add=lambda view, item: view.hold(item),
+            drop=lambda view, item: view.drop(item))
 
-    async def _remember_whole(self, items, *, view, tag: str, field: str, content, add,
+    async def _remember_whole(self, items, *, view, tag: str, field: str, content, add, drop=None,
                               progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:
         """Keep each item whole, one memory each, as `remember_analysed` keeps sentences analysed, and fold it into
-        the view (`view()`, asked after memory is warm: a warm builds the view anew)."""
+        the view (`view()`, asked after memory is warm: a warm builds the view anew). AN ITEM TAUGHT AGAIN, CORRECTED,
+        corrects the memory holding what it said before: an item that says what it is about (`identity()`: a
+        taught sentence's source and sentence) and a memory held before this pass about the same, holding it
+        otherwise, is `_correct_whole`d, never kept beside it (the PMB's denied happenings said as the lessons say
+        them, 2026-10-20 (28)); the view drops the earlier one (`drop`)."""
         from core.memory.utils.interfaces import Origin
         if not self._word_classes_warm:
             await self.warm_word_classes()
         view = view()
         items = list(items)
         held: Dict[str, str] = {}
+        about: Dict[Any, Tuple[str, Dict[str, Any], Any]] = {}
         for row in await self._rows_tagged(tag):
             data = (row.metadata or {}).get(field)
             if data:
-                held[self._whole_key(field, data)] = row.memory_id
+                was = self._whole_item(field, data)
+                held[was.key()] = row.memory_id
+                identity = getattr(was, "identity", lambda: None)()
+                if identity is not None:
+                    about[identity] = (row.memory_id, dict(row.metadata or {}), was)
         kept: List[Tuple[Any, str]] = []
         already: List[Tuple[Any, str]] = []
-        counts = {"remembered": 0, "already": 0, "total": len(items)}
+        corrected: List[Tuple[Any, str, Any]] = []
+        counts = {"remembered": 0, "already": 0, "corrected": 0, "total": len(items)}
         for done, item in enumerate(items, 1):
             if progress is not None and done % 1000 == 0:
                 progress(done, len(items))
             if item.key() in held:
                 already.append((item, held[item.key()]))
                 counts["already"] += 1
+                continue
+            identity = getattr(item, "identity", lambda: None)()
+            earlier = about.pop(identity, None) if identity is not None else None
+            if earlier is not None:
+                memory_id, metadata, was = earlier
+                await self._correct_whole(memory_id, metadata, field=field, item=item, was=was,
+                                          content=content(item))
+                if drop is not None:
+                    drop(view, was)
+                add(view, item)
+                held[item.key()] = memory_id
+                corrected.append((item, memory_id, was))
+                counts["corrected"] += 1
                 continue
             stored, memory_id = await self.store_memory(
                 content=content(item), memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
@@ -6575,21 +6601,39 @@ class MemoryAgent(IMemoryConsolidation):
             held[item.key()] = memory_id
             kept.append((item, memory_id))
             counts["remembered"] += 1
-        return {"kept": kept, "held_already": already, **counts}
+        return {"kept": kept, "held_already": already, "corrected_items": corrected, **counts}
+
+    async def _correct_whole(self, memory_id: str, metadata: Dict[str, Any], *, field: str, item, was,
+                             content: str) -> None:
+        """The memory holding `was` says `item` instead, keeping what it said before (`metadata.superseded`, as
+        `supersede` keeps a memory's earlier words): a memory that quietly became correct could not be told from one
+        always correct."""
+        history = list(metadata.get("superseded") or [])
+        history.append({"was": was.to_dict(), "because": "taught again, corrected", "at": datetime.now().isoformat()})
+        metadata = {**metadata, field: item.to_dict(), "superseded": history[-5:]}
+        updates: Dict[str, Any] = {"content": content, "metadata": metadata}
+        if self.embedding_service:
+            embedding = self.embedding_service.generate_embedding(content)
+            if embedding is not None:
+                updates["embedding"] = embedding
+        if not await self.update_memory(memory_id, updates):
+            raise RuntimeError(f"{content[:80]!r} was not corrected: memory {memory_id} was not updated")
+        logger.info("corrected %s: %s", memory_id, content[:120])
 
     @staticmethod
-    def _whole_key(field: str, data) -> str:
+    def _whole_item(field: str, data):
+        """An item kept whole, as its memory holds it."""
         if field == "argued":
             from core.semantics.argument_structure import Argued
-            return Argued.from_dict(data).key()
+            return Argued.from_dict(data)
         if field == "word_group":
             from core.semantics.word_groups import WordGroup
-            return WordGroup.from_dict(data).key()
+            return WordGroup.from_dict(data)
         if field == "word_forms":
             from core.semantics.word_forms import WordForms
-            return WordForms.from_dict(data).key()
+            return WordForms.from_dict(data)
         from core.semantics.composition import TaughtSentence
-        return TaughtSentence.from_dict(data).key()
+        return TaughtSentence.from_dict(data)
 
     # WHAT WAS HEARD AFTER WHAT. A construction holds its slots' fillers each apart, so which word went after which
     # is not in it ("might open" and "often opens", one phrase "?slot0 ?slot1"); the sentences taught had it, and it
