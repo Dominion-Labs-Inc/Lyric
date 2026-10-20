@@ -841,7 +841,7 @@ The three offerings above became four. The sections above are the dated record o
 | | Lyric Starter | Lyric Pro | Lyric Max | Lyric Enterprise |
 |---|---|---|---|---|
 | For | Getting started with Lyric | Individuals | Developers and teams | Organizations, on a dedicated Lyric instance |
-| Price | Free | $19.99 / month | $59.99 / month for the first seat, plus up to 2 more seats at $59.99 each | Custom pricing (shown publicly as Custom, with Contact sales) |
+| Price | Free | $19.99 / month | $59.99 / month for the first seat, plus up to 2 more seats at $10 each | Custom pricing (shown publicly as Custom, with Contact sales) |
 | Autonomy | Observe | Observe and Assist | Observe, Assist and Delegate | Observe, Assist and Delegate, set by the organization's administrators |
 | Concurrent tasks | 2 | 3, plus scheduled jobs | 5 per seat, plus scheduled jobs | Custom |
 | Workflows and scheduled jobs | | ✓ | ✓ | ✓ |

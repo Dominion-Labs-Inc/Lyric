@@ -90,7 +90,6 @@ class InfrastructureTopology:
         self.add_service('email-webhook', ServiceTier.IMPORTANT, 8103, depends_on=['postgresql-lyric'])
         self.add_service('email-realtime', ServiceTier.IMPORTANT, 8104, depends_on=['postgresql-lyric', 'redis'])
         self.add_service('smtp-sender', ServiceTier.IMPORTANT, 8105, depends_on=[])
-        self.add_service('user-settings', ServiceTier.IMPORTANT, 8106, depends_on=['postgresql-lyric'])
 
         # The shared PostgreSQL instance on 5432 (AgentSO's, which is retired)
         self.add_service('postgresql-agentso', ServiceTier.IMPORTANT, 5432, depends_on=[])

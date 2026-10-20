@@ -120,7 +120,6 @@ class EnvironmentState:
             'email-webhook': {'port': 8103, 'health': '/health'},
             'email-realtime': {'port': 8104, 'health': '/health'},
             'smtp-sender': {'port': 8105, 'health': '/health'},
-            'user-settings': {'port': 8106, 'health': '/health'},
             'payment-service': {'port': 8500, 'health': '/health'},
             # Lyric's instance, not the shared agentso one on 5432.
             'postgresql': {'port': 5433, 'health': None},
