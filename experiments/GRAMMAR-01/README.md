@@ -1,0 +1,88 @@
+# GRAMMAR-01: what a sentence means, read by English's grammar
+
+**Claim.** What a sentence means, in Lyric's meaning language, is read by a grammar: each word's category (what it
+combines with and what it makes) and meaning, combined by general rules, the meaning of the whole built from the
+meanings of its parts. What is learned from sentences taught with their meanings is only what words themselves hold:
+the link each of a verb's places makes, what each preposition, possessive, adjective and adverb says, what "is a"
+says.
+
+**Why.** The composers before this one (`core/semantics/composition.py`, PMB-01, and the readers before it) learned
+English as sentences remembered and read a new sentence by the remembered ones most like it. Real sentences are
+rarely enough like any: measured on the PMB's dev split (2026-10-20), the most specific situations met decided 71% of
+what a word stands for (2% wrong) but only 16% of what two words hold together; the rest was decided by coarser
+situations, wrong 9% to 75% of the time. Teaching more did not change that (eight times the data, 0.2 points). A
+compiler reads a program it has never seen, the first time, by a grammar and the meaning of each piece; the PMB's own
+meanings were first made that way (a categorial grammar and Boxer).
+
+**How** (`core/semantics/grammar.py`, `data/grammar/english.json`, lab notebook 2026-10-21 (31)):
+- **The words.** English's grammar words ("the", "is", "who", "not", "if", "can") are taught as data, each way of
+  reading one a category and a meaning: "is" before a doing (`(S[dcl]\NP)/(S[ng]\NP)`, during now), before a thing
+  (`(S[dcl]\NP)/NP`, `equals`), and so on. Every other word's categories come from what kind of word it is and how it
+  is used: a verb's forms and frames (with an object, two, a "to" clause), a noun, a name, an adjective.
+- **The rules** combine categories, the same for every word: application, composition, the crossing only a word's
+  entry allows ("was not a student"), words joined by "and", sentences one after another. Nothing in them is English.
+- **Which reading.** Every reading the grammar allows is built once (a chart); of the readings of the whole, the one
+  whose words are used most as they are used is taken, each word's evidence for each way of reading it counted from
+  how it is used ("is" before a doing 180 times, before a thing 763), a word seldom seen read as words spelled like it
+  are. Exact over the chart, never multiplied out, no cap.
+- **The meaning** is spelled out in the meaning language as `docs/TEACHING.md` says it: a happening's time, a denied
+  happening, a degree, a past state, a thing said of a kind (`isa(whale, mammal)`, `capable_of(bird, fly)`), what an
+  "if" says must hold, whom "his" stands for (the nearest one before it it may be).
+- **Learned** from the lessons and the PMB's gold training sentences, each read by the grammar and its meaning's terms
+  aligned to its words: per verb and place, per preposition (and per verb with it), per noun owned, per adjective,
+  per adverb, per what "is" joins. A word whose own uses say nothing takes what is said of the kind memory holds it to
+  be ("Austrian": of Austria, a country, as "British" is of Britain); nothing said of either, the grammar's link
+  (`linking`; a preposition held as its word). Each link decided is counted by where it came from.
+
+**What it measures** (files only, no store): the PMB's dev split as PMB-01 measures it, the same three ways (strict;
+senses aside, each kind and name a word says named as the grammar names that word, a kind on a line of no words of
+its own named by its thing's word, as PMB-01 names them; the one spoken of before unnamed), whole meanings right and
+facts' precision, recall and F1; how many sentences the grammar read whole and gave a meaning, and why each missed one
+was missed (not read; read, the meaning language has no words for it yet; read wrong); and of the links decided, by
+the word's own uses, by what memory holds it a kind of, by the grammar's rule, how many the meaning holds. The prose of
+UNDERSTANDS-PROSE-01 read, kept beside the record.
+
+| Bar | |
+|---|---|
+| Learned from the lessons and the PMB's gold training sentences | more dev meanings right whole, senses aside, than the composer learned from the same (PMB-01 `20261020T210127Z`: 33.6%) |
+| | more right, strict, than the composer (16.1%) |
+
+Words come from files, standing in for memory (`words.py`): how often each word is used each way, each verb's forms
+and frames, from UD English EWT's training part; names, kinds, what an adjective is of, times and names of words
+together, from WordNet. On main the same questions go to memory.
+
+**Run** (from the Lyric folder; about two minutes):
+
+```
+PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py
+```
+
+with `test_data/syntax/UD_English-EWT` (`--data DIR`; the counts read from it kept beside it,
+`grammar_words_held.pkl`), the PMB release 5.1.0 in `test_data/semantics/pmb/pmb-5.1.0` (`--pmb DIR`; never pushed),
+the lessons in `data/lessons/`, and WordNet for `nltk`. The Parallel Meaning Bank: University of Groningen,
+annotations ODC-BY 1.0; attribute it (Abzianidze et al. 2017) in any public use of it or of what is built from it.
+
+**Results:** `results/<UTC timestamp>.json` and `.md`, the prose read (`_prose.json`) and 300 of the dev sentences
+not read right senses aside (`_missed.json`).
+
+**Runs** (dev: 884 sentences said whole of 1,194; learned from the lessons and the PMB's gold training sentences):
+
+| Run | Read whole / given a meaning | Strict | Senses aside | Unnamed | Facts F1 (senses aside) | Links: own / kind / rule, share the meaning holds |
+|---|---|---|---|---|---|---|
+| `20261021T004110Z` | 854 / 845 | 19.5% | 39.7% | 49.7% | 80.9% | 1,395 (80.9%) / 101 (63.4%) / 153 (49.0%) |
+| `20261021T012601Z` | 854 / 845 | 20.1% | 39.8% | 49.9% | 80.8% | 1,385 (80.3%) / 79 (68.4%) / 178 (43.3%) |
+| `20261021T025251Z` | 857 / 852 | 20.0% | 39.3% | 49.4% | 80.6% | 1,409 (79.9%) / 76 (65.8%) / 176 (42.6%) |
+
+From `20261021T012601Z` the words are read as main reads them (`grammar_words.HeldWords`: the treebank's sentences as
+main holds them, analysed, with no features; the forms each word is written in; WordNet's links as taught), not from
+the treebank's features directly. From `20261021T025251Z` the PMB's meanings say an order as a request and "Tom is a
+workaholic." as `isa(tom, workaholic)` (a role is the kind said), as the lessons do (`pmb_meanings`); the composer
+measured on the same (PMB-01 `20261021T025534Z`, lessons and gold): 15.7%, 32.9%, 39.7%, F1 78.7%. The lessons, learned
+from, read right whole 47.7% (52.6% senses aside), from 31.8%: the meaning language's conventions said (lab notebook
+2026-10-21 (32)).
+
+The composer, same dev set, PMB-01: learned from the lessons and gold 16.1% / 33.6% / 40.6%, F1 79.3%; with the
+silver sentences too (22 times the data) 16.7% / 36.4% / 44.0%, F1 82.3%. Learned from the gold sentences alone (no
+lessons, scratch, 2026-10-21) the grammar read 20.4% / 40.6% / 50.7%: where the lessons and the PMB say one thing two
+ways (`isa(rice, food)` against `equals`; `located_at` against `located_in`) the dev set holds the PMB's way. The
+lessons, held out, read right whole: 23.9%; learned from: 31.8%.

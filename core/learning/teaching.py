@@ -277,9 +277,26 @@ def told_events(meaning: Any, sentence: str, described: bool = False) -> Dict[st
     so is every thing told of by a description, an unknown of a kind the telling says something of ("The company
     hired three engineers.": the engineers, `engineer_` and its digits, of whom three were hired). Unnamed, what was
     said of them was not held, and "Did the company hire engineers?" found nothing (UNDERSTANDS-PROSE-01,
-    2026-10-18)."""
+    2026-10-18). Each one's kind is `told_kinds`'."""
     import hashlib
-    from core.semantics.derived_reader import EVENT_PARTICIPANTS, SITUATION_VARIABLES, is_variable
+    from core.semantics.derived_reader import SITUATION_VARIABLES
+    named: Dict[str, str] = {}
+    for unknown, kind in sorted(told_kinds(meaning, described).items()):
+        if unknown in SITUATION_VARIABLES or unknown in meaning.asked:
+            continue
+        digest = hashlib.sha1(f"{sentence}|{meaning.canonical()}|{unknown}".encode("utf-8")).hexdigest()[:8]
+        named[unknown] = f"{kind}_{digest}"
+    return named
+
+
+def told_kinds(meaning: Any, described: bool = False) -> Dict[str, str]:
+    """`{unknown: kind}` for each thing a told meaning tells of that `told_events` names: a happening, its kind
+    (`eat`); with `described`, a thing told of by a description, its kind (`engineer`). A GROUP TOLD OF IS A GROUP,
+    and a count told of a number: "Plants take in carbon dioxide and water." tells of the two taken in together
+    (`has_member`), "it detects more attacks than earlier methods" of how many each detects (`has_count`,
+    `exceeds`); with no kind of their own they were left unnamed, and the telling was not held (UNDERSTANDS-PROSE-01
+    on main, 2026-10-21)."""
+    from core.semantics.derived_reader import EVENT_PARTICIPANTS, is_variable
     # A happening the telling does not tell as so -- what someone said, thought or wants, what a doing was for -- is
     # not held as one.
     told = [f for f in meaning.facts if not f.unasserted]
@@ -288,13 +305,12 @@ def told_events(meaning: Any, sentence: str, described: bool = False) -> Dict[st
     done = {f.subject for f in told if f.relation in EVENT_PARTICIPANTS and is_variable(f.subject)}
     if described:
         done |= {term for f in told if f.relation != "instance_of" for term in (f.subject, f.obj) if is_variable(term)}
-    named: Dict[str, str] = {}
-    for unknown in sorted(set(kinds) & done):
-        if unknown in SITUATION_VARIABLES or unknown in meaning.asked:
-            continue
-        digest = hashlib.sha1(f"{sentence}|{meaning.canonical()}|{unknown}".encode("utf-8")).hexdigest()[:8]
-        named[unknown] = f"{kinds[unknown]}_{digest}"
-    return named
+        for f in told:
+            if f.relation == "has_member" and is_variable(f.subject):
+                kinds.setdefault(f.subject, "group")
+            elif f.relation == "has_count" and is_variable(f.obj):
+                kinds.setdefault(f.obj, "number")
+    return {unknown: kind for unknown, kind in kinds.items() if unknown in done}
 
 def known_in_lesson(meaning: Any) -> Dict[str, str]:
     """`{unknown: name}` for each known thing a lesson tells of ("the kelt", `given instance_of(?t0, kelt)`): the one

@@ -113,8 +113,11 @@ PLACE_KINDS = frozenset({"located_at", "located_in", "adjacent_to", "near", "abo
 #: values, whatever words said them.
 VERDICTS = {"true": True, "false": False}
 
-#: A meaning with more unknowns than this is refused. `canonical` compares meanings under every renaming of their
-#: unknowns, which grows as a factorial; six is 720 renamings. A limit stated, not a silent truncation.
+#: A taught phrase with more unknowns than this is refused (`Phrase`): the reader builds phrases into readings, and
+#: a phrase of many unknowns multiplies them. A sentence's meaning has no such limit: it was refused past six
+#: unknowns while `canonical` followed every tie (n things of one kind, n! ways), and "We propose a new method for
+#: detecting anomalies in network traffic." (seven) could not be held; unknowns told apart alike are followed once
+#: (`_colours`), and forty are written in milliseconds (2026-10-21).
 MAX_FREE_VARIABLES = 6
 
 #: The score of a construction nothing has observed yet: where the paper starts a new one.
@@ -264,6 +267,12 @@ def _least_namings(facts: Sequence["MeaningFact"], free: Collection[str],
         if variable in unknown and variable not in start:
             start[variable] = pool[len(start)]
     found: List[Dict[str, str]] = []
+    # UNKNOWNS NOTHING TELLS APART ARE FOLLOWED ONCE. Where facts tie, each was followed, and n things of one kind
+    # each doing one thing were followed n! ways ("The dogs barked, the cats ran ..."): a meaning of more than six
+    # unknowns was refused for it (`MAX_FREE_VARIABLES`, before). Each unknown is told apart by the facts it is in and,
+    # round by round, what the unknowns beside it are told apart as (colour refinement, Weisfeiler and Leman 1968);
+    # ties that name unknowns told apart alike are one, and one of them is followed.
+    colour = _colours(facts, unknown)
 
     def follow(names: Dict[str, str], left: List["MeaningFact"]) -> None:
         if not left:
@@ -282,13 +291,44 @@ def _least_namings(facts: Sequence["MeaningFact"], free: Collection[str],
             elif written == least:
                 ties.append((k, trial))
         followed: List[Dict[str, str]] = []
+        alike: Set[Tuple] = set()
         for k, trial in ties:
-            if trial not in followed:   # facts written alike under one naming are one fact, whichever goes first
-                followed.append(trial)
-                follow(trial, left[:k] + left[k + 1:])
+            if trial in followed:   # facts written alike under one naming are one fact, whichever goes first
+                continue
+            told = tuple(colour.get(t) for t in sorted(set(trial) - set(names), key=trial.get))
+            if told in alike:
+                continue
+            alike.add(told)
+            followed.append(trial)
+            follow(trial, left[:k] + left[k + 1:])
 
     follow(start, list(facts))
     return found
+
+
+def _colours(facts: Sequence["MeaningFact"], unknown: Collection[str]) -> Dict[str, int]:
+    """Each unknown told apart by what is said of it (colour refinement): first by the facts it is in, as written
+    with every unknown alike; then, round by round, by those and what the unknowns beside it were told apart as, until
+    no round tells more apart."""
+    def plain(term: str) -> str:
+        return "?" if term in unknown else term
+    colour: Dict[str, Any] = {}
+    for v in unknown:
+        colour[v] = tuple(sorted((f.relation, f.subject == v, plain(f.obj if f.subject == v else f.subject),
+                                  f.positive, f.condition, f.alternative, f.unasserted, f.given)
+                                 for f in facts if v in f.terms()))
+    rounds = 0
+    while rounds <= len(colour):
+        rounds += 1
+        named = {c: k for k, c in enumerate(sorted(set(colour.values()), key=repr))}
+        before = {v: named[c] for v, c in colour.items()}
+        colour = {v: (before[v], tuple(sorted(
+            (f.relation, f.subject == v, before.get(f.obj if f.subject == v else f.subject, -1))
+            for f in facts if v in f.terms()))) for v in unknown}
+        if len(set(colour.values())) == len(set(before.values())):
+            return before
+    named = {c: k for k, c in enumerate(sorted(set(colour.values()), key=repr))}
+    return {v: named[c] for v, c in colour.items()}
 
 
 def _canonical_of(act: str, facts: Sequence["MeaningFact"], asked: Sequence[str]) -> str:
@@ -457,10 +497,6 @@ class Meaning:
                                  f"cannot ask for it")
         if len(set(asked)) != len(asked):
             raise ValueError("a question asks for the same thing twice")
-        free = {t for t in mentioned if not _named(t)}
-        if len(free) > MAX_FREE_VARIABLES:
-            raise ValueError(f"{len(free)} unknowns in one meaning; at most "
-                             f"{MAX_FREE_VARIABLES} can be compared")
         object.__setattr__(self, "act", act)
         object.__setattr__(self, "facts", facts)
         object.__setattr__(self, "asked", asked)
@@ -5202,22 +5238,24 @@ def _with_quotation(utterance: "Utterance", quoted: Tuple["Utterance", ...],
 _ENDS_SPANNED = 3
 
 
-#: Whether an utterance no taught frame reads is read by composing its meaning from how its words go together
-#: (`composition.CompositionView`, learned from the lessons' sentences memory holds with their meanings). On since
-#: UNDERSTANDS-PROSE-01 on main showed it right more often than it misleads, with `COMPOSING_FORCED`: sentences read
-#: 19 of 33, questions right 14 of 37, wrong none, against 7, 9 and none without it (2026-10-18). `LYRIC_COMPOSE=0`
-#: turns it off; an experiment may set it.
+#: Whether an utterance no taught frame reads is read by English's grammar (`grammar.GrammarView`: each word's category
+#: and meaning, combined by general rules, what words hold learned from the sentences memory holds with their taught
+#: meanings; `MemoryAgent.grammar_view`). Read by the composer before (`composition.CompositionView`), which decided
+#: from the taught sentences most like it and, where none was, from coarser situations wrong 9% to 75% of the time;
+#: the grammar reads more of the PMB's held-out English right (GRAMMAR-01, 2026-10-21). On since UNDERSTANDS-PROSE-01
+#: on main showed reading so right more often than it misleads, with `COMPOSING_FORCED` (2026-10-18).
+#: `LYRIC_COMPOSE=0` turns it off; an experiment may set it.
 COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 
 
 def _read_by_composing(utterance: "Utterance") -> "Utterance":
-    """An utterance no taught frame read, read by composing its meaning (`COMPOSING`); as it was where memory is not
-    up in this process or nothing is composed to a meaning."""
+    """An utterance no taught frame read, read by English's grammar (`COMPOSING`); as it was where memory is not up
+    in this process, the grammar reads no whole, or the meaning language cannot say what it read."""
     from core.agents import memory_agent as _memory
     agent = _memory._memory_agent
     if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
         return utterance
-    meaning = agent.composition_view().compose_sentence(surface_of(utterance.pieces))
+    meaning = agent.grammar_view().compose_sentence(surface_of(utterance.pieces))
     if meaning is None or all(f.given for f in meaning.facts):
         # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
         return utterance
@@ -5232,8 +5270,8 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
                      utterance.unknown)
 
 
-#: Whether a telling the frames read only by supposing more than any lesson read as taught ever supposed is read by
-#: composing instead (`_read_forced_by_composing`), with `COMPOSING`. On since UNDERSTANDS-PROSE-01 on main
+#: Whether an utterance the frames read only by supposing more than any lesson read as taught ever supposed is read
+#: by English's grammar instead (`_read_forced_by_composing`), with `COMPOSING`. On since UNDERSTANDS-PROSE-01 on main
 #: (2026-10-18): with it, "Do whales breathe air?" and "Does sorted return a new list?" answered, none wrongly.
 #: `LYRIC_COMPOSE_FORCED=0` turns it off.
 COMPOSING_FORCED = os.environ.get("LYRIC_COMPOSE_FORCED", "1") != "0"
@@ -5251,16 +5289,16 @@ def _forced(reading: Reading) -> bool:
 
 
 def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
-    """A telling every frame reads only by supposing more than the lessons ever did, read by composing its meaning
-    (`COMPOSING_FORCED`); as it was where it is asked, a frame reads it as taught reads, or nothing is composed.
+    """An utterance every frame reads only by supposing more than the lessons ever did, read by English's grammar
+    (`COMPOSING_FORCED`); as it was where a frame reads it as taught reads, or the grammar gives it no meaning.
 
     "A whale breathes air through a blowhole." fits no taught frame: its 36 readings each propose six links never
     taught and write fillers against their slots ("air through" one new name, the breathing done by the ocean told
     before), and the listener took one. The composer reads it as said, the whale breathing air through a blowhole,
-    and "Do whales breathe air?" is answered (UNDERSTANDS-PROSE-01 on a copy of main, 2026-10-18). Questions stay the
-    frames': the composer reads them worse."""
-    if not utterance.readings or not all(r.meaning.act == "tell" and not r.composed and _forced(r)
-                                         for r in utterance.readings):
+    and "Do whales breathe air?" is answered (UNDERSTANDS-PROSE-01 on a copy of main, 2026-10-18). A question too, as
+    the grammar reads it: the composer read questions worse and they stayed the frames'; the grammar reads them by the
+    words that ask and where they stand ("When was the Eiffel Tower built?" a building asked when, GRAMMAR-01)."""
+    if not utterance.readings or not all(not r.composed and _forced(r) for r in utterance.readings):
         return utterance
     composed = _read_by_composing(Utterance(utterance.pieces, (), utterance.partial, utterance.unknown))
     return composed if composed.readings else utterance

@@ -175,6 +175,21 @@ def test_an_event_participant_stays_a_fact_about_that_event():
     assert answer("listener", R.DONE_BY, "tying_1", edges).verdict == UNKNOWN
 
 
+def test_a_group_and_a_count_told_of_are_named_in_a_conversation():
+    """`told_events(..., described=True)`: "Plants take in carbon dioxide and water." tells of the two taken in as a
+    group, and a count compared ("more attacks than earlier methods") is a number told of; each is named (`group_`,
+    `number_`), so what is said of them is held. Teaching names neither."""
+    from core.learning.teaching import told_events
+    from core.semantics.derived_reader import Meaning, MeaningFact
+    taken = Meaning("tell", (MeaningFact("instance_of", "?e", "take in"), MeaningFact("done_by", "?e", "plant"),
+                             MeaningFact("done_to", "?e", "?g"), MeaningFact("has_member", "?g", "?c"),
+                             MeaningFact("has_member", "?g", "?w"), MeaningFact("instance_of", "?c", "carbon dioxide"),
+                             MeaningFact("instance_of", "?w", "water"), MeaningFact("has_count", "?w", "?n")))
+    named = told_events(taken, "Plants take in carbon dioxide and water.", described=True)
+    assert named["?g"].startswith("group_") and named["?n"].startswith("number_")
+    assert "?g" not in told_events(taken, "Plants take in carbon dioxide and water.")
+
+
 def test_a_thing_told_of_by_a_description_is_named_in_a_conversation():
     """`told_events(..., described=True)`, as a conversation names what it is told: "The company hired three
     engineers." names the hiring and the engineers hired (three of them), each from the telling; the company, a known

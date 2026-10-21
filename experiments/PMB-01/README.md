@@ -63,6 +63,7 @@ not composed right senses aside (`_missed.json`).
 | `20261020T164055Z` | the Mac, files only | 7.2% (4.6%), F1 49.0% | 42.1% (19.5%), F1 79.3% | 46.9% (20.8%), F1 82.9% |
 | `20261020T185728Z` | the Mac, files only; a pronoun the lessons say as the one spoken of before says it so, a happening that did not happen said as the lessons say it (lab notebook 2026-10-20 (28)); in brackets after the strict figure, the one spoken of before scored as unnamed | 7.1% (4.5%; 7.9%), F1 51.3% | 33.9% (16.2%; 40.7%), F1 79.4% | 37.6% (17.3%; 44.7%), F1 82.7% |
 | `20261020T210127Z` | the Mac, files only; a subject stands for nothing only under the verbs it was learned to ("It rains."), a word of its head's own line stands for nothing, whether a word is written in a shape of its name weighed for which word a pronoun stands for (lab notebook 2026-10-20 (30)) | 7.1% (4.5%; 7.9%), F1 51.6% | 33.6% (16.1%; 40.6%), F1 79.3% | 36.4% (16.7%; 44.0%), F1 82.3% |
+| `20261021T025534Z` | the Mac, files only; the PMB's meanings say an order as a request and a role as the kind said (`pmb_meanings`, lab notebook 2026-10-21 (32)), no silver; measured beside GRAMMAR-01 `20261021T025251Z` (20.0%, 39.3%, 49.4%) | 7.6% (4.8%; 8.5%), F1 52.1% | 32.9% (15.7%; 39.7%), F1 78.7% | |
 
 The composer before this one (6266d3a), measured the same way in scratch on the same 884 sentences: 6.6% (4.0%),
 16.5% (9.3%), 15.6% (9.2%); facts F1 53.6%, 64.6%, 64.8%. On main (2026-10-20 (26), 842 sentences, strict): 3.0%,

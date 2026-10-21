@@ -1,0 +1,6848 @@
+{
+ "about": "English's grammar, taught as data (core/semantics/grammar.py reads it): each grammar word's ways of being read (its category: what it combines with and what it makes; its meaning: what its part of the sentence holds), the categories of each kind of word, and the link each place makes where nothing taught says otherwise. A category's term after a dot: a lowercase letter is a variable of the word's meaning, @ the word's own name, ?speaker a term of the situation; an uppercase feature (S[F]) agrees. A meaning's pieces are spelled out in the meaning language by grammar.spell_out.",
+ "words": {
+  "the": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "given",
+      "x"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x/NP.x",
+    "use": "det",
+    "label": "the:name"
+   }
+  ],
+  "a": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "indefinite",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "an": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "indefinite",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "every": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "each": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "all": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "some": [
+   {
+    "cat": "NP.x/N.x",
+    "use": "det"
+   }
+  ],
+  "any": [
+   {
+    "cat": "NP.x/N.x",
+    "use": "det"
+   }
+  ],
+  "another": [
+   {
+    "cat": "NP.x/N.x",
+    "use": "det"
+   }
+  ],
+  "this": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "given",
+      "x"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "that": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "given",
+      "x"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   },
+   {
+    "cat": "S[em].c/S[dcl].c",
+    "use": "comp"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e/NP.x)",
+    "use": "rel:object"
+   },
+   {
+    "cat": "(NP.x\\NP.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   }
+  ],
+  "these": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "given",
+      "x"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "those": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "given",
+      "x"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "no": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "deny_arg",
+      "x"
+     ],
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "my": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "?speaker"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "your": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "?listener"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "our": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "g"
+     ],
+     [
+      "fact",
+      "has_member",
+      "g",
+      "?speaker",
+      "-"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "his": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "her": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "det"
+   },
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "its": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "their": [
+   {
+    "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "det"
+   }
+  ],
+  "'s": [
+   {
+    "cat": "(NP.x/N.x)\\NP.o",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ]
+    ],
+    "use": "poss"
+   },
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "have:perfect"
+   }
+  ],
+  "'": [
+   {
+    "cat": "(NP.x/N.x)\\NP.o",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ]
+    ],
+    "use": "poss"
+   }
+  ],
+  "i": [
+   {
+    "cat": "NP.?speaker",
+    "use": "pron"
+   }
+  ],
+  "me": [
+   {
+    "cat": "NP.?speaker",
+    "use": "pron"
+   }
+  ],
+  "myself": [
+   {
+    "cat": "NP.?speaker",
+    "use": "pron"
+   }
+  ],
+  "you": [
+   {
+    "cat": "NP.?listener",
+    "use": "pron"
+   }
+  ],
+  "yourself": [
+   {
+    "cat": "NP.?listener",
+    "use": "pron"
+   }
+  ],
+  "yourselves": [
+   {
+    "cat": "NP.?listener",
+    "use": "pron"
+   }
+  ],
+  "we": [
+   {
+    "cat": "NP.g",
+    "sem": [
+     [
+      "fact",
+      "has_member",
+      "g",
+      "?speaker",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "us": [
+   {
+    "cat": "NP.g",
+    "sem": [
+     [
+      "fact",
+      "has_member",
+      "g",
+      "?speaker",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "ourselves": [
+   {
+    "cat": "NP.g",
+    "sem": [
+     [
+      "fact",
+      "has_member",
+      "g",
+      "?speaker",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "he": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "him": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "she": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "it": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "they": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "them": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "himself": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "herself": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "itself": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "themselves": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "pron",
+      "x",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "mine": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "?speaker"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "ours": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "g"
+     ],
+     [
+      "fact",
+      "has_member",
+      "g",
+      "?speaker",
+      "-"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "hers": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "theirs": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "pron",
+      "o",
+      "@",
+      "own"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "yours": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "?listener"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "one": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   }
+  ],
+  "everyone": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "kind",
+      "x",
+      "person"
+     ],
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "everybody": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "kind",
+      "x",
+      "person"
+     ],
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "everything": [
+   {
+    "cat": "NP.x",
+    "sem": [
+     [
+      "kind",
+      "x",
+      "thing"
+     ],
+     [
+      "every",
+      "x"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "here": [
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "?here",
+      "here",
+      "-"
+     ]
+    ],
+    "use": "ADVERB"
+   },
+   {
+    "cat": "S[pp].p\\NP.x",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "?here",
+      "here",
+      "p"
+     ]
+    ],
+    "use": "ADVERB"
+   }
+  ],
+  "there": [
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "?there",
+      "there",
+      "-"
+     ]
+    ],
+    "use": "ADVERB"
+   },
+   {
+    "cat": "S[pp].p\\NP.x",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "?there",
+      "there",
+      "p"
+     ]
+    ],
+    "use": "ADVERB"
+   },
+   {
+    "cat": "THERE",
+    "use": "expl"
+   }
+  ],
+  "first": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "1",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "second": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "2",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "third": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "3",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "fourth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "4",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "fifth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "5",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "sixth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "6",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "seventh": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "7",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "eighth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "8",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "ninth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "9",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "tenth": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "fact",
+      "has_rank",
+      "x",
+      "10",
+      "-"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "less": [
+   {
+    "cat": "S[adj].q\\NP.x",
+    "sem": [
+     [
+      "quality",
+      "x",
+      "much",
+      "q"
+     ],
+     [
+      "compared",
+      "q",
+      "less"
+     ]
+    ],
+    "use": "ADJECTIVE"
+   },
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "compared",
+      "q",
+      "less"
+     ]
+    ],
+    "use": "ADVERB:degree"
+   }
+  ],
+  "more": [
+   {
+    "cat": "S[adj].q\\NP.x",
+    "sem": [
+     [
+      "quality",
+      "x",
+      "much",
+      "q"
+     ],
+     [
+      "compared",
+      "q",
+      "more"
+     ]
+    ],
+    "use": "ADJECTIVE"
+   },
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "compared",
+      "q",
+      "more"
+     ]
+    ],
+    "use": "ADVERB:degree"
+   },
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "counted",
+      "x",
+      "@"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "someone": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "somebody": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "something": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "anyone": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "anybody": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "anything": [
+   {
+    "cat": "NP.x",
+    "use": "pron"
+   },
+   {
+    "cat": "NP.x/(S[adj].q\\NP.x)",
+    "use": "pron",
+    "label": "something:quality"
+   }
+  ],
+  "nobody": [
+   {
+    "cat": "S[F].e/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   },
+   {
+    "cat": "(S[F].e\\NP.y)\\((S[F].e\\NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "nothing": [
+   {
+    "cat": "S[F].e/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   },
+   {
+    "cat": "(S[F].e\\NP.y)\\((S[F].e\\NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "none": [
+   {
+    "cat": "S[F].e/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   },
+   {
+    "cat": "(S[F].e\\NP.y)\\((S[F].e\\NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "pron"
+   }
+  ],
+  "who": [
+   {
+    "cat": "S[wq].e/(S[dcl].e\\NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:subject"
+   },
+   {
+    "cat": "S[wq].e/(S[q].e/NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:object"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e/NP.x)",
+    "use": "rel:object"
+   },
+   {
+    "cat": "(NP.x\\NP.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   }
+  ],
+  "what": [
+   {
+    "cat": "S[wq].e/(S[dcl].e\\NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:subject"
+   },
+   {
+    "cat": "S[wq].e/(S[q].e/NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:object"
+   },
+   {
+    "cat": "(S[wq].e/(S[q].e/NP.x))/N.x",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:det"
+   },
+   {
+    "cat": "(S[wq].e/(S[dcl].e\\NP.x))/N.x",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:det"
+   }
+  ],
+  "whom": [
+   {
+    "cat": "S[wq].e/(S[dcl].e\\NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:subject"
+   },
+   {
+    "cat": "S[wq].e/(S[q].e/NP.x)",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:object"
+   }
+  ],
+  "which": [
+   {
+    "cat": "(S[wq].e/(S[q].e/NP.x))/N.x",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:det"
+   },
+   {
+    "cat": "(S[wq].e/(S[dcl].e\\NP.x))/N.x",
+    "sem": [
+     [
+      "asked",
+      "x"
+     ]
+    ],
+    "use": "wh:det"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e/NP.x)",
+    "use": "rel:object"
+   },
+   {
+    "cat": "(NP.x\\NP.x)/(S[dcl].e\\NP.x)",
+    "use": "rel:subject"
+   }
+  ],
+  "whose": [
+   {
+    "cat": "(S[wq].e/(S[q].e/NP.x))/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "asked",
+      "o"
+     ]
+    ],
+    "use": "wh:det"
+   },
+   {
+    "cat": "(S[wq].e/(S[dcl].e\\NP.x))/N.x",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ],
+     [
+      "asked",
+      "o"
+     ]
+    ],
+    "use": "wh:det"
+   }
+  ],
+  "where": [
+   {
+    "cat": "S[wq].e/S[q].e",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "a",
+      "where",
+      "-"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb",
+    "only": true
+   },
+   {
+    "cat": "S[wq].p/(S[q].p/(S[pp].p\\NP.x))",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "a",
+      "where",
+      "p"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb"
+   },
+   {
+    "cat": "S[wq].e/(S[q].e/NP.y)",
+    "sem": [
+     [
+      "asked",
+      "y"
+     ]
+    ],
+    "use": "wh:adverb",
+    "label": "where:object"
+   },
+   {
+    "cat": "(N.x\\N.x)/S[dcl].e",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "x",
+      "where",
+      "-"
+     ]
+    ],
+    "use": "rel:object",
+    "label": "where:relative"
+   }
+  ],
+  "when": [
+   {
+    "cat": "S[wq].e/S[q].e",
+    "sem": [
+     [
+      "during",
+      "e",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb",
+    "only": true
+   },
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "how": [
+   {
+    "cat": "(S[wq].q/(S[q].q/(S[adj].q\\NP.x)))/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "degree_asked",
+      "q",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb",
+    "only": true,
+    "label": "how:degree"
+   },
+   {
+    "cat": "S[wq].e/S[q].e",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "a",
+      "-"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb",
+    "label": "how:manner"
+   },
+   {
+    "cat": "S[wq].q/(S[q].q/(S[adj].q\\NP.x))",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "x",
+      "a",
+      "q"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ],
+    "use": "wh:adverb",
+    "label": "how:quality"
+   }
+  ],
+  "why": [
+   {
+    "cat": "S[wq].e/S[q].e",
+    "sem": [
+     [
+      "gap",
+      "why"
+     ]
+    ],
+    "use": "wh:adverb",
+    "only": true
+   }
+  ],
+  "hello": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "greet"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "hi": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "greet"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "goodbye": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "farewell"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "bye": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "farewell"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "thanks": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "thank"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "am": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "is": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "are": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "'m": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   }
+  ],
+  "'re": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "q"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "now",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   }
+  ],
+  "was": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "q"
+     ],
+     [
+      "finite",
+      "q"
+     ]
+    ],
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "q"
+     ],
+     [
+      "finite",
+      "q"
+     ]
+    ],
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "were": [
+   {
+    "cat": "(S[dcl].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "q"
+     ],
+     [
+      "finite",
+      "q"
+     ]
+    ],
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pss].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\THERE)/NP.y",
+    "label": "be:there",
+    "use": "be:there",
+    "only": true
+   },
+   {
+    "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
+    "label": "be:there:pp",
+    "use": "be:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/THERE",
+    "label": "be:q:there",
+    "use": "be:q:there",
+    "only": true
+   },
+   {
+    "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
+    "label": "be:q:there:pp",
+    "use": "be:q:there:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "q"
+     ],
+     [
+      "finite",
+      "q"
+     ]
+    ],
+    "label": "be:q:adj",
+    "use": "be:q:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/NP.y)/NP.x",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "be:q:np",
+    "use": "be:q:np",
+    "only": true
+   },
+   {
+    "cat": "(S[q].p/(S[pp].p\\NP.x))/NP.x",
+    "label": "be:q:pp",
+    "use": "be:q:pp",
+    "only": true,
+    "sem": [
+     [
+      "finite",
+      "p"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[ng].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:ng",
+    "use": "be:q:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pss].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "be:q:pss",
+    "use": "be:q:pss",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "be": [
+   {
+    "cat": "(S[b].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[b].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[b].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[b].e\\NP.x)/(S[ng].e\\NP.x)",
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[b].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true
+   }
+  ],
+  "been": [
+   {
+    "cat": "(S[pt].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[pt].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[pt].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[pt].e\\NP.x)/(S[ng].e\\NP.x)",
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[pt].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true
+   }
+  ],
+  "being": [
+   {
+    "cat": "(S[ng].q\\NP.x)/(S[adj].q\\NP.x)",
+    "label": "be:adj",
+    "use": "be:adj",
+    "only": true
+   },
+   {
+    "cat": "(S[ng].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "be",
+      "x",
+      "y",
+      "p"
+     ]
+    ],
+    "label": "be:np",
+    "use": "be:np",
+    "only": true
+   },
+   {
+    "cat": "(S[ng].p\\NP.x)/(S[pp].p\\NP.x)",
+    "label": "be:pp",
+    "use": "be:pp",
+    "only": true
+   },
+   {
+    "cat": "(S[ng].e\\NP.x)/(S[ng].e\\NP.x)",
+    "label": "be:ng",
+    "use": "be:ng",
+    "only": true
+   },
+   {
+    "cat": "(S[ng].e\\NP.x)/(S[pss].e\\NP.x)",
+    "label": "be:pss",
+    "use": "be:pss",
+    "only": true
+   }
+  ],
+  "have": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:perfect",
+    "use": "have:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "have:owns",
+    "use": "have:owns",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pt].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:q:perfect",
+    "use": "have:q:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[b].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ]
+    ],
+    "label": "have:perfect",
+    "use": "have:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[b].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ]
+    ],
+    "label": "have:owns",
+    "use": "have:owns",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "'ve": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:perfect",
+    "use": "have:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "have:owns",
+    "use": "have:owns",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pt].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:q:perfect",
+    "use": "have:q:perfect",
+    "only": true
+   }
+  ],
+  "has": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:perfect",
+    "use": "have:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "have:owns",
+    "use": "have:owns",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pt].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:q:perfect",
+    "use": "have:q:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "had": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[pt].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:perfect",
+    "use": "have:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[dcl].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ],
+     [
+      "finite",
+      "p"
+     ]
+    ],
+    "label": "have:owns",
+    "use": "have:owns",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[pt].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "label": "have:q:perfect",
+    "use": "have:q:perfect",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "having": [
+   {
+    "cat": "(S[ng].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "fact",
+      "owns",
+      "x",
+      "y",
+      "p"
+     ]
+    ],
+    "use": "have:owns",
+    "only": true
+   }
+  ],
+  "do": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "use": "do",
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "use": "do:q",
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "S[imp].e/(S[b].e\\NP.?listener)",
+    "use": "do:order"
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "does": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "use": "do",
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "use": "do:q",
+    "sem": [
+     [
+      "finite",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "S[imp].e/(S[b].e\\NP.?listener)",
+    "use": "do:order"
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "did": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "do"
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "do:q"
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "will": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "'ll": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "wo": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "please": [
+   {
+    "cat": "S[F].a/S[F].a",
+    "sem": [
+     [
+      "polite",
+      "a",
+      "?listener"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   },
+   {
+    "cat": "S[F].a\\S[F].a",
+    "sem": [
+     [
+      "polite",
+      "a",
+      "?listener"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   },
+   {
+    "cat": "(S[b].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "polite",
+      "e",
+      "?listener"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "must": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "necessary",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   }
+  ],
+  "can": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "can",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "can",
+      "e",
+      "x"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "ca": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "can",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "can",
+      "e",
+      "x"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "cannot": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "can",
+      "e",
+      "x"
+     ],
+     [
+      "deny",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   }
+  ],
+  "could": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "possible",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "possible",
+      "-"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "might": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "possible",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "possible",
+      "-"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "should": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "advisable",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "advisable",
+      "-"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "would": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "hypothetical",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "hypothetical",
+      "-"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   },
+   {
+    "cat": "(S[q].a\\S[dcl].a)/NP.x",
+    "use": "tag"
+   }
+  ],
+  "'d": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "hypothetical",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "hypothetical",
+      "-"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "may": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "may",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "may",
+      "e",
+      "x"
+     ],
+     [
+      "polite",
+      "e",
+      "x"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "shall": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal",
+    "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "future",
+      "e"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
+   }
+  ],
+  "to": [
+   {
+    "cat": "(S[to].e\\NP.x)/(S[b].e\\NP.x)",
+    "use": "to:inf"
+   }
+  ],
+  "n't": [
+   {
+    "cat": "((S[q].a\\S[dcl].a)/NP.x)\\((S[q].a\\S[dcl].a)/NP.x)",
+    "use": "neg"
+   },
+   {
+    "cat": "((S[q].e/(S[F].e\\NP.x))/NP.x)\\((S[q].e/(S[F].e\\NP.x))/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:asked"
+   },
+   {
+    "cat": "((S[q].p/NP.y)/NP.x)\\((S[q].p/NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "p"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:asked"
+   },
+   {
+    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "only": true
+   },
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:after",
+    "crossing": true
+   }
+  ],
+  "not": [
+   {
+    "cat": "((S[q].a\\S[dcl].a)/NP.x)\\((S[q].a\\S[dcl].a)/NP.x)",
+    "use": "neg"
+   },
+   {
+    "cat": "((S[q].e/(S[F].e\\NP.x))/NP.x)\\((S[q].e/(S[F].e\\NP.x))/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:asked"
+   },
+   {
+    "cat": "((S[q].p/NP.y)/NP.x)\\((S[q].p/NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "p"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:asked"
+   },
+   {
+    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "only": true
+   },
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:after",
+    "crossing": true
+   }
+  ],
+  "never": [
+   {
+    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "only": true
+   },
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:after",
+    "crossing": true
+   }
+  ],
+  "wanna": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].c\\NP.x)",
+    "sem": [
+     [
+      "event",
+      "e",
+      "want"
+     ],
+     [
+      "role",
+      "e",
+      "x",
+      "subject"
+     ],
+     [
+      "role",
+      "e",
+      "c",
+      "object"
+     ]
+    ],
+    "use": "VERB",
+    "only": true
+   }
+  ],
+  "and": [
+   {
+    "cat": "conj[@]",
+    "use": "conj"
+   },
+   {
+    "cat": "AND",
+    "use": "conj"
+   }
+  ],
+  "or": [
+   {
+    "cat": "conj[@]",
+    "use": "conj"
+   }
+  ],
+  "but": [
+   {
+    "cat": "conj[@]",
+    "use": "conj"
+   }
+  ],
+  "because": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "so": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "while": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "before": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "after": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "until": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "since": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "although": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "though": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "if": [
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "use": "sub",
+    "label": "if"
+   },
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "use": "sub",
+    "label": "if"
+   }
+  ],
+  "unless": [
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "gap",
+      "@"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "gap",
+      "@"
+     ]
+    ],
+    "use": "sub"
+   }
+  ],
+  "then": [
+   {
+    "cat": "S[F].a/S[F].a",
+    "use": "ADVERB",
+    "label": "then"
+   }
+  ],
+  "by": [
+   {
+    "cat": "PP[by].y/NP.y",
+    "use": "case:agent"
+   }
+  ],
+  "than": [
+   {
+    "cat": "((S[adj].q\\NP.x)\\(S[adj].q\\NP.x))/NP.y",
+    "sem": [
+     [
+      "than",
+      "q",
+      "y"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "than",
+    "only": true
+   },
+   {
+    "cat": "(N.x\\N.x)/NP.y",
+    "sem": [
+     [
+      "than",
+      "x",
+      "y"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "than:count",
+    "only": true
+   }
+  ],
+  "fewer": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "counted",
+      "x",
+      "@"
+     ]
+    ],
+    "use": "ADJECTIVE:before"
+   }
+  ],
+  "most": [
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "compared",
+      "q",
+      "most"
+     ]
+    ],
+    "use": "ADVERB:degree"
+   }
+  ],
+  "least": [
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "compared",
+      "q",
+      "least"
+     ]
+    ],
+    "use": "ADVERB:degree"
+   }
+  ],
+  "times": [
+   {
+    "cat": "((S[F].e\\NP.z)\\(S[F].e\\NP.z))\\NP.n",
+    "sem": [
+     [
+      "count",
+      "e",
+      "n"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "times"
+   },
+   {
+    "cat": "(NP.r\\NP.a)/NP.b",
+    "sem": [
+     [
+      "fact",
+      "has_multiplicand",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_factor",
+      "r",
+      "b",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "arithmetic"
+   }
+  ],
+  "plus": [
+   {
+    "cat": "(NP.r\\NP.a)/NP.b",
+    "sem": [
+     [
+      "fact",
+      "has_augend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_addend",
+      "r",
+      "b",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "arithmetic"
+   }
+  ],
+  "minus": [
+   {
+    "cat": "(NP.r\\NP.a)/NP.b",
+    "sem": [
+     [
+      "fact",
+      "has_minuend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_subtrahend",
+      "r",
+      "b",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "label": "arithmetic"
+   }
+  ],
+  "squared": [
+   {
+    "cat": "NP.r\\NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_base",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_exponent",
+      "r",
+      "2",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "cubed": [
+   {
+    "cat": "NP.r\\NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_base",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_exponent",
+      "r",
+      "3",
+      "-"
+     ]
+    ],
+    "use": "GRAMMAR",
+    "only": true
+   }
+  ],
+  "x": [
+   {
+    "cat": "NP.@",
+    "use": "GRAMMAR",
+    "label": "letter",
+    "only": true
+   }
+  ],
+  "y": [
+   {
+    "cat": "NP.@",
+    "use": "GRAMMAR",
+    "label": "letter",
+    "only": true
+   }
+  ],
+  "z": [
+   {
+    "cat": "NP.@",
+    "use": "GRAMMAR",
+    "label": "letter",
+    "only": true
+   }
+  ],
+  "n": [
+   {
+    "cat": "NP.@",
+    "use": "GRAMMAR",
+    "label": "letter",
+    "only": true
+   }
+  ]
+ },
+ "numbers": {
+  "zero": 0,
+  "one": 1,
+  "two": 2,
+  "three": 3,
+  "four": 4,
+  "five": 5,
+  "six": 6,
+  "seven": 7,
+  "eight": 8,
+  "nine": 9,
+  "ten": 10,
+  "eleven": 11,
+  "twelve": 12,
+  "thirteen": 13,
+  "fourteen": 14,
+  "fifteen": 15,
+  "sixteen": 16,
+  "seventeen": 17,
+  "eighteen": 18,
+  "nineteen": 19,
+  "twenty": 20,
+  "thirty": 30,
+  "forty": 40,
+  "fifty": 50,
+  "sixty": 60,
+  "seventy": 70,
+  "eighty": 80,
+  "ninety": 90,
+  "dozen": 12
+ },
+ "number_scales": {
+  "hundred": 100,
+  "thousand": 1000,
+  "million": 1000000,
+  "billion": 1000000000,
+  "trillion": 1000000000000
+ },
+ "phrases": {
+  "in front of": "PREPOSITION",
+  "to the left of": "PREPOSITION",
+  "to the right of": "PREPOSITION",
+  "next to": "PREPOSITION",
+  "on top of": "PREPOSITION",
+  "out of": "PREPOSITION",
+  "because of": "PREPOSITION",
+  "instead of": "PREPOSITION",
+  "in spite of": "PREPOSITION",
+  "close to": "PREPOSITION",
+  "far from": "PREPOSITION",
+  "according to": "PREPOSITION",
+  "due to": "PREPOSITION",
+  "away from": "PREPOSITION",
+  "as well as": "PREPOSITION",
+  "part of": "PREPOSITION",
+  "made of": "PREPOSITION",
+  "member of": "PREPOSITION",
+  "the opposite of": "PREPOSITION"
+ },
+ "together": {
+  "no one": [
+   {
+    "cat": "S[F].e/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[F].e\\NP.y)\\((S[F].e\\NP.y)/NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ]
+   }
+  ],
+  "how many": [
+   {
+    "cat": "(S[wq].e/(S[q].e/NP.x))/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[wq].e/(S[dcl].e\\NP.x))/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ]
+   }
+  ],
+  "how much": [
+   {
+    "cat": "(S[wq].e/(S[q].e/NP.x))/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[wq].e/(S[dcl].e\\NP.x))/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ]
+   }
+  ],
+  "what a": [
+   {
+    "cat": "NP.x/N.x",
+    "label": "what a"
+   }
+  ],
+  "what an": [
+   {
+    "cat": "NP.x/N.x",
+    "label": "what a"
+   }
+  ],
+  "divided by": [
+   {
+    "cat": "(NP.r\\NP.a)/NP.b",
+    "sem": [
+     [
+      "fact",
+      "has_dividend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_divisor",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "the sum of": [
+   {
+    "cat": "((NP.r/NP.b)/AND)/NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_augend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_addend",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "the product of": [
+   {
+    "cat": "((NP.r/NP.b)/AND)/NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_multiplicand",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_factor",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "the difference between": [
+   {
+    "cat": "((NP.r/NP.b)/AND)/NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_minuend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_subtrahend",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "the quotient of": [
+   {
+    "cat": "((NP.r/NP.b)/AND)/NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_dividend",
+      "r",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_divisor",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "percent of": [
+   {
+    "cat": "(NP.r/NP.b)\\NP.a",
+    "sem": [
+     [
+      "fact",
+      "has_dividend",
+      "p",
+      "a",
+      "-"
+     ],
+     [
+      "fact",
+      "has_divisor",
+      "p",
+      "100",
+      "-"
+     ],
+     [
+      "fact",
+      "has_multiplicand",
+      "r",
+      "p",
+      "-"
+     ],
+     [
+      "fact",
+      "has_factor",
+      "r",
+      "b",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "used to": [
+   {
+    "cat": "(S[dcl].e\\NP.x)/(S[b].e\\NP.x)",
+    "sem": [
+     [
+      "past",
+      "e"
+     ],
+     [
+      "fact",
+      "has_property",
+      "e",
+      "usually",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "is it true that": [
+   {
+    "cat": "S[q].a/S[dcl].a"
+   }
+  ],
+  "good morning": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "greet"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "good evening": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "greet"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "good afternoon": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "greet"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "good night": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "farewell"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "thank you": [
+   {
+    "cat": "S[dcl].e",
+    "sem": [
+     [
+      "event",
+      "e",
+      "thank"
+     ],
+     [
+      "fact",
+      "done_by",
+      "e",
+      "?speaker",
+      "-"
+     ],
+     [
+      "fact",
+      "done_to",
+      "e",
+      "?listener",
+      "-"
+     ]
+    ]
+   }
+  ],
+  "how many times": [
+   {
+    "cat": "S[wq].e/S[q].e",
+    "sem": [
+     [
+      "count",
+      "e",
+      "a"
+     ],
+     [
+      "asked",
+      "a"
+     ]
+    ]
+   }
+  ],
+  "kind of": [
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "degree",
+      "q",
+      "@"
+     ]
+    ]
+   }
+  ],
+  "sort of": [
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "degree",
+      "q",
+      "@"
+     ]
+    ]
+   }
+  ],
+  "even though": [
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ]
+   },
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "a",
+      "unexpected",
+      "-"
+     ]
+    ]
+   }
+  ]
+ },
+ "classes": {
+  "NOUN": [
+   {
+    "cat": "N.x",
+    "sem": [
+     [
+      "kind",
+      "x",
+      "@"
+     ]
+    ]
+   }
+  ],
+  "NAME": [
+   {
+    "cat": "NP.@"
+   }
+  ],
+  "ADJECTIVE": [
+   {
+    "cat": "S[adj].q\\NP.x",
+    "sem": [
+     [
+      "quality",
+      "x",
+      "@",
+      "q"
+     ]
+    ],
+    "label": "adj"
+   }
+  ],
+  "NUMERAL": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "@"
+     ]
+    ],
+    "label": "count"
+   },
+   {
+    "cat": "NP.@",
+    "label": "number",
+    "use": "NUMERAL:alone"
+   }
+  ],
+  "ADVERB": [
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "adv",
+      "e",
+      "@"
+     ]
+    ],
+    "label": "adv:after"
+   },
+   {
+    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "adv",
+      "e",
+      "@"
+     ]
+    ],
+    "label": "adv:before"
+   },
+   {
+    "cat": "S[F].e/S[F].e",
+    "sem": [
+     [
+      "adv",
+      "e",
+      "@"
+     ]
+    ],
+    "label": "adv:opening"
+   },
+   {
+    "cat": "(S[adj].q\\NP.x)/(S[adj].q\\NP.x)",
+    "sem": [
+     [
+      "degree",
+      "q",
+      "@"
+     ]
+    ],
+    "label": "adv:degree",
+    "use": "ADVERB:degree"
+   }
+  ],
+  "PREPOSITION": [
+   {
+    "cat": "(N.x\\N.x)/NP.y",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "y",
+      "@",
+      "-"
+     ]
+    ],
+    "label": "prep:thing",
+    "use": "PREPOSITION:thing"
+   },
+   {
+    "cat": "(NP.x\\NP.x)/NP.y",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "y",
+      "@",
+      "-"
+     ]
+    ],
+    "label": "prep:named",
+    "use": "PREPOSITION:thing"
+   },
+   {
+    "cat": "((S[F].e\\NP.z)\\(S[F].e\\NP.z))/NP.y",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "y",
+      "@",
+      "-"
+     ]
+    ],
+    "label": "prep:doing"
+   },
+   {
+    "cat": "(S[F].e/S[F].e)/NP.y",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "y",
+      "@",
+      "-"
+     ]
+    ],
+    "label": "prep:opening"
+   },
+   {
+    "cat": "(S[pp].p\\NP.x)/NP.y",
+    "sem": [
+     [
+      "prep",
+      "x",
+      "y",
+      "@",
+      "p"
+     ]
+    ],
+    "label": "prep:said",
+    "use": "PREPOSITION:said"
+   },
+   {
+    "cat": "((S[adj].q\\NP.x)\\(S[adj].q\\NP.x))/NP.y",
+    "sem": [
+     [
+      "holder",
+      "x",
+      "y",
+      "@"
+     ]
+    ],
+    "label": "prep:quality",
+    "use": "PREPOSITION:quality"
+   }
+  ]
+ },
+ "verbs": {
+  "frames": {
+   "intransitive": true,
+   "transitive": true,
+   "ditransitive": true,
+   "to": true,
+   "that": true,
+   "told to": true
+  },
+  "base": {
+   "intransitive": [
+    {
+     "cat": "S[b].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[b].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ]
+     ]
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[b].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ]
+     ]
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[b].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[b].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[b].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ]
+  },
+  "present": {
+   "intransitive": [
+    {
+     "cat": "S[dcl].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ]
+  },
+  "third": {
+   "intransitive": [
+    {
+     "cat": "S[dcl].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ]
+  },
+  "past": {
+   "intransitive": [
+    {
+     "cat": "S[dcl].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[dcl].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ]
+  },
+  "ing": {
+   "intransitive": [
+    {
+     "cat": "S[ng].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[ng].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ]
+     ]
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[ng].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ]
+     ]
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[ng].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[ng].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[ng].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ]
+  },
+  "participle": {
+   "intransitive": [
+    {
+     "cat": "S[pt].e\\NP.x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ]
+     ]
+    }
+   ],
+   "transitive": [
+    {
+     "cat": "(S[pt].e\\NP.x)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ]
+     ]
+    },
+    {
+     "cat": "S[pss].e\\NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "passive"
+      ]
+     ],
+     "label": "passive"
+    },
+    {
+     "cat": "(S[pss].e\\NP.y)/PP[by].x",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "by"
+      ]
+     ],
+     "label": "passive:by"
+    }
+   ],
+   "ditransitive": [
+    {
+     "cat": "((S[pt].e\\NP.x)/NP.y)/NP.z",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ]
+     ]
+    },
+    {
+     "cat": "(S[pss].e\\NP.z)/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "object"
+      ],
+      [
+       "role",
+       "e",
+       "z",
+       "second"
+      ]
+     ],
+     "label": "passive"
+    }
+   ],
+   "to": [
+    {
+     "cat": "(S[pt].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "that": [
+    {
+     "cat": "(S[pt].e\\NP.x)/S[em].c",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "told to": [
+    {
+     "cat": "((S[pt].e\\NP.x)/(S[to].c\\NP.y))/NP.y",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "y",
+       "second"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ]
+  }
+ },
+ "linking": {
+  "subject": "done_by",
+  "object": "done_to",
+  "second": "received_by",
+  "passive": "done_to",
+  "possessive": "owned_by",
+  "adverb": "has_property"
+ },
+ "name_particles": [
+  "de",
+  "van",
+  "von",
+  "da",
+  "del",
+  "della",
+  "di",
+  "du",
+  "la",
+  "le",
+  "bin",
+  "al",
+  "der",
+  "den"
+ ],
+ "wordnet_frames": {
+  "intransitive": [
+   1,
+   2,
+   3,
+   4,
+   7,
+   12,
+   13,
+   22,
+   23,
+   27
+  ],
+  "transitive": [
+   8,
+   9,
+   10,
+   11,
+   15,
+   16,
+   17,
+   18,
+   19,
+   20,
+   21,
+   31
+  ],
+  "ditransitive": [
+   14
+  ],
+  "to": [
+   28,
+   32,
+   35
+  ],
+  "that": [
+   26,
+   34
+  ],
+  "told to": [
+   24,
+   25
+  ]
+ }
+}

@@ -1,0 +1,128 @@
+{
+  "experiment": "UNDERSTANDS-PROSE-01",
+  "claim": "the substrate reads prose as its sources write it and reasons over what it read: it understands the sentences, answers what they say and what follows, and does not answer wrongly what it did not understand",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-21T10:46:58.335956+00:00",
+  "duration_seconds": 736.18,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "2cd1f817133370bed3ccb15242b33065a054c232",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 22,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 3,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 0.7576,
+      "unit": "fraction",
+      "note": "25/33"
+    },
+    {
+      "name": "questions answered right",
+      "value": 0.5405,
+      "unit": "fraction",
+      "note": "20/37"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.0541,
+      "unit": "fraction",
+      "note": "2/37"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-21T10:50:03.692113+00:00"
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": false,
+      "detail": "25/33 = 75.8%",
+      "at": "2026-10-21T10:59:13.511592+00:00"
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": false,
+      "detail": "20/37 = 54.1%",
+      "at": "2026-10-21T10:59:13.511616+00:00"
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": false,
+      "detail": "2/37 = 5.4%",
+      "at": "2026-10-21T10:59:13.511622+00:00"
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-10-21T10:59:13.511627+00:00"
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-21T10:59:14.534676+00:00"
+    }
+  ],
+  "notes": [
+    "reading by English's grammar on: an utterance no taught frame reads is read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)",
+    "an utterance every frame reads only by supposing more than any lesson read as taught is read by the grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)",
+    "encyclopedia: sentences 5/5, questions right 5/6, wrong 1",
+    "science: sentences 2/4, questions right 1/5, wrong 0",
+    "webpage: sentences 3/5, questions right 1/4, wrong 0",
+    "code documentation: sentences 2/3, questions right 0/3, wrong 1",
+    "mathematics: sentences 2/3, questions right 4/4, wrong 0",
+    "premises: sentences 2/2, questions right 2/2, wrong 0",
+    "history: sentences 3/3, questions right 1/4, wrong 0",
+    "paper abstract: sentences 1/3, questions right 1/3, wrong 0",
+    "security log: sentences 3/3, questions right 2/3, wrong 0",
+    "news: sentences 2/2, questions right 3/3, wrong 0"
+  ]
+}

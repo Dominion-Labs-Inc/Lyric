@@ -17059,3 +17059,127 @@ before, which this conversation left untied after the misread "Python is a high-
 ...". The 19 questions still not answered are, as traced: the structure reader's reading of questions (inverted
 passives, "When"/"Who" questions, "Is Paris the capital of France?"), tellings held wrong ("Python is a high-level,
 general-purpose programming language."), and senses ("sorted" a verb, "anomaly" a person).
+
+## 2026-10-21 (31) — Read by a grammar: each word's category and meaning, general rules, and only what words hold learned; the composer measured and left behind
+
+**Why.** The owner, after the PMB levels were measured (entry (30) and the levels after it: the most specific
+situations met decided 71% of what a word stands for, 2% wrong, but 16% of what two words hold together, the rest by
+coarser situations wrong 9% to 75%): "remove the fall back", then "I don't think this is the right way to treat
+classical computing. And we've done five times and we're still running into the same problems." The five (the pattern
+reader, the construction reader, the listener's counts, the structure reader's frames, the composer) are one idea:
+English learned as sentences remembered, a new sentence read by the remembered ones it looks like. That is statistics
+with raw counts, without the data or the smoothing statistics needs; real sentences rarely look enough like any, and
+every version ended guessing. Classical computing reads by rules that compose: a grammar and the meaning of each word,
+the whole built from its parts. Agreed ("go"): build it, measure it where the composer was measured, and replace the
+situation tables only if it wins.
+
+**Built** (`core/semantics/grammar.py`, `data/grammar/english.json`, `experiments/GRAMMAR-01`):
+- **A categorial grammar** (CCG, Steedman 2000). Categories with the terms of each word's meaning on them
+  (`(S[dcl].e\NP.x)/NP.y`), unified as words combine, so a meaning's places are filled by the grammar (Copestake et
+  al. 2001's hooks and slots, in effect). Rules: application, composition, a thing raised and composed ("the money she
+  owed"), crossing only where a word's entry allows it (a slash's modality, Baldridge 2002: "was not a student"),
+  joining by "and" and by a comma in a list, sentences one after another, punctuation read with what it stands by; a
+  kind said bare is a thing, a doing a thing, a doing before or after a thing tells of it, a quality before a thing is
+  its. Nothing in them is English.
+- **English as data** (`data/grammar/english.json`, 115 grammar words and words of several: "the", "is", "who",
+  "not", "if", "can", "how many", "used to"; the categories of each kind of word and of each verb form and frame; the
+  default links). Each grammar entry names the use it is counted as ("be:ng": "is" before a doing).
+- **Which reading**: every reading the grammar allows is built once (CKY chart, packed by category, exact; no cap);
+  of the readings of the whole, a sentence before a phrase, then the one whose words are used most as they are used:
+  each word's evidence for each way it is read, counted from how it is used (the treebank's uses, signed as the
+  grammar's entries name them), a word seldom or never seen read as words spelled like it are (one use more, spread
+  half by those words and half evenly). A noun said with nothing before it costs what it costs ("The phone is
+  ringing" is no phone that is a ringing); a doing read as a thing, likewise. A lowercase word is no name ("apple" is
+  no Apple); a capitalised word inside a sentence is a name, or a kind memory holds by a capitalised name
+  ("Estonian").
+- **Learned** (`Grammar.learn`): each taught sentence read by the grammar, its meaning's terms aligned to its words
+  (the PMB's lines; a lesson's names), and for each place the link the meaning says: per verb and place, per
+  preposition (with the head, and with whether the thing is a point in time or a stretch), per noun owned, per
+  adjective ("British": `comes_from`), per adverb, per what "is" joins (`equals`, or one thing: "It's a trap."). A
+  word whose own uses say nothing takes what is said of the kind memory holds it to be; nothing said of either, the
+  grammar's link, a preposition held as its word.
+- **The meaning in the meaning language**, as the lessons teach it: times, denied happenings, degrees, past states,
+  things of a kind (`isa(whale, mammal)`, `capable_of(bird, fly)`, a doing by a kind), what an "if" says must hold
+  (its clause's facts marked as the condition), whom "his" stands for.
+
+**Measured** (GRAMMAR-01 `20261021T004110Z`, files only, learned from the lessons and the PMB's gold training
+sentences, as the composer was): PMB dev 884: read whole 854, given a meaning 845; whole meanings right strict 19.5%,
+senses aside 39.7%, the one spoken of before unnamed 49.7%, facts F1 80.9%. The composer learned from the same:
+16.1%, 33.6%, 40.6%, F1 79.3%; with the silver sentences too, 22 times the data: 16.7%, 36.4%, 44.0%, 82.3%. Of the
+links decided, 1,395 by the word's own uses (80.9% held by the meaning), 101 by its kind (63.4%), 153 by the grammar's
+rule (49.0%; a preposition held as its word is never the PMB's link). Learned from the gold alone (scratch): 20.4%,
+40.6%, 50.7%: the lessons and the PMB say some things two ways (`isa` against `equals`, `located_at` against
+`located_in`, a present-tense plural as a kind or as some). The lessons: held out 23.9% read right whole, learned from
+31.8% (they hold conventions the grammar does not yet say: "want to" unasserted, comparatives, "below", "made of").
+The prose (`20261021T004322Z_prose.json`): 69 of 70 tellings and questions given a meaning, each in under half a
+second; "When was the Eiffel Tower built?" (`during(?v0, ?v1)` asked), "Is the Eiffel Tower in Paris?"
+(`located_in(eiffel tower, paris)`), "What does the method detect?", "How many engineers did the company hire?", "The
+server logged a failed login from 10.0.0.5." read right; not read: "Every prime number greater than 2 is odd." (a
+comparison). Read but wrong, as seen: "The function sorted returns a new list." ("sorted" a verb), "Python is
+dynamically typed and garbage-collected.", "A prime number is a natural number greater than 1 that has ...".
+
+**Found on the way:** Lyric's tokenizer joins "log a" into one formula piece; the grammar now splits a joined piece
+back into its words where each is a word held (`grammar.tokens_of`). The treebank's counts are lowercased, so "apple"
+counted with "Apple" and "us" with "US". PMB-01's senses-aside naming of a kind on a line with no words of its own
+(by its thing's word) is matched in GRAMMAR-01.
+
+**Not yet:** nothing is wired into the conversation or the store: on main the words' uses, forms and frames, WordNet's
+verb frames and what an adjective is of must be in memory, and none of them is taught yet. Comparatives, "too ... to",
+"say that" and "want to" as unasserted, "could"/"would"/"should" (the meaning language's gaps), questions with a
+stranded preposition, numbers of several words ("five hundred").
+
+## 2026-10-21 (32) — The grammar wired in: memory reads with it; the meaning language's conventions said; a meaning of any number of unknowns
+
+**Wired in** (the owner: "Let's wire it in. Then we need to work on everything that you mentioned is not good yet."):
+- **Memory's grammar** (`MemoryAgent.grammar_view`, `grammar.GrammarView`), built when first asked after a warm: each
+  word as memory holds it (`grammar_words.HeldWords`): how the treebank sentences memory holds analysed use it, each
+  use signed by the grammar's own entries ("is" before a doing is `be:ng` because the grammar reads it so, never a
+  list); the forms memory holds a word written in (`word_forms.HeldForms.forms_of`: "came" the past of `come`, the
+  tense and number the held sentences do not keep); what memory holds of things, loaded once a warm
+  (`_grammar_knowledge`: `isa`, `instance of`, and an adjective's `defined with`; 148,843 links on main), held in this
+  process (`grammar_words.GraphKnowledge`). Learned from the sentences memory holds with their taught meanings (the
+  lessons', the PMB's), a sentence taught again corrected taken back (`GrammarView.drop`, `Grammar.unlearn`).
+- **The conversation reads with it** where it read with the composer: an utterance no taught frame reads, one every
+  frame reads only by supposing more than the lessons did (now questions too: the grammar reads questions by their
+  words and order), and a question also asked as the grammar reads it (`derived_reader._read_by_composing`,
+  `Conversation._asked_of_events_composed`). The composer stays (`composition.py`), no longer asked by the
+  conversation.
+- **A word is named by the word it is a form of** (`HeldWords.lexeme`: the form memory holds, else a change of spelling
+  the held forms make that gives a word memory holds as one of the class), as WordNet's links name the sense used
+  most: memory's `name_of` gave "build" `physique`, "air" `line airline`, "emphasize" `underscore` on main.
+- **Read only on main** (the approved trace kind): warm 145-241 s, the grammar built in 1 s from 12,544 analysed
+  sentences and 148,843 links, learned from 9,874 taught sentences in 57-83 s, each sentence then read in 0.01-0.1 s.
+  The prose's tellings and questions read as the grammar reads them (scratch `main_prose2.txt`): "When was the Eiffel
+  Tower built?" asks the building told; "How many failed attempts were there?" the attempts' count; "Is Paris the
+  capital of France?", "It is in Paris." right.
+
+**A meaning of any number of unknowns** (`derived_reader`): refused past six (`MAX_FREE_VARIABLES`), because writing
+it canonically followed every tie; "We propose a new method for detecting anomalies in network traffic." (seven) could
+not be held. Unknowns told apart alike (colour refinement) are followed once (`_colours`): forty in 4 ms, written the
+same in any order. The limit on a taught phrase's unknowns (the reader's search) stays.
+
+**The meaning language's conventions said** (`data/grammar/english.json`, `grammar.py`), as the lessons say them: a
+verb said as a link, learned (`owns`, `requires`, `precedes`: the meaning gives its word no happening); prepositions of
+several words ("in front of", "the opposite of"); "where" learned per verb (`moves_to` for going); clause words
+learned as prepositions ("because" `causes`, "when" `during`, "until" `lasts_until`), "although" unexpected, "used
+to" usually; modals ("might" possible, "should" advisable, "would" hypothetical; "You may go." allowed); orders,
+"please" and "Could you ...?" requests, an order said to a name ("Close the box, Tom."); what a "that" or "to" clause
+says told as so or not, learned per verb ("knows" so, "said" not); "or" alternatives; numbers of several words and
+formulas; measures ("ten years old"); comparing ("more careful than", `exceeds`; "the biggest city", `greatest_of`);
+greetings; ordinals; "everyone", "everything"; purpose ("ran to catch"); "told Rex to"; appositions; a preposition
+left at the end ("Who did you get these flowers from?"); things said of a kind: a thing said with "a", bare, "every"
+or "no" as the subject of the sentence's own finite statement in the present ("A prime number is a natural number
+greater than 1.": `isa(prime number, natural number) & exceeds(prime number, 1)`). The lessons, learned from, read
+right whole 31.8% → 47.7% (52.6% senses aside).
+
+**The PMB's meanings as the lessons say them** (`pmb_meanings`): an order is a request (the hearer no word says does it);
+a role is the kind said ("Tom is a workaholic.": `isa(tom, workaholic)`, was `equals(tom, ?x)`). On main the PMB was
+taught the old way: teaching it again corrects it (`remember_taught_sentences`), the owner's run.
+
+**Measured** (files only): GRAMMAR-01 `20261021T025251Z`: dev read whole 857, strict 20.0%, senses aside 39.3%, unnamed
+49.4%, F1 80.6%; PMB-01 `20261021T025534Z` (the composer, same conversion, lessons and gold): 15.7%, 32.9%, 39.7%,
+F1 78.7%. Tests: grammar 12, composition 17, derived reading 122, PMB conversion 8, the conversation's composed
+question 1.
+
+**Next:** the owner's UNDERSTANDS-PROSE-01 run on main; then senses (the lessons name some words by sense: "rain" the
+verb is `precipitate rain`), the remaining lesson conventions, arithmetic words.

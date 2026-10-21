@@ -1,0 +1,1773 @@
+[
+ {
+  "text": "whales",
+  "told": "Whales are mammals.",
+  "read": true,
+  "reply": "Noted - Whales are mammals.",
+  "readings": [
+   [
+    "tell: isa(\u27e81\u27e8Whales, mammal)",
+    "tell: isa(\u27e81\u27e8Whales, mammal)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "They live in the ocean.",
+  "read": true,
+  "reply": "Noted - I'll hold that about live_b43382f2.\nNoted - I'll hold that about ocean_1.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & given instance_of(?v1, ocean) & instance_of(?v0, live) & located_in(?v0, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "A whale breathes air through a blowhole.",
+  "read": true,
+  "reply": "Noted - I'll hold that about breathe_c008988b.\nNoted - I'll hold that about air_e5c934d5.\nNoted - I'll hold that about blowhole_a08c59c4.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, blowhole) & moves_through(?v0, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "Whales feed their young with milk.",
+  "read": true,
+  "reply": "Noted - I'll hold that about feed_d05a6010.\nNoted - I'll hold that about young_59cd585c.\nNoted - I'll hold that about milk_f5019ee2.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, whale) & done_with(?v0, ?v1) & instance_of(?v0, feed) & instance_of(?v1, milk) & instance_of(?v2, young) & owned_by(?v2, whale) & received_by(?v0, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "The blue whale is the largest animal on Earth.",
+  "read": true,
+  "reply": "Noted - I'll hold that about blue_whale_1.\nNoted - I'll hold that about animal_1.\nNoted - I'll hold that about large_fc797a29.",
+  "readings": [
+   [
+    "composed: tell: equals(?v0, ?v1) & given instance_of(?v0, blue whale) & given instance_of(?v1, animal) & greatest_of(?v2, animal) & has_degree(?v1, ?v2) & instance_of(?v2, large)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Are whales mammals?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Whales are mammals.",
+  "readings": [
+   [
+    "ask: isa(\u27e81\u27e8whales, mammal)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "whale",
+    "relation": "isa",
+    "others": [
+     "mammal"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(whale, mammal)"
+    ],
+    "answer": "Yes: whale isa mammal",
+    "route": [
+     "substrate",
+     "concept_graph",
+     "true"
+    ],
+    "steps": [
+     "concept graph: whale -isa-> mammal is true (observed)"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales live in the ocean?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, whale) & given instance_of(?v1, ocean) & instance_of(?v0, live) & located_in(?v0, ?v1)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "live_b43382f2",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, live)",
+     "instance_of(ocean_1, ocean)",
+     "done_by(?v0, whale)",
+     "located_in(?v0, ocean_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales breathe air?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "breathe_c008988b",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, breathe)",
+     "instance_of(?v1, air)",
+     "done_by(?v0, whale)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Where do whales live?",
+  "gold": [
+   "ocean",
+   "sea"
+  ],
+  "result": "right",
+  "reply": "Ocean.",
+  "readings": [
+   [
+    "ask: done_by(?v0, \u27e81\u27e8whales) & instance_of(?v0, \u27e82\u27e8live) & located_in(?v0, ?v1) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "live_b43382f2",
+    "relation": "",
+    "others": [
+     "ocean"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, live)",
+     "done_by(?v0, whale)",
+     "located_in(?v0, ?x)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "What is the largest animal on Earth?",
+  "gold": [
+   "blue whale"
+  ],
+  "result": "wrong",
+  "reply": "Animals are organisms. An animal is made of animal tissue. An animal is a member of an animal kingdom.\nLarges are sizes.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & given instance_of(?v0, animal) & greatest_of(?v2, animal) & has_degree(?v0, ?v2) & instance_of(?v2, large) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(animal_1, animal)",
+     "has_degree(animal_1, ?v1)",
+     "instance_of(?v1, large)",
+     "greatest_of(?v1, animal)",
+     "equals(animal_1, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Is a blue whale an animal?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. A blue whale is a kind of animal.",
+  "readings": [
+   [
+    "ask: isa(blue whale, animal)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "blue whale",
+    "relation": "isa",
+    "others": [
+     "animal"
+    ],
+    "verdict": true,
+    "support": [
+     "blue whale \u2192 baleen whale \u2192 whale \u2192 mammal \u2192 vertebrate \u2192 chordate \u2192 animal"
+    ],
+    "conclusion": "animal"
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(blue whale, animal)"
+    ],
+    "answer": "Yes: blue whale isa animal",
+    "route": [
+     "substrate",
+     "concept_graph",
+     "true"
+    ],
+    "steps": [
+     "concept graph: blue whale -isa-> animal is true (derived)",
+     "chain: blue whale \u2192 baleen whale \u2192 whale \u2192 mammal \u2192 vertebrate \u2192 chordate \u2192 animal"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Photosynthesis is the process by which plants make food from light.",
+  "read": true,
+  "reply": "Noted - I'll hold that about plant_ae17b97f.\nNoted - I'll hold that about make_b6446de9.\nNoted - I'll hold that about process_1.\nNoted - I'll hold that about food_66b31f5f.\nNoted - I'll hold that about light_e6320299.\nNoted - I'll hold that about photosynthesis.\nI did not take that as a fact - object 'by' not admitted: 'by' is made only of words that name nothing. If I am wrong, correct me and I will weigh it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_for(?v2, ?v1) & done_to(?v2, ?v3) & equals(photosynthesis, ?v1) & given instance_of(?v1, process) & has_property(?v2, by) & instance_of(?v0, plant) & instance_of(?v2, make) & instance_of(?v3, food) & instance_of(?v4, light) & moves_from(?v2, ?v4)"
+   ]
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Plants take in carbon dioxide and water.",
+  "read": false,
+  "reply": "Noted - I'll hold that about learn_absorb_55f3a743.\nNoted - I'll hold that about carbon_dioxide_bea0e648.\nNoted - I'll hold that about water_b6c6786b.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, ?v1) & done_by(?v0, plant) & has_member(?v1, ?v2) & has_member(?v1, ?v3) & instance_of(?v0, learn absorb) & instance_of(?v2, carbon dioxide) & instance_of(?v3, water)"
+   ]
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "told": "They release oxygen.",
+  "read": true,
+  "reply": "Noted - I'll hold that about release_014fc134.\nNoted - I'll hold that about oxygen_c785de02.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, release) & instance_of(?v1, oxygen)"
+   ]
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "told": "Chlorophyll is the green pigment that absorbs the light.",
+  "read": true,
+  "reply": "Noted - I'll hold that about absorb_64329543.\nNoted - I'll hold that about pigment_1.\nNoted - I'll hold that about light_e6320299.\nNoted - The pigment is green.\nNoted - I'll hold that about chlorophyll.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & equals(chlorophyll, ?v2) & given instance_of(?v1, light) & given instance_of(?v2, pigment) & has_property(?v2, green) & has_purpose(?v0, ?v2) & instance_of(?v0, absorb)"
+   ]
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Do plants release oxygen?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An air plant is a plant.\nA release is a kind of merchandise.\nOxygen is a chemical element. Oxygen is a gas.\nA plant is a kind of organism. A plant is a member of a plant kingdom.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, plant) & done_to(?v0, ?v1) & instance_of(?v0, release) & instance_of(?v1, oxygen)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, release)",
+     "instance_of(?v1, oxygen)",
+     "done_by(?v0, plant)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Do plants take in carbon dioxide?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: Carbon dioxide is a kind of dioxide.\nI hold things about learn absorb that I have not been taught to say yet.\nCarbon dioxide is a kind of dioxide. Carbon dioxide is a greenhouse gas.\nA plant is a kind of organism. A plant is a member of a plant kingdom.",
+  "readings": [
+   [
+    "composed: ask: about(?v0, ?v1) & done_by(?v0, plant) & instance_of(?v0, learn absorb) & instance_of(?v1, carbon dioxide)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, learn absorb)",
+     "instance_of(?v1, carbon dioxide)",
+     "done_by(?v0, plant)",
+     "about(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Is chlorophyll a pigment?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Chlorophyll is pigment.",
+  "readings": [
+   [
+    "ask: isa(chlorophyll, pigment)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "chlorophyll",
+    "relation": "isa",
+    "others": [
+     "pigment"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(chlorophyll, pigment)"
+    ],
+    "answer": "Yes: chlorophyll isa pigment",
+    "route": [
+     "substrate",
+     "concept_graph",
+     "true"
+    ],
+    "steps": [
+     "concept graph: chlorophyll -isa-> pigment is true (observed)"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "Is chlorophyll green?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: chlorophyll defined with green.\nChlorophyll is pigment. Chlorophyll is pigment 1.",
+  "readings": [
+   [
+    "composed: ask: has_property(chlorophyll, green)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "has_property(chlorophyll, green)"
+    ],
+    "answer": "Not entailed by the premises: chlorophyll_green",
+    "route": null,
+    "steps": [
+     "1. chlorophyll_pigment  [Premise]",
+     "2. chlorophyll_equal_pigment_1  [Premise]",
+     "3. chlorophyll_a_chlorophyll  [Premise]",
+     "4. chlorophyll_b_chlorophyll  [Premise]",
+     "5. chlorophyll_c_chlorophyll  [Premise]",
+     "6. chlorophyll_d_chlorophyll  [Premise]",
+     "7. pigment_coloring_material  [Premise]",
+     "8. group_entity_abstraction  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "photosynthesis",
+  "asked": "What absorbs the light?",
+  "gold": [
+   "chlorophyll"
+  ],
+  "result": "wrong",
+  "reply": "Pigment.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & given instance_of(?v1, light) & has_purpose(?v0, ?v2) & instance_of(?v0, absorb) ? ?v2"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "absorb_64329543",
+    "relation": "",
+    "others": [
+     "pigment"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, absorb)",
+     "instance_of(light_e6320299, light)",
+     "has_purpose(?v0, ?v2)",
+     "done_by(?v0, light_e6320299)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "python",
+  "told": "Python is a high-level, general-purpose programming language.",
+  "read": false,
+  "reply": "Noted - I'll hold that about level_5aa3d47e.\nNoted - I'll hold that about programming_language_fb567298.\nNoted - A programming language fb567298 is general-purpose.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: equals(python, ?v0) & has_member(?v0, ?v1) & has_member(?v0, ?v2) & has_property(?v0, high) & has_property(?v1, general-purpose) & instance_of(?v1, programming language) & instance_of(?v2, level)"
+   ]
+  ]
+ },
+ {
+  "text": "python",
+  "told": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "read": true,
+  "reply": "Noted - I'll hold that about emphasize_9a42aac8.\nNoted - I'll hold that about design_philosophy_1a870096.\nNoted - I'll hold that about code_readability_69fb264c.\nNoted - I'll hold that about use_1.\nNoted - I'll hold that about indentation_1492eb72.\nNoted - An indentation 1492eb72 is significant.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_with(?v0, ?v3) & given instance_of(?v3, use) & has_property(?v4, significant) & instance_of(?v0, emphasize) & instance_of(?v1, design philosophy) & instance_of(?v2, code readability) & instance_of(?v4, indentation) & owned_by(?v1, ?previous) & part_of(?v3, ?v4)"
+   ]
+  ]
+ },
+ {
+  "text": "python",
+  "told": "Python is dynamically typed and garbage-collected.",
+  "read": true,
+  "reply": "Noted - I'll hold that about type_e5d0ac62.\nNoted - I'll hold that about collect_99f3a4ee.\nNoted - I'll hold that about python_474b438f.\nNoted - I'll hold that about garbage_25de61fe.\nNoted - A type e5d0ac62 is dynamically.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v2, ?v3) & has_property(?v2, dynamically) & instance_of(?v0, collect) & instance_of(?v1, garbage) & instance_of(?v2, type) & instance_of(?v3, python) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "python",
+  "told": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "read": false,
+  "reply": "Noted - I'll hold that about support_7ac6ac48.\nNoted - I'll hold that about include_1e241a42.\nNoted - Structured is a programming paradigm.\nNoted - I'll hold that about programming_e5641259.\nNoted - A programming e5641259 is object-oriented.\nNoted - A programming e5641259 is functional.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, structured) & done_to(?v2, ?previous) & done_to(?v2, ?v3) & has_member(?v3, ?v1) & has_member(?v3, ?v4) & has_property(?v3, multiple) & has_property(?v4, functional) & has_property(?v4, object-oriented) & instance_of(?v0, include) & instance_of(?v1, programming paradigm) & instance_of(?v2, support) & instance_of(?v4, programming)"
+   ]
+  ]
+ },
+ {
+  "text": "python",
+  "told": "Guido van Rossum began working on Python in the late 1980s.",
+  "read": true,
+  "reply": "Noted - I'll hold that about start_10aa026e.\nNoted - I'll hold that about work_c54d6c6e.\nNoted - I'll hold that about decade_eighty_1.\nNoted - The decade eighty is late.",
+  "readings": [
+   [
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, start) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, talk begin) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, start) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, talk begin) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, start) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, talk begin) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, start) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, talk begin) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, start) & precedes(?v1, ?now)",
+    "tell: done_by(?v0, ?listener) & done_by(?v1, Guido van Rossum) & done_to(?v1, ?v0) & during(?v1, ?v2) & during(?v1, \u27e83\u27e8Python) & given instance_of(?v2, decade eighties) & has_property(?v2, \u27e85\u27e8late) & instance_of(?v0, work) & instance_of(?v1, talk begin) & precedes(?v1, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "python",
+  "asked": "Is Python a programming language?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I do not know whether a python is a programming language.",
+  "readings": [
+   [
+    "composed: ask: isa(python, programming language)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(python, programming language)"
+    ],
+    "answer": "Not entailed by the premises: python_programming_language",
+    "route": null,
+    "steps": [
+     "1. python_boa  [Premise]",
+     "2. python_directory  [Premise]",
+     "3. carpet_snake_python  [Premise]",
+     "4. reticulated_python_python  [Premise]",
+     "5. indian_python_python  [Premise]",
+     "6. rock_python_python  [Premise]",
+     "7. amethystine_python_python  [Premise]",
+     "8. environment_dc1455ad4d39ee9c_contain_python  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "python",
+  "asked": "Is Python dynamically typed?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, python) & has_property(?v0, dynamically) & instance_of(?v0, type)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "type_e5d0ac62",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, type)",
+     "has_property(?v0, dynamically)",
+     "done_to(?v0, python)"
+    ],
+    "answer": "Not entailed by the premises: python_dynamically_typed",
+    "route": null,
+    "steps": [
+     "1. type_category_kind  [Premise]",
+     "2. type_breed_type  [Premise]",
+     "3. type_nature_type  [Premise]",
+     "4. type_version_type  [Premise]",
+     "5. python_boa  [Premise]",
+     "6. python_directory  [Premise]",
+     "7. carpet_snake_python  [Premise]",
+     "8. reticulated_python_python  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "python",
+  "asked": "Does Python support functional programming?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: functional defined with design.\nI hold things about support that I have not been taught to say yet.\nI hold things about programming that I have not been taught to say yet.\nA python is a kind of boa. A python is a kind of directory.\nI hold things about functional that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & done_to(?v0, python) & has_property(?v1, functional) & instance_of(?v0, support) & instance_of(?v1, programming)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, support)",
+     "instance_of(?v1, programming)",
+     "done_to(?v0, python)",
+     "done_to(?v0, ?v1)",
+     "has_property(?v1, functional)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "python",
+  "asked": "Who began working on Python?",
+  "gold": [
+   "guido",
+   "van rossum"
+  ],
+  "result": "not answered",
+  "reply": "I remember: An Indian python is a python.\nI hold things about begin that I have not been taught to say yet.\nWorks are activities.\nA python is a kind of boa. A python is a kind of directory.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v2) & done_to(?v2, python) & instance_of(?v0, begin) & instance_of(?v2, work) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, begin)",
+     "precedes(?v0, 2026-10-21T11:49:06Z)",
+     "instance_of(?v1, work)",
+     "done_by(?v0, ?v2)",
+     "done_to(?v0, ?v1)",
+     "done_by(?v1, ?v3)",
+     "done_to(?v1, python)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "sorted",
+  "told": "The function sorted returns a new list.",
+  "read": true,
+  "reply": "Noted - I'll hold that about return_b384cc98.\nNoted - I'll hold that about sorted.\nNoted - I'll hold that about list_e1a0371a.\nNoted - A list e1a0371a is new.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v0, sorted) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list) & isa(sorted, function)"
+   ]
+  ]
+ },
+ {
+  "text": "sorted",
+  "told": "It does not change the original list.",
+  "read": true,
+  "reply": "Noted - I'll hold that about change_fd55edc7.\nNoted - A change fd55edc7 is false.\nNoted - I'll hold that about list_e1a0371a.\nNoted - The list is original.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, list) & has_property(?v0, false) & has_property(?v1, original) & instance_of(?v0, change)"
+   ]
+  ]
+ },
+ {
+  "text": "sorted",
+  "told": "The argument key is a function that is applied to each element.",
+  "read": true,
+  "reply": "Noted - I'll hold that about apply_d0d4cbe0.\nNoted - Keys are arguments.\nNoted - I'll hold that about element_e105aa80.\nNoted - Keys are functions.",
+  "readings": [
+   [
+    "composed: tell: done_to(?v0, key) & instance_of(?v0, apply) & instance_of(?v1, element) & isa(key, argument) & isa(key, function) & moves_to(?v0, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "sorted",
+  "asked": "Does sorted return a new list?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: list defined with ordered.\nI hold things about return that I have not been taught to say yet.\nA list is a kind of database.\nI hold things about sorted that I have not been taught to say yet.\nI hold things about new that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_by(?v0, sorted) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, return)",
+     "instance_of(?v1, list)",
+     "done_by(?v0, sorted)",
+     "done_by(?v0, ?v1)",
+     "has_property(?v1, new)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "sorted",
+  "asked": "Does sorted change the original list?",
+  "gold": "no",
+  "result": "wrong",
+  "reply": "Yes. The list is original.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & given instance_of(?v1, list) & has_property(?v1, original) & instance_of(?v0, change)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "list_e1a0371a",
+    "relation": "has property",
+    "others": [
+     "original"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, change)",
+     "instance_of(list_e1a0371a, list)",
+     "done_by(?v0, sorted)",
+     "done_to(?v0, list_e1a0371a)",
+     "has_property(list_e1a0371a, original)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "sorted",
+  "asked": "Is key a function?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Keys are functions.",
+  "readings": [
+   [
+    "ask: isa(\u27e81\u27e8key, \u27e82\u27e8function)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "key",
+    "relation": "isa",
+    "others": [
+     "function"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(key, function)"
+    ],
+    "answer": "Yes: key isa function",
+    "route": [
+     "substrate",
+     "concept_graph",
+     "true"
+    ],
+    "steps": [
+     "concept graph: key -isa-> function is true (observed)"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "primes",
+  "told": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "read": false,
+  "reply": "I have the opposite on record: A natural number is a number.\nNoted - I'll hold that about divisor_0e6a8028.\nNoted - 1 does not have a divisor 0e6a8028.\nPart of that is about something I have no name for yet, so I did not hold it.\nI did not take that as a fact - subject 'greater' not admitted: 'greater' is made only of words that name nothing. If I am wrong, correct me and I will weigh it.",
+  "readings": [
+   [
+    "composed: tell: equals(prime number, ?v0) & has_member(?v0, ?v1) & has_member(?v0, greater) & instance_of(?v1, divisor) & isa(greater, natural number) & not owns(1, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "primes",
+  "told": "Seven is a prime number.",
+  "read": true,
+  "reply": "Noted - Septenaries are prime number.",
+  "readings": [
+   [
+    "tell: isa(7, prime number)"
+   ]
+  ]
+ },
+ {
+  "text": "primes",
+  "told": "Every prime number greater than 2 is odd.",
+  "read": true,
+  "reply": "I did not take that as a fact - subject 'greater' not admitted: 'greater' is made only of words that name nothing. If I am wrong, correct me and I will weigh it.",
+  "readings": [
+   [
+    "composed: tell: has_property(greater, odd) & isa(greater, prime number)"
+   ]
+  ]
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven a natural number?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "ask: isa(7, natural number)",
+    "ask: isa(seven-spot, natural number)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(7, natural number)"
+    ],
+    "answer": "true",
+    "route": [
+     "derived_reader",
+     "symbolic_math_faculty"
+    ],
+    "steps": [
+     "7 is a whole number, 1 or more",
+     "Answer: true"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven odd?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "ask: has_property(7, \u27e81\u27e8odd)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "has_property(7, odd)"
+    ],
+    "answer": "true",
+    "route": [
+     "derived_reader",
+     "symbolic_math_faculty"
+    ],
+    "steps": [
+     "Answer: true"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "primes",
+  "asked": "Is seven greater than 1?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: exceeds(7, 1)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "exceeds(7, 1)"
+    ],
+    "answer": "true",
+    "route": [
+     "derived_reader",
+     "symbolic_math_faculty"
+    ],
+    "steps": [
+     "Answer: true"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "primes",
+  "asked": "Is eight a prime number?",
+  "gold": "no",
+  "result": "right",
+  "reply": "No.",
+  "readings": [
+   [
+    "ask: isa(8, prime number)",
+    "ask: isa(eight-spot, prime number)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "",
+    "relation": "",
+    "others": [],
+    "verdict": false,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(8, prime number)"
+    ],
+    "answer": "false",
+    "route": [
+     "derived_reader",
+     "symbolic_math_faculty"
+    ],
+    "steps": [
+     "8 = 2 \u00d7 4",
+     "Answer: false"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "valve",
+  "told": "If the valve is closed, the tank is full.",
+  "read": true,
+  "reply": "Noted - I'll hold that as a rule.",
+  "readings": [
+   [
+    "tell: given if instance_of(?v0, \u27e81\u27e8valve) & given instance_of(?v1, \u27e83\u27e8tank) & has_property(?v1, \u27e84\u27e8full) & if has_property(?v0, \u27e82\u27e8closed)"
+   ]
+  ]
+ },
+ {
+  "text": "valve",
+  "told": "The valve is closed.",
+  "read": true,
+  "reply": "Noted - The valve is closed.\nNoted - I'll hold that about valve_1.",
+  "readings": [
+   [
+    "tell: given instance_of(?v0, \u27e81\u27e8valve) & has_property(?v0, \u27e82\u27e8closed)",
+    "tell: given instance_of(?v0, \u27e81\u27e8valve) & has_property(?v0, \u27e82\u27e8closed)"
+   ]
+  ]
+ },
+ {
+  "text": "valve",
+  "asked": "Is the tank full?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. The tank is full.",
+  "readings": [
+   [
+    "ask: given instance_of(?v0, \u27e81\u27e8tank) & has_property(?v0, \u27e82\u27e8full)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "tank_1",
+    "relation": "has_property",
+    "others": [
+     "full"
+    ],
+    "verdict": true,
+    "support": [
+     "valve_1 has property closed \u2192 tank_1 has property full"
+    ],
+    "conclusion": "tank_1 has property full"
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "has_property(tank_1, full)"
+    ],
+    "answer": "Proved: tank_1_full",
+    "route": [
+     "substrate",
+     "held_rules",
+     "proved"
+    ],
+    "steps": [
+     "1. valve_1_closed  [Premise]",
+     "2. (valve_1_closed) -> (tank_1_full)  [Premise]",
+     "3. ~(tank_1_full)  [Negation of conclusion (for refutation)]",
+     "4. tank_1_full  [Premises with the negated goal are unsatisfiable]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "valve",
+  "asked": "Is the valve closed?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. The valve is closed.",
+  "readings": [
+   [
+    "ask: given instance_of(?v0, \u27e81\u27e8valve) & has_property(?v0, \u27e82\u27e8closed)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "valve_1",
+    "relation": "has property",
+    "others": [
+     "closed"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "valve_1",
+    "relation": "has_property",
+    "others": [
+     "closed"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": "A valve 1 is closed."
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "has_property(valve_1, closed)"
+    ],
+    "answer": "Yes: valve_1 has_property closed",
+    "route": [
+     "substrate",
+     "concept_graph",
+     "true"
+    ],
+    "steps": [
+     "concept graph: valve_1 -has_property-> closed is true (observed)"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "eiffel",
+  "told": "The Eiffel Tower was built in 1889.",
+  "read": true,
+  "reply": "Noted - I'll hold that about build_1a3f1993.",
+  "readings": [
+   [
+    "composed: tell: done_to(?v0, eiffel tower) & during(?v0, 1889) & instance_of(?v0, build) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "eiffel",
+  "told": "It is in Paris.",
+  "read": true,
+  "reply": "Is can mean a be cost, a be, a stay be or a beryllium. Which is do you mean?",
+  "readings": [
+   [
+    "tell: during(?v0, \u27e84\u27e8Paris) & instance_of(?v0, \u27e83\u27e8is) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "eiffel",
+  "told": "Paris is the capital of France.",
+  "read": true,
+  "reply": "Noted - I'll hold that about capital_1.\nNoted - I'll hold that about paris.",
+  "readings": [
+   [
+    "composed: tell: equals(paris, ?v0) & given instance_of(?v0, capital) & part_of(?v0, france)"
+   ]
+  ]
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is the Eiffel Tower in Paris?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: eiffel tower part of paris.",
+  "readings": [
+   [
+    "composed: ask: located_in(eiffel tower, paris)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "located_in(eiffel tower, paris)"
+    ],
+    "answer": "Not entailed by the premises: eiffel_tower_located_in_paris",
+    "route": null,
+    "steps": [
+     "1. paris_equal_capital_1  [Premise]",
+     "2. commerce_transaction  [Premise]",
+     "3. tower_structure  [Premise]",
+     "4. national_capital_city  [Premise]",
+     "5. national_capital_seat_capital  [Premise]",
+     "6. meter_metric_linear_unit  [Premise]",
+     "7. wrought_iron_iron  [Premise]",
+     "8. taste_culture_discrimination_taste  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is the Eiffel Tower in France?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: eiffel tower part of paris.",
+  "readings": [
+   [
+    "composed: ask: located_in(eiffel tower, france)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "located_in(eiffel tower, france)"
+    ],
+    "answer": "Not entailed by the premises: eiffel_tower_located_in_france",
+    "route": null,
+    "steps": [
+     "1. tower_structure  [Premise]",
+     "2. meter_metric_linear_unit  [Premise]",
+     "3. wrought_iron_iron  [Premise]",
+     "4. european_union_world_organization  [Premise]",
+     "5. country_administrative_district  [Premise]",
+     "6. paris_equal_capital_1  [Premise]",
+     "7. long_time_time_period  [Premise]",
+     "8. european_country_country  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "eiffel",
+  "asked": "When was the Eiffel Tower built?",
+  "gold": [
+   "1889"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'was the Eiffel Tower built', but not how 'When' fits with it.",
+  "readings": [
+   []
+  ],
+  "answers": [],
+  "reasoned": []
+ },
+ {
+  "text": "eiffel",
+  "asked": "Is Paris the capital of France?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: equals(paris, ?v0) & given instance_of(?v0, capital) & part_of(?v0, france)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "capital_1",
+    "relation": "part of",
+    "others": [
+     "france"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "paris",
+    "relation": "equals",
+    "others": [
+     "capital_1"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(capital_1, capital)",
+     "part_of(capital_1, france)",
+     "equals(paris, capital_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "anomalies",
+  "told": "We propose a new method for detecting anomalies in network traffic.",
+  "read": false,
+  "reply": "Noted - I'll hold that about propose_be5166e2.\nNoted - I'll hold that about method_0ce406f8.\nNoted - I'll hold that about detecting_anomaly_1d68e354.\nNoted - I'll hold that about network_traffic_6b806bfd.\nNoted - A method 0ce406f8 is new.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v0, ?v3) & has_member(?v1, ?speaker) & has_property(?v2, new) & instance_of(?v0, propose) & instance_of(?v2, method) & instance_of(?v3, detecting anomaly) & instance_of(?v4, network traffic) & located_in(?v0, ?v4)"
+   ]
+  ]
+ },
+ {
+  "text": "anomalies",
+  "told": "The method learns a model of normal traffic from unlabeled data.",
+  "read": true,
+  "reply": "Noted - I'll hold that about learn_2e245025.\nNoted - I'll hold that about method_0ce406f8.\nNoted - I'll hold that about model_d6325cc4.\nNoted - I'll hold that about traffic_414dd876.\nNoted - I'll hold that about data_6b4f79cb.\nNoted - A model d6325cc4 is part of a traffic 414dd876.\nNoted - A traffic 414dd876 is normal.\nNoted - A data 6b4f79cb is unlabeled.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, ?v1) & done_by(?v0, ?v2) & given instance_of(?v2, method) & has_property(?v3, normal) & has_property(?v4, unlabeled) & instance_of(?v0, learn) & instance_of(?v1, model) & instance_of(?v3, traffic) & instance_of(?v4, data) & moves_from(?v0, ?v4) & part_of(?v1, ?v3)"
+   ]
+  ]
+ },
+ {
+  "text": "anomalies",
+  "told": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "read": false,
+  "reply": "Noted - I'll hold that about detect_cab7fb3b.\nNoted - I'll hold that about experiment_b63a7e7a.\nNoted - I'll hold that about datasets_1d6d0967.\nNoted - I'll hold that about attack_56c90616.\nNoted - I'll hold that about method_0683be96.\nNoted - A method 0683be96 is early.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & exceeds(?v2, ?v3) & has_count(?v1, ?v2) & has_count(?v4, 3) & has_count(?v5, ?v3) & has_property(?v5, early) & instance_of(?v0, detect) & instance_of(?v1, attack) & instance_of(?v4, datasets) & instance_of(?v5, method) & instance_of(?v6, experiment) & located_in(?v0, ?v4) & located_in(?v0, ?v6)"
+   ]
+  ]
+ },
+ {
+  "text": "anomalies",
+  "asked": "Does the method detect anomalies?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An anomaly is an abnormality.\nThe method is new.\nI hold things about detect that I have not been taught to say yet.\nI hold things about method that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, method) & instance_of(?v0, detect) & instance_of(?v2, anomaly)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, detect)",
+     "instance_of(method_0ce406f8, method)",
+     "instance_of(?v2, anomaly)",
+     "done_by(?v0, method_0ce406f8)",
+     "done_to(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "anomalies",
+  "asked": "Does the method learn from unlabeled data?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & given instance_of(?v1, method) & has_property(?v2, unlabeled) & instance_of(?v0, learn) & instance_of(?v2, data) & moves_from(?v0, ?v2)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "learn_2e245025",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, learn)",
+     "instance_of(method_0ce406f8, method)",
+     "instance_of(?v2, data)",
+     "done_by(?v0, method_0ce406f8)",
+     "moves_from(?v0, ?v2)",
+     "has_property(?v2, unlabeled)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "anomalies",
+  "asked": "What does the method detect?",
+  "gold": [
+   "anomal",
+   "attack"
+  ],
+  "result": "right",
+  "reply": "Attack.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, method) & instance_of(?v0, detect) ? ?v2"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "detect_cab7fb3b",
+    "relation": "",
+    "others": [
+     "attack"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, detect)",
+     "instance_of(method_0ce406f8, method)",
+     "done_by(?v0, method_0ce406f8)",
+     "done_to(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "lockout",
+  "told": "The server logged a failed login from 10.0.0.5.",
+  "read": true,
+  "reply": "Noted - I'll hold that about log_0af51416.\nNoted - I'll hold that about fail_56a51ccb.\nNoted - I'll hold that about server_1.\nNoted - I'll hold that about login_5721adf8.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v3) & given instance_of(?v1, server) & instance_of(?v0, log) & instance_of(?v2, fail) & instance_of(?v3, login) & moves_from(?v0, 10.0.0.5) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "lockout",
+  "told": "The account was locked after five failed attempts.",
+  "read": true,
+  "reply": "Noted - I'll hold that about lock_cbf3e4c3.\nNoted - I'll hold that about fail_c92c23b7.\nNoted - I'll hold that about account_1.\nNoted - I'll hold that about attempt_f2c9e2c6.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v2, ?v3) & follows(?v2, ?v1) & given instance_of(?v3, account) & has_count(?v1, 5) & instance_of(?v0, fail) & instance_of(?v1, attempt) & instance_of(?v2, lock) & precedes(?v2, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "lockout",
+  "told": "The attacker used a list of common passwords.",
+  "read": true,
+  "reply": "Noted - I'll hold that about use_92f5dbce.\nNoted - I'll hold that about attacker_1.\nNoted - I'll hold that about list_43062e40.\nNoted - I'll hold that about password_1c2b7708.\nNoted - A list 43062e40 is part of a password 1c2b7708.\nNoted - A password 1c2b7708 is common.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, attacker) & has_property(?v3, common) & instance_of(?v0, use) & instance_of(?v2, list) & instance_of(?v3, password) & part_of(?v2, ?v3) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "lockout",
+  "asked": "Was the account locked?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, \u27e81\u27e8account) & instance_of(?v0, embrace interlock) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+    "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, \u27e81\u27e8account) & instance_of(?v0, construct lock) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+    "ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, \u27e81\u27e8account) & instance_of(?v0, pass lock) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "lock_cbf3e4c3",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(account_1, account)",
+     "done_by(?v0, account_1)",
+     "during(?v0, ?v1)",
+     "precedes(?v1, 2026-10-21T11:54:54Z)",
+     "instance_of(?v0, embrace interlock)",
+     "precedes(?v0, 2026-10-21T11:54:54Z)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "lockout",
+  "asked": "Did the server log a failed login?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: server defined with start.\nLogs are directories. A log is wood.\nI hold things about fail that I have not been taught to say yet.\nA server is a kind of directory. A server is a kind of player.\nI hold login but nothing said about it yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v3) & given instance_of(?v1, server) & instance_of(?v0, log) & instance_of(?v2, fail) & instance_of(?v3, login) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, log)",
+     "precedes(?v0, 2026-10-21T11:55:00Z)",
+     "instance_of(?v1, fail)",
+     "instance_of(server_1, server)",
+     "instance_of(?v3, login)",
+     "done_by(?v0, server_1)",
+     "done_to(?v0, ?v3)",
+     "done_by(?v1, ?v3)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "lockout",
+  "asked": "How many failed attempts were there?",
+  "gold": [
+   "five",
+   "5"
+  ],
+  "result": "right",
+  "reply": "I remember: blatant defined with attempt.\nI hold things about fail that I have not been taught to say yet.\nAttempts are activities.\nI hold 10.0.0.5 but nothing said about it yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_count(?v1, ?v2) & instance_of(?v0, fail) & instance_of(?v1, attempt) & located_at(?v1, ?there) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, fail)",
+     "instance_of(?v1, attempt)",
+     "has_count(?v1, ?v2)",
+     "done_by(?v0, ?v1)",
+     "located_at(?v1, 10.0.0.5)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "hiring",
+  "told": "The company hired three engineers in May.",
+  "read": true,
+  "reply": "Noted - I'll hold that about hire_acebfa40.\nNoted - I'll hold that about company_1.\nNoted - I'll hold that about engineer_981911a7.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, may) & given instance_of(?v1, company) & has_count(?v2, 3) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "hiring",
+  "told": "Two of them work in Berlin.",
+  "read": true,
+  "reply": "Noted - I'll hold that about work_c0ac83a2.\nNoted - A 2 is part of a the company.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, 2) & instance_of(?v0, work) & located_in(?v0, berlin) & part_of(2, ?previous)"
+   ]
+  ]
+ },
+ {
+  "text": "hiring",
+  "asked": "Did the company hire engineers?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, company) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "hire_acebfa40",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, hire)",
+     "precedes(?v0, 2026-10-21T11:55:23Z)",
+     "instance_of(company_1, company)",
+     "instance_of(?v2, engineer)",
+     "done_by(?v0, company_1)",
+     "done_to(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "hiring",
+  "asked": "How many engineers did the company hire?",
+  "gold": [
+   "three",
+   "3"
+  ],
+  "result": "right",
+  "reply": "3.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, company) & has_count(?v2, ?v3) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now) ? ?v3"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "hire_acebfa40",
+    "relation": "",
+    "others": [
+     "3"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, hire)",
+     "precedes(?v0, 2026-10-21T11:55:28Z)",
+     "instance_of(?v1, engineer)",
+     "instance_of(company_1, company)",
+     "has_count(?v1, ?v3)",
+     "done_by(?v0, company_1)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "hiring",
+  "asked": "Do two of the engineers work in Berlin?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, 2) & given instance_of(?v1, engineer) & instance_of(?v0, work) & located_in(?v0, berlin) & part_of(2, ?v1)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "work_c0ac83a2",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, work)",
+     "instance_of(engineer_981911a7, engineer)",
+     "part_of(2, engineer_981911a7)",
+     "done_by(?v0, 2)",
+     "located_in(?v0, berlin)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ }
+]

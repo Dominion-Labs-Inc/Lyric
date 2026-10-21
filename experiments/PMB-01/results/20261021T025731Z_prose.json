@@ -1,0 +1,282 @@
+[
+ {
+  "sentence": "Whales are mammals.",
+  "composed": "tell: isa(whale, mammal)"
+ },
+ {
+  "sentence": "They live in the ocean.",
+  "composed": "tell: instance_of(?x1, live) & given instance_of(?x4, ocean) & done_by(?x1, ?previous) & located_in(?x1, ?x4)"
+ },
+ {
+  "sentence": "A whale breathes air through a blowhole.",
+  "composed": "tell: instance_of(?x1, whale) & instance_of(?x2, breathe) & instance_of(?x3, air) & instance_of(?x6, blowhole) & done_by(?x2, ?x1) & done_to(?x2, ?x3) & word_through(?x2, ?x6)"
+ },
+ {
+  "sentence": "Whales feed their young with milk.",
+  "composed": "tell: instance_of(?x1, feed) & instance_of(?x5, milk) & done_by(?x1, whale) & done_to(?x1, ?previous) & has_property(?x1, young) & done_with(?x1, ?x5) & has_augend(?x5, young)"
+ },
+ {
+  "sentence": "The blue whale is the largest animal on Earth.",
+  "composed": "tell: given instance_of(?x6, animal) & equals(blue whale, ?x6) & has_property(?x6, large)"
+ },
+ {
+  "sentence": "Are whales mammals?",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Do whales live in the ocean?",
+  "composed": "ask: instance_of(?x2, live) & given instance_of(?x5, ocean) & done_by(?x2, whale) & located_in(?x2, ?x5)"
+ },
+ {
+  "sentence": "Do whales breathe air?",
+  "composed": "ask: instance_of(?x2, breathe) & instance_of(?x3, air) & during(?x2, whale) & done_to(?x2, ?x3) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "Where do whales live?",
+  "composed": "ask: instance_of(?x3, live) & located_in(?x3, ?x0) & done_by(?x3, whale) ? ?x0"
+ },
+ {
+  "sentence": "What is the largest animal on Earth?",
+  "composed": "ask: given instance_of(?x4, animal) & equals(?x4, ?x0) & has_property(?x4, large) ? ?x0"
+ },
+ {
+  "sentence": "Is a blue whale an animal?",
+  "composed": "ask: isa(blue whale, animal)"
+ },
+ {
+  "sentence": "Photosynthesis is the process by which plants make food from light.",
+  "composed": "tell: given instance_of(?x3, process) & instance_of(?x6, plant) & instance_of(?x7, make) & instance_of(?x8, food) & given instance_of(?x10, light) & equals(photosynthesis, ?x3) & moves_to(?x7, ?x3) & done_to(?x7, ?x8) & moves_from(?x7, ?x10)"
+ },
+ {
+  "sentence": "Plants take in carbon dioxide and water.",
+  "composed": "tell: instance_of(?x0, plant) & instance_of(?x1, take) & instance_of(?x4, carbon dioxide) & done_by(?x1, ?x0) & word_in(?x1, ?x4) & has_member(?x4, water)"
+ },
+ {
+  "sentence": "They release oxygen.",
+  "composed": "tell: instance_of(?x2, release oxygen) & done_by(?x2, ?previous)"
+ },
+ {
+  "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+  "composed": "tell: given instance_of(?x4, pigment) & instance_of(?x6, absorb) & given instance_of(?x8, light) & has_property(chlorophyll, green) & equals(chlorophyll, ?x4) & has_property(?x4, green) & done_by(?x6, ?x4) & done_by(?x6, ?previous) & done_to(?x6, ?x8)"
+ },
+ {
+  "sentence": "Do plants release oxygen?",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Do plants take in carbon dioxide?",
+  "composed": "ask: instance_of(?x1, plant) & instance_of(?x2, take) & done_by(?x2, ?x1)"
+ },
+ {
+  "sentence": "Is chlorophyll a pigment?",
+  "composed": "ask: isa(chlorophyll, pigment)"
+ },
+ {
+  "sentence": "Is chlorophyll green?",
+  "composed": "ask: instance_of(?x1, chlorophyll) & has_property(?x1, green)"
+ },
+ {
+  "sentence": "What absorbs the light?",
+  "composed": "ask: instance_of(?x1, absorb) & given instance_of(?x3, light) & done_to(?x1, ?x0) & done_to(?x1, ?x3) ? ?x0"
+ },
+ {
+  "sentence": "Python is a high-level, general-purpose programming language.",
+  "composed": "tell: instance_of(?x3, high) & instance_of(?x11, purpose programming language) & isa(python, level) & has_degree(level, ?x3) & has_property(?x11, general)"
+ },
+ {
+  "sentence": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "composed": "tell: instance_of(?x2, design philosophy) & instance_of(?x3, emphasize) & instance_of(?x5, code readability) & given instance_of(?x8, use) & instance_of(?x11, indentation) & part_of(?x2, ?previous) & done_by(?x3, ?x2) & done_to(?x3, ?x5) & done_by(?x3, ?x8) & part_of(?x8, ?x11) & has_property(?x11, significant)"
+ },
+ {
+  "sentence": "Python is dynamically typed and garbage-collected.",
+  "composed": "tell: instance_of(?x3, type) & instance_of(?x5, garbage) & instance_of(?x7, collect) & has_degree(python, ?x3) & done_by(?x5, python)"
+ },
+ {
+  "sentence": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "composed": "tell: instance_of(?x1, support) & instance_of(?x4, programming paradigm) & instance_of(?x7, structure) & done_by(?x1, ?previous) & done_to(?x1, ?x4) & has_property(?x4, multiple) & comes_from(oriented, functional) & precedes(?x7, ?now)"
+ },
+ {
+  "sentence": "Guido van Rossum began working on Python in the late 1980s.",
+  "composed": "tell: instance_of(?x2, guido van rossum) & instance_of(?x4, work) & given instance_of(?x10, 1980s) & done_by(?x4, ?x2) & located_in(?x4, ?x10) & has_property(?x10, late) & done_by(?x4, ?listener)"
+ },
+ {
+  "sentence": "Is Python a programming language?",
+  "composed": "ask: instance_of(?x4, programming language)"
+ },
+ {
+  "sentence": "Is Python dynamically typed?",
+  "composed": "ask: instance_of(?x1, python)"
+ },
+ {
+  "sentence": "Does Python support functional programming?",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ },
+ {
+  "sentence": "Who began working on Python?",
+  "composed": "ask: instance_of(?x2, work) & instance_of(?x4, python) & located_in(?x2, ?x4) & done_by(?x2, ?listener)"
+ },
+ {
+  "sentence": "The function sorted returns a new list.",
+  "composed": "tell: given instance_of(?x1, function) & instance_of(?x2, sort) & instance_of(?x3, return) & given instance_of(?x6, list) & done_by(?x2, ?x1) & done_by(?x3, ?x1) & done_to(?x2, ?x3) & located_in(?x3, ?x6) & has_property(?x6, new) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "It does not change the original list.",
+  "composed": "tell: instance_of(?x3, change) & given instance_of(?x6, list) & done_to(?x3, ?previous) & done_to(?x3, ?x6) & has_property(?x6, original) & has_property(?x3, false)"
+ },
+ {
+  "sentence": "The argument key is a function that is applied to each element.",
+  "composed": "tell: instance_of(?x8, apply) & instance_of(?x11, element) & isa(argument key, function) & done_by(?x8, ?previous) & about(?previous, ?x11) & done_to(?x8, ?x11) & during(?x8, ?now)"
+ },
+ {
+  "sentence": "Does sorted return a new list?",
+  "composed": "ask: instance_of(?x1, sort) & instance_of(?x2, return) & given instance_of(?x5, list) & done_to(?x1, ?x2) & located_in(?x2, ?x5) & has_property(?x5, new) & precedes(?x1, ?now)"
+ },
+ {
+  "sentence": "Does sorted change the original list?",
+  "composed": "ask: instance_of(?x1, sort) & instance_of(?x2, change) & given instance_of(?x5, list) & done_to(?x1, ?x2) & located_in(?x2, ?x5) & has_property(?x5, original) & precedes(?x1, ?now)"
+ },
+ {
+  "sentence": "Is key a function?",
+  "composed": "ask: given instance_of(?x1, key) & instance_of(?x3, function)"
+ },
+ {
+  "sentence": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "composed": "tell: instance_of(?x13, divisor) & word_than(natural number, 1)"
+ },
+ {
+  "sentence": "Seven is a prime number.",
+  "composed": "tell: isa(7, prime number)"
+ },
+ {
+  "sentence": "Every prime number greater than 2 is odd.",
+  "composed": "tell: has_property(prime number, odd)"
+ },
+ {
+  "sentence": "Is seven a natural number?",
+  "composed": "ask: isa(7, natural number)"
+ },
+ {
+  "sentence": "Is seven odd?",
+  "composed": "ask: has_property(7, odd)"
+ },
+ {
+  "sentence": "Is seven greater than 1?",
+  "composed": "ask: word_than(7, 1)"
+ },
+ {
+  "sentence": "Is eight a prime number?",
+  "composed": "ask: isa(8, prime number)"
+ },
+ {
+  "sentence": "If the valve is closed, the tank is full.",
+  "composed": "tell: given instance_of(?x2, valve) & given instance_of(?x7, tank) & has_property(?x7, full) & has_property(?x2, closed)"
+ },
+ {
+  "sentence": "The valve is closed.",
+  "composed": "tell: given instance_of(?x1, valve) & has_property(?x1, closed)"
+ },
+ {
+  "sentence": "Is the tank full?",
+  "composed": "ask: given instance_of(?x2, tank) & has_property(?x2, full)"
+ },
+ {
+  "sentence": "Is the valve closed?",
+  "composed": "ask: given instance_of(?x2, valve) & has_property(?x2, closed)"
+ },
+ {
+  "sentence": "The Eiffel Tower was built in 1889.",
+  "composed": "tell: instance_of(?x4, build) & done_to(?x4, eiffel tower) & during(?x4, 1889) & precedes(?x4, ?now)"
+ },
+ {
+  "sentence": "It is in Paris.",
+  "composed": "tell: located_in(?previous, paris)"
+ },
+ {
+  "sentence": "Paris is the capital of France.",
+  "composed": "tell: given instance_of(?x3, capital) & equals(paris, ?x3) & part_of(?x3, france)"
+ },
+ {
+  "sentence": "Is the Eiffel Tower in Paris?",
+  "composed": "ask: word_in(eiffel tower, paris)"
+ },
+ {
+  "sentence": "Is the Eiffel Tower in France?",
+  "composed": "ask: word_in(eiffel tower, france)"
+ },
+ {
+  "sentence": "When was the Eiffel Tower built?",
+  "composed": "ask: instance_of(?x5, build) & done_by(?x5, eiffel tower) & precedes(?x5, ?now)"
+ },
+ {
+  "sentence": "Is Paris the capital of France?",
+  "composed": "ask: given instance_of(?x3, capital) & equals(paris, ?x3) & isa(paris, france) & part_of(?x3, france)"
+ },
+ {
+  "sentence": "We propose a new method for detecting anomalies in network traffic.",
+  "composed": "tell: instance_of(?x4, method) & instance_of(?x7, detecting anomaly) & instance_of(?x10, network traffic) & has_property(?speaker, propose) & has_property(?x4, propose) & capable_of(?x7, propose) & has_property(?x4, new) & located_in(?x7, ?x10)"
+ },
+ {
+  "sentence": "The method learns a model of normal traffic from unlabeled data.",
+  "composed": "tell: given instance_of(?x1, method) & instance_of(?x2, learn) & instance_of(?x7, traffic) & given instance_of(?x10, data) & done_by(?x2, ?x1) & done_to(?x2, ?x1) & done_to(?x2, ?x7) & moves_from(?x2, ?x10) & has_property(?x7, normal) & has_property(?x10, unlabeled)"
+ },
+ {
+  "sentence": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "composed": "tell: instance_of(?x1, experiment) & instance_of(?x4, dataset) & instance_of(?x7, detect) & instance_of(?x9, attack) & instance_of(?x12, method) & located_in(?x7, ?x1) & has_count(?x4, 3) & done_by(?x7, ?previous) & done_to(?x7, ?x9) & done_with(?x7, ?x12) & word_than(?x9, ?x12) & has_property(?x12, earlier)"
+ },
+ {
+  "sentence": "Does the method detect anomalies?",
+  "composed": "ask: given instance_of(?x2, method) & instance_of(?x3, detect) & instance_of(?x4, anomaly) & done_by(?x3, ?x2) & done_to(?x3, ?x4)"
+ },
+ {
+  "sentence": "Does the method learn from unlabeled data?",
+  "composed": "ask: given instance_of(?x2, method) & instance_of(?x3, learn) & given instance_of(?x6, data) & done_to(?x3, ?x2) & moves_from(?x3, ?x6) & has_property(?x6, unlabeled) & precedes(?x3, ?now)"
+ },
+ {
+  "sentence": "What does the method detect?",
+  "composed": "ask: given instance_of(?x3, method) & instance_of(?x4, detect) & done_to(?x4, ?x0) & done_by(?x4, ?x3) & precedes(?x4, ?now) ? ?x0"
+ },
+ {
+  "sentence": "The server logged a failed login from 10.0.0.5.",
+  "composed": "tell: given instance_of(?x1, server) & instance_of(?x2, log) & instance_of(?x4, fail) & instance_of(?x5, login) & done_by(?x2, ?x1) & done_to(?x2, ?x5) & done_by(?x4, ?x5) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "The account was locked after five failed attempts.",
+  "composed": "tell: instance_of(?x1, account) & instance_of(?x3, lock) & instance_of(?x6, fail) & instance_of(?x7, attempt) & done_to(?x3, ?x1) & done_by(?x3, ?x7) & has_count(?x7, 5) & done_by(?x6, ?x7) & precedes(?x3, ?now)"
+ },
+ {
+  "sentence": "The attacker used a list of common passwords.",
+  "composed": "tell: given instance_of(?x1, attacker) & given instance_of(?x4, list) & instance_of(?x7, password) & has_property(?x7, common)"
+ },
+ {
+  "sentence": "Was the account locked?",
+  "composed": "ask: instance_of(?x2, account) & instance_of(?x3, lock) & done_by(?x3, ?x2) & precedes(?x3, ?now)"
+ },
+ {
+  "sentence": "Did the server log a failed login?",
+  "composed": "ask: given instance_of(?x3, server log a) & instance_of(?x4, fail) & instance_of(?x5, login) & done_by(?x4, ?x3) & done_to(?x4, ?x5) & precedes(?x4, ?now)"
+ },
+ {
+  "sentence": "How many failed attempts were there?",
+  "composed": "ask: instance_of(?x2, fail) & instance_of(?x3, attempt) & has_count(?x3, ?x0) & done_by(?x2, ?x3) ? ?x0"
+ },
+ {
+  "sentence": "The company hired three engineers in May.",
+  "composed": "tell: given instance_of(?x1, company) & instance_of(?x2, hire) & instance_of(?x4, engineer) & done_by(?x2, ?x1) & done_to(?x2, ?x4) & has_count(?x4, 3) & precedes(?x2, ?now)"
+ },
+ {
+  "sentence": "Two of them work in Berlin.",
+  "composed": "tell: instance_of(?x3, work) & word_of(2, ?previous) & done_by(?x3, 2) & located_in(?x3, berlin)"
+ },
+ {
+  "sentence": "Did the company hire engineers?",
+  "composed": "ask: given instance_of(?x2, company) & instance_of(?x3, hire) & instance_of(?x4, engineer) & done_by(?x3, ?x2) & done_to(?x3, ?x4) & precedes(?x3, ?now)"
+ },
+ {
+  "sentence": "How many engineers did the company hire?",
+  "composed": "ask: instance_of(?x2, engineer) & given instance_of(?x5, company) & instance_of(?x6, hire) & has_count(?x2, ?x0) & owns(?x5, ?x2) & done_to(?x6, ?x2) & done_by(?x6, ?x5) & precedes(?x6, ?now) ? ?x0"
+ },
+ {
+  "sentence": "Do two of the engineers work in Berlin?",
+  "composed": "(no meaning: a meaning states at least one fact)"
+ }
+]

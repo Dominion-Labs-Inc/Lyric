@@ -19620,6 +19620,160 @@ def _link_kind(relation: str) -> Tuple[str, bool]:
     return (text[4:] if denied else text).strip().replace(" ", "_"), denied
 
 
+#: The kinds said of a group itself, not of each one in it: "the team has five members", "the pair are dogs".
+_OF_THE_GROUP = frozenset({"has_member", "member_of", "has_count", "instance_of", "isa", "equals"})
+
+
+class _Held:
+    """WHAT IS HELD, READ AS ITS RELATIONS SAY, for one question (`Conversation._held_ways`): a thing's relations
+    (`resolve_name`) and those pointing at it (`_incoming_relations`), each read once.
+
+    A RELATION HOLDS THE OTHER WAY BY ITS INVERSE, and a symmetric one by itself (`relation_algebra.inverse`): told
+    "The blue whale is the largest animal.", `equals(blue_whale_1, animal_1)` says what the largest animal is. A THING
+    IS WHAT IT EQUALS: told "Chlorophyll is the green pigment that absorbs the light.", what is said of the pigment is
+    said of chlorophyll. A GROUP IS EACH ONE IN IT, where something is said of it that is not said of the group as one
+    (`_OF_THE_GROUP`): "Plants take in carbon dioxide and water." takes in carbon dioxide. A KIND NAMED IS MET BY A
+    PARTICULAR OF IT talked of here: "Did the company hire engineers?" by the hiring of the three engineers told of."""
+
+    def __init__(self, conversation: "Conversation",
+                 incoming: Mapping[str, Sequence[Tuple[str, str, str, bool]]]):
+        self._conversation = conversation
+        self._out: Dict[str, List[Tuple[str, str]]] = {}
+        self._in: Dict[str, List[Tuple[str, str]]] = {
+            self.plain(name): self._pointing(rows) for name, rows in incoming.items()}
+
+    @staticmethod
+    def plain(name: Any) -> str:
+        return str(name).lower().replace("_", " ").strip()
+
+    @staticmethod
+    def _pointing(rows: Sequence[Tuple[str, str, str, bool]]) -> List[Tuple[str, str]]:
+        return [(str(subject), kind) for subject, relation, _obj, positive in rows
+                for kind, denied in (_link_kind(relation),) if positive and not denied]
+
+    @staticmethod
+    def _turned(relation: str) -> Optional[str]:
+        from core.reasoning.relation_algebra import inverse
+        try:
+            other = inverse(_SemanticRelation(relation))
+        except ValueError:
+            return None
+        return other.value if other is not None else None
+
+    async def out(self, name: str) -> List[Tuple[str, str]]:
+        """What is held of the thing, `(kind, other)`, denials aside."""
+        key = self.plain(name)
+        if key not in self._out:
+            held = await self._conversation.resolve_name(name)
+            self._out[key] = [(kind, str(other)) for relation, other in held.relations
+                              for kind, denied in (_link_kind(relation),) if not denied]
+        return self._out[key]
+
+    async def into(self, name: str) -> List[Tuple[str, str]]:
+        """What is held to point at the thing, `(subject, kind)`, denials aside. A NUMBER IS NOT LOOKED FOR: it is said
+        of countless things, and is reached from the thing it is said of."""
+        key = self.plain(name)
+        if re.fullmatch(r"-?\d+(\.\d+)?", key):
+            return []
+        if key not in self._in:
+            self._in[key] = self._pointing(await self._conversation._incoming_relations(name))
+        return self._in[key]
+
+    async def same(self, name: str) -> List[str]:
+        """The thing, and every thing held to equal it."""
+        found = [name]
+        at = 0
+        while at < len(found):
+            thing = found[at]
+            at += 1
+            others = ([other for kind, other in await self.out(thing) if kind == "equals"]
+                      + [subject for subject, kind in await self.into(thing) if kind == "equals"])
+            for other in others:
+                if self.plain(other) not in {self.plain(f) for f in found}:
+                    found.append(other)
+        return found
+
+    async def called(self, name: str) -> str:
+        """What the thing is called: one told of here (`_particulars`) held to equal a thing known by its own name is
+        that thing ("pigment_1", told to be chlorophyll, is chlorophyll)."""
+        if name not in self._conversation._particulars:
+            return name
+        for other in (await self.same(name))[1:]:
+            if other not in self._conversation._particulars:
+                return other
+        return name
+
+    async def kinds(self, thing: str) -> List[str]:
+        """Every kind the thing, or what it equals, is held to be one of."""
+        found: List[str] = []
+        for each in await self.same(thing):
+            talked_of = self._conversation._particulars.get(each)
+            found += ([talked_of[0]] if talked_of else []) + [other for kind, other in await self.out(each)
+                                                             if kind == "instance_of"]
+        return list(dict.fromkeys(found))
+
+    async def is_kind(self, thing: str, kind: str) -> bool:
+        """Whether the thing is what `kind` names: it, what it equals, or one of that kind."""
+        if self.plain(kind) in {self.plain(each) for each in await self.same(thing)}:
+            return True
+        return self.plain(kind) in {self.plain(each) for each in await self.kinds(thing)}
+
+    async def _each(self, things: Sequence[str], relation: str) -> List[str]:
+        """The things, a group as each one in it where the relation is not said of the group as one."""
+        if relation in _OF_THE_GROUP:
+            return list(dict.fromkeys(things))
+        each: List[str] = []
+        for thing in things:
+            members = [other for kind, other in await self.out(thing) if kind == "has_member"]
+            each += members or [thing]
+        return list(dict.fromkeys(each))
+
+    async def objects(self, subject: str, relation: str) -> List[str]:
+        """What the subject is held to stand in the relation to."""
+        if relation == "instance_of":
+            return await self.kinds(subject)
+        if relation == "equals":
+            # WHAT IT EQUALS IS ANOTHER: asked what the largest animal is, the animal is not the answer.
+            return (await self.same(subject))[1:]
+        back = self._turned(relation)
+        found: List[str] = []
+        for thing in await self.same(subject):
+            found += [other for kind, other in await self.out(thing) if kind == relation]
+            if back:
+                found += [other for other, kind in await self.into(thing) if kind == back]
+        return await self._each(found, relation)
+
+    async def subjects(self, obj: str, relation: str) -> List[str]:
+        """What is held to stand in the relation to the object: to it, to what it equals, to a particular of the kind
+        it names, to a group it is in."""
+        if relation == "equals":
+            return (await self.same(obj))[1:]
+        back = self._turned(relation)
+        things = list(await self.same(obj))
+        if relation != "instance_of":
+            for thing in list(things):
+                things += [other for other, kind in await self.into(thing)
+                           if kind == "instance_of" and other in self._conversation._particulars]
+        if relation not in _OF_THE_GROUP:
+            for thing in list(things):
+                things += [group for group, kind in await self.into(thing) if kind == "has_member"]
+        found: List[str] = []
+        for thing in dict.fromkeys(things):
+            found += [other for other, kind in await self.into(thing) if kind == relation]
+            if back:
+                found += [other for kind, other in await self.out(thing) if kind == back]
+        return list(dict.fromkeys(found))
+
+    async def holds(self, subject: str, relation: str, obj: str) -> bool:
+        """Whether the subject is held to stand in the relation to what the object names."""
+        if relation == "instance_of":
+            return await self.is_kind(subject, obj)
+        for other in await self.objects(subject, relation):
+            if await self.is_kind(other, obj):
+                return True
+        return False
+
+
 def _clause_atom(subject: str, relation: str, obj: Optional[str], positive: bool = True) -> Optional[str]:
     """One fact as the atom the reasoner reasons over (`neural_bridge.clause_atom`)."""
     from core.reasoning.neural_bridge import clause_atom
@@ -20841,7 +20995,15 @@ class Conversation:
         by_name = {r.phrase.lower(): r for r in resolved if r.known}
         pointing = {name.lower(): facts for name, facts in (incoming or {}).items()}
         answers: List[Answer] = []
-        for said, fact in zip(meaning.facts, meaning.bound(self._situation(), self._known_found(meaning))):
+        bound = list(zip(meaning.facts, meaning.bound(self._situation(), self._known_found(meaning))))
+        if not meaning.asked and any(is_variable(fact.subject) or is_variable(fact.obj)
+                                     for said, fact in bound if not said.condition and not said.given):
+            # A YES OR NO ASKED OF SOMETHING THE QUESTION DOES NOT NAME (a happening: "Does sorted change the
+            # original list?") is not one fact of named things: the list being original says nothing of a changing,
+            # and was answered "Yes." of a changing told as not done (UNDERSTANDS-PROSE-01 on main, 2026-10-21). The
+            # happenings told answer it (`_asked_of_events`).
+            return []
+        for said, fact in bound:
             # WHAT A KNOWN THING IS PICKS IT OUT; IT IS NOT ASKED. "Did the blip
             # run?" asks of the blip a running, not whether it is a blip: held,
             # that would answer yes to anything asked of it.
@@ -20890,90 +21052,107 @@ class Conversation:
                                       alternative=said.alternative))
         return answers
 
+    async def _held_ways(self, facts: Sequence[Any], held: "_Held") -> List[Dict[str, str]]:
+        """EVERY WAY WHAT IS HELD MAKES ALL OF A QUESTION'S FACTS HOLD, each `{unknown: held thing}`: "What absorbs the
+        light?" asks of an absorbing done to the light what it was done by, and the absorbing told, done by the pigment,
+        is one way. Each fact is taken from a thing already found, the question's named things first (both ends found,
+        then its subject, then its object, what a thing is last), so nothing is searched for that a fact does not lead
+        to; what is held is read as `_Held` reads it. A QUESTION IS ALL IT ASKS AT ONCE: asked one happening at a time,
+        "Did the server log a failed login?" (a logging, and a failing of what was logged) was never asked at all, and
+        what the pigment was told to be never named what absorbs the light (UNDERSTANDS-PROSE-01 on main,
+        2026-10-21)."""
+        from core.semantics.derived_reader import is_variable
+
+        def found(term: str, way: Dict[str, str]) -> bool:
+            return not is_variable(term) or term in way
+
+        def order(fact: Any, way: Dict[str, str]) -> int:
+            subject, obj = found(fact.subject, way), found(fact.obj, way)
+            return (0 if subject and obj else 1 if subject else
+                    (2 if fact.relation != "instance_of" else 3) if obj else 4)
+
+        async def ways(pending: List[Any], way: Dict[str, str]) -> List[Dict[str, str]]:
+            if not pending:
+                return [way]
+            fact = min(pending, key=lambda f: order(f, way))
+            step = order(fact, way)
+            if step == 4:
+                # NOTHING FOUND LEADS TO IT: a fact of two unknowns the rest never reach.
+                return []
+            rest = [f for f in pending if f is not fact]
+            subject, obj = way.get(fact.subject, fact.subject), way.get(fact.obj, fact.obj)
+            out: List[Dict[str, str]] = []
+            if step == 0:
+                if await held.holds(subject, fact.relation, obj):
+                    out += await ways(rest, way)
+            elif step == 1:
+                for value in await held.objects(subject, fact.relation):
+                    out += await ways(rest, {**way, fact.obj: value})
+            else:
+                for value in await held.subjects(obj, fact.relation):
+                    out += await ways(rest, {**way, fact.subject: value})
+            return out
+
+        every = await ways(list(facts), {})
+        return list({tuple(sorted(way.items())): way for way in every}.values())
+
     async def _asked_of_events(self, sentence: str,
                                incoming: Mapping[str, Sequence[Tuple[str, str, str, bool]]],
                                meaning: Optional[Any] = None) -> List["Answer"]:
-        """A question about something that happened, answered by the events held (`teaching.told_events`): "What
-        did the wug eat?" asks of an eating, done by the wug, what it was done to. The events pointing at the
-        question's named participants (`incoming`) are the candidates; one whose own facts hold everything the
-        question names, and something for each unknown it asks, answers it, said as the telling with the unknowns
-        filled in. When it happened is not held of an event ("did" against "does"), so the time the question names is
-        not asked of it.
+        """A question answered by what is held as a whole (`_held_ways`): "What did the wug eat?" asks of an eating,
+        done by the wug, what it was done to; "Is chlorophyll green?", told chlorophyll is the green pigment, asks what
+        the pigment is. Each way what is held answers it is an answer, said as the telling with the unknowns filled
+        in, a particular as the thing it was told to be ("Chlorophyll absorbs the light.", not "Pigment."), else as
+        its kind. When it happened is not held of a happening ("did" against "does"), so the time the question names
+        is not asked of it. Asked only where no one fact held answered it (`asked`).
 
-        AN EVENT IS ANSWERED AS IT WAS TOLD. One held with a quality the question does not name -- "The fip did not
+        A HAPPENING IS ANSWERED AS IT WAS TOLD. One held with a quality the question does not name -- "The fip did not
         chase the kelt.", a chase that is `false`; "The kelt might chase the fip.", one that is `possible`; "The dog
         barked loudly." -- is said with that quality, and is no "yes": asked "Did the fip chase the kelt?", what was
-        told is that it did not. Where an event answers the question as it asks, it is the answer, and one told with
+        told is that it did not. Where one answers the question as it asks, it is the answer, and one told with
         another quality is not: asked "What did the kelt chase?", the blip, not "The kelt might chase the fip."."""
         from dataclasses import replace
-        from core.semantics.derived_reader import (EVENT_PARTICIPANTS, SITUATION_VARIABLES, Meaning, MeaningFact,
-                                                   as_known, is_variable, say)
+        from core.semantics.derived_reader import EVENT_PARTICIPANTS, Meaning, MeaningFact, as_known, is_variable, say
         meaning = meaning if meaning is not None else self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
             return []
         pairs = list(zip(meaning.facts, meaning.bound(self._situation(), await self._known_of(meaning))))
-        facts = [bound for _, bound in pairs]
+        if any(said.condition or not said.positive for said, _ in pairs):
+            # What follows from a supposition, and what is not so, are reasoned (`_reasoned_answers`), not found.
+            return []
+        # WHAT A KNOWN THING IS PICKED IT OUT (`_known_of`), and is not asked again.
+        facts = [bound for said, bound in pairs
+                 if said.obj != "?now" and not (said.given and not is_variable(bound.subject))]
         happenings = ({f.subject for f in facts if f.relation == "instance_of" and is_variable(f.subject)
                        and not is_variable(f.obj)}
                       & {f.subject for f in facts if f.relation in EVENT_PARTICIPANTS and is_variable(f.subject)})
-        if len(happenings) != 1:
-            return []
-        event = happenings.pop()
-        of_it = [bound for said, bound in pairs if bound.subject == event and said.obj not in SITUATION_VARIABLES]
-        named = [f for f in of_it if not is_variable(f.obj)]
-        unknown = [f for f in of_it if is_variable(f.obj)]
-        pointing = {name.lower(): rows for name, rows in incoming.items()}
-        candidates: Optional[set] = None
-        for f in named:
-            rows = pointing.get(f.obj.lower())
-            if rows is None:
-                continue
-            holders = {str(s) for s, r, o, positive in rows
-                       if positive and _link_kind(r) == (f.relation, False)}
-            if f.relation in EVENT_PARTICIPANTS:
-                # A KIND THE QUESTION NAMES IS MET BY A PARTICULAR OF IT TOLD OF: "Did the company hire engineers?"
-                # by the hiring of the three engineers it was told of (`told_events`, `described`).
-                for particular in {str(s) for s, r, o, positive in rows if positive and str(s) in self._particulars
-                                   and _link_kind(r) == ("instance_of", False)}:
-                    holders |= {str(s) for s, r, o, positive in await self._incoming_relations(particular)
-                                if positive and _link_kind(r) == (f.relation, False)}
-            candidates = holders if candidates is None else candidates & holders
+        # THE HAPPENING ASKED OF is the one no other fact is about ("Who began working on Python?": the beginning, not
+        # the working begun), of those the one told most of.
+        main = max(happenings, default=None,
+                   key=lambda h: (not any(f.obj == h for f in facts), sum(f.subject == h for f in facts), h))
+        held = _Held(self, incoming)
         answers: List[Answer] = []
         qualified: List[Answer] = []
-        for candidate in sorted(candidates or ()):
-            held = await self.resolve_name(candidate)
-            relations = {}
-            for relation, other in held.relations:
-                kind, denied = _link_kind(relation)
-                if not denied:
-                    relations.setdefault(kind, []).append(str(other))
-            async def holds(f) -> bool:
-                """Whether the candidate holds what the question names: the thing itself, or a particular of the
-                kind it names."""
-                wanted = f.obj.lower().replace("_", " ")
-                others = relations.get(f.relation, ())
-                if wanted in {o.lower().replace("_", " ") for o in others}:
-                    return True
-                for other in others:
-                    kind = await self._kind_of(other) if other in self._particulars else None
-                    if kind and kind.lower().replace("_", " ") == wanted:
-                        return True
-                return False
-            if not all([await holds(f) for f in named]):
-                continue
-            if any(f.relation not in relations for f in unknown):
-                continue
-            filled = {f.obj: relations[f.relation][0] for f in unknown}
-            if not await self._of_participants(facts, event, filled):
-                continue
-            asked_of = {f.obj.lower().replace("_", " ") for f in named if f.relation == "has_property"}
-            qualities = [q for q in relations.get("has_property", ()) if q.lower().replace("_", " ") not in asked_of]
+        for way in await self._held_ways(facts, held):
+            candidate = way[main] if main else next(
+                (f.subject for f in facts if not is_variable(f.subject)), next(iter(way.values()), ""))
+            relations: Dict[str, Dict[str, List[str]]] = {}
+            for happening in happenings:
+                for kind, other in await held.out(way[happening]):
+                    relations.setdefault(happening, {}).setdefault(kind, []).append(other)
+            filled = {unknown: await held.called(value) for unknown, value in way.items()
+                      if unknown not in happenings}
+            qualities: List[Tuple[str, str]] = []
+            for happening in sorted(happenings):
+                asked_of = {held.plain(f.obj) for f in facts if f.subject == happening and f.relation == "has_property"}
+                qualities += [(happening, q) for q in relations.get(happening, {}).get("has_property", ())
+                              if held.plain(q) not in asked_of]
             said = ()
             # With a quality, the question's time is said with it where it can be ("The fip did not chase the kelt."),
-            # and where it cannot, the event is said as it was told, at no time, as it is held: "Did the kelt chase
-            # the fip?", "The kelt might chase the fip.", not "might have chased". Either is said first where every
-            # word stands where words like it were heard (`say`, `heard`): not "The kelt did might chase the fip.".
-            # A PARTICULAR IS SAID AS THE KNOWN THING IT IS: what the kelt chased is `blip_1`, said "the blip"
+            # and where it cannot, the happening is said as it was told, at no time, as it is held: "Did the kelt
+            # chase the fip?", "The kelt might chase the fip.", not "might have chased". Either is said first where
+            # every word stands where words like it were heard (`say`, `heard`): not "The kelt did might chase the
+            # fip.". A PARTICULAR IS SAID AS THE KNOWN THING IT IS: what the kelt chased is `blip_1`, said "the blip"
             # (`as_known`); the question's own known things keep their mark.
             kinds = {}
             for value in set(filled.values()):
@@ -20985,7 +21164,7 @@ class Conversation:
                 try:
                     told_facts = (tuple(replace(f, obj=filled.get(f.obj, f.obj))
                                         for f in meaning.facts if timed or f.obj != "?now")
-                                  + tuple(MeaningFact("has_property", event, q) for q in qualities))
+                                  + tuple(MeaningFact("has_property", happening, q) for happening, q in qualities))
                     tellings.append(Meaning("tell", as_known(told_facts, kinds)))
                 except ValueError:
                     continue
@@ -20994,12 +21173,19 @@ class Conversation:
                                          for told in tellings) if s), ())
                 if said:
                     break
+            # TOLD AS NOT DONE IS NO: a happening held only as `false` ("It does not change the original list.")
+            # answers a yes or no asked of it, no; another quality ("might") is said as told, with no verdict.
+            denied_only = bool(qualities) and {held.plain(q) for _, q in qualities} == {"false"}
             if said:
-                (qualified if qualities else answers).append(
-                    Answer(candidate, "", (), verdict=None if meaning.asked or qualities else True, told=said[0]))
+                (qualified if qualities and not denied_only else answers).append(
+                    Answer(candidate, "", (), verdict=None if meaning.asked else (False if denied_only else
+                                                                                None if qualities else True),
+                           told=said[0]))
+            elif denied_only and not meaning.asked:
+                answers.append(Answer(candidate, "", (), verdict=False))
             elif not qualities:
                 # FOUND IS ANSWERED, SAID OR NOT. Nothing taught may say the telling ("Whales live in the ocean.":
-                # no construction says a living in a place), and the event still holds all the question names:
+                # no construction says a living in a place), and the happening still holds all the question names:
                 # asked yes or no, yes; asked what, what fills it, by its name, a particular by its kind. Dropped
                 # unsaid, "Do whales live in the ocean?" went unanswered with the living found (UNDERSTANDS-PROSE-01,
                 # 2026-10-18, by `scripts/trace_question.py`).
@@ -21009,19 +21195,20 @@ class Conversation:
         return answers or qualified
 
     async def _asked_of_events_composed(self, sentence: str) -> List["Answer"]:
-        """A QUESTION IS ALSO ASKED AS THE COMPOSER READS IT, of what was told here: a telling no frame read is held as
-        the composer read it, and a question a frame reads takes the frame's words and senses, so the two meet only
-        where both were read alike. Told "The account was locked after five failed attempts." (a locking done to the
-        account), "Was the account locked?" was read by a frame as the account doing an embracing, and found nothing
-        (UNDERSTANDS-PROSE-01 on main, 2026-10-20); composed, it asks of the locking told. The happenings it finds
-        told are answers beside the frame's; the reading taken stays the frame's."""
+        """A QUESTION IS ALSO ASKED AS ENGLISH'S GRAMMAR READS IT (`MemoryAgent.grammar_view`), of what was told here:
+        a telling no frame read is held as the grammar read it, and a question a frame reads takes the frame's words
+        and senses, so the two meet only where both were read alike. Told "The account was locked after five failed
+        attempts." (a locking done to the account), "Was the account locked?" was read by a frame as the account doing
+        an embracing, and found nothing (UNDERSTANDS-PROSE-01 on main, 2026-10-20); read by the grammar, it asks of the
+        locking told. The happenings it finds told are answers beside the frame's; the reading taken stays the
+        frame's."""
         from core.agents import memory_agent as _memory
         from core.semantics.derived_reader import is_variable
         agent = _memory._memory_agent
         if agent is None:
-            # Where memory is not up in this process, nothing is composed (`derived_reader._read_by_composing`).
+            # Where memory is not up in this process, nothing is read so (`derived_reader._read_by_composing`).
             return []
-        composed = agent.composition_view().compose_sentence(sentence)
+        composed = agent.grammar_view().compose_sentence(sentence)
         taken = self._meaning(sentence)
         if composed is None or composed.act != "ask" or (taken is not None and
                                                          composed.canonical() == taken.canonical()):
@@ -21030,47 +21217,6 @@ class Conversation:
         named = {t for f in composed.bound(self._situation(), known) for t in f.terms() if not is_variable(t)}
         incoming = {name: await self._incoming_relations(name) for name in sorted(named)}
         return await self._asked_of_events(sentence, incoming, meaning=composed)
-
-    async def _of_participants(self, facts: Sequence[Any], event: str, filled: Dict[str, str]) -> bool:
-        """WHAT A QUESTION SAYS OF THOSE A HAPPENING WAS DONE BY OR TO is asked of them, as they were told of: "How
-        many failed attempts were there?" asks the count of the attempts the failing was done by, which the failing
-        does not hold and the attempts do (`has_count(attempt_1, 5)`). Read only of the happening, the count was
-        never filled, and the question went unanswered with the failing found (UNDERSTANDS-PROSE-01 on main,
-        2026-10-20). Each fact of a participant found (`filled`) is held of it, filling what it asks; a fact the
-        participant does not hold, or a kind it is not, is not this happening's. Fills `filled` in place; whether
-        every fact held."""
-        from core.semantics.derived_reader import is_variable
-
-        def plain(name: str) -> str:
-            return str(name).lower().replace("_", " ")
-        pending = [f for f in facts if f.subject != event and (f.subject in filled or is_variable(f.subject))]
-        while True:
-            ready = [f for f in pending if f.subject in filled]
-            if not ready:
-                return True
-            for f in ready:
-                pending.remove(f)
-                particular = filled[f.subject]
-                if f.relation == "instance_of":
-                    kind = await self._kind_of(particular) if particular in self._particulars else None
-                    if kind and not is_variable(f.obj) and plain(kind) != plain(f.obj) \
-                            and plain(particular) != plain(f.obj):
-                        return False
-                    continue
-                held = await self.resolve_name(particular)
-                theirs: List[str] = []
-                for relation, other in held.relations:
-                    kind, denied = _link_kind(relation)
-                    if kind == f.relation and not denied:
-                        theirs.append(str(other))
-                if is_variable(f.obj) and f.obj not in filled:
-                    if not theirs:
-                        return False
-                    filled[f.obj] = theirs[0]
-                    continue
-                wanted = plain(filled.get(f.obj, f.obj))
-                if wanted not in {plain(o) for o in theirs}:
-                    return False
 
     @staticmethod
     def _render_atom(text: str) -> str:
@@ -21722,14 +21868,15 @@ class Conversation:
             # something I have no name for yet" (UNDERSTANDS-PROSE-01, 2026-10-16). SO IS A THING TOLD OF BY A
             # DESCRIPTION, as its own particular: "The company hired three engineers." holds the engineers hired, three
             # of them, where it held the hiring alone (`told_events`, `described`, 2026-10-19).
-            from core.learning.teaching import told_events
+            from core.learning.teaching import told_events, told_kinds
             from core.semantics.cognitive_ingress import normalize_term
             from core.semantics.derived_reader import Meaning
             told_of = Meaning(meaning.act, meaning.bound({}, known), meaning.asked)
             events = {unknown: normalize_term(name)
                       for unknown, name in told_events(told_of, said, described=True).items()}
+            kinds_told = told_kinds(told_of, described=True)
             for unknown, name in events.items():
-                kind = next(f.obj for f in told_of.facts if f.relation == "instance_of" and f.subject == unknown)
+                kind = kinds_told[unknown]
                 self._particulars.pop(name, None)
                 self._particulars[name] = (normalize_term(kind) or kind, "person")
                 self._mentioned[name] = self._mentioned.get(name, 0) + 1
@@ -22421,7 +22568,11 @@ class Conversation:
                     resolved = await self.resolve(sentence)
 
         incoming = {r.phrase: await self._incoming_relations(r.phrase) for r in resolved if r.known}
-        answers = self.asked(sentence, resolved, incoming) + await self._asked_of_events(sentence, incoming)
+        # ONE FACT HELD answers what it asks (`asked`); a question it does not answer is asked of what is held as a
+        # whole (`_asked_of_events`), which would answer the one fact again in other words.
+        answers = self.asked(sentence, resolved, incoming)
+        if not answers:
+            answers = await self._asked_of_events(sentence, incoming)
         if asked:
             answers += [a for a in await self._asked_of_events_composed(sentence)
                         if (a.about, a.relation, tuple(a.others)) not in

@@ -13,8 +13,8 @@ lines by how far up or down they are (`Agent -1`), constants (`now`, `speaker`, 
 what a question asks), and lines opening a box (`NEGATION <1`: what follows is not so). A pointer counts concept
 lines only. Each line's comment holds the words it stands for ("the flea market").
 
-SAID AS THE LESSONS SAY IT, so the composer learns one way to say a thing (`docs/TEACHING.md`): a thing "the"
-names is known (`given`); a name is itself (`tom`), and "Tom is a boy." `isa(tom, boy)`; a happening is its kind with
+SAID AS THE LESSONS SAY IT, so the composer learns one way to say a thing (`docs/TEACHING.md`): an order is a
+request; a thing "the" names is known (`given`); a name is itself (`tom`), and "Tom is a boy." `isa(tom, boy)`; a happening is its kind with
 who did it (`done_by`), to what (`done_to`), with what (`done_with`), for whom (`done_for`), to whom (`received_by`),
 where it went (`moves_to`, `moves_from`, `moves_through`); a present happening has no time said, a past one is before
 now (`precedes ?now`), a coming one after (`follows ?now`); a quality is `has_property`, a past state is a state
@@ -417,6 +417,13 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                     if role == "Co-Theme" and "Theme" in roles and _POINTER.match(roles["Theme"]):
                         subject = target(k, roles["Theme"])
                         kind = concepts[other]
+                        # A ROLE IS THE KIND SAID: "Tom is a workaholic." is written as a person whose role is a
+                        # workaholic (`person.n.01 Role +1`); said as "Tom is a gentleman." is (`isa(tom, ...)`), as the
+                        # lessons say "Tom is a boy.", never as Tom equal to a person.
+                        role_of = next((target(other, v) for r, v in kind.roles if r == "Role" and _POINTER.match(v)),
+                                       None)
+                        if kind.sense in BARE and role_of is not None:
+                            kind = concepts[role_of]
                         kind_name = name_of(kind.sense) if part(kind) == "n" and kind.sense not in BARE else None
                         if subject is not None and kind_name and term_of(other).startswith("?") \
                                 and not concepts[other].words.split()[:1] == ["the"] and term_of(other) not in asked:
@@ -564,7 +571,13 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
         renamed.append(MeaningFact(relation, subject, obj, f.positive, f.condition, f.alternative, f.unasserted,
                                    f.given and subject.startswith("?")))
     facts = list(dict.fromkeys(renamed))
-    act = "ask" if document.text.rstrip().endswith("?") else "tell"
+    # AN ORDER IS A REQUEST, as the lessons say it ("Close the door." `request`): the PMB says the one who is to do it
+    # as the hearer no word says ("Oil this bicycle.": `person.n.01 EQU hearer`, no words), its happening done by
+    # them.
+    unsaid_hearer = {k for k, c in enumerate(concepts) if ("EQU", "hearer") in c.roles and c.span is None}
+    ordered = any(_POINTER.match(v) and target(k, v) in unsaid_hearer for k, c in enumerate(concepts)
+                  if part(c) == "v" for r, v in c.roles if r in DOERS)
+    act = "ask" if document.text.rstrip().endswith("?") else "request" if ordered else "tell"
     asked_now = tuple(sorted({names.get(a, a) for a in asked if any(names.get(a, a) in f.terms() for f in facts)}))
     if not facts:
         return Said(None, ("nothing said",))

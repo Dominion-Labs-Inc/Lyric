@@ -103,13 +103,13 @@ async def main() -> int:
     texts = json.loads((HERE / "texts.json").read_text())
     from core.semantics import derived_reader
     composing = "on" if derived_reader.COMPOSING else "off"
-    EV.note(f"composing {composing}: an utterance no taught frame reads is "
-            f"{'read by composing its meaning (on by default; LYRIC_COMPOSE=0 turns it off)' if composing == 'on' else 'left unread'}")
-    say(f"composing {composing} (on by default; LYRIC_COMPOSE=0 turns it off)")
+    EV.note(f"reading by English's grammar {composing}: an utterance no taught frame reads is "
+            f"{'read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)' if composing == 'on' else 'left unread'}")
+    say(f"reading by English's grammar {composing} (on by default; LYRIC_COMPOSE=0 turns it off)")
     if derived_reader.COMPOSING and derived_reader.COMPOSING_FORCED:
-        EV.note("a telling every frame reads only by supposing more than any lesson read as taught is composed "
-                "instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)")
-        say("forced tellings composed (LYRIC_COMPOSE_FORCED=0 turns it off)")
+        EV.note("an utterance every frame reads only by supposing more than any lesson read as taught is read by the "
+                "grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)")
+        say("utterances frames read only by supposing read by the grammar (LYRIC_COMPOSE_FORCED=0 turns it off)")
     quiet = io.StringIO()
     say("loading memory, the beliefs and the language view (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):

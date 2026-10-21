@@ -53,10 +53,11 @@ about without writing to the store.
 POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-PROSE-01/experiment.py
 ```
 
-An utterance no taught frame reads is read by composing its meaning from how its words go together
-(`core/semantics/composition.py`; learned from the lessons' sentences and PropBank's arguments memory holds, taught
-by `--source composition` and `--source propbank`), and so is a telling every frame reads only by supposing more than
-any lesson read as taught (`derived_reader._read_forced_by_composing`); both on by default since 2026-10-18,
+An utterance no taught frame reads is read by English's grammar (`core/semantics/grammar.py`, since 2026-10-21;
+memory's grammar view, built from the sentences it holds analysed, the forms and kinds it holds and the lessons' and
+PMB's sentences it holds with their meanings), and so is an utterance every frame reads only by supposing more than
+any lesson read as taught (`derived_reader._read_forced_by_composing`); questions are also asked as the grammar reads
+them. Read by composing (`core/semantics/composition.py`) before. Both on by default since 2026-10-18,
 `LYRIC_COMPOSE=0` and `LYRIC_COMPOSE_FORCED=0` turn them off. The record notes which were on.
 
 **Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`. The transcript

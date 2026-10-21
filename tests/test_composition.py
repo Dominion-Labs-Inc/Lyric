@@ -176,7 +176,7 @@ def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monk
     view.learn(*BARKED)
 
     class Agent:
-        def composition_view(self):
+        def grammar_view(self):
             return view
     monkeypatch.setattr(memory, "_memory_agent", Agent())
     monkeypatch.setattr(dr, "COMPOSING", False)
@@ -190,9 +190,10 @@ def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monk
 
 
 def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monkeypatch):
-    """`_read_forced_by_composing`: a telling whose every reading supposes more than a lesson read as taught ever did
-    (more than two links never taught, or a filler written against its slot) is read by the composer; one supposing
-    no more than the lessons, a question, or one the composer reads nothing of, stays as the frames read it."""
+    """`_read_forced_by_composing`: an utterance whose every reading supposes more than a lesson read as taught ever
+    did (more than two links never taught, or a filler written against its slot), a telling or a question, is read by
+    memory's grammar; one supposing no more than the lessons, or one the grammar reads nothing of, stays as the frames
+    read it."""
     from core.agents import memory_agent as memory
     from core.semantics import derived_reader as dr
     composed = Meaning("tell", (F("instance_of", "?e", "breathe"), F("done_by", "?e", "whale")))
@@ -202,7 +203,7 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
             return composed
 
     class Agent:
-        def composition_view(self):
+        def grammar_view(self):
             return View()
     monkeypatch.setattr(memory, "_memory_agent", Agent())
     told = Meaning("tell", (F("has_property", "?e", "air through"),))
@@ -214,10 +215,10 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
     misfit = dr.Reading((), (), told, proposed=("link",), misfits=1)
     as_taught = dr.Reading((), (), told, proposed=("link",) * 2)
     asked = dr.Reading((), (), Meaning("ask", told.facts), proposed=("link",) * 6)
-    for readings in [(forced,), (misfit,), (forced, misfit)]:
+    for readings in [(forced,), (misfit,), (forced, misfit), (asked,)]:
         reading, = dr._read_forced_by_composing(utterance(*readings)).readings
         assert reading.composed and reading.meaning == composed
-    for readings in [(as_taught,), (forced, as_taught), (asked,)]:
+    for readings in [(as_taught,), (forced, as_taught)]:
         assert dr._read_forced_by_composing(utterance(*readings)).readings == readings
     monkeypatch.setattr(View, "compose_sentence", lambda self, sentence: None)
     assert dr._read_forced_by_composing(utterance(forced)).readings == (forced,)
@@ -235,7 +236,7 @@ def test_a_question_asking_for_something_composed_asking_for_nothing_is_not_read
             return hired
 
     class Agent:
-        def composition_view(self):
+        def grammar_view(self):
             return View()
     monkeypatch.setattr(memory, "_memory_agent", Agent())
     monkeypatch.setattr(dr, "COMPOSING", True)
@@ -255,7 +256,7 @@ def test_a_composed_meaning_of_known_things_alone_is_no_reading(monkeypatch):
             return Meaning("ask", (F("instance_of", "?x2", "valve", given=True),))
 
     class Agent:
-        def composition_view(self):
+        def grammar_view(self):
             return View()
     monkeypatch.setattr(memory, "_memory_agent", Agent())
     monkeypatch.setattr(dr, "COMPOSING", True)
@@ -333,6 +334,8 @@ def test_a_sentence_taught_again_with_a_corrected_meaning_corrects_its_memory():
     assert stored[0]["metadata"]["taught"] == again.to_dict() and stored[0]["content"] == again.said()
     assert stored[0]["metadata"]["superseded"][-1]["was"] == first.to_dict()
     assert agent.composition_view()._waiting == [again]
+    # English's grammar, not built yet, learns from the correction alone when it is.
+    assert agent._grammar_taught == [again]
     assert asyncio.run(agent.remember_taught_sentences([again]))["already"] == 1
     elsewhere = cp.TaughtSentence("Rex did not bark.", denied, "english_12")
     assert asyncio.run(agent.remember_taught_sentences([elsewhere]))["remembered"] == 1 and len(stored) == 2

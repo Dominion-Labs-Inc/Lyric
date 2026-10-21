@@ -169,6 +169,13 @@ class MemoryAgent(IMemoryConsolidation):
         #: sentences it holds with their taught meanings, learned from by the composer (`composition_view`).
         self._argument_view = None
         self._composition_view = None
+        #: English's grammar as memory reads with it (`grammar_view`): built when first asked after a warm, from the
+        #: sentences held analysed, what memory holds of things (`_grammar_links`: each thing's kinds, which are
+        #: particular ones, what an adjective's definition is written with) and the sentences held with their taught
+        #: meanings (`_grammar_taught`).
+        self._grammar_view = None
+        self._grammar_links: List[Tuple[str, str, str]] = []
+        self._grammar_taught: List[Any] = []
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
         #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
         #: things memory holds at all when they were counted: what each thing's associative strength is measured
@@ -2862,7 +2869,9 @@ class MemoryAgent(IMemoryConsolidation):
         inventory.held_forms = forms.bases_of
         structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
-        composition = await self._composition_memories(arguments)
+        composition, taught_sentences = await self._composition_memories(arguments)
+        # AND WHAT THINGS ARE, as English's grammar asks it of the words it reads (`grammar_view`).
+        grammar_links = await self._grammar_knowledge()
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
         heard, self._heard_memory = await self._heard_memories()
         for word, (after, two) in heard.items():
@@ -2882,6 +2891,7 @@ class MemoryAgent(IMemoryConsolidation):
         self._said_view, self._said_spread = said, {}
         self._structure_view, self._word_groups, self._word_forms = structure, groups, forms
         self._argument_view, self._composition_view = arguments, composition
+        self._grammar_links, self._grammar_taught, self._grammar_view = grammar_links, taught_sentences, None
         self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
@@ -6443,17 +6453,93 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def _composition_memories(self, arguments):
         """The sentences held with their meanings (the lessons', the PMB's), as the composer's view
-        (`composition_view`), the arguments behind them; each is read when the view is first asked."""
+        (`composition_view`), the arguments behind them, and each of them as held, which English's grammar learns from
+        (`grammar_view`); each is read when the view is first asked."""
         from core.semantics.composition import CompositionView, TaughtSentence
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
         view = CompositionView(arguments if len(arguments) else None, lay_out=self.lay_out)
+        held: List[Any] = []
         for row in await self._rows_tagged(self.TAUGHT_SENTENCE_TAG):
             await give_way()
             taught = (row.metadata or {}).get("taught")
             if taught:
-                view.hold(TaughtSentence.from_dict(taught))
-        return view
+                item = TaughtSentence.from_dict(taught)
+                view.hold(item)
+                held.append(item)
+        return view, held
+
+    async def _grammar_knowledge(self) -> List[Tuple[str, str, str]]:
+        """What memory holds of things that English's grammar asks of the words it reads (`grammar_words.Knowledge`):
+        each thing's kinds (`isa`) and what particular ones are (`instance of`); and, for a thing held as a kind of
+        nothing (an adjective's sense: "British"), what its definition is written with (`defined with`: the United
+        Kingdom), which the grammar takes as what it is of. Read once a warm, held in this process."""
+        rows = await self._memory_db().execute_query(
+            "SELECT c1.name AS subject, cr.relation, COALESCE(c2.name, cr.target_surface) AS target"
+            " FROM unified.concept_relations cr"
+            " JOIN unified.concepts c1 ON c1.concept_id = cr.source_concept_id"
+            " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
+            " WHERE cr.polarity = 'positive' AND (cr.relation IN ('isa', 'is a', 'instance of', 'instance_of')"
+            " OR (cr.relation IN ('defined with', 'defined_with') AND NOT EXISTS ("
+            "  SELECT 1 FROM unified.concept_relations x WHERE x.source_concept_id = cr.source_concept_id"
+            "  AND x.relation IN ('isa', 'is a', 'instance of', 'instance_of'))))",
+            fetch_all=True) or []
+        return [(str(r["subject"]), "isa" if r["relation"] in ("isa", "is a") else str(r["relation"]),
+                 str(r["target"])) for r in rows if r["subject"] and r["target"]]
+
+    def grammar_view(self):
+        """English's grammar as memory reads with it (`grammar.GrammarView`): each word as memory holds it (how the
+        sentences it holds analysed use it, how memory names it, what memory holds its thing to be:
+        `grammar_words.HeldWords`), learned from the sentences memory holds with their taught meanings. Synchronous;
+        built when first asked after a warm (reading the analysed sentences and learning from the taught ones takes a
+        while), plain before the first warm."""
+        if self._grammar_view is None:
+            from core.semantics.grammar import GrammarView, closed_uses
+            from core.semantics.grammar_words import GraphKnowledge, HeldWords
+            knowledge = GraphKnowledge(classes=self._held_word_classes, names=self._held_name)
+            for subject, relation, target in self._grammar_links:
+                knowledge.add(subject, relation, target)
+            analysed = self._structure_view.analysed() if self._structure_view is not None else ()
+            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms))
+            for taught in self._grammar_taught:
+                view.hold(taught)
+            self._grammar_view = view
+        return self._grammar_view
+
+    def _held_word_classes(self, word: str) -> Dict[str, float]:
+        """The kinds of word memory holds a word as, with net evidence for them."""
+        return {cls: float(n) for cls, n in self.word_classes(word).items() if n > 0}
+
+    def _held_name(self, words: Sequence[str], word_class: str) -> Optional[str]:
+        """The name memory holds these words by together ("credit card", "pass away"), as a word of that class; None
+        where it holds none."""
+        view = self.pattern_inventory()
+        for lexical in view.lexicals_with_words(tuple(w.lower() for w in words), loose=True):
+            value = lexical.value
+            if " " not in value.replace("_", " ").strip():
+                continue
+            classes = self.word_classes(value)
+            if not classes or any(word_class in (c, "NOUN" if c == "NAME" else c) and n > 0
+                                  for c, n in classes.items()):
+                return value.replace("_", " ")
+        return None
+
+    def _hold_taught(self, view, item) -> None:
+        """A sentence held with its taught meaning, folded into the composer's view and English's grammar."""
+        view.hold(item)
+        if self._grammar_view is not None:
+            self._grammar_view.hold(item)
+        else:
+            self._grammar_taught.append(item)
+
+    def _drop_taught(self, view, item) -> None:
+        """A sentence held with its taught meaning, taken back from the composer's view and English's grammar
+        (corrected since)."""
+        view.drop(item)
+        if self._grammar_view is not None:
+            self._grammar_view.drop(item)
+        key = item.key()
+        self._grammar_taught = [t for t in self._grammar_taught if t.key() != key]
 
     def argument_view(self):
         """The sentences held with their happenings' arguments, as the argument view. Synchronous; empty before the
@@ -6542,8 +6628,7 @@ class MemoryAgent(IMemoryConsolidation):
         corrected (`_correct_whole`). Returns `kept`, `corrected` and counts, as `remember_argued`."""
         return await self._remember_whole(
             taught, view=self.composition_view, tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
-            content=lambda item: item.said(), add=lambda view, item: view.hold(item),
-            drop=lambda view, item: view.drop(item))
+            content=lambda item: item.said(), add=self._hold_taught, drop=self._drop_taught)
 
     async def _remember_whole(self, items, *, view, tag: str, field: str, content, add, drop=None,
                               progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:

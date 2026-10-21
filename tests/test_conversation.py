@@ -502,6 +502,84 @@ async def test_what_a_question_asks_of_those_a_happening_was_done_by_is_asked_of
     assert await talk._asked_of_events("How many failed passwords were there?", incoming) == []
 
 
+@pytest.mark.asyncio
+async def test_a_question_is_asked_of_what_is_held_as_a_whole(talk, monkeypatch):
+    """`_asked_of_events` binds every unknown a question names against what is held, read as its relations say
+    (`_Held`). Told chlorophyll is the green pigment that absorbs the light, "What absorbs the light?" is chlorophyll,
+    not "Pigment.", and "Is chlorophyll green?" is yes: a thing is what it equals. Told plants take in carbon dioxide
+    and water (a group), "Do plants take in carbon dioxide?" is yes. "Did the server log a failed login?" names two
+    happenings, both found. "What is the largest animal?", told the blue whale is, is the blue whale (equals held the
+    other way round), not the animal asked of. (UNDERSTANDS-PROSE-01 on main, 2026-10-21.)"""
+    from types import SimpleNamespace
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import MeaningFact as F
+    held = {"chlorophyll": [("equals", "pigment_1")],
+            "pigment_1": [("instance of", "pigment"), ("has property", "green")],
+            "absorb_1": [("instance of", "absorb"), ("done by", "pigment_1"), ("done to", "light_1")],
+            "light_1": [("instance of", "light")],
+            "take_in_1": [("instance of", "take in"), ("done by", "plant"), ("done to", "group_1")],
+            "group_1": [("has member", "co2_1"), ("has member", "water_1")],
+            "co2_1": [("instance of", "carbon dioxide")], "water_1": [("instance of", "water")],
+            "log_1": [("instance of", "log"), ("done by", "server_1"), ("done to", "login_1")],
+            "fail_1": [("instance of", "fail"), ("done by", "login_1")],
+            "login_1": [("instance of", "login")], "server_1": [("instance of", "server")],
+            "blue_whale_1": [("instance of", "blue whale"), ("equals", "animal_1")],
+            "animal_1": [("instance of", "animal"), ("has degree", "large_1")],
+            "large_1": [("instance of", "large"), ("greatest of", "animal")]}
+    pointing = {}
+    for subject, relations in held.items():
+        for relation, obj in relations:
+            pointing.setdefault(obj, []).append((subject, relation, obj, True))
+    kinds = {name: obj for name, relations in held.items() for relation, obj in relations if relation == "instance of"}
+    asked = {
+        "What absorbs the light?": (Meaning("ask", (
+            F("instance_of", "?e", "absorb"), F("done_by", "?e", "?x"), F("done_to", "?e", "?l"),
+            F("instance_of", "?l", "light", given=True)), ("?x",)), {"?l": "light_1"}),
+        "Is chlorophyll green?": (Meaning("ask", (F("has_property", "chlorophyll", "green"),)), {}),
+        "Do plants take in carbon dioxide?": (Meaning("ask", (
+            F("instance_of", "?e", "take in"), F("done_by", "?e", "plant"), F("done_to", "?e", "?c"),
+            F("instance_of", "?c", "carbon dioxide"))), {}),
+        "Did the server log a failed login?": (Meaning("ask", (
+            F("instance_of", "?e", "log"), F("done_by", "?e", "?s"), F("done_to", "?e", "?l"),
+            F("instance_of", "?l", "login"), F("instance_of", "?f", "fail"), F("done_by", "?f", "?l"),
+            F("instance_of", "?s", "server", given=True))), {"?s": "server_1"}),
+        "What is the largest animal?": (Meaning("ask", (
+            F("equals", "?a", "?w"), F("instance_of", "?a", "animal", given=True), F("has_degree", "?a", "?d"),
+            F("instance_of", "?d", "large"), F("greatest_of", "?d", "animal")), ("?w",)), {"?a": "animal_1"})}
+
+    async def known(meaning, *, telling=False):
+        return next(found for m, found in asked.values() if m == meaning)
+
+    async def incoming(name):
+        return pointing.get(name, [])
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=held.get(name, []))
+
+    async def kind_of(name):
+        return kinds.get(name)
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked[sentence][0])
+    monkeypatch.setattr(talk, "_known_of", known)
+    monkeypatch.setattr(talk, "_incoming_relations", incoming)
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    monkeypatch.setattr(talk, "_kind_of", kind_of)
+    monkeypatch.setattr(talk, "_particulars", {name: (kind, "person") for name, kind in kinds.items()})
+    monkeypatch.setattr(dr, "say", lambda *a, **k: ())
+    what, = await talk._asked_of_events("What absorbs the light?", {})
+    assert (what.about, what.others) == ("absorb_1", ("chlorophyll",)), what
+    green, = await talk._asked_of_events("Is chlorophyll green?", {})
+    assert green.verdict is True, green
+    taken, = await talk._asked_of_events("Do plants take in carbon dioxide?", {})
+    assert (taken.about, taken.verdict) == ("take_in_1", True), taken
+    logged, = await talk._asked_of_events("Did the server log a failed login?", {})
+    assert (logged.about, logged.verdict) == ("log_1", True), logged
+    largest, = await talk._asked_of_events("What is the largest animal?", {})
+    assert largest.others == ("blue whale",), largest
+    held["fail_1"] = [("instance of", "fail"), ("done by", "attempt_1")]
+    pointing["login_1"] = [row for row in pointing["login_1"] if row[0] != "fail_1"]
+    assert await talk._asked_of_events("Did the server log a failed login?", {}) == []
+
+
 def test_a_known_thing_talked_of_here_is_the_one_meant(talk, monkeypatch):
     """Told of an account (`account_1`), "Was the account locked?" takes the account as the account, not a record of
     history, the sense met most: a word marked known names the kind of a particular told of here where it can
@@ -539,10 +617,10 @@ async def test_the_x_is_the_x_talked_of_most(talk, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_a_question_is_also_asked_as_the_composer_reads_it(talk, monkeypatch):
-    """Told a locking done to the account (`lock_1`, composed), "Was the account locked?" read by a frame as the account
-    doing an embracing finds nothing told; asked as the composer reads it, a locking done to the account, it finds the
-    locking: yes. Where the composer reads it as the frame did, nothing more is asked."""
+async def test_a_question_is_also_asked_as_the_grammar_reads_it(talk, monkeypatch):
+    """Told a locking done to the account (`lock_1`, read by the grammar), "Was the account locked?" read by a frame as
+    the account doing an embracing finds nothing told; asked as memory's grammar reads it, a locking done to the
+    account, it finds the locking: yes. Where the grammar reads it as the frame did, nothing more is asked."""
     from types import SimpleNamespace
     from core.agents import memory_agent as memory
     from core.semantics import derived_reader as dr
@@ -560,7 +638,7 @@ async def test_a_question_is_also_asked_as_the_composer_reads_it(talk, monkeypat
             return composed
 
     class Agent:
-        def composition_view(self):
+        def grammar_view(self):
             return View()
 
     async def known(meaning, *, telling=False):

@@ -524,6 +524,10 @@ class StructureView:
         self._grouped = {}
         self._ready = False
 
+    def analysed(self) -> Tuple[Analysed, ...]:
+        """Every analysed sentence held, in the order held."""
+        return tuple(self._held.values())
+
     def add(self, analysed: Analysed) -> bool:
         """Hold one analysed sentence. False if it was held."""
         key = analysed.key()

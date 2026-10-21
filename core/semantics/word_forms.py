@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, Iterable, List, Mapping, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Tuple
 
 #: The classes whose words take forms a reader must undo: the open classes. A closed class's forms ("me", "been")
 #: are the constructions' own words.
@@ -86,6 +86,7 @@ class HeldForms:
     def __init__(self) -> None:
         self._held: Dict[str, WordForms] = {}
         self._bases: Dict[str, Counter] = defaultdict(Counter)
+        self._written: Optional[Dict[str, List[Tuple[str, str, str, int]]]] = None
 
     def __len__(self) -> int:
         return len(self._held)
@@ -96,9 +97,23 @@ class HeldForms:
             for form, _, n in old.forms:
                 self._bases[form][old.base] -= n
         self._held[item.key()] = item
+        self._written = None
         for form, _, n in item.forms:
             self._bases[form][item.base] += n
 
     def bases_of(self, word: str) -> List[str]:
         """The base words `word` is a form of, the one it was most often a form of first."""
         return [base for base, n in self._bases.get(word.lower(), Counter()).most_common() if n > 0]
+
+    def items(self) -> List[WordForms]:
+        """Every word's forms held."""
+        return list(self._held.values())
+
+    def forms_of(self, word: str) -> List[Tuple[str, str, str, int]]:
+        """What `word` is a form of: each (base word, class, what form it is, how often met so)."""
+        if self._written is None:
+            self._written = defaultdict(list)
+            for item in self._held.values():
+                for form, features, n in item.forms:
+                    self._written[form].append((item.base, item.word_class, features, n))
+        return list(self._written.get(word.lower(), ()))
