@@ -35,6 +35,19 @@ from core.security.secrets import get_secrets_authority
 logger = logging.getLogger(__name__)
 
 
+def _working_path(working_directory: str) -> Path:
+    """The directory a working-directory argument names. Maps /data to Lyric's
+    actual data directory."""
+    path = Path(working_directory)
+
+    # Handle absolute /data path - map to Lyric data directory
+    if str(path).startswith('/data'):
+        lyric_root = Path(__file__).parent.parent.parent  # Get Lyric root
+        relative_path = str(path)[1:]  # Remove leading /
+        path = lyric_root / relative_path
+    return path
+
+
 def resolve_working_directory(working_directory: Optional[str]) -> Optional[Path]:
     """
     Resolve working directory path, handling special cases.
@@ -43,13 +56,7 @@ def resolve_working_directory(working_directory: Optional[str]) -> Optional[Path
     if not working_directory:
         return None
 
-    path = Path(working_directory)
-
-    # Handle absolute /data path - map to Lyric data directory
-    if str(path).startswith('/data'):
-        lyric_root = Path(__file__).parent.parent.parent  # Get Lyric root
-        relative_path = str(path)[1:]  # Remove leading /
-        path = lyric_root / relative_path
+    path = _working_path(working_directory)
 
     # Create directory if it doesn't exist
     if not path.exists():
@@ -61,6 +68,79 @@ def resolve_working_directory(working_directory: Optional[str]) -> Optional[Path
             return None
 
     return path.resolve()
+
+
+#: How long a shell command may run when its act names no limit.
+SHELL_TIMEOUT_SECONDS = 30
+
+
+def _confinement(copy: Path, scratch: Path) -> Optional[List[str]]:
+    """The prefix that runs a command able to write only inside `copy` and
+    `scratch`, with no network at all; None where this system offers no such
+    confinement."""
+    if sys.platform == "darwin" and Path("/usr/bin/sandbox-exec").exists():
+        profile = ('(version 1)(allow default)(deny network*)'
+                   '(deny file-write* (require-all'
+                   f' (require-not (subpath "{copy}")) (require-not (subpath "{scratch}"))'
+                   ' (require-not (literal "/dev/null")) (require-not (literal "/dev/tty"))))')
+        return ["/usr/bin/sandbox-exec", "-p", profile]
+    return None
+
+
+async def run_in_disposable_copy(command: str, working_directory: Optional[str],
+                                 timeout: Optional[float] = None) -> Optional[Dict[str, Any]]:
+    """Run `command` again against a disposable copy of the directory it ran in,
+    unable to change anything: it writes only inside the copy and its own scratch
+    space, reaches no network, and the copy is deleted afterwards.
+
+    A RE-RUN IS AN OBSERVATION ONLY IF IT CANNOT CHANGE WHAT IT OBSERVES. Running
+    code can change anything it can reach, so nothing runs at all when the command
+    ran in Lyric's own directory or one holding it (named none, or named that:
+    Lyric is not a workspace), when that directory or its copy cannot be had, or
+    when this system offers no way to confine the run. Then the answer is None.
+
+    Otherwise {"exit_code": the exit code, or None when the run did not finish
+    within `timeout` (the act's own limit), "seconds": how long it ran}."""
+    if not working_directory:
+        return None
+    source = _working_path(working_directory).resolve()
+    lyric_root = Path(__file__).resolve().parent.parent.parent
+    if not source.is_dir() or source == lyric_root or source in lyric_root.parents:
+        return None
+    base = Path(tempfile.mkdtemp(prefix="lyric-copy-")).resolve()
+    try:
+        copy, scratch = base / "copy", base / "scratch"
+        scratch.mkdir()
+        prefix = _confinement(copy, scratch)
+        if prefix is None:
+            return None
+        # A copy-on-write clone: as fast as the directory has files, and no space
+        # until something in the copy is written.
+        cloned = await asyncio.create_subprocess_exec(
+            "cp", "-c", "-R", str(source), str(copy),
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL)
+        if await cloned.wait() != 0:
+            return None
+        env = get_secrets_authority().scrubbed_env()  # no keys in a child
+        env["TMPDIR"] = str(scratch)
+        limit = timeout or SHELL_TIMEOUT_SECONDS
+        started = time.monotonic()
+        # Its own process group, so a run that does not finish is stopped whole,
+        # with every process it started.
+        process = await asyncio.create_subprocess_exec(
+            *prefix, "/bin/sh", "-c", command, cwd=str(copy), env=env,
+            stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            start_new_session=True)
+        try:
+            exit_code = await asyncio.wait_for(process.wait(), timeout=limit)
+        except asyncio.TimeoutError:
+            os.killpg(process.pid, signal.SIGKILL)
+            await process.wait()
+            exit_code = None
+        return {"exit_code": exit_code, "seconds": time.monotonic() - started}
+    finally:
+        import shutil
+        shutil.rmtree(base, ignore_errors=True)
 
 
 class RunPythonTool(Tool):
@@ -269,7 +349,7 @@ class RunShellCommandTool(Tool):
                 type="number",
                 description="Timeout in seconds (default: 30)",
                 required=False,
-                default=30,
+                default=SHELL_TIMEOUT_SECONDS,
                 min_value=1,
                 max_value=300
             ),
@@ -308,7 +388,7 @@ class RunShellCommandTool(Tool):
     async def execute(
         self,
         command: str,
-        timeout: int = 30,
+        timeout: int = SHELL_TIMEOUT_SECONDS,
         working_directory: Optional[str] = None,
         shell: bool = True
     ) -> ToolResult:

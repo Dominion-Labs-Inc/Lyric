@@ -2145,6 +2145,39 @@ def _escalate(irreversibility: str) -> str:
         return irreversibility
 
 
+#: A command that RUNS CODE TO SEE WHETHER IT WORKS: an interpreter running a
+#: script, a module or inline code, or a test runner, anywhere in a compound
+#: command, named bare or by its path (quoted, when the path has spaces). An
+#: interpreter that installs (`-m pip`, `setup.py`) is not checking.
+_CHECK_COMMAND = re.compile(
+    r"(?:^|&&|\|\||[;|(])\s*(?:\w+=\S*\s+)*(?:timeout\s+\S+\s+)?"
+    r"(?:'[^']*/|\"[^\"]*/|[^\s'\"]*/)?"
+    r"(?:python[\d.]*['\"]?(?!\s+(?:-m\s+pip|setup\.py)\b)|pytest['\"]?|py\.test|tox|nox|\S*runtests\.py)"
+    r"(?=\s|$)")
+
+
+def _check_of(tool: str, args: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """What running this act again needs, when the act is a CHECK; None for any
+    other act.
+
+    A check is a shell command that runs code to see whether it works, and that
+    the consequence reading does not read as changing, moving or removing a file:
+    `pytest && rm out.txt` removes something, and a re-run of it is another
+    removal, not a look. Only a check's outcome is a fact about the state it ran
+    against, so only a check can be confirmed by running it again."""
+    if tool != "run_shell_command":
+        return None
+    args = args or {}
+    command = str(args.get("command") or "")
+    if not _CHECK_COMMAND.search(command):
+        return None
+    action, _ = classify_action(tool, args)
+    if action in (ActionClass.MODIFY, ActionClass.ARCHIVE, ActionClass.DELETE):
+        return None
+    return {"command": command, "working_directory": args.get("working_directory"),
+            "timeout": args.get("timeout")}
+
+
 @dataclass(frozen=True)
 class Sensitivity:
     """What makes a target sensitive: declared by the Constitution's policy,
@@ -13741,10 +13774,11 @@ class AutonomousCoordinator:
         result or the derived verdict (distinct causal lineage from DID → it
         compounds). Observes the filesystem (a fresh check of each intervention
         target: what it holds, when the act stated what it should hold, and
-        otherwise whether it is there) and learned-knowledge persistence (a fresh
-        retrieval by claim). A goal with no independently-observable state yields
-        no SAW — and then the task cannot reach done on DID alone, the honest
-        consequence."""
+        otherwise whether it is there), the latest check (run again in a
+        disposable copy of the end state) and learned-knowledge persistence (a
+        fresh retrieval by claim). A goal with no independently-observable state
+        yields no SAW — and then the task cannot reach done on DID alone, the
+        honest consequence."""
         import os
         if not isinstance(result, dict):
             return []
@@ -13810,6 +13844,22 @@ class AutonomousCoordinator:
                 matches = False
             saw.append(Evidence(prop, matches, self._EV_EFFECT if matches else self._EV_AGAINST,
                                 path, "filesystem_read", f"saw:reading:{path}", "saw"))
+        # A CHECK IS CONFIRMED BY RUNNING IT AGAIN. A test run's success is a fact
+        # about the code it ran against, and the work may have changed that code
+        # since. So the latest check is run again against a disposable copy of the
+        # end state (`_rerun_check`), and what it does there is the observation:
+        # passing supports the goal; failing, or not finishing within the act's own
+        # limit, is against it. ONE re-run, the latest check, one grounding: a run
+        # cannot pile up confirmations by repeating commands. When no confined copy
+        # can be had, nothing runs and nothing is claimed.
+        checks = [r["check"] for r in (result.get("tools_run") or [])
+                  if isinstance(r, dict) and r.get("check")]
+        if checks:
+            again = await self._rerun_check(checks[-1])
+            if again is not None:
+                passed = again.get("exit_code") == 0
+                saw.append(Evidence(prop, passed, self._EV_EFFECT if passed else self._EV_AGAINST,
+                                    f"check:{checks[-1]['command']}", "check_rerun", "saw:check", "saw"))
         for fact in (result.get("learned") or [])[:3]:
             held = self._saw_memory_holds(fact)
             if held is None:
@@ -13884,6 +13934,19 @@ class AutonomousCoordinator:
                         prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                         f"world:{fact}", "world_reobserve", f"saw:world:{_norm(fact)}", "saw"))
         return saw
+
+    async def _rerun_check(self, check: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """Run a check again against a disposable copy of the end state it checked:
+        {"exit_code" (None when it did not finish), "seconds"}, or None when no
+        confined copy can be had and nothing ran.
+
+        THE ONE PLACE THAT SAYS WHERE THE COPY COMES FROM. Lyric's own acts run on
+        this machine, so the copy is a confined clone of the directory the check
+        ran in. Acts that ran somewhere else are copied where they ran, and only
+        this method differs."""
+        from core.tools.execution_tools import run_in_disposable_copy
+        return await run_in_disposable_copy(check["command"], check.get("working_directory"),
+                                            check.get("timeout"))
 
     def _saw_memory_holds(self, claim: str) -> Optional[bool]:
         """Fresh independent retrieval: is `claim` actually held in the store now?
@@ -18682,6 +18745,8 @@ The substrate must realign with its constitutional responsibilities immediately.
                           or "tool did not execute successfully (refused before running)"),
                 "resource": _tool_resource(tool, args),
                 "intervention_target": (args.get(target_arg) if target_arg else None),
+                # A check SAW confirms by running it again in the end state.
+                "check": _check_of(tool, args),
                 "seconds": (outcome or {}).get("seconds"),
             })
             if run is not None:
