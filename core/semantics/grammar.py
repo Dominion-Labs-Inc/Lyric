@@ -303,8 +303,9 @@ class Words:
         after it otherwise ("sleep in the car")."""
         return 0.0, 0.0
 
-    def adjectives_after(self) -> Tuple[float, float]:
-        """How often an adjective telling of a thing is said after it ("a number greater than 1"), and before."""
+    def adjectives_after(self, followed: bool = False) -> Tuple[float, float]:
+        """How often an adjective telling of a thing is said after it, and before; `followed`, an adjective with words
+        after it in its phrase ("a number greater than 1")."""
         return 0.0, 0.0
 
     def to_purposes(self) -> Tuple[float, float]:
@@ -557,9 +558,11 @@ class Lexicon:
                             if tokens[k][:1].isupper())
                 out.append((end, self._name_entry([t for t in tokens[start:end] if t != "-"], score)))
         # Words joined by a hyphen are one word ("bullet-proof").
-        if i + 2 < n and tokens[i + 1] == "-" and tokens[i][:1].islower() and tokens[i + 2].isalpha() \
-                and not (self._is_number(tokens[i]) and self._is_number(tokens[i + 2])):
-            joined = f"{tokens[i]}-{tokens[i + 2]}"
+        if i + 2 < n and tokens[i + 1] == "-" and tokens[i].isalpha() and tokens[i + 2].isalpha() \
+                and tokens[i + 2][:1].islower() and not (self._is_number(tokens[i]) and self._is_number(tokens[i + 2])):
+            # No name: a name joined by a hyphen is capitalised throughout ("Coca-Cola", a name of several words), and
+            # "Python-based" is used as words joined by a hyphen are.
+            joined = f"{tokens[i]}-{tokens[i + 2]}".lower()
             for cls, p in self._evidence([joined], 0).items():
                 name = self.words.name(joined, cls) if cls != "NAME" else joined.lower()
                 for t in self.templates.get(cls, ()) if cls != "VERB" else ():
@@ -784,17 +787,28 @@ def _number(word: str) -> Optional[str]:
     return str(int(value)) if value == int(value) else str(value)
 
 
+class Joining(str):
+    """A hyphen written between two words with no space on either side: it joins them into one word ("high-level",
+    "thirty-two", "Coca-Cola"), and is no mark between them (`tokens_of`)."""
+
+
 def tokens_of(text: str, words: Words) -> Tuple[str, ...]:
     """A sentence's words as the grammar reads them: Lyric's pieces (`sentence_machine.form_of`, as a treebank writes
     them: "does", "n't"), with a piece the pieces join as a formula split back into its words where each is a word
-    held ("log a failed login" is no logarithm), and kept one where any is not ("2x + 3")."""
+    held ("log a failed login" is no logarithm), and kept one where any is not ("2x + 3"). A hyphen joining two words
+    is a `Joining` hyphen."""
     from core.semantics.sentence_machine import form_of
     from core.semantics.structure import words_of
+    pieces = form_of(text)
+    written = words_of(pieces)
     out: List[str] = []
-    for piece in words_of(form_of(text)):
+    for k, piece in enumerate(written):
         parts = piece.split()
         if len(parts) > 1 and all(p.isalpha() and words.uses(p) for p in parts):
             out.extend(parts)
+        elif piece == "-" and 0 < k < len(written) - 1 and not pieces[k - 1].space_after \
+                and not pieces[k].space_after and written[k - 1][-1:].isalnum() and written[k + 1][:1].isalnum():
+            out.append(Joining(piece))
         else:
             out.append(piece)
     return tuple(out)
@@ -1074,8 +1088,11 @@ class Grammar:
                             sign.score + cost, sign.start, sign.end, "N=>NP", (sign,), sign.head))
         if _verb_phrase(c) and c.res.feat == "adj" and sign.end - sign.start > 1:
             # A quality said with what it is compared to or of, after a thing, is the thing's ("a natural number
-            # greater than 1", "a man proud of his son"), as often as an adjective's phrase is said after a thing.
-            after, before = self.lexicon.words.adjectives_after()
+            # greater than 1", "a man proud of his son"), as often as an adjective's phrase is said after a thing:
+            # one with words after the adjective ("greater than 2") as often as such a phrase is, which is seldom
+            # before a thing; counted with every adjective, it was rarer than "greater" as a name, and "Every prime
+            # number greater than 2 is odd." told of a thing called "greater".
+            after, before = self.lexicon.words.adjectives_after(followed=sign.head < sign.end - 1)
             cost = estimate({"after": after, "before": before}, {}, ("after", "before"))["after"]
             x = c.arg.ref
             out.append(Sign(Fn(Atom("N", None, x), "\\", Atom("N", None, x)), sign.pieces, sign.score + cost,
@@ -1144,7 +1161,9 @@ class Grammar:
                 return True
             return False
         for i, t in enumerate(tokens):
-            if not any(ch.isalnum() for ch in t) and t not in ("'s", "'"):
+            if not any(ch.isalnum() for ch in t) and t not in ("'s", "'") and not isinstance(t, Joining):
+                # A hyphen joining two words is no mark between them: read only with the words it joins ("high-level",
+                # never "high" and "level": "a high-level, general-purpose programming language" was two things).
                 keep(Sign(Atom("punct", t, None), (), 0.0, i, i + 1, "lex", (), i, "punct"))
             for end, entry in self.lexicon.entries(tokens, i):
                 try:
@@ -1527,6 +1546,21 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 said in finite and said in mains and (x in every or (x in loose and times.get(said) is None))
                 for said in said_of):
             kind_of[x] = kinds[x][2]
+    # A KIND SAID WITH WHAT PICKS SOME OF IT OUT ("Every prime number greater than 2 is odd.", "Big dogs bark.") is
+    # not the kind: what is said holds of each one that is of the kind and is so, said as what must hold (as an
+    # "if" says it). Said of the kind, every prime number was told odd, 2 among them.
+    finite_at = {p[1]: p[-1] for p in pieces if p[0] == "finite"}
+    picked: List[Tuple[int, int]] = []
+    for x in list(kind_of):
+        at_verb = min((finite_at[said] for said in subjects[x] if said in finite_at and said in mains), default=None)
+        if at_verb is None:
+            continue
+        before = [p[-1] for p in pieces if p[0] not in ("kind", "every", "indefinite", "bare", "word", "given",
+                                                          "finite", "closing")
+                  and x in p[1:-1] and isinstance(p[-1], int) and p[-1] < min(at_verb, FIRST_VARIABLE)]
+        if before:
+            picked.append((min(before + [kinds[x][-1]]), at_verb))
+            del kind_of[x]
     generic_be: Set[Term] = set()
     if kind_of:
         for p in pieces:
@@ -1567,7 +1601,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                   and not any(q[0] in ("prep", "adv") and q[1] == e for q in pieces)}
     # WHAT AN "IF" SAYS MUST HOLD: every fact of the clause it takes is the condition ("If the valve is closed, the
     # tank is full.": the valve and its being closed).
-    conditions = _argument_spans(sign, ("if",))
+    conditions = _argument_spans(sign, ("if",)) + picked
     # WHAT A CLAUSE A VERB TAKES SAYS is told as so or not, as the verb was learned to tell it ("knows that": so;
     # "said that": not); WHAT "OR" JOINS are alternatives.
     unasserted: List[Tuple[int, int]] = []
@@ -1665,6 +1699,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 add("isa", x, p[2], at=p[-1])
             continue
         add("instance_of", x, p[2], given_=x in given and isinstance(x, int), at=p[-1])
+    def numeric(t: Term) -> bool:
+        """Whether a term is a number, or one of a kind of number."""
+        kind = kinds[t][2] if t in kinds else t if isinstance(t, str) and t in kind_of.values() else None
+        return _number(str(t)) is not None or (kind is not None and "number" in [kind] + words.kinds(kind, "NOUN"))
     bes: List[Piece] = [p for p in pieces if p[0] == "be"]
     holders: Dict[Term, Term] = {p[3]: p[1] for p in pieces if p[0] == "quality"}
     holders.update({p[3]: p[1] for p in bes})
@@ -1734,9 +1772,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             than = [d[2] for d in pieces if d[0] == "than" and d[1] == q]
             if compared in ("more", "less") and than:
                 # "Rex is more careful than Tom.": a degree of carefulness, Rex's, above Tom's (`exceeds`); a number
-                # is above another itself ("Is two less than ten?": `exceeds(10, 2)`).
+                # is above another itself ("Is two less than ten?": `exceeds(10, 2)`), and so is one of a kind of
+                # number ("a natural number greater than 1": `exceeds(?x, 1)`).
                 for y in than:
-                    if _number(str(x)) is not None and _number(str(y)) is not None:
+                    if numeric(x) and numeric(y):
                         a_, b_ = (x, y) if compared == "more" else (y, x)
                         add("exceeds", a_, b_, positive=q not in denied, at=at)
                         continue

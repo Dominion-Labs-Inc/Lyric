@@ -195,7 +195,11 @@ class HeldWords(Words):
         self.written: Dict[str, Counter] = defaultdict(Counter)
         self.purposes: Counter = Counter()
         self.particles: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+        #: Where an adjective is said of a thing, after it or before it, by whether words follow the adjective in
+        #: its phrase ("greater than 1"): `(followed, after)`.
         self.adjective_places: Counter = Counter()
+        #: How words joined by a hyphen are used, by kind of word ("high-level" before a noun, its modifier).
+        self.hyphened: Counter = Counter()
         self._names: Dict[Tuple[str, str], str] = {}
         self._uses: Dict[str, Mapping[str, float]] = {}
         self.sentences = 0
@@ -279,6 +283,17 @@ class HeldWords(Words):
                 under[h - 1].append(i)
         asks = words[-1] == "?"
         for i in range(n):
+            if words[i] == "-" and 0 < i < n - 1 and words[i - 1].isalpha() and words[i + 1].isalpha():
+                # WORDS JOINED BY A HYPHEN are one word, used as the one of them the rest of the sentence hangs on is;
+                # one modifying the noun after it is a modifier, as the grammar reads one: "a high-level language".
+                pair = (i - 1, i + 1)
+                head = next((k for k in pair if not heads[k] or heads[k] - 1 not in pair), i + 1)
+                outer = heads[head] - 1 if heads[head] else None
+                if relations[head].split(":")[0] in ("amod", "compound") and outer is not None and outer > i \
+                        and classes[outer] in ("NOUN", "NAME"):
+                    self.hyphened["ADJECTIVE"] += 1
+                else:
+                    self.hyphened[self.use_of(words, classes, heads, relations, under, asks, head).split(":")[0]] += 1
             if classes[i] in MARKS:
                 continue
             form = words[i].lower()
@@ -304,7 +319,8 @@ class HeldWords(Words):
                     and classes[i] == "PARTICLE" and heads[i]:
                 self.purposes[relations[heads[i] - 1].split(":")[0] == "advcl"] += 1
             if classes[i] == "ADJECTIVE" and relations[i] == "amod" and heads[i]:
-                self.adjective_places[heads[i] - 1 < i] += 1
+                followed = any(k > i and classes[k] not in MARKS for k in under[i])
+                self.adjective_places[(followed, heads[i] - 1 < i)] += 1
             if relations[i].startswith("acl:relcl"):
                 marked = any(any(u.startswith("rel:") for u in self.closed.get(words[k].lower(), ()))
                              and k < i for k in under[i])
@@ -468,6 +484,11 @@ class HeldWords(Words):
         if what == "frames":
             return self.alike[("frames", "")]
         w = word.lower()
+        if what == "uses" and "-" in w.strip("-"):
+            # A word joined by a hyphen is used as words joined by a hyphen are, not as words ending as its last
+            # part does: "high-level" is no noun as "level" is, and read as one, "a high-level, general-purpose
+            # programming language" was two things (UNDERSTANDS-PROSE-01 on main, 2026-10-21).
+            return self.hyphened
         three = self.alike.get((what, w[-3:]))
         if three and sum(three.values()) >= 50:
             return three
@@ -492,8 +513,8 @@ class HeldWords(Words):
     def to_purposes(self) -> Tuple[float, float]:
         return float(self.purposes[True]), float(self.purposes[False])
 
-    def adjectives_after(self) -> Tuple[float, float]:
-        return float(self.adjective_places[True]), float(self.adjective_places[False])
+    def adjectives_after(self, followed: bool = False) -> Tuple[float, float]:
+        return (float(self.adjective_places[(followed, True)]), float(self.adjective_places[(followed, False)]))
 
     def said_together(self, verb: str, word: str) -> Tuple[float, float]:
         held = self.particles.get((verb, word.lower()), {})
