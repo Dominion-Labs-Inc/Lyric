@@ -3807,13 +3807,18 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
     held = view.lexicals_with_words(_loose(words) if loose else words, loose=loose)
     out: List[Tuple[Lexical, Optional[Link], str]] = []
     alike = _alike(view, pattern, slot)
+    # A WORD FRAMES ARE BUILT WITH MORE THAN IT NAMES THINGS is English's structure here, as in a name
+    # (`builds_more_than_it_names`): no slot takes it alone through a link only proposed. Taken for a shape of "be",
+    # a doing like the slot's own, "It is in Paris." read as some being during a time called Paris, and the Eiffel
+    # Tower was never held in Paris (UNDERSTANDS-PROSE-01 on main, 2026-10-21). A link taught stands.
+    structure = len(pieces) == 1 and view.builds_more_than_it_names(words[0])
     for lexical in held:
         if not view.counts(lexical):
             continue
         linked = view.link_between(pattern.key, slot, lexical.key)
         if linked is not None:
             out.append((lexical, linked, "linked"))
-        elif extend and alike(lexical.key) and view.admits_there(pattern.key, slot, lexical.value) \
+        elif extend and not structure and alike(lexical.key) and view.admits_there(pattern.key, slot, lexical.value) \
                 and not (len(lexical.words) == 1
                          and view.says_more(lexical.words[0], lexical.value, doing=view.stands_as_doing(lexical))
                          and not _frame_says(pattern, slot, view.said_by(lexical.words[0], lexical.value))):
@@ -3821,7 +3826,7 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
             # where the frame says the rest itself: "Only ?slot0 ?slot1." says its events were before now.
             out.append((lexical, link(pattern, slot, lexical), "kind"))
     as_held = bool(out)
-    if extend and len(pieces) == 1:
+    if extend and len(pieces) == 1 and not structure:
         # A WORD WRITTEN IN A SHAPE LEARNED FROM THE FILLERS ("tables", where "table" is held), or a held concept's
         # own name, stands where that word would, as each thing that word names. Held itself or not: WordNet's
         # kinds said of many held "pirates" for the ship alone, and "stilts" for the bird, and the pirate who
@@ -5398,6 +5403,45 @@ def place_spoken_of(meaning: Optional[Meaning]) -> Optional[str]:
     places = [f.obj for f in meaning.asserted if f.relation in PLACE_KINDS and f.positive
               and not is_variable(f.obj)]
     return places[-1] if places else None
+
+
+def spoken_of(facts: Iterable[MeaningFact], besides: Collection[str] = ()) -> Tuple[Tuple[str, Optional[bool]], ...]:
+    """What a later "it", "she" or "they" can point back to, of what was said with its things named: each thing it
+    speaks of, the one it is about first, and whether it is many (True), one (False), or either (None).
+
+    WHAT IT IS ABOUT, FIRST: what its doings were done by, or done to where nothing is said to do them ("The Eiffel
+    Tower was built in 1889."); then what else it says is so ("Paris is the capital of France."); then what its
+    doings were done to, and the rest, as its facts name them. A doing is none of them, nor a number, nor what is
+    `besides` (the speaker, the one spoken to, the moment), nor what a thing is, is like, or how many it is. Taken as
+    the first thing a meaning names, it was as often a doing's kind: "They release oxygen." after "Plants take in
+    carbon dioxide and water." was done by taking in, and "Two of them work in Berlin." after "The company hired three
+    engineers in May." by the company (UNDERSTANDS-PROSE-01 on main, 2026-10-21).
+
+    MANY, a group (`has_member`) or a thing counted more than one; ONE, a thing of a kind (`instance_of`) counted no
+    more; EITHER, a thing named or a kind, which "it" and "they" both point back to ("Whales are mammals. They live
+    in the ocean.")."""
+    facts = [f for f in facts if f.positive and not f.unasserted]
+    doings = {f.subject for f in facts if f.relation in EVENT_PARTICIPANTS}
+    done_in = {f.obj for f in facts if f.subject in doings}
+    first: List[str] = []
+    for doing in dict.fromkeys(f.subject for f in facts if f.subject in doings and f.subject not in done_in):
+        by = [f.obj for f in facts if f.subject == doing and f.relation == "done_by"]
+        first += by or [f.obj for f in facts if f.subject == doing and f.relation == "done_to"]
+    first += [f.subject for f in facts if f.subject not in doings and f.relation != "instance_of"]
+    # What a thing is, what it is like and how many it is are not things spoken of.
+    every = first + [t for f in facts for t in (f.subject, f.obj)
+                     if t == f.subject or f.relation not in ("instance_of", "has_property", "has_count")]
+
+    def many(thing: str) -> Optional[bool]:
+        if any(f.relation == "has_member" and f.subject == thing for f in facts):
+            return True
+        counted = [f.obj for f in facts if f.relation == "has_count" and f.subject == thing]
+        if counted:
+            return int(counted[0]) > 1 if counted[0].isdigit() else None
+        return False if any(f.relation == "instance_of" and f.subject == thing for f in facts) else None
+    return tuple((thing, many(thing)) for thing in dict.fromkeys(every)
+                 if not is_variable(thing) and thing not in doings and thing not in besides
+                 and any(ch.isalpha() for ch in thing))
 
 
 def held_key(fact: MeaningFact) -> Tuple[str, str, str, bool]:

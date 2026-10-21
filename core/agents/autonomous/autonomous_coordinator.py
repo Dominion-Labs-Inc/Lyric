@@ -15,7 +15,7 @@ from types import SimpleNamespace
 import json
 import logging
 import os
-from typing import Dict, Any, FrozenSet, List, Mapping, Optional, Set, Sequence, Tuple, Callable
+from typing import Dict, Any, Collection, FrozenSet, Iterable, List, Mapping, Optional, Set, Sequence, Tuple, Callable
 
 from datetime import datetime, timedelta, timezone
 from collections import deque, OrderedDict
@@ -20000,11 +20000,16 @@ class _Held:
                               for kind, denied in (_link_kind(relation),) if not denied]
         return self._out[key]
 
+    @classmethod
+    def number(cls, name: Any) -> bool:
+        """Whether the thing is a number: said of countless things, and reached from the thing it is said of."""
+        return bool(re.fullmatch(r"-?\d+(\.\d+)?", cls.plain(name)))
+
     async def into(self, name: str) -> List[Tuple[str, str]]:
-        """What is held to point at the thing, `(subject, kind)`, denials aside. A NUMBER IS NOT LOOKED FOR: it is said
-        of countless things, and is reached from the thing it is said of."""
+        """What is held to point at the thing, `(subject, kind)`, denials aside. A NUMBER IS NOT LOOKED FOR
+        (`number`)."""
         key = self.plain(name)
-        if re.fullmatch(r"-?\d+(\.\d+)?", key):
+        if self.number(key):
             return []
         if key not in self._in:
             self._in[key] = self._pointing(await self._conversation._incoming_relations(name))
@@ -20060,19 +20065,75 @@ class _Held:
         return list(dict.fromkeys(each))
 
     async def objects(self, subject: str, relation: str) -> List[str]:
-        """What the subject is held to stand in the relation to."""
+        """What the subject is held to stand in the relation to, said or following from what is
+        (`relation_algebra.compose`): told the Eiffel Tower is in Paris, and holding Paris part of France, it is in
+        France."""
         if relation == "instance_of":
             return await self.kinds(subject)
         if relation == "equals":
             # WHAT IT EQUALS IS ANOTHER: asked what the largest animal is, the animal is not the answer.
             return (await self.same(subject))[1:]
-        back = self._turned(relation)
         found: List[str] = []
-        for thing in await self.same(subject):
-            found += [other for kind, other in await self.out(thing) if kind == relation]
-            if back:
-                found += [other for other, kind in await self.into(thing) if kind == back]
+        steps: List[Tuple[str, Any]] = [(subject, None)]
+        seen: Set[Tuple[str, str]] = set()
+        leads = self._leads_to(relation) | {relation}
+        while steps:
+            at, so_far = steps.pop(0)
+            for thing in await self.same(at):
+                for kind, other in await self._edges(thing, leads):
+                    step = self._step(so_far, kind)
+                    if step is None or step not in leads or (self.plain(other), step) in seen:
+                        continue
+                    seen.add((self.plain(other), step))
+                    if step == relation:
+                        found.append(other)
+                    steps.append((other, step))
         return await self._each(found, relation)
+
+    async def _edges(self, thing: str, leads: Collection[str]) -> List[Tuple[str, str]]:
+        """What is held of the thing in the links `leads` names, `(kind, other)`: said of it, and said the other way
+        of what points at it, looked for only where one of the links is said the other way."""
+        edges = [(kind, other) for kind, other in await self.out(thing) if kind in leads]
+        if any(self._turned(kind) for kind in leads):
+            for other, kind in await self.into(thing):
+                back = self._turned(kind)
+                if back in leads:
+                    edges.append((back, other))
+        return edges
+
+    @staticmethod
+    def _step(so_far: Optional[str], kind: str) -> Optional[str]:
+        """What a chain held so far comes to with one more link: the link itself, first; then as the relation algebra
+        composes them, or nothing."""
+        if so_far is None:
+            return kind
+        from core.reasoning.relation_algebra import compose
+        try:
+            composed = compose(_SemanticRelation(so_far), _SemanticRelation(kind))
+        except ValueError:
+            return None          # a link held as its word composes with nothing
+        return composed[0].value if composed is not None else None
+
+    @staticmethod
+    @functools.lru_cache(maxsize=None)
+    def _leads_to(relation: str) -> FrozenSet[str]:
+        """The links a chain can go on with and still come to `relation` (`relation_algebra.compose`): to "in", "in"
+        and "part of"; never what a thing is a kind of, so nothing is looked for that cannot answer."""
+        from core.reasoning.relation_algebra import compose
+        try:
+            goal = _SemanticRelation(relation)
+        except ValueError:
+            return frozenset()
+        leads = {goal}
+        grew = True
+        while grew:
+            grew = False
+            for first in _SemanticRelation:
+                if first not in leads and any(
+                        (made := compose(first, then)) is not None and made[0] in leads for then in _SemanticRelation):
+                    leads.add(first)
+                    grew = True
+        return frozenset(r.value for r in leads)
 
     async def subjects(self, obj: str, relation: str) -> List[str]:
         """What is held to stand in the relation to the object: to it, to what it equals, to a particular of the kind
@@ -20502,6 +20563,10 @@ class Conversation:
         #: The last place a turn named outright, what a later "there" points
         #: back to (`place_spoken_of`).
         self._last_place = ""
+        #: What was last spoken of, what a later "it" or "they" points back to:
+        #: each thing, the one it was about first, and whether it is many
+        #: (`spoken_of`).
+        self._spoken_of: Tuple[Tuple[str, Optional[bool]], ...] = ()
         #: EVERY TURN, IN ORDER. The conversation is a thing that can be asked
         #: about -- "what did I just ask", "what were we talking about" -- and
         #: until this existed there was no owner for those questions, so they
@@ -20735,20 +20800,40 @@ class Conversation:
             (kind,), fetch_all=True) or []
         return str(rows[0]["name"]) if len(rows) == 1 else None
 
-    def _situation(self) -> Dict[str, str]:
-        """What the situation's variables stand for in this conversation: the
-        person speaking, the substrate spoken to, the moment it is (to the
-        second, in UTC), the last thing talked about, and the last place named
+    def _situation(self, said: str = "") -> Dict[str, str]:
+        """What the situation's variables stand for in this conversation when
+        `said` is said: the person speaking, the substrate spoken to, the moment
+        it is (to the second, in UTC), the thing last talked about its "it" or
+        "they" points back to (`_previous_for`), and the last place named
         outright ("there"). What is shown, and where the speaker is ("here"),
         have nothing to name them in words alone."""
         from datetime import timezone
         situation = {"?speaker": self._actor, "?listener": SUBSTRATE_ACTOR,
                      "?now": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
-        if self._last_subject:
-            situation["?previous"] = self._last_subject
+        previous = self._previous_for(said)
+        if previous:
+            situation["?previous"] = previous
         if self._last_place:
             situation["?there"] = self._last_place
         return situation
+
+    def _previous_for(self, said: str) -> Optional[str]:
+        """What the "it" or "they" of `said` points back to: of the things last
+        spoken of (`spoken_of`), the first that is as many as its pronoun says.
+        "Two of them work in Berlin." after "The company hired three engineers
+        in May." is the engineers, not the company that hired them."""
+        from core.semantics.grammar import pronoun_number
+        many = next((n for n in map(pronoun_number, re.findall(r"[A-Za-z]+", said or ""))
+                     if n is not None), None)
+        return next((thing for thing, plural in self._spoken_of
+                     if many is None or plural is None or plural is many), None)
+
+    def _spoke_of(self, facts: Iterable[Any], situation: Mapping[str, str]) -> None:
+        """What a later "it" or "they" points back to, from what was just said
+        with its things named; what names nothing leaves it as it was."""
+        from core.semantics.derived_reader import spoken_of
+        besides = {situation[v] for v in ("?speaker", "?listener", "?now", "?here", "?shown") if v in situation}
+        self._spoken_of = spoken_of(facts, besides) or self._spoken_of
 
     async def _services(self):
         if self._db is None:
@@ -20965,7 +21050,7 @@ class Conversation:
         if meaning is None:
             return []
         from core.semantics.derived_reader import is_variable
-        situation = self._situation()
+        situation = self._situation(sentence)
         bound = meaning.bound(situation, await self._known_of(meaning))
         # The person and the substrate are the situation's parties, and the
         # moment it is its time, not concepts to look up ("What did the kelt
@@ -21326,7 +21411,7 @@ class Conversation:
         by_name = {r.phrase.lower(): r for r in resolved if r.known}
         pointing = {name.lower(): facts for name, facts in (incoming or {}).items()}
         answers: List[Answer] = []
-        bound = list(zip(meaning.facts, meaning.bound(self._situation(), self._known_found(meaning))))
+        bound = list(zip(meaning.facts, meaning.bound(self._situation(sentence), self._known_found(meaning))))
         if not meaning.asked and any(is_variable(fact.subject) or is_variable(fact.obj)
                                      for said, fact in bound if not said.condition and not said.given):
             # A YES OR NO ASKED OF SOMETHING THE QUESTION DOES NOT NAME (a happening: "Does sorted change the
@@ -21398,9 +21483,12 @@ class Conversation:
             return not is_variable(term) or term in way
 
         def order(fact: Any, way: Dict[str, str]) -> int:
+            # What a thing is, and a number said of it, are reached from the thing: nothing is looked for from a
+            # number (`_Held.number`). Taken first, "Do two of the engineers work in Berlin?" looked for what is
+            # counted two, and found nothing, where the two told of are part of the engineers (2026-10-21).
             subject, obj = found(fact.subject, way), found(fact.obj, way)
-            return (0 if subject and obj else 1 if subject else
-                    (2 if fact.relation != "instance_of" else 3) if obj else 4)
+            reached = fact.relation == "instance_of" or held.number(way.get(fact.obj, fact.obj))
+            return (0 if subject and obj else 1 if subject else (3 if reached else 2) if obj else 4)
 
         async def ways(pending: List[Any], way: Dict[str, str]) -> List[Dict[str, str]]:
             if not pending:
@@ -21447,7 +21535,7 @@ class Conversation:
         meaning = meaning if meaning is not None else self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
             return []
-        pairs = list(zip(meaning.facts, meaning.bound(self._situation(), await self._known_of(meaning))))
+        pairs = list(zip(meaning.facts, meaning.bound(self._situation(sentence), await self._known_of(meaning))))
         if any(said.condition or not said.positive for said, _ in pairs):
             # What follows from a supposition, and what is not so, are reasoned (`_reasoned_answers`), not found.
             return []
@@ -21545,7 +21633,7 @@ class Conversation:
                                                          composed.canonical() == taken.canonical()):
             return []
         known = await self._known_of(composed)
-        named = {t for f in composed.bound(self._situation(), known) for t in f.terms() if not is_variable(t)}
+        named = {t for f in composed.bound(self._situation(sentence), known) for t in f.terms() if not is_variable(t)}
         incoming = {name: await self._incoming_relations(name) for name in sorted(named)}
         return await self._asked_of_events(sentence, incoming, meaning=composed)
 
@@ -21888,7 +21976,7 @@ class Conversation:
             return []
         bridge = get_neural_bridge()
         known = await self._known_of(meaning)
-        bound = dict(zip(meaning.facts, meaning.bound(self._situation(), known)))
+        bound = dict(zip(meaning.facts, meaning.bound(self._situation(sentence), known)))
         reading = Meaning(meaning.act, tuple(bound.values()), meaning.asked)
         premises = await self._held_premises(sentence, resolved, harvest)
 
@@ -22090,10 +22178,16 @@ class Conversation:
             return [Acquired(sentence, detail=detail)]
 
         agent = await get_memory_agent()
-        situation = dict(self._situation())
+        situation = dict(self._situation(sentence))
         acquired: List[Acquired] = []
         heard = self._heard(sentence)
         for utterance in utterances:
+            # WHAT ITS "IT" OR "THEY" POINTS BACK TO is what was last spoken of, an utterance before it in this
+            # turn's included: "My dog is not a cat, he is a dog."
+            situation.pop("?previous", None)
+            previous = self._previous_for(utterance.text)
+            if previous:
+                situation["?previous"] = previous
             chosen = meant(utterance.readings, heard=heard)
             if chosen is None:
                 acquired.append(Acquired(utterance.text, detail=_which_meant(utterance.readings)))
@@ -22110,6 +22204,7 @@ class Conversation:
             acquired.extend(notes)
             if telling is None:
                 continue
+            self._spoke_of(telling.facts, situation)
             taken = await agent.take_in_telling(telling)
             acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
                             for kind, it, decision in taken)
@@ -22124,7 +22219,7 @@ class Conversation:
         if not utterances or not all(u.understood for u in utterances):
             return []
         agent = await get_memory_agent()
-        situation = dict(self._situation())
+        situation = dict(self._situation(sentence))
         taken: List[Tuple[str, Any, Any]] = []
         for utterance in utterances:
             chosen = meant(utterance.readings)
@@ -22142,22 +22237,11 @@ class Conversation:
         way: "That's wrong." of what was just said (`_take_feedback`). None where
         nothing in it can be held."""
         from core.memory.utils.interfaces import Telling
-        from core.semantics.derived_reader import SITUATION_VARIABLES, Lexical, MeaningFact, is_variable, live_view
+        from core.semantics.derived_reader import Lexical, MeaningFact, is_variable, live_view
         meaning = chosen.meaning
         notes: List[Acquired] = []
         known = await self._known_of(meaning, telling=True)
         bound = dict(zip(meaning.facts, meaning.bound(situation, known)))
-        # WHAT A LATER "IT", "HE" OR "THEY" IN THIS TEXT POINTS BACK TO is this
-        # utterance's subject: "My dog is not a cat, he is a dog." When that
-        # subject has no name here ("my dog" is some dog of the speaker's), a
-        # later one points at nothing that can be named, and nothing is held
-        # of it -- never the thing the conversation mentioned before.
-        subject = next((f.subject for f in meaning.facts if not f.condition), None)
-        if subject is not None and subject not in SITUATION_VARIABLES:
-            if is_variable(subject):
-                situation.pop("?previous", None)
-            else:
-                situation["?previous"] = subject
         theirs = frozenset(name for name in known.values()
                            if self._particulars.get(name, ("", ""))[1] == "person")
         # WHICH WORDS WERE NAMES: held as names, or new and written as one.
@@ -22991,6 +23075,10 @@ class Conversation:
                     understanding.kinds[name] = kind
         understanding.reply = self.say(understanding)
         self._last_subject, self._last_reply = subject, understanding.reply
+        if asked:
+            # A QUESTION SPEAKS OF WHAT IT ASKS ABOUT: "Is the Eiffel Tower in Paris? When was it built?"
+            situation = self._situation(sentence)
+            self._spoke_of(meaning.bound(situation, self._known_found(meaning)), situation)
         from core.semantics.derived_reader import place_spoken_of
         self._last_place = place_spoken_of(self._meaning(sentence)) or self._last_place
         # The memories this telling admitted, kept on the turn so the NEXT turn's

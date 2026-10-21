@@ -323,6 +323,29 @@ def test_asking_about_the_conversation_does_not_become_the_subject():
     assert talk._last_subject == "pressure loss"
 
 
+def test_it_and_they_point_back_to_what_was_spoken_of_as_many_as_they_say():
+    """A later "it" or "they" points back to the thing last spoken of that is as many as it says, the one the telling
+    was about first. Taken as the first concept a meaning named, it was the doing's kind ("They release oxygen." done
+    by taking in) or the company that hired the engineers ("Two of them work in Berlin.")."""
+    from core.agents.autonomous.autonomous_coordinator import Conversation
+    from core.semantics.derived_reader import MeaningFact as F
+
+    talk = Conversation()
+    talk._spoke_of([F("instance_of", "hire_1", "hire"), F("instance_of", "company_1", "company"),
+                    F("instance_of", "engineer_1", "engineer"), F("done_by", "hire_1", "company_1"),
+                    F("done_to", "hire_1", "engineer_1"), F("has_count", "engineer_1", "3")], {})
+    assert talk._previous_for("Two of them work in Berlin.") == "engineer_1"
+    assert talk._previous_for("It is in Berlin.") == "company_1"
+    talk._spoke_of([F("instance_of", "take_1", "take_in"), F("done_by", "take_1", "plant"),
+                    F("done_to", "take_1", "water_1"), F("instance_of", "water_1", "water")], {})
+    assert talk._previous_for("They release oxygen.") == "plant"
+    talk._spoke_of([F("instance_of", "build_1", "build"), F("done_to", "build_1", "eiffel_tower"),
+                    F("during", "build_1", "1889")], {})
+    assert talk._previous_for("It is in Paris.") == "eiffel_tower"
+    talk._spoke_of([], {})
+    assert talk._previous_for("It is in Paris.") == "eiffel_tower", "what names nothing leaves it as it was"
+
+
 def test_research_that_does_not_name_the_phrase_is_refused():
     """A search engine always returns its best row. Taking it unchecked stored
     an article on animal sexual behaviour as the meaning of `spots unusual
@@ -509,7 +532,10 @@ async def test_a_question_is_asked_of_what_is_held_as_a_whole(talk, monkeypatch)
     not "Pigment.", and "Is chlorophyll green?" is yes: a thing is what it equals. Told plants take in carbon dioxide
     and water (a group), "Do plants take in carbon dioxide?" is yes. "Did the server log a failed login?" names two
     happenings, both found. "What is the largest animal?", told the blue whale is, is the blue whale (equals held the
-    other way round), not the animal asked of. (UNDERSTANDS-PROSE-01 on main, 2026-10-21.)"""
+    other way round), not the animal asked of. Told two of the engineers work in Berlin, "Do two of the engineers work
+    in Berlin?" is yes: the two are found from the engineers, never from the number. Told the Eiffel Tower is in Paris,
+    and Paris part of France, it is in France, and not for that part of France. (UNDERSTANDS-PROSE-01 on main,
+    2026-10-21.)"""
     from types import SimpleNamespace
     from core.semantics import derived_reader as dr
     from core.semantics.derived_reader import MeaningFact as F
@@ -525,7 +551,11 @@ async def test_a_question_is_asked_of_what_is_held_as_a_whole(talk, monkeypatch)
             "login_1": [("instance of", "login")], "server_1": [("instance of", "server")],
             "blue_whale_1": [("instance of", "blue whale"), ("equals", "animal_1")],
             "animal_1": [("instance of", "animal"), ("has degree", "large_1")],
-            "large_1": [("instance of", "large"), ("greatest of", "animal")]}
+            "large_1": [("instance of", "large"), ("greatest of", "animal")],
+            "engineer_1": [("instance of", "engineer"), ("has count", "3")],
+            "group_2": [("has count", "2"), ("part of", "engineer_1")],
+            "work_1": [("instance of", "work"), ("done by", "group_2"), ("located in", "berlin")],
+            "eiffel tower": [("located in", "paris")], "paris": [("part of", "france")]}
     pointing = {}
     for subject, relations in held.items():
         for relation, obj in relations:
@@ -545,7 +575,13 @@ async def test_a_question_is_asked_of_what_is_held_as_a_whole(talk, monkeypatch)
             F("instance_of", "?s", "server", given=True))), {"?s": "server_1"}),
         "What is the largest animal?": (Meaning("ask", (
             F("equals", "?a", "?w"), F("instance_of", "?a", "animal", given=True), F("has_degree", "?a", "?d"),
-            F("instance_of", "?d", "large"), F("greatest_of", "?d", "animal")), ("?w",)), {"?a": "animal_1"})}
+            F("instance_of", "?d", "large"), F("greatest_of", "?d", "animal")), ("?w",)), {"?a": "animal_1"}),
+        "Do two of the engineers work in Berlin?": (Meaning("ask", (
+            F("has_count", "?g", "2"), F("instance_of", "?e", "work"), F("done_by", "?e", "?g"),
+            F("located_in", "?e", "berlin"), F("part_of", "?g", "?n"), F("instance_of", "?n", "engineer", given=True))),
+            {"?n": "engineer_1"}),
+        "Is the Eiffel Tower in France?": (Meaning("ask", (F("located_in", "eiffel tower", "france"),)), {}),
+        "Is the Eiffel Tower part of France?": (Meaning("ask", (F("part_of", "eiffel tower", "france"),)), {})}
 
     async def known(meaning, *, telling=False):
         return next(found for m, found in asked.values() if m == meaning)
@@ -575,6 +611,11 @@ async def test_a_question_is_asked_of_what_is_held_as_a_whole(talk, monkeypatch)
     assert (logged.about, logged.verdict) == ("log_1", True), logged
     largest, = await talk._asked_of_events("What is the largest animal?", {})
     assert largest.others == ("blue whale",), largest
+    two, = await talk._asked_of_events("Do two of the engineers work in Berlin?", {})
+    assert (two.about, two.verdict) == ("work_1", True), two
+    in_france, = await talk._asked_of_events("Is the Eiffel Tower in France?", {})
+    assert in_france.verdict is True, in_france
+    assert await talk._asked_of_events("Is the Eiffel Tower part of France?", {}) == []
     held["fail_1"] = [("instance of", "fail"), ("done by", "attempt_1")]
     pointing["login_1"] = [row for row in pointing["login_1"] if row[0] != "fail_1"]
     assert await talk._asked_of_events("Did the server log a failed login?", {}) == []
