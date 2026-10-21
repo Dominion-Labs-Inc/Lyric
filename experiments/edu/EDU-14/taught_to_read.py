@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "EDU-13"))
 logging.disable(logging.INFO)
 
-from core.execution.procedure import Operator  # noqa: E402
+from core.learning.procedure_synthesis import Operator  # noqa: E402
 from core.learning.procedure_synthesis import (IOExample,  # noqa: E402
                                                SynthesisStatus,
                                                derive_procedure)

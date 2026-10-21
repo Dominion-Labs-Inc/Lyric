@@ -18,7 +18,7 @@ import threading
 from typing import Any, Callable, List, Optional, Sequence, Tuple
 
 from core.execution.list_machine import ListMachine
-from core.execution.procedure import Operator, Procedure
+from core.learning.procedure_synthesis import Operator, Procedure
 from core.learning.rule_induction import Fact, TrainingExample
 
 logger = logging.getLogger(__name__)

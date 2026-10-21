@@ -65,7 +65,7 @@ os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
 
 logging.disable(logging.INFO)
 
-from core.execution.procedure import Operator, Procedure, RunStatus  # noqa: E402
+from core.learning.procedure_synthesis import Operator, Procedure, RunStatus  # noqa: E402
 from core.learning.unified_learning_system import get_learning_authority  # noqa: E402
 from core.learning.procedure_synthesis import (IOExample,  # noqa: E402
                                                SynthesisStatus)

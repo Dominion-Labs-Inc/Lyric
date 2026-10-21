@@ -46,7 +46,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 os.environ.setdefault("LYRIC_MODEL_POLICY", "strict_model_free")
 logging.disable(logging.INFO)
 
-from core.execution.procedure import Operator  # noqa: E402
+from core.learning.procedure_synthesis import Operator  # noqa: E402
 from core.learning.unified_learning_system import (  # noqa: E402
     get_learning_authority,   # the learning authority now lives with the system that is it
 )
