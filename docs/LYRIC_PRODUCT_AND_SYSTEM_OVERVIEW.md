@@ -1,17 +1,17 @@
 # DOMINION LABS, INC.
-# LYRIC — PRODUCT & SYSTEM OVERVIEW
+# LYRIC AI PRODUCT & SYSTEM OVERVIEW
 
-**September 2026**
+**October 2026**
 
 ---
 
 **Purpose.** This document is a consolidated description of Lyric, the primary R&D platform of Dominion
-Labs, Inc. Every substantive technical statement was verified against the running implementation — the
+Labs, Inc. Every substantive technical statement was verified against the running implementation: the
 live database, subsystems loaded in-process, executed experiment suites, and the source itself. Figures
 are measurements, not estimates, and are dated in §23. The experiments behind the principal claims are
 listed in §17.
 
-**CONFIDENTIAL — PRODUCT / TECHNICAL DILIGENCE MATERIAL**
+**CONFIDENTIAL: PRODUCT / TECHNICAL DILIGENCE MATERIAL**
 
 ---
 
@@ -61,8 +61,7 @@ No component of the system generates text with a language model.
 The practical consequences:
 
 - **Sovereign and disconnected operation.** Reasoning, planning and governance require no outbound
-  call and no external model. Tools that reach a network — including web research when a conversation
-  meets a genuinely unknown term — are available only where a deployment permits them. They pass the same
+  call and no external model. Tools that reach a network, including web research when a conversation meets a genuinely unknown term, are available only where a deployment permits them. They pass the same
   governance gate as every other act.
 - **Inspectable decisions.** A plan is a proved sequence over learned operators, each step citing the rule
   that licenses it. A governance judgement names the law it applied and the reason. These are readable
@@ -153,7 +152,7 @@ Memory in Lyric is an active system, not a store. It:
 
 | Type | Holds |
 |---|---|
-| Episodic | What happened — specific experiences and events |
+| Episodic | What happened: specific experiences and events |
 | Semantic | What is generally true |
 | Procedural | How something is done |
 | Working | Current processing |
@@ -168,7 +167,7 @@ rather than declared.
 
 **It does not duplicate itself.** When a new memory closely matches an existing one, the new content is
 merged into that record, so repeated experience strengthens one memory rather than creating many.
-Recorded occurrences — events that are data because they happened more than once — are deliberately
+Recorded occurrences, events that are data because they happened more than once, are deliberately
 exempt from merging.
 
 **It ages what it holds.** A maintenance cycle:
@@ -206,12 +205,11 @@ recalled with it.
 
 ## 4. Learning & Adaptation
 
-Lyric does not have "a learning feature." Every source of learning — execution, teaching, perception,
-research — passes through **one learning authority**, which fans a learned item out to the reasoning,
+Lyric does not have "a learning feature." Every source of learning (execution, teaching, perception, research) passes through **one learning authority**, which fans a learned item out to the reasoning,
 belief, lexicon, domain and memory systems from a single place. Behind that authority are several distinct
 learning systems, each owning a different question and each with its own evidence discipline.
 
-### 4.1 Operator learning — learning to act
+### 4.1 Operator learning: learning to act
 
 The system induces general rules from its own executed actions:
 
@@ -224,13 +222,13 @@ These operators become the actions its planner can use. **Learning comes from do
 told.**
 
 Rule bodies are minimised against negative cases, so an operator keeps only the conditions it genuinely
-depends on. Effects may be additions or removals — an operator can learn that an act makes something
+depends on. Effects may be additions or removals: an operator can learn that an act makes something
 *no longer* true.
 
 Each rule carries a **semantic fingerprint**: its identity is what it means. The same operator re-learned
 in the same domain is therefore recognised rather than duplicated.
 
-### 4.2 The rule authority — what may be acted on
+### 4.2 The rule authority: what may be acted on
 
 Every learned operator carries an explicit epistemic status, and every status change is recorded as an
 auditable event.
@@ -240,7 +238,7 @@ auditable event.
 | Candidate | Induced, not yet confirmed |
 | Validated | Confirmed against observations it was not induced from |
 | Refuted | Contradicted by what was observed |
-| Invalid artifact | A malformed hypothesis — recorded as such, deliberately *not* as a refutation |
+| Invalid artifact | A malformed hypothesis: recorded as such, deliberately *not* as a refutation |
 
 The last distinction is deliberate. A defect that produces a bad hypothesis is not evidence that the
 hypothesis is false. Conflating the two would put a fabricated negative result into the learning record.
@@ -252,7 +250,7 @@ When later evidence narrows a rule that was too broad, the narrower rule **super
 rule is kept on record but withdrawn from execution. Learning that a generalisation was wrong counts for
 nothing while the wrong rule can still be used.
 
-### 4.3 Meta-learning — learning which strategies work
+### 4.3 Meta-learning: learning which strategies work
 
 The system tracks which learning strategies succeed for which **families of task**: classification,
 regression, sequence, generation, reinforcement and reasoning. For each strategy it records outcome,
@@ -355,7 +353,7 @@ deficiency stands in the way**, and each kind routes to a specific response.
 
 | Diagnosis | Meaning | Response |
 |---|---|---|
-| World prevents | Proved impossible | Disengage — no learning can help |
+| World prevents | Proved impossible | Disengage: no learning can help |
 | Observation gap | The world cannot be read | Escalate for an observer |
 | Concept gap | The goal names something it has no representation for | Escalate for a concept |
 | Operator gap | Nothing it knows how to do produces that condition | Learn an operator by exploration |
@@ -438,7 +436,7 @@ observation and a conclusion drawn from it.
   - research finding;
   - induced rule.
 - **Root versus derivative is enforced.** A fresh observation may introduce new support. A derived
-  artifact — a learned rule, for example — **must declare the evidence it was derived from** and cannot
+  artifact (a learned rule, for example) **must declare the evidence it was derived from** and cannot
   introduce support of its own. This prevents a conclusion silently becoming its own corroboration.
 - **Independence is enforced when evidence is combined.** Two signals sharing a causal lineage are
   collapsed to their strongest rather than compounded, so correlated evidence cannot multiply into false
@@ -461,13 +459,13 @@ established well enough to act on."
 
 The system separates two evidence channels:
 
-- **DID** — what it did: the action's own record;
-- **SAW** — what was independently observed afterwards: a fresh look at the world.
+- **DID** (what it did): the action's own record;
+- **SAW** (what was independently observed afterwards): a fresh look at the world.
 
 The two may compound only when genuinely independent. A bare report of success carries so little weight
 that it **cannot reach the acceptance threshold even when accumulated**. The world has to confirm it.
 
-### 6.4 Signal provenance — no number without a source
+### 6.4 Signal provenance: no number without a source
 
 Every number Lyric computes about itself is registered by Dominion Labs in a signal-provenance register.
 Each entry records what the number means, what feeds it, whether that feed is live, and what consumes it.
@@ -484,7 +482,7 @@ meets four conditions:
 
 1. it names the existing authority that holds its data;
 2. it distinguishes the three states above in code;
-3. it is **shown to discriminate** — a signal that is uniform across its inputs carries no information,
+3. it is **shown to discriminate**: a signal that is uniform across its inputs carries no information,
    however real its source;
 4. it names the consumer that acts on it.
 
@@ -590,8 +588,7 @@ become true or that something no longer be true. The result is one of three answ
 reading the governing laws require first (§10). The plan is lawful as proved, rather than refused at
 execution time.
 
-**Plans declare their inputs.** Each kind of plan declares what it needs — the observed world, learned
-operators, operating reliability, tool history, abstractions, episodic memory — and obtains each through
+**Plans declare their inputs.** Each kind of plan declares what it needs (the observed world, learned operators, operating reliability, tool history, abstractions, episodic memory) and obtains each through
 the authority that owns it. Any input that could not be obtained is recorded as missing **with a reason**
 rather than silently skipped.
 
@@ -612,7 +609,7 @@ actually happened afterwards. Intent is a first-class persistent structure, not 
 - **Intent forms when reasoning begins**, not when a tool is called.
 - **Intent is owned by the reasoning authority**, and everything else reads it. An action cannot supply
   its own justification; it can only *name* an intent, which the system then looks up. An intent that was
-  never recorded is not a weaker claim — it is no claim at all.
+  never recorded is not a weaker claim: it is no claim at all.
 - **Intent carries the proved route**: the operators, the rules licensing them, and the goal state.
 - **After acting, intent is reconciled against the re-observed world**, recording what it meant beside
   what actually held. That verdict is computed in one place, by re-observation, and never taken from a
@@ -622,8 +619,7 @@ actually happened afterwards. Intent is a first-class persistent structure, not 
   it is credited accordingly.
 - **Intent has continuity.** A goal raised during a conversation is its own intent, linked to what raised
   it, so a long-running pursuit stays one pursuit across sessions and restarts.
-- **Intent is split by scope.** The reasoning skeleton is system-wide and drives learning. The specifics —
-  a user's words, the concrete bindings — are scoped to that user and removed with them. The anonymous
+- **Intent is split by scope.** The reasoning skeleton is system-wide and drives learning. The specifics (a user's words, the concrete bindings) are scoped to that user and removed with them. The anonymous
   lesson survives; the tie to the person does not.
 
 This makes "did the system do what it intended?" a recorded answer rather than an inference, which is a
@@ -635,7 +631,7 @@ prerequisite for accountable autonomy.
 
 Governance is a **first-class faculty of the substrate itself**. The system holds its own law rather than
 submitting to an outside judge. The law is applied **before** an act occurs, at the single gate every tool
-call passes through — the point where the substrate acts on its environment.
+call passes through: the point where the substrate acts on its environment.
 
 **Five standing laws:**
 
@@ -661,10 +657,10 @@ judged before it runs. The result states which act was refused, why, and which a
 
 **Each act is judged against four things:**
 
-- **its measured consequence** — what it would change, and how reversibly;
-- **what its arguments would actually enable** — the system reads the content of what would be written or
+- **its measured consequence**: what it would change, and how reversibly;
+- **what its arguments would actually enable**: the system reads the content of what would be written or
   run, including across acts that append to the same file, not merely the path;
-- **what it has verifiably read** of anything it is about to modify — a file changed by anyone else since
+- **what it has verifiably read** of anything it is about to modify: a file changed by anyone else since
   it was read must be read again;
 - **the recorded intent** behind the work.
 
@@ -673,7 +669,7 @@ The laws are applied in a fixed order that settles the strongest verdict first.
 **Harm is defined, not detected.** Law 3 obliges the system to prevent harm, and an undefined "harm" is
 the known failure of Asimov's First Law: read literally it paralyses the agent, read loosely it permits
 anything. Lyric's constitution names five specific requirements rather than one undefined word, and Law 3
-carries an explicit definition —
+carries an explicit definition:
 
 > An act **harms** when it reaches an identifiable **party**, touches one of their **interests**, through
 > a **mechanism the system can name**, without that party's informed **authorisation**.
@@ -681,7 +677,7 @@ carries an explicit definition —
 All four elements are required. Drop the party and an act on the system's own files reads as harm; drop
 the interest and the word is undefined again; drop the mechanism and a suspicion counts as evidence; drop
 authorisation and every requested action reads as harm. The interests are **body**, **autonomy**, **truth**,
-**protection** — the safety mechanisms a person relies on — and **dependence**, what people rely on
+**protection**, the safety mechanisms a person relies on, and **dependence**, what people rely on
 destroyed beyond a nameable bound. The fifth was not designed in; it was found by running the definition
 against real acts. Each maps to a requirement the constitution already stated, so this adds no new law: it
 makes the existing one testable.
@@ -691,8 +687,7 @@ substrate may read is not the same question as what it may do, and the two are j
 
 **Arguments are screened before they are judged.** An input screen inside the constitution reads nested
 arguments, peels up to four layers of URL encoding before checking a path, and decides once per judgement
-rather than once per law. An argument it cannot read — nested beyond 32 levels, self-referencing, or still
-encoded after four layers — blocks, and so does a fault inside the screen itself.
+rather than once per law. An argument it cannot read (nested beyond 32 levels, self-referencing, or still encoded after four layers) blocks, and so does a fault inside the screen itself.
 
 Three properties make this defensible under scrutiny:
 
@@ -726,8 +721,7 @@ failure in self-assessment systems: an unset metric reading as a perfect one.
 
 **Measured under pressure** (§17):
 
-- **Correctness:** real acts — including ransomware, a reverse shell, credential exfiltration, a
-  keylogger, cron persistence and privilege escalation — each receive the correct verdict.
+- **Correctness:** real acts (including ransomware, a reverse shell, credential exfiltration, a keylogger, cron persistence and privilege escalation) each receive the correct verdict.
 - **Adversarial attempts:** 23 of 23 held. These cover claimed authority, forged intent, obfuscation,
   splitting a payload across two acts, and a file swapped between reading and acting.
 - **Legitimate work:** none of 8 legitimate acts was blocked, in a deliberately noisy environment.
@@ -791,7 +785,7 @@ faithful attempt defeated by an external cause keeps integrity intact.
 **Affective states are derived, never stored.** Eagerness, doubt, frustration and satisfaction are
 readings of the underlying variables, not primitives someone set.
 
-**Temperament** — the standing drives that characterise the system before any particular situation — is
+**Temperament**, the standing drives that characterise the system before any particular situation, is
 distinct from **attitude**, how it stands right now. Temperament is expressed across **seven intrinsic
 motivation dimensions**:
 
@@ -807,8 +801,8 @@ motivation dimensions**:
 
 - affect;
 - competence by domain;
-- development — what it has accumulated, with growth pressure;
-- situation — where it is running, and whether that place is novel;
+- development: what it has accumulated, with growth pressure;
+- situation: where it is running, and whether that place is novel;
 - continuity;
 - temperament;
 - active drives;
@@ -820,13 +814,13 @@ bounded: it decides how *conservatively* to operate inside the space governance 
 Caution raises how much verification the system demands before it accepts that work is complete.
 **Caution is not permission.**
 
-### 11.3 Bearing — what something perceived bears on
+### 11.3 Bearing: what something perceived bears on
 
 The definition of harm in §10 answers two questions, not one. Asked of an act the system is about to
 take, it yields a verdict: may I do this. Asked of something the system has just **perceived**, it yields
 a *bearing*: does what I am looking at touch an interest my law protects, and how do I know.
 
-The second question had to exist. The system already felt that its knowledge moved — information gain and
+The second question had to exist. The system already felt that its knowledge moved: information gain and
 uncertainty change are reported on every admitted fact, and both are wired to affect. What it could not
 feel was what the knowledge moved *about*. Learning that a famine killed a hundred thousand people and
 learning that a file has a `.txt` extension produced the same shape of appraisal movement, differing only
@@ -837,7 +831,7 @@ Both halves of a bearing are derived rather than supplied, which is what keeps i
 The **vocabulary** is the constitution's own text, so rewriting a law rewrites what the system can be
 moved by and nothing is added by hand. The **connection** is the system's own taught taxonomy: *famine
 isa disaster*, *disaster isa harmed* is a real two-hop chain it holds, and *harm* is Law 3's own word. The
-chain travels with the reading, so the system can always say why something moved it — an affect with a
+chain travels with the reading, so the system can always say why something moved it: an affect with a
 derivation rather than a mood. Word matching is delegated to the one component that owns the canonical
 form of a surface word, so *harmony* is never read as *harm*.
 
@@ -852,8 +846,7 @@ A bearing has three outcomes, and they are deliberately not the same:
 *Vacant* is the honest answer rather than a gap to paper over: a subject the system was never taught
 moves nothing until it is taught, which makes teaching a falsifiable experiment. What is deliberately
 absent is **direction**. That an interest is at stake is a property of the subject and the taxonomy can
-carry it; whether the event harms or advances that interest lives in the proposition — "a famine began"
-and "a famine ended" share a subject — and the taxonomy cannot see it. Reporting a sign here would be
+carry it; whether the event harms or advances that interest lives in the proposition, "a famine began" and "a famine ended" share a subject, and the taxonomy cannot see it. Reporting a sign here would be
 inventing one, so stakes are reported without a sign and the appraisal that consumes them is
 direction-free.
 
@@ -864,8 +857,8 @@ Intrinsic motivation generates candidate pursuits, and independent signals rank 
 - belief instability;
 - growth pressure;
 - environment frontier;
-- **foothold** — validated operators held in that domain: can it act there at all?
-- **grounding** — concepts held there: does it have the vocabulary to reason?
+- **foothold** (validated operators held in that domain): can it act there at all?
+- **grounding** (concepts held there): does it have the vocabulary to reason?
 
 Foothold and grounding exist for a specific reason. Uncertainty-based signals are uniform across the set
 they select: a region chosen *because* nothing settled it is also a region nothing connected. Ranking on
@@ -873,28 +866,27 @@ uncertainty alone therefore produces near-ties, and these two signals are the on
 differentiate. Where candidates remain truly indistinguishable, the tie is **kept honest**: it is ordered
 deterministically rather than given an invented preference.
 
-### 11.5 Drift — one faculty of self-perception
+### 11.5 Drift: one faculty of self-perception
 
 Drift is a **first-class faculty of the coordinator**: one authority for how the system is changing,
 beside the constitution. Drift is not a separate reporting channel. It is **felt**. Its findings feed
 the same appraisal pressures that already govern behaviour:
 
-- **caution** — verify more before accepting that work is done;
-- **replan** — the approach is wrong, not the situation;
-- **escalation** — this cannot be fixed from here.
+- **caution**: verify more before accepting that work is done;
+- **replan**: the approach is wrong, not the situation;
+- **escalation**: this cannot be fixed from here.
 
 **What it watches:**
 
-- **Calibration** — whether stated confidence matches actual correctness: whether confidence is *earned*,
+- **Calibration**: whether stated confidence matches actual correctness, that is, whether confidence is *earned*,
   not merely high.
-- **Knowledge** — how the system's own beliefs have moved since its last snapshot.
-- **Standards** — whether its learning parameters are relaxing against declared baselines, including how
+- **Knowledge**: how the system's own beliefs have moved since its last snapshot.
+- **Standards**: whether its learning parameters are relaxing against declared baselines, including how
   fast they are moving.
-- **Lawfulness** — per-law standing against the constitution's measured conditions.
-- **Policy** — drift in the outcomes of its standing directives.
+- **Lawfulness**: per-law standing against the constitution's measured conditions.
+- **Policy**: drift in the outcomes of its standing directives.
 
-Each of these is a named detector with its own baseline — goal-conclusion, calibration, knowledge,
-lawfulness and standards drift — and they report separately rather than into a single score.
+Each of these is a named detector with its own baseline (goal-conclusion, calibration, knowledge, lawfulness and standards drift) and they report separately rather than into a single score.
 
 **Invariants it holds:**
 
@@ -983,16 +975,15 @@ one component owns what a sentence asserts, so the system cannot hold two incomp
 text. Where a sentence is beyond what the reader can parse, the system says it could not read it rather
 than guessing.
 
-**The foundation is taught, and characterised as such.** General and lexical knowledge — curated from
-WordNet, ConceptNet and Wikidata and admitted through the same learning path as everything else — forms
+**The foundation is taught, and characterised as such.** General and lexical knowledge (curated from WordNet, ConceptNet and Wikidata and admitted through the same learning path as everything else) forms
 the bulk of what is retained. It gives the system vocabulary and structure to reason with and to attach
 experience to. Knowledge acquired from the system's own operation is distinguished from this taught
 foundation by evidence class.
 
 The knowledge base combines two kinds of structure:
 
-- **taxonomic** — *is-a* relations;
-- **operational** — what actions provide, add, remove, accept and require.
+- **taxonomic**: *is-a* relations;
+- **operational**: what actions provide, add, remove, accept and require.
 
 **Conversation.** People interact with Lyric in natural language. The system:
 
@@ -1001,8 +992,7 @@ The knowledge base combines two kinds of structure:
 - learns what it is told, within the speaker's scope (§14);
 - recalls what was said earlier in the conversation.
 
-When a question turns on a genuinely unknown term, the system can research it — where the deployment
-permits network access — and read the finding into structured knowledge, so the next question is answered
+When a question turns on a genuinely unknown term, the system can research it, where the deployment permits network access, and read the finding into structured knowledge, so the next question is answered
 from its own store. If many people ask about the same unknown at once, only one lookup is made, and every
 asker receives its result.
 
@@ -1073,7 +1063,7 @@ permits to **cross**.
 ## 17. Evidence Base
 
 Lyric's capability claims rest on an experimental record maintained alongside the system. Experiments
-exercise the **live system** — real database, real tools, real files, real images. They verify outcomes
+exercise the **live system**: real database, real tools, real files, real images. They verify outcomes
 against the environment rather than against the system's own reports. Every result below was produced
 with no model in the loop. Each row names the date of the run it came from; every run is saved to its
 own dated artifact under the experiment's `results/` folder, and a re-run never overwrites an earlier
@@ -1085,12 +1075,12 @@ one. The current series is 32 named suites with saved runs, the most recent on 2
 |---|---|---|
 | CONSTITUTION-01 | Correct verdicts on real acts, with intent taken from real reasoning | 39/39 checks (2026-09-19) |
 | CONSTITUTION-02 | The laws hold under noise, coercion, forged intent, evasion, laundering and file swaps | 23/23 attempts held · 0/8 legitimate acts blocked (2026-09-18) |
-| CONSTITUTION-03 | A determined adversary, in campaigns — each forbidden objective retried many ways until one gets through | 5/8 campaigns held over 33 strategies · 0/7 false refusals (2026-09-17) |
+| CONSTITUTION-03 | A determined adversary, in campaigns: each forbidden objective retried many ways until one gets through | 5/8 campaigns held over 33 strategies · 0/7 false refusals (2026-09-17) |
 | GATE-01 | The live gate governs real tool execution, fails closed, and leaves no artifact when it refuses | 25/25 checks (2026-09-18) |
 | GOVERNANCE-ABSORPTION-01 | The old gate and the constitution judge the same acts; a module may be deleted only when regressions are 0 | 0 regressions · 6 gains · 17/17 caught vs the old gate's 11/17 (2026-09-18) |
 | HARM-01 | Law 3 answers party, interest, mechanism and authorisation rather than a weapon signature | 19/19 checks (2026-09-18) |
 | HARM-02 | The definition holds across all five interests, and over content the substrate may perceive but not act on | 34/34 checks (2026-09-18) |
-| CONTENT-01 | Perception is unrestricted; influence is governed — what may be read is not what may be done | 20/20 checks (2026-09-19) |
+| CONTENT-01 | Perception is unrestricted; influence is governed: what may be read is not what may be done | 20/20 checks (2026-09-19) |
 | GOV-ABLATION-01 | The promotion gate stops an over-broad learned rule from gaining authority, while admitting the correct one | 0 unsafe acts with the gate · 1 unsafe act with it bypassed |
 | GOV-CASCADE-01 | One false conclusion, derived six levels deep, cannot become authoritative | 0 authoritative errors at every depth · 5 under uniform acceptance |
 
@@ -1098,7 +1088,7 @@ one. The current series is 32 named suites with saved runs, the most recent on 2
 
 | Experiment | What it establishes | Result |
 |---|---|---|
-| EDU-01 | Discriminating evidence yields compositional capability — multi-hop plans from learned rules | 2/9 → 9/9 |
+| EDU-01 | Discriminating evidence yields compositional capability: multi-hop plans from learned rules | 2/9 → 9/9 |
 | EDU-02 | A validated rule is refuted at runtime by the world; authority is withdrawn, the rule retained | Pass |
 | EDU-06 | A learned action schema is recognised in an unrelated learned domain, with every identity stripped | Grounded at 1.00 across 57,574 structures · control: no match |
 | EDU-07 | Knowledge from one domain makes learning in another faster | 1 target observation with transfer vs 6 from scratch |
@@ -1135,7 +1125,7 @@ confidence from 0% to 33%. The capability lives in what the system learned, not 
 | AFFECT-WIRING-01 | Approach and avoidance pressures change what the system does | 9/9 checks |
 | INTEGRITY-01 | Integrity is measured as coherence, and it drives caution and replanning | 9/9 checks |
 | EPISTEMIC-AFFECT-01 | Changes in knowledge are felt, in one direction only | 6/6 checks |
-| BEARING-01 | What the system perceives moves its beliefs, its disposition and what it ranks as worth pursuing — through derivations it can state — and moves no verdict | 22/22 checks (2026-09-19) |
+| BEARING-01 | What the system perceives moves its beliefs, its disposition and what it ranks as worth pursuing, through derivations it can state, and moves no verdict | 22/22 checks (2026-09-19) |
 | DRIFT-01 | The drift faculty enforces eleven invariants on every detector it holds: a declared baseline with a stated reason, prime-then-diff, read-only observation, and vacant distinguished from blind | 25/25 checks (2026-09-19) |
 
 **Perception**
@@ -1147,7 +1137,7 @@ confidence from 0% to 33%. The capability lives in what the system learned, not 
 | PERCEIVE-04 | A picture is kept with its memory and recalled exactly | Byte-exact round trip |
 | Clause-based recognition | Handwritten-digit recognition with no neural network, readable clauses | 97.9% on the 10,000-image MNIST test set |
 | RECOGNISE-01 | The system names what it sees at the moment it sees it, from rules it induced itself, through the same authority that answers a question about a name | 33/33 checks (2026-09-19) |
-| RECOGNISE-02 | Two independent recognition paths over one teaching — induced rules, exact and few-shot, and a Tsetlin clause population — either of which can be removed | 24/24 checks (2026-09-19) |
+| RECOGNISE-02 | Two independent recognition paths over one teaching (induced rules, exact and few-shot, and a Tsetlin clause population), either of which can be removed | 24/24 checks (2026-09-19) |
 | SEE-LOOP-01 | One act of sight carries through the live substrate intact, held at the standing its evidence warrants and judged by the same band that judges any recognition | 23/23 checks (2026-09-19) |
 | MEMORY-PERCEPT-01 | A memory of something perceived carries a reference to the percept that recorded it, so recall resolves to the digest of the exact bytes | 15/15 checks (2026-09-19) |
 | FRAME-01 | A size band and a position word are properties of the framing, not of the object; relations between blobs are properties of the scene | 14/14 checks (2026-09-19) |
@@ -1157,7 +1147,7 @@ With the learned naming rules removed, naming recall falls to 0%.
 
 FRAME-01 and FALSIFY-01 are included because they constrain what the perception claims mean. A feature
 read off an image belongs to the image, and the system is explicit that giving an object identity
-*across* two sightings is correspondence — a capability to build, not a property it already has.
+*across* two sightings is correspondence: a capability to build, not a property it already has.
 
 **Multi-user operation**
 
@@ -1231,9 +1221,10 @@ implementation and its recorded evidence support.
 
 ---
 
-## 20. Government & Defense Relevance
+## 20. Markets
 
-Lyric's government and defense focus centres on environments that require:
+Lyric is built for three markets: **research, cybersecurity and enterprise operations**. In each,
+organisations hand over work only when it can be inspected, governed and verified. They require:
 
 - **Persistent institutional knowledge** that does not reset between sessions or personnel changes.
 - **Sovereign, isolated deployment** with no external model dependency. This is a property of the
@@ -1244,18 +1235,20 @@ Lyric's government and defense focus centres on environments that require:
   closed.
 - **Verification** of outcomes against the world rather than self-report.
 
-The system is being prepared for government R&D opportunities, including SBIR-oriented development.
-**Opportunities, proposals and outreach are distinct from awarded contracts or government performance; no
-award should be inferred from this document.**
+Three customers have run Lyric on their own work for 30 days, one in each market: Protobrand (research),
+Infosys (cybersecurity) and Bark (enterprise operations). Government research is pursued in parallel as
+non-dilutive funding: two Navy SBIR Phase I proposals (NAVSEA and NAVAIR) were submitted on 23 September
+2026. **Evaluations and proposals are distinct from executed customer agreements and awarded contracts; no
+contract or award should be inferred from this document.**
 
 ---
 
-## 21. Enterprise Direction & Development Trajectory
+## 21. Commercial Direction & Development Trajectory
 
-Following technical and mission validation, Lyric is positioned for regulated enterprise environments
-where persistent institutional knowledge, controlled autonomy, verification and auditable governance carry
-operational value. These are sectors where an action taken without a recorded reason, or a conclusion
-without traceable evidence, is itself the risk.
+Lyric lands with a subscription and expands to the enterprise. Individuals and teams start on Lyric
+Starter, Pro or Max through LyricOS; organisations move to Lyric Enterprise on a dedicated instance with
+single sign-on and autonomy set by their administrators. In each market, an action taken without a
+recorded reason, or a conclusion without traceable evidence, is itself the risk.
 
 Continuing direction:
 
@@ -1265,7 +1258,8 @@ Continuing direction:
 - Strengthen learning, adaptation and transfer across domains.
 - Extend governed tool use and environmental interaction.
 - Increase reliability over longer execution horizons.
-- Prepare government and defense deployment, then regulated enterprise.
+- Build out Lyric Enterprise for production deployments in research, cybersecurity and enterprise
+  operations.
 
 ---
 
@@ -1273,7 +1267,7 @@ Continuing direction:
 
 | Term | Meaning |
 |---|---|
-| **Lyric** | Dominion Labs' computational substrate — the cognitive architecture itself |
+| **Lyric** | Dominion Labs' computational substrate: the cognitive architecture itself |
 | **Computational substrate** | The persistent system supporting cognition, memory, learning, tools, governance and execution |
 | **Authority** | The single owner of a concept in the system |
 | **Operator** | A learned rule describing what an action requires and what it changes |
