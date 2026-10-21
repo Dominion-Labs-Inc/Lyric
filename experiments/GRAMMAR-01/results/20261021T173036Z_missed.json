@@ -1,0 +1,1502 @@
+[
+ {
+  "sentence": "I am reading a book now.",
+  "meaning": "tell: about(?v0, ?v1) & done_by(?v0, ?speaker) & during(?v0, ?now) & instance_of(?v0, read) & instance_of(?v1, book)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, read) & instance_of(?v1, book)"
+ },
+ {
+  "sentence": "I offered him fifty pence and he accepted.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?v2) & done_for(?v0, ?v2) & done_to(?v0, ?v3) & has_count(?v3, 50) & instance_of(?v0, offer) & instance_of(?v1, accept) & instance_of(?v3, penny) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?v2) & done_for(?v0, ?previous) & done_to(?v0, ?v3) & has_count(?v3, 50) & instance_of(?v0, offer) & instance_of(?v1, accept) & instance_of(?v3, penny) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "This scene delights me.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, scene) & instance_of(?v0, delight)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & given instance_of(?v1, scene) & instance_of(?v0, delight)"
+ },
+ {
+  "sentence": "Mt. Fuji is Japan's tallest mountain.",
+  "meaning": "tell: has_property(mt, tall) & isa(mt, mt) & located_in(mt, japan)",
+  "read": "tell: has_property(fuji, tall) & isa(fuji, mountain) & isa(fuji, mt) & owned_by(fuji, japan)"
+ },
+ {
+  "sentence": "Vance worked with Hooper.",
+  "meaning": "tell: done_by(?v0, hooper) & done_by(?v0, vance) & instance_of(?v0, work) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, vance) & done_with(?v0, hooper) & instance_of(?v0, work) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Lambs are very cute.",
+  "meaning": "tell: has_degree(?v0, ?v1) & has_property(?v1, very) & instance_of(?v0, lamb) & instance_of(?v1, cute)",
+  "read": "tell: has_degree(lamb, ?v0) & has_property(?v0, very) & instance_of(?v0, cute)"
+ },
+ {
+  "sentence": "You're a nice one!",
+  "meaning": "tell: equals(?listener, ?v0) & has_property(?v0, nice)",
+  "read": "tell: has_property(?listener, nice) & instance_of(?listener, one)"
+ },
+ {
+  "sentence": "Mayuko designed a dress for herself.",
+  "meaning": "tell: done_by(?v0, mayuko) & done_for(?v0, mayuko) & done_to(?v0, ?v1) & instance_of(?v0, design) & instance_of(?v1, dress) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, mayuko) & done_to(?v0, ?v1) & done_to(?v0, mayuko) & instance_of(?v0, design) & instance_of(?v1, dress) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Don't touch that blue button.",
+  "meaning": "request: done_by(?v0, ?listener) & done_to(?v0, ?v1) & has_property(?v0, false) & has_property(?v1, blue) & instance_of(?v0, touch) & instance_of(?v1, button)",
+  "read": "request: done_by(?v0, ?listener) & done_by(?v0, ?v1) & given instance_of(?v1, button) & has_property(?v0, false) & has_property(?v1, blue) & instance_of(?v0, touch)"
+ },
+ {
+  "sentence": "I want to climb Mt. Fuji again.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v1, ?v0) & instance_of(?v0, climb) & instance_of(?v1, want) & moves_through(?v0, mt)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v1, ?v0) & instance_of(?v0, climb) & instance_of(?v1, want) & moves_through(?v0, fuji) & moves_through(?v0, mt)"
+ },
+ {
+  "sentence": "Alexander the Great's Tomb remains undiscovered.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_property(?v1, undiscovered) & instance_of(?v0, remain) & instance_of(?v1, tomb) & owned_by(?v1, alexander)",
+  "read": "tell: done_by(?v0, tomb) & done_to(?v0, undiscovered) & equals(great, undiscovered) & instance_of(?v0, remain) & isa(undiscovered, alexander)"
+ },
+ {
+  "sentence": "I picked these flowers myself.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, flower) & instance_of(?v0, pick) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?speaker) & given instance_of(?v1, flower) & instance_of(?v0, pick) & precedes(?v0, ?now) & received_by(?v0, ?v1)"
+ },
+ {
+  "sentence": "Is money important to you?",
+  "meaning": "ask: has_property(?listener, important) & has_property(?v0, important) & instance_of(?v0, money)",
+  "read": "ask: about(money, ?listener) & has_property(money, important)"
+ },
+ {
+  "sentence": "What kind of movie is it? Is it popular?",
+  "meaning": "ask: equals(?v0, ?v0) & has_property(?v0, popular) & isa(?v0, movie) ? ?v0",
+  "read": "ask: equals(?previous, ?v0) & has_property(?v1, popular) & instance_of(?v0, kind) & instance_of(?v2, movie) & isa(?v0, ?v2) ? ?v0"
+ },
+ {
+  "sentence": "Your success excites my envy.",
+  "meaning": "tell: creates(?listener, ?v0) & creates(?speaker, ?v1) & done_by(?v2, ?v1) & done_to(?v2, ?v0) & instance_of(?v0, success) & instance_of(?v1, envy) & instance_of(?v2, excite)",
+  "read": "tell: creates(?listener, ?v0) & done_by(?v1, ?v0) & done_to(?v1, ?v2) & instance_of(?v0, success) & instance_of(?v1, excite) & instance_of(?v2, envy) & owned_by(?v2, ?speaker)"
+ },
+ {
+  "sentence": "English is spoken in Australia.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, speak) & instance_of(?v1, english) & located_in(?v0, australia)",
+  "read": "tell: done_by(?v0, english) & instance_of(?v0, speak) & located_in(?v0, australia)"
+ },
+ {
+  "sentence": "That suitcase isn't theirs.",
+  "meaning": "tell: given instance_of(?v0, suitcase) & not equals(?v0, ?v1) & owned_by(?v1, ?v2)",
+  "read": "tell: given instance_of(?v0, suitcase) & not equals(?v0, ?v1) & owned_by(?v1, ?v0)"
+ },
+ {
+  "sentence": "What's your favorite kind of chocolate?",
+  "meaning": "ask: about(?listener, ?v0) & equals(?v0, ?v1) & has_property(?listener, favorite) & isa(?v0, chocolate) ? ?v1",
+  "read": "ask: equals(?v0, ?v1) & has_property(?v0, favorite) & instance_of(?v0, kind) & instance_of(?v2, chocolate) & isa(?v0, ?v2) & owned_by(?v0, ?listener) ? ?v1"
+ },
+ {
+  "sentence": "Whose textbook is this?",
+  "meaning": "ask: instance_of(?v0, textbook) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, textbook) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "That was a mediocre movie with mediocre actors.",
+  "meaning": "tell: has_part(?v0, ?v1) & has_property(?v0, mediocre) & has_property(?v1, mediocre) & instance_of(?v0, movie) & instance_of(?v1, actor)",
+  "read": "tell: about(?previous, ?v0) & has_property(?previous, mediocre) & has_property(?v0, mediocre) & instance_of(?previous, movie) & instance_of(?v0, actor)"
+ },
+ {
+  "sentence": "We'll eat at six o'clock.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 6:00 p.m.) & follows(?v0, ?now) & has_member(?v1, ?speaker) & instance_of(?v0, eat)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, 6) & follows(?v0, ?now) & has_member(?v1, ?speaker) & instance_of(?v0, eat) & instance_of(?v2, 'clock) & part_of(6, ?v2)"
+ },
+ {
+  "sentence": "The ball rolled on the ground towards me.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v1, ball) & given instance_of(?v2, ground) & instance_of(?v0, roll) & moves_through(?v0, ?v2) & moves_to(?v0, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & given instance_of(?v1, ball) & given instance_of(?v2, ground) & instance_of(?v0, roll) & located_in(?v0, ?v2) & precedes(?v0, ?now) & word_towards(?v0, ?speaker)"
+ },
+ {
+  "sentence": "Tom is embarrassed about buying condoms.",
+  "meaning": "tell: about(tom, ?v0) & done_by(?v0, ?v1) & has_property(tom, embarrassed) & instance_of(?v0, buying condom) & instance_of(?v1, buying condom)",
+  "read": "tell: about(tom, ?v0) & has_property(tom, embarrassed) & instance_of(?v0, buying condom)"
+ },
+ {
+  "sentence": "Ayako's skin is sensitive to chemicals.",
+  "meaning": "tell: about(?v0, ?v1) & has_property(?v0, sensitive) & instance_of(?v0, skin) & instance_of(?v1, chemical) & part_of(?v0, ayako)",
+  "read": "tell: about(?v0, ?v1) & has_property(?v0, sensitive) & instance_of(?v0, skin) & instance_of(?v1, chemical) & owned_by(?v0, ayako)"
+ },
+ {
+  "sentence": "Tom's strategy isn't working.",
+  "meaning": "tell: creates(tom, ?v0) & done_by(?v1, ?v0) & during(?v1, ?now) & has_property(?v1, false) & instance_of(?v0, strategy) & instance_of(?v1, work)",
+  "read": "tell: done_by(?v0, ?v1) & equals(?v2, ?v0) & has_property(?v0, false) & instance_of(?v0, work) & instance_of(?v2, strategy) & owned_by(?v2, tom)"
+ },
+ {
+  "sentence": "Is your mother tongue Chinese?",
+  "meaning": "ask: creates(?listener, ?v0) & instance_of(?v0, chinese) & instance_of(?v0, mother tongue)",
+  "read": "ask: comes_from(?v0, chinese) & creates(?listener, ?v0) & instance_of(?v0, mother tongue)"
+ },
+ {
+  "sentence": "I like this kind of apple.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & instance_of(?v0, like) & isa(?v1, apple)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, kind) & instance_of(?v0, like) & instance_of(?v2, apple) & isa(?v1, ?v2)"
+ },
+ {
+  "sentence": "Tom is wearing a Harvard sweatshirt.",
+  "meaning": "tell: comes_from(?v0, harvard) & done_by(?v1, tom) & done_to(?v1, ?v0) & during(?v1, ?now) & instance_of(?v0, sweatshirt) & instance_of(?v1, wear)",
+  "read": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, wear) & instance_of(?v1, sweatshirt) & isa(harvard, a) & received_by(?v0, harvard)"
+ },
+ {
+  "sentence": "My passport has expired.",
+  "meaning": "tell: done_to(?v0, ?v1) & instance_of(?v0, expire) & instance_of(?v1, passport) & owned_by(?v1, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & instance_of(?v0, expire) & instance_of(?v1, passport) & owned_by(?v1, ?speaker) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "People are walking",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, walk)",
+  "read": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, walk) & instance_of(?v1, people)"
+ },
+ {
+  "sentence": "Clean the window with a damp cloth.",
+  "meaning": "request: done_by(?v0, ?listener) & done_with(?v0, ?v1) & given instance_of(?v2, window) & has_property(?v1, damp) & instance_of(?v0, clean) & instance_of(?v1, cloth) & moves_from(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, window) & has_part(?v1, ?v3) & has_property(?v0, clean) & instance_of(?v0, damp) & instance_of(?v2, cloth) & instance_of(?v3, a)"
+ },
+ {
+  "sentence": "We imported meat from Argentina.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & instance_of(?v0, import) & instance_of(?v2, meat) & moves_from(?v0, argentina)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & instance_of(?v0, import) & instance_of(?v2, meat) & moves_from(?v0, argentina) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Are those explosives?",
+  "meaning": "ask: instance_of(?v0, explosive)",
+  "read": "ask: instance_of(?previous, explosive)"
+ },
+ {
+  "sentence": "She was unimpressed.",
+  "meaning": "tell: instance_of(?v0, unimpressed) & precedes(?v0, ?now) & state_of(?v0, ?v1)",
+  "read": "tell: instance_of(?v0, unimpressed) & precedes(?v0, ?now) & state_of(?v0, ?previous)"
+ },
+ {
+  "sentence": "Tom's favorite vehicle is a 1960 Ford truck.",
+  "meaning": "tell: about(tom, ?v0) & creates(ford, ?v0) & has_property(tom, favorite) & instance_of(?v0, truck) & instance_of(?v0, vehicle)",
+  "read": "tell: equals(?v0, truck) & has_count(truck, 1960) & has_property(?v0, favorite) & instance_of(?v0, vehicle) & isa(truck, ford) & owned_by(?v0, tom)"
+ },
+ {
+  "sentence": "Latin is a dead language.",
+  "meaning": "tell: instance_of(?v0, dead language) & instance_of(?v0, latin)",
+  "read": "tell: isa(latin, dead language)"
+ },
+ {
+  "sentence": "My son is ashamed of his behavior.",
+  "meaning": "tell: about(?v0, ?v1) & creates(?v2, ?v1) & has_property(?v0, ashamed) & instance_of(?v0, son) & instance_of(?v1, behavior) & word_of(?v0, ?speaker)",
+  "read": "tell: about(?v0, ?v1) & creates(?v0, ?v1) & has_property(?v0, ashamed) & instance_of(?v0, son) & instance_of(?v1, behavior) & word_of(?v0, ?speaker)"
+ },
+ {
+  "sentence": "Who is Miguel Indurain married to?",
+  "meaning": "ask: has_property(?v0, married) & has_property(miguel indurain, married) ? ?v0",
+  "read": "ask: about(miguel indurain, ?v0) & has_property(miguel indurain, married) ? ?v0"
+ },
+ {
+  "sentence": "What band was Jerry Garcia with?",
+  "meaning": "ask: instance_of(?v0, band) & located_in(jerry garcia, ?v0) ? ?v0",
+  "read": "ask: has_part(jerry garcia, ?v0) & instance_of(?v0, band) ? ?v0"
+ },
+ {
+  "sentence": "That boy is Tony, isn't he?",
+  "meaning": "ask: equals(?v0, tony) & given instance_of(?v0, boy)",
+  "read": "ask: equals(?v0, tony) & given instance_of(?v0, boy) & not equals(?v0, ?previous)"
+ },
+ {
+  "sentence": "What a feast!",
+  "meaning": "tell: instance_of(?v0, feast)",
+  "read": "ask: done_by(?v0, ?v1) & instance_of(?v0, feast) & instance_of(?v1, a) ? ?v1"
+ },
+ {
+  "sentence": "I was rereading the letters you sent to me.",
+  "meaning": "tell: done_by(?v0, ?listener) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & given instance_of(?v2, letter) & instance_of(?v0, send) & instance_of(?v1, reread) & precedes(?v0, ?now) & precedes(?v1, ?now) & received_by(?v0, ?speaker)",
+  "read": "tell: done_by(?v0, ?listener) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & given instance_of(?v2, letter) & instance_of(?v0, send) & instance_of(?v1, reread) & moves_to(?v1, ?speaker) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "I'm a professional photographer.",
+  "meaning": "tell: has_property(?speaker, professional) & instance_of(?speaker, i)",
+  "read": "tell: equals(?speaker, ?v0) & has_property(?v0, professional) & instance_of(?v0, photographer)"
+ },
+ {
+  "sentence": "I received a knife with a sharp blade.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_part(?v1, ?v2) & has_property(?v2, sharp) & instance_of(?v0, receive) & instance_of(?v1, knife) & instance_of(?v2, blade) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & has_property(?v2, sharp) & instance_of(?v0, receive) & instance_of(?v1, knife) & instance_of(?v2, blade) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom is unhappy about it.",
+  "meaning": "tell: about(tom, ?v0) & has_property(tom, unhappy)",
+  "read": "tell: about(tom, ?previous) & has_property(tom, unhappy)"
+ },
+ {
+  "sentence": "He returned from China.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, return) & moves_from(?v0, china) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & instance_of(?v0, return) & moves_from(?v0, china) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Who is this person?",
+  "meaning": "ask: equals(?v0, ?v1) ? ?v1",
+  "read": "ask: equals(?v0, ?v1) & given instance_of(?v0, person) ? ?v1"
+ },
+ {
+  "sentence": "No one was injured.",
+  "meaning": "tell: done_to(?v0, ?v1) & has_property(?v0, false) & instance_of(?v0, injured) & precedes(?v0, ?now)",
+  "read": "tell: instance_of(?v0, injured) & not state_of(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Mary hasn't grilled the meat yet.",
+  "meaning": "tell: done_by(?v0, mary) & done_to(?v0, ?v1) & given instance_of(?v1, meat) & has_property(?v0, false) & instance_of(?v0, grill) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, mary) & done_to(?v0, ?v1) & done_to(?v0, yet) & given instance_of(?v1, meat) & has_property(?v0, false) & instance_of(?v0, grill) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "She blackmailed him.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, blackmail) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, blackmail) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Possums feed on eucalyptus trees.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, feed) & instance_of(?v1, possum) & instance_of(?v2, eucalyptus tree)",
+  "read": "tell: done_by(?v0, possum) & instance_of(?v0, feed) & instance_of(?v1, eucalyptus tree) & located_in(?v0, ?v1)"
+ },
+ {
+  "sentence": "Is it a llama?",
+  "meaning": "ask: instance_of(?v0, llama)",
+  "read": "ask: instance_of(?previous, llama)"
+ },
+ {
+  "sentence": "Two people are fist fighting in a ring",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & has_count(?v1, 2) & instance_of(?v0, fist fighting) & instance_of(?v2, ring) & located_in(?v0, ?v2)",
+  "read": "tell: if has_count(?v0, 2) & if instance_of(?v0, people) & instance_of(?v0, fist fighting) & instance_of(?v1, ring)"
+ },
+ {
+  "sentence": "Whose bicycle is that?",
+  "meaning": "ask: instance_of(?v0, bicycle) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, bicycle) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "\"Whose magazines are these?\" \"They are the doctor's.\"",
+  "meaning": "tell: instance_of(?v0, doctor) & instance_of(?v1, product magazine) & owned_by(?v1, ?v0) & owned_by(?v1, ?v2)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "That's old hat.",
+  "meaning": "tell: has_property(?v0, old)",
+  "read": "tell: has_property(?previous, old) & instance_of(?previous, hat)"
+ },
+ {
+  "sentence": "Italy beat Kazakhstan.",
+  "meaning": "tell: done_by(?v0, italy) & done_by(?v0, kazakhstan) & instance_of(?v0, beat) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, italy) & done_by(?v0, kazakhstan) & instance_of(?v0, beat)"
+ },
+ {
+  "sentence": "He robbed the mail coach.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v2, mail coach) & instance_of(?v0, rob) & moves_from(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & given instance_of(?v1, mail coach) & instance_of(?v0, rob) & moves_from(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "They suspected nothing.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, false) & instance_of(?v0, suspect) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & has_property(?v0, false) & instance_of(?v0, suspect) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Five hundred British soldiers had been captured.",
+  "meaning": "tell: comes_from(?v0, british) & done_by(?v1, ?v0) & has_count(?v0, 500) & instance_of(?v0, soldier) & instance_of(?v1, capture) & precedes(?v1, ?now)",
+  "read": "tell: comes_from(?v0, british) & done_to(?v1, ?v0) & has_count(?v0, 500) & instance_of(?v0, soldier) & instance_of(?v1, capture) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Whose book is this?",
+  "meaning": "ask: instance_of(?v0, book) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, book) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "What's your favorite hotel in Boston?",
+  "meaning": "ask: about(?listener, ?v0) & has_property(?listener, favorite) & instance_of(?v0, hotel) & located_in(?v0, boston) ? ?v0",
+  "read": "ask: equals(?v0, ?v1) & has_property(?v0, favorite) & instance_of(?v0, hotel) & located_in(?v0, boston) & owned_by(?v0, ?listener) ? ?v1"
+ },
+ {
+  "sentence": "Our bus collided with a truck.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v3, ?speaker) & instance_of(?v0, collide) & instance_of(?v1, bus) & instance_of(?v2, truck) & owned_by(?v1, ?v3) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_with(?v0, ?v2) & has_member(?v3, ?speaker) & instance_of(?v0, collide) & instance_of(?v1, bus) & instance_of(?v2, truck) & owned_by(?v1, ?v3) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Where is the Wailing Wall?",
+  "meaning": "ask: located_in(wailing wall, ?v0) ? ?v0",
+  "read": "ask: equals(wailing wall, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "He slept in the car.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v2, car) & instance_of(?v0, sleep) & located_in(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & given instance_of(?v1, car) & instance_of(?v0, sleep) & located_in(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Where is Euskirchen?",
+  "meaning": "ask: located_in(euskirchen, ?v0) ? ?v0",
+  "read": "ask: equals(euskirchen, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Tom bought a Persian rug.",
+  "meaning": "tell: comes_from(?v0, persian) & done_by(?v1, tom) & done_to(?v1, ?v0) & instance_of(?v0, rug) & instance_of(?v1, buy) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, tom) & done_for(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, buy) & instance_of(?v1, persian) & instance_of(?v2, rug) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Our colleague's mother passed away.",
+  "meaning": "tell: done_to(?v0, ?v1) & has_member(?v2, ?speaker) & instance_of(?v0, pass) & instance_of(?v1, mother) & instance_of(?v3, colleague) & owned_by(?v3, ?v2) & precedes(?v0, ?now) & word_of(?v1, ?v3)",
+  "read": "tell: done_by(?v0, ?v1) & has_member(?v2, ?speaker) & instance_of(?v0, pass) & instance_of(?v1, mother) & instance_of(?v3, colleague) & owned_by(?v3, ?v2) & precedes(?v0, ?now) & word_of(?v1, ?v3)"
+ },
+ {
+  "sentence": "I'll find Tom myself.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, tom) & follows(?v0, ?now) & instance_of(?v0, find)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?speaker) & follows(?v0, ?now) & instance_of(?v0, find) & received_by(?v0, tom)"
+ },
+ {
+  "sentence": "She stared at me.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & instance_of(?v0, star) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?speaker) & instance_of(?v0, star) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "They're disposable.",
+  "meaning": "tell: has_property(?v0, disposable)",
+  "read": "tell: has_property(?previous, disposable)"
+ },
+ {
+  "sentence": "Where in Australia did you grow up?",
+  "meaning": "ask: done_to(?v0, ?listener) & instance_of(?v0, grow) & instance_of(?v1, where) & located_in(?v0, ?v1) & part_of(?v1, australia) & precedes(?v0, ?now) ? ?v1",
+  "read": "ask: done_to(?v0, ?listener) & instance_of(?v0, grow) & located_in(?v0, ?v1) & located_in(?v0, australia) & precedes(?v0, ?now) ? ?v1"
+ },
+ {
+  "sentence": "She died from turbeculosis.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, die) & instance_of(?v1, turbeculosis) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, ?previous) & instance_of(?v0, die) & instance_of(?v1, turbeculosis) & moves_from(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "How many bridges are there in London?",
+  "meaning": "ask: has_count(?v0, ?v1) & instance_of(?v0, bridge) & located_in(?v0, london) ? ?v1",
+  "read": "ask: has_count(?v0, ?v1) & instance_of(?v0, bridge) & located_at(?v0, ?there) & located_in(?v2, london) ? ?v1"
+ },
+ {
+  "sentence": "The enemy is eavesdropping!",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, eavesdrop) & instance_of(?v1, enemy)",
+  "read": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, enemy) & instance_of(?v0, eavesdrop)"
+ },
+ {
+  "sentence": "I am Chinese.",
+  "meaning": "tell: comes_from(?speaker, china)",
+  "read": "tell: comes_from(?speaker, chinese)"
+ },
+ {
+  "sentence": "He's an ex-con.",
+  "meaning": "tell: instance_of(?v0, he)",
+  "read": "tell: instance_of(?previous, ex-con)"
+ },
+ {
+  "sentence": "A swan is gliding toward the reeds.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v2, reed) & instance_of(?v0, glide) & instance_of(?v1, swan) & moves_to(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v2, reed) & instance_of(?v0, glide) & instance_of(?v1, swan) & moves_toward(?v0, ?v2)"
+ },
+ {
+  "sentence": "If you want this pen, I will lend it to you.",
+  "meaning": "tell: done_by(?v0, ?listener) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & follows(?v1, ?now) & given instance_of(?v2, pen) & instance_of(?v0, want) & instance_of(?v1, lend) & received_by(?v1, ?listener)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?previous) & follows(?v0, ?now) & given if instance_of(?v1, pen) & if done_by(?v2, ?listener) & if done_to(?v2, ?v1) & if instance_of(?v2, want) & instance_of(?v0, lend) & received_by(?v0, ?listener)"
+ },
+ {
+  "sentence": "He cursed, he blasphemed.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & instance_of(?v0, curse) & instance_of(?v2, curse) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_by(?v1, ?v2) & instance_of(?v0, curse) & instance_of(?v1, blaspheme) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Is this legal?",
+  "meaning": "ask: has_property(?v0, legal)",
+  "read": "ask: has_property(?previous, legal)"
+ },
+ {
+  "sentence": "What is Australia's oldest city?",
+  "meaning": "ask: has_property(?v0, old) & instance_of(?v0, city) & located_in(?v0, australia) ? ?v0",
+  "read": "ask: equals(?v0, ?v1) & greatest_of(?v2, city) & has_degree(?v0, ?v2) & instance_of(?v0, city) & instance_of(?v2, old) & owned_by(?v0, australia) ? ?v1"
+ },
+ {
+  "sentence": "He's Austrian.",
+  "meaning": "tell: comes_from(?v0, austria)",
+  "read": "tell: equals(?previous, austrian)"
+ },
+ {
+  "sentence": "Zucchinis are green.",
+  "meaning": "tell: has_property(?v0, green) & instance_of(?v0, zucchinis)",
+  "read": "tell: has_property(zucchinis, green)"
+ },
+ {
+  "sentence": "Where did Roger Williams, pianist, grow up?",
+  "meaning": "ask: done_to(?v0, roger williams) & instance_of(?v0, grow) & isa(roger williams, pianist) & located_in(?v0, ?v1) & precedes(?v0, ?now) ? ?v1",
+  "read": "ask: done_to(?v0, ?v1) & has_member(?v1, ?v2) & has_member(?v1, roger williams) & instance_of(?v0, grow) & instance_of(?v2, pianist) & located_in(?v0, ?v3) & precedes(?v0, ?now) ? ?v3"
+ },
+ {
+  "sentence": "Tom is in the kitchen microwaving popcorn.",
+  "meaning": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v2, kitchen) & instance_of(?v0, microwave) & instance_of(?v1, popcorn) & located_in(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & equals(tom, ?v0) & given instance_of(?v3, kitchen) & instance_of(?v0, microwave) & instance_of(?v2, popcorn) & located_in(?v1, ?v3)"
+ },
+ {
+  "sentence": "Yoko is in London now. She's studying English.",
+  "meaning": "tell: done_by(?v0, yoko) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, study) & instance_of(?v1, english) & located_in(yoko, london)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, english) & during(?v0, ?now) & instance_of(?v0, study) & located_in(yoko, london)"
+ },
+ {
+  "sentence": "What do grasshoppers eat?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, eat) & instance_of(?v1, grasshopper) ? ?v2",
+  "read": "ask: done_by(?v0, grasshopper) & done_to(?v0, ?v1) & instance_of(?v0, eat) ? ?v1"
+ },
+ {
+  "sentence": "For which company does Tom Kalinske work?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_by(?v0, tom kalinske) & instance_of(?v0, put to work work) & instance_of(?v1, company) ? ?v1",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Has anybody talked to him?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_by(?v0, ?v2) & instance_of(?v0, talk) & precedes(?v0, ?now)",
+  "read": "ask: done_by(?v0, ?previous) & done_by(?v0, ?v1) & instance_of(?v0, talk) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Speak clear.",
+  "meaning": "request: done_by(?v0, ?listener) & has_property(?v0, clear) & instance_of(?v0, speak)",
+  "read": "tell: done_by(?v0, speak) & instance_of(?v0, clear)"
+ },
+ {
+  "sentence": "He's raking it in on the stock market.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & given instance_of(?v3, stock market) & instance_of(?v0, rake) & moves_from(?v0, ?v3)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v2, stock market) & instance_of(?v0, rake) & located_in(?v0, ?v2)"
+ },
+ {
+  "sentence": "What country is Berlin in?",
+  "meaning": "ask: instance_of(?v0, country) & located_in(berlin, ?v0) ? ?v0",
+  "read": "ask: equals(berlin, ?v0) & instance_of(?v0, country) ? ?v0"
+ },
+ {
+  "sentence": "He acknowledged his faults.",
+  "meaning": "tell: about(?v0, ?v1) & creates(?v2, ?v1) & done_by(?v0, ?v2) & instance_of(?v0, acknowledge) & instance_of(?v1, fault) & precedes(?v0, ?now)",
+  "read": "tell: creates(?previous, ?v0) & done_by(?v1, ?previous) & done_to(?v1, ?v0) & instance_of(?v0, fault) & instance_of(?v1, acknowledge) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Let's get off the bus.",
+  "meaning": "tell: done_by(?v0, ?speaker) & follows(?v0, ?now) & given instance_of(?v1, bus) & instance_of(?v0, get) & moves_from(?v0, ?v1)",
+  "read": "tell: done_to(?v0, ?v1) & given instance_of(?v2, bus) & instance_of(?v0, get) & instance_of(?v1, let) & moves_from(?v0, ?v2)"
+ },
+ {
+  "sentence": "Where did Mahatma Gandhi study?",
+  "meaning": "ask: done_by(?v0, mahatma gandhi) & instance_of(?v0, study) & located_in(?v0, ?v1) & precedes(?v0, ?now) ? ?v1",
+  "read": "ask: done_by(?v0, mahatma gandhi) & done_to(?v0, ?v1) & instance_of(?v0, study) & precedes(?v0, ?now) ? ?v1"
+ },
+ {
+  "sentence": "She dumped me.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & instance_of(?v0, dump) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?speaker) & instance_of(?v0, dump) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He stood stock still.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_property(?v0, stock) & instance_of(?v0, stand) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, stand) & instance_of(?v1, stock) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Ultraviolet rays are harmful to us.",
+  "meaning": "tell: about(?v0, ?v1) & has_member(?v0, ?speaker) & has_property(?v0, harmful) & has_property(?v1, ultraviolet) & instance_of(?v1, ray)",
+  "read": "tell: about(?v0, ?v1) & has_member(?v1, ?speaker) & has_property(?v0, harmful) & if has_property(?v0, ultraviolet) & if instance_of(?v0, ray)"
+ },
+ {
+  "sentence": "All of a sudden the sky became overcast.",
+  "meaning": "tell: done_to(?v0, ?v1) & given instance_of(?v1, sky) & has_property(?v0, all) & has_property(?v1, overcast) & instance_of(?v0, become) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_by(?v0, ?v2) & done_to(?v0, ?v3) & given instance_of(?v2, sky) & has_property(?v0, all) & has_property(?v0, sudden) & instance_of(?v0, become) & instance_of(?v1, a) & instance_of(?v3, overcast) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "This is your handwriting, isn't it?",
+  "meaning": "ask: creates(?listener, ?v0) & instance_of(?v0, handwriting)",
+  "read": "ask: instance_of(?previous, handwriting) & not equals(?previous, ?v0) & owned_by(?previous, ?listener)"
+ },
+ {
+  "sentence": "He went to London in 1970.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 1970) & instance_of(?v0, go) & moves_to(?v0, london) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & instance_of(?v0, go) & moves_to(?v0, london) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The policeman was off duty.",
+  "meaning": "tell: instance_of(?v0, duty) & instance_of(?v1, off) & instance_of(?v2, policeman) & precedes(?v1, ?now) & state_of(?v1, ?v0) & state_of(?v1, ?v2)",
+  "read": "tell: equals(?v0, ?v1) & given instance_of(?v0, policeman) & has_property(?v1, off) & instance_of(?v1, duty)"
+ },
+ {
+  "sentence": "\"Whose documents are these?\" \"They are Michael's.\"",
+  "meaning": "tell: equals(?v0, ?v1) & instance_of(?v0, document) & owned_by(?v0, ?v2) & owned_by(?v1, michael)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "I'm not Tom's mother.",
+  "meaning": "tell: instance_of(?v0, mother) & not instance_of(?speaker, i) & word_of(?v0, tom)",
+  "read": "tell: instance_of(?v0, mother) & not equals(?speaker, ?v0) & word_of(?v0, tom)"
+ },
+ {
+  "sentence": "Her dog isn't very fast.",
+  "meaning": "tell: instance_of(?v0, dog) & not has_degree(?v0, ?v1) & not has_property(?v1, very) & not instance_of(?v1, fast) & owned_by(?v0, ?v2)",
+  "read": "tell: instance_of(?v0, dog) & not has_degree(?v0, ?v1) & not has_property(?v1, very) & not instance_of(?v1, fast) & owned_by(?v0, ?previous)"
+ },
+ {
+  "sentence": "They bought a parrot.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, buy) & instance_of(?v2, parrot) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, buy) & instance_of(?v1, parrot) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom wore a pink polo shirt with a popped collar.",
+  "meaning": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & done_to(?v2, ?v3) & has_part(?v1, ?v3) & has_property(?v1, pink) & instance_of(?v0, wear) & instance_of(?v1, polo shirt) & instance_of(?v2, pop) & instance_of(?v3, collar) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_by(?v2, tom) & done_to(?v2, ?v3) & done_with(?v2, ?v1) & has_property(?v3, pink) & instance_of(?v0, pop) & instance_of(?v1, collar) & instance_of(?v2, wear) & instance_of(?v3, polo shirt) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "Dan and Linda adopted a young boy from Cambodia.",
+  "meaning": "tell: comes_from(?v0, cambodia) & done_by(?v1, ?v2) & done_to(?v1, ?v0) & has_member(?v2, dan) & has_member(?v2, linda) & has_property(?v0, young) & instance_of(?v0, boy) & instance_of(?v1, adopt) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, dan) & has_member(?v1, linda) & has_property(?v2, young) & instance_of(?v0, adopt) & instance_of(?v2, boy) & moves_from(?v0, cambodia) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I am studying Persian.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, study) & instance_of(?v1, persian)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, persian) & during(?v0, ?now) & instance_of(?v0, study)"
+ },
+ {
+  "sentence": "Yumi is good at playing tennis.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_property(?v0, good) & has_property(yumi, good) & instance_of(?v0, playing tennis) & instance_of(?v1, playing tennis)",
+  "read": "tell: has_property(yumi, good) & instance_of(?v0, playing tennis)"
+ },
+ {
+  "sentence": "Who sang \"Tennessee Waltz\"?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, tennessee waltz) & instance_of(?v0, sing) & precedes(?v0, ?now) ? ?v1",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Bruce Springsteen was born in New Jersey.",
+  "meaning": "tell: done_to(?v0, bruce springsteen) & instance_of(?v0, bear) & located_in(?v0, new) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, bruce springsteen) & has_property(?v1, new) & instance_of(?v0, bear) & instance_of(?v1, jersey) & located_in(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He grabbed my arm.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, grab) & instance_of(?v2, arm) & part_of(?v2, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, grab) & instance_of(?v1, arm) & part_of(?v1, ?speaker) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Romania sent 730 troops in Iraq.",
+  "meaning": "tell: done_by(?v0, romania) & done_to(?v0, ?v1) & has_count(?v1, 730) & instance_of(?v0, send) & instance_of(?v1, troop) & moves_to(?v0, iraq) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, romania) & done_to(?v0, ?v1) & has_count(?v1, 730) & instance_of(?v0, send) & instance_of(?v1, troop) & located_in(?v0, iraq) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Mary was arrested for shoplifting.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, mary) & instance_of(?v0, arrest) & instance_of(?v1, shoplifting) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, ?v1) & done_to(?v0, mary) & instance_of(?v0, arrest) & instance_of(?v1, shoplifting) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "They're not hungry.",
+  "meaning": "tell: not has_property(?v0, hungry)",
+  "read": "tell: not has_property(?previous, hungry)"
+ },
+ {
+  "sentence": "This car of yours is a real gas guzzler.",
+  "meaning": "tell: given instance_of(?v0, car) & has_property(?v0, real) & instance_of(?v0, gas guzzler) & owned_by(?v0, ?listener)",
+  "read": "tell: equals(?v0, ?v1) & given instance_of(?v0, car) & has_property(?v1, real) & instance_of(?v1, gas guzzler) & owned_by(?v2, ?listener) & part_of(?v0, ?v2)"
+ },
+ {
+  "sentence": "What does the abbreviation WASP mean?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, mean) & instance_of(?v1, wasp) ? ?v2",
+  "read": "ask: done_by(?v0, wasp) & done_to(?v0, ?v1) & instance_of(?v0, mean) & isa(wasp, abbreviation) ? ?v1"
+ },
+ {
+  "sentence": "It's a trap!",
+  "meaning": "tell: instance_of(?v0, trap)",
+  "read": "tell: instance_of(?previous, trap)"
+ },
+ {
+  "sentence": "Cristiani killed six Jesuits.",
+  "meaning": "tell: done_by(?v0, cristiani) & done_to(?v0, ?v1) & has_count(?v1, 6) & instance_of(?v0, kill) & instance_of(?v1, jesuits) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, cristiani) & done_to(?v0, jesuits) & instance_of(?v0, kill) & isa(jesuits, six) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The WSF takes place in Brazil.",
+  "meaning": "tell: done_by(?v0, wsf) & instance_of(?v0, take) & located_in(?v0, brazil)",
+  "read": "tell: done_by(?v0, wsf) & done_to(?v0, ?v1) & instance_of(?v0, take) & instance_of(?v1, place) & located_in(?v0, brazil)"
+ },
+ {
+  "sentence": "What city in Louisiana was Britney Spears born in?",
+  "meaning": "ask: done_to(?v0, britney spears) & instance_of(?v0, bear) & instance_of(?v1, city) & located_in(?v0, ?v1) & part_of(?v1, louisiana) & precedes(?v0, ?now) ? ?v1",
+  "read": "ask: done_to(?v0, britney spears) & instance_of(?v0, bear) & instance_of(?v1, city) & located_in(?v0, ?v1) & located_in(?v0, louisiana) & precedes(?v0, ?now) ? ?v1"
+ },
+ {
+  "sentence": "He collided with a tree.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, collide) & instance_of(?v2, tree) & located_in(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_with(?v0, ?v1) & instance_of(?v0, collide) & instance_of(?v1, tree) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "My brother doesn't speak English at all.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, false) & instance_of(?v0, speak) & instance_of(?v1, brother) & instance_of(?v2, english) & word_of(?v1, ?speaker)",
+  "read": "tell: done_by(?v0, ?v1) & done_by(?v0, ?v2) & done_to(?v0, english) & has_property(?v0, false) & instance_of(?v0, speak) & instance_of(?v1, all) & instance_of(?v2, brother) & word_of(?v2, ?speaker)"
+ },
+ {
+  "sentence": "She yelled at him.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, yell) & precedes(?v0, ?now) & received_by(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?previous) & instance_of(?v0, yell) & precedes(?v0, ?now) & received_by(?v0, ?v1)"
+ },
+ {
+  "sentence": "Michael Crichton is the author of the book Jurassic Park.",
+  "meaning": "tell: equals(michael crichton, ?v0) & instance_of(?v0, writer) & word_of(?v0, jurassic park)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "\"Whose brushes are these?\" \"They are Picasso's.\"",
+  "meaning": "tell: instance_of(?v0, implement brush) & owned_by(?v0, ?v1) & owned_by(?v0, picasso)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "She is lazy.",
+  "meaning": "tell: has_property(?v0, lazy)",
+  "read": "tell: has_property(?previous, lazy)"
+ },
+ {
+  "sentence": "The Leaning Tower of Pisa survives.",
+  "meaning": "tell: done_by(?v0, leaning tower) & instance_of(?v0, survive)",
+  "read": "tell: done_by(?v0, leaning tower) & instance_of(?v0, survive) & part_of(leaning tower, pisa)"
+ },
+ {
+  "sentence": "Does that matter?",
+  "meaning": "ask: done_to(?v0, ?v1) & instance_of(?v0, matter)",
+  "read": "ask: done_to(?v0, ?previous) & instance_of(?v0, matter)"
+ },
+ {
+  "sentence": "Our house has seven rooms including the dining room.",
+  "meaning": "tell: given instance_of(?v0, dining room) & has_count(?v1, 7) & has_member(?v1, ?v0) & has_member(?v2, ?speaker) & instance_of(?v1, room) & instance_of(?v3, house) & owned_by(?v3, ?v2) & owns(?v3, ?v1)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, dining room) & has_count(?v1, 7) & has_member(?v3, ?speaker) & instance_of(?v0, include) & instance_of(?v1, room) & instance_of(?v4, house) & owned_by(?v4, ?v3) & owns(?v4, ?v1)"
+ },
+ {
+  "sentence": "I knitted a sweater for him.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_for(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, knit) & instance_of(?v2, sweater) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, knit) & instance_of(?v1, sweater) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Edison was not a bright student.",
+  "meaning": "tell: instance_of(?v0, student) & not has_property(?v0, bright) & not isa(edison, student)",
+  "read": "tell: has_property(edison, bright) & not isa(edison, student)"
+ },
+ {
+  "sentence": "She interrogated a suspect.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, interrogate) & instance_of(?v2, suspect) & precedes(?v0, ?now) & received_by(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, interrogate) & instance_of(?v1, suspect) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "In 1960, 35 people were employed.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 1960) & has_count(?v1, 35) & instance_of(?v0, employ) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, ?v1) & during(?v0, 1960) & has_count(?v1, 35) & instance_of(?v0, employ) & instance_of(?v1, people) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Where in Australia are you from?",
+  "meaning": "ask: comes_from(?listener, ?v0) & instance_of(?v0, where) & part_of(?v0, australia) ? ?v0",
+  "read": "ask: comes_from(?listener, ?v0) & located_in(?v1, australia) ? ?v0"
+ },
+ {
+  "sentence": "\"Whose chair is this?\" \"It is mine.\"",
+  "meaning": "tell: equals(?v0, ?v1) & instance_of(?v0, chair) & owned_by(?v0, ?v2) & owned_by(?v1, ?speaker)",
+  "read": "ask: equals(?v0, ?previous) & equals(?v1, ?v2) & instance_of(?v0, chair) & owned_by(?v0, ?v3) & owned_by(?v2, ?speaker) ? ?v3"
+ },
+ {
+  "sentence": "What Nobel Prize was Kenzaburo Oe awarded?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_for(?v0, kenzaburo oe) & instance_of(?v0, allocate award) & instance_of(?v1, nobel prize) & precedes(?v0, ?now) ? ?v1",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "How many dimples does a regulation golf ball have?",
+  "meaning": "ask: has_count(?v0, ?v1) & has_property(?v2, regulation golf) & instance_of(?v0, dimple) & instance_of(?v2, regulation golf) & owns(?v2, ?v0) ? ?v1",
+  "read": "ask: has_count(?v0, ?v1) & instance_of(?v0, dimple) & isa(ball, regulation golf) & owns(ball, ?v0) ? ?v1"
+ },
+ {
+  "sentence": "Tom chased the mugger and caught him.",
+  "meaning": "tell: done_by(?v0, tom) & done_by(?v1, tom) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & instance_of(?v0, catch) & instance_of(?v1, chase) & instance_of(?v2, mugger) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, tom) & done_by(?v1, tom) & done_to(?v0, ?v2) & done_to(?v1, ?previous) & given instance_of(?v2, mugger) & instance_of(?v0, chase) & instance_of(?v1, catch) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Is Tom all right?",
+  "meaning": "ask: has_property(tom, all)",
+  "read": "ask: isa(tom, right)"
+ },
+ {
+  "sentence": "Whose umbrella is that?",
+  "meaning": "ask: instance_of(?v0, umbrella) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, umbrella) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Is it far?",
+  "meaning": "ask: has_property(?v0, far)",
+  "read": "ask: has_property(?previous, far)"
+ },
+ {
+  "sentence": "He was leaning against the wall.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v2, wall) & instance_of(?v0, lean) & moves_to(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & given instance_of(?v1, wall) & instance_of(?v0, lean) & moves_to(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Have you googled her?",
+  "meaning": "ask: done_by(?v0, ?listener) & done_to(?v0, ?v1) & instance_of(?v0, google) & precedes(?v0, ?now)",
+  "read": "ask: done_by(?v0, ?listener) & done_to(?v0, ?previous) & instance_of(?v0, google) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Let us go!\"",
+  "meaning": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & has_member(?v1, ?speaker) & instance_of(?v0, go)",
+  "read": "tell: done_by(?v0, ?v1) & if done_to(?v2, ?v1) & if instance_of(?v1, us) & if instance_of(?v2, let) & instance_of(?v0, go)"
+ },
+ {
+  "sentence": "It's a riveting story.",
+  "meaning": "tell: instance_of(?v0, story)",
+  "read": "tell: has_property(?previous, riveting) & instance_of(?previous, story)"
+ },
+ {
+  "sentence": "9 people were assassinated by Raman Raghav.",
+  "meaning": "tell: done_by(?v0, raman raghav) & done_to(?v0, ?v1) & has_count(?v1, 9) & instance_of(?v0, assassinate) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, raman raghav) & done_to(?v0, ?v1) & has_count(?v1, 9) & instance_of(?v0, assassinate) & instance_of(?v1, people) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I don't hate him anymore.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_property(?v0, false) & instance_of(?v0, hate)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?previous) & has_property(?v0, false) & instance_of(?v0, hate)"
+ },
+ {
+  "sentence": "Am I that transparent?",
+  "meaning": "ask: has_property(?speaker, transparent)",
+  "read": "ask: has_degree(?speaker, ?v0) & has_property(?v0, that) & instance_of(?v0, transparent)"
+ },
+ {
+  "sentence": "Is my new hair style funny?",
+  "meaning": "ask: has_property(?v0, funny) & has_property(?v0, new) & instance_of(?v0, hair style) & part_of(?v0, ?speaker)",
+  "read": "ask: has_property(?v0, funny) & has_property(?v0, new) & instance_of(?v0, hair style) & owned_by(?v0, ?speaker)"
+ },
+ {
+  "sentence": "Compare your answers with the teacher's.",
+  "meaning": "request: creates(?listener, ?v0) & creates(?v1, ?v2) & done_by(?v3, ?listener) & done_to(?v3, ?v0) & done_to(?v3, ?v2) & instance_of(?v0, answer) & instance_of(?v1, teacher) & instance_of(?v2, answer) & instance_of(?v3, compare)",
+  "read": "tell: creates(?listener, ?v0) & equals(?v0, ?v1) & given instance_of(?v2, teacher) & has_part(?v0, ?v2) & instance_of(?v0, answer) & instance_of(?v1, compare)"
+ },
+ {
+  "sentence": "Mine waste-water poses an environmental hazard.",
+  "meaning": "tell: comes_from(?v0, ?v1) & done_by(?v2, ?v0) & done_to(?v2, ?v3) & has_property(?v3, environmental) & instance_of(?v0, waste-wate) & instance_of(?v1, mine) & instance_of(?v2, pose) & instance_of(?v3, hazard)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, waste-wate) & has_property(?v2, environmental) & instance_of(?v0, pose) & instance_of(?v2, hazard) & owned_by(?v1, ?speaker)"
+ },
+ {
+  "sentence": "Tom taught at Harvard.",
+  "meaning": "tell: done_by(?v0, tom) & instance_of(?v0, teach) & located_in(?v0, harvard) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, tom) & done_to(?v0, harvard) & instance_of(?v0, teach) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Tom is wrong, isn't he?",
+  "meaning": "ask: has_property(tom, wrong)",
+  "read": "ask: has_property(tom, wrong) & not equals(tom, ?previous)"
+ },
+ {
+  "sentence": "He lent me two books.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_count(?v2, 2) & instance_of(?v0, lend) & instance_of(?v2, book) & precedes(?v0, ?now) & received_by(?v0, ?speaker)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & has_count(?v1, 2) & instance_of(?v0, lend) & instance_of(?v1, book) & precedes(?v0, ?now) & received_by(?v0, ?speaker)"
+ },
+ {
+  "sentence": "If that's true, then Tom is innocent.",
+  "meaning": "tell: has_property(?v0, true) & has_property(tom, innocent)",
+  "read": "tell: has_property(tom, innocent) & if has_property(?previous, true)"
+ },
+ {
+  "sentence": "I speak Mari.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & instance_of(?v0, speak) & instance_of(?v1, mari)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, mari) & instance_of(?v0, speak)"
+ },
+ {
+  "sentence": "Jill is engaged to Jack.",
+  "meaning": "tell: done_by(?v0, jill) & done_to(?v0, jack) & instance_of(?v0, engage)",
+  "read": "tell: done_to(?v0, ?v1) & done_to(?v0, jill) & instance_of(?v0, engage) & instance_of(?v1, jack)"
+ },
+ {
+  "sentence": "It's not that simple.",
+  "meaning": "tell: not has_property(?v0, simply)",
+  "read": "tell: has_property(?v0, simply) & not equals(?previous, ?v1)"
+ },
+ {
+  "sentence": "Mary is Tom's ex-wife.",
+  "meaning": "tell: isa(mary, wife) & word_of(mary, tom)",
+  "read": "tell: isa(mary, ex-wife) & owned_by(mary, tom)"
+ },
+ {
+  "sentence": "That's convenient, isn't it?",
+  "meaning": "ask: has_property(?v0, convenient)",
+  "read": "ask: has_property(?previous, convenient) & not equals(?previous, ?v0)"
+ },
+ {
+  "sentence": "That's not important right now.",
+  "meaning": "tell: not has_property(?v0, important)",
+  "read": "tell: not has_property(?previous, important)"
+ },
+ {
+  "sentence": "Where is Mount Olympus?",
+  "meaning": "ask: located_in(mount olympus, ?v0) ? ?v0",
+  "read": "ask: equals(mount olympus, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "He twisted my arm.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, twist) & instance_of(?v2, arm) & part_of(?v2, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, twist) & instance_of(?v1, arm) & part_of(?v1, ?speaker) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Does he speak English?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, speak) & instance_of(?v2, english)",
+  "read": "ask: done_by(?v0, ?previous) & done_to(?v0, english) & instance_of(?v0, speak)"
+ },
+ {
+  "sentence": "New Year's Day is close at hand.",
+  "meaning": "tell: has_property(new, close)",
+  "read": "tell: has_property(?v0, close) & has_property(?v1, new) & instance_of(?v0, day) & instance_of(?v1, year) & instance_of(?v2, hand) & owned_by(?v0, ?v1)"
+ },
+ {
+  "sentence": "I was bit by a mosquito.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & instance_of(?v0, bit) & instance_of(?v1, mosquito) & precedes(?v0, ?now)",
+  "read": "tell: equals(?speaker, ?v0) & instance_of(?v0, bit) & instance_of(?v1, mosquito)"
+ },
+ {
+  "sentence": "A card was attached to the gift.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v2, gift) & instance_of(?v0, attach) & instance_of(?v1, card) & moves_to(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: given instance_of(?v0, gift) & instance_of(?v1, attach) & instance_of(?v2, card) & moves_to(?v1, ?v0) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Let's climb to the top of this mountain.",
+  "meaning": "tell: done_by(?v0, ?speaker) & follows(?v0, ?now) & given instance_of(?v1, mountain) & given instance_of(?v2, top) & instance_of(?v0, climb) & moves_to(?v0, ?v2) & part_of(?v2, ?v1)",
+  "read": "tell: about(let, ?v0) & given instance_of(?v0, top) & given instance_of(?v1, mountain) & isa(let, climb) & part_of(?v0, ?v1)"
+ },
+ {
+  "sentence": "He ate the apple.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, apple) & instance_of(?v0, eat) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, apple) & instance_of(?v0, eat) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Brutus stabs Caesar, and Caesar falls.",
+  "meaning": "tell: done_by(?v0, brutus) & done_to(?v0, caesar) & done_to(?v1, caesar) & instance_of(?v0, stab) & instance_of(?v1, fall)",
+  "read": "tell: done_by(?v0, brutus) & done_by(?v1, caesar) & done_to(?v0, caesar) & instance_of(?v0, stab) & instance_of(?v1, fall)"
+ },
+ {
+  "sentence": "But where is this compass?",
+  "meaning": "ask: given instance_of(?v0, compass) & instance_of(?v1, where) & located_in(?v0, ?v1) ? ?v1",
+  "read": "ask: equals(?v0, ?v1) & given instance_of(?v0, compass) ? ?v1"
+ },
+ {
+  "sentence": "I speak English, French, and Spanish.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_member(?v1, ?v2) & has_member(?v1, ?v3) & has_member(?v1, ?v4) & instance_of(?v0, speak) & instance_of(?v2, english) & instance_of(?v3, french) & instance_of(?v4, spanish)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_member(?v1, english) & has_member(?v1, french) & has_member(?v1, spanish) & instance_of(?v0, speak)"
+ },
+ {
+  "sentence": "A banana is being eaten by a man",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, eat) & instance_of(?v1, man) & instance_of(?v2, banana)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & instance_of(?v0, eat) & instance_of(?v1, man) & instance_of(?v2, banana)"
+ },
+ {
+  "sentence": "She is very cross with him.",
+  "meaning": "tell: about(?v0, ?v1) & has_degree(?v0, ?v2) & has_property(?v2, very) & instance_of(?v2, cross)",
+  "read": "tell: about(?previous, ?v0) & has_degree(?previous, ?v1) & has_property(?v1, very) & instance_of(?v1, cross)"
+ },
+ {
+  "sentence": "Whose glasses are these?",
+  "meaning": "ask: instance_of(?v0, glass) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, glass) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "He is lazy.",
+  "meaning": "tell: has_property(?v0, lazy)",
+  "read": "tell: has_property(?previous, lazy)"
+ },
+ {
+  "sentence": "We buy CDs.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & instance_of(?v0, buy) & instance_of(?v2, cds)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, cds) & has_member(?v1, ?speaker) & instance_of(?v0, buy)"
+ },
+ {
+  "sentence": "What is the longest river in Norway?",
+  "meaning": "ask: has_property(?v0, long) & instance_of(?v0, river) & located_in(?v0, norway) ? ?v0",
+  "read": "ask: equals(?v0, ?v1) & given instance_of(?v0, river) & greatest_of(?v2, river) & has_degree(?v0, ?v2) & instance_of(?v2, long) & located_in(?v0, norway) ? ?v1"
+ },
+ {
+  "sentence": "Romano Prodi wins Italian primaries.",
+  "meaning": "tell: done_by(?v0, romano prodi) & done_to(?v0, ?v1) & instance_of(?v0, win) & instance_of(?v1, primary) & located_in(?v1, italian)",
+  "read": "tell: done_by(?v0, romano prodi) & done_to(?v0, ?v1) & instance_of(?v0, win) & instance_of(?v1, primary) & part_of(?v1, italian)"
+ },
+ {
+  "sentence": "I will return at 6:30.",
+  "meaning": "tell: done_by(?v0, ?speaker) & during(?v0, 6:30 p.m.) & follows(?v0, ?now) & instance_of(?v0, return)",
+  "read": "(a number is neither a kind nor a quality: nothing is a 7, or 7 as it is red)"
+ },
+ {
+  "sentence": "Mars has two moons: Phobos and Deimos.",
+  "meaning": "tell: has_count(?v0, 2) & has_member(?v0, deimos) & has_member(?v0, phobos) & owns(mars, ?v0)",
+  "read": "tell: has_count(phobos, 2) & has_member(?v0, deimos) & has_member(?v0, phobos) & isa(phobos, moon) & owns(mars, ?v0)"
+ },
+ {
+  "sentence": "Mayuko wore a flower crown.",
+  "meaning": "tell: done_by(?v0, mayuko) & done_to(?v0, ?v1) & instance_of(?v0, wear) & instance_of(?v1, flower crown) & instance_of(?v2, flower crown) & made_of(?v1, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, mayuko) & done_to(?v0, ?v1) & instance_of(?v0, wear) & instance_of(?v1, flower crown) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Lonesome George passed away.",
+  "meaning": "tell: done_to(?v0, lonesome george) & instance_of(?v0, pass) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, lonesome george) & instance_of(?v0, pass) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Let us acknowledge it.",
+  "meaning": "tell: about(?v0, ?v1) & done_by(?v0, ?v2) & follows(?v0, ?now) & has_member(?v2, ?speaker) & instance_of(?v0, acknowledge)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?previous) & if done_to(?v2, ?v1) & if instance_of(?v1, us) & if instance_of(?v2, let) & instance_of(?v0, acknowledge)"
+ },
+ {
+  "sentence": "I'm totally indifferent to it.",
+  "meaning": "tell: about(?speaker, ?v0) & has_degree(?speaker, ?v1) & has_property(?v1, totally) & instance_of(?v1, indifferent)",
+  "read": "tell: about(?speaker, ?previous) & has_degree(?speaker, ?v0) & has_property(?v0, totally) & instance_of(?v0, indifferent)"
+ },
+ {
+  "sentence": "Two of them pleased me especially.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_count(?v1, 2) & has_property(?v0, especially) & instance_of(?v0, please) & member_of(?v1, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & has_count(?v1, 2) & has_property(?v0, especially) & instance_of(?v0, please) & part_of(?v1, ?previous) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "This story doesn't have a happy ending.",
+  "meaning": "tell: given instance_of(?v0, story) & instance_of(?v1, ending) & not has_property(?v1, happy) & not owns(?v0, ?v1)",
+  "read": "tell: given instance_of(?v0, story) & has_property(?v1, happy) & instance_of(?v1, ending) & not owns(?v0, ?v1)"
+ },
+ {
+  "sentence": "I don't want to argue with you.",
+  "meaning": "tell: done_by(?v0, ?listener) & done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v1, ?v0) & has_property(?v0, false) & has_property(?v1, false) & instance_of(?v0, argue) & instance_of(?v1, want)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v1, ?v0) & done_with(?v0, ?listener) & has_property(?v1, false) & instance_of(?v0, argue) & instance_of(?v1, want)"
+ },
+ {
+  "sentence": "I'll wash the dishes once again.",
+  "meaning": "tell: done_by(?v0, ?speaker) & follows(?v0, ?now) & given instance_of(?v1, dish) & instance_of(?v0, wash) & moves_from(?v0, ?v1)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & follows(?v0, ?now) & given instance_of(?v1, dish) & instance_of(?v0, wash)"
+ },
+ {
+  "sentence": "He's a terrible driver.",
+  "meaning": "tell: has_property(?v0, terrible) & instance_of(?v0, he)",
+  "read": "tell: has_property(?previous, terrible) & instance_of(?previous, driver)"
+ },
+ {
+  "sentence": "In 1946, the company was passed into national ownership.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 1946) & given instance_of(?v1, company) & has_property(?v2, national) & instance_of(?v0, pass) & instance_of(?v2, ownership) & moves_to(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, ?v1) & during(?v0, 1946) & given instance_of(?v1, company) & has_property(?v2, national) & instance_of(?v0, pass) & instance_of(?v2, ownership) & moves_to(?v0, ?v2) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He fixed it.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, fix) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, fix) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I won't play because I've twisted my ankle.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & follows(?v1, ?now) & has_property(?v0, false) & has_property(?v1, false) & instance_of(?v0, twist) & instance_of(?v1, play) & instance_of(?v2, ankle) & part_of(?v2, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & follows(?v1, ?now) & has_property(?v1, false) & instance_of(?v0, twist) & instance_of(?v1, play) & instance_of(?v2, ankle) & part_of(?v2, ?speaker) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "This school was founded in 1650.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 1650) & given instance_of(?v1, school) & instance_of(?v0, found) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, ?v1) & during(?v0, 1650) & given instance_of(?v1, school) & instance_of(?v0, found) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "She forgave him.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, forgive) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, forgive) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Even though he apologized, I'm still furious.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_property(?speaker, furious) & instance_of(?v0, apologize) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & has_property(?speaker, furious) & has_property(?v1, unexpected) & instance_of(?v0, apologize) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "FermiLab created Linux LTS.",
+  "meaning": "tell: done_by(?v0, fermilab) & done_to(?v0, linux lts) & instance_of(?v0, create) & precedes(?v0, ?now)",
+  "read": "tell: creates(fermilab, linux lts)"
+ },
+ {
+  "sentence": "I waited for hours, but she didn't show up.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?v2) & has_property(?v1, false) & instance_of(?v0, wait) & instance_of(?v1, show up) & instance_of(?v3, hour) & lasts_for(?v0, ?v3) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_by(?v1, ?speaker) & has_property(?v0, false) & instance_of(?v0, show up) & instance_of(?v1, wait) & instance_of(?v2, hour) & lasts_for(?v1, ?v2) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "What a haughty fellow he is!",
+  "meaning": "tell: has_property(?v0, haughty) & instance_of(?v0, fellow)",
+  "read": "tell: has_property(?previous, haughty) & instance_of(?previous, fellow)"
+ },
+ {
+  "sentence": "Judy isn't a good singer, is she?",
+  "meaning": "ask: instance_of(?v0, singer) & not has_property(?v0, good) & not isa(judy, singer)",
+  "read": "ask: equals(judy, ?previous) & has_property(judy, good) & not isa(judy, singer)"
+ },
+ {
+  "sentence": "I owe him 50,000 yen.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_for(?v0, ?v1) & done_to(?v0, ?v2) & has_count(?v2, 50000) & instance_of(?v0, owe) & instance_of(?v2, yen)",
+  "read": "tell: done_by(?v0, ?speaker) & done_for(?v0, ?previous) & done_to(?v0, ?v1) & has_count(?v1, 50000) & instance_of(?v0, owe) & instance_of(?v1, yen)"
+ },
+ {
+  "sentence": "None of us will help you.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_for(?v0, ?listener) & follows(?v0, ?now) & has_member(?v2, ?speaker) & has_property(?v0, false) & instance_of(?v0, help) & member_of(?v1, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?listener) & follows(?v0, ?now) & has_member(?v2, ?speaker) & has_property(?v0, false) & instance_of(?v0, help) & part_of(?v1, ?v2)"
+ },
+ {
+  "sentence": "Is English spoken in Canada?",
+  "meaning": "ask: done_by(?v0, ?v1) & instance_of(?v0, spoken) & instance_of(?v1, english) & located_in(?v0, canada)",
+  "read": "ask: has_property(english, spoken)"
+ },
+ {
+  "sentence": "She adores it.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, adore)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, adore)"
+ },
+ {
+  "sentence": "Pinkerton works with Beverly.",
+  "meaning": "tell: done_by(?v0, beverly) & done_by(?v0, pinkerton) & instance_of(?v0, work)",
+  "read": "tell: done_by(?v0, pinkerton) & done_with(?v0, beverly) & instance_of(?v0, work)"
+ },
+ {
+  "sentence": "Name a song by Nirvana.",
+  "meaning": "request: creates(nirvana, ?v0) & done_by(?v1, ?listener) & done_to(?v1, ?v0) & instance_of(?v0, song) & instance_of(?v1, name)",
+  "read": "request: done_by(?v0, ?listener) & done_by(?v0, nirvana) & done_to(?v0, ?v1) & instance_of(?v0, name) & instance_of(?v1, song)"
+ },
+ {
+  "sentence": "A man is filling a plastic container",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, fill) & instance_of(?v1, man) & instance_of(?v2, plastic container) & instance_of(?v3, plastic container) & made_of(?v3, ?v2) & moves_to(?v0, ?v3)",
+  "read": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, fill) & instance_of(?v1, man) & instance_of(?v2, plastic container) & moves_to(?v0, ?v2)"
+ },
+ {
+  "sentence": "He graduated from Tokyo University.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, graduate) & moves_from(?v0, tokyo university) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & instance_of(?v0, graduate) & moves_from(?v0, tokyo university) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He broke the law.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, law) & instance_of(?v0, break) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, law) & instance_of(?v0, break) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "His joke borders on insult.",
+  "meaning": "tell: creates(?v0, ?v1) & done_by(?v2, ?v1) & done_to(?v2, ?v3) & instance_of(?v1, joke) & instance_of(?v2, border) & instance_of(?v3, insult)",
+  "read": "tell: creates(?previous, ?v0) & done_by(?v1, ?v0) & done_to(?v1, ?v2) & instance_of(?v0, joke) & instance_of(?v1, border) & instance_of(?v2, insult)"
+ },
+ {
+  "sentence": "I struck the wall with my fist.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, wall) & instance_of(?v0, strike) & instance_of(?v2, fist) & part_of(?v2, ?speaker) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, wall) & instance_of(?v0, strike) & instance_of(?v2, fist) & owned_by(?v2, ?speaker) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I bought a pen, but I lost it.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?v2) & instance_of(?v0, buy) & instance_of(?v1, lose) & instance_of(?v2, pen) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?previous) & instance_of(?v0, buy) & instance_of(?v1, lose) & instance_of(?v2, pen) & precedes(?v0, ?now) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Someone is feeding an animal",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, feed) & instance_of(?v2, animal) & received_by(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & instance_of(?v0, feed) & instance_of(?v2, animal)"
+ },
+ {
+  "sentence": "I was awakened at five o'clock.",
+  "meaning": "tell: done_to(?v0, ?speaker) & during(?v0, 5:00) & instance_of(?v0, awakened) & precedes(?v0, ?now)",
+  "read": "tell: instance_of(?v0, 'clock) & instance_of(?v1, awakened) & part_of(5, ?v0) & precedes(?v1, ?now) & state_of(?v1, ?speaker)"
+ },
+ {
+  "sentence": "Dick played piano and Lucy sang.",
+  "meaning": "tell: done_by(?v0, dick) & done_by(?v1, lucy) & done_to(?v0, ?v2) & instance_of(?v0, play) & instance_of(?v1, sang) & instance_of(?v2, piano) & precedes(?v0, ?now) & precedes(?v1, ?now)",
+  "read": "tell: done_by(?v0, dick) & done_to(?v0, ?v1) & has_member(?v2, ?v3) & has_member(?v2, lucy) & instance_of(?v0, play) & instance_of(?v1, sang) & instance_of(?v3, piano) & precedes(?v0, ?now) & received_by(?v0, ?v2)"
+ },
+ {
+  "sentence": "She doesn't speak Japanese at home.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, false) & instance_of(?v0, speak) & instance_of(?v2, japanese) & instance_of(?v3, at home) & located_in(?v0, ?v3)",
+  "read": "tell: comes_from(?v0, japanese) & done_by(?v1, ?previous) & done_to(?v1, ?v0) & has_property(?v1, false) & instance_of(?v0, at home) & instance_of(?v1, speak)"
+ },
+ {
+  "sentence": "Tom is blissfully happy.",
+  "meaning": "tell: has_degree(tom, ?v0) & has_property(?v0, blissfully) & instance_of(?v0, happy)",
+  "read": "tell: has_property(?v0, blissfully) & has_property(tom, happy)"
+ },
+ {
+  "sentence": "He came back at 5 o'clock.",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, 5:00 p.m.) & has_property(?v0, back) & instance_of(?v0, come) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, 5) & instance_of(?v0, come) & instance_of(?v1, 'clock) & located_in(?v0, back) & part_of(5, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Packing sucks.",
+  "meaning": "tell: done_to(?v0, ?v1) & instance_of(?v0, suck) & instance_of(?v1, packing)",
+  "read": "tell: done_by(?v0, packing) & instance_of(?v0, suck)"
+ },
+ {
+  "sentence": "With whom am I speaking?",
+  "meaning": "ask: done_by(?v0, ?speaker) & done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, speak) ? ?v1",
+  "read": "ask: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, speak) ? ?v1"
+ },
+ {
+  "sentence": "Lenz shook his head hopelessly.",
+  "meaning": "tell: done_by(?v0, lenz) & done_to(?v0, ?v1) & has_property(?v0, hopelessly) & instance_of(?v0, gesticulate shake) & instance_of(?v1, head) & part_of(?v1, lenz) & precedes(?v0, ?now)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Chopin is my favorite composer.",
+  "meaning": "tell: about(?speaker, chopin) & has_property(?speaker, favorite) & isa(chopin, composer)",
+  "read": "tell: has_property(chopin, favorite) & isa(chopin, composer) & owned_by(chopin, ?speaker)"
+ },
+ {
+  "sentence": "He was whistling a tune.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, whistle) & instance_of(?v2, tune) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, whistle) & instance_of(?v1, tune) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Wal-Mart has violated state regulations.",
+  "meaning": "tell: creates(?v0, ?v1) & done_by(?v2, wal mart) & done_to(?v2, ?v1) & instance_of(?v0, state regulation) & instance_of(?v1, state regulation) & instance_of(?v2, violate) & precedes(?v2, ?now)",
+  "read": "tell: done_by(?v0, wal mart) & done_to(?v0, ?v1) & instance_of(?v0, violate) & instance_of(?v1, state regulation) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "His grandfather passed away peacefully.",
+  "meaning": "tell: done_to(?v0, ?v1) & has_property(?v0, peacefully) & instance_of(?v0, pass) & instance_of(?v1, grandfather) & precedes(?v0, ?now) & word_of(?v1, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & has_property(?v0, peacefully) & instance_of(?v0, pass) & instance_of(?v1, grandfather) & precedes(?v0, ?now) & word_of(?v1, ?previous)"
+ },
+ {
+  "sentence": "We visited Sao Paulo's largest museum.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & has_property(?v2, large) & instance_of(?v0, visit) & instance_of(?v2, museum) & located_in(?v2, sao paulo) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & greatest_of(?v3, museum) & has_degree(?v2, ?v3) & has_member(?v1, ?speaker) & instance_of(?v0, visit) & instance_of(?v2, museum) & instance_of(?v3, large) & owned_by(?v2, sao paulo) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He has eleven children.",
+  "meaning": "tell: has_count(?v0, 11) & instance_of(?v0, child) & owns(?v1, ?v0)",
+  "read": "tell: has_count(?v0, 11) & instance_of(?v0, child) & owns(?previous, ?v0)"
+ },
+ {
+  "sentence": "Kraft sold Celestial Seasonings.",
+  "meaning": "tell: done_by(?v0, kraft) & done_to(?v0, celestial seasonings) & instance_of(?v0, sell) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, celestial seasonings) & instance_of(?v0, sell) & instance_of(?v1, kraft) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Who is the leader of the Algerian Armed Islamic Group?",
+  "meaning": "ask: comes_from(algerian armed islamic group, algerian armed islamic group) & equals(?v0, ?v1) & instance_of(?v0, leader) & part_of(?v0, algerian armed islamic group) ? ?v1",
+  "read": "ask: equals(?v0, ?v1) & given instance_of(?v0, leader) & word_of(?v0, algerian armed islamic group) ? ?v1"
+ },
+ {
+  "sentence": "I got some money from an ATM.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & instance_of(?v0, get) & instance_of(?v1, money) & instance_of(?v2, atm) & moves_from(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & instance_of(?v0, get) & instance_of(?v1, money) & isa(atm, an) & moves_from(?v0, atm) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Riding a horse is really thrilling.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_degree(?v0, ?v2) & has_property(?v2, really) & instance_of(?v0, ride) & instance_of(?v1, horse) & instance_of(?v2, thrilling)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, thrilling) & instance_of(?v0, ride) & instance_of(?v2, horse)"
+ },
+ {
+  "sentence": "How slow you are!",
+  "meaning": "tell: has_property(?listener, stupid dense)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Children catch colds easily.",
+  "meaning": "tell: done_by(?v0, ?v1) & has_property(?v0, easily) & instance_of(?v0, catch) & instance_of(?v1, cold) & instance_of(?v2, child) & received_by(?v0, ?v2)",
+  "read": "tell: done_by(?v0, child) & done_to(?v0, ?v1) & has_property(?v0, easily) & instance_of(?v0, catch) & instance_of(?v1, cold)"
+ },
+ {
+  "sentence": "I'm Canadian, too.",
+  "meaning": "tell: comes_from(?speaker, canada)",
+  "read": "tell: has_property(?speaker, canadian)"
+ },
+ {
+  "sentence": "He is suffering from toothache.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & instance_of(?v0, suffer) & instance_of(?v2, toothache)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, suffer) & instance_of(?v1, toothache)"
+ },
+ {
+  "sentence": "I don't wanna clean up dog shit.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & done_to(?v1, ?v0) & has_property(?v0, false) & has_property(?v1, false) & instance_of(?v0, clean) & instance_of(?v1, wanna) & instance_of(?v2, dog shit)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & has_property(?v0, false) & has_property(?v1, clean) & instance_of(?v0, wanna) & instance_of(?v1, dog shit)"
+ },
+ {
+  "sentence": "Thanks to your help, I have succeeded.",
+  "meaning": "tell: creates(?listener, ?v0) & done_by(?v1, ?speaker) & done_by(?v1, ?v0) & instance_of(?v0, activity aid) & instance_of(?v1, succeed) & precedes(?v1, ?now)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "She suffers from claustrophobia.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, suffer) & instance_of(?v2, claustrophobia)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & instance_of(?v0, suffer) & instance_of(?v1, claustrophobia)"
+ },
+ {
+  "sentence": "I'm fed up with him.",
+  "meaning": "tell: about(?speaker, ?v0) & has_property(?speaker, fed)",
+  "read": "tell: about(?speaker, ?previous) & has_property(?speaker, fed)"
+ },
+ {
+  "sentence": "Napoleon was crowned in 1804.",
+  "meaning": "tell: done_by(?v0, napoleon) & during(?v0, 1804) & instance_of(?v0, crowned) & precedes(?v0, ?now)",
+  "read": "tell: instance_of(?v0, crowned) & precedes(?v0, ?now) & state_of(?v0, napoleon)"
+ },
+ {
+  "sentence": "Do you like IKEA furniture?",
+  "meaning": "ask: creates(ikea, ?v0) & done_by(?v1, ?listener) & done_to(?v1, ?v0) & instance_of(?v0, furniture) & instance_of(?v1, like)",
+  "read": "ask: done_by(?v0, ?listener) & done_to(?v0, ?v1) & instance_of(?v0, like) & instance_of(?v1, furniture) & received_by(?v0, ikea)"
+ },
+ {
+  "sentence": "I'm feeling kind of tired.",
+  "meaning": "tell: done_by(?v0, ?speaker) & during(?v0, ?now) & has_degree(?speaker, ?v1) & has_property(?v1, kind of) & instance_of(?v0, feeling) & instance_of(?v1, tired)",
+  "read": "tell: equals(?speaker, ?v0) & has_degree(?v0, ?v1) & has_property(?v1, kind of) & instance_of(?v0, feeling) & instance_of(?v1, tired)"
+ },
+ {
+  "sentence": "Since I didn't receive a reply, I wrote to her again.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & has_property(?v0, false) & has_property(?v1, false) & instance_of(?v0, receive) & instance_of(?v1, write) & instance_of(?v2, reply) & precedes(?v0, ?now) & precedes(?v1, ?now) & received_by(?v1, ?v3)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_to(?v0, ?v2) & has_property(?v0, false) & instance_of(?v0, receive) & instance_of(?v1, write) & instance_of(?v2, reply) & lasts_since(?v1, ?v0) & precedes(?v0, ?now) & precedes(?v1, ?now) & received_by(?v1, ?previous)"
+ },
+ {
+  "sentence": "Andris B\u0113rzi\u0146\u0161 will become the new president of Latvia.",
+  "meaning": "tell: done_to(?v0, ?v1) & done_to(?v0, andris b\u0113rzi\u0146\u0161) & follows(?v0, ?now) & has_property(?v1, new) & instance_of(?v0, become) & instance_of(?v1, president) & word_of(?v1, latvia)",
+  "read": "tell: done_by(?v0, andris b\u0113rzi\u0146\u0161) & done_to(?v0, ?v1) & follows(?v0, ?now) & given instance_of(?v1, president) & has_property(?v1, new) & instance_of(?v0, become) & word_of(?v1, latvia)"
+ },
+ {
+  "sentence": "Breakfast will be provided.",
+  "meaning": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & instance_of(?v0, provide) & instance_of(?v1, breakfast)",
+  "read": "tell: done_by(?v0, breakfast) & follows(?v0, ?now) & instance_of(?v0, provide)"
+ },
+ {
+  "sentence": "I was looking for some excitement so I decided to bring the handcuffs.",
+  "meaning": "tell: about(?v0, ?v1) & done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_by(?v2, ?speaker) & done_to(?v1, ?v3) & done_to(?v2, ?v4) & given instance_of(?v3, handcuff) & instance_of(?v0, decide) & instance_of(?v1, bring) & instance_of(?v2, look) & instance_of(?v4, excitement) & precedes(?v0, ?now) & precedes(?v2, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?speaker) & done_by(?v2, ?speaker) & done_to(?v0, ?v3) & done_to(?v1, ?v0) & done_to(?v2, ?v4) & given instance_of(?v3, handcuff) & instance_of(?v0, bring) & instance_of(?v1, decide) & instance_of(?v2, look) & instance_of(?v4, excitement) & precedes(?v1, ?now) & precedes(?v2, ?now) & word_so(?v2, ?v1)"
+ },
+ {
+  "sentence": "We use really state-of-the-art equipment.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & has_property(?v2, state-of-the-art) & instance_of(?v0, use) & instance_of(?v2, equipment)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Tom never quarrels with his wife in public.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_by(?v0, tom) & has_property(?v0, false) & has_property(?v0, in) & instance_of(?v0, quarrel) & instance_of(?v1, wife) & word_of(?v1, tom)",
+  "read": "tell: done_by(?v0, tom) & done_with(?v0, ?v1) & has_property(?v0, false) & has_property(?v1, public) & instance_of(?v0, quarrel) & instance_of(?v1, wife) & word_of(?v1, tom)"
+ },
+ {
+  "sentence": "I am complaining to the principal.",
+  "meaning": "tell: done_by(?v0, ?speaker) & during(?v0, ?now) & instance_of(?v0, complain) & instance_of(?v1, principal) & received_by(?v0, ?v1)",
+  "read": "tell: done_by(?v0, ?speaker) & during(?v0, ?now) & given instance_of(?v1, principal) & instance_of(?v0, complain) & moves_to(?v0, ?v1)"
+ },
+ {
+  "sentence": "Are you OK with this?",
+  "meaning": "ask: has_property(?listener, ok) & has_property(?v0, ok)",
+  "read": "ask: about(?listener, ?previous) & has_property(?listener, ok)"
+ },
+ {
+  "sentence": "At any rate, if you learn English, study it thoroughly.",
+  "meaning": "request: about(?v0, ?v1) & done_by(?v0, ?listener) & done_by(?v2, ?listener) & done_to(?v2, ?v1) & has_property(?v2, at) & has_property(?v2, thoroughly) & instance_of(?v0, learn) & instance_of(?v1, english) & instance_of(?v2, study)",
+  "read": "request: done_by(?v0, english) & done_to(?v0, ?previous) & has_property(?v0, thoroughly) & if done_by(?v1, ?listener) & if instance_of(?v1, learn) & instance_of(?v0, study) & instance_of(?v2, rate) & located_in(?v0, ?v2)"
+ },
+ {
+  "sentence": "It's not blood.\nIt's beet.",
+  "meaning": "tell: not instance_of(?v0, beet) & not instance_of(?v0, blood)",
+  "read": "tell: instance_of(?v0, beet) & not instance_of(?previous, blood)"
+ },
+ {
+  "sentence": "I've been stung by a hornet.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?speaker) & instance_of(?v0, stung) & instance_of(?v1, hornet) & precedes(?v0, ?now)",
+  "read": "tell: instance_of(?v0, hornet) & instance_of(?v1, stung) & precedes(?v1, ?now) & state_of(?v1, ?speaker)"
+ },
+ {
+  "sentence": "I sacked him.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & instance_of(?v0, sack) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?previous) & instance_of(?v0, sack) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Placebo collaborated with Marilyn Manson.",
+  "meaning": "tell: done_by(?v0, marilyn manson) & done_by(?v0, placebo) & instance_of(?v0, collaborate) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, placebo) & done_with(?v0, marilyn manson) & instance_of(?v0, collaborate) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "If the car breaks down, we'll walk.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v2, ?v3) & follows(?v0, ?now) & has_member(?v1, ?speaker) & instance_of(?v0, walk) & instance_of(?v2, break) & instance_of(?v3, car)",
+  "read": "tell: done_by(?v0, ?v1) & follows(?v0, ?now) & given if instance_of(?v2, car) & has_member(?v1, ?speaker) & if done_by(?v3, ?v2) & if instance_of(?v3, break) & instance_of(?v0, walk)"
+ },
+ {
+  "sentence": "We elected her mayor.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v0, ?v3) & has_member(?v1, ?speaker) & instance_of(?v0, elect) & instance_of(?v2, mayor) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_member(?v1, ?speaker) & instance_of(?v0, elect) & instance_of(?v2, mayor) & owned_by(?v2, ?previous) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Whose pencil is this?",
+  "meaning": "ask: instance_of(?v0, pencil) & owned_by(?v0, ?v1) ? ?v1",
+  "read": "ask: instance_of(?previous, pencil) & owned_by(?previous, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "Forming a cabinet is difficult.",
+  "meaning": "tell: done_to(?v0, ?v1) & has_property(?v0, difficult) & instance_of(?v0, form) & instance_of(?v1, cabinet)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v0, difficult) & instance_of(?v0, form) & instance_of(?v2, cabinet)"
+ },
+ {
+  "sentence": "He was seduced by Tom.",
+  "meaning": "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, seduce) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, tom) & done_to(?v0, ?previous) & instance_of(?v0, seduce) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "In which city is he?",
+  "meaning": "ask: instance_of(?v0, city) & located_in(?v1, ?v0) ? ?v0",
+  "read": "ask: equals(?previous, ?v0) & instance_of(?v0, city) ? ?v0"
+ },
+ {
+  "sentence": "A person is buttering a tray",
+  "meaning": "tell: done_by(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, butter) & instance_of(?v2, tray) & moves_to(?v0, ?v2)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & instance_of(?v0, butter) & instance_of(?v1, person) & instance_of(?v2, tray)"
+ },
+ {
+  "sentence": "People call her Yotchan.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v0, ?v3) & instance_of(?v0, call) & instance_of(?v2, yotchan)",
+  "read": "tell: done_by(?v0, people) & done_to(?v0, ?previous) & done_to(?v0, yotchan) & instance_of(?v0, call)"
+ },
+ {
+  "sentence": "Name an overture by Berlioz.",
+  "meaning": "request: creates(berlioz, ?v0) & done_by(?v1, ?listener) & done_to(?v1, ?v0) & instance_of(?v0, overture) & instance_of(?v1, name)",
+  "read": "request: done_by(?v0, ?listener) & done_by(?v0, berlioz) & done_to(?v0, ?v1) & instance_of(?v0, name) & instance_of(?v1, overture)"
+ },
+ {
+  "sentence": "Which political party is Lionel Jospin a member of?",
+  "meaning": "ask: instance_of(?v0, political party) & isa(lionel jospin, member) & word_of(lionel jospin, ?v0) ? ?v0",
+  "read": "ask: instance_of(?v0, political party) & isa(lionel jospin, member) & part_of(lionel jospin, ?v0) ? ?v0"
+ },
+ {
+  "sentence": "You are in love with him.",
+  "meaning": "tell: about(?listener, ?v0) & has_property(?listener, in)",
+  "read": "tell: has_part(?v0, ?previous) & instance_of(?v1, love) & located_in(?listener, ?v1)"
+ },
+ {
+  "sentence": "He's wearing a white cotton shirt.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & has_property(?v2, white) & instance_of(?v0, wear) & instance_of(?v2, cotton shirt) & instance_of(?v3, cotton shirt) & made_of(?v2, ?v3)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & during(?v0, ?now) & has_property(?v1, white) & instance_of(?v0, wear) & instance_of(?v1, cotton shirt)"
+ },
+ {
+  "sentence": "Who are you insured with?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_for(?v0, ?listener) & instance_of(?v0, insured) ? ?v1",
+  "read": "ask: about(?listener, ?v0) & has_property(?listener, insured) ? ?v0"
+ },
+ {
+  "sentence": "He painted the ceiling blue.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, ceiling) & has_property(?v2, blue) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, ceiling) & has_property(?v1, blue) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "This is so depressing.",
+  "meaning": "tell: has_degree(?v0, ?v1) & has_property(?v1, so) & instance_of(?v1, depressing)",
+  "read": "tell: has_property(?previous, depressing)"
+ },
+ {
+  "sentence": "Tom's favorite Elvis Presley song is \"Jailhouse Rock.\"",
+  "meaning": "tell: about(tom, ?v0) & creates(elvis presley, ?v0) & equals(?v0, jailhouse rock) & has_property(tom, favored) & instance_of(?v0, song)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "He married a rich girl.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_by(?v0, ?v2) & has_property(?v1, rich) & instance_of(?v0, marry) & instance_of(?v1, girl) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_by(?v0, ?v1) & has_property(?v1, rich) & instance_of(?v0, marry) & instance_of(?v1, girl) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "He paid $20 for the lipstick.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_with(?v0, ?v3) & given instance_of(?v2, lipstick) & has_count(?v3, 20) & instance_of(?v0, pay) & instance_of(?v3, dollar) & precedes(?v0, ?now)",
+  "read": "(the grammar reads no whole)"
+ },
+ {
+  "sentence": "Testing Koko's IQ is not easy.",
+  "meaning": "tell: creates(?v0, ?v1) & done_by(?v0, koko) & instance_of(?v0, testing) & instance_of(?v1, iq) & not has_property(?v1, easy)",
+  "read": "tell: instance_of(?v0, iq) & isa(koko, testing) & not has_property(?v0, easy) & owned_by(?v0, koko)"
+ },
+ {
+  "sentence": "She milked the cow.",
+  "meaning": "tell: done_by(?v0, ?v1) & given instance_of(?v2, cow) & instance_of(?v0, milk) & moves_from(?v0, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & given instance_of(?v1, cow) & instance_of(?v0, milk) & moves_from(?v0, ?v1) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I graduated from the University of Kyoto.",
+  "meaning": "tell: done_by(?v0, ?speaker) & instance_of(?v0, graduate) & moves_from(?v0, university) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & instance_of(?v0, graduate) & moves_from(?v0, university) & part_of(university, kyoto) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Who was the book written by?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, book) & instance_of(?v0, write) & precedes(?v0, ?now) ? ?v1",
+  "read": "ask: done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, book) & instance_of(?v0, write) & precedes(?v0, ?now) ? ?v2"
+ },
+ {
+  "sentence": "Two worshippers were killed in Afghanistan.",
+  "meaning": "tell: done_to(?v0, ?v1) & has_count(?v1, 2) & instance_of(?v0, kill) & instance_of(?v1, worshipper) & located_in(?v0, afghanistan) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, afghanistan) & done_to(?v0, ?v1) & has_count(?v1, 2) & instance_of(?v0, kill) & instance_of(?v1, worshipper) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Dinosaur remains were found in Asia.",
+  "meaning": "tell: done_by(?v0, ?v1) & instance_of(?v0, find) & instance_of(?v1, remains) & instance_of(?v2, dinosaur) & located_in(?v0, asia) & part_of(?v1, ?v2) & precedes(?v0, ?now)",
+  "read": "tell: done_to(?v0, remains) & instance_of(?v0, find) & isa(remains, dinosaur) & located_in(?v0, asia) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I cut myself with a hacksaw.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?speaker) & done_with(?v0, ?v1) & instance_of(?v0, cut) & instance_of(?v1, hacksaw) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?speaker) & done_with(?v0, ?v1) & instance_of(?v0, cut) & instance_of(?v1, hacksaw)"
+ },
+ {
+  "sentence": "I'm a truck driver.",
+  "meaning": "tell: instance_of(?speaker, i)",
+  "read": "tell: equals(?speaker, ?v0) & instance_of(?v0, truck driver)"
+ },
+ {
+  "sentence": "We studied the government's economic policy.",
+  "meaning": "tell: creates(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v2, ?v1) & given instance_of(?v0, government) & has_member(?v3, ?speaker) & has_property(?v1, economic policy) & instance_of(?v1, economic policy) & instance_of(?v2, study) & precedes(?v2, ?now)",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v3, government) & has_member(?v1, ?speaker) & instance_of(?v0, study) & instance_of(?v2, economic policy) & owned_by(?v2, ?v3) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "I'm worried about him.",
+  "meaning": "tell: about(?speaker, ?v0) & has_property(?speaker, worried)",
+  "read": "tell: about(?speaker, ?previous) & has_property(?speaker, worried)"
+ },
+ {
+  "sentence": "I'm looking for a lipstick to go with this nail polish.",
+  "meaning": "tell: done_by(?v0, ?speaker) & done_by(?v1, ?v2) & done_to(?v0, ?v2) & done_to(?v1, ?v3) & during(?v0, ?now) & given instance_of(?v3, nail polish) & instance_of(?v0, look) & instance_of(?v1, go) & instance_of(?v2, lipstick)",
+  "read": "tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & during(?v0, ?now) & instance_of(?v0, look) & instance_of(?v1, lipstick) & unasserted done_by(?v2, ?speaker) & unasserted done_to(?v2, ?v3) & unasserted given instance_of(?v3, nail polish) & unasserted has_purpose(?v0, ?v2) & unasserted instance_of(?v2, go)"
+ },
+ {
+  "sentence": "What kind of inhaler do you use?",
+  "meaning": "ask: done_by(?v0, ?listener) & done_to(?v0, ?v1) & instance_of(?v0, use) & isa(?v1, inhaler) ? ?v1",
+  "read": "ask: done_by(?v0, ?listener) & done_to(?v0, ?v1) & instance_of(?v0, use) & instance_of(?v1, kind) & instance_of(?v2, inhaler) & isa(?v1, ?v2) ? ?v1"
+ },
+ {
+  "sentence": "Mount Elbrus is the highest mountain in Europe.",
+  "meaning": "tell: has_property(mount, high) & isa(mount, mount) & located_in(mount, europe)",
+  "read": "tell: equals(elbrus, ?v0) & given instance_of(?v0, mountain) & greatest_of(?v1, mountain) & has_degree(?v0, ?v1) & instance_of(?v1, high) & isa(elbrus, mount)"
+ },
+ {
+  "sentence": "Oil this bicycle.",
+  "meaning": "request: done_by(?v0, ?listener) & done_to(?v0, ?v1) & given instance_of(?v1, bicycle) & instance_of(?v0, oil)",
+  "read": "tell: done_by(?v0, oil) & has_property(?v0, this) & instance_of(?v0, bicycle)"
+ },
+ {
+  "sentence": "Jesus has abs of steel.",
+  "meaning": "tell: instance_of(?v0, ab) & instance_of(?v1, steel) & made_of(?v0, ?v1) & owns(jesus, ?v0)",
+  "read": "tell: instance_of(?v0, ab) & instance_of(?v1, steel) & owns(jesus, ?v0) & part_of(?v0, ?v1)"
+ },
+ {
+  "sentence": "She dressed herself quickly.",
+  "meaning": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v1) & has_property(?v0, quickly) & instance_of(?v0, dress) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?previous) & has_property(?v0, quickly) & instance_of(?v0, dress) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Did you cook this yourself?",
+  "meaning": "ask: done_by(?v0, ?listener) & done_to(?v0, ?v1) & instance_of(?v0, cook) & precedes(?v0, ?now)",
+  "read": "ask: done_by(?v0, ?listener) & done_for(?v0, ?previous) & done_to(?v0, ?listener) & instance_of(?v0, cook) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Romeo instantly fell in love with Juliet.",
+  "meaning": "tell: done_to(?v0, juliet) & done_to(?v0, romeo) & has_property(?v0, instantly) & has_property(romeo, in) & instance_of(?v0, fall) & precedes(?v0, ?now)",
+  "read": "tell: done_by(?v0, romeo) & has_property(?v0, instantly) & instance_of(?v0, fall) & instance_of(?v1, love) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Does the lady speak Turkish?",
+  "meaning": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, lady) & instance_of(?v0, speak) & instance_of(?v2, turkish)",
+  "read": "ask: done_by(?v0, ?v1) & done_to(?v0, turkish) & given instance_of(?v1, lady) & instance_of(?v0, speak)"
+ },
+ {
+  "sentence": "What's your favorite kind of apple?",
+  "meaning": "ask: about(?listener, ?v0) & equals(?v0, ?v1) & has_property(?listener, favorite) & isa(?v0, apple) ? ?v1",
+  "read": "ask: equals(?v0, ?v1) & has_property(?v0, favorite) & instance_of(?v0, kind) & instance_of(?v2, apple) & isa(?v0, ?v2) & owned_by(?v0, ?listener) ? ?v1"
+ },
+ {
+  "sentence": "I wasn't flirting.",
+  "meaning": "tell: done_by(?v0, ?speaker) & has_property(?v0, false) & instance_of(?v0, flirting) & precedes(?v0, ?now)",
+  "read": "tell: instance_of(?v0, flirting) & not equals(?speaker, ?v0)"
+ },
+ {
+  "sentence": "Graham Greene is my favorite author.",
+  "meaning": "tell: about(?speaker, graham greene) & has_property(?speaker, favorite) & isa(graham greene, writer)",
+  "read": "tell: has_property(graham greene, favorite) & isa(graham greene, author) & owned_by(graham greene, ?speaker)"
+ },
+ {
+  "sentence": "Emily isn't afraid of spiders.",
+  "meaning": "tell: instance_of(?v0, spider) & not about(emily, ?v0) & not has_property(emily, afraid)",
+  "read": "tell: about(emily, ?v0) & instance_of(?v0, spider) & not has_property(emily, afraid)"
+ },
+ {
+  "sentence": "Salvador Dal\u00ed was a Spanish artist.",
+  "meaning": "tell: comes_from(salvador dal\u00ed, spanish) & isa(salvador dal\u00ed, artist)",
+  "read": "tell: has_property(salvador dal\u00ed, spanish) & isa(salvador dal\u00ed, artist)"
+ }
+]
