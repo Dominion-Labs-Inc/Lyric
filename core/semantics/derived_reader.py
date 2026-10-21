@@ -2464,16 +2464,22 @@ class PatternInventory:
         return shape in self._productive_shapes
 
     @staticmethod
-    def _counted(change: Tuple[str, str], rights: Iterable[Tuple[str, str]],
-                 productive: set) -> Tuple[int, int]:
+    def _counted(change: Tuple[str, str], rights: Collection[Tuple[str, str]], longest: int) -> Tuple[int, int]:
         """What one word the change applies to adds to its count, (read rightly, applies), given the changes that
-        read the word rightly: nothing, where a productive change with a longer written side reads it rightly and
-        this one would not."""
+        read the word rightly and the longest written side of a productive one among them (`_longest`): nothing,
+        where a productive change with a longer written side reads it rightly and this one would not."""
         if change in rights:
             return 1, 1
-        if any(len(other[0]) > len(change[0]) and other in productive for other in rights):
+        if longest > len(change[0]):
             return 0, 0
         return 0, 1
+
+    @staticmethod
+    def _longest(rights: Iterable[Tuple[str, str]], productive: set, besides: Optional[Tuple[str, str]] = None) -> int:
+        """The longest written side of a productive change among those that read a word rightly, `besides` aside;
+        -1 where none is. Asked once of each word, not again for each change its endings have: 60 million times
+        that was most of main's warm (2026-10-21)."""
+        return max((len(change[0]) for change in rights if change in productive and change != besides), default=-1)
 
     def _shape_word(self, word: str, name: str) -> None:
         """One more one-word filler, written `word` and naming `name`, taken into the word shapes. Only what it
@@ -2502,17 +2508,20 @@ class PatternInventory:
             self._by_written.setdefault(change[0], set()).add(change)
             counts = [0, 0]
             for other in self._endings.get(change[0], ()):
-                right, applies = self._counted(change, self._rights.get(other, ()), self._productive_shapes)
+                rights = self._rights.get(other, ())
+                right, applies = self._counted(change, rights, self._longest(rights, self._productive_shapes))
                 counts[0] += right
                 counts[1] += applies
             self._shape_counts[change] = counts
         touched = set(fresh)
+        longest_before = self._longest(before, self._productive_shapes)
+        longest_after = self._longest(after, self._productive_shapes)
         for size in range(len(word)):
             for change in self._by_written.get(word[len(word) - size:], ()):
                 if change in fresh:
                     continue
-                old = self._counted(change, before, self._productive_shapes) if seen else (0, 0)
-                new = self._counted(change, after, self._productive_shapes)
+                old = self._counted(change, before, longest_before) if seen else (0, 0)
+                new = self._counted(change, after, longest_after)
                 if old != new:
                     counts = self._shape_counts[change]
                     counts[0] += new[0] - old[0]
@@ -2540,12 +2549,15 @@ class PatternInventory:
                 self._productive_by_written.get(change[0], set()).discard(change)
             for word in self._read_by.get(change, ()):
                 rights = self._rights[word]
+                longest = self._longest(rights, self._productive_shapes, besides=change)
                 for size in range(len(change[0])):
+                    other = longest > size
+                    if other:
+                        continue          # a longer productive change reads the word: this one moves nothing here
                     for shorter in self._by_written.get(word[len(word) - size:], ()):
                         if shorter in rights:
                             continue
-                        other = any(len(o[0]) > size and o != change and o in self._productive_shapes for o in rights)
-                        if (other or now) != (other or was):
+                        if now != was:
                             self._shape_counts[shorter][1] += -1 if now else 1
                             heapq.heappush(heap, (-size, shorter))
 

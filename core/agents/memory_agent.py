@@ -7356,15 +7356,23 @@ class MemoryAgent(IMemoryConsolidation):
         return record
 
     async def _tags_index(self) -> None:
-        """The index every whole-set read by tag goes through, made once in every store memory keeps."""
+        """The indexes every whole-set read by tag goes through, made once in every store memory keeps: the tags'
+        own, for a tag few memories carry, and one the read answers from alone, in its order, for a tag many carry.
+
+        A TAG MANY CARRY IS NO NARROWER BY ITS INDEX: 576,968 of main's 1,444,052 memories are taught propositions,
+        and finding them by the tags' index, or by none, read every one from the table (2.4 GB) to see whose it is
+        and when it was made, 38 s and more where the table was not cached, past the 60 s a statement has, and the
+        warm failed (2026-10-21). Read from `_tagged_idx` alone, in its order, it is 0.2 s."""
         if MemoryAgent._construction_index_ready:
             return
         db = self._memory_db()
         for store in db.schema_stores():
             for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
-                name = table.split(".")[0] + "_tags_gin_idx"
-                await db.execute_query(f"CREATE INDEX IF NOT EXISTS {name} ON {table} USING gin (tags)",
+                schema = table.split(".")[0]
+                await db.execute_query(f"CREATE INDEX IF NOT EXISTS {schema}_tags_gin_idx ON {table} USING gin (tags)",
                                        commit=True, store=store)
+                await db.execute_query(f"CREATE INDEX IF NOT EXISTS {schema}_tagged_idx ON {table}"
+                                       f" (created_at, memory_id) INCLUDE (user_id, tags)", commit=True, store=store)
         MemoryAgent._construction_index_ready = True
 
     async def claims_of(self, memory_ids: Sequence[str]) -> Dict[str, List[list]]:
