@@ -13344,6 +13344,7 @@ class AutonomousCoordinator:
 
     def _operating_verdict(
         self, result: Any, confidence: Optional[float], is_complete: bool,
+        contradicted: Sequence[Dict[str, Any]] = (),
     ) -> Dict[str, Any]:
         """Did this work OPERATE CORRECTLY in its domain, and is the answer
         evidence about that at all?
@@ -13417,6 +13418,18 @@ class AutonomousCoordinator:
         elif runtime_outcome:
             world_verdict = runtime_outcome == RuntimeOutcome.CONFIRMATION.value
             grounded_in = "runtime evidence"
+
+        # THE SAME HOLDS INSIDE THE BELIEF. A belief that the goal holds while
+        # some of its own groundings say a part of it does not -- a failed act,
+        # a fresh look that found otherwise -- was outvoted, not resolved, and is
+        # not a measurement of operating correctly either. Denied, said out loud.
+        if believed and contradicted:
+            logger.warning(
+                "operating credit denied: the substrate believes the goal holds "
+                "(posterior %.3f) while its own evidence says otherwise: %s",
+                confidence, "; ".join(f"{g['channel']} on {g['provenance']}" for g in contradicted))
+            return verdict(False, OutcomeClass.INDETERMINATE,
+                           "the completion evidence disagrees with itself")
 
         if world_verdict is not None and world_verdict != believed:
             logger.warning(
@@ -13665,7 +13678,10 @@ class AutonomousCoordinator:
     #: standing caution. Verified against the belief math: one strong observation
     #: reaches ~0.72, so a single signal NEVER completes — DONE demands
     #: CORROBORATION (>= 2 independent grounded confirmations), and any real
-    #: failure among the effects holds the belief below the bar.
+    #: failure among the effects holds the task short of done. The belief math
+    #: alone held that only while confirmations were few: three outvote one
+    #: contradiction (a check the end state fails, among a landed edit and its
+    #: own logged pass, stood at 0.978), so `_decide_completion` holds it.
     COMPLETION_ACCEPT = 0.95
     COMPLETION_ACCEPT_MAX = 0.99
 
@@ -13980,12 +13996,21 @@ class AutonomousCoordinator:
 
     def _decide_completion(self, task, result, verify_bar: float):
         """DONE from the substrate's completion belief: has its posterior reached
-        the DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution)? Returns
-        (is_complete, confidence, issues)."""
+        the DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution), with
+        no independent grounding against it? Returns (is_complete, confidence,
+        issues).
+
+        A GOAL HOLDS ONLY IF EVERY EFFECT IT RESTS ON HOLDS. One act that failed,
+        or one fresh look that found the world otherwise, is a part of the goal
+        that does not hold, however many other parts were confirmed; adding them
+        up let confirmations outvote it. Each grounding is the latest word on its
+        own resource, so a failure the work went on to repair is not one."""
         posterior = float(task.metadata["completion_posterior"])
         caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
         accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
-        if posterior + 1e-9 >= accept:
+        against = [g for g in (task.metadata.get("completion_evidence") or []) if not g.get("supports")]
+        confident = posterior + 1e-9 >= accept
+        if confident and not against:
             return True, posterior, []
         # WHAT THE WORK ITSELF REPORTED COMES FIRST. A task whose every path
         # declined said why ("no substrate handler for an ANALYSIS task yet …");
@@ -13994,8 +14019,9 @@ class AutonomousCoordinator:
         reported = (result.get('error') if isinstance(result, dict)
                     and result.get('success') is not True else None)
         return False, posterior, ([str(reported)] if reported else []) + [
+            f"contradicted: {g['channel']} on {g['provenance']}" for g in against] + ([] if confident else [
             f"completion belief {posterior:.2f} < acceptance {accept:.2f} — "
-            f"goal not yet grounded-confident (needs corroboration)"]
+            f"goal not yet grounded-confident (needs corroboration)"])
 
     def _acceptance_band(self) -> Tuple[float, float]:
         """(verification_intensity, accept) — THE SAME BAND as `_decide_completion`.
@@ -14935,7 +14961,9 @@ class AutonomousCoordinator:
                 # asks "did the operation achieve its intent?" -- and for work that
                 # carries an intent, the substrate now OWNS that answer instead of
                 # inferring it. See _operating_verdict.
-                _verdict = self._operating_verdict(result, confidence, is_complete)
+                _verdict = self._operating_verdict(
+                    result, confidence, is_complete,
+                    [g for g in (_tmd.get("completion_evidence") or []) if not g.get("supports")])
                 if task.metadata is None:
                     task.metadata = {}
                 task.metadata["operating_verdict"] = {
