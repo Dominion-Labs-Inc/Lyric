@@ -49,7 +49,7 @@ ROUTES: Tuple[Tuple[str, str], ...] = (
     ("core.memory",         SUBSTRATE),
     ("core.semantics",      SUBSTRATE),
     ("core.agents",         SUBSTRATE),
-    ("core.execution",      SUBSTRATE),
+    ("core.intelligence",   SUBSTRATE),
     ("core.tools.execution_tools", SUBSTRATE),
 
     # SECURITY: what was permitted, refused, or recorded.

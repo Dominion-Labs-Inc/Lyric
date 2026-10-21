@@ -7,7 +7,7 @@ built: invented predicates, bound to tools by hand, taught from hand-written
 demonstrations. That shows the mechanism and not the substrate. This one uses
 what the substrate actually has:
 
-    core/execution/tool_domain.py         a real sandbox directory as a domain it
+    learning/exploration.derive_domain    a real sandbox directory as a domain it
                                           may practise in: the place and the act
                                           are declared, the world is the self's
                                           own perception of what is there (the
