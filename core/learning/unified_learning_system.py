@@ -14,7 +14,7 @@ import uuid
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Callable, Any, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Callable, Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 from core.database.logging_database import LoggingDatabase
 
 logger = logging.getLogger(__name__)
@@ -547,18 +547,18 @@ class FeatureEncoder:
 
 
 def _operator_residue(rule: Any, basis: Sequence[Any], owners: Dict[str, Optional[str]]) -> List[str]:
-    """The constants of an induced operator whose only source is people's work: where every demonstration it was
-    induced from was a person's (`owners`) and each of them holds the constant. One demonstration of the substrate's
-    own work makes every constant the world's, as the lift rules for methods (`memory.lift.residue`)."""
-    if not basis or any(not owners.get(getattr(e, "evidence_id", None) or "") for e in basis):
-        return []
+    """The constants of an induced operator whose only source is people's work, by the one rule
+    (`person_residue`): each demonstration it was induced from is a case, a person's when `owners` names one,
+    and what that case supplied is every term in it. One demonstration of the substrate's own work makes every
+    constant the world's."""
     effects = getattr(rule, "effects", None)
     facts = [*getattr(rule, "body", ()), *getattr(effects, "add", ()), *getattr(effects, "delete", ())]
     held = {arg for fact in facts for arg in fact.args if arg not in fact.variables}
-    supplied = [{arg for fact in (*e.before, *((e.action,) if e.action is not None else ()), *e.after)
-                 for arg in fact.args}
-                for e in basis]
-    return sorted(c for c in held if all(c in terms for terms in supplied))
+    instances = [{arg for fact in (*e.before, *((e.action,) if e.action is not None else ()), *e.after)
+                  for arg in fact.args}
+                 if owners.get(getattr(e, "evidence_id", None) or "") else None
+                 for e in basis]
+    return person_residue(held, instances)
 
 
 class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
@@ -6215,3 +6215,164 @@ async def refresh_earned(domain_id: str) -> FrozenSet[str]:
     else:
         _EARNED_OBSERVERS.pop(domain_id, None)
     return earned
+
+
+# =============================================================================
+# METHODS LIFTED FROM TASKS
+# =============================================================================
+#
+# MEMORY_AGENT_MAP §10.2, SEPARATION_MAP §11.4. A method that worked for one
+# person is world knowledge once nothing of that person is left in it; a
+# person's design and content stay theirs. These are the pure parts of that, no
+# store and no belief; the memory agent keeps what they produce (`_lift`).
+#
+#   shape         what a method does, whoever it was done for: its steps'
+#                 tools, in order, each with the names of the arguments it was
+#                 given.
+#   facts         the method as logic atoms, one per step: the tool's own name,
+#                 upper-cased (`tool_registry.predicate_for`), over its argument
+#                 values encoded as constants (`rule_induction.as_constant`).
+#   vocabulary    the values a method gives its tools that are the tools' own
+#                 words, so no one's particular.
+#   lift_one      the first task of a shape that worked, as a method: every
+#                 value not kept becomes a variable.
+#   generalizing  two methods of one shape, anti-unified
+#                 (`rule_induction.generalize_sequence`).
+#   residue       the constants a generalization keeps whose only source is
+#                 people's material (`person_residue`): such a term makes the
+#                 lesson theirs.
+
+#: Punctuation a word carries at its edges in a sentence: "report.txt." is the
+#: word report.txt at the end of a sentence.
+_EDGE_PUNCTUATION = ".,;:!?\"'()[]{}"
+
+
+def value_text(value: Any) -> str:
+    """An argument's value as the text a constant encodes. A structured value is
+    its canonical JSON, so two equal structures are one constant."""
+    if isinstance(value, str):
+        return value
+    return json.dumps(value, sort_keys=True, default=str)
+
+
+def _method_steps(method: Any) -> Optional[List[Tuple[str, Dict[str, Any]]]]:
+    """A method's steps as (tool, arguments), or None when it is not a method:
+    no steps, or a step that names no tool."""
+    if not isinstance(method, list) or not method:
+        return None
+    steps = []
+    for step in method:
+        if not isinstance(step, dict) or not step.get("tool"):
+            return None
+        args = step.get("args") or {}
+        if not isinstance(args, dict):
+            return None
+        steps.append((str(step["tool"]), args))
+    return steps
+
+
+def shape_of(method: Any) -> Optional[str]:
+    """What the method does, whoever it was done for, or None if it is not one."""
+    from core.tools.tool_registry import predicate_for
+    steps = _method_steps(method)
+    if steps is None:
+        return None
+    return "|".join(f"{predicate_for(tool)}({','.join(sorted(args))})" for tool, args in steps)
+
+
+def method_facts(method: Any) -> Optional[List[Fact]]:
+    """The method as ground facts, one per step, arguments in name order."""
+    from core.tools.tool_registry import predicate_for
+    from core.learning.rule_induction import as_constant
+    steps = _method_steps(method)
+    if steps is None:
+        return None
+    return [Fact(predicate_for(tool), tuple(as_constant(value_text(args[name])) for name in sorted(args)))
+            for tool, args in steps]
+
+
+def vocabulary(method: Any, declared: Callable[[str], Dict[str, Any]]) -> Set[str]:
+    """The values a method gives its tools that are the tools' own words, so no
+    one's particular: a truth value given to an argument the tool declares
+    boolean, or one of the values it declares the argument takes (`enum`).
+    `declared(tool)` gives a tool's declared parameters by name."""
+    words: Set[str] = set()
+    for tool, args in _method_steps(method) or []:
+        params = declared(tool)
+        for name, value in args.items():
+            param = params.get(name)
+            if param is None:
+                continue
+            boolean = str(getattr(param, "type", "")).lower() == "boolean" and isinstance(value, bool)
+            if boolean or value in (getattr(param, "enum", None) or ()):
+                words.add(value_text(value))
+    return words
+
+
+def lift_one(facts: Sequence[Fact], kept: Set[str]) -> List[Fact]:
+    """One task's method, lifted: every value not in `kept` (values as text,
+    `value_text`) becomes a variable, the same value the same variable
+    everywhere, numbered as `generalize` numbers them, so a later task is an
+    instance of it exactly when `is_instance` says so."""
+    from core.learning.rule_induction import from_constant
+    from core.reasoning.unification import VARIABLE_PREFIX, is_variable
+    named: Dict[str, str] = {}
+    lifted = []
+    for fact in facts:
+        args = []
+        for arg in fact.args:
+            if is_variable(arg) or from_constant(arg) in kept:
+                args.append(arg)
+            else:
+                args.append(named.setdefault(arg, f"{VARIABLE_PREFIX}V{len(named)}"))
+        lifted.append(Fact(fact.predicate, tuple(args)))
+    return lifted
+
+
+def person_terms(parts: Iterable[Dict[str, Any]], *also: str) -> Set[str]:
+    """Every value a person supplied in an experience: each text in the parts
+    that came from the person, whole and word by word, and any further texts
+    given (`also`, the request that started the work)."""
+    texts: List[str] = list(also)
+
+    def walk(value: Any) -> None:
+        if isinstance(value, str):
+            texts.append(value)
+        elif isinstance(value, dict):
+            for item in value.values():
+                walk(item)
+        elif isinstance(value, (list, tuple)):
+            for item in value:
+                walk(item)
+        elif value is not None:
+            texts.append(str(value))
+
+    for part in parts:
+        if isinstance(part, dict) and part.get("source") == "person":
+            walk(part.get("content"))
+    terms: Set[str] = set()
+    for text in texts:
+        if not text:
+            continue
+        terms.add(text)
+        for word in text.split():
+            stripped = word.strip(_EDGE_PUNCTUATION)
+            if stripped:
+                terms.add(stripped)
+    return terms
+
+
+def person_residue(kept: Iterable[str], instances: Sequence[Optional[set]]) -> List[str]:
+    """The kept constants whose only source is people's material: the one rule
+    for operators induced from demonstrations (`_operator_residue`) and for
+    methods lifted from tasks.
+
+    `instances` holds, for each case the knowledge was learned from, the values
+    its person supplied, or None when the case was the substrate's own work. A
+    constant is a person's only when every case was a person's work and each of
+    them supplied it: if the substrate's own work used the same value, or any
+    person's work used it without that person supplying it, it has a source that
+    is not a person. Such a constant makes what was learned theirs."""
+    if not instances or any(terms is None for terms in instances):
+        return []
+    return sorted(value for value in set(kept) if all(value in terms for terms in instances))

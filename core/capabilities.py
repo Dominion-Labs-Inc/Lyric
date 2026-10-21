@@ -6,7 +6,7 @@ senses. It reads, and moves no belief. The one thing it holds is each person's
 operating mode, as the world hands it over (`set_operating_mode`).
 
 WHAT A CAPABILITY IS. A method the memory agent lifted from the first task of
-its shape that worked, widened by the tasks after it (`core.memory.lift`,
+its shape that worked, widened by the tasks after it (the learning authority's methods lifted from tasks,
 MEMORY_AGENT_MAP §10.2, SEPARATION_MAP §11.4): steps, each a tool with
 arguments, the task's particulars made variables, and the fixes it overcame
 failures by. It is never declared, never inferred from words, and never there
@@ -276,7 +276,7 @@ class Capabilities:
         """The tools a method's steps run, each with the primitives it performs,
         read from the registry; and any step no registered tool performs."""
         from core.tools.tool_registry import predicate_for
-        from core.memory.lift import from_formulas
+        from core.learning.rule_induction import from_formulas
         from core.tools.tool_registry import get_tool_registry
         registry = get_tool_registry()
         by_predicate = {predicate_for(name): name
@@ -335,7 +335,8 @@ class Capabilities:
         """The capability a declared plan is an instance of, as (method id,
         whose): one of the actor's own, or a world method; None when it is none
         (its acts are primitives, done as they are)."""
-        from core.memory.lift import from_formulas, is_instance, method_facts, shape_of
+        from core.learning.rule_induction import from_formulas, is_instance
+        from core.learning.unified_learning_system import method_facts, shape_of
         shape, facts = shape_of(tool_plan), method_facts(tool_plan)
         if shape is None or facts is None:
             return None
@@ -357,7 +358,8 @@ class Capabilities:
         (`MemoryAgent._fixes_of`): on the world's method only a value that is
         no one's particular (a tool's own word, or what the world holds), so it
         changes the approach and never the plan's own targets or content."""
-        from core.memory.lift import from_formulas, is_instance, method_facts, shape_of
+        from core.learning.rule_induction import from_formulas, is_instance
+        from core.learning.unified_learning_system import method_facts, shape_of
         if shape_of(tool_plan) is None:
             return None
         for method_id, record, whose in await self._methods_for(actor):

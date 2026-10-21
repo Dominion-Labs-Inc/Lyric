@@ -1,0 +1,159 @@
+{
+  "experiment": "FIFTY-01",
+  "claim": "What Lyric overcomes for one person it does again at once, for them and for anyone: the first task of a shape that worked is the world's method, with nothing of its person in it, and the fix that overcame a failure is given to the next task before it acts.",
+  "hypothesis": "A method that waits for a second task, a method holding the person's particulars, a fix kept but not used, a later task (hers or another person's) that starts without the fix, another person's task recalling her experience, or a fix given to a plan it does not fit would each fail here.",
+  "started_at": "2026-10-21T20:37:29.688485+00:00",
+  "duration_seconds": 80.596,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "8dbe849b4d04492e90f08301b2dbaccd46853774",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 14,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 16,
+    "passed": 16,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "rows_removed",
+      "value": 3,
+      "unit": "count",
+      "note": "{'concepts': 0, 'beliefs': 0, 'knowledge_updates': 0, 'evidence_envelopes': 0, 'held_conditionals': 0, 'memory_hot': 0, 'experience_pool': 2, 'user_beliefs': 0, 'scoped_beliefs': 1, 'scoped_concept_relations': 0}"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-21T20:38:30.792542+00:00"
+    },
+    {
+      "label": "no method of this shape is held before the run",
+      "passed": true,
+      "detail": "WRITE_FILE(content,create_dirs,file_path)",
+      "at": "2026-10-21T20:38:30.797684+00:00"
+    },
+    {
+      "label": "the first task of its shape that worked is lifted at once, into a world method",
+      "passed": true,
+      "detail": "{'apart': [], 'lifted': [{'from': 'mem_6b1a64098f5347e3b333013424194369#fifty01_a6afad13', 'shape': 'WRITE_FILE(content,create_dirs,file_path)', 'whose': 'world', 'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'witnesses': 1}], 'waiting': [], 'instances': [{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'memory_id': 'mem_6b1a64098f5347e3b333013424194369', 'occurrence': 'mem_6b1a64098f5347e3b333013424194369#fifty01_a6afad13'}]}",
+      "at": "2026-10-21T20:38:36.916692+00:00"
+    },
+    {
+      "label": "it is the world's: held by no person",
+      "passed": true,
+      "detail": "{'user_id': ''}",
+      "at": "2026-10-21T20:38:36.917346+00:00"
+    },
+    {
+      "label": "nothing of hers is in it: her file and her text are variables",
+      "passed": true,
+      "detail": "['WRITE_FILE(?V0, Ftrue, ?V1)']; kept ['true']",
+      "at": "2026-10-21T20:38:36.917400+00:00"
+    },
+    {
+      "label": "what overcame it is an instance of the method, and the method keeps the fix",
+      "passed": true,
+      "detail": "[{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'memory_id': 'mem_312a71c2da8f4d23a0122b5552f8dfb7', 'occurrence': 'mem_312a71c2da8f4d23a0122b5552f8dfb7#fifty01_8ae42328'}]; fixes [{'use': [{'arg': 'create_dirs', 'tool': 'write_file', 'value': True}], 'failed_tools': ['write_file']}]",
+      "at": "2026-10-21T20:38:37.695485+00:00"
+    },
+    {
+      "label": "still nothing of hers in it",
+      "passed": true,
+      "detail": "kept ['true']",
+      "at": "2026-10-21T20:38:37.695556+00:00"
+    },
+    {
+      "label": "both of hers are counted outcomes of it",
+      "passed": true,
+      "detail": "[(True, True), (True, True)]",
+      "at": "2026-10-21T20:38:37.695569+00:00"
+    },
+    {
+      "label": "before any act, her plan is given the fix",
+      "passed": true,
+      "detail": "{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'whose': 'world', 'changes': [{'arg': 'create_dirs', 'tool': 'write_file', 'value': True}]}; {'file_path': '/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/fifty01_qgmglv_4_8rpjpv/ana_three_qgmglv/note.txt', 'content': \"Ana's third note qgmglv\", 'create_dirs': True}",
+      "at": "2026-10-21T20:38:44.334022+00:00"
+    },
+    {
+      "label": "it is recognised as the world's method, and its act waits for her go-ahead",
+      "passed": true,
+      "detail": "{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'whose': 'world', 'done': [], 'asked': 0, 'confirmed': None, 'judgment': None, 'redirected': []}; blocked; ['For \"Help me.\": may I run write_file on /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/fifty01_qgmglv_4_8rpjpv/ana_three_qgmglv/note.txt?']",
+      "at": "2026-10-21T20:38:44.334087+00:00"
+    },
+    {
+      "label": "her own earlier work is recalled for her",
+      "passed": true,
+      "detail": "recalled ['fifty01_a6afad13', 'fifty01_8ae42328']",
+      "at": "2026-10-21T20:38:44.334099+00:00"
+    },
+    {
+      "label": "before any act, his plan is given the fix, from the world's method",
+      "passed": true,
+      "detail": "{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'whose': 'world', 'changes': [{'arg': 'create_dirs', 'tool': 'write_file', 'value': True}]}; {'file_path': '/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/fifty01_qgmglv_4_8rpjpv/ben_one_qgmglv/note.txt', 'content': \"Ben's note qgmglv\", 'create_dirs': True}",
+      "at": "2026-10-21T20:38:47.739026+00:00"
+    },
+    {
+      "label": "it is recognised as the world's method, and its act waits for his go-ahead: he never met the failure",
+      "passed": true,
+      "detail": "{'method': 'mem_5eb6a6e20544466e8ca70e4c146b4d20', 'whose': 'world', 'done': [], 'asked': 0, 'confirmed': None, 'judgment': None, 'redirected': []}; blocked; ['For \"Help me.\": may I run write_file on /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/fifty01_qgmglv_4_8rpjpv/ben_one_qgmglv/note.txt?']",
+      "at": "2026-10-21T20:38:47.739091+00:00"
+    },
+    {
+      "label": "nothing of hers is recalled for him",
+      "passed": true,
+      "detail": "recalled []",
+      "at": "2026-10-21T20:38:47.739101+00:00"
+    },
+    {
+      "label": "a plan of another shape is given nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-21T20:38:48.490727+00:00"
+    },
+    {
+      "label": "a plan that already has the fix is given nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-21T20:38:49.415314+00:00"
+    }
+  ],
+  "notes": [
+    "nonce qgmglv; jobs [('fifty01-ana-qgmglv', 'user_0bbd7b321d55'), ('fifty01-ben-qgmglv', 'user_a331893b57a1')]"
+  ]
+}

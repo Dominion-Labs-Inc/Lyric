@@ -265,7 +265,7 @@ async def _memory_agent():
 
 
 async def sections_a_to_d(run) -> None:
-    from core.memory.lift import constants, from_formulas
+    from core.learning.rule_induction import constant_values, from_formulas
     s = run.state
     ana, ben, cal = s["ana"], s["ben"], s["cal"]
     probe_a, probe_b, probe_c = (f"probe_{x}_{s['nonce']}" for x in "abc")
@@ -281,7 +281,7 @@ async def sections_a_to_d(run) -> None:
     if c is not None:
         s["method_a"] = c.id
         run.made.append(c.id)
-    kept = constants(from_formulas(c.steps)) if c else None
+    kept = constant_values(from_formulas(c.steps)) if c else None
     held = await run.agent._world_holds(kept) if kept else set()
     check("what her task was about is a variable: what it keeps is only what the world holds a thing under",
           c is not None and kept == held and not kept & {"/home/ana/q3/report.txt", "/home/ana/q3/summary.md", "x1"},
@@ -311,13 +311,13 @@ async def sections_a_to_d(run) -> None:
         run.made.append(mine.id)
     check("a file she supplied in all her work keeps her method hers",
           lifted and lifted[0]["whose"] == "person" and mine is not None
-          and "/home/ana/secret/plan.txt" in constants(from_formulas(mine.steps)), f"{lifted}")
+          and "/home/ana/secret/plan.txt" in constant_values(from_formulas(mine.steps)), f"{lifted}")
     world_own = await run.capability(own, None)
     if world_own is not None:
         run.made.append(world_own.id)
     check("it is no one else's: not Ben's, and the world's method of that shape keeps nothing she supplied",
           await run.capability(own, ben, whose="person") is None and world_own is not None
-          and "/home/ana/secret/plan.txt" not in constants(from_formulas(world_own.steps)),
+          and "/home/ana/secret/plan.txt" not in constant_values(from_formulas(world_own.steps)),
           world_own and world_own.steps)
 
     say("\n== B. Reliability, not how many ==")
@@ -498,6 +498,10 @@ async def sections_e_to_g(run) -> None:
     standing = await coord.capabilities.standing(s["method_e"], "world", ana)
     check("four of hers and one of Cal's worked: unlocked for the world and for her",
           standing.world == "unlocked" and standing.person == "unlocked", (standing.world, standing.person))
+    # SHE HANDS OVER DELEGATE, as the platform would. Since operating modes
+    # (2026-10-16) a capability unlocked for a person runs on its own only in
+    # their Delegate mode; with no mode handed over, each act waits for their yes.
+    await coord.capabilities.set_operating_mode(ana, "delegate")
     run.listen(ana)
     disposition = coord.disposition()
     asked = await run.turn(ana, "Help me.", mine)
@@ -600,6 +604,8 @@ async def cleanup(state) -> None:
         await mdb.execute_query("DELETE FROM unified.beliefs WHERE claim = ANY($1::text[])", (claims,),
                                 commit=True, store=store)
     await db().execute_query("DELETE FROM unified.outbox WHERE actor = ANY($1::text[])", (people,), commit=True)
+    await db().execute_query("DELETE FROM unified.operating_modes WHERE person = ANY($1::text[])", (people,),
+                             commit=True, store="runtime")
     say(f"\n    removed by id: {len(made)} memories, the beliefs in {len(claims)} methods, "
         f"{len(people)} people's beliefs and messages")
 

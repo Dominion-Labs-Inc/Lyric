@@ -5634,7 +5634,7 @@ class MemoryAgent(IMemoryConsolidation):
     #
     # A method is what a task did: its steps, each a tool with its arguments.
     #
-    #   FROM THE FIRST TASK THAT WORKED   the first task of a shape (`lift.shape_of`)
+    #   FROM THE FIRST TASK THAT WORKED   the first task of a shape (`unified_learning_system.shape_of`)
     #                  whose outcome the credit gate counts and that worked is
     #                  lifted at once (`lift.lift_one`), into the world's METHOD
     #                  MEMORY: what Lyric overcame for one person it can do again,
@@ -5652,11 +5652,11 @@ class MemoryAgent(IMemoryConsolidation):
     #                  when the method forms, each that is an instance of it is a
     #                  witness of it.
     #   later tasks    an instance is one more witness; a task that worked and is
-    #                  not an instance widens it (`lift.generalize`); a failure that
+    #                  not an instance widens it (`rule_induction.generalize_sequence`); a failure that
     #                  is not an instance says nothing of it.
     #   a person's own   when a person's task and an earlier one of theirs, both
     #                  instances of the world's method, have in common something
-    #                  only they supplied (`lift.residue`), what they have in common
+    #                  only they supplied (`person_residue`), what they have in common
     #                  is their own method, in their context, beside the world's.
     #
     # Every task that is an instance of a method is one witness of whether it
@@ -5727,7 +5727,7 @@ class MemoryAgent(IMemoryConsolidation):
                            fixes: Sequence[Dict[str, Any]] = ()) -> str:
         """Keep a lifted method as a memory, the world's or `owner`'s, with the
         fixes it overcame failures by."""
-        from core.memory.lift import formulas
+        from core.learning.rule_induction import formulas
         from core.memory.utils.interfaces import MemoryType, Origin
         record = {"event": "method", "schema": self.METHOD_SCHEMA,
                   "method": {"shape": shape, "steps": formulas(general)},
@@ -5809,7 +5809,7 @@ class MemoryAgent(IMemoryConsolidation):
     async def _task_of(self, memory_id: str, occurrence_id: str):
         """A task held in a pursuit memory: (its occurrence, the pursuit's owner,
         what its person supplied or None), or None when it is gone."""
-        from core.memory.lift import person_terms
+        from core.learning.unified_learning_system import person_terms
         from core.memory.utils.interfaces import task_occurrences
         record, _ = await self._pursuit_record(memory_id)
         if not record:
@@ -6006,7 +6006,7 @@ class MemoryAgent(IMemoryConsolidation):
         these tools failed, this argument set to this value), as fixes a method
         keeps: {failed_tools, use}. For the world's method only the changes to a
         value in `kept` (`_no_ones`); a person's own keeps every change."""
-        from core.memory.lift import value_text
+        from core.learning.unified_learning_system import value_text
         fixes = []
         for rule in occurrence.get("causal_rules") or []:
             use = [{"tool": u["tool"], "arg": u["arg"], "value": u.get("value")}
@@ -6039,15 +6039,16 @@ class MemoryAgent(IMemoryConsolidation):
         thing under (SEPARATION_MAP §11.3: a term the world holds is about the
         world, whoever said it). Every other value -- a path, a text, a name --
         was what that task was about."""
-        from core.memory.lift import constants, vocabulary
+        from core.learning.rule_induction import constant_values
+        from core.learning.unified_learning_system import vocabulary
         words = vocabulary(occurrence.get("method"), self._declared_parameters)
-        return words | await self._world_holds(constants(facts) - words)
+        return words | await self._world_holds(constant_values(facts) - words)
 
     async def _lift_one(self, occurrence: Dict[str, Any], facts):
         """The first task of a shape that worked, as the world's method
         (`lift.lift_one`), and the fixes it keeps: what is no one's particular
         (`_no_ones`) stays, every other value is a variable."""
-        from core.memory.lift import lift_one
+        from core.learning.unified_learning_system import lift_one
         kept = await self._no_ones(occurrence, facts)
         return lift_one(facts, kept), self._fixes_of(occurrence, kept)
 
@@ -6057,7 +6058,8 @@ class MemoryAgent(IMemoryConsolidation):
         method, the methods lifted, the tasks still waiting, and the ones apart
         (a failure that is not an instance of the method of its shape)."""
         from core.learning.unified_learning_system import get_learning_authority
-        from core.memory.lift import from_formulas, generalize, is_instance, method_facts, person_terms, shape_of
+        from core.learning.rule_induction import from_formulas, generalize_sequence, is_instance
+        from core.learning.unified_learning_system import method_facts, person_terms, shape_of
         from core.memory.utils.interfaces import task_occurrences
         done: Dict[str, Any] = {"instances": [], "lifted": [], "waiting": [], "apart": []}
         memory_id = item["memory_id"]
@@ -6132,7 +6134,7 @@ class MemoryAgent(IMemoryConsolidation):
                     if not (counted and worked):
                         done["apart"].append({"occurrence": occurrence_id, "method": method_id})
                         continue
-                    widened = generalize(general, facts)
+                    widened = generalize_sequence(general, facts)
                     if widened is None:
                         continue
                     method_record["method"]["steps"] = [f.to_formula() for f in widened]
@@ -6149,11 +6151,13 @@ class MemoryAgent(IMemoryConsolidation):
                            done: Dict[str, Any]) -> None:
         """A PERSON'S OWN WAY OF WORKING. Their task is an instance of the
         world's method; if an earlier task of theirs was too, and what the two
-        have in common keeps something only they supplied (`lift.residue`),
+        have in common keeps something only they supplied (`person_residue`),
         that is their own method, in their context, beside the world's, which
         never holds it. A task that is an instance of their own method is a
         witness of it."""
-        from core.memory.lift import from_formulas, generalize, is_instance, method_facts, residue
+        from core.learning.rule_induction import (constant_values, from_formulas,
+                                                  generalize_sequence, is_instance)
+        from core.learning.unified_learning_system import method_facts, person_residue
         occurrence_id, occurrence, owner = task
         theirs = await self._method_memory(shape, owner)
         if theirs is not None:
@@ -6172,8 +6176,8 @@ class MemoryAgent(IMemoryConsolidation):
             return
         other_occurrence, _, other_terms = other
         other_facts = method_facts(other_occurrence.get("method"))
-        general = generalize(other_facts, facts) if other_facts else None
-        if general is None or not residue(general, [other_terms, terms]):
+        general = generalize_sequence(other_facts, facts) if other_facts else None
+        if general is None or not person_residue(constant_values(general), [other_terms, terms]):
             return
         fixes = self._fixes_of(other_occurrence)
         method_id = await self._form_method(
@@ -6193,7 +6197,7 @@ class MemoryAgent(IMemoryConsolidation):
         them alone, in their context: their own method of its shape, from their first task of it that worked,
         witnessed or widened by the ones after. A world method their task is an instance of moves their own standing
         in it (`_witness_standing`). Nothing is written to the world's methods, their fixes or their belief."""
-        from core.memory.lift import from_formulas, generalize, is_instance
+        from core.learning.rule_induction import from_formulas, generalize_sequence, is_instance
         occurrence_id, occurrence, owner = task
         counted, worked = self._counted(occurrence)
         theirs = await self._method_memory(shape, owner)
@@ -6204,7 +6208,7 @@ class MemoryAgent(IMemoryConsolidation):
                 if not (counted and worked):
                     done["apart"].append({"occurrence": occurrence_id, "method": method_id})
                     return
-                widened = generalize(general, facts)
+                widened = generalize_sequence(general, facts)
                 if widened is None:
                     return
                 record["method"]["steps"] = [f.to_formula() for f in widened]

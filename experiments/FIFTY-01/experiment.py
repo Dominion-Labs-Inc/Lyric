@@ -78,7 +78,8 @@ async def main() -> int:
     from core.agents.autonomous.shared_types import Priority, Task, TaskSource, TaskType
     from core.agents.memory_agent import memory_agent
     from core.learning.unified_learning_system import get_learning_authority
-    from core.memory.lift import constants, from_formulas, shape_of
+    from core.learning.rule_induction import constant_values, from_formulas
+    from core.learning.unified_learning_system import shape_of
 
     work = Path(tempfile.mkdtemp(prefix=f"fifty01_{N}_"))
     system, coord = await boot()
@@ -130,7 +131,7 @@ async def main() -> int:
         return held
 
     def nothing_of(record, *particulars):
-        kept = constants(from_formulas((record.get("method") or {}).get("steps") or []))
+        kept = constant_values(from_formulas((record.get("method") or {}).get("steps") or []))
         return not any(p in kept for p in particulars), sorted(kept)
 
     def queued(job):

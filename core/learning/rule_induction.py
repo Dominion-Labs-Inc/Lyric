@@ -1307,3 +1307,37 @@ def from_constant(ident: str) -> str:
         buffer.append(ord(body[index]))
         index += 1
     return buffer.decode("utf-8", errors="replace")
+
+
+# --------------------------------------------------------------------------
+# Ordered literal sequences: a method's steps, generalized and matched
+# --------------------------------------------------------------------------
+
+def generalize_sequence(left: Sequence[Fact], right: Sequence[Fact]) -> Optional[List[Fact]]:
+    """The least general method covering both, or None when they are not of one
+    shape."""
+    if len(left) != len(right):
+        return None
+    lifted = anti_unify(zip(left, right))
+    return None if lifted is None else lifted[0]
+
+
+def is_instance(general: Sequence[Fact], ground: Sequence[Fact]) -> bool:
+    """Whether `ground` is `general` with its variables filled in (consistently)."""
+    lifted = generalize_sequence(general, ground)
+    return lifted is not None and list(lifted) == list(general)
+
+
+def constant_values(facts: Iterable[Fact]) -> Set[str]:
+    """The values a method keeps as constants, decoded."""
+    return {from_constant(arg) for fact in facts for arg in fact.args if not is_variable(arg)}
+
+
+def formulas(facts: Iterable[Fact]) -> List[str]:
+    """The method as it is kept in memory: one formula per step."""
+    return [fact.to_formula() for fact in facts]
+
+
+def from_formulas(steps: Iterable[str]) -> List[Fact]:
+    """A kept method back as facts."""
+    return [Fact.parse(step) for step in steps]
