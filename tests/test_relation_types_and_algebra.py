@@ -315,14 +315,34 @@ def test_inverse_is_derived_with_provenance_not_observed():
 def test_ontology_defined_relations_do_not_chain_by_default():
     from core.reasoning.relation_algebra import answer, UNKNOWN, TRUE
     from core.semantics.relation_types import SemanticRelation as SR
-    # finger PART_OF hand, hand PART_OF arm  -- PART_OF is ONTOLOGY_DEFINED,
+    # smoking CAUSES cancer, cancer CAUSES death -- CAUSES is ONTOLOGY_DEFINED,
     # so it must NOT chain on its own.
-    edges = [Edge("finger", SR.PART_OF, "hand"), Edge("hand", SR.PART_OF, "arm")]
-    assert answer("finger", SR.PART_OF, "arm", edges).verdict == UNKNOWN
-    # ...but a context that licenses PART_OF transitivity DOES chain it.
-    licensed = answer("finger", SR.PART_OF, "arm", edges,
-                      context_licenses=frozenset({SR.PART_OF}))
+    edges = [Edge("smoking", SR.CAUSES, "cancer"), Edge("cancer", SR.CAUSES, "death")]
+    assert answer("smoking", SR.CAUSES, "death", edges).verdict == UNKNOWN
+    # ...but a context that licenses CAUSES transitivity DOES chain it.
+    licensed = answer("smoking", SR.CAUSES, "death", edges,
+                      context_licenses=frozenset({SR.CAUSES}))
     assert licensed.verdict == TRUE
+
+
+def test_a_part_of_a_part_is_a_part_and_what_is_in_a_thing_is_where_it_is():
+    """PART_OF and LOCATED_IN chain, and through each other to where a thing is: in Paris, and Paris part of France, is
+    in France; a finger part of a hand part of an arm is part of the arm. Not part of France for being in Paris, and
+    membership never chains (UNDERSTANDS-PROSE-01, 2026-10-21)."""
+    from core.reasoning.relation_algebra import answer, PLACE, UNKNOWN, TRUE
+    from core.semantics.relation_types import SemanticRelation as SR
+    hand = [Edge("finger", SR.PART_OF, "hand"), Edge("hand", SR.PART_OF, "arm")]
+    assert answer("finger", SR.PART_OF, "arm", hand).verdict == TRUE
+    paris = [Edge("eiffel tower", SR.LOCATED_IN, "paris"), Edge("paris", SR.PART_OF, "france")]
+    found = answer("eiffel tower", SR.LOCATED_IN, "france", paris)
+    assert found.verdict == TRUE and found.derivation.rules == (PLACE,)
+    assert answer("eiffel tower", SR.PART_OF, "france", paris).verdict == UNKNOWN
+    wheel = [Edge("wheel", SR.PART_OF, "car"), Edge("car", SR.LOCATED_IN, "garage")]
+    assert answer("wheel", SR.LOCATED_IN, "garage", wheel).verdict == TRUE
+    team = [Edge("finger", SR.PART_OF, "hand"), Edge("hand", SR.PART_OF, "player"),
+            Edge("player", SR.MEMBER_OF, "team")]
+    assert answer("finger", SR.PART_OF, "team", team).verdict == UNKNOWN
+    assert answer("finger", SR.MEMBER_OF, "team", team).verdict == UNKNOWN
 
 
 def test_a_symmetric_relation_holds_both_ways_round():

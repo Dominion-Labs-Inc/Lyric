@@ -13,9 +13,14 @@ to walk relation edges to conclusions -- reachability is not entailment.
 Licensed derivations, all conservative and all PROVENANCE-TAGGED:
 
     TRANSITIVITY   A -r-> B -r-> C   |=  A -r-> C
-                   only when r is ALWAYS-transitive (ISA), or ONTOLOGY_DEFINED
-                   AND a context explicitly licenses r (PART_OF, LOCATED_IN,
-                   CAUSES ... never chain on their own).
+                   only when r is ALWAYS-transitive (ISA, PART_OF, LOCATED_IN),
+                   or ONTOLOGY_DEFINED AND a context explicitly licenses r
+                   (CAUSES, PRECEDES ... never chain on their own).
+
+    PLACE          A -in-> B -part of-> C  |=  A -in-> C
+                   A -part of-> B -in-> C  |=  A -in-> C
+                   what is in a thing, or part of it, is where that thing is:
+                   in Paris, and Paris part of France, is in France.
 
     INHERITANCE    A -ISA-> B -r-> C |=  A -r-> C   when r is inheritable
                    (a kind's generic properties pass to its subkinds).
@@ -55,6 +60,10 @@ TRANSITIVITY = "transitivity"
 INHERITANCE = "inheritance"
 INSTANCE_RIDE = "instance_of_rides_isa"
 INVERSE = "inverse_of_relation"
+PLACE = "in_what_it_is_in_or_part_of"
+
+#: Where a thing is, through what it is in or part of (`PLACE`).
+_WHERE = frozenset({SemanticRelation.LOCATED_IN, SemanticRelation.PART_OF})
 
 
 def compose(r1: SemanticRelation, r2: SemanticRelation, *,
@@ -69,6 +78,8 @@ def compose(r1: SemanticRelation, r2: SemanticRelation, *,
     so ontology-defined relations do NOT chain unless a context says so."""
     if r1 is INSTANCE_OF and r2 is ISA:
         return INSTANCE_OF, INSTANCE_RIDE
+    if r1 is not r2 and {r1, r2} == _WHERE:
+        return SemanticRelation.LOCATED_IN, PLACE
     if r1 is ISA and get_spec(r2).inheritable:
         return r2, INHERITANCE
     if r1 is r2:
@@ -275,4 +286,4 @@ __all__ = ["Edge", "Derivation", "Answer", "compose", "is_licensed", "inverse",
            "inverse_edges", "derive_from", "answer", "entails",
            "would_contaminate", "TRUE", "FALSE", "UNKNOWN",
            "OBSERVED", "DERIVED", "TRANSITIVITY", "INHERITANCE", "INVERSE",
-           "INSTANCE_RIDE"]
+           "INSTANCE_RIDE", "PLACE"]

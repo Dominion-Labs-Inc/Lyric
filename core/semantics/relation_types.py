@@ -198,13 +198,20 @@ def is_worded(relation: str) -> bool:
 class Transitivity(Enum):
     """Whether A -r-> B -r-> C entails A -r-> C.
 
-    The middle state is the important one: some relations (PART_OF, LOCATED_IN)
+    The middle state is the important one: some relations (CAUSES, PRECEDES)
     ARE transitive in some ontologies/contexts and not others, and assuming they
     always chain is exactly the contamination this whole layer exists to stop.
     ONTOLOGY_DEFINED means "only when a context explicitly licenses it" -- the
     conservative default is NOT to chain.
+
+    A PART OF A PART IS A PART, AND WHAT IS IN A THING IS IN WHAT THAT THING IS IN:
+    PART_OF and LOCATED_IN chain. Held only in context, and no context licensing
+    them, "Is the Eiffel Tower in France?" was never answered, told it is in
+    Paris and Paris part of France (UNDERSTANDS-PROSE-01, 2026-10-21). What
+    chained into nonsense ("finger part of hand ... person part of team") is
+    membership, which never chains (MEMBER_OF).
     """
-    ALWAYS = "always"                    # logically safe (ISA)
+    ALWAYS = "always"                    # logically safe (ISA, PART_OF, LOCATED_IN)
     NEVER = "never"                      # chaining is unsound
     ONTOLOGY_DEFINED = "ontology_defined"  # licensed only in context
 
@@ -291,7 +298,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
     # mereological
     RelationSpec(SemanticRelation.PART_OF,
                  frozenset({"is part of", "part of", "is a part of"}),
-                 inverse=SemanticRelation.HAS_PART, transitivity=Transitivity.ONTOLOGY_DEFINED,
+                 inverse=SemanticRelation.HAS_PART, transitivity=Transitivity.ALWAYS,
                  gloss="proper part of a whole",
                  heading_forms=frozenset({"parent", "assembly", "system", "subsystem"})),
     RelationSpec(SemanticRelation.HAS_PART,
@@ -323,7 +330,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"is in", "in", "lives in", "located in",
                             "is located in", "found in", "is found in",
                             "inside", "resides in", "sits in", "dwells in"}),
-                 inverse=SemanticRelation.CONTAINS, transitivity=Transitivity.ONTOLOGY_DEFINED,
+                 inverse=SemanticRelation.CONTAINS, transitivity=Transitivity.ALWAYS,
                  generic_safe=False,
                  gloss="containment location (contextual, not a kind law)",
                  heading_forms=frozenset({"location", "compartment", "space", "room", "installed in"})),
