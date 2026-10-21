@@ -86,6 +86,7 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261021T104658Z` | English's grammar reads what no taught frame reads (GRAMMAR-01; 2cd1f817 and uncommitted); 736 s | 25/33 | 20/37 (19 scored as now) | 2/37 (1) | nothing |
 | `20261021T112730Z` | + a question asked of what is held as a whole, groups and counts told of named (2cd1f817 and uncommitted); 1273 s | 27/33 | 22/37 (21) | 3/37 (2) | nothing |
 | `20261021T155412Z` | + a fetched page read a block at a time, a meaning's unknowns named by what is said of them, hyphened words one word, a kind with what picks some of it out a condition (8a760242); 764 s | 32/33 | 30/37 (29) | 0/37 | nothing |
+| `20261021T184936Z` | + "it" and "they" by number, the partitive, a doing's purpose, every transitive relation chaining, a wh-question with no answer unanswered (b012ceac and 4 uncommitted changes of other work); 780 s. Not answered: "What is the largest animal on Earth?", the telling read without "on Earth" and the question with it | 33/33 | 36/37 | 0/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted
