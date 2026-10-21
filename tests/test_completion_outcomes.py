@@ -19,7 +19,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, _run_record
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, _removed_by, _run_record
 from core.tools.execution_tools import RunShellCommandTool
 from core.tools.filesystem_tools import ReadFileTool, WriteFileTool
 
@@ -138,3 +138,39 @@ def test_work_that_only_reads_is_done_when_reading_again_agrees(tmp_path):
     done, _, issues, outcomes = _decide(_act("read_file", file_path=str(note)))
     assert done and issues == []
     assert [o["outcome"] for o in outcomes] == [f"read:{note}"]
+
+
+def test_a_shell_removal_names_the_files_it_removes():
+    def removed(command, where="/w"):
+        return _removed_by("run_shell_command", {"command": command, "working_directory": where})
+    assert removed("rm reproduce.py") == ["/w/reproduce.py"]
+    assert removed("cd /testbed && rm -f a.py b.py && ls", None) == ["/testbed/a.py", "/testbed/b.py"]
+    assert removed("cd sub; unlink x.txt") == ["/w/sub/x.txt"]
+    assert removed("rm -rf build/") == ["/w/build"]
+    assert removed("rm *.pyc") == [] and removed("rm $TMP/y") == [] and removed("echo rm z") == []
+
+
+def test_a_scratch_file_written_then_removed_in_the_shell_is_gone(tmp_path):
+    ws = str(tmp_path)
+    edit = _write(tmp_path / "m.py", "value = 2\n")
+    scratch = _write(tmp_path / "reproduce.py", "print(1)\n")
+    cleanup = _act("run_shell_command", command="rm reproduce.py", working_directory=ws)
+    assert cleanup["removes"] == [f"{ws}/reproduce.py"] and not (tmp_path / "reproduce.py").exists()
+    done, _, issues, outcomes = _decide(edit, scratch, cleanup)
+    gone = [o for o in outcomes if o["outcome"] == f"effect:{ws}/reproduce.py"]
+    assert gone and gone[0]["states"] == f"{ws}/reproduce.py is gone" and gone[0]["posterior"] >= 0.95
+    assert done and issues == []  # the removal needs no check: what it was for is observed
+
+
+def test_a_removal_that_failed_leaves_the_file_not_met(tmp_path):
+    ws = tmp_path / "locked"
+    ws.mkdir()
+    scratch = _write(ws / "reproduce.py", "print(1)\n")
+    os.chmod(ws, 0o555)
+    try:
+        cleanup = _act("run_shell_command", command="rm reproduce.py", working_directory=str(ws))
+    finally:
+        os.chmod(ws, 0o755)
+    assert not cleanup["success"] and (ws / "reproduce.py").exists()
+    done, _, issues, _ = _decide(scratch, cleanup)
+    assert not done and any(i.startswith(f"not met: {ws}/reproduce.py is gone") for i in issues)

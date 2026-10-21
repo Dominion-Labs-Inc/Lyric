@@ -2199,16 +2199,87 @@ def _outcome_of(tool: str, args: Dict[str, Any]) -> Optional[str]:
     args = args or {}
     target_arg = _INTERVENTION_TARGET_ARG.get(tool)
     if target_arg and args.get(target_arg):
-        return f"effect:{args[target_arg]}"
+        return f"effect:{os.path.normpath(str(args[target_arg]))}"
     if tool == "read_file" and args.get("file_path"):
         return f"read:{args['file_path']}"
     action, _ = classify_action(tool, args)
     if action is ActionClass.INVESTIGATE:
         return None
     if tool == "run_shell_command":
+        if _removes_only(args):
+            return None  # what it was for is the files it names, each its own outcome
         where = args.get("working_directory") or ""
         return f"check:{where}" if _check_of(tool, args) else f"shell:{where}"
     return f"act:{_tool_resource(tool, args)}"
+
+
+#: Commands whose operands are the files they remove.
+_REMOVING_COMMANDS = ("rm", "unlink")
+
+
+def _removed_by(tool: str, args: Dict[str, Any]) -> List[str]:
+    """The files a shell command removes, each by the path it names: the last act on
+    such a file is this removal, and what should be true of it is that it is gone.
+
+    A SHELL REMOVAL WAS ANONYMOUS. A file written with the file tool and removed with
+    `rm` kept, as its last act, the write: its outcome was "it holds what was
+    written", and a fresh look found it gone, so a run that cleaned up after itself
+    was held short of done. Only what the command names exactly is read: each `rm`
+    or `unlink` in a compound command, its operands after its flags, resolved against
+    the directory it runs in (the act's working directory, or the last `cd` before it
+    in the same command). An operand the shell would expand (a glob, a variable, a
+    substitution) names nothing exactly and is left out."""
+    if tool != "run_shell_command":
+        return []
+    return [path for path, _ in _shell_removals(args)]
+
+
+def _removes_only(args: Dict[str, Any]) -> bool:
+    """Whether a shell command does nothing but remove files it names exactly (and
+    change directory to do it): then the files it names are all it was for."""
+    found = _shell_removals(args)
+    return bool(found) and all(named for _, named in found)
+
+
+def _shell_removals(args: Dict[str, Any]) -> List[Tuple[Optional[str], bool]]:
+    """Each removal in a shell command: (the path it names, resolved, or None), and
+    whether every part of the command is a removal naming its files exactly (or a
+    `cd`). See `_removed_by`."""
+    import shlex
+    command = str((args or {}).get("command") or "")
+    where = (args or {}).get("working_directory") or ""
+    removed: List[Tuple[Optional[str], bool]] = []
+    exact = True
+    for part in re.split(r"&&|\|\||[;|\n]", command):
+        try:
+            words = shlex.split(part, comments=True)
+        except ValueError:
+            exact = False
+            continue
+        while words and re.match(r"^\w+=", words[0]):
+            words = words[1:]
+        if not words:
+            continue
+        if words[0] == "cd" and len(words) == 2:
+            where = words[1] if os.path.isabs(words[1]) else os.path.join(where, words[1])
+            continue
+        if words[0] not in _REMOVING_COMMANDS:
+            exact = False
+            continue
+        operands, flags_over = [], False
+        for word in words[1:]:
+            if not flags_over and word == "--":
+                flags_over = True
+            elif not flags_over and word.startswith("-"):
+                continue
+            elif not re.search(r"[*?\[\]$`~{}]", word):
+                operands.append(word)
+            else:
+                exact = False
+        for operand in operands:
+            path = operand if os.path.isabs(operand) or not where else os.path.join(where, operand)
+            removed.append((os.path.normpath(path), True))
+    return [(path, exact) for path, _ in removed]
 
 
 def _run_record(tool: Optional[str], args: Dict[str, Any],
@@ -2231,11 +2302,13 @@ def _run_record(tool: Optional[str], args: Dict[str, Any],
                   or "tool did not execute successfully (refused before running)"),
         # Provenance for completion evidence: `resource` is what the act named;
         # `intervention_target` is the world resource SAW re-observes fresh; a
-        # check is run again in the end state; `outcome` is what the act was meant
-        # to leave true, and `observes` says it only looked.
+        # check is run again in the end state; `removes` names the files a shell
+        # command removes; `outcome` is what the act was meant to leave true, and
+        # `observes` says it only looked.
         "resource": _tool_resource(tool, args),
         "intervention_target": (args.get(target_arg) if target_arg else None),
         "check": _check_of(tool, args),
+        "removes": _removed_by(tool, args),
         "outcome": _outcome_of(tool, args),
         "observes": classify_action(tool, args)[0] is ActionClass.INVESTIGATE,
         "seconds": (ran or {}).get("seconds"),
@@ -13830,10 +13903,14 @@ class AutonomousCoordinator:
         out = self._stated_outcomes(task, result)
         records = [r for r in ((result.get("tools_run") or []) if isinstance(result, dict) else [])
                    if isinstance(r, dict)]
-        looked_only = not any(r.get("outcome") and not r.get("observes") for r in records)
+        looked_only = not any((r.get("outcome") or r.get("removes")) and not r.get("observes") for r in records)
         for r in records:
+            # A file's outcome is what its LATEST act was meant to leave: a file
+            # written and then removed with `rm` should be gone.
+            for path in (r.get("removes") or []):
+                out[f"effect:{path}"] = {"states": f"{path} is gone", "source": "work"}
             key = r.get("outcome")
-            if not key or key in out:
+            if not key or (key in out and not key.startswith("effect:")):
                 continue
             if r.get("observes") and not (looked_only and r.get("success")):
                 continue
@@ -13876,15 +13953,21 @@ class AutonomousCoordinator:
                 if not isinstance(r, dict) or not r.get("tool"):
                     continue
                 outcome = r.get("outcome")
-                if not outcome or (r.get("observes") and not r.get("success")):
+                if (not outcome and not r.get("removes")) or (r.get("observes") and not r.get("success")):
                     continue
                 # Score the intervention by whether it achieved its INTENDED
                 # target-state, not the raw success flag: a removal that "fails"
                 # because the target was already gone has achieved the absence.
                 achieved = self._did_intent_achieved(r)
                 res = r.get("resource") or f"tool:{r.get('tool')}"
-                ev.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
-                                   res, "tool_runtime", f"did:{outcome}", "did"))
+                if outcome:
+                    ev.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                       res, "tool_runtime", f"did:{outcome}", "did"))
+                # A shell removal is also the latest act on each file it names.
+                for path in (r.get("removes") or []):
+                    ev.append(Evidence(f"effect:{path}", achieved,
+                                       self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                       path, "tool_runtime", f"did:effect:{path}", "did"))
             # the aggregate verdict is the AND of the above — derived, never counted.
             ev.append(Evidence("task", result.get("verification_state") == "verified",
                                self._EV_VERIFIED, "aggregate", "tool_runtime",
@@ -13937,20 +14020,27 @@ class AutonomousCoordinator:
         saw: List["Evidence"] = []
         seen = set()
         # THE LAST ACT ON A TARGET DECIDES WHAT SHOULD BE TRUE OF IT: a file
-        # written and then removed should be gone, and a file written twice should
-        # hold the second text.
-        last: Dict[str, Dict[str, Any]] = {}
+        # written and then removed should be gone, whether the removal was the
+        # file tool's or a shell command's, and a file written twice should hold
+        # the second text. (record, whether it wants the target gone, whether it
+        # is the act's own target)
+        last: Dict[str, Tuple[Dict[str, Any], bool, bool]] = {}
         for r in (result.get("tools_run") or []):
-            if isinstance(r, dict) and r.get("intervention_target"):
-                last[r["intervention_target"]] = r
-        for target, r in last.items():
+            if not isinstance(r, dict):
+                continue
+            if r.get("intervention_target"):
+                last[os.path.normpath(str(r["intervention_target"]))] = (
+                    r, r.get("tool") in _TOOL_WANTS_ABSENT, True)
+            for path in (r.get("removes") or []):
+                last[path] = (r, True, False)
+        for target, (r, wants_absent, own) in last.items():
             seen.add(target)
-            outcome = r.get("outcome") or f"effect:{target}"
+            outcome = f"effect:{target}"
             # THE STRONGEST THING THE ACT CLAIMED IS WHAT IS OBSERVED. A write that
             # states what the file should now hold is checked against what the file
             # holds: presence alone passes a file that was there before and that
             # the write never changed, a success with nothing behind it.
-            output = r.get("output") if r.get("success") and isinstance(r.get("output"), dict) else {}
+            output = r.get("output") if own and r.get("success") and isinstance(r.get("output"), dict) else {}
             claimed = output.get("content_digest")
             if claimed:
                 held = content_digest(target)  # FRESH reading of the bytes — not the tool's report
@@ -13967,7 +14057,6 @@ class AutonomousCoordinator:
             # Polarity: a removal's satisfied state is that the target is GONE, so
             # absence is support and presence is against — the mirror of a
             # present-goal. Read from the operation, not the description.
-            wants_absent = r.get("tool") in _TOOL_WANTS_ABSENT
             achieved = (not exists) if wants_absent else exists
             saw.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                                 target, "filesystem_scan", f"saw:filesystem:{target}", "saw"))

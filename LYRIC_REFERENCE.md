@@ -606,6 +606,7 @@ There is no separate validator and no model output in the decision.
 | A grounded operator | The effects it claims (a delete wants the fact gone) | `condition:<fact>` |
 | Learned facts | Each fact the work says it learned (up to 3) | `fact:<fact>` |
 | A file act | What the target should hold, or that it is gone or exists | `effect:<target>` |
+| A shell removal (`rm`, `unlink`) | Each file it names exactly is gone; a command that only removes named files has no other outcome | `effect:<path>` |
 | A check | The latest check run in a directory passes | `check:<dir>` |
 | Other shell commands | What the commands run in a directory were for | `shell:<dir>` |
 | Any other act that changes something | It did what it was for | `act:<resource>` |
@@ -627,7 +628,7 @@ granular acts, the handler's report is one DID grounding on every stated outcome
 
 - A file act's target: its content compared with the `content_digest` the act reported
   (`write_file`, `atomic_write_file`, `patch_file`), otherwise its presence or absence. The last
-  act on a target decides what should be true of it.
+  act on a target decides what should be true of it, a shell removal included (`_removed_by`).
 - A whole-file reading, read again (only where readings are outcomes).
 - The latest check in each working directory, run again against a disposable copy of the end
   state: a copy-on-write clone of the directory, confined by the macOS sandbox (writes only in
@@ -3127,6 +3128,8 @@ Curiosity optimization gap:     1800 seconds (30 minutes minimum)
 *Last reviewed: 2026-03-06*
 
 **Changelog:**
+- 2026-10-21: A shell removal names the files it removes (`_removed_by`): the last act on a file
+    can be `rm`, and a command that only removes named files carries no outcome beyond them.
 - 2026-10-21: Section 6 rewritten: completion is whether the expected outcomes hold, one belief per
     outcome, the task's the weakest; the retired multi-layer protocol (completion_protocol.py, the
     Task fields it used) removed from this reference and from Task.
