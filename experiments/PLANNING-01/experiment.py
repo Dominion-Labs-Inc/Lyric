@@ -69,7 +69,7 @@ def check(label, ok, detail=""):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Priority, GoalType
-    from core.execution.operator_binding import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact, term
     from core.learning.rule_induction import Fact
@@ -109,7 +109,7 @@ async def main():
     rules = await get_rule_store().executable_rules(domain_id=DOMAIN)
     check("the domain offers a learned, executable operator", bool(rules),
           f"{len(rules)} executable rule(s) in {DOMAIN}")
-    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    world = observe_world(DOMAIN) or frozenset()
     report = root / "inbox" / "report.txt"
     # "Archive the report", in perception's words: the report is a file in
     # archive, and is no longer one in the inbox.

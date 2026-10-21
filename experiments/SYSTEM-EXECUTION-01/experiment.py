@@ -43,7 +43,7 @@ def check(name, ok, detail=""):
 async def main() -> int:
     system, coord = await boot()
     try:
-        from core.execution.operator_binding import BindingRegistry, OperatorBinding, get_binding_registry
+        from core.tools.tool_registry import BindingRegistry, OperatorBinding, get_binding_registry
         from core.learning.rule_store import EpistemicStatus, get_rule_store
         from core.tools.tool_registry import get_tool_registry
         RS, BR, TR = get_rule_store(), get_binding_registry(), get_tool_registry()
@@ -52,7 +52,7 @@ async def main() -> int:
         authority_audit(EV, check, system="rules", cls="RuleStore",
                         path="core/learning/rule_store.py", held=coord.learning.store, reached=RS)
         authority_audit(EV, check, system="bindings", cls="BindingRegistry",
-                        path="core/execution/operator_binding.py", held=get_binding_registry(), reached=BR)
+                        path="core/tools/tool_registry.py", held=get_binding_registry(), reached=BR)
         check("the coordinator holds the one tool registry",
               getattr(coord, "tool_registry", None) is None or coord.tool_registry is TR)
         check("the probe registry type is the live one", isinstance(BR, BindingRegistry))

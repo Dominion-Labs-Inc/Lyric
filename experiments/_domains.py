@@ -11,7 +11,7 @@ from __future__ import annotations
 
 
 async def forget_domain(domain_id: str) -> None:
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
     from core.learning.exploration import unregister_explorable_domain
     from core.learning.rule_store import get_rule_store
 

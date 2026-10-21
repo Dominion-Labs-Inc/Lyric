@@ -1535,7 +1535,8 @@ class UniversalDomainMaster:
         different reasons, the most UPSTREAM one, since a downstream fix cannot
         help while an upstream deficiency stands.
         """
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
+        from core.perception.perception_faculty import observe_world
         from core.learning.rule_induction import Fact
         from core.learning.rule_store import get_rule_store
 
@@ -1545,7 +1546,7 @@ class UniversalDomainMaster:
         # reason over, and every other diagnosis would rest on a world never
         # observed.
         bindings = list(registry.bindings_for(domain_id) or ())
-        if registry.observe_world(domain_id) is None:
+        if observe_world(domain_id) is None:
             return EpistemicDeficit(
                 domain_id, DeficitType.OBSERVATION_GAP,
                 evidence={"bindings": len(bindings)})
@@ -1749,8 +1750,8 @@ class UniversalDomainMaster:
             if not missing or _depth >= 1:
                 return {**base, "ran": False, "reason": "prerequisite not localised"
                         if not missing else "prerequisite chain deferred to next cycle"}
-            from core.execution.operator_binding import get_binding_registry
-            observed = get_binding_registry().observe_world(domain)
+            from core.perception.perception_faculty import observe_world
+            observed = observe_world(domain)
             world = sorted(str(f) for f in observed) if observed is not None else []
             sub = await self.diagnose_deficit(domain, [missing], world, None)
             result = await self.address_deficit(sub, _depth=_depth + 1)

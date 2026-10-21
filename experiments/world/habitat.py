@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.tools.tool_registry import OperatorBinding, get_binding_registry
 from core.learning.rule_induction import Fact
 
 # ── containment ────────────────────────────────────────────────────────────

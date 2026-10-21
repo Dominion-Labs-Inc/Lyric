@@ -32,7 +32,7 @@ from core.agents.autonomous.execution_plan_adapter import state_plan_to_tasks
 from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Goal, Priority, Task, TaskType
 from core.intelligence.effect_verification import RuntimeOutcome
-from core.execution.operator_binding import get_binding_registry
+from core.tools.tool_registry import get_binding_registry
 from core.learning.rule_grounding import ground_for_problem
 from core.learning.rule_induction import (BindingOrigin, Fact, TrainingExample,
                                           get_rule_inducer)

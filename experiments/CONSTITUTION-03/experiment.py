@@ -82,7 +82,7 @@ async def main():
     from core.agents.autonomous.shared_types import Goal, Priority
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus
-    from core.execution.operator_binding import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import gone_everywhere
     from core.learning.rule_grounding import ground_for_problem
@@ -120,7 +120,7 @@ async def main():
         getattr(r.rule.action, "predicate", "") == OPERATOR for r in rules),
         f"{len(rules)} rule(s)")
 
-    observed = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    observed = observe_world(DOMAIN) or frozenset()
     # Through the ONE planning authority, which records the proved route as the
     # goal's intent. The campaigns then NAME that intent; none of them can build
     # one, which is the point — an unrecorded intent does not exist.

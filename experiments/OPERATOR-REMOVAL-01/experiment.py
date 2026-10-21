@@ -59,7 +59,8 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import gone_everywhere, sensed_fact
     from core.learning.rule_grounding import ground_for_problem
@@ -159,7 +160,7 @@ async def main():
     # this path" is also true of a file moved elsewhere, and a removal that keeps
     # the file is not one.
     gone = gone_everywhere("path", str(doomed))
-    observed = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    observed = observe_world(DOMAIN) or frozenset()
     check("the file is observed before planning", present in observed)
     rules = await store.executable_rules(domain_id=DOMAIN)
     grounding = ground_for_problem(

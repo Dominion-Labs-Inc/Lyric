@@ -43,7 +43,8 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Constitution, Verdict)
     from core.agents.autonomous.shared_types import GoalType, Priority
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
@@ -82,7 +83,7 @@ async def main():
     # perception, and what is there becomes the world it plans in.
     take_up_workspace(DOMAIN, str(root))
     binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
-    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    world = observe_world(DOMAIN) or frozenset()
     check("the sandbox is observed", bool(world),
           f"{sorted(str(f) for f in world)}")
     # "Archive the report", in perception's words: the report is a file in
@@ -137,7 +138,7 @@ async def main():
           str((moved or {}).get("error"))[:80])
     check("the world really changed",
           (root / "archive" / "report.txt").exists() and not report.exists())
-    now = {str(f) for f in (get_binding_registry().observe_world(DOMAIN) or ())}
+    now = {str(f) for f in (observe_world(DOMAIN) or ())}
     check("the goal reasoning was after now holds in the observed world",
           all(holds(c, now) for c in goal_conditions))
 

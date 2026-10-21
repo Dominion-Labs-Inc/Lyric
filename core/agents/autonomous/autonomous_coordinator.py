@@ -3779,7 +3779,7 @@ class Constitution:
         predicate = intent.predicate()
         if not domain or not predicate:
             return None
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
         from core.learning.exploration import get_proposer
 
         if get_proposer(domain) is None:
@@ -5470,7 +5470,7 @@ class Constitution:
         registry — the one authority on what an operator DOES in a domain.
         Unbound is reported as unbound; it is never guessed from the operator's
         name."""
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
         predicate = operator.split("(", 1)[0].strip()
         binding = get_binding_registry().get(domain or "", predicate)
         return getattr(binding, "tool_name", None) if binding is not None else None
@@ -8551,7 +8551,7 @@ class AutonomousCoordinator:
         restart is armed again."""
         if getattr(self, "_expectations_attended", False):
             return
-        from core.execution.operator_binding import get_binding_registry
+        from core.perception.perception_faculty import on_reading
         intelligence = self.intelligence
 
         def arm(expectation) -> None:
@@ -8567,7 +8567,7 @@ class AutonomousCoordinator:
                                       origin="predictive_intelligence"))
 
         intelligence.bind_world(arm=arm, on_departure=departed)
-        self._stop_attending_readings = get_binding_registry().on_reading(intelligence.on_reading)
+        self._stop_attending_readings = on_reading(intelligence.on_reading)
         self._expectations_attended = True
         await intelligence.restore_expectations()
 
@@ -10984,7 +10984,7 @@ class AutonomousCoordinator:
         THE OPERATOR IS RESOLVED THROUGH ITS BINDING. This looked the operator's predicate
         (`MOVE_FILE`) up as if it were a tool that declared its own consequence; no tool is named
         that and no tool declares one, so every domain scored the neutral prior."""
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
         from core.learning.rule_store import get_rule_store
         try:
             rules = await get_rule_store().executable_rules(domain_id)
@@ -14241,8 +14241,8 @@ class AutonomousCoordinator:
             observed = None
             if domain:
                 try:
-                    from core.execution.operator_binding import get_binding_registry
-                    observed = get_binding_registry().observe_world(domain)
+                    from core.perception.perception_faculty import observe_world
+                    observed = observe_world(domain)
                 except Exception as e:
                     logger.debug("SAW world re-observation unavailable for %s: %s",
                                  getattr(task, "id", "?"), e)
@@ -17038,9 +17038,9 @@ The substrate must realign with its constitutional responsibilities immediately.
         does not exist, so an unreadable world stops the substrate path here
         rather than letting it proceed on an assumption.
         """
-        from core.execution.operator_binding import get_binding_registry
+        from core.perception.perception_faculty import observe_world
 
-        observed = get_binding_registry().observe_world(domain_id)
+        observed = observe_world(domain_id)
         if observed is None:
             return None
         return sorted(str(fact) for fact in observed)
@@ -17977,7 +17977,7 @@ The substrate must realign with its constitutional responsibilities immediately.
 
         from core.intelligence.effect_verification import (
             AttributionContext, RuntimeOutcome, ToolObservation, attribute, verify_effects)
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
         from core.learning.rule_induction import (Fact, RuleEffects, is_variable,
                                                   resolve_outputs)
         from core.reasoning.unification import match_literal
@@ -18041,7 +18041,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         # This step's own resources are looked at before the world is read: they
         # belong to it even where the world has never met them, and where a move
         # puts something is a place nothing is at yet.
-        get_binding_registry().look_at(domain, action.args)
+        from core.perception.perception_faculty import look_at
+        look_at(domain, action.args)
 
         before = binding.observe()
         if before is None:

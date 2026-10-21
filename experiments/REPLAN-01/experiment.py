@@ -83,7 +83,7 @@ async def main():
     from core.agents.autonomous.planning_engine import PlanningEngine
     from core.agents.autonomous.shared_types import (
         Plan, Priority, SystemState, Task, TaskStatus, TaskType)
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
     from core.learning.rule_induction import Fact, get_rule_inducer
     from core.learning.rule_store import EpistemicStatus, RuleStore
     sys.path.insert(0, str(ROOT / "tests"))

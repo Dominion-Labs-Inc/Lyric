@@ -36,7 +36,7 @@ from core.intelligence.effect_verification import (
     Attribution, EffectVerdict, EffectVerification, Polarity, RuntimeEvidence,
     RuntimeOutcome, outcome_class_for,
 )
-from core.execution.operator_binding import get_binding_registry
+from core.tools.tool_registry import get_binding_registry
 from core.learning.rule_authority import (
     AuthorityCause, RuleAuthorityChanged, authority_history, mark_consumed,
     pending_authority_changes, record_authority_change,

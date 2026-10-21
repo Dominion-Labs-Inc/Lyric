@@ -90,7 +90,7 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.appraisal import get_appraisal_system
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.operator_binding import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
     from core.reasoning.intent_authority import get_intent_authority
@@ -180,7 +180,7 @@ async def main():
     miss_goal = archived("second.txt")
     goal2 = await coord.planning.create_goal(
         "archive the second file", Priority.MEDIUM, state_conditions=miss_goal)
-    world2 = get_binding_registry().observe_world(DOMAIN) or set()
+    world2 = observe_world(DOMAIN) or set()
     out2 = await coord.planning.plan_for_goal(
         goal2.id, {"world_state": [str(f) for f in world2], "domain_id": DOMAIN})
     check("a route is proved for the second goal",

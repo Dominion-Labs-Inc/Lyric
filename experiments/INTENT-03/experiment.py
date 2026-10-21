@@ -62,7 +62,8 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
@@ -99,7 +100,7 @@ async def main():
     # perception, and what is there becomes the world it plans in.
     take_up_workspace(DOMAIN, str(root))
     binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
-    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    world = observe_world(DOMAIN) or frozenset()
     # "Archive the report": the report is a file in archive, and is no longer
     # one in the inbox — which is what moving it means, in perception's words.
     goal_conditions = [
@@ -135,7 +136,7 @@ async def main():
     check("the allowed act really ran", bool(ran and ran.get("success")),
           str((ran or {}).get("error"))[:90])
     # THE WORLD DECIDES. Re-observe and ask whether what the intent was FOR now holds.
-    after = {str(f) for f in (get_binding_registry().observe_world(DOMAIN) or set())}
+    after = {str(f) for f in (observe_world(DOMAIN) or set())}
     reached = all(holds(c, after) for c in intent.goal_conditions)
     check("the re-observed world satisfies what the intent was FOR",
           reached, f"goal={intent.goal_conditions} present={reached}")

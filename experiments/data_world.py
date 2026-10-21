@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, FrozenSet, List, Optional, Tuple
 
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.tools.tool_registry import OperatorBinding, get_binding_registry
 from core.learning.rule_induction import Fact, canonical_term
 
 

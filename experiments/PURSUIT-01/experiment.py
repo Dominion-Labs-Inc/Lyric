@@ -129,7 +129,8 @@ async def main() -> int:
     from core.agents.autonomous.shared_types import (
         Priority, SUBSTRATE_ACTOR, Task, TaskType)
     from core.database import get_database_manager
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact
     from core.learning.demonstration_store import get_demonstration_store
@@ -244,7 +245,7 @@ async def main() -> int:
         goal_fact = [
             sensed_fact("kind", "path", str(root / "archive" / "route.txt"), "file").to_formula(),
             "¬" + sensed_fact("kind", "path", str(root / "inbox" / "route.txt"), "file").to_formula()]
-        world = get_binding_registry().observe_world(DOMAIN) or set()
+        world = observe_world(DOMAIN) or set()
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             g = await coord.planning.create_goal("PURSUIT-01 route", Priority.MEDIUM,
                                                  state_conditions=goal_fact)

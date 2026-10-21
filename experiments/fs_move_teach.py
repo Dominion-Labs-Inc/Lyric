@@ -95,14 +95,13 @@ async def still_world(tag: str, root: Path) -> bool:
     The substrate LOOKS at the folder first, so the world it observes holds what
     is really there. A still world of nothing refutes nothing, and then the
     hypothesis that an effect happens without the act survives."""
-    from core.execution.operator_binding import get_binding_registry
+    from core.perception.perception_faculty import observe_world_async
     from core.perception.perception_faculty import world_of
     from core.learning.rule_induction import TrainingExample
     from core.learning.unified_learning_system import get_learning_authority
     world_of(DOMAIN).perceive(str(root))
-    registry = get_binding_registry()
-    before = await registry.observe_world_async(DOMAIN)
-    after = await registry.observe_world_async(DOMAIN)
+    before = await observe_world_async(DOMAIN)
+    after = await observe_world_async(DOMAIN)
     if before is None or after != before:
         return False
     return await get_learning_authority().record_demonstration(

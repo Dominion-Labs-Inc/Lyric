@@ -132,7 +132,7 @@ def state_plan_to_tasks(
         nonlocal previous
         try:
             from core.agents.autonomous.autonomous_coordinator import get_constitution
-            from core.execution.operator_binding import get_binding_registry
+            from core.tools.tool_registry import get_binding_registry
             from core.learning.rule_induction import Fact
 
             fact = Fact.parse(operator)

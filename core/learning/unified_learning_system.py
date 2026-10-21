@@ -4879,7 +4879,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _operator_grounds(self, unknown, target):
         from core.reasoning.bayesian_uncertainty import ResolutionGrounds
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
         from core.integration.universal_domain_master import get_universal_domain_master
         domain, predicate = unknown.domain, target.get("predicate")
         producers = await self.executable_producers(domain, predicate)

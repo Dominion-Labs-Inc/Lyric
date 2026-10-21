@@ -111,7 +111,7 @@ async def main():
     from core.agents.autonomous.shared_types import Priority, Task, TaskType
     from core.learning.exploration import derive_domain, take_up_workspace
     from core.perception.perception_faculty import sensed_fact, world_of
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
     from core.learning.exploration import SubstrateExplorer, get_proposer
     from core.learning.rule_store import EpistemicStatus, get_rule_store
 
@@ -211,7 +211,7 @@ async def main():
     registry = get_binding_registry()
     original = registry.get(DOMAIN, "MOVE_FILE")
 
-    from core.execution.operator_binding import OperatorBinding
+    from core.tools.tool_registry import OperatorBinding
 
     def meddle(args):
         # THE WORLD CHANGES, NOT THE SUBSTRATE. Before the first move is

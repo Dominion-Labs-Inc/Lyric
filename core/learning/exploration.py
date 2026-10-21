@@ -29,7 +29,8 @@ import logging
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-from core.execution.operator_binding import get_binding_registry
+from core.tools.tool_registry import get_binding_registry
+from core.perception.perception_faculty import look_at, observe_world_async
 from core.learning.rule_induction import Fact, TrainingExample
 from core.learning.rule_induction import as_constant
 from typing import TYPE_CHECKING, Sequence, Tuple
@@ -222,7 +223,7 @@ class SubstrateExplorer:
         registry = get_binding_registry()
         authority = self._authority_()
 
-        before = await registry.observe_world_async(domain_id)
+        before = await observe_world_async(domain_id)
         if before is None:
             return {"status": "unobservable",
                     "detail": f"the world of domain {domain_id!r} could not be read"}
@@ -243,7 +244,7 @@ class SubstrateExplorer:
         # no action taken, that is AMBIENT change: the world is moving on its
         # own, which is evidence the domain is not controllable -- an outcome
         # the substrate cannot attribute to, or produce with, its own actions.
-        again = await registry.observe_world_async(domain_id)
+        again = await observe_world_async(domain_id)
         if again is not None:
             summary["still_observations"] += 1
             if again == before:
@@ -267,8 +268,8 @@ class SubstrateExplorer:
             # What the act names is looked at before the world is read, so the
             # before and the after speak about the same things: a place this
             # world never looked at says nothing before and something after.
-            registry.look_at(domain_id, action.args)
-            s_before = await registry.observe_world_async(domain_id)
+            look_at(domain_id, action.args)
+            s_before = await observe_world_async(domain_id)
             if s_before is None:
                 continue
             # Under the concurrency guard: if another execution in this domain
@@ -313,7 +314,7 @@ class SubstrateExplorer:
                     from core.structural_defects import raise_if_structural
                     raise_if_structural(e, "exploration.execute_tool")
                     logger.info("exploration action %s raised: %s", action, e)
-                s_after = await registry.observe_world_async(domain_id)
+                s_after = await observe_world_async(domain_id)
                 interfered = _overlapped()
             reset_acting_intent(token)
             if refused is not None:

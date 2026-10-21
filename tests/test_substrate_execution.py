@@ -28,7 +28,7 @@ from core.agents.autonomous.shared_types import Task, TaskType
 from core.intelligence.effect_verification import (
     EffectVerdict, Polarity, RuntimeOutcome, ToolObservation, verify_effects,
 )
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.tools.tool_registry import OperatorBinding, get_binding_registry
 from core.learning.rule_induction import Fact, RuleEffects, TrainingExample, get_rule_inducer
 from core.learning.rule_store import EpistemicStatus, RuleStore
 F = Fact.parse

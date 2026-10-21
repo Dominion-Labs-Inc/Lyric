@@ -1050,7 +1050,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
     async def attend(self, reading) -> None:
         """Learn, settle, expect: one reading, in order with the others of its world."""
         from core.intelligence.effect_verification import acted_between
-        from core.execution.operator_binding import get_binding_registry
+        from core.perception.perception_faculty import owner_of
         lock = self._reading_locks.setdefault(reading.domain_id, asyncio.Lock())
         async with lock:
             await self._ensure_schema()
@@ -1063,7 +1063,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             self._first_seen[reading.domain_id] = {
                 fact: first_seen_before.get(fact, reading.at) for fact in reading.facts or ()}
 
-            owner = get_binding_registry().owner_of(reading.domain_id)
+            owner = owner_of(reading.domain_id)
             if previous is not None and not acted_between(previous.mark, reading.mark):
                 await self._learn_change(previous, reading, owner, first_seen_before)
             await self._settle_expectations(reading)
@@ -1313,8 +1313,8 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         """An expectation's due time came: read its world. The reading settles
         it, through the same door as any other. False when the world could not
         be read, and it waits for the next reading."""
-        from core.execution.operator_binding import get_binding_registry
-        facts = await get_binding_registry().observe_world_async(domain_id)
+        from core.perception.perception_faculty import observe_world_async
+        facts = await observe_world_async(domain_id)
         if facts is None:
             self.logger.warning("expectation %s came due and %s could not be read; it waits for "
                                 "the next reading of it", expectation_id, domain_id)

@@ -84,7 +84,8 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Priority
     from core.intelligence.effect_verification import RuntimeOutcome
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact, term
     from core.learning.rule_induction import Fact
@@ -186,7 +187,7 @@ async def main():
         return [c for c in closes if c["intent_id"] == str(intent_id)]
 
     async def prove(conditions, label):
-        world = get_binding_registry().observe_world(DOMAIN) or set()
+        world = observe_world(DOMAIN) or set()
         g = await coord.planning.create_goal(label, Priority.MEDIUM,
                                              state_conditions=conditions)
         out = await coord.planning.plan_for_goal(

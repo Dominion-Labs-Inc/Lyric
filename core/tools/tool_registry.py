@@ -30,9 +30,8 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 # Chaos engineering decorators
 from core.chaos.decorators import inject_latency, inject_error
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
-from core.learning.rule_induction import from_constant
-from typing import Sequence
+from core.learning.rule_induction import Fact, from_constant
+from typing import FrozenSet, Sequence, Tuple
 
 
 # ── Tool failures ─────────────────────────────────────────────────────────────
@@ -2223,7 +2222,7 @@ def declared_parameters(tool) -> List[Any]:
     return typed
 
 
-def action_binding(tool_name: str, tool, observe) -> Optional[OperatorBinding]:
+def action_binding(tool_name: str, tool, observe) -> "Optional[OperatorBinding]":
     """One operator, derived from what the tool declares about itself.
 
     ITS ARGUMENTS ARE THE TOOL'S RESOURCE PARAMETERS, in declared order, then
@@ -2504,3 +2503,93 @@ async def bind_learned() -> List[str]:
         logger.info("bound %d learned operator(s) of derived domains: %s",
                     len(bound), ", ".join(bound))
     return bound
+
+
+# =============================================================================
+# OPERATOR BINDINGS: WHICH TOOL PERFORMS A LEARNED ACTION
+# =============================================================================
+#
+# A learned rule says `MOVE(?X,?A,?B)` changes the world. It does not say what
+# `MOVE` *is* -- the KITE experiments proved acquisition precisely because the
+# predicates carried no meaning. Something has to connect the symbol to an act,
+# and that connection is declared here rather than inferred: guessing which tool
+# a predicate denotes would let the substrate take a real action on a resemblance
+# between strings.
+#
+# A binding supplies both halves, and both are required:
+#
+#     execute   the tool and parameters that perform the action
+#     observe   how the world is read back, independently of what the tool said
+#
+# The second is what makes verification possible. Without an independent
+# observation the only available evidence is the tool's own success flag, and a
+# rule would be confirmed by the fact that its invocation returned cleanly. How a
+# domain's whole world is read is perception's (`perception_faculty.observe_world`).
+
+
+@dataclass(frozen=True)
+class OperatorBinding:
+    """Binds one action predicate to a tool, and a world to its observer."""
+
+    predicate: str
+    tool_name: str
+    #: ground action args -> tool parameters
+    parameters: Callable[[Tuple[str, ...]], Dict[str, Any]]
+    #: reads the world; returns None when it cannot be read, which is different
+    #: from returning an empty world
+    observe: Callable[[], Optional[FrozenSet[Fact]]]
+    description: str = ""
+    #: An observer that must be AWAITED, when reading this world means running
+    #: tools rather than reading a directory. Optional, and `observe` remains
+    #: the contract every existing caller uses.
+    #:
+    #: A world observed by running investigate-class tools cannot honestly be
+    #: read from a synchronous callable inside a running loop: the only way to
+    #: do it is a private loop on a worker thread, and those tools touch the
+    #: database, which rebinds the connection pool away from the loop that owns
+    #: it ("Database not initialized" mid-exploration, reproducibly). Async
+    #: callers use `observe_world_async` and get the real thing.
+    observe_async: Optional[Callable[[], Any]] = None
+
+
+class BindingRegistry:
+    """The declared bindings for a domain: which tool performs each of its
+    learned actions. Unbound predicates are refused."""
+
+    def __init__(self):
+        self._bindings: Dict[Tuple[str, str], OperatorBinding] = {}
+
+    def register(self, domain_id: str, binding: OperatorBinding) -> None:
+        self._bindings[(domain_id, binding.predicate)] = binding
+        logger.info("bound %s.%s -> %s", domain_id, binding.predicate, binding.tool_name)
+
+    def get(self, domain_id: str, predicate: str) -> Optional[OperatorBinding]:
+        return self._bindings.get((domain_id, predicate))
+
+    def bindings_for(self, domain_id: str) -> Sequence[OperatorBinding]:
+        """Every binding declared in a domain.
+
+        The world a state goal is planned against is not one predicate's slice
+        of it but the union of what every binding in the domain observes. A
+        caller reading the whole world reads it through perception
+        (`observe_world`), which reads through here rather than guessing which
+        predicates exist.
+        """
+        return [b for (d, _), b in self._bindings.items() if d == domain_id]
+
+    def clear(self, domain_id: Optional[str] = None) -> None:
+        if domain_id is None:
+            self._bindings.clear()
+            return
+        for key in [k for k in self._bindings if k[0] == domain_id]:
+            del self._bindings[key]
+
+
+_binding_registry: Optional[BindingRegistry] = None
+
+
+def get_binding_registry() -> BindingRegistry:
+    global _binding_registry
+    if _binding_registry is None:
+        _binding_registry = BindingRegistry()
+    return _binding_registry

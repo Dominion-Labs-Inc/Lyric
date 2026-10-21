@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.tools.tool_registry import OperatorBinding, get_binding_registry
 from core.learning.rule_induction import Fact
 
 WORLD_ROOT = Path(__file__).resolve().parents[1] / "sandbox_e2e"

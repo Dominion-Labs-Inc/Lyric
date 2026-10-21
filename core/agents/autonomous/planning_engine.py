@@ -287,8 +287,8 @@ class PlanningEngine:
         # place nothing is at yet, and no look at a workspace finds it. What the
         # domain's world sees of the things the goal names is added wherever the
         # caller's reading says nothing about them.
-        from core.execution.operator_binding import get_binding_registry
-        seen = get_binding_registry().look_at(
+        from core.perception.perception_faculty import look_at
+        seen = look_at(
             context.get("domain_id"),
             [fact.args[0] for fact in goal_facts
              if fact.args and not fact.args[0].startswith("?")])
@@ -1590,7 +1590,7 @@ class PlanningEngine:
         if not domain_id:
             return None
 
-        from core.execution.operator_binding import get_binding_registry
+        from core.tools.tool_registry import get_binding_registry
 
         # THE UNION OF WHAT EVERY BINDING IN THE DOMAIN SEES, which is what the
         # domain's world IS -- one predicate's observer sees one slice of it.

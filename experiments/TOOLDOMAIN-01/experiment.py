@@ -111,7 +111,7 @@ async def main():
 
     # ── B. meeting a domain is how it becomes one ────────────────────────────
     print("\n== B. It BINDS an operator by meeting one — nothing declared ==")
-    from core.execution.operator_binding import get_binding_registry
+    from core.tools.tool_registry import get_binding_registry
 
     scratch = root / "inbox" / "encounter.txt"
     scratch.write_text("met you\n")

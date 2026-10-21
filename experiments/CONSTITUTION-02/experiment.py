@@ -102,7 +102,7 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Goal, Priority
-    from core.execution.operator_binding import get_binding_registry
+    from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
@@ -137,7 +137,7 @@ async def main():
     # The workspace is handed over; the substrate looks at it with its own
     # perception, noise and all, and what is there becomes the world it plans in.
     take_up_workspace(DOMAIN, str(root))
-    world = get_binding_registry().observe_world(DOMAIN) or frozenset()
+    world = observe_world(DOMAIN) or frozenset()
     check("the substrate observes the noisy world", len(world) >= 1,
           f"{len(world)} fact(s) observed")
 

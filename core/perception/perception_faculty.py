@@ -47,9 +47,8 @@ from typing import Any, Dict, List, Optional
 
 from . import hearing, music, reading, senses, speech, vision
 from .senses import SenseProcess
-from core.execution.operator_binding import get_binding_registry
 from core.learning.rule_induction import Fact, as_constant, from_constant
-from typing import FrozenSet, Sequence, Tuple
+from typing import Callable, FrozenSet, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -2261,8 +2260,103 @@ def world_of(domain_id: str) -> EncounteredWorld:
     if world is None:
         world = EncounteredWorld(domain_id)
         _WORLDS[domain_id] = world
-    # Registered on every call, not only at creation: a registry cleared for this
-    # domain must still be able to see its world.
-    get_binding_registry().register_world(domain_id, world.observe, world.observe_async,
-                                          look_at=world.look_at)
     return world
+
+
+# ── reading a domain's world: the one door ──────────────────────────────────
+
+#: domain -> the person whose world it is. A domain with none is the substrate's own.
+_OWNERS: Dict[str, str] = {}
+#: Told of every reading of a world taken through `observe_world` (`on_reading`).
+_READING_HANDLERS: List[Callable[[str, FrozenSet[Fact]], None]] = []
+
+
+def set_owner(domain_id: str, owner: str) -> None:
+    """Whose world a domain is: what is learned of it, and anything the
+    substrate comes to expect of it, is theirs."""
+    _OWNERS[domain_id] = str(owner)
+
+
+def owner_of(domain_id: str) -> Optional[str]:
+    """The person whose world a domain is, or None for the substrate's own."""
+    return _OWNERS.get(domain_id)
+
+
+def on_reading(handler: Callable[[str, FrozenSet[Fact]], None]) -> Callable[[], None]:
+    """Be told of every reading of a world taken through `observe_world`:
+    `handler(domain_id, facts)`, called synchronously as the reading returns,
+    so it must be cheap and must not raise. A reading that failed (None) is not
+    a reading and is not told. Returns what stops it."""
+    _READING_HANDLERS.append(handler)
+
+    def stop() -> None:
+        if handler in _READING_HANDLERS:
+            _READING_HANDLERS.remove(handler)
+    return stop
+
+
+def _read(domain_id: str, facts: Optional[FrozenSet[Fact]]) -> Optional[FrozenSet[Fact]]:
+    if facts is not None:
+        for handler in list(_READING_HANDLERS):
+            try:
+                handler(domain_id, facts)
+            except Exception as e:
+                logger.error("a reading handler failed on %s: %s: %s",
+                             domain_id, type(e).__name__, e)
+    return facts
+
+
+def look_at(domain_id: Optional[str], terms: Sequence[str]) -> Optional[FrozenSet[Fact]]:
+    """What the domain's world sees, now, of the things these terms name.
+    None for a domain whose world cannot look at particular things."""
+    world = _WORLDS.get(domain_id) if domain_id else None
+    return world.look_at(terms) if world is not None else None
+
+
+def observe_world(domain_id: str) -> Optional[FrozenSet[Fact]]:
+    """Read the whole observable world of a domain, or None if any part of it
+    cannot be read.
+
+    The world is the union of what every operator bound in the domain observes
+    (`tool_registry.get_binding_registry`); a domain with none bound is read as
+    the world met there (`world_of`). Returning None on an unreadable slice is
+    deliberate: a world assembled from the bindings that happened to answer is a
+    different world from the real one, and planning against it would authorise a
+    plan on a state that was never observed. An empty world (a domain with no
+    facts) is not the same as an unreadable one and returns an empty set."""
+    from core.tools.tool_registry import get_binding_registry
+    bindings = get_binding_registry().bindings_for(domain_id)
+    if not bindings:
+        world = _WORLDS.get(domain_id)
+        return _read(domain_id, world.observe() if world is not None else None)
+    facts: set = set()
+    for binding in bindings:
+        observed = binding.observe()
+        if observed is None:
+            return None
+        facts |= set(observed)
+    return _read(domain_id, frozenset(facts))
+
+
+async def observe_world_async(domain_id: str) -> Optional[FrozenSet[Fact]]:
+    """`observe_world` for callers that can await -- the same contract.
+
+    A binding whose world is read by RUNNING TOOLS supplies `observe_async` and
+    is awaited here, on the caller's own loop. One that reads a directory has no
+    need of it and is called as before, so both kinds of domain live in one
+    registry and neither is a special case."""
+    from core.tools.tool_registry import get_binding_registry
+    bindings = get_binding_registry().bindings_for(domain_id)
+    if not bindings:
+        world = _WORLDS.get(domain_id)
+        if world is None:
+            return None
+        return _read(domain_id, await world.observe_async())
+    facts: set = set()
+    for binding in bindings:
+        observer = getattr(binding, "observe_async", None)
+        observed = (await observer()) if observer is not None else binding.observe()
+        if observed is None:
+            return None
+        facts |= set(observed)
+    return _read(domain_id, frozenset(facts))

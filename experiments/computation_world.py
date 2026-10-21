@@ -35,7 +35,7 @@ import re
 from pathlib import Path
 from typing import Any, Dict, FrozenSet, Optional
 
-from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.tools.tool_registry import OperatorBinding, get_binding_registry
 from core.learning.rule_induction import Fact, canonical_term, is_number
 
 ACTIONS = ("READ", "PARSE_NUMBER", "MULTIPLY", "WRITE")
