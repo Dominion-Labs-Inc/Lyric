@@ -35,8 +35,9 @@ import threading
 import uuid
 from collections import defaultdict
 from dataclasses import dataclass, field
+from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from core.learning.rule_induction import Fact, RuleEffects
 from core.reasoning.unification import match_literal
@@ -69,6 +70,11 @@ logger = logging.getLogger(__name__)
 _interference_lock = threading.Lock()
 _active_by_domain: Dict[str, set] = defaultdict(set)
 _overlapped_tokens: set = set()
+#: domain -> how many substrate executions have entered it in this process. A
+#: reading of a world keeps the count it saw (`act_mark`), so the next reading
+#: can tell whether the substrate acted there in between -- which is what
+#: separates a change the world made on its own from one the substrate made.
+_acts_by_domain: Dict[str, int] = defaultdict(int)
 
 
 @contextlib.contextmanager
@@ -82,6 +88,7 @@ def concurrent_execution_guard(domain_id: Optional[str]):
     token = uuid.uuid4().hex
     key = domain_id or "__no_domain__"
     with _interference_lock:
+        _acts_by_domain[key] += 1
         peers = _active_by_domain[key]
         if peers:
             # We overlap everyone already here, and they overlap us.
@@ -101,6 +108,27 @@ def concurrent_execution_guard(domain_id: Optional[str]):
             if not _active_by_domain[key]:
                 del _active_by_domain[key]
             _overlapped_tokens.discard(token)
+
+
+#: (executions entered so far, whether one is under way) in a domain, at a moment.
+ActMark = Tuple[int, bool]
+
+
+def act_mark(domain_id: Optional[str]) -> ActMark:
+    """What the substrate has done in a domain so far: how many executions have
+    entered it, and whether one is under way now."""
+    key = domain_id or "__no_domain__"
+    with _interference_lock:
+        return _acts_by_domain.get(key, 0), bool(_active_by_domain.get(key))
+
+
+def acted_between(first: ActMark, second: ActMark) -> bool:
+    """Whether the substrate acted in a domain between two marks of it.
+
+    An execution under way at either mark counts: its effect may land on either
+    side of a reading, so a change seen around it cannot be called the world's
+    own."""
+    return first[0] != second[0] or first[1] or second[1]
 
 
 class Polarity(Enum):
@@ -209,34 +237,8 @@ def verify_effects(
     evidence_root_id: Optional[str] = None,
 ) -> RuntimeEvidence:
     """Compare each predicted effect against the observed world, independently."""
-    verifications: List[EffectVerification] = []
-
-    for fact in sorted(effects.add):
-        present = observation.contains(fact)
-        verifications.append(EffectVerification(
-            predicted_effect=fact, polarity=Polarity.ADD,
-            verdict=(EffectVerdict.UNKNOWN if present is None
-                     else EffectVerdict.CONFIRMED if present
-                     else EffectVerdict.CONTRADICTED),
-            observation_id=observation.observation_id,
-            evidence_root_id=evidence_root_id,
-            detail=("world not observable" if present is None
-                    else "" if present else "predicted addition is absent"),
-        ))
-
-    for fact in sorted(effects.delete):
-        present = observation.contains(fact)
-        verifications.append(EffectVerification(
-            predicted_effect=fact, polarity=Polarity.DELETE,
-            verdict=(EffectVerdict.UNKNOWN if present is None
-                     else EffectVerdict.CONTRADICTED if present
-                     else EffectVerdict.CONFIRMED),
-            observation_id=observation.observation_id,
-            evidence_root_id=evidence_root_id,
-            detail=("world not observable" if present is None
-                    else "predicted retraction did not happen" if present else ""),
-        ))
-
+    verifications = _verdicts(effects, observation.contains, observation.observation_id,
+                              evidence_root_id)
     outcome = _outcome(verifications, observation)
     evidence = RuntimeEvidence(
         outcome=outcome, rule_id=rule_id, operator=operator,
@@ -244,6 +246,48 @@ def verify_effects(
     )
     evidence.detail = _describe(evidence, observation)
     return evidence
+
+
+def _verdicts(
+    effects: RuleEffects,
+    contains: Callable[[Fact], Optional[bool]],
+    observation_id: str,
+    evidence_root_id: Optional[str] = None,
+) -> List[EffectVerification]:
+    """Each predicted effect against what the world holds, one verdict apiece.
+
+    The one comparison of predicted against observed: an act's effects
+    (`verify_effects`) and an expectation of the world (`verify_expectation`)
+    are both judged here, so the two cannot come to mean different things by
+    "confirmed"."""
+    verifications: List[EffectVerification] = []
+
+    for fact in sorted(effects.add):
+        present = contains(fact)
+        verifications.append(EffectVerification(
+            predicted_effect=fact, polarity=Polarity.ADD,
+            verdict=(EffectVerdict.UNKNOWN if present is None
+                     else EffectVerdict.CONFIRMED if present
+                     else EffectVerdict.CONTRADICTED),
+            observation_id=observation_id,
+            evidence_root_id=evidence_root_id,
+            detail=("world not observable" if present is None
+                    else "" if present else "predicted addition is absent"),
+        ))
+
+    for fact in sorted(effects.delete):
+        present = contains(fact)
+        verifications.append(EffectVerification(
+            predicted_effect=fact, polarity=Polarity.DELETE,
+            verdict=(EffectVerdict.UNKNOWN if present is None
+                     else EffectVerdict.CONTRADICTED if present
+                     else EffectVerdict.CONFIRMED),
+            observation_id=observation_id,
+            evidence_root_id=evidence_root_id,
+            detail=("world not observable" if present is None
+                    else "predicted retraction did not happen" if present else ""),
+        ))
+    return verifications
 
 
 def _outcome(
@@ -399,3 +443,171 @@ def outcome_class_for(evidence: RuntimeEvidence, attribution: Attribution):
     if evidence.outcome is RuntimeOutcome.CONTRADICTION:
         return OutcomeClass.STRATEGY_FAILURE
     return OutcomeClass.INDETERMINATE
+
+
+# ── EXPECTATIONS OF THE WORLD ─────────────────────────────────────────────
+#
+# Everything above judges an ACT: the substrate did something, and the world is
+# read to see whether it did what the rule said. An expectation is the same
+# comparison with nothing done. A regularity the substrate learned from changes
+# the world made on its own says that when its conditions hold, its effects
+# follow; when the conditions are seen, the substrate expects the effects by a
+# time it learned, and every later reading of that world is judged against it.
+#
+# Its absence before that time is not a contradiction -- the world has not yet
+# had the time it takes. At or after it, an effect still absent is: the world
+# did not do what the substrate expected. Who was wrong is a separate question
+# (`attribute_expectation`).
+
+
+class ExpectationOutcome(Enum):
+    CONFIRMATION = "expectation_confirmed"
+    PENDING = "expectation_pending"
+    CONTRADICTION = "expectation_unmet"
+    INDETERMINATE = "expectation_indeterminate"
+
+
+@dataclass(frozen=True)
+class Expectation:
+    """What the substrate expects a world to do on its own, and by when.
+
+    `effects` are ground: the regularity's effects for the bindings its
+    conditions were seen to hold for. `held` is what the world held about those
+    terms when the expectation was formed -- the case, should it go unmet, that
+    is compared with the regularity's confirmations. `since` is when the
+    conditions were first seen to hold together; `due` is `since` plus the
+    longest the regularity was ever seen to take."""
+
+    expectation_id: str
+    rule_id: str
+    domain_id: str
+    effects: RuleEffects
+    held: FrozenSet[Fact]
+    since: datetime
+    due: datetime
+    owner: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class WorldReading:
+    """One reading of a domain's world: what it held, when, and what the
+    substrate had done there by then (`act_mark`). `facts` is None when the
+    world could not be read, which is not an empty world."""
+
+    reading_id: str
+    domain_id: str
+    facts: Optional[FrozenSet[Fact]]
+    at: datetime
+    mark: ActMark
+
+    def contains(self, fact: Fact) -> Optional[bool]:
+        """Whether the world held this. An expectation's effects are ground;
+        a fact with a variable cannot be judged against a reading on its own,
+        and is left unknown rather than matched against anything present."""
+        if self.facts is None or not fact.is_ground:
+            return None
+        return fact in self.facts
+
+
+@dataclass
+class ExpectationEvidence:
+    """What one reading established about one expectation."""
+
+    outcome: ExpectationOutcome
+    expectation: Expectation
+    reading_id: str
+    verifications: List[EffectVerification] = field(default_factory=list)
+    detail: str = ""
+
+    @property
+    def unmet(self) -> List[EffectVerification]:
+        return [v for v in self.verifications if v.verdict is not EffectVerdict.CONFIRMED]
+
+    def as_runtime_evidence(self) -> RuntimeEvidence:
+        """The settled expectation in the rule store's terms, so it is recorded
+        against its regularity by the same door as an act's outcome
+        (`record_runtime_evidence`), under the same policy: only evidence about
+        the rule is charged to it."""
+        outcome = {ExpectationOutcome.CONFIRMATION: RuntimeOutcome.CONFIRMATION,
+                   ExpectationOutcome.CONTRADICTION: RuntimeOutcome.CONTRADICTION}.get(
+                       self.outcome, RuntimeOutcome.INDETERMINATE)
+        return RuntimeEvidence(
+            outcome=outcome, rule_id=self.expectation.rule_id, operator="",
+            observation_id=self.reading_id, verifications=list(self.verifications),
+            detail=self.detail)
+
+
+def verify_expectation(expectation: Expectation, reading: WorldReading) -> ExpectationEvidence:
+    """Judge an expectation against one reading of its world, effect by effect,
+    through the same comparison as an act's effects (`_verdicts`)."""
+    verifications = _verdicts(expectation.effects, reading.contains, reading.reading_id)
+    if reading.facts is None:
+        outcome, detail = ExpectationOutcome.INDETERMINATE, "the world could not be read"
+    elif not verifications:
+        outcome, detail = ExpectationOutcome.INDETERMINATE, "the expectation predicts nothing"
+    elif all(v.verdict is EffectVerdict.CONFIRMED for v in verifications):
+        outcome, detail = ExpectationOutcome.CONFIRMATION, f"{len(verifications)} effect(s) happened"
+    elif any(v.verdict is EffectVerdict.UNKNOWN for v in verifications):
+        outcome, detail = ExpectationOutcome.INDETERMINATE, "an effect could not be judged"
+    elif reading.at < expectation.due:
+        outcome = ExpectationOutcome.PENDING
+        detail = f"not yet: due {expectation.due.isoformat()}"
+    else:
+        outcome = ExpectationOutcome.CONTRADICTION
+        detail = "did not happen by " + expectation.due.isoformat() + ": " + ", ".join(
+            f"{v.polarity.value} {v.predicted_effect}" for v in verifications
+            if v.verdict is EffectVerdict.CONTRADICTED)
+    return ExpectationEvidence(outcome=outcome, expectation=expectation,
+                               reading_id=reading.reading_id,
+                               verifications=verifications, detail=detail)
+
+
+def attribute_expectation(
+    evidence: ExpectationEvidence, *, acted: bool, separable: Optional[bool]
+) -> Tuple[Attribution, str]:
+    """Decide what a settled expectation is evidence ABOUT.
+
+    `acted` is whether the substrate acted in the domain while the expectation
+    stood (`acted_between`): then what happened, or did not, may be its own
+    doing, and says nothing about the world's regularity.
+
+    `separable` answers the question an unmet expectation raises: was the
+    substrate wrong, or did the world depart from what it does? The learner
+    answers it (`UnifiedLearningSystem.separates`): given this case as a
+    counter-example, can a narrower regularity still explain every
+    confirmation and exclude it?
+
+      yes   something observed tells this case apart, so the regularity was
+            too broad. RULE_EVIDENCE: the substrate was wrong, and learns.
+      no    nothing observed tells it apart. EXTERNAL_FAILURE: the world did
+            not do what it does. Recorded, not charged to the regularity.
+      None  the question could not be put (no confirmations to compare with):
+            INDETERMINATE.
+
+    Fails toward INDETERMINATE, like `attribute`."""
+    outcome = evidence.outcome
+    if outcome in (ExpectationOutcome.PENDING, ExpectationOutcome.INDETERMINATE):
+        return Attribution.INDETERMINATE, evidence.detail or "nothing was established"
+    if acted:
+        if outcome is ExpectationOutcome.CONFIRMATION:
+            return (Attribution.INDETERMINATE,
+                    "the substrate acted in this domain while it waited; what happened "
+                    "may be its own doing")
+        return (Attribution.EXECUTION_FAILURE,
+                "the substrate acted in this domain while the expectation stood; what "
+                "did not happen may be its own doing")
+    if outcome is ExpectationOutcome.CONFIRMATION:
+        return (Attribution.RULE_EVIDENCE,
+                "the world did what the regularity says, with nothing of the "
+                "substrate's in between")
+    if separable is None:
+        return (Attribution.INDETERMINATE,
+                "whether this case differs from the regularity's confirmations "
+                "could not be judged")
+    if separable:
+        return (Attribution.RULE_EVIDENCE,
+                "something observed tells this case apart from every confirmation: "
+                "the regularity is too broad, and the substrate was wrong")
+    return (Attribution.EXTERNAL_FAILURE,
+            "nothing observed tells this case apart from the confirmations: the "
+            "world did not do what it does")

@@ -31,6 +31,7 @@ from .shared_types import (
 from .planning_engine import PlanningEngine
 from core.learning.unified_learning_system import get_learning_authority
 from core.learning.performance_profiler import profile_performance
+from core.intelligence.predictive_intelligence_system import Departure
 from .directive_system import DirectiveSystem
 from .coordinator_config import CoordinatorConfig, get_default_config
 from .circuit_breaker import CircuitBreaker, get_circuit_breaker_registry
@@ -56,7 +57,7 @@ from core.reasoning import (
 # recorded.
 from core.reasoning.intent_authority import Intent
 from core.learning import UnifiedLearningSystem
-from core.intelligence import PredictiveIntelligenceSystem, PredictionDomain, PredictionHorizon
+from core.intelligence import PredictionDomain, PredictionHorizon, get_predictive_intelligence
 from core.database.logging_database import LoggingDatabase
 from core.tools.tool_registry import ToolResult
 import unicodedata
@@ -180,6 +181,14 @@ class SelfEventType(Enum):
     #: refutation fixed. Deferred: replanning is a search, and it must not run on the
     #: dispatch path that drained the withdrawal. Payload: RouteWithdrawn.
     ROUTE_WITHDRAWN = "route_withdrawn"
+    #: The world did not do what the substrate expected of it, and nothing
+    #: observed tells the case apart from the times it did: the world departed
+    #: from what it does (the predictive intelligence system's world expectations). The one event that
+    #: starts from the substrate's own expectation rather than from something
+    #: that happened. Its reaction decides, through the gates that govern acting
+    #: for a person, whether to tell them, offer, or put it right. Deferred.
+    #: Payload: Departure.
+    EXPECTATION_UNMET = "expectation_unmet"
 
 
 @dataclass(frozen=True)
@@ -389,6 +398,7 @@ _EVENT_PAYLOADS.update({
     SelfEventType.DEFICIT_DIAGNOSED: DeficitDiagnosed,
     SelfEventType.ENVIRONMENT_ENCOUNTERED: EnvironmentEncountered,
     SelfEventType.ROUTE_WITHDRAWN: RouteWithdrawn,
+    SelfEventType.EXPECTATION_UNMET: Departure,
 })
 
 
@@ -7019,6 +7029,12 @@ class AutonomousCoordinator:
         self.on(SelfEventType.ENVIRONMENT_ENCOUNTERED, self._react_investigate_environment,
                 name="environment_investigation", mode="deferred", priority=35)
 
+        # The world did not do what the substrate expected of it -> decide, through
+        # the gates that govern acting for a person, whether to tell, offer or put
+        # it right. Deferred: planning is a search, and telling is a write.
+        self.on(SelfEventType.EXPECTATION_UNMET, self._react_expectation_unmet,
+                name="expectation_unmet", mode="deferred", priority=35)
+
         # THE DEVELOPMENTAL DRIVE — event-driven intrinsic pursuit. When the
         # self's state changes in a way that could change what is worth pursuing,
         # re-evaluate the frontier and select one pursuit. LOW priority so the
@@ -7308,7 +7324,8 @@ class AutonomousCoordinator:
         # — action→outcome, reasoning, experiments — through the learning authority,
         # and self-improvement is whatever that learning changed.
 
-        self.intelligence = PredictiveIntelligenceSystem(self.config.get("intelligence", {}))
+        # THE ONE predictive intelligence system, held here; nothing else constructs one.
+        self.intelligence = get_predictive_intelligence()
         
         # === COGNITIVE TOOLKIT ===
         # These are the Singleton's tools for understanding, learning, and self-improvement
@@ -7553,13 +7570,11 @@ class AutonomousCoordinator:
                             await _init()
                         except Exception as fe:
                             logger.warning(f"Self: {_name} faculty init failed: {fe}")
-                # Predictive intelligence (async getter) — one engine, brought up
-                # once and held here.
+                # Predictive intelligence — the one engine, held since
+                # construction, brought up once.
                 try:
-                    from core.intelligence import get_predictive_intelligence
-                    _intel = await get_predictive_intelligence()
-                    if _intel is not None:
-                        self.intelligence = _intel
+                    if not self.intelligence.initialized:
+                        await self.intelligence.initialize()
                 except Exception as ie:
                     logger.warning(f"Self: intelligence faculty init failed: {ie}")
                 logger.info("✅ Cognition faculties ready - reasoning ↔ logic, "
@@ -7777,6 +7792,10 @@ class AutonomousCoordinator:
             # What it owes to be said at a later moment is armed again, so a
             # message due after a restart is still said at its time.
             await self._rearm_messages()
+            # What it expects of the world: every reading is attended to, a
+            # departure is its own event, and what was still awaited before the
+            # restart is armed again.
+            await self._attend_to_expectations()
             # Cadence ownership goes live with the substrate: hand the timed
             # tiers to the queue authority's scheduler here, the one entry point
             # every start path funnels through. Idempotent (guarded), so calling
@@ -8522,6 +8541,110 @@ class AutonomousCoordinator:
                 logger.error(
                     "goal %s was replanned but its new route could not be "
                     "carried out (%s: %s)", route["goal_id"], type(e).__name__, e)
+
+    async def _attend_to_expectations(self) -> None:
+        """Wire the predictive intelligence system's world expectations to this
+        substrate, once: every reading of a world is attended to
+        (`BindingRegistry.on_reading`), an expectation's due time is armed as a
+        timed job of the queue authority (its wait holds no slot), a departure is
+        raised as `EXPECTATION_UNMET`, and what was still awaited before a
+        restart is armed again."""
+        if getattr(self, "_expectations_attended", False):
+            return
+        from core.execution.operator_binding import get_binding_registry
+        intelligence = self.intelligence
+
+        def arm(expectation) -> None:
+            wait = max(0.0, (expectation.due - datetime.now(timezone.utc)).total_seconds())
+            self.task_queue.submit(
+                lambda: intelligence.check_due(expectation.expectation_id, expectation.domain_id),
+                name=f"expect:{expectation.expectation_id}",
+                job_id=f"expect:{expectation.expectation_id}:{uuid.uuid4().hex[:6]}",
+                delay_s=wait, on_complete=self._expectation_checked)
+
+        async def departed(departure: Departure) -> None:
+            await self.emit(SelfEvent(SelfEventType.EXPECTATION_UNMET, departure,
+                                      origin="predictive_intelligence"))
+
+        intelligence.bind_world(arm=arm, on_departure=departed)
+        self._stop_attending_readings = get_binding_registry().on_reading(intelligence.on_reading)
+        self._expectations_attended = True
+        await intelligence.restore_expectations()
+
+    @staticmethod
+    def _expectation_checked(outcome: Dict[str, Any]) -> None:
+        if outcome.get("error"):
+            logger.error("an expectation's due reading failed (%s): %s",
+                         outcome.get("name"), outcome["error"])
+
+    async def _react_expectation_unmet(self, event: SelfEvent) -> None:
+        """The world did not do what the substrate expected of it, and nothing
+        observed tells the case apart from the times it did.
+
+        Acted on only when the expectation was a COMMITMENT (every regularity of
+        its kind expected the change) of regularities RELIED ON before they failed
+        here. Anything less teaches and is done with: the expectations authority
+        already moved what was believed and kept what happened.
+
+        For a person's world, how is the capabilities faculty's
+        (`Capabilities.may_pursue_for`), bounded by their operating mode:
+
+          tell         they are told what was expected, and that it has not happened
+          offer        the same, and that Lyric can see to it; it acts if they ask
+          on its own   a state goal, "the expected change holds", is pursued for
+                       them over learned operators; the constitution judges each act
+        """
+        departure: Departure = event.payload
+        expectation = departure.expectation
+        if not departure.committed or not departure.relied_on:
+            logger.info("expectation %s unmet in %s; %s: it teaches, and nothing is done",
+                        expectation.expectation_id, expectation.domain_id,
+                        "it was a question, not a commitment" if not departure.committed
+                        else "what was expected was not yet relied on")
+            return
+        how, why = await self.capabilities.may_pursue_for(
+            expectation.owner, relied_on=departure.relied_on, disposition=self.disposition())
+        logger.info("expectation %s unmet in %s for %s: %s (%s)", expectation.expectation_id,
+                    expectation.domain_id, expectation.owner or "the substrate", how, why)
+        if how == "learn":
+            return
+
+        effects = expectation.effects
+        what = ", ".join([str(f) for f in sorted(effects.add)]
+                         + [f"no longer {f}" for f in sorted(effects.delete)])
+        told = (f"In {expectation.domain_id}, I expected {what} by "
+                f"{expectation.due.strftime('%Y-%m-%d %H:%M UTC')}, as it has happened before. "
+                f"It has not.")
+        if how == "tell":
+            await self.speak_to(expectation.owner, told, why="expected",
+                                about=expectation.expectation_id)
+            return
+        if how == "offer":
+            await self.speak_to(expectation.owner, told + " I can see to it if you ask.",
+                                why="expected", about=expectation.expectation_id)
+            return
+
+        task = Task(
+            id=f"expect_{expectation.expectation_id}",
+            type=TaskType.EXECUTION,
+            description=f"Put right what was expected in {expectation.domain_id}: {what}",
+            priority=Priority.MEDIUM,
+            source=TaskSource.AUTONOMOUS,
+            actor=expectation.owner,
+            created_by="expectations",
+            provenance={"goal_conditions": [str(f) for f in sorted(effects.add)]
+                        + [f"¬{f}" for f in sorted(effects.delete)],
+                        "domain_id": expectation.domain_id,
+                        "expectation_id": expectation.expectation_id},
+        )
+        if await self.task_queue.add_task(task):
+            await self.speak_to(expectation.owner, told + " I am seeing to it.",
+                                why="expected", about=task.id)
+        else:
+            logger.warning("the queue refused the goal for unmet expectation %s; %s is told only",
+                           expectation.expectation_id, expectation.owner)
+            await self.speak_to(expectation.owner, told, why="expected",
+                                about=expectation.expectation_id)
 
     async def _react_expand_outcome(self, event: SelfEvent) -> None:
         """Wake the single-flight domain-expansion drain (`_coalesced_domain_expansion`).
@@ -13292,7 +13415,7 @@ class AutonomousCoordinator:
                     if isinstance(prediction.predicted_value, (int, float)) else -1.0,
                     actual, result.accuracy, result.confidence_calibration,
                 )
-                await self._persist_prediction_result(prediction, result, actual)
+                await self.intelligence.record_result(prediction, result, actual)
             except Exception as e:
                 logger.warning(f"Could not resolve prediction {pid}: {e}")
 
@@ -13307,58 +13430,6 @@ class AutonomousCoordinator:
             )
         except Exception as e:
             logger.warning(f"Could not generate system-performance prediction: {e}")
-
-    async def _persist_prediction_result(self, prediction, result, actual) -> None:
-        """Store the scored prediction so calibration outlives the process.
-
-        active_predictions is an in-memory dict; without this the entire
-        accuracy record dies with the process and the world model can never
-        show whether it is getting better.
-        """
-        try:
-            from core.database import get_database_manager
-            db = get_database_manager()
-            await db.execute_query(
-                """
-                CREATE TABLE IF NOT EXISTS prediction_results (
-                    prediction_id   VARCHAR(128) PRIMARY KEY,
-                    domain          VARCHAR(64) NOT NULL,
-                    horizon         VARCHAR(32) NOT NULL,
-                    predicted_value DOUBLE PRECISION,
-                    actual_value    DOUBLE PRECISION,
-                    confidence      NUMERIC(6,4),
-                    accuracy        NUMERIC(6,4),
-                    calibration     NUMERIC(6,4),
-                    predicted_at    TIMESTAMP,
-                    resolved_at     TIMESTAMP NOT NULL DEFAULT NOW()
-                )
-                """,
-                commit=True,
-            )
-            await db.execute_query(
-                """
-                INSERT INTO prediction_results (
-                    prediction_id, domain, horizon, predicted_value, actual_value,
-                    confidence, accuracy, calibration, predicted_at
-                ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-                ON CONFLICT (prediction_id) DO NOTHING
-                """,
-                (
-                    result.prediction_id,
-                    prediction.domain.value,
-                    prediction.horizon.value,
-                    float(prediction.predicted_value)
-                    if isinstance(prediction.predicted_value, (int, float)) else None,
-                    float(actual),
-                    float(prediction.confidence),
-                    float(result.accuracy),
-                    float(result.confidence_calibration),
-                    prediction.timestamp,
-                ),
-                commit=True,
-            )
-        except Exception as e:
-            logger.warning(f"Could not persist prediction result: {e}")
 
     def _health_counts(self) -> Dict[str, Any]:
         """How many components the health monitor grades, how many it last graded below healthy, and when it last
@@ -13527,7 +13598,7 @@ class AutonomousCoordinator:
             return verdict(False, OutcomeClass.INSUFFICIENT_EVIDENCE,
                            "no operation was performed")
 
-        from core.execution.effect_verification import RuntimeOutcome
+        from core.intelligence.effect_verification import RuntimeOutcome
         runtime_outcome = result.get("runtime_outcome")
         if runtime_outcome == RuntimeOutcome.INDETERMINATE.value:
             return verdict(False, OutcomeClass.INSUFFICIENT_EVIDENCE,
@@ -17904,7 +17975,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         if not rule_id or not operator_name:
             return None
 
-        from core.execution.effect_verification import (
+        from core.intelligence.effect_verification import (
             AttributionContext, RuntimeOutcome, ToolObservation, attribute, verify_effects)
         from core.execution.operator_binding import get_binding_registry
         from core.learning.rule_induction import (Fact, RuleEffects, is_variable,
@@ -18040,7 +18111,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         from core.reasoning.intent_authority import (
             set_acting_intent, reset_acting_intent,
             set_acting_actor, reset_acting_actor)
-        from core.execution.effect_verification import concurrent_execution_guard
+        from core.intelligence.effect_verification import concurrent_execution_guard
         _intent_token = set_acting_intent(provenance.get("intent_id"))
         # WHOSE WORK THIS IS, bound beside the intent. `actor_for` decided it when
         # the task was made; this reads that decision rather than making a second.
@@ -18296,7 +18367,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         if frame is None or refused:
             return
         try:
-            from core.execution.effect_verification import (
+            from core.intelligence.effect_verification import (
                 RuntimeEvidence, RuntimeOutcome)
             from core.execution.tool_domain import (
                 note_demonstration, refresh_earned)
@@ -18362,7 +18433,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         verdict, and an unlabelled one defaults to positive -- which would file
         "we could not tell" as "the action worked".
         """
-        from core.execution.effect_verification import RuntimeOutcome
+        from core.intelligence.effect_verification import RuntimeOutcome
 
         if after is None:
             logger.info(
@@ -18506,7 +18577,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         Signals with no measurement here are omitted rather than defaulted, so
         nothing invented reaches the appraisal.
         """
-        from core.execution.effect_verification import RuntimeOutcome, outcome_class_for
+        from core.intelligence.effect_verification import RuntimeOutcome, outcome_class_for
 
         if evidence.outcome is RuntimeOutcome.CONFIRMATION:
             quality = 1.0
@@ -18607,9 +18678,15 @@ The substrate must realign with its constitutional responsibilities immediately.
             # Reset as soon as the call returns: the binding exists for the gate,
             # and a token left set would leak this task's intent onto whatever
             # this context does next.
+            # UNDER THE SAME GUARD AS A LEARNED OPERATOR'S ACT, in the domain the
+            # frame watches: a reading of that world taken around this act then
+            # knows the substrate acted, and a change it made is never taken for
+            # one the world made on its own (the predictive intelligence system's world expectations).
+            from core.intelligence.effect_verification import concurrent_execution_guard
             try:
-                result = await self.tool_registry.execute_tool(tool_name, params)
-                result = await self._carry_out_redirect(tool_name, params, result)
+                with concurrent_execution_guard(frame.domain_id if frame is not None else None):
+                    result = await self.tool_registry.execute_tool(tool_name, params)
+                    result = await self._carry_out_redirect(tool_name, params, result)
             finally:
                 # BOTH bindings released together, and in the `finally` — a token
                 # left set leaks this task's intent AND its owner onto whatever

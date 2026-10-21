@@ -136,7 +136,8 @@ STORE_TABLES: Dict[str, frozenset] = {
         affect_state appraisal_state backup_records causal_feedback_analyses chaos_adapter_state chaos_events
         chaos_experiments chaos_metrics component_health component_snapshots components cross_domain_queries
         directive_ab_tests directive_applications emergency_halts extraction_attempts
-        failure_events frozen_capability_benchmarks goals intents internal_directives intrinsic_motivation
+        failure_events frozen_capability_benchmarks goals held_expectations intents internal_directives
+        intrinsic_motivation
         knowledge_refresh long_term_baselines meta_decision_records meta_learning_strategies meta_learning_tasks
         meta_parameter_snapshots motivation_history motivation_profile novelty_detections operation_logs
         performance_logs performance_metrics plans queue_instances reasoning_bridge_stats reasoning_telemetry

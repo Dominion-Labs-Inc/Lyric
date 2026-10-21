@@ -372,7 +372,7 @@ async def main():
         # — is not part of the proved route and verifies no rule's effects.
         steps = [s for s in (missed_result.get("steps") or [])
                  if isinstance(s, dict) and s.get("execution_path") == "substrate"]
-        from core.execution.effect_verification import RuntimeOutcome
+        from core.intelligence.effect_verification import RuntimeOutcome
         all_confirmed = bool(steps) and all(
             s.get("runtime_outcome") == RuntimeOutcome.CONFIRMATION.value
             for s in steps)

@@ -84,6 +84,13 @@ class EpistemicStatus(Enum):
     INVALID_ARTIFACT = "invalid_artifact"
 
 
+#: The kind of a rule learned from changes the world made on its own: when its
+#: conditions hold, its effects follow, with nothing done by the substrate. It
+#: has no action, so it can never be performed, and VALIDATED gives it the
+#: authority to be EXPECTED (`expectation_rules`), never to be executed.
+REGULARITY_KIND = "world_regularity"
+
+
 def confers_execution_authority(status: EpistemicStatus) -> bool:
     """Whether a rule in this status may be consumed by execution.
 
@@ -214,8 +221,9 @@ class StoredRule:
 
     @property
     def is_executable(self) -> bool:
-        """Only VALIDATED rules may be consumed by execution."""
-        return confers_execution_authority(self.status)
+        """Only VALIDATED rules may be consumed by execution, and never a
+        regularity of the world, which names nothing the substrate can do."""
+        return self.rule_kind != REGULARITY_KIND and confers_execution_authority(self.status)
 
 
 #: WHAT THE CURRENT ACT RESTS ON, bound to the async context by the path that
@@ -962,7 +970,17 @@ class RuleStore:
         """
         rules = await self.load(EpistemicStatus.VALIDATED, domain_id)
         replaced = await self.superseded_rule_ids()
-        return [r for r in rules if r.rule_id not in replaced]
+        return [r for r in rules if r.rule_id not in replaced and r.is_executable]
+
+    async def expectation_rules(self, domain_id: Optional[str] = None) -> List[StoredRule]:
+        """The regularities of the world the substrate may expect: VALIDATED,
+        not superseded, of `REGULARITY_KIND`. Kept apart from
+        `executable_rules`, which every planner, competence measure and
+        operator binder reads as what the substrate can DO."""
+        rules = await self.load(EpistemicStatus.VALIDATED, domain_id)
+        replaced = await self.superseded_rule_ids()
+        return [r for r in rules
+                if r.rule_id not in replaced and r.rule_kind == REGULARITY_KIND]
 
     async def load(
         self, status: Optional[EpistemicStatus] = None, domain_id: Optional[str] = None
@@ -1050,12 +1068,17 @@ async def record_runtime_evidence(
 
     Returns the rule's status after the write, or None when nothing changed.
     """
-    from core.execution.effect_verification import Attribution, RuntimeOutcome
+    from core.intelligence.effect_verification import Attribution, RuntimeOutcome
 
     guard_learning("runtime evidence")
     await store.ensure_schema()
 
     if not evidence.rule_id:
+        return None
+    if evidence.outcome is RuntimeOutcome.INDETERMINATE:
+        # NOTHING WAS ESTABLISHED, so nothing is attached. Every outcome that was
+        # not a confirmation used to be filed as a contradiction, and an act whose
+        # world could not be read counted against the rule it ran.
         return None
 
     role = (EvidenceRole.RUNTIME_CONFIRMATION

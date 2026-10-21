@@ -42,7 +42,7 @@ from enum import Enum
 from typing import (Any, Dict, FrozenSet, List, Optional, Protocol, Sequence,
                     Tuple)
 
-from core.execution.effect_verification import (RuntimeOutcome, ToolObservation,
+from core.intelligence.effect_verification import (RuntimeOutcome, ToolObservation,
                                                 verify_effects)
 from core.learning.rule_induction import (CandidateRule, Fact, RuleEffects,
                                           TrainingExample, applies)

@@ -25,7 +25,7 @@ import pytest_asyncio
 
 from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.shared_types import Task, TaskType
-from core.execution.effect_verification import (
+from core.intelligence.effect_verification import (
     EffectVerdict, Polarity, RuntimeOutcome, ToolObservation, verify_effects,
 )
 from core.execution.operator_binding import OperatorBinding, get_binding_registry
@@ -414,7 +414,7 @@ async def test_the_executor_itself_closes_the_loop(locked_world):
     attribution charges it to the rule, and the rule loses execution authority
     -- without anything outside the executor intervening.
     """
-    from core.execution.effect_verification import Attribution, RuntimeOutcome
+    from core.intelligence.effect_verification import Attribution, RuntimeOutcome
     from core.learning.rule_store import EvidenceRole
 
     world, store, stored = locked_world
@@ -484,7 +484,7 @@ async def test_lyric_does_not_invent_the_condition_it_was_never_taught(locked_wo
 def test_a_mismatch_is_not_charged_to_the_rule_unless_everything_held():
     """The credit invariant at runtime: never debit a strategy for an
     infrastructure failure."""
-    from core.execution.effect_verification import (
+    from core.intelligence.effect_verification import (
         Attribution, AttributionContext, RuntimeOutcome, ToolObservation,
         attribute, verify_effects,
     )
@@ -508,6 +508,125 @@ def test_a_mismatch_is_not_charged_to_the_rule_unless_everything_held():
 
     interfered = AttributionContext(**{**vars(everything_held), "external_interference": True})
     assert attribute(evidence, interfered)[0] is Attribution.EXTERNAL_FAILURE
+
+
+# ------------------------------------------------ expectations of the world
+
+def _expectation(due_in_s: float, *, add=(), delete=()):
+    from datetime import datetime, timedelta, timezone
+    from core.intelligence.effect_verification import Expectation
+    now = datetime.now(timezone.utc)
+    return Expectation(expectation_id="e", rule_id="r", domain_id="d",
+                       effects=RuleEffects(add=set(add), delete=set(delete)),
+                       held=frozenset(), since=now, due=now + timedelta(seconds=due_in_s))
+
+
+def _reading(facts):
+    from datetime import datetime, timezone
+    from core.intelligence.effect_verification import WorldReading
+    return WorldReading(reading_id="read", domain_id="d", facts=frozenset(facts),
+                        at=datetime.now(timezone.utc), mark=(0, False))
+
+
+def test_an_expectation_is_not_unmet_before_it_is_due():
+    """Absence before the due time is the world not having had its time yet."""
+    from core.intelligence.effect_verification import ExpectationOutcome, verify_expectation
+    moved = Fact("AT", ("f", "DONE"))
+    waiting = Fact("AT", ("f", "INBOX"))
+
+    early = verify_expectation(_expectation(60, add=[moved], delete=[waiting]), _reading([waiting]))
+    late = verify_expectation(_expectation(-1, add=[moved], delete=[waiting]), _reading([waiting]))
+    met = verify_expectation(_expectation(-1, add=[moved], delete=[waiting]), _reading([moved]))
+
+    assert early.outcome is ExpectationOutcome.PENDING
+    assert late.outcome is ExpectationOutcome.CONTRADICTION
+    assert {v.polarity for v in late.unmet} == {Polarity.ADD, Polarity.DELETE}
+    assert met.outcome is ExpectationOutcome.CONFIRMATION
+
+
+def test_an_unmet_expectation_is_charged_by_what_tells_it_apart():
+    """Separable: the substrate was wrong. Not separable: the world departed.
+    The substrate acting meanwhile: neither."""
+    from core.intelligence.effect_verification import (
+        Attribution, attribute_expectation, verify_expectation)
+    unmet = verify_expectation(
+        _expectation(-1, add=[Fact("AT", ("f", "DONE"))]), _reading([Fact("AT", ("f", "INBOX"))]))
+
+    assert attribute_expectation(unmet, acted=False, separable=True)[0] is Attribution.RULE_EVIDENCE
+    assert attribute_expectation(unmet, acted=False, separable=False)[0] is Attribution.EXTERNAL_FAILURE
+    assert attribute_expectation(unmet, acted=True, separable=False)[0] is Attribution.EXECUTION_FAILURE
+    assert attribute_expectation(unmet, acted=False, separable=None)[0] is Attribution.INDETERMINATE
+
+
+def _office(*, inbox=(), done=(), kinds=None):
+    kinds = kinds or {}
+    facts = {Fact("OPEN", ("INBOX",)), Fact("OPEN", ("DONE",)), Fact("PATH", ("INBOX", "DONE"))}
+    facts |= {Fact("AT", (f, "INBOX")) for f in inbox} | {Fact("AT", (f, "DONE")) for f in done}
+    facts |= {Fact("KIND", (f, k)) for f, k in kinds.items()}
+    return frozenset(facts)
+
+
+def test_a_world_change_is_cut_to_each_thing_that_changed():
+    """Two files moved between the same rooms at once are two changes, each cut
+    to what bears on it -- the other files waiting in the room are left out."""
+    from core.learning.unified_learning_system import world_change_examples
+    kinds = {"a": "pdf", "b": "pdf", "c": "pdf"}
+    before = _office(inbox=["a", "b", "c"], kinds=kinds)
+    after = _office(inbox=["c"], done=["a", "b"], kinds=kinds)
+
+    examples = world_change_examples(before, after, evidence_stem="s")
+
+    assert len(examples) == 2
+    for example, things in examples:
+        moved = example.observed_effects
+        assert len(moved.add) == 1 and len(moved.delete) == 1
+        assert not any("c" in f.args for f in example.before)
+        assert example.action is None and example.positive
+        assert things in ({"a"}, {"b"})
+    assert len({e.evidence_id for e, _ in examples}) == 2
+
+
+def test_a_kind_of_change_names_its_places_and_leaves_the_thing_open():
+    """Inbox-to-done and done-to-archive are two kinds of change; two files
+    moved inbox-to-done are one."""
+    from core.learning.demonstration_store import regularity_signature
+    from core.learning.unified_learning_system import world_change_examples
+    examples = world_change_examples(_office(inbox=["a", "b"]), _office(done=["a", "b"]),
+                                     evidence_stem="s")
+    kinds = {regularity_signature(e.observed_effects, things) for e, things in examples}
+    learned = RuleEffects(add={Fact("AT", ("?X0", "DONE"))}, delete={Fact("AT", ("?X0", "INBOX"))})
+    archived = RuleEffects(add={Fact("AT", ("?X0", "ARCHIVE"))}, delete={Fact("AT", ("?X0", "DONE"))})
+
+    assert kinds == {regularity_signature(learned)}
+    assert regularity_signature(archived) != regularity_signature(learned)
+
+
+def test_an_unmet_case_is_told_apart_only_by_what_was_observed():
+    """The question attribution rests on, put to the inducer: a pdf left in the
+    inbox is like every pdf that moved, so the world departed; a txt left there
+    differs in its kind, so the regularity was too broad."""
+    from core.learning.rule_induction import InductionStatus
+    from core.learning.unified_learning_system import expectation_case, world_change_examples
+
+    positives = []
+    for name in ("a", "b", "c"):
+        kinds = {name: "pdf"}
+        positives += [e for e, _ in world_change_examples(_office(inbox=[name], kinds=kinds),
+                                                          _office(done=[name], kinds=kinds),
+                                                          evidence_stem=name)]
+    moved = lambda f: RuleEffects(add={Fact("AT", (f, "DONE"))}, delete={Fact("AT", (f, "INBOX"))})
+
+    left_pdf = _office(inbox=["p"], kinds={"p": "pdf"})
+    like_the_rest = expectation_case(left_pdf, left_pdf, moved("p"), evidence_id="u1")
+    left_txt = _office(inbox=["t"], kinds={"t": "txt"})
+    of_another_kind = expectation_case(left_txt, left_txt, moved("t"), evidence_id="u2")
+
+    inseparable = get_rule_inducer().induce(positives + [like_the_rest])
+    separable = get_rule_inducer().induce(positives + [of_another_kind])
+
+    assert inseparable.status is InductionStatus.NO_RULE and inseparable.negative_coverage
+    assert separable.status in (InductionStatus.RULE_LEARNED, InductionStatus.MULTIPLE_HYPOTHESES)
+    assert all(any(f.predicate == "KIND" for f in c.body) for c in separable.candidates)
 
 
 def test_a_workspace_task_has_the_substrate_take_it_up():

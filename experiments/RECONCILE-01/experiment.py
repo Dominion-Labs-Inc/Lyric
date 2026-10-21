@@ -83,7 +83,7 @@ def make_task(description, provenance=None, metadata=None):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Priority
-    from core.execution.effect_verification import RuntimeOutcome
+    from core.intelligence.effect_verification import RuntimeOutcome
     from core.execution.operator_binding import get_binding_registry
     from core.execution.tool_domain import sensed_fact, take_up_workspace, term
     from core.learning.rule_induction import Fact

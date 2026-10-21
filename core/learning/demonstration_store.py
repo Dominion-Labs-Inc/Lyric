@@ -26,9 +26,10 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import Callable, Dict, List, Optional, Sequence
+from datetime import datetime
+from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
-from core.learning.rule_induction import Fact, TrainingExample
+from core.learning.rule_induction import Fact, RuleEffects, TrainingExample
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,11 @@ CREATE TABLE IF NOT EXISTS unified.operator_demonstrations (
 -- induced from such demonstrations is the world's only once nothing of them is left in it
 -- (docs/research/SEPARATION_MAP.md §11.6). NULL is the substrate's own work.
 ALTER TABLE unified.operator_demonstrations ADD COLUMN IF NOT EXISTS owner VARCHAR;
+-- WHEN A CHANGE THE WORLD MADE ON ITS OWN WAS SEEN: since when what held before
+-- it had held, and when the change was read. How long a regularity takes is
+-- learned from these (`lags`). NULL for an act's demonstration.
+ALTER TABLE unified.operator_demonstrations ADD COLUMN IF NOT EXISTS before_at TIMESTAMPTZ;
+ALTER TABLE unified.operator_demonstrations ADD COLUMN IF NOT EXISTS after_at TIMESTAMPTZ;
 CREATE INDEX IF NOT EXISTS operator_demonstrations_signature
     ON unified.operator_demonstrations (domain_id, predicate, arity, created_at);
 
@@ -82,6 +88,34 @@ CREATE TABLE IF NOT EXISTS unified.operator_induction_pending (
     PRIMARY KEY (domain_id, predicate, arity)
 );
 """
+
+
+#: What begins the signature of a change the world made on its own.
+REGULARITY_PREFIX = "~"
+
+
+def regularity_signature(effects: RuleEffects, things=frozenset()) -> Tuple[str, int]:
+    """The signature a change the world made on its own is filed under: what it
+    added and took away, with the thing that changed left open and the places
+    it changed in named -- `AT(_,INBOX)` gone and `AT(_,DONE)` come is one kind
+    of change, a move from DONE to ARCHIVE another. Changes of one kind are
+    evidence for one regularity, as demonstrations of one act are for one
+    operator.
+
+    The thing is a variable in a regularity's effects, and in a change the
+    world was seen to make, a term in `things` (`world_change_examples`)."""
+    from core.learning.rule_induction import is_variable
+
+    def shape(fact: Fact) -> str:
+        return f"{fact.predicate}(" + ",".join(
+            "_" if is_variable(t) or t in things else t for t in fact.args) + ")"
+
+    parts = sorted({"+" + shape(f) for f in effects.add} | {"-" + shape(f) for f in effects.delete})
+    return REGULARITY_PREFIX + "|".join(parts), 0
+
+
+def is_regularity_signature(predicate: str) -> bool:
+    return str(predicate).startswith(REGULARITY_PREFIX)
 
 
 def _facts_json(facts: Sequence[Fact]) -> str:
@@ -125,7 +159,10 @@ class DemonstrationStore:
     CONTRASTIVE = ("", 0)
 
     async def append(self, example: TrainingExample, *, domain_id: str,
-                     owner: Optional[str] = None) -> bool:
+                     owner: Optional[str] = None,
+                     regularity: Optional[Tuple[str, int]] = None,
+                     before_at: Optional[datetime] = None,
+                     after_at: Optional[datetime] = None) -> bool:
         """Record one demonstration.
 
         An action-ful demonstration is filed under the operator signature it
@@ -140,6 +177,14 @@ class DemonstrationStore:
         same transition arriving twice must not read as independent
         corroboration. `owner` is whose work it was, None for the substrate's
         own. Returns True if a new row was written.
+
+        A CHANGE THE WORLD MADE ON ITS OWN is also actionless, and is the
+        opposite of a contrastive negative: something DID follow with nothing
+        done. Filed as contrastive it would teach every operator that its
+        effects need no act. So it is filed under its own `regularity`
+        signature (`regularity_signature`), with when what held before it was
+        first seen holding (`before_at`) and when the change was read
+        (`after_at`).
         """
         if not example.evidence_id:
             raise ValueError(
@@ -147,17 +192,24 @@ class DemonstrationStore:
                 "cannot keep one observation from counting twice")
         if not domain_id:
             raise ValueError("a demonstration must belong to a domain")
+        if regularity is not None and example.action is not None:
+            raise ValueError("a change with an act in it is the act's demonstration, "
+                             "not a regularity of the world")
 
         await self.ensure_schema()
-        predicate, arity = (
-            example.action.signature if example.action is not None
-            else self.CONTRASTIVE)
+        if regularity is not None:
+            predicate, arity = regularity
+        else:
+            predicate, arity = (
+                example.action.signature if example.action is not None
+                else self.CONTRASTIVE)
         from core.agents.memory_agent import memory_agent
         rows = await memory_agent().hold_demonstration(
             evidence_id=example.evidence_id, domain_id=domain_id, predicate=predicate,
             arity=arity, before_facts=_facts_json(example.before),
             action=str(example.action) if example.action is not None else None,
-            after_facts=_facts_json(example.after), positive=bool(example.positive), owner=owner)
+            after_facts=_facts_json(example.after), positive=bool(example.positive), owner=owner,
+            before_at=before_at, after_at=after_at)
         written = bool(rows)
         if written:
             # Enqueue the signature for off-band induction. Cheap (one upsert),
@@ -176,9 +228,36 @@ class DemonstrationStore:
                 except Exception as _cb_err:
                     logger.debug("on_pending callback failed (non-fatal): %s", _cb_err)
         logger.info("demonstration %s for %s in %s: %s", example.evidence_id,
-                    f"{predicate}/{arity}" if example.action else "contrastive",
+                    predicate if regularity is not None
+                    else f"{predicate}/{arity}" if example.action else "contrastive",
                     domain_id, "recorded" if written else "already present")
         return written
+
+    async def acted_in(self, *, domain_id: str, after: datetime, before: datetime) -> bool:
+        """Whether the substrate is recorded acting in a domain between two
+        moments: a demonstration of one of its acts was filed there then. What
+        a process restarted since can know of acts before it began."""
+        await self.ensure_schema()
+        row = await self.db().execute_query(
+            "SELECT 1 AS acted FROM unified.operator_demonstrations"
+            " WHERE domain_id = $1 AND action IS NOT NULL"
+            " AND created_at > $2 AND created_at <= $3 LIMIT 1",
+            (domain_id, after, before), fetch_one=True)
+        return row is not None
+
+    async def lags(self, *, domain_id: str, predicate: str, arity: int) -> Dict[str, float]:
+        """How long each change filed under a regularity signature took, in
+        seconds: from when what held before it was first seen holding to when
+        the change was read. Only changes with both times."""
+        await self.ensure_schema()
+        rows = await self.db().execute_query(
+            "SELECT evidence_id, EXTRACT(EPOCH FROM (after_at - before_at)) AS seconds"
+            " FROM unified.operator_demonstrations"
+            " WHERE domain_id = $1 AND predicate = $2 AND arity = $3 AND positive"
+            " AND before_at IS NOT NULL AND after_at IS NOT NULL",
+            (domain_id, predicate, arity), fetch_all=True,
+        ) or []
+        return {str(r["evidence_id"]): float(r["seconds"]) for r in rows}
 
     async def owners(self, evidence_ids: Sequence[str]) -> Dict[str, Optional[str]]:
         """Whose work each demonstration was: `{evidence_id: owner}`, None for the substrate's own."""
@@ -272,14 +351,14 @@ class DemonstrationStore:
         return [(row["predicate"], row["arity"]) for row in rows]
 
     async def domains_with_signatures(self) -> set:
-        """The domains holding demonstrations of at least one operator signature, contrastive ones aside: where
-        there is an operator to sharpen."""
+        """The domains holding demonstrations of at least one operator signature, contrastive ones and regularities of
+        the world aside: where there is an operator to sharpen."""
         await self.ensure_schema()
         predicate, arity = self.CONTRASTIVE
         rows = await self.db().execute_query(
             "SELECT DISTINCT domain_id FROM unified.operator_demonstrations"
-            " WHERE NOT (predicate = $1 AND arity = $2)",
-            (predicate, arity), fetch_all=True,
+            " WHERE NOT (predicate = $1 AND arity = $2) AND NOT starts_with(predicate, $3)",
+            (predicate, arity, REGULARITY_PREFIX), fetch_all=True,
         ) or []
         return {row["domain_id"] for row in rows}
 

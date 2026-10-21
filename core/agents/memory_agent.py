@@ -3869,6 +3869,80 @@ class MemoryAgent(IMemoryConsolidation):
             " ORDER BY timestamp, id",
             fetch_all=True) or []
 
+    # ---- expectations of the world (the predictive intelligence system) -------------
+
+    async def hold_prediction_result(self, *, prediction_id: str, domain: str, horizon: str,
+                                     predicted_value: Optional[float],
+                                     actual_value: Optional[float], confidence: float,
+                                     accuracy: float, calibration: float,
+                                     predicted_at: datetime) -> None:
+        """How one forecast scored against what happened, kept once."""
+        await self._memory_db().execute_query(
+            "INSERT INTO unified.prediction_results"
+            " (prediction_id, domain, horizon, predicted_value, actual_value, confidence,"
+            "  accuracy, calibration, predicted_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+            " ON CONFLICT (prediction_id) DO NOTHING",
+            (prediction_id, domain, horizon, predicted_value, actual_value, confidence,
+             accuracy, calibration, predicted_at), commit=True)
+
+    async def hold_expectation(self, *, expectation_id: str, rule_id: str, domain_id: str,
+                               add_facts: str, delete_facts: str, held_facts: str,
+                               since: datetime, due: datetime, owner: Optional[str],
+                               committed: bool) -> bool:
+        """What the substrate now expects a world to do on its own, and by when.
+        Returns whether it was new: an expectation already held is not held
+        twice."""
+        rows = await self._memory_db().execute_query(
+            "INSERT INTO unified.held_expectations"
+            " (expectation_id, rule_id, domain_id, add_facts, delete_facts, held_facts,"
+            "  since, due, owner, committed)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"
+            " ON CONFLICT (expectation_id) DO NOTHING RETURNING expectation_id",
+            (expectation_id, rule_id, domain_id, add_facts, delete_facts, held_facts,
+             since, due, owner, committed), fetch_all=True) or []
+        return bool(rows)
+
+    async def settle_expectation(self, *, expectation_id: str, status: str,
+                                 attribution: Optional[str], detail: str,
+                                 memory_id: Optional[str]) -> bool:
+        """How a held expectation ended, once: confirmed, unmet or not judgeable.
+        Returns False when it had already ended."""
+        rows = await self._memory_db().execute_query(
+            "UPDATE unified.held_expectations SET status = $2, attribution = $3, detail = $4,"
+            " memory_id = $5, settled_at = NOW()"
+            " WHERE expectation_id = $1 AND status = 'pending' RETURNING expectation_id",
+            (expectation_id, status, attribution, detail, memory_id), fetch_all=True) or []
+        return bool(rows)
+
+    async def pending_expectations(self, *, domain_id: Optional[str] = None) -> List[Any]:
+        """The expectations still waiting on the world, in one domain or in all,
+        soonest due first."""
+        query = ("SELECT expectation_id, rule_id, domain_id, add_facts, delete_facts, held_facts,"
+                 " since, due, owner, committed FROM unified.held_expectations"
+                 " WHERE status = 'pending'")
+        params: tuple = ()
+        if domain_id is not None:
+            query += " AND domain_id = $1"
+            params = (domain_id,)
+        return await self._memory_db().execute_query(
+            query + " ORDER BY due", params or None, fetch_all=True) or []
+
+    async def expectations_of(self, *, domain_id: str) -> List[Any]:
+        """Every expectation held of one domain's world and how each ended, oldest first."""
+        return await self._memory_db().execute_query(
+            "SELECT expectation_id, rule_id, owner, committed, status, attribution, detail,"
+            " since, due, settled_at, memory_id FROM unified.held_expectations"
+            " WHERE domain_id = $1 ORDER BY created_at, expectation_id",
+            (domain_id,), fetch_all=True) or []
+
+    async def forget_expectations(self, *, domain_id: str) -> int:
+        """Forget every expectation held of one domain's world."""
+        rows = await self._memory_db().execute_query(
+            "DELETE FROM unified.held_expectations WHERE domain_id = $1 RETURNING expectation_id",
+            (domain_id,), fetch_all=True) or []
+        return len(rows)
+
     async def forget_calibration(self, *, domain: str) -> int:
         """Forget every prediction held in one calibration domain. Returns how
         many were forgotten."""
@@ -4047,20 +4121,24 @@ class MemoryAgent(IMemoryConsolidation):
     async def hold_demonstration(self, *, evidence_id: str, domain_id: str, predicate: str,
                                  arity: int, before_facts: str, action: Optional[str],
                                  after_facts: str, positive: bool,
-                                 owner: Optional[str] = None) -> List[Any]:
+                                 owner: Optional[str] = None,
+                                 before_at: Optional[datetime] = None,
+                                 after_at: Optional[datetime] = None) -> List[Any]:
         """One observed action: what held before, the action, what held after,
         and whose work it was (`owner`, None for the substrate's own): a person's
-        demonstration holds their particulars. Returns the rows written, so one
+        demonstration holds their particulars. A change the world made on its
+        own carries when what held before it was first seen and when the change
+        was read (`before_at`, `after_at`). Returns the rows written, so one
         seen before reads as nothing written."""
         return await self._memory_db().execute_query(
             "INSERT INTO unified.operator_demonstrations"
             " (evidence_id, domain_id, predicate, arity, before_facts, action,"
-            "  after_facts, positive, owner)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"
+            "  after_facts, positive, owner, before_at, after_at)"
+            " VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"
             " ON CONFLICT (evidence_id) DO NOTHING"
             " RETURNING evidence_id",
             (evidence_id, domain_id, predicate, arity, before_facts, action,
-             after_facts, positive, owner),
+             after_facts, positive, owner, before_at, after_at),
             fetch_all=True,
         )
 

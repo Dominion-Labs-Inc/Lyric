@@ -1,18 +1,33 @@
 """
 Predictive Intelligence System
 
-Advanced predictive framework integrating quantum reasoning, meta-learning,
-research systems, and emergent cognition for autonomous decision-making.
+The one authority over what the substrate predicts, and over checking each
+prediction against what happened. Two kinds of prediction are made here:
+
+  forecasts     a value a domain will take over a horizon, from the
+                meta-learning and emergent behaviour engines below, scored
+                against what was then observed (`validate_prediction`);
+  expectations  a change the substrate expects the world to make on its own,
+                from a regularity it learned, by a time it learned: held
+                durably, judged against every reading of that world, and when
+                the world does not make the change, a departure of its own
+                (the WORLD EXPECTATIONS section).
+
+The comparison of predicted against observed is
+`core.intelligence.effect_verification`, the same one an act's effects are
+judged by.
 """
 
 import asyncio
+import hashlib
 import logging
 import time
 import json
-from typing import Dict, List, Any, Optional, Tuple
+import uuid
+from typing import Any, Awaitable, Callable, Dict, FrozenSet, List, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import numpy as np
 from collections import defaultdict, deque
 
@@ -49,7 +64,6 @@ class Prediction:
     timestamp: datetime
     reasoning: str
     contributing_factors: List[str] = field(default_factory=list)
-    quantum_insights: Dict[str, Any] = field(default_factory=dict)
     meta_learning_inputs: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
@@ -61,269 +75,105 @@ class PredictionResult:
     confidence_calibration: float
     learnings: Dict[str, Any] = field(default_factory=dict)
 
-class QuantumPredictionEngine:
-    """Quantum-enhanced prediction engine"""
-    
-    def __init__(self):
-        self.quantum_states = {}
-        self.superposition_models = {}
-        
-    async def generate_quantum_prediction(self, domain: PredictionDomain, 
-                                        data: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate prediction using quantum reasoning principles"""
-        try:
-            # Simulate quantum superposition of possible outcomes
-            possible_outcomes = await self._generate_superposition_states(domain, data)
-            
-            # Apply quantum interference patterns
-            interference_patterns = await self._calculate_interference(possible_outcomes)
-            
-            # Collapse to most probable outcome
-            final_prediction = await self._collapse_wavefunction(
-                possible_outcomes, interference_patterns)
-            
-            return {
-                'prediction': final_prediction,
-                'quantum_confidence': final_prediction.get('probability', 0.5),
-                'superposition_states': len(possible_outcomes),
-                'interference_strength': interference_patterns.get('strength', 0.0)
-            }
-            
-        except Exception as e:
-            logger.error(f"Error in quantum prediction: {e}")
-            return {'prediction': None, 'quantum_confidence': 0.0}
-    
-    async def _generate_superposition_states(self, domain: PredictionDomain, 
-                                           data: Dict[str, Any]) -> List[Dict[str, Any]]:
-        """Generate quantum superposition states using real quantum principles"""
-        try:
-            states = []
-            current_value = data.get('current_value', 0.5)
-            
-            # Apply quantum probability distributions
-            import math
-            
-            # Create quantum eigenstates based on domain characteristics
-            if domain == PredictionDomain.SYSTEM_PERFORMANCE:
-                # Performance states follow exponential distribution
-                eigenvalues = [0.2, 0.5, 0.8, 0.95]  # Performance levels
-                for i, val in enumerate(eigenvalues):
-                    probability = math.exp(-abs(val - current_value)) / sum(math.exp(-abs(ev - current_value)) for ev in eigenvalues)
-                    states.append({
-                        'scenario': f'performance_eigenstate_{i}',
-                        'probability': probability,
-                        'outcome': {'value': val, 'confidence': probability * 0.9}
-                    })
-            
-            elif domain == PredictionDomain.RESOURCE_USAGE:
-                # Resource states follow normal distribution around current usage
-                std_dev = 0.1
-                for i in range(4):
-                    offset = (i - 1.5) * std_dev
-                    val = max(0.0, min(1.0, current_value + offset))
-                    probability = math.exp(-0.5 * (offset / std_dev) ** 2) / (std_dev * math.sqrt(2 * math.pi))
-                    states.append({
-                        'scenario': f'resource_eigenstate_{i}',
-                        'probability': probability / 4,  # Normalize
-                        'outcome': {'value': val, 'confidence': 0.8}
-                    })
-            
-            else:
-                # General quantum states with uncertainty principle
-                uncertainty_principle = 0.15  # Heisenberg uncertainty
-                for i in range(3):
-                    momentum_uncertainty = (i - 1) * uncertainty_principle
-                    position_val = current_value + momentum_uncertainty
-                    position_val = max(0.0, min(1.0, position_val))
-                    
-                    # Probability based on quantum wave function
-                    wave_amplitude = math.cos(math.pi * i / 2) ** 2
-                    states.append({
-                        'scenario': f'quantum_eigenstate_{i}',
-                        'probability': wave_amplitude / 3,
-                        'outcome': {'value': position_val, 'confidence': 0.7}
-                    })
-            
-            # Add quantum tunneling state (low probability, high impact)
-            tunneling_probability = 0.05
-            tunneling_value = 1.0 - current_value  # Quantum tunnel to opposite state
-            states.append({
-                'scenario': 'quantum_tunneling',
-                'probability': tunneling_probability,
-                'outcome': {'value': tunneling_value, 'confidence': 0.3}
-            })
-            
-            # Normalize probabilities
-            total_prob = sum(s['probability'] for s in states)
-            for state in states:
-                state['probability'] /= total_prob
-            
-            return states
-            
-        except Exception as e:
-            logger.error(f"Error generating quantum superposition states: {e}")
-            return [{
-                'scenario': 'fallback_state',
-                'probability': 1.0,
-                'outcome': {'value': data.get('current_value', 0.5), 'confidence': 0.5}
-            }]
-    
-    async def _generate_scenario_outcome(self, domain: PredictionDomain, 
-                                       data: Dict[str, Any], scenario: str) -> Dict[str, Any]:
-        """Generate outcome for specific scenario"""
-        base_value = data.get('current_value', 0.5)
-        
-        if scenario == 'optimistic':
-            multiplier = 1.2
-        elif scenario == 'pessimistic':
-            multiplier = 0.8
-        else:  # realistic
-            multiplier = 1.0
-        
-        return {
-            'value': base_value * multiplier,
-            'confidence': 0.7 if scenario == 'realistic' else 0.5
-        }
-    
-    async def _apply_quantum_uncertainty(self, domain: PredictionDomain, 
-                                       data: Dict[str, Any]) -> Dict[str, Any]:
-        """Apply quantum uncertainty principles"""
-        import random
-        
-        base_value = data.get('current_value', 0.5)
-        uncertainty = random.uniform(-0.3, 0.3)
-        
-        return {
-            'value': max(0.0, min(1.0, base_value + uncertainty)),
-            'confidence': 0.3  # Lower confidence for quantum variations
-        }
-    
-    async def _calculate_interference(self, states: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Calculate quantum interference patterns using wave mechanics"""
-        try:
-            if len(states) < 2:
-                return {'strength': 0.0, 'pattern': 'none', 'phase_coherence': 0.0}
-            
-            import math
-            import cmath
-            
-            # Convert quantum states to complex wave functions
-            wave_functions = []
-            for i, state in enumerate(states):
-                amplitude = math.sqrt(state['probability'])  # Probability = |amplitude|²
-                phase = (i * math.pi / len(states))  # Phase relationship
-                wave_function = amplitude * cmath.exp(1j * phase)
-                wave_functions.append(wave_function)
-            
-            # Calculate total wave function (superposition)
-            total_wave = sum(wave_functions)
-            total_probability = abs(total_wave) ** 2
-            
-            # Calculate interference strength
-            individual_probs_sum = sum(state['probability'] for state in states)
-            interference_strength = abs(total_probability - individual_probs_sum) / individual_probs_sum
-            
-            # Determine interference pattern
-            phase_coherence = abs(total_wave) / sum(abs(wf) for wf in wave_functions)
-            
-            if phase_coherence > 0.8:
-                pattern = 'constructive'
-            elif phase_coherence < 0.3:
-                pattern = 'destructive' 
-            else:
-                pattern = 'mixed'
-            
-            # Calculate quantum decoherence
-            decoherence_factor = 1.0 - (phase_coherence ** 2)
-            
-            return {
-                'strength': interference_strength,
-                'pattern': pattern,
-                'phase_coherence': phase_coherence,
-                'decoherence_factor': decoherence_factor,
-                'total_probability': total_probability
-            }
-            
-        except Exception as e:
-            logger.error(f"Error calculating quantum interference: {e}")
-            return {'strength': 0.0, 'pattern': 'error', 'phase_coherence': 0.0}
-    
-    async def _collapse_wavefunction(self, states: List[Dict[str, Any]], 
-                                   interference: Dict[str, Any]) -> Dict[str, Any]:
-        """Collapse quantum superposition using Born rule and measurement"""
-        try:
-            if not states:
-                return {'value': 0.5, 'probability': 0.0, 'quantum_origin': True}
-            
-            import random
-            import math
-            
-            # Apply Born rule for quantum measurement
-            total_probability_amplitude = 0.0
-            measurement_outcomes = []
-            
-            for state in states:
-                # Calculate probability amplitude including interference effects
-                base_amplitude = math.sqrt(state['probability'])
-                
-                # Apply interference corrections
-                if interference.get('pattern') == 'constructive':
-                    amplitude_correction = 1.0 + interference.get('strength', 0.0) * 0.3
-                elif interference.get('pattern') == 'destructive':
-                    amplitude_correction = 1.0 - interference.get('strength', 0.0) * 0.2
-                else:
-                    amplitude_correction = 1.0
-                
-                corrected_amplitude = base_amplitude * amplitude_correction
-                measurement_probability = corrected_amplitude ** 2
-                
-                measurement_outcomes.append({
-                    'value': state['outcome']['value'],
-                    'measurement_probability': measurement_probability,
-                    'confidence': state['outcome'].get('confidence', 0.5)
-                })
-                
-                total_probability_amplitude += measurement_probability
-            
-            # Normalize measurement probabilities
-            for outcome in measurement_outcomes:
-                outcome['normalized_probability'] = outcome['measurement_probability'] / total_probability_amplitude
-            
-            # Perform quantum measurement (collapse wavefunction)
-            random_measurement = random.random()
-            cumulative_probability = 0.0
-            
-            measured_outcome = None
-            for outcome in measurement_outcomes:
-                cumulative_probability += outcome['normalized_probability']
-                if random_measurement <= cumulative_probability:
-                    measured_outcome = outcome
-                    break
-            
-            if measured_outcome is None:
-                measured_outcome = measurement_outcomes[-1]  # Fallback to last outcome
-            
-            # Calculate final confidence including quantum uncertainty
-            quantum_uncertainty = interference.get('decoherence_factor', 0.1)
-            final_confidence = measured_outcome['confidence'] * (1.0 - quantum_uncertainty * 0.5)
-            
-            return {
-                'value': measured_outcome['value'],
-                'probability': final_confidence,
-                'quantum_origin': True,
-                'measurement_basis': 'position',
-                'quantum_uncertainty': quantum_uncertainty,
-                'interference_applied': interference.get('pattern', 'none')
-            }
-            
-        except Exception as e:
-            logger.error(f"Error collapsing quantum wavefunction: {e}")
-            return {
-                'value': states[0]['outcome']['value'] if states else 0.5,
-                'probability': 0.5,
-                'quantum_origin': True,
-                'error': str(e)
-            }
+# ── WORLD EXPECTATIONS: what is kept, and what a departure carries ─────────
+
+#: What this system keeps: how each forecast scored, and the expectations of
+#: the world it holds, waiting and settled.
+DDL = """
+CREATE TABLE IF NOT EXISTS unified.prediction_results (
+    prediction_id   VARCHAR(128) PRIMARY KEY,
+    domain          VARCHAR(64) NOT NULL,
+    horizon         VARCHAR(32) NOT NULL,
+    predicted_value DOUBLE PRECISION,
+    actual_value    DOUBLE PRECISION,
+    confidence      NUMERIC(6,4),
+    accuracy        NUMERIC(6,4),
+    calibration     NUMERIC(6,4),
+    predicted_at    TIMESTAMP,
+    resolved_at     TIMESTAMP NOT NULL DEFAULT NOW()
+);
+CREATE TABLE IF NOT EXISTS unified.held_expectations (
+    expectation_id VARCHAR PRIMARY KEY,
+    rule_id        VARCHAR NOT NULL,
+    domain_id      VARCHAR NOT NULL,
+    add_facts      JSONB   NOT NULL,
+    delete_facts   JSONB   NOT NULL,
+    held_facts     JSONB   NOT NULL,
+    since          TIMESTAMPTZ NOT NULL,
+    due            TIMESTAMPTZ NOT NULL,
+    owner          VARCHAR,
+    committed      BOOLEAN NOT NULL,
+    status         VARCHAR NOT NULL DEFAULT 'pending',
+    attribution    VARCHAR,
+    detail         TEXT,
+    memory_id      VARCHAR,
+    settled_at     TIMESTAMPTZ,
+    created_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS held_expectations_pending
+    ON unified.held_expectations (domain_id, due) WHERE status = 'pending'
+"""
+
+#: How a settled expectation ended, as `held_expectations.status` says it.
+_EXPECTATION_STATUS = {"expectation_confirmed": "confirmed",
+                       "expectation_unmet": "unmet",
+                       "expectation_indeterminate": "indeterminate"}
+
+
+@dataclass(frozen=True)
+class Departure:
+    """An expectation the world did not meet, with nothing observed to tell the
+    case apart from the regularity's confirmations: the world did not do what
+    it does."""
+
+    expectation: Any                 # effect_verification.Expectation
+    evidence: Any                    # effect_verification.ExpectationEvidence
+    why: str
+    #: Every regularity that explains such changes expected this one.
+    committed: bool
+    #: The regularities that expected it were each relied on (settled in
+    #: favour) before this departure moved them.
+    relied_on: bool
+    memory_id: Optional[str]
+
+
+def _facts_json(facts) -> str:
+    return json.dumps(sorted(str(f) for f in facts))
+
+
+def _parse_facts(payload) -> FrozenSet[Any]:
+    from core.learning.rule_induction import Fact
+    if isinstance(payload, str):
+        payload = json.loads(payload)
+    return frozenset(Fact.parse(text) for text in payload or ())
+
+
+def _utc(moment: datetime) -> datetime:
+    return moment if moment.tzinfo is not None else moment.replace(tzinfo=timezone.utc)
+
+
+def _expectation_of(row: Dict[str, Any]):
+    from core.intelligence.effect_verification import Expectation
+    from core.learning.rule_induction import RuleEffects
+    return Expectation(
+        expectation_id=row["expectation_id"], rule_id=row["rule_id"],
+        domain_id=row["domain_id"],
+        effects=RuleEffects(add=_parse_facts(row["add_facts"]),
+                            delete=_parse_facts(row["delete_facts"])),
+        held=_parse_facts(row["held_facts"]), since=_utc(row["since"]), due=_utc(row["due"]),
+        owner=row["owner"])
+
+
+def _already_holds(effects, facts) -> bool:
+    return effects.add <= facts and not (effects.delete & facts)
+
+
+def describe_change(effects) -> str:
+    """A change, as it is said: what comes to hold and what no longer does."""
+    parts = [str(f) for f in sorted(effects.add)] + [f"no longer {f}" for f in sorted(effects.delete)]
+    return ", ".join(parts)
+
+
 
 class MetaLearningPredictor:
     """Meta-learning enhanced prediction system"""
@@ -544,42 +394,56 @@ class EmergentBehaviorPredictor:
 
 class PredictiveIntelligenceSystem(IOutcomePrediction):
     """
-    Advanced Predictive Intelligence System
-    
-    Integrates quantum reasoning, meta-learning, and emergent behavior prediction
-    for comprehensive autonomous decision-making support.
+    The one authority over what the substrate predicts and over checking each
+    prediction against what happened: forecasts from the meta-learning and
+    emergent behaviour engines, and expectations of the world from learned
+    regularities (see the module header).
     """
-    
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = config or {}
         self.initialized = False
-        
+
         # Core prediction engines
-        self.quantum_engine = QuantumPredictionEngine()
         self.meta_learning_predictor = MetaLearningPredictor()
         self.emergent_predictor = EmergentBehaviorPredictor()
-        
+
         # Prediction tracking
         self.active_predictions = {}
         self.prediction_history = deque(maxlen=1000)
         self.accuracy_metrics = defaultdict(list)
-        
+
         # System integration
         self.cognitive_scheduler = None
         self.automation_framework = None
-        self.quantum_reasoning = None
         self.unified_learning = None
         self.research_systems = None
-        
+
+        # Expectations of the world (WORLD EXPECTATIONS below).
+        #: domain -> its last reading, and when each fact in it was first seen in
+        #: an unbroken run of readings: this process's, reset by a restart.
+        self._last_reading: Dict[str, Any] = {}
+        self._first_seen: Dict[str, Dict[Any, datetime]] = {}
+        self._reading_locks: Dict[str, asyncio.Lock] = {}
+        #: expectation -> the substrate's act mark in its domain when it was formed.
+        self._formed_at: Dict[str, Any] = {}
+        self._booted_at = datetime.now(timezone.utc)
+        self._attending: set = set()
+        self._arm: Optional[Callable[[Any], Any]] = None
+        self._on_departure: Optional[Callable[["Departure"], Awaitable[None]]] = None
+        self._expectations_schema_ready = False
+        self.expectation_stats: Dict[str, int] = {
+            "readings": 0, "world_changes": 0, "expected": 0, "confirmed": 0, "unmet": 0,
+            "departures": 0, "learned_from_unmet": 0, "indeterminate": 0}
+
         self.logger = logging.getLogger(__name__)
-    
+
     async def initialize(self, cognitive_scheduler=None, automation_framework=None,
-                        quantum_reasoning=None, unified_learning=None, research_systems=None) -> bool:
+                        unified_learning=None, research_systems=None) -> bool:
         """Initialize predictive intelligence system"""
         try:
             self.cognitive_scheduler = cognitive_scheduler
             self.automation_framework = automation_framework
-            self.quantum_reasoning = quantum_reasoning
             self.unified_learning = unified_learning
             self.research_systems = research_systems
             
@@ -605,10 +469,6 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             # Collect system data
             system_data = await self._collect_prediction_data(domain, context)
             
-            # Generate quantum prediction
-            quantum_result = await self.quantum_engine.generate_quantum_prediction(
-                domain, system_data)
-            
             # Generate meta-learning prediction
             learning_history = await self._get_learning_history(domain)
             meta_result = await self.meta_learning_predictor.generate_meta_prediction(
@@ -620,7 +480,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             
             # Integrate all predictions
             integrated_prediction = await self._integrate_predictions(
-                quantum_result, meta_result, emergent_result)
+                meta_result, emergent_result)
             
             # Create final prediction
             prediction = Prediction(
@@ -632,7 +492,6 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 timestamp=datetime.now(),
                 reasoning=integrated_prediction['reasoning'],
                 contributing_factors=integrated_prediction['factors'],
-                quantum_insights=quantum_result,
                 meta_learning_inputs=meta_result
             )
             
@@ -897,59 +756,56 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             return {'available': False, 'error': f"{type(e).__name__}: {e}"}
     
     async def _get_learning_history(self, domain: PredictionDomain) -> List[Dict[str, Any]]:
-        """Get learning history for domain"""
-        # Simplified learning history
-        return [
-            {'performance': 0.6, 'efficiency': 0.7, 'type': 'learning'},
-            {'performance': 0.7, 'efficiency': 0.8, 'type': 'learning'},
-            {'performance': 0.75, 'efficiency': 0.8, 'adaptation_time': 0.5}
-        ]
+        """What the meta-learner recorded of each learning attempt, oldest
+        first: how well it went (`performance`).
+
+        THIS RETURNED THE SAME THREE RECORDS EVERY TIME (performance 0.6, 0.7,
+        0.75), so the meta-learning engine reasoned over a history nobody had.
+        Only what is recorded is handed over. Efficiency and adaptation time are
+        measured nowhere and are not supplied, so the engine finds none rather
+        than reading invented ones. The meta-learner keeps its attempts across
+        task families, not per prediction domain, so every domain is given all
+        of them."""
+        from core.learning.meta_learning import get_meta_learner
+        records = list(getattr(get_meta_learner(), "learning_records", None) or [])
+        return [{"performance": float(r.performance_score)} for r in records]
     
-    async def _integrate_predictions(self, quantum_result: Dict[str, Any],
-                                   meta_result: Dict[str, Any],
+    async def _integrate_predictions(self, meta_result: Dict[str, Any],
                                    emergent_result: Dict[str, Any]) -> Dict[str, Any]:
         """Integrate predictions from different engines"""
         try:
             # Extract predictions
-            quantum_pred = quantum_result.get('prediction', {})
-            meta_pred = meta_result.get('prediction', {})
-            
+            meta_pred = meta_result.get('prediction') or {}
+
             # Weight predictions by confidence
-            quantum_weight = quantum_result.get('quantum_confidence', 0.0)
             meta_weight = meta_result.get('meta_confidence', 0.0)
             emergent_weight = emergent_result.get('emergence_probability', 0.0)
-            
-            total_weight = quantum_weight + meta_weight + emergent_weight + 0.01
-            
+
+            total_weight = meta_weight + emergent_weight + 0.01
+
             # Weighted average of predicted values
-            quantum_value = quantum_pred.get('value', 0.5)
             meta_value = meta_pred.get('value', 0.5)
             emergent_value = emergent_result.get('complexity_score', 0.5)
-            
+
             integrated_value = (
-                quantum_value * quantum_weight +
                 meta_value * meta_weight +
                 emergent_value * emergent_weight
             ) / total_weight
-            
+
             # Combined confidence
-            integrated_confidence = min(1.0, (quantum_weight + meta_weight + emergent_weight) / 3.0)
-            
+            integrated_confidence = min(1.0, (meta_weight + emergent_weight) / 2.0)
+
             # Generate reasoning
             reasoning_parts = []
-            if quantum_weight > 0.3:
-                reasoning_parts.append("quantum superposition analysis")
             if meta_weight > 0.3:
                 reasoning_parts.append("meta-learning patterns")
             if emergent_weight > 0.3:
                 reasoning_parts.append("emergent behavior indicators")
-            
+
             reasoning = f"Integrated prediction based on {', '.join(reasoning_parts)}"
-            
+
             # Contributing factors
             factors = []
-            if quantum_result.get('superposition_states', 0) > 3:
-                factors.append("multiple quantum scenarios considered")
             if meta_result.get('learning_patterns', 0) > 0:
                 factors.append("historical learning patterns")
             if emergent_result.get('preconditions_met', 0) > 2:
@@ -1001,20 +857,36 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             learnings={
                 'prediction_domain': prediction.domain.value,
                 'horizon': prediction.horizon.value,
-                'quantum_effective': prediction.quantum_insights.get('quantum_confidence', 0.0) > 0.5,
                 'meta_learning_effective': prediction.meta_learning_inputs.get('meta_confidence', 0.0) > 0.5
             }
         )
-        
+
         # Update accuracy metrics
         self.accuracy_metrics[prediction.domain.value].append(accuracy)
-        
+
         # Remove from active predictions
         del self.active_predictions[prediction_id]
-        
+
         self.logger.info(f"Validated prediction {prediction_id}: accuracy={accuracy:.3f}")
-        
+
         return result
+
+    async def record_result(self, prediction: Prediction, result: PredictionResult,
+                            actual: Any) -> None:
+        """Keep a scored forecast, so the accuracy record outlives the process:
+        `active_predictions` is this process's, and without this the record of
+        whether forecasting is getting better died with it. Written by the
+        memory agent, which keeps what the substrate learned."""
+        from core.agents.memory_agent import memory_agent
+        await memory_agent().hold_prediction_result(
+            prediction_id=result.prediction_id, domain=prediction.domain.value,
+            horizon=prediction.horizon.value,
+            predicted_value=(float(prediction.predicted_value)
+                             if isinstance(prediction.predicted_value, (int, float)) else None),
+            actual_value=float(actual) if isinstance(actual, (int, float)) else None,
+            confidence=float(prediction.confidence), accuracy=float(result.accuracy),
+            calibration=float(result.confidence_calibration),
+            predicted_at=prediction.timestamp)
 
     async def get_prediction_insights(self) -> Dict[str, Any]:
         """Get insights about prediction performance"""
@@ -1086,6 +958,383 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 timestamp=datetime.now(),
                 reasoning="Emergency fallback prediction"
             )
+
+    # ── WORLD EXPECTATIONS ───────────────────────────────────────────────────
+    #
+    # THE SOURCE OF ACTIVITY THIS ADDS. Everything the substrate did unasked
+    # started with something that had already happened, or with a timer. Here,
+    # what it learned the world does on its own becomes what it expects, and the
+    # world not doing it is an event of its own.
+    #
+    # ONE PASS PER READING. Every reading of a world taken through the binding
+    # registry (`BindingRegistry.on_reading`) is attended to, in order, per
+    # domain:
+    #
+    #   learn   two readings apart with nothing done by the substrate in between
+    #           (`acted_between`): what changed, the world changed on its own,
+    #           and each thing that changed is a demonstration of a regularity
+    #           (`world_change_examples`), induced off this path by the drain;
+    #   settle  every expectation waiting on this world is judged against the
+    #           reading (`verify_expectation`) and, once met or due, settled: who
+    #           was wrong is decided on evidence (`attribute_expectation`,
+    #           `UnifiedLearningSystem.separates`), the rule store hears it by the
+    #           door an act's outcome uses, the regularity's reliability moves,
+    #           and memory keeps what happened;
+    #   expect  every validated regularity whose conditions now hold, for things
+    #           not already expected, becomes an expectation due when the change
+    #           was ever seen to take longest, held durably by the memory agent,
+    #           with a reading armed for its due time -- the substrate's own clock.
+    #
+    # COMMITTED OR TENTATIVE. Where every regularity of a kind expects a change,
+    # the expectation is a commitment: unmet, with nothing to tell the case apart,
+    # the world departed from what it does. Where only some do, it is a question:
+    # unmet, a regularity that did not expect it already tells the case apart, so
+    # the substrate was wrong, learns, and does nothing else.
+    #
+    # STATE ACROSS A RESTART. Expectations, demonstrations, rules and beliefs are
+    # durable. The last reading of each world and when each fact was first seen
+    # are this process's: the first reading after a boot has nothing to compare
+    # with, and a fact present then is first seen then -- an expectation formed
+    # from it is due later than it might have been, never earlier.
+
+    def bind_world(self, *, arm: Callable[[Any], Any],
+                   on_departure: Callable[["Departure"], Awaitable[None]]) -> None:
+        """Who arms a reading for an expectation's due time, and who is handed a
+        departure. Unbound, expectations are still held and settled; nothing is
+        armed and no departure goes anywhere."""
+        self._arm = arm
+        self._on_departure = on_departure
+
+    def on_reading(self, domain_id: str, facts) -> None:
+        """The binding registry's reading handler: cheap and synchronous. The
+        reading is stamped now -- its time and what the substrate had done in
+        the domain by then -- and attended to on the running loop. A reading
+        taken with no loop running has nobody to attend to it."""
+        from core.intelligence.effect_verification import WorldReading, act_mark
+        reading = WorldReading(reading_id=f"read_{uuid.uuid4().hex[:12]}", domain_id=domain_id,
+                               facts=frozenset(facts), at=datetime.now(timezone.utc),
+                               mark=act_mark(domain_id))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self.attend(reading))
+        self._attending.add(task)
+        task.add_done_callback(self._attended)
+
+    def _attended(self, task: "asyncio.Task") -> None:
+        self._attending.discard(task)
+        if task.cancelled():
+            return
+        error = task.exception()
+        if error is not None:
+            self.logger.error("a reading could not be attended to: %s: %s",
+                              type(error).__name__, error, exc_info=error)
+
+    async def readings_settled(self) -> None:
+        """Wait until every reading taken so far has been attended to."""
+        while self._attending:
+            await asyncio.gather(*list(self._attending), return_exceptions=True)
+
+    async def _ensure_schema(self) -> None:
+        if self._expectations_schema_ready:
+            return
+        from core.database import get_database_manager
+        db = get_database_manager()
+        if not getattr(db, "initialized", False):
+            await db.initialize()
+        for statement in filter(None, (s.strip() for s in DDL.split(";"))):
+            await db.execute_query(statement)
+        self._expectations_schema_ready = True
+
+    async def attend(self, reading) -> None:
+        """Learn, settle, expect: one reading, in order with the others of its world."""
+        from core.intelligence.effect_verification import acted_between
+        from core.execution.operator_binding import get_binding_registry
+        lock = self._reading_locks.setdefault(reading.domain_id, asyncio.Lock())
+        async with lock:
+            await self._ensure_schema()
+            previous = self._last_reading.get(reading.domain_id)
+            if previous is not None and previous.at > reading.at:
+                return
+            self.expectation_stats["readings"] += 1
+            first_seen_before = dict(self._first_seen.get(reading.domain_id, {}))
+            self._last_reading[reading.domain_id] = reading
+            self._first_seen[reading.domain_id] = {
+                fact: first_seen_before.get(fact, reading.at) for fact in reading.facts or ()}
+
+            owner = get_binding_registry().owner_of(reading.domain_id)
+            if previous is not None and not acted_between(previous.mark, reading.mark):
+                await self._learn_change(previous, reading, owner, first_seen_before)
+            await self._settle_expectations(reading)
+            await self._expect(reading, owner)
+
+    async def _learn_change(self, previous, reading, owner: Optional[str],
+                            first_seen: Dict[Any, datetime]) -> None:
+        if previous.facts is None or reading.facts is None or previous.facts == reading.facts:
+            return
+        from core.learning.demonstration_store import regularity_signature
+        from core.learning.unified_learning_system import (get_learning_authority,
+                                                           world_change_examples)
+        stem = f"{reading.domain_id}|{previous.reading_id}|{reading.reading_id}"
+        for example, things in world_change_examples(previous.facts, reading.facts,
+                                                     evidence_stem=stem):
+            effects = example.observed_effects
+            if not effects:
+                continue
+            held_since = max((first_seen.get(f, previous.at) for f in example.before),
+                             default=previous.at)
+            await get_learning_authority().record_world_change(
+                example, domain_id=reading.domain_id,
+                regularity=regularity_signature(effects, things),
+                owner=owner, before_at=held_since, after_at=reading.at)
+            self.expectation_stats["world_changes"] += 1
+
+    async def _settle_expectations(self, reading) -> None:
+        from core.agents.memory_agent import memory_agent
+        from core.intelligence.effect_verification import (ExpectationOutcome,
+                                                           verify_expectation)
+        for row in await memory_agent().pending_expectations(domain_id=reading.domain_id):
+            expectation = _expectation_of(row)
+            evidence = verify_expectation(expectation, reading)
+            if evidence.outcome is ExpectationOutcome.PENDING:
+                continue
+            await self._conclude(expectation, evidence, reading, committed=bool(row["committed"]))
+
+    async def _acted_meanwhile(self, expectation, reading) -> bool:
+        from core.intelligence.effect_verification import acted_between
+        formed = self._formed_at.get(expectation.expectation_id)
+        if formed is not None:
+            return acted_between(formed, reading.mark)
+        # FORMED BEFORE THIS PROCESS BEGAN: its acts since are counted from
+        # nothing, and what was done before is what the store recorded.
+        if acted_between((0, False), reading.mark):
+            return True
+        from core.learning.demonstration_store import get_demonstration_store
+        return await get_demonstration_store().acted_in(
+            domain_id=expectation.domain_id, after=expectation.since, before=self._booted_at)
+
+    async def _predicting(self, expectation, signature: Tuple[str, int]) -> List[Any]:
+        """The regularities of its kind (`signature`), held now, that expected
+        this change of what held when it was formed."""
+        from core.learning.demonstration_store import regularity_signature
+        from core.learning.rule_induction import TrainingExample, applies
+        from core.learning.rule_store import get_rule_store
+        state = TrainingExample(before=tuple(sorted(expectation.held)), action=None, after=())
+        return [r for r in await get_rule_store().expectation_rules(domain_id=expectation.domain_id)
+                if regularity_signature(r.rule.effects) == signature
+                and expectation.effects in set(applies(r.rule, state))]
+
+    async def _conclude(self, expectation, evidence, reading, *, committed: bool) -> None:
+        from core.agents.memory_agent import memory_agent
+        from core.capabilities import settled_in_favour
+        from core.intelligence.effect_verification import (
+            Attribution, ExpectationOutcome, attribute_expectation)
+        from core.learning.demonstration_store import regularity_signature
+        from core.learning.rule_store import get_rule_store, record_runtime_evidence
+        from core.learning.unified_learning_system import (expectation_case,
+                                                           get_learning_authority)
+        learning = get_learning_authority()
+        store = get_rule_store()
+        acted = await self._acted_meanwhile(expectation, reading)
+
+        formed_by = await store.get(expectation.rule_id)
+        signature = regularity_signature(formed_by.rule.effects) if formed_by is not None else None
+        rules = await self._predicting(expectation, signature) if signature is not None else []
+        if formed_by is not None and all(r.rule_id != formed_by.rule_id for r in rules):
+            rules.append(formed_by)
+
+        case = None
+        separable: Optional[bool] = None
+        if evidence.outcome is ExpectationOutcome.CONTRADICTION and not acted and formed_by is not None:
+            case = expectation_case(expectation.held, reading.facts or frozenset(),
+                                    expectation.effects,
+                                    evidence_id=f"unmet_{expectation.expectation_id}")
+            separable = await learning.separates(formed_by, case, domain_id=expectation.domain_id)
+        attribution, why = attribute_expectation(evidence, acted=acted, separable=separable)
+
+        # WHETHER IT WAS RELIED ON is read BEFORE this outcome moves it: a
+        # departure from a regularity not yet relied on is not acted on.
+        beliefs = [await learning.regularity_belief(r.rule_id, owner=expectation.owner)
+                   for r in rules]
+        relied_on = bool(beliefs) and all(settled_in_favour(b) for b in beliefs)
+
+        if attribution in (Attribution.RULE_EVIDENCE, Attribution.EXTERNAL_FAILURE):
+            # Evidence about the regularity, or about the world departing from
+            # it: recorded against each regularity that expected the change.
+            # What the substrate's own acts may have caused is not.
+            for record in rules:
+                runtime = evidence.as_runtime_evidence()
+                runtime.rule_id = record.rule_id
+                await record_runtime_evidence(store, runtime, attribution, why)
+
+        memory_id = await self._remember_expectation(expectation, evidence, attribution, why)
+        counts_for_reliability = (
+            (evidence.outcome is ExpectationOutcome.CONFIRMATION
+             and attribution is Attribution.RULE_EVIDENCE)
+            or attribution is Attribution.EXTERNAL_FAILURE)
+        if counts_for_reliability:
+            for record in rules:
+                if not expectation.owner and not memory_id:
+                    self.logger.warning(
+                        "memory did not keep how expectation %s ended, so it moves no belief "
+                        "in %s", expectation.expectation_id, record.rule_id)
+                    continue
+                await learning.observe_regularity(
+                    record.rule_id, held=evidence.outcome is ExpectationOutcome.CONFIRMATION,
+                    owner=expectation.owner, observation=expectation.expectation_id,
+                    memory_id=memory_id)
+        if separable and case is not None and signature is not None:
+            # THE SUBSTRATE WAS WRONG: the case is kept as the counter-example
+            # that narrows the regularity when its signature is next induced.
+            await learning.record_world_change(
+                case, domain_id=expectation.domain_id, regularity=signature,
+                owner=expectation.owner, before_at=expectation.since, after_at=reading.at)
+            self.expectation_stats["learned_from_unmet"] += 1
+
+        status = _EXPECTATION_STATUS.get(evidence.outcome.value, "indeterminate")
+        if not await memory_agent().settle_expectation(
+                expectation_id=expectation.expectation_id, status=status,
+                attribution=attribution.value, detail=why, memory_id=memory_id):
+            return
+        self._formed_at.pop(expectation.expectation_id, None)
+        self.expectation_stats[status] += 1
+        self.logger.info("expectation %s in %s %s (%s): %s — %s", expectation.expectation_id,
+                         expectation.domain_id, status, attribution.value,
+                         describe_change(expectation.effects), why)
+
+        if (evidence.outcome is ExpectationOutcome.CONTRADICTION
+                and attribution is Attribution.EXTERNAL_FAILURE):
+            self.expectation_stats["departures"] += 1
+            if self._on_departure is not None:
+                await self._on_departure(Departure(
+                    expectation=expectation, evidence=evidence, why=why,
+                    committed=committed, relied_on=relied_on, memory_id=memory_id))
+
+    async def _remember_expectation(self, expectation, evidence, attribution,
+                                    why: str) -> Optional[str]:
+        """Memory keeps how an expectation ended: the person's, for their world;
+        the substrate's own, for its own."""
+        from core.agents.memory_agent import memory_agent
+        from core.intelligence.effect_verification import ExpectationOutcome
+        from core.memory import Origin
+        from core.memory.utils.interfaces import MemoryType
+        if evidence.outcome is ExpectationOutcome.CONFIRMATION:
+            ending = "it happened"
+        elif evidence.outcome is ExpectationOutcome.CONTRADICTION:
+            ending = f"it did not happen ({why})"
+        else:
+            ending = f"I could not tell whether it happened ({why})"
+        stored, memory_id = await memory_agent().store_memory(
+            content=(f"In {expectation.domain_id} I expected {describe_change(expectation.effects)} "
+                     f"by {expectation.due.isoformat()}; {ending}."),
+            memory_type=MemoryType.EPISODIC, importance_score=0.6,
+            tags=["expectation", _EXPECTATION_STATUS.get(evidence.outcome.value, "indeterminate")],
+            source_context={"source_system": "predictive_intelligence",
+                            "expectation_id": expectation.expectation_id,
+                            "rule_id": expectation.rule_id, "attribution": attribution.value},
+            origin=Origin.of(expectation.owner, "expectations"))
+        return memory_id if stored else None
+
+    async def _expect(self, reading, owner: Optional[str]) -> None:
+        if reading.facts is None:
+            return
+        from core.agents.memory_agent import memory_agent
+        from core.intelligence.effect_verification import Expectation
+        from core.learning.demonstration_store import regularity_signature
+        from core.learning.rule_induction import TrainingExample, applies
+        from core.learning.rule_store import get_rule_store
+        from core.learning.unified_learning_system import expectation_case
+
+        regularities = await get_rule_store().expectation_rules(domain_id=reading.domain_id)
+        if not regularities:
+            return
+        kinds: Dict[Tuple[str, int], List[Any]] = {}
+        for record in regularities:
+            kinds.setdefault(regularity_signature(record.rule.effects), []).append(record)
+
+        state = TrainingExample(before=tuple(sorted(reading.facts)), action=None, after=())
+        first_seen = self._first_seen.get(reading.domain_id, {})
+        for signature, members in kinds.items():
+            # One expectation per case: what is expected, of what held. Not of
+            # when it was first seen, which a restart resets -- the same case,
+            # still waiting, would be expected again.
+            predicted: Dict[str, set] = {r.rule_id: set(applies(r.rule, state)) for r in members}
+            for effects in sorted(set().union(*predicted.values()), key=describe_change):
+                if not all(f.is_ground for f in effects.facts) or _already_holds(effects, reading.facts):
+                    continue
+                expecting = [r for r in members if effects in predicted[r.rule_id]]
+                delay = await self._longest_delay(reading.domain_id, signature, expecting)
+                if delay is None:
+                    continue
+                held = frozenset(expectation_case(reading.facts, reading.facts, effects,
+                                                  evidence_id="").before)
+                since = max((first_seen.get(f, reading.at) for f in held), default=reading.at)
+                key = "|".join([reading.domain_id, describe_change(effects), _facts_json(held)])
+                expectation = Expectation(
+                    expectation_id=f"exp_{hashlib.sha1(key.encode()).hexdigest()[:16]}",
+                    rule_id=sorted(r.rule_id for r in expecting)[0], domain_id=reading.domain_id,
+                    effects=effects, held=held, since=since,
+                    due=since + timedelta(seconds=delay), owner=owner)
+                committed = len(expecting) == len(members)
+                if not await memory_agent().hold_expectation(
+                        expectation_id=expectation.expectation_id, rule_id=expectation.rule_id,
+                        domain_id=expectation.domain_id, add_facts=_facts_json(effects.add),
+                        delete_facts=_facts_json(effects.delete), held_facts=_facts_json(held),
+                        since=since, due=expectation.due, owner=owner, committed=committed):
+                    continue
+                self._formed_at[expectation.expectation_id] = reading.mark
+                self.expectation_stats["expected"] += 1
+                self.logger.info("expecting in %s by %s (%s): %s", reading.domain_id,
+                                 expectation.due.isoformat(),
+                                 "committed" if committed else "tentative",
+                                 describe_change(effects))
+                if self._arm is not None:
+                    self._arm(expectation)
+
+    async def _longest_delay(self, domain_id: str, signature: Tuple[str, int],
+                             expecting: List[Any]) -> Optional[float]:
+        """The longest any change these regularities explain was seen to take,
+        in seconds; None when no such change was timed."""
+        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.rule_induction import derives
+        demos = get_demonstration_store()
+        predicate, arity = signature
+        lags = await demos.lags(domain_id=domain_id, predicate=predicate, arity=arity)
+        if not lags:
+            return None
+        examples = await demos.load(domain_id=domain_id, predicate=predicate, arity=arity)
+        seen = [lags[e.evidence_id] for e in examples
+                if e.positive and e.evidence_id in lags
+                and any(derives(r.rule, e) for r in expecting)]
+        return max(seen) if seen else None
+
+    async def check_due(self, expectation_id: str, domain_id: str) -> bool:
+        """An expectation's due time came: read its world. The reading settles
+        it, through the same door as any other. False when the world could not
+        be read, and it waits for the next reading."""
+        from core.execution.operator_binding import get_binding_registry
+        facts = await get_binding_registry().observe_world_async(domain_id)
+        if facts is None:
+            self.logger.warning("expectation %s came due and %s could not be read; it waits for "
+                                "the next reading of it", expectation_id, domain_id)
+            return False
+        await self.readings_settled()
+        return True
+
+    async def restore_expectations(self) -> int:
+        """At boot: every expectation still waiting is armed again. One whose
+        time passed while the substrate was down is read for at once."""
+        await self._ensure_schema()
+        from core.agents.memory_agent import memory_agent
+        rows = await memory_agent().pending_expectations()
+        if self._arm is not None:
+            for row in rows:
+                self._arm(_expectation_of(row))
+        if rows:
+            self.logger.info("restored %d expectation(s) still waiting on the world", len(rows))
+        return len(rows)
+
 
 # Singleton instance
 _predictive_intelligence = None

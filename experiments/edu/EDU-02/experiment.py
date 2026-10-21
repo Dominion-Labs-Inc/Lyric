@@ -20,7 +20,7 @@ from core.learning.rule_store import get_rule_store, record_runtime_evidence
 from core.learning.rule_grounding import ground_for_problem
 from core.learning.rule_induction import Fact
 from core.reasoning.temporal_reasoning import TemporalReasoningSystem
-from core.execution.effect_verification import (
+from core.intelligence.effect_verification import (
     RuntimeEvidence, RuntimeOutcome, Attribution)
 from core.tools.tool_registry import get_tool_registry
 

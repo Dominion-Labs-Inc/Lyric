@@ -32,7 +32,7 @@ from core.agents.autonomous.planning_engine import PlanningEngine
 from core.agents.autonomous.shared_types import (
     Plan, Priority, Task, TaskStatus, TaskType, SystemState,
 )
-from core.execution.effect_verification import (
+from core.intelligence.effect_verification import (
     Attribution, EffectVerdict, EffectVerification, Polarity, RuntimeEvidence,
     RuntimeOutcome, outcome_class_for,
 )

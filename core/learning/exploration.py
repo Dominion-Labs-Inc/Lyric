@@ -253,7 +253,7 @@ class SubstrateExplorer:
 
         # ACTION-FUL DEMONSTRATIONS. Try candidates; record what each did.
         tools = await self._tools_()
-        from core.execution.effect_verification import concurrent_execution_guard
+        from core.intelligence.effect_verification import concurrent_execution_guard
         signatures = set()
         for action in propose_actions()[:max_actions]:
             binding = registry.get(domain_id, action.predicate)

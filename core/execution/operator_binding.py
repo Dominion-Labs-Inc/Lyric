@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, FrozenSet, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
 
 from core.learning.rule_induction import Fact
 
@@ -67,6 +67,11 @@ class BindingRegistry:
                                       Optional[Callable[[], Any]]]] = {}
         #: domain -> how its world looks at the things given terms name.
         self._lookers: Dict[str, Callable[[Sequence[str]], FrozenSet[Fact]]] = {}
+        #: domain -> the person whose world it is. A domain with none is the
+        #: substrate's own.
+        self._owners: Dict[str, str] = {}
+        #: Told of every reading of a world through this registry (`on_reading`).
+        self._reading_handlers: List[Callable[[str, FrozenSet[Fact]], None]] = []
 
     def register(self, domain_id: str, binding: OperatorBinding) -> None:
         self._bindings[(domain_id, binding.predicate)] = binding
@@ -78,13 +83,47 @@ class BindingRegistry:
     def register_world(self, domain_id: str,
                        observe: Callable[[], Optional[FrozenSet[Fact]]],
                        observe_async: Optional[Callable[[], Any]] = None,
-                       look_at: Optional[Callable[[Sequence[str]], FrozenSet[Fact]]] = None
-                       ) -> None:
+                       look_at: Optional[Callable[[Sequence[str]], FrozenSet[Fact]]] = None,
+                       owner: Optional[str] = None) -> None:
         """Register how a domain's world is read, apart from any operator, and
-        how it looks at particular things when asked."""
+        how it looks at particular things when asked. `owner` is the person
+        whose world it is, when it is someone's."""
         self._worlds[domain_id] = (observe, observe_async)
         if look_at is not None:
             self._lookers[domain_id] = look_at
+        if owner is not None:
+            self.set_owner(domain_id, owner)
+
+    def set_owner(self, domain_id: str, owner: str) -> None:
+        """Whose world a domain is: what is learned of it, and anything the
+        substrate comes to expect of it, is theirs."""
+        self._owners[domain_id] = str(owner)
+
+    def owner_of(self, domain_id: str) -> Optional[str]:
+        """The person whose world a domain is, or None for the substrate's own."""
+        return self._owners.get(domain_id)
+
+    def on_reading(self, handler: Callable[[str, FrozenSet[Fact]], None]) -> Callable[[], None]:
+        """Be told of every reading of a world taken through this registry:
+        `handler(domain_id, facts)`, called synchronously as the reading
+        returns, so it must be cheap and must not raise. A reading that failed
+        (None) is not a reading and is not told. Returns what stops it."""
+        self._reading_handlers.append(handler)
+
+        def stop() -> None:
+            if handler in self._reading_handlers:
+                self._reading_handlers.remove(handler)
+        return stop
+
+    def _read(self, domain_id: str, facts: Optional[FrozenSet[Fact]]) -> Optional[FrozenSet[Fact]]:
+        if facts is not None:
+            for handler in list(self._reading_handlers):
+                try:
+                    handler(domain_id, facts)
+                except Exception as e:
+                    logger.error("a reading handler failed on %s: %s: %s",
+                                 domain_id, type(e).__name__, e)
+        return facts
 
     def look_at(self, domain_id: Optional[str],
                 terms: Sequence[str]) -> Optional[FrozenSet[Fact]]:
@@ -116,14 +155,14 @@ class BindingRegistry:
         bindings = self.bindings_for(domain_id)
         if not bindings:
             world = self._worlds.get(domain_id)
-            return world[0]() if world is not None else None
+            return self._read(domain_id, world[0]() if world is not None else None)
         facts: set = set()
         for binding in bindings:
             observed = binding.observe()
             if observed is None:
                 return None
             facts |= set(observed)
-        return frozenset(facts)
+        return self._read(domain_id, frozenset(facts))
 
     async def observe_world_async(self, domain_id: str) -> Optional[FrozenSet[Fact]]:
         """`observe_world` for callers that can await — the same contract.
@@ -139,7 +178,8 @@ class BindingRegistry:
             if world is None:
                 return None
             observe, observe_async = world
-            return (await observe_async()) if observe_async is not None else observe()
+            return self._read(domain_id, (await observe_async()) if observe_async is not None
+                              else observe())
         facts: set = set()
         for binding in bindings:
             observer = getattr(binding, "observe_async", None)
@@ -147,18 +187,20 @@ class BindingRegistry:
             if observed is None:
                 return None
             facts |= set(observed)
-        return frozenset(facts)
+        return self._read(domain_id, frozenset(facts))
 
     def clear(self, domain_id: Optional[str] = None) -> None:
         if domain_id is None:
             self._bindings.clear()
             self._worlds.clear()
             self._lookers.clear()
+            self._owners.clear()
             return
         for key in [k for k in self._bindings if k[0] == domain_id]:
             del self._bindings[key]
         self._worlds.pop(domain_id, None)
         self._lookers.pop(domain_id, None)
+        self._owners.pop(domain_id, None)
 
 
 _registry: Optional[BindingRegistry] = None

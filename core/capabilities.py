@@ -423,6 +423,39 @@ class Capabilities:
         return "supervised", (f"their standing is {standing.person}; the world's is "
                               f"{standing.world}")
 
+    async def may_pursue_for(self, actor: Optional[str], *, relied_on: bool,
+                             disposition: Any = None) -> Tuple[str, str]:
+        """How the substrate may pursue, for a person, a goal it formed itself
+        because their world did not do what it expected
+        (the predictive intelligence system's world expectations) -- not a capability they asked for:
+
+          tell         say what it expected, why, and what did not happen
+          offer        say so and what it would do; act only if they ask
+          on its own   pursue it; the constitution still judges every act
+          learn        the substrate's own world: a departure there teaches,
+                       and nothing is done about it
+
+        Their operating mode bounds it as it bounds everything done for them,
+        and on their own only when what was expected is relied on in their
+        world -- settled in favour in their context before it failed."""
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if actor is None or is_substrate_actor(actor):
+            return "learn", "the substrate's own world: a departure there teaches, and nothing is done"
+        mode = await self.operating_mode(actor)
+        if mode in (None, "observe"):
+            return "tell", ("their operating mode is Observe" if mode else
+                            "no operating mode has reached Lyric for them")
+        if mode == "assist":
+            return "offer", "their operating mode is Assist: each act waits for their yes"
+        if not relied_on:
+            return "offer", "what was expected is not yet relied on in their world"
+        if disposition is not None and (getattr(disposition, "should_avoid", False)
+                                        or getattr(disposition, "should_escalate", False)):
+            return "offer", (f"relied on in their world, but the disposition now is "
+                             f"{getattr(disposition, 'mode', 'to hold back')}")
+        return "on its own", ("their operating mode is Delegate, and what was expected is "
+                              "relied on in their world")
+
     async def discover(self, actor: Optional[str] = None) -> Dict[str, Any]:
         """What the substrate can do: the world's capabilities and, for an actor,
         theirs by standing."""

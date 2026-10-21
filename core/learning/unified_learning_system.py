@@ -291,18 +291,96 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
         # thing, which is what a room's many paths or a directory's many files
         # are.
         named = set(example.action.args)
-        def _keep(fact):
-            return bool(set(fact.args) & anchors) or (
-                bool(fact.args) and fact.args[0] in named
-                and (len(fact.args) == 1 or fact.predicate in changed))
-        before = tuple(f for f in example.before if _keep(f))
-        after = tuple(f for f in example.after if _keep(f))
+        before = tuple(f for f in example.before if _bears_on(f, anchors, named, changed))
+        after = tuple(f for f in example.after if _bears_on(f, anchors, named, changed))
         if not before and not after:
             return example
         from dataclasses import replace
         return replace(example, before=before, after=after)
 
     return [scoped(example) for example in basis]
+
+
+def _bears_on(fact: "Fact", anchors, named, changed) -> bool:
+    """Whether a fact can bear on a change: it is about a thing the change
+    transformed (an anchor), or it says something about one thing the change
+    names -- of that thing alone, or in a relation the change moved. The
+    relevance restriction every frame here is cut by (`_relevant_frame`,
+    `world_change_examples`)."""
+    return bool(set(fact.args) & set(anchors)) or (
+        bool(fact.args) and fact.args[0] in named
+        and (len(fact.args) == 1 or fact.predicate in changed))
+
+
+def _changed_things(changed, world) -> List[Tuple[frozenset, frozenset]]:
+    """The changed facts, grouped by the thing each is about.
+
+    A fact names places and things; what changed in it is the thing least
+    connected in the world it was seen in -- a file moved from one room to
+    another is named in a few facts, each room in many. Facts sharing such a
+    thing are one change; two files moved between the same rooms at once are
+    two. Returns (the facts, the things they are about) per change."""
+    from collections import Counter
+    counts = Counter(t for f in world for t in f.args)
+    groups: List[Tuple[set, set]] = []
+    for fact in sorted(changed, key=str):
+        if not fact.args:
+            continue
+        fewest = min(counts[t] for t in fact.args)
+        about = {t for t in fact.args if counts[t] == fewest}
+        joined = [g for g in groups if g[1] & about]
+        facts, things = {fact}, set(about)
+        for g in joined:
+            facts |= g[0]
+            things |= g[1]
+            groups.remove(g)
+        groups.append((facts, things))
+    return [(frozenset(f), frozenset(t)) for f, t in groups]
+
+
+def world_change_examples(before, after, *, evidence_stem: str
+                          ) -> List[Tuple["TrainingExample", frozenset]]:
+    """What a change the world made on its own teaches: one actionless positive
+    demonstration per thing that changed (`_changed_things`), its before and
+    after cut to what bears on that thing (`_bears_on`), with the things it is
+    about (what its signature leaves open, `regularity_signature`). Nothing is
+    filed for a world that did not change.
+
+    Cut per thing and not to the whole world, because a regularity takes time:
+    the other files waiting in the same room were not expected to have moved
+    yet, and leaving them in would make every move a counter-example to itself.
+    `evidence_stem` identifies the two readings; each example's id adds what
+    changed, so the same change read twice is one observation."""
+    before, after = frozenset(before), frozenset(after)
+    changed = (after - before) | (before - after)
+    examples: List[Tuple[TrainingExample, frozenset]] = []
+    for facts, things in _changed_things(changed, before | after):
+        named = {t for f in facts for t in f.args}
+        relations = {f.predicate for f in facts}
+        frame_before = tuple(sorted(f for f in before if _bears_on(f, things, named, relations)))
+        frame_after = tuple(sorted(f for f in after if _bears_on(f, things, named, relations)))
+        digest = hashlib.sha1(
+            (evidence_stem + "|" + "|".join(sorted(str(f) for f in facts))).encode()).hexdigest()
+        examples.append((TrainingExample(before=frame_before, action=None, after=frame_after,
+                                         positive=True, evidence_id=f"world_{digest[:16]}"),
+                         things))
+    return examples
+
+
+def expectation_case(held, now, effects, *, evidence_id: str) -> "TrainingExample":
+    """An unmet expectation as a counter-example: what held about its terms when
+    it was formed, and what holds of them now, with the effects it predicted
+    absent. Cut by the same restriction as the changes it is compared with."""
+    predicted = effects.add | effects.delete
+    things = {t for _facts, about in _changed_things(predicted, frozenset(held) | frozenset(now))
+              for t in about}
+    named = {t for f in predicted for t in f.args}
+    relations = {f.predicate for f in predicted}
+    return TrainingExample(
+        before=tuple(sorted(f for f in held if _bears_on(f, things, named, relations))),
+        action=None,
+        after=tuple(sorted(f for f in now if _bears_on(f, things, named, relations))),
+        positive=False, evidence_id=evidence_id)
 
 
 #: What shared learning is divided into, each with its own switch (`UnifiedLearningSystem.shared_learning`). How a
@@ -5248,7 +5326,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         pending CONTRASTIVE expands to all the domain's signatures. Returns which
         domains gained a newly executable operator (learning is what changes
         competence, not the acting that fed it)."""
-        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.demonstration_store import (get_demonstration_store,
+                                                       is_regularity_signature)
 
         demos = get_demonstration_store()
         pending = await demos.pending_signatures(limit=limit)
@@ -5256,6 +5335,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         by_domain: Dict[str, bool] = {}
 
         async def run(domain_id: str, predicate: str, arity: int):
+            if is_regularity_signature(predicate):
+                # A REGULARITY OF THE WORLD, not an operator: judged by its own
+                # door, and it never makes a domain more competent to act.
+                induced.append(await self._judge_regularity(
+                    domain_id=domain_id, predicate=predicate, arity=arity))
+                return
             outcome = await self._induce_signature(
                 domain_id=domain_id, predicate=predicate, arity=arity)
             induced.append(outcome)
@@ -5265,8 +5350,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         for domain_id, predicate, arity in pending:
             try:
                 if (predicate, arity) == demos.CONTRASTIVE:
+                    # A contrastive negative sharpens the domain's OPERATORS: it
+                    # says their effects need their act. A regularity's effects
+                    # need none, so it is not among them.
                     for p, a in await demos.signatures(domain_id=domain_id):
-                        if (p, a) != demos.CONTRASTIVE:
+                        if (p, a) != demos.CONTRASTIVE and not is_regularity_signature(p):
                             await run(domain_id, p, a)
                 else:
                     await run(domain_id, predicate, arity)
@@ -5399,6 +5487,174 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         summary["executable"] = bool(promoted)
         summary["status"] = "operator_executable" if promoted else "operator_candidate"
         return summary, (promoted[0] if promoted else None), basis
+
+    # ── REGULARITIES OF THE WORLD ────────────────────────────────────────────
+    #
+    # What the world does on its own, learned the way an operator is learned
+    # from what an act does: from demonstrations, by the same inducer, judged by
+    # the same held-out validation. A regularity has no act, so it can never be
+    # performed (`REGULARITY_KIND`); what it gives the substrate is something to
+    # EXPECT (the predictive intelligence system's world expectations).
+
+    async def record_world_change(self, example, *, domain_id: str,
+                                  regularity: Tuple[str, int],
+                                  owner: Optional[str] = None,
+                                  before_at: Optional[datetime] = None,
+                                  after_at: Optional[datetime] = None) -> bool:
+        """Keep one change the world made on its own (positive), or one case
+        where it did not do what a regularity says and the case is told apart
+        from its confirmations (negative), under the regularity's signature.
+        Recording only: induction is the drain's (`drain_pending_induction`)."""
+        from core.learning.demonstration_store import get_demonstration_store
+        return await get_demonstration_store().append(
+            example, domain_id=domain_id, owner=owner, regularity=regularity,
+            before_at=before_at, after_at=after_at)
+
+    async def _regularity_basis(self, *, domain_id: str, predicate: str, arity: int
+                                ) -> List["TrainingExample"]:
+        from core.learning.demonstration_store import get_demonstration_store
+        return await get_demonstration_store().load(
+            domain_id=domain_id, predicate=predicate, arity=arity)
+
+    async def _judge_regularity(self, *, domain_id: str, predicate: str,
+                                arity: int) -> Dict[str, Any]:
+        """Re-judge the regularities a signature holds, induce from its
+        demonstrations, record and validate: `_judge_signature` for what the
+        world does on its own.
+
+        THE DEMONSTRATIONS ARE ALREADY CUT to the thing that changed
+        (`world_change_examples`), and validation reads them so cut. An
+        operator is validated on the full world because its act is instant and
+        everything its body matches should have changed; a regularity takes
+        time, and the other things waiting in the same place were not expected
+        to have changed yet.
+
+        SEVERAL HYPOTHESES ARE KEPT, not refused. With no act to anchor on, a
+        change is often explained equally well by more than one body ("what is
+        in the inbox moves", "a pdf moves"). Every one is recorded and validated:
+        where they all expect a change it is a commitment, where only some do it
+        is a question the world answers (the predictive intelligence system's world expectations)."""
+        from core.learning.rule_store import REGULARITY_KIND
+
+        examples = await self._regularity_basis(
+            domain_id=domain_id, predicate=predicate, arity=arity)
+        summary: Dict[str, Any] = {
+            "status": "insufficient_evidence", "demonstrations": len(examples),
+            "positives": sum(1 for e in examples if e.positive), "domain_id": domain_id,
+            "signature": predicate, "rule_ids": [], "regularities": 0,
+        }
+        for held in await self.store.expectation_rules(domain_id=domain_id):
+            if self._regularity_signature_of(held) == (predicate, arity):
+                try:
+                    await self.store.rejudge(held, examples)
+                except Exception as e:
+                    raise_if_structural(e, "unified_learning_system._judge_regularity")
+                    logger.info("re-judgement of %s deferred: %s", held.rule_id, e)
+
+        if summary["positives"] < 2:
+            return summary
+        basis = list(examples)
+        held_out: List = []
+        if summary["positives"] >= 3:
+            latest = max(i for i, e in enumerate(basis) if e.positive)
+            held_out.append(basis.pop(latest))
+
+        result = self.induce(_bounded_basis(basis, ()))
+        summary["status"] = result.status.value
+        if result.status not in (InductionStatus.RULE_LEARNED,
+                                 InductionStatus.MULTIPLE_HYPOTHESES) or not result.candidates:
+            summary["detail"] = result.detail
+            return summary
+        if any(c.action is not None for c in result.candidates):
+            # Cannot happen from actionless demonstrations; refused rather than
+            # filed as a regularity that names an act.
+            raise ValueError(f"a regularity of {predicate} was induced with an act in it")
+
+        stored = await self.record(result, basis, domain_id=domain_id, rule_kind=REGULARITY_KIND)
+        summary["rule_ids"] = [r.rule_id for r in stored]
+        for record in stored:
+            if held_out:
+                try:
+                    await self.store.validate(record, held_out)
+                except Exception as e:
+                    raise_if_structural(e, "unified_learning_system._judge_regularity")
+                    logger.info("validation of %s deferred: %s", record.rule_id, e)
+        summary["regularities"] = len([
+            r for r in await self.store.expectation_rules(domain_id=domain_id)
+            if r.rule_id in summary["rule_ids"]])
+        summary["status"] = "regularity_validated" if summary["regularities"] else "regularity_candidate"
+        return summary
+
+    @staticmethod
+    def _regularity_signature_of(record) -> Tuple[str, int]:
+        from core.learning.demonstration_store import regularity_signature
+        return regularity_signature(record.rule.effects)
+
+    async def separates(self, record, case: "TrainingExample", *,
+                        domain_id: str) -> Optional[bool]:
+        """Whether something observed tells `case` -- an unmet expectation, as a
+        counter-example (`expectation_case`) -- apart from every change that
+        confirmed the regularity: can a body still explain all of them and
+        exclude it?
+
+        True: the regularity was too broad, and the substrate was wrong.
+        False: no body does; the case is like the confirmations in everything
+        observed, and the world did not do what it does. None: the question
+        could not be put -- fewer than two confirmations, or an induction that
+        settled nothing either way."""
+        predicate, arity = self._regularity_signature_of(record)
+        positives = [e for e in await self._regularity_basis(
+            domain_id=domain_id, predicate=predicate, arity=arity) if e.positive]
+        if len(positives) < 2:
+            return None
+        result = self.induce(_bounded_basis(positives, ()) + [case])
+        if result.status in (InductionStatus.RULE_LEARNED,
+                             InductionStatus.MULTIPLE_HYPOTHESES) and result.candidates:
+            return True
+        if result.status is InductionStatus.NO_RULE and result.negative_coverage:
+            return False
+        return None
+
+    @staticmethod
+    def regularity_claim(rule_id: str) -> str:
+        """The claim that a regularity of the world can be relied on."""
+        return f"the world regularity {rule_id} holds"
+
+    async def regularity_belief(self, rule_id: str, *, owner: Optional[str]) -> Optional[float]:
+        """How far a regularity can be relied on, now: in its owner's context
+        for a person's world, in the substrate's own beliefs for its own."""
+        claim = self.regularity_claim(rule_id)
+        if owner:
+            from core.learning.scoped_context_store import get_scoped_context_store
+            held = await get_scoped_context_store().belief(str(owner), claim)
+            return None if held is None else float(held["posterior"])
+        belief = self.belief_for_claim(claim)
+        return None if belief is None else float(belief.posterior_probability)
+
+    async def observe_regularity(self, rule_id: str, *, held: bool, owner: Optional[str],
+                                 observation: str, memory_id: Optional[str]) -> Optional[float]:
+        """One settled expectation as one witness of whether a regularity can be
+        relied on. A person's world is theirs: its regularity's belief is held
+        in their context and never in the shared one. Each witness carries the
+        weight one outcome of a method does (`COMPETENCE_EVIDENCE_QUALITY`), so
+        a regularity is relied on only after several agree, and a departure
+        moves it back. Returns the posterior it moved to."""
+        from core.integration.universal_domain_master import UniversalDomainMaster
+        claim = self.regularity_claim(rule_id)
+        quality = UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY
+        if owner:
+            from core.learning.scoped_context_store import get_scoped_context_store
+            state = await get_scoped_context_store().observe_claim(
+                str(owner), claim, domain="regularities", supports=held,
+                quality=quality, source="experience")
+            return float(state["posterior"]) if state and "posterior" in state else None
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        unc = get_uncertainty_system()
+        belief = unc.observe_claim(claim, "regularities", supports=held, quality=quality,
+                                   source="experience", observation=observation,
+                                   memory_id=memory_id)
+        await unc.flush_belief(belief.belief_id)
+        return float(belief.posterior_probability)
 
     async def _project_operator_to_concepts(self, record, basis, *,
                                             domain_id: str) -> bool:
