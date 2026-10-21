@@ -77,7 +77,10 @@ def understood_whole(understanding) -> bool:
 
 
 def scored(question, understanding) -> str:
-    """right, not answered, or wrong."""
+    """right, not answered, or wrong. A question asking what, who or how many is answered only where an answer was
+    given (`understanding.answers`), as a yes or no is only by a verdict. Scored by its words alone, a reply naming
+    what it holds nothing of was an answer: "I hold 10.0.0.5 but nothing said about it yet." was right for "How many
+    failed attempts were there?" (five), by the "5" in the address (2026-10-21)."""
     gold = question["answer"]
     reply = (understanding.reply or "").strip()
     verdicts = [a.verdict for a in (understanding.answers or []) if a.verdict is not None]
@@ -86,6 +89,8 @@ def scored(question, understanding) -> str:
         if not verdicts:
             return "not answered"
         return "right" if all(v is wanted for v in verdicts) else "wrong"
+    if not understanding.answers:
+        return "not answered"
     if any(word.lower() in reply.lower() for word in gold):
         return "right"
     if not reply or reply.startswith(NOT_ANSWERED):

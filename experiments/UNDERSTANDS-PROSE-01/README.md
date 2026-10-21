@@ -38,7 +38,11 @@ about without writing to the store.
 - **Scored as a reader is:**
   - how many sentences were understood whole;
   - of the questions, how many were answered right, how many not answered ("I don't know", or not read), and how
-    many were answered **wrong**. A wrong answer is worse than none, and is counted apart.
+    many were answered **wrong**. A wrong answer is worse than none, and is counted apart. A yes or no is answered
+    only by a verdict, and a question asking what, who or how many only where an answer was given, its words then
+    looked for in the reply (since 2026-10-21: scored by its words alone, "I hold 10.0.0.5 but nothing said about it
+    yet." was right for "How many failed attempts were there?", by the "5" in the address, and a recital that named
+    nothing asked was wrong).
 - **Checks** that the store was not written to, by the server's own counters.
 
 | Bar (fixed before the run) | |
@@ -79,6 +83,9 @@ kept with what stopped it and counted apart; the run goes on, and its check fail
 | `20261020T175141Z` | the composer rebuilt over the structure, the PMB's gold taught to main (lab notebook 2026-10-20 (27), (28)) | 21/33 | 12/37 | 0/37 | nothing |
 | `20261020T193148Z` | + pronouns as the lessons name them, denied happenings as the lessons say them, the PMB's 295 corrected on main (28) | 28/33 | 14/37 | 1/37 | nothing |
 | `20261020T215137Z` | + a question's participants asked of, "the X" the X talked of most, a known thing as the kind told of here, no crash on worded links, "it" given its doer, a question also asked as the composer reads it (29), (30); 889 s | 29/33 | 18/37 | 0/37 | nothing |
+| `20261021T104658Z` | English's grammar reads what no taught frame reads (GRAMMAR-01; 2cd1f817 and uncommitted); 736 s | 25/33 | 20/37 (19 scored as now) | 2/37 (1) | nothing |
+| `20261021T112730Z` | + a question asked of what is held as a whole, groups and counts told of named (2cd1f817 and uncommitted); 1273 s | 27/33 | 22/37 (21) | 3/37 (2) | nothing |
+| `20261021T155412Z` | + a fetched page read a block at a time, a meaning's unknowns named by what is said of them, hyphened words one word, a kind with what picks some of it out a condition (8a760242); 764 s | 32/33 | 30/37 (29) | 0/37 | nothing |
 
 Of the four wrong answers in the first run, three were the strong disjointness assumption about a subject the
 conversation had been told of and could not read; the fourth was a recital `scored` counted as wrong, and counted
