@@ -64,7 +64,7 @@ CREATE TABLE IF NOT EXISTS unified.queue_instances (
 # — a rehydrated task re-registers its hooks through the normal path, it does
 # not carry stale ones across a restart. This is stated, not silent.
 
-_DATETIME_FIELDS = ("created_at", "completed_at", "deadline", "verified_at")
+_DATETIME_FIELDS = ("created_at", "completed_at", "deadline")
 _ENUM_FIELDS = {
     "type": TaskType,
     "priority": Priority,
@@ -75,12 +75,7 @@ _ENUM_FIELDS = {
 _PLAIN_FIELDS = (
     "id", "description", "estimated_duration", "dependencies", "result",
     "provenance", "expected_outcomes", "actor", "created_by", "governance_approved",
-    "governance_action_id", "success_criteria", "acceptance_criteria",
-    "required_artifacts", "validation_strategy", "completion_score",
-    "remaining_risks", "open_questions", "assumptions", "max_time_seconds",
-    "max_tokens", "max_iterations", "parent_task_id", "child_task_ids",
-    "verification_attempts", "last_verification_result", "verified_at",
-    "retry_count", "max_retries", "metadata", "allowed_tools",
+    "governance_action_id", "retry_count", "max_retries", "metadata", "allowed_tools",
 )
 
 

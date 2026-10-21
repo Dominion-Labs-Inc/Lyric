@@ -13084,9 +13084,6 @@ class AutonomousCoordinator:
                 u_before = selected_goal.metadata.get("uncertainty_before", 0.0)
                 intrinsic_task.metadata["target_component"] = selected_component
                 intrinsic_task.metadata["uncertainty_before"] = u_before
-                intrinsic_task.success_criteria = {
-                    "uncertainty_delta_max": -(0.1 * u_before) if u_before > 0 else -0.05
-                }
 
             # WHY THIS WORK EXISTS, recorded where the substrate chose it: the
             # goal it raised, keyed so a route later proved for that goal firms

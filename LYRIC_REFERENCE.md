@@ -590,337 +590,84 @@ DirectiveEvolutionEngine (performance tracking over time)
 
 ## 6. Task Completion Protocol
 
-**File:** `core/agents/autonomous/completion_protocol.py`
+**Where:** `core/agents/autonomous/autonomous_coordinator.py` (`_observe_completion_evidence`,
+`_decide_completion`), with `core/tools/execution_tools.py` (`run_in_disposable_copy`).
 
-**Core Principle:** Completion is a SYSTEM PROPERTY, not a model output. The LLM cannot
-mark tasks as complete — it can only propose completion. The system verifies proposals
-against formal criteria before marking VERIFIED.
+**Principle:** a task is done when the outcomes it is expected to leave true hold. Lyric's own
+completion belief decides, one belief per expected outcome, each moved only by evidence about it.
+There is no separate validator and no model output in the decision.
 
-### 6.1 Completion State Machine
+### 6.1 Expected outcomes
 
-```
-CompletionState:
-  PLANNED              → Task defined, not started
-  IN_PROGRESS          → Execution underway
-  AWAITING_VERIFICATION → LLM proposed completion
-  REVISION_REQUESTED   → System feedback for iterative correction
-  VERIFIED             → System confirmed all criteria met
-  FAILED               → Unrecoverable failure or budget exhausted with <70% criteria
-  BLOCKED              → Dependency not met (child tasks or dependencies)
-  PARTIALLY_COMPLETE   → Budget exhausted but ≥70% criteria met
+| Source | Outcome | Key |
+|---|---|---|
+| The person | `Task.expected_outcomes`: a workflow's objectives and verification requirements, a goal's outcome | `condition:<text>` |
+| A driven plan | Its goal conditions | `condition:<text>` |
+| A grounded operator | The effects it claims (a delete wants the fact gone) | `condition:<fact>` |
+| Learned facts | Each fact the work says it learned (up to 3) | `fact:<fact>` |
+| A file act | What the target should hold, or that it is gone or exists | `effect:<target>` |
+| A check | The latest check run in a directory passes | `check:<dir>` |
+| Other shell commands | What the commands run in a directory were for | `shell:<dir>` |
+| Any other act that changes something | It did what it was for | `act:<resource>` |
+| A reading | What was read is what the file holds; only when looking is all the work did | `read:<path>` |
+| None of the above | The task's own stated goal | `task` |
 
-State Transitions:
-  PLANNED → IN_PROGRESS (execution starts)
-  IN_PROGRESS → AWAITING_VERIFICATION (LLM outputs status: "proposing_completion")
-  AWAITING_VERIFICATION → REVISION_REQUESTED (verification issues, iterations remain)
-  REVISION_REQUESTED → IN_PROGRESS (agent addresses feedback)
-  AWAITING_VERIFICATION → VERIFIED (all criteria pass, score ≥ threshold)
-  AWAITING_VERIFICATION → FAILED (validation failed, no retries)
-  IN_PROGRESS → BLOCKED (dependency not met)
-  BLOCKED → IN_PROGRESS (dependency resolved)
+`_outcome_of(tool, args)` reads an act's outcome. An act the consequence reading classes as
+INVESTIGATE leaves nothing that has to hold; a look that failed is no evidence about anything.
+A check (`_check_of`) is a shell command that runs code to see whether it works (an interpreter
+on a script, module or inline code, or a test runner) and that is not read as changing, moving
+or removing a file. `_run_record(tool, args, ran)` is the one place a run's record is built.
 
-CRITICAL: Only TaskCompletionValidator can transition to VERIFIED.
-```
+### 6.2 Evidence
 
-### 6.2 Verification Layers (11 Layers)
+**DID**, the act's own report, through the action-runtime channel, under its outcome. With no
+granular acts, the handler's report is one DID grounding on every stated outcome.
 
-```
-Layer 1: Premature Completion Detection
-  - remaining_risks must be explicitly set (None = omitted = BLOCKED)
-  - open_questions must be explicitly set
-  - assumptions must be explicitly set
-  - Non-empty remaining_risks or open_questions → BLOCKED
-  - Tracks _fields_explicitly_set to distinguish [] from omitted
+**SAW**, a fresh observation taken after the work:
 
-Layer 2: Dependency Graph Verification
-  - All dependency_task_ids must be in VERIFIED state
-  - Returns BLOCKED if any dependency not verified
+- A file act's target: its content compared with the `content_digest` the act reported
+  (`write_file`, `atomic_write_file`, `patch_file`), otherwise its presence or absence. The last
+  act on a target decides what should be true of it.
+- A whole-file reading, read again (only where readings are outcomes).
+- The latest check in each working directory, run again against a disposable copy of the end
+  state: a copy-on-write clone of the directory, confined by the macOS sandbox (writes only in
+  the clone and its scratch space, no network), stopped with its whole process group at the
+  act's own limit (`SHELL_TIMEOUT_SECONDS`, 30, when it names none), the clone deleted. Passing
+  supports `check:<dir>` and `shell:<dir>`; failing or not finishing is against both. Nothing runs
+  when the command named no working directory, ran in Lyric's own directory or one holding it,
+  or the system offers no confinement. `_rerun_check` is the one method that says where the copy
+  comes from.
+- Learned facts, retrieved from memory. Goal conditions and operator effects, observed in the
+  domain's world.
 
-Layer 2.5: Child Task Closure Enforcement
-  - All child_task_ids must be in VERIFIED state
-  - Parent cannot complete if any child is IN_PROGRESS, AWAITING_VERIFICATION, or PLANNED
+**Strengths:** effect 0.9, verified 0.9, against 0.85, declared 0.3. **Independence:** evidence
+is grouped by outcome and causal lineage, and the latest of each group counts, so a failure a
+later act repaired is not counted and a success cannot hide a later failure.
 
-Layer 3: Artifact Verification
-  - Required artifacts must exist on filesystem
-  - Claimed files_created and files_modified must exist
-  - SHA256 hash verification if artifact_hashes provided
-  - Score: verified_count / required_count
+### 6.3 Belief and decision
 
-Layer 3.5: Reality Verification  ← NEW (reality_verifier.py)
-  - Check 1 — FilesystemDiff: path claims in output doc vs os.path.exists()
-      → validates_artifact_content(): .json {} / [] / <10 bytes = hard fail
-      → .py files <50 bytes = hard fail
-  - Check 2 — DependencyScan: library claims vs importlib.util.find_spec()
-      → _scan_files_for_imports(): reads actual .py files for import statements
-        (catches indirect phrasing like "compatible with TFF")
-  - Check 3 — ProcessInspection: service claims vs psutil process list
-      → detects both strong claims ("successfully integrated") and
-        weak claims (service noun + action verb in same sentence)
-  - Check 4 — ToolLogAnalysis: EXECUTION tasks must produce ≥1 non-trivial
-      artifact (≥50 bytes, non-report). Catches run_python("print('hello')")
-      with zero real output.
-  - Check 5 — RuntimeProbes: TCP port probes for claimed running services
-      (always soft/warning — services may be remote)
-  - artifact_score = (artifact_score + reality.score) / 2
-  - Hard failures extend hard_gate_failures
+Each outcome opens at the prior 0.15 and moves by ±3 × strength in log-odds per grounding. The
+task's belief is its weakest outcome's: a goal is no more believable than the least believable
+thing it rests on. DONE when that reaches 0.95, raised toward 0.99 by the self's standing caution.
 
-Layer 4: Code Validation
-  - Python syntax check via compile()
-  - Runs pytest -q --tb=short -x for test validation
-  - Returns pass rate as score (passed / total tests)
+| One outcome's evidence | Posterior |
+|---|---|
+| The act's report only | 0.724 (not confirmed) |
+| The act's report and a fresh look agreeing | 0.975 (met) |
+| One of them against | 0.170 (not met) |
+| Both against | 0.001 (not met) |
 
-Layer 5: Research Validation
-  - Minimum 3 sources consulted
-  - Minimum 2 key findings documented
-  - Summary length ≥ 100 characters
+When the task is not done, the issues give what the work itself reported, then each outcome
+short of the bar, **not met** where evidence speaks against it and **not confirmed** where nothing
+fresh has looked, then the belief against the band.
 
-Layer 6: Acceptance Criteria Verification
-  - Each AcceptanceCriterion evaluated
-  - Hard gates must pass regardless of weighted score
-  - Types: artifact_check, output_present, metric_threshold, test_result, lint_check, custom
-  - Score: passed_criteria / total_criteria
+### 6.4 What is kept on the task
 
-Layer 7: Goal Alignment Check
-  - Uses Critic LLM (8B model) if available
-  - 4-dimension rubric: objective_match, completeness, specificity, evidence
-  - Fallback: Structured rubric with keyword coverage + artifact presence
-  - Weighted average of dimensions
-
-Layer 8: Consistency Check
-  - Contradiction detection (failure + success language)
-  - Cross-field consistency (files_created mentioned in summary)
-  - Confidence sanity (high confidence with risks → penalty)
-  - Output schema validation (required fields, types)
-  - Numerical bounds check (confidence ∈ [0,1])
-
-Layer 9: Resource Budget Check
-  - Time budget: elapsed_seconds vs max_time_seconds
-  - Token budget: tokens_used vs max_tokens
-  - Iteration budget: iterations vs max_iterations
-  - Penalty: min(0.5, overage * 0.5) for time
-```
-
-### 6.3 Completion Score Model
-
-```
-Pre-computation (before weighted sum):
-
-  artifact_score is computed in two stages:
-    Stage A: Layer 3 artifact check  → artifact_score_raw
-    Stage B: Layer 3.5 reality check → reality_score
-    Final:   artifact_score = (artifact_score_raw + reality_score) / 2
-
-CompletionScore = weighted sum of 5 factors:
-
-  artifact_score       × 0.30  (filesystem proof + reality)
-  validation_score     × 0.30  (tests pass, lint clean, criteria met)
-  consistency_score    × 0.15  (no contradictions, valid schema)
-  goal_alignment_score × 0.15  (output matches objective)
-  resource_adherence   × 0.10  (within budget)
-
-total_score = Σ(factor × weight)
-
-Thresholds:
-  min_completion_score = 0.85 (default, 0.80 for RESEARCH tasks)
-  min_confidence = 0.70
-
-Decision Logic:
-  IF hard_gate_failures:
-    state = REVISION_REQUESTED
-  ELIF not all(criteria_results.values()):
-    state = REVISION_REQUESTED
-  ELIF resource_score < 0.5 AND criteria_pass_ratio < 0.70:
-    state = FAILED (budget exhausted, barely did anything)
-  ELIF resource_score < 0.5 AND criteria_pass_ratio >= 0.70:
-    state = PARTIALLY_COMPLETE (good effort, ran out of budget)
-  ELIF total_score >= min_completion_score AND confidence >= min_confidence:
-    state = VERIFIED
-  ELSE:
-    state = REVISION_REQUESTED
-```
-
-### 6.4 Hard Gate System
-
-Acceptance criteria can be marked as `hard_gate=True`. Hard gates MUST pass regardless
-of the weighted completion score. A task cannot be VERIFIED if any hard gate fails.
-
-```
-Default hard gates by task type:
-
-EXECUTION:
-  - "Code executes without errors" (hard_gate=True)
-  - "No syntax errors" (hard_gate=True)
-
-RESEARCH:
-  - "Key findings documented" (hard_gate=True)
-
-ANALYSIS:
-  - "Insights generated" (hard_gate=True)
-
-PLANNING:
-  - "Action steps defined" (hard_gate=True)
-```
-
-### 6.5 Completion Drift Detection
-
-Monitors rolling verification success rate to detect systemic degradation:
-
-```
-Parameters:
-  drift_window_minutes = 60
-  max_failure_rate = 0.40 (40%)
-  min_samples_for_drift = 5
-
-Metrics computed:
-  failure_rate = failures / total_in_window
-  avg_score = mean(scores_in_window)
-  score_trend = second_half_avg - first_half_avg
-
-  is_degrading = failure_rate > 0.40 OR score_trend < -0.1
-
-Actions when degrading:
-  - Log warning with recommendation
-  - Reduce max_iterations by 30-50%
-  - Expose via get_drift_status() for monitoring
-
-Recommendations:
-  >60% failure rate: "CRITICAL: Reduce task complexity immediately"
-  >40% failure rate: "WARNING: Consider reducing max_tokens"
-  score_trend < -0.15: "Score declining rapidly, review task types"
-```
-
-### 6.6 Revision Feedback Loop
-
-When state = REVISION_REQUESTED, structured feedback is injected:
-
-```
-VerificationResult.get_revision_prompt():
-
-  REVISION REQUIRED - Your completion proposal was rejected.
-
-  HARD GATE FAILURES (must fix):
-    ❌ No syntax errors
-    ❌ Code executes without errors
-
-  ISSUES TO ADDRESS:
-    • Criterion not met: Key findings documented
-    • Insufficient sources: 1 < 3
-
-  CURRENT SCORE: 0.62 (need ≥0.85)
-  SCORE BREAKDOWN:
-    - Artifact: 0.80
-    - Validation: 0.50
-    - Consistency: 0.70
-    - Goal Alignment: 0.65
-    - Resources: 1.00
-
-  RECOMMENDATIONS:
-    → Fix validation errors before completion
-    → Ensure output directly addresses task objective
-```
-
-### 6.7 LLM Output Format
-
-The LLM must output `"status": "proposing_completion"` (NOT `"complete"`):
-
-```json
-{
-  "status": "proposing_completion",
-  "summary": "Implemented X by doing Y...",
-  "outputs": {...},
-  "remaining_risks": [],
-  "open_questions": [],
-  "assumptions": ["Assumed Python 3.11+"],
-  "files_created": ["path/to/file.py"],
-  "files_modified": ["path/to/other.py"],
-  "artifact_hashes": {
-    "path/to/file.py": "sha256..."
-  },
-  "confidence": 0.85
-}
-```
-
-**Field presence rules:**
-- `remaining_risks`: MUST be present. `null` or `[]` = explicitly empty. Omitted = BLOCKED.
-- `open_questions`: MUST be present. Same rules.
-- `assumptions`: MUST be present. Same rules.
-- Non-empty `remaining_risks` or `open_questions` → verification BLOCKED.
-
-### 6.8 Reality Verification Layer (Layer 3.5)
-
-**File:** `core/agents/autonomous/reality_verifier.py`
-
-**Root cause this addresses:** The original output gate was satisfied by writing a markdown summary
-report to the iCloud output directory. The LLM verifier scored report quality (grammar, structure,
-claim phrasing) — not environment truth. This allowed systematic fabrication: services claimed as
-"successfully integrated" with no matching process, libraries claimed as dependencies that weren't
-installed, IPFS contracts claimed as created when only a 846-byte stub existed.
-
-**Five environment-state checks:**
-
-```
-Check 1 — FilesystemDiff
-  Collects: files_created, files_modified, backtick paths in output doc,
-            "saved to X" patterns, claimed_outputs values
-  For each path:
-    - os.path.exists() → hard fail if missing (EXECUTION/SECURITY tasks)
-    - _validate_artifact_content():
-        .json with content {}, [], null, or <10 bytes → hard fail
-        .py files <50 bytes → hard fail
-        Any other file <20 bytes → hard fail
-
-Check 2 — DependencyScan
-  Extracts library keywords from task description + proposal text
-  Uses _LIB_MODULE_MAP (30+ entries keyword → Python module name)
-  importlib.util.find_spec() → hard fail for EXECUTION use-claims with
-  uninstalled libraries
-  Also: _scan_files_for_imports() reads actual .py files in files_created
-  and extracts import statements — catches "compatible with TFF" phrasing
-  even when keyword not in prose
-
-Check 3 — ProcessInspection
-  Detects both:
-    Strong: "successfully integrated", "deployed", "running" + service name
-    Weak:   service noun + action verb in same sentence (regex: _action_verb_re)
-  Cross-references psutil.process_iter() + _SERVICE_PROCESS_MAP (15 services)
-  Always soft/warning (services may be remote)
-
-Check 4 — ToolLogAnalysis
-  Reads tool_execution_logs from execution_context
-  Hard fail: EXECUTION task with 0 code-execution tool calls
-  Hard fail: EXECUTION task ran code but all produced files are <50 bytes
-             or only the iCloud report
-  Hard fail: files_created entry has no write_file backing AND doesn't
-             exist on disk
-  Soft: non-EXECUTION task claims "implemented/deployed" but no code tools ran
-
-Check 5 — RuntimeProbes
-  Probes _SERVICE_PORT_MAP (14 services → TCP ports) with 0.5s timeout
-  Always soft/warning only
-```
-
-**Wiring:**
-```python
-# completion_protocol.py — LAYER 3.5
-_reality = self.reality_verifier.verify(
-    proposal, task_description, task_type,
-    tool_results=execution_context["tool_execution_logs"],
-    output_doc_paths=execution_context["output_doc_paths"],
-)
-if _reality.hard_failures:
-    hard_gate_failures.extend(f"[REALITY] {f}" for f in _reality.hard_failures)
-artifact_score = (artifact_score + _reality.score) / 2
-```
-
-**execution_context enrichment** (`general_purpose_executor.py`):
-```python
-"tool_execution_logs": tool_results,
-"output_doc_paths": [
-    tr.get("parameters", {}).get("path", "")
-    for tr in tool_results
-    if tr.get("tool") == "write_file" and tr.get("success")
-],
-```
+`completion_anchor`, `completion_posterior` and `completion_log_odds` (the weakest outcome's),
+`completion_outcomes` (each outcome's key, statement, source, posterior, groundings and
+groundings against) and `completion_evidence` (each grounding's outcome, epoch, channel,
+provenance, polarity and strength). Operating credit (`_operating_verdict`) reads the belief: a
+posterior of 0.5 or more is believed.
 
 ---
 
@@ -3196,39 +2943,13 @@ Compression trigger:            50% token usage
 
 ### Task Completion Protocol
 ```
-Min completion score:           0.85 (0.80 for RESEARCH tasks)
-Min confidence:                 0.70
-Artifact weight:                0.30  (artifact_score = avg of Layer 3 + Layer 3.5)
-Validation weight:              0.30
-Consistency weight:             0.15
-Goal alignment weight:          0.15
-Resource adherence weight:      0.10
-
-Reality Verification (Layer 3.5):
-  Artifact content min bytes (.json): 10
-  Artifact content min bytes (.py):   50
-  Artifact content min bytes (other): 20
-  TCP probe timeout:                  0.5 seconds
-  Service process map entries:        15
-  Library module map entries:         30+
-  Score blend:                        (artifact_raw + reality_score) / 2
-
-Drift detection window:         60 minutes
-Drift max failure rate:         0.40 (40%)
-Drift min samples:              5
-Drift iteration reduction:      0.50-0.70 (30-50% reduction)
-Min iterations after drift:     5
-
-Test execution timeout:         120 seconds
-Pytest flags:                   -q --tb=short -x
-
-PARTIALLY_COMPLETE threshold:   0.70 criteria pass ratio
-Hard gate enforcement:          All hard_gate=True criteria must pass
-
-Field presence requirement:
-  remaining_risks:              MUST be explicitly set ([] or list)
-  open_questions:               MUST be explicitly set ([] or list)
-  assumptions:                  MUST be explicitly set ([] or list)
+Completion prior (each outcome):   0.15
+Acceptance:                        0.95, raised toward 0.99 by caution
+Evidence strengths:                effect 0.9, verified 0.9, against 0.85, declared 0.3
+Belief step:                       ±3.0 × strength, in log-odds
+Task belief:                       the weakest expected outcome's
+Check re-run:                      one per working directory, at the act's own limit (30 s default)
+Learned facts observed:            up to 3
 ```
 
 ### Intrinsic Motivation
@@ -3406,6 +3127,9 @@ Curiosity optimization gap:     1800 seconds (30 minutes minimum)
 *Last reviewed: 2026-03-06*
 
 **Changelog:**
+- 2026-10-21: Section 6 rewritten: completion is whether the expected outcomes hold, one belief per
+    outcome, the task's the weakest; the retired multi-layer protocol (completion_protocol.py, the
+    Task fields it used) removed from this reference and from Task.
 - 2026-10-21: Removed Layer 3.6, the Causal Traceability Gate (causal_traceability.py): nothing called it.
     Whether an act produced what it reports is observed by the completion belief's SAW evidence:
     write_file, atomic_write_file and patch_file report a content fingerprint of what the file should hold,

@@ -234,12 +234,12 @@ def description_fingerprint(description: str) -> str:
 @dataclass
 class Task:
     """
-    Task representation with verifiable completion criteria.
-    
-    Completion:
-    - success_criteria: optional hints the coordinator seeds for a task.
-    A task is VERIFIED by the substrate re-observing the world (the executor
-    confirms its own effects / re-observes the goal state) — not by a
+    Task representation.
+
+    Completion: a task is done when the outcomes it is expected to leave true
+    hold -- `expected_outcomes`, its plan's goal conditions, and what each act
+    was meant to leave true -- each believed past the acceptance band on its
+    own evidence, the substrate re-observing the world. Not by a
     generator-policing completion protocol, which has been retired.
     """
     id: str
@@ -277,46 +277,11 @@ class Task:
     governance_approved: bool = False
     governance_action_id: Optional[str] = None
 
-    # === COMPLETION PROTOCOL FIELDS ===
-    # Legacy field (still used for backwards compatibility)
-    success_criteria: Optional[Dict[str, Any]] = None
-    
-    # NEW: Formal acceptance criteria (list of criterion dicts)
-    acceptance_criteria: List[Dict[str, Any]] = field(default_factory=list)
-    
-    # NEW: Required artifacts (file paths or output keys)
-    required_artifacts: List[str] = field(default_factory=list)
-    
-    # NEW: Validation strategy (unit_tests, static_analysis, research_validation, etc.)
-    validation_strategy: str = "auto"
-    
-    # NEW: Completion score from last verification attempt
-    completion_score: Optional[float] = None
-    
-    # NEW: Premature completion detection fields
-    remaining_risks: List[str] = field(default_factory=list)
-    open_questions: List[str] = field(default_factory=list)
-    assumptions: List[str] = field(default_factory=list)
-    
-    # NEW: Budget constraints
-    max_time_seconds: Optional[int] = None
-    max_tokens: Optional[int] = None
-    max_iterations: Optional[int] = None
-    
-    # NEW: Graph-based completion (parent/child/dependencies)
-    parent_task_id: Optional[str] = None
-    child_task_ids: List[str] = field(default_factory=list)
-    
-    # NEW: Verification tracking
-    verification_attempts: int = 0
-    last_verification_result: Optional[Dict[str, Any]] = None
-    
-    # NEW: Generic completion callbacks (Phase 6: Closure Hooks)
+    # Generic completion callbacks (Phase 6: Closure Hooks)
     # List of (callback_fn, metadata) tuples to execute on task completion
     # Each callback receives (task, result, confidence) and can perform cleanup actions
     completion_callbacks: List[tuple] = field(default_factory=list)
-    verified_at: Optional[datetime] = None
-    
+
     # Execution tracking
     retry_count: int = 0
     max_retries: int = 1
