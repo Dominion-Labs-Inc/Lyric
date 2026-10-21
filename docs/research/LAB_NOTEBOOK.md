@@ -16,6 +16,103 @@ Conventions:
 
 ---
 
+## 2026-10-21 — Lyric expects things of the world; core/execution and lift dissolved into their owners
+
+**Objective.** Until today everything Lyric did unasked began with something that had already happened (a task
+completed, an outcome observed, a percept recognized) or with a timer. Nothing it believed about the world could
+start it doing anything. The aim: make what Lyric has learned the world does on its own something it expects, and
+make the world not doing it an event of its own, settled on evidence as "I was wrong" (learn) or "the world
+departed" (act, as the person's operating mode allows).
+
+**Hypothesis (before the experiment).**
+1. Changes seen between two readings with no act of Lyric's in between can be induced into regularities by the
+   existing inducer.
+2. Given an unmet expectation as a counter-example, the inducer separates the two cases. Either a narrower body
+   still explains every confirmation and excludes it (Lyric was wrong), or none does (the world departed).
+3. Charging every miss to the regularity, as an act's outcome is, would refute it at the first departure and lose
+   every departure after.
+
+**Built.**
+- **Prediction authority.** Effect verification moved into the predictive intelligence system, the one authority
+  over predicting and checking (`core/intelligence/effect_verification.py`). It judges expectations by the same
+  comparison an act's effects use (`verify_expectation`, `attribute_expectation`).
+- **Expectations.** World expectations are the system's own methods: attend to each reading, learn changes, settle
+  and form expectations, arm Lyric's own due-time reading, restore at boot.
+  - Regularities are `world_regularity` rules, kept apart from executable operators (`expectation_rules`).
+  - Their kind of change names the places and leaves the thing open (`regularity_signature`).
+  - Their reliability is a belief in the person's context.
+  - `EXPECTATION_UNMET` and `Capabilities.may_pursue_for` answer a departure: tell, offer or act.
+- **Predictive system repairs.** The quantum engine (values picked by `random.random()`) is removed. The
+  meta-learning engine reads the meta-learner's records instead of three fixed ones. There is one predictive system
+  instead of three. Forecast results are written by the memory agent.
+- **core/execution dissolved.**
+  - Reading a world went to perception.
+  - Tools as operators and the binding registry went to the tool registry.
+  - Watching an act went to the learning authority.
+  - Practice went to exploration.
+  - The procedure went to procedure synthesis.
+  - The value-to-constant encoding went beside `Fact`.
+  - The unused list machine and list synthesis were deleted.
+- **lift.py dissolved.** It went into the learning authority and rule_induction. Its `residue` and the operators'
+  `_operator_residue` became one rule (`person_residue`).
+- **Calibration.** The convergence gate (a gate for an LLM's completion claims) was deleted by Stefan. Its live
+  part, completion calibration, now belongs to the belief system.
+
+**Errors and their causes.**
+- **Calibration had never been stored.** The outcome went into a boolean column as 1.0 or 0.0. The driver refused
+  every write, and the refusal was logged at debug, so both stores held 0 rows and calibration was never loaded at
+  boot. Fixed, and checked across a real restart (gap 0.667 back in a fresh process).
+- **"Could not tell" counted against rules.** `record_runtime_evidence` filed every outcome that was not a
+  confirmation as a contradiction, so an act whose world could not be read counted against its rule.
+- **Three parallel systems built by me.** I built `core/execution/expectations.py` beside the predictive
+  intelligence system that already makes and validates predictions. The review found two earlier ones:
+  `core/memory/lift.py`, a second learner, and the execution folder itself. The cause was the same each time: I
+  gave a concept a new module instead of finding its owner. A written rule against it already existed and was not
+  consulted at the moment of creating the file.
+- **CAPABILITY-EMERGE-01 had gone stale.** It missed one check on the code from before today as well. It predates
+  operating modes (2026-10-16), under which an unlocked capability runs on its own only in Delegate. Section F now
+  hands her Delegate over; 44/44.
+- **EXPECT-01's first run (16/19).** It changed her mode, and checked for a message, before the deferred answer to
+  a departure came. A departure is answered under the mode that holds when Lyric acts. The experiment now waits.
+
+**Result** (EXPECT-01, `lyric_dev`, 19/19, 339 s):
+- **Learned:** the other person's moves, with Lyric doing nothing: 5 moves, 2 hypotheses ("in the inbox", "a
+  pdf"). The longest move took 1.37 s, and the regularity was relied on after 4 confirmations.
+- **Departed:** 6 of 6 pdfs left behind were settled by Lyric's own due-time reading as the world departing, and
+  answered: Observe told 2, Assist offered 2, Delegate formed 2 goals. The pdf regularity stayed validated.
+- **Lyric was wrong:** 4 of 4 txt misses were told apart by their kind. The inbox hypothesis was refuted, nothing
+  was done for her, and no txt has been expected since.
+- **Tendency:** never relied on, never acted on (9 misses).
+- **Restart:** a waiting expectation was settled after a restart, and she was told.
+- **Ablation:** 0 departures, against 6, and the regularity was lost.
+
+**Verdict.** Hypotheses 1 to 3 are confirmed on this sample.
+
+**What it establishes.**
+- The predictive intelligence system can expect things of a person's world from regularities learned without
+  acting.
+- It can tell its own mistakes from the world's departures by what was observed.
+- It answers a departure within the person's operating mode.
+
+**What it does NOT establish.**
+- **Rates:** the counts are small (one seed per run). This is behaviour end to end, not a powered rate.
+- **Where readings come from:** Lyric reads a world only when something reads it. Here the harness reads after
+  each change the other person makes; no watcher exists yet for files or mail.
+- **Delegate goals reaching their effect:** the office had no learned MOVE operator, so the goals were formed but
+  could not be carried out.
+
+**How verified.**
+- **Unit tests:** `tests/test_substrate_execution.py` (verdicts, attribution, change cutting, kinds of change,
+  separability), `test_rule_authority.py`, `test_computational_execution.py`, `test_prediction_validation.py`:
+  46 pass.
+- **Experiments:** TOOLDOMAIN-01 20/20, FIFTY-01 16/16, CAPABILITY-EMERGE-01 44/44 and EXPECT-01 19/19, all on
+  `lyric_dev`.
+- **SYSTEM-EXECUTION-01:** 16/18. Its two misses are lookups of a validated rule in a sandbox that holds none.
+- **Logs:** pyflakes shows no new warnings, and every module imports first in a fresh interpreter. The run windows
+  in `logs/lyric_main.log` are clean of errors from the new code.
+
+---
+
 ## 2026-10-03 — The self perceives what a file holds; five file operators taught with it
 
 **Objective.** Teach the operations a completion benchmark needs. The first three (move,
