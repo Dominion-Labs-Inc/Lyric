@@ -288,11 +288,10 @@ guards experiments rather than the agent.
 | `security/asi_safety.py` | 1501 | Safety |
 | `security/safety_framework.py` | 806 | Safety |
 | `quantum/asi_quantum_safety.py` | 630 | Safety |
-| `agents/autonomous/causal_traceability.py` | 573 | Governance (provenance) |
 | `security/service_abstractions.py` | 280 | Safety |
 | `learning/governance_pattern_learner.py` | 186 | Governance |
 
-**Total: ~5,550 lines of control-plane code that never executes.**
+**Total: ~4,980 lines of control-plane code that never executes.**
 
 ---
 

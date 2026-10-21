@@ -664,23 +664,6 @@ Layer 3.5: Reality Verification  ← NEW (reality_verifier.py)
   - artifact_score = (artifact_score + reality.score) / 2
   - Hard failures extend hard_gate_failures
 
-Layer 3.6: Causal Traceability Gate  ← NEW (causal_traceability.py)
-  - Formally verifies: ∀ claimed artifact A, ∃ tool_call T that produced A
-  - Link strength classification:
-      strong — write_file/create_file with exact normalized realpath match
-               AND file exists on disk
-      weak   — code tool with basename in output/params AND file exists on
-               disk AND file mtime >= tool_call_timestamp
-      none   — untraced / orphan (blocks VERIFIED on EXECUTION tasks)
-  - Hash gate: if agent supplies artifact_hashes, SHA256 must match disk
-  - Path normalization: os.path.realpath() prevents ./file.py vs file.py bypass
-  - Stdout rejection: weak link requires disk evidence, never stdout alone
-      (closes run_python("print('model.py created')") false-positive)
-  - Provenance graph: Tool → Artifact → Tool DAG built for full lineage
-  - Downstream usage tracked: written-but-never-read artifacts emit warning
-  - Score: strong_links / total_artifacts (weak links = 0, no inflation)
-  - Hard failures extend hard_gate_failures on EXECUTION/SECURITY tasks
-
 Layer 4: Code Validation
   - Python syntax check via compile()
   - Runs pytest -q --tb=short -x for test validation
@@ -727,13 +710,9 @@ Pre-computation (before weighted sum):
     Stage B: Layer 3.5 reality check → reality_score
     Final:   artifact_score = (artifact_score_raw + reality_score) / 2
 
-  Layer 3.6 causal score feeds into artifact_score independently:
-    causal_score = strong_links / total_claimed_artifacts
-    (weak links contribute 0, hash mismatches force 0 for that artifact)
-
 CompletionScore = weighted sum of 5 factors:
 
-  artifact_score       × 0.30  (filesystem proof + reality + causal chain)
+  artifact_score       × 0.30  (filesystem proof + reality)
   validation_score     × 0.30  (tests pass, lint clean, criteria met)
   consistency_score    × 0.15  (no contradictions, valid schema)
   goal_alignment_score × 0.15  (output matches objective)
@@ -942,69 +921,6 @@ artifact_score = (artifact_score + _reality.score) / 2
     if tr.get("tool") == "write_file" and tr.get("success")
 ],
 ```
-
-### 6.9 Causal Traceability Gate (Layer 3.6)
-
-**File:** `core/agents/autonomous/causal_traceability.py`
-
-**Formal specification:**
-```
-∀ claimed artifact A:
-  ∃ tool_call T  such that T produced A   (filesystem evidence required)
-  ∃ tool_output O such that O supports A   (stdout alone is not sufficient)
-```
-
-**Why this is necessary beyond Layer 3.5:**
-Reality verification asks: "Is the environment state true?"
-Causal traceability asks:  "Did the agent actually CAUSE that state?"
-
-Without this, an agent can:
-- Run unrelated tools to satisfy the code-execution hard gate
-- Claim credit for pre-existing files it never touched
-- Provide a correct SHA256 of a file it didn't create
-- Game weak links via stdout (e.g. `run_python("print('model.py created')")`)
-
-**Link strength rules:**
-```
-strong — write_file/create_file with exact os.path.realpath() path match
-         AND file confirmed on disk
-         → counts toward score
-
-weak   — code tool with basename mention in params/output
-         AND file confirmed on disk
-         AND file mtime >= tool_call_timestamp
-         (stdout-only mentions → rejected; file must independently exist)
-         → warning only, contributes 0 to score
-
-none   — no verifiable connection
-         → hard fail for EXECUTION/SECURITY tasks
-         → warning for RESEARCH/ANALYSIS/PLANNING
-```
-
-**Hash gate:** If `artifact_hashes` is provided in the proposal, SHA256 of disk
-content must match. Mismatch → hard fail regardless of task type.
-
-**Path normalization:** All path comparisons use `os.path.realpath()`. Prevents
-`./file.py` vs `file.py` vs `/abs/path/file.py` hash bypass.
-
-**Provenance graph:** Full `Tool → Artifact → Tool` DAG built for lineage verification.
-`ProvenanceGraph.summary()` included in result detail for auditability.
-
-**Downstream usage tracking:** Artifacts written but never read by any subsequent
-tool call emit a warning (`"artifact written but never consumed"`).
-
-**Score formula:** `strong_links / total_claimed_artifacts`
-Weak links deliberately contribute 0. Multiple weak links cannot inflate score.
-
-**Blind spots this eliminates:**
-
-| Attack vector | Defense |
-|---|---|
-| `run_python("print('model.py created')")` | Weak link requires disk mtime proof, not stdout |
-| `write_file("dashboard.json", "{}")` | Layer 3.5 rejects <10-byte JSON artifacts |
-| Pre-existing file claimed as newly created | mtime gate: file must postdate tool call |
-| `./file.py` vs `file.py` hash key bypass | `os.path.realpath()` normalization |
-| 3 weak links → score 0.6 | Score = strong_only / total, weak = 0 |
 
 ---
 
@@ -3257,12 +3173,6 @@ Fix applied:
         BS2: _validate_artifact_content() — {} / [] JSON and <50-byte .py = hard fail
         BS3: Sentence-level service noun + action verb detection (not just strong claims)
         BS4: _scan_files_for_imports() reads actual .py files for library usage
-  - Layer 3.6 Causal Traceability Gate (causal_traceability.py):
-      Requires filesystem proof for every claimed artifact
-      Weak links require mtime >= tool_call_timestamp (stdout alone rejected)
-      Hash normalization via os.path.realpath()
-      Score = strong_links / total (weak links = 0, no inflation)
-      Full Tool → Artifact → Tool provenance graph
 
 - Behavior: if all candidates fail production validation, MetaLearner returns a best-effort
   strategy (prefers the most mature option) and logs an error instead of raising.
@@ -3302,17 +3212,6 @@ Reality Verification (Layer 3.5):
   Service process map entries:        15
   Library module map entries:         30+
   Score blend:                        (artifact_raw + reality_score) / 2
-
-Causal Traceability Gate (Layer 3.6):
-  Link types:                         strong (write_file exact path + disk proof)
-                                      weak (code tool + basename + mtime verified)
-                                      none (untraced — hard fail on EXECUTION tasks)
-  Score formula:                      strong_links / total_artifacts
-  Weak link score contribution:       0.0 (excluded from numerator)
-  Hash algorithm:                     SHA256
-  Path normalization:                 os.path.realpath() on all path comparisons
-  Stdout-only weak link:              REJECTED (file must independently exist on disk)
-  mtime gate:                         file.mtime >= tool_call_timestamp (when available)
 
 Drift detection window:         60 minutes
 Drift max failure rate:         0.40 (40%)
@@ -3507,6 +3406,10 @@ Curiosity optimization gap:     1800 seconds (30 minutes minimum)
 *Last reviewed: 2026-03-06*
 
 **Changelog:**
+- 2026-10-21: Removed Layer 3.6, the Causal Traceability Gate (causal_traceability.py): nothing called it.
+    Whether an act produced what it reports is observed by the completion belief's SAW evidence:
+    write_file, atomic_write_file and patch_file report a content fingerprint of what the file should hold,
+    and SAW compares it with a fresh reading of the file (the last act on each target decides).
 - 2026-03-06: Discovered and resolved systematic output fabrication (see gap 25.21)
 - 2026-03-06: Added Layer 3.5 — Reality Verification (reality_verifier.py)
     5 environment-state checks + 4 blind spot patches (BS1–BS4)

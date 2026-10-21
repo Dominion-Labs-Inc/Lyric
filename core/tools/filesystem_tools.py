@@ -533,18 +533,29 @@ class WriteFileTool(Tool):
 
             # Write file
             write_mode = 'a' if mode == "append" else 'w'
+            # WHAT THE FILE SHOULD HOLD once this write lands, stated by the act
+            # itself, so a fresh reading of the file afterwards can confirm or
+            # contradict it. An append the act cannot state the result of claims
+            # nothing rather than something wrong.
+            intended = content
+            if write_mode == 'a' and path.exists():
+                try:
+                    intended = path.read_text(encoding='utf-8') + content
+                except UnicodeDecodeError:
+                    intended = None
             with open(path, write_mode, encoding='utf-8') as f:
                 f.write(content)
-            
-            return ToolResult(
-                success=True,
-                output={
-                    "file_path": str(path),
-                    "mode": mode,
-                    "bytes_written": len(content.encode('utf-8')),
-                    "lines_written": len(content.splitlines())
-                }
-            )
+
+            output = {
+                "file_path": str(path),
+                "mode": mode,
+                "bytes_written": len(content.encode('utf-8')),
+                "lines_written": len(content.splitlines())
+            }
+            if intended is not None:
+                from core.agents.autonomous.autonomous_coordinator import text_digest
+                output["content_digest"] = text_digest(intended)
+            return ToolResult(success=True, output=output)
             
         except Exception as e:
             logger.error(f"Error writing file {file_path}: {e}")
@@ -670,6 +681,7 @@ class PatchFileTool(Tool):
             patched = original.replace(old_string, new_string, 1)
             path.write_text(patched, encoding="utf-8")
 
+            from core.agents.autonomous.autonomous_coordinator import text_digest
             return ToolResult(
                 success=True,
                 output={
@@ -677,6 +689,8 @@ class PatchFileTool(Tool):
                     "bytes_before": len(original.encode()),
                     "bytes_after": len(patched.encode()),
                     "delta_bytes": len(patched.encode()) - len(original.encode()),
+                    # What the file should hold now, for a fresh reading to check.
+                    "content_digest": text_digest(patched),
                 }
             )
         except Exception as e:
@@ -1445,16 +1459,20 @@ class AtomicWriteFileTool(Tool):
                 # On POSIX systems, this is atomic even if target exists
                 os.replace(temp_path, str(path))
 
-                return ToolResult(
-                    success=True,
-                    output={
-                        "file_path": str(path),
-                        "bytes_written": len(content.encode(encoding)),
-                        "lines_written": len(content.splitlines()),
-                        "atomic": True,
-                        "encoding": encoding
-                    }
-                )
+                output = {
+                    "file_path": str(path),
+                    "bytes_written": len(content.encode(encoding)),
+                    "lines_written": len(content.splitlines()),
+                    "atomic": True,
+                    "encoding": encoding
+                }
+                # What the file should hold now, for a fresh reading to check.
+                # The fingerprint is of UTF-8 text, so only a UTF-8 write states one.
+                import codecs
+                if codecs.lookup(encoding).name == "utf-8":
+                    from core.agents.autonomous.autonomous_coordinator import text_digest
+                    output["content_digest"] = text_digest(content)
+                return ToolResult(success=True, output=output)
 
             except Exception as e:
                 # Clean up temp file on error

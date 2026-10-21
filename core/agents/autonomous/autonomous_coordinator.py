@@ -431,6 +431,7 @@ class Evidence:
 _INTERVENTION_TARGET_ARG = {
     "write_file": "file_path",
     "atomic_write_file": "file_path",
+    "patch_file": "file_path",
     "create_file": "file_path",
     "copy_file": "destination_path",
     "move_file": "destination_path",
@@ -13738,23 +13739,41 @@ class AutonomousCoordinator:
         """SAW — a FRESH, independent measurement of the resulting world state,
         taken AFTER the intervention, that does NOT consume the action's cached
         result or the derived verdict (distinct causal lineage from DID → it
-        compounds). Observes the filesystem (a fresh existence check of each
-        intervention target) and learned-knowledge persistence (a fresh retrieval
-        by claim). A goal with no independently-observable state yields no SAW —
-        and then the task cannot reach done on DID alone, the honest consequence."""
+        compounds). Observes the filesystem (a fresh check of each intervention
+        target: what it holds, when the act stated what it should hold, and
+        otherwise whether it is there) and learned-knowledge persistence (a fresh
+        retrieval by claim). A goal with no independently-observable state yields
+        no SAW — and then the task cannot reach done on DID alone, the honest
+        consequence."""
         import os
         if not isinstance(result, dict):
             return []
         prop = (task.metadata or {}).get("completion_anchor", "goal")
         saw: List["Evidence"] = []
         seen = set()
+        # THE LAST ACT ON A TARGET DECIDES WHAT SHOULD BE TRUE OF IT: a file
+        # written and then removed should be gone, and a file written twice should
+        # hold the second text.
+        last: Dict[str, Dict[str, Any]] = {}
         for r in (result.get("tools_run") or []):
-            if not isinstance(r, dict):
-                continue
-            target = r.get("intervention_target")
-            if not target or target in seen:
-                continue
+            if isinstance(r, dict) and r.get("intervention_target"):
+                last[r["intervention_target"]] = r
+        for target, r in last.items():
             seen.add(target)
+            # THE STRONGEST THING THE ACT CLAIMED IS WHAT IS OBSERVED. A write that
+            # states what the file should now hold is checked against what the file
+            # holds: presence alone passes a file that was there before and that
+            # the write never changed, a success with nothing behind it.
+            output = r.get("output") if r.get("success") and isinstance(r.get("output"), dict) else {}
+            claimed = output.get("content_digest")
+            if claimed:
+                held = content_digest(target)  # FRESH reading of the bytes — not the tool's report
+                if held is None and os.path.exists(target):
+                    continue  # there but unreadable: no observation, not a contradiction
+                achieved = held == claimed
+                saw.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                    target, "filesystem_content", f"saw:content:{target}", "saw"))
+                continue
             try:
                 exists = os.path.exists(target)  # FRESH syscall — not the tool's report
             except Exception:
