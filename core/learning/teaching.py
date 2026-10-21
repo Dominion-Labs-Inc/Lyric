@@ -308,8 +308,12 @@ def told_kinds(meaning: Any, described: bool = False) -> Dict[str, str]:
         for f in told:
             if f.relation == "has_member" and is_variable(f.subject):
                 kinds.setdefault(f.subject, "group")
-            elif f.relation == "has_count" and is_variable(f.obj):
-                kinds.setdefault(f.obj, "number")
+            elif f.relation == "has_count":
+                if is_variable(f.obj):
+                    kinds.setdefault(f.obj, "number")
+                if is_variable(f.subject):
+                    # SO IS A COUNT OF THINGS OF NO KIND SAID: "Two of them work in Berlin." of two of the engineers.
+                    kinds.setdefault(f.subject, "group")
     return {unknown: kind for unknown, kind in kinds.items() if unknown in done}
 
 def known_in_lesson(meaning: Any) -> Dict[str, str]:

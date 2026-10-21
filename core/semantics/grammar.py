@@ -308,6 +308,14 @@ class Words:
         after it in its phrase ("a number greater than 1")."""
         return 0.0, 0.0
 
+    def asking(self, use: str) -> Tuple[float, float]:
+        """How often a word is used this way in a sentence that asks, and in one that tells, every word together."""
+        return 0.0, 0.0
+
+    def doing_after(self, use: str) -> Tuple[float, float]:
+        """How often a word used this way has a doing's -ing form after it, and how often not, every word together."""
+        return 0.0, 0.0
+
     def to_purposes(self) -> Tuple[float, float]:
         """How often a "to" clause says what a doing is for ("Rex ran to catch the ball."), and how often what a
         verb takes ("wants to swim")."""
@@ -381,6 +389,16 @@ class Lexicon:
                 if t.get("use") == "NUMERAL:alone":
                     out.append((i + 1, Entry(t["cat"], (), "NUMERAL", word.replace(" ", ""), 0.0, "formula")))
             return out
+        marking = [e for e in closed if e["use"] == "case:part"]
+        if marking and i > 0 and self._is_number(tokens[i - 1]) and not any(
+                start <= i - 1 < end and end - start > 1
+                for start, end in self._name_runs(tokens) + self._number_runs(tokens)):
+            # A NUMERAL'S "OF" MARKS WHAT IT IS A NUMBER OF: "Two of them" is two of them. After a numeral standing
+            # alone the treebank's "of" is that 113 times in 123, the rest a numeral inside a date, a name or an
+            # amount ("October 3 of", "Ivan IV of", "$ 3 M of"); read word by word, "of" is a noun's 24 times as
+            # often, and "Two of them work in Berlin." told of the number 2 working (UNDERSTANDS-PROSE-01, 2026-10-21).
+            return out + [(i + 1, Entry(e["cat"], (), "GRAMMAR", low, 0.0, e.get("label", e["use"])))
+                          for e in marking]
         evidence = self._evidence(tokens, i)
         for e in closed:
             out.append((i + 1, Entry(e["cat"], tuple(tuple(p) for p in e.get("sem", ())), "GRAMMAR", low,
@@ -486,7 +504,37 @@ class Lexicon:
             counts.setdefault("NAME", 0.0)
         if not counts:
             counts = {"NOUN": 0.0, "VERB": 0.0, "ADJECTIVE": 0.0}
-        return estimate(counts, self.words.like(word, "uses"), counts)
+        ways = estimate(counts, self.words.like(word, "uses"), counts)
+        return self._as_said(ways, tokens, i) if closed else ways
+
+    def _as_said(self, ways: Mapping[str, float], tokens: Sequence[str], i: int) -> Dict[str, float]:
+        """Each way a grammar word may be read, weighed as well by how often a word used that way is used in a
+        sentence that asks, where this one asks, or in one that tells (`Words.asking`, every word's uses together,
+        one use more spread over the two). A word's own uses are counted in every sentence, and a way used in
+        questions is seldom among them: "were" after "How many failed attempts" was "were there" as a place, not that
+        there were five, its use as a question's "there were" met once in the treebank (UNDERSTANDS-PROSE-01 on main,
+        2026-10-21). A grammar word's ways are what a question is built with; of any other word, how often its kind
+        is met in questions says how questions are written, not which kind it is, and weighed so, "dynamically" in
+        "Is Python dynamically typed?" was read as a thing.
+
+        AND BY WHETHER A DOING'S -ING FORM IS SAID NEXT (`Words.doing_after`), as a grammar word's ways are told
+        apart by what follows: "for" before "detecting" marks what a thing is for, as the treebank's "for" before a
+        doing does every time, where word by word it is a preposition some seventy times as often, and "a new method for
+        detecting anomalies" proposed a detecting (UNDERSTANDS-PROSE-01 on main, 2026-10-21)."""
+        asks = bool(tokens) and tokens[-1] == "?"
+        doing = i + 1 < len(tokens) and self._doing_form(tokens[i + 1])
+        out: Dict[str, float] = {}
+        for use, p in ways.items():
+            asking, telling = self.words.asking(use)
+            before, other = self.words.doing_after(use)
+            out[use] = p + math.log(((asking if asks else telling) + 1.0) / (asking + telling + 2.0)) \
+                + math.log(((before if doing else other) + 1.0) / (before + other + 2.0))
+        return out
+
+    def _doing_form(self, word: str) -> bool:
+        """Whether a word may be a doing's -ing form: written so, and used as a verb or not yet met."""
+        uses = self.words.uses(word)
+        return word.lower().endswith("ing") and (not uses or "VERB" in uses)
 
     def _is_number(self, word: str) -> bool:
         return _number(word) is not None or self._number_name(word) is not None
@@ -1920,11 +1968,11 @@ def _clause_spans(sign: Sign) -> List[Tuple[int, Tuple[int, int]]]:
         if s.rule == ">" and len(s.kids) == 2:
             fn, arg = s.kids
             clause = (isinstance(arg.cat, Atom) and arg.cat.base == "S" and arg.cat.feat == "em") or (
-                _verb_phrase(arg.cat) and arg.cat.res.feat == "to")
+                _verb_phrase(arg.cat) and arg.cat.res.feat in ("to", "ng"))
             head = fn
             while head.rule != "lex" and head.kids:
                 head = head.kids[0]
-            if clause and head.rule == "lex" and head.entry.split(":")[-1] in ("that", "to", "told to"):
+            if clause and head.rule == "lex" and head.entry.split(":")[-1] in ("that", "to", "ing", "told to"):
                 out.append((head.start, (arg.start, arg.end)))
         stack.extend(s.kids)
     return out
@@ -1951,6 +1999,16 @@ def _pronoun_kind(word: str) -> str:
     if word in ("it", "its", "itself"):
         return "thing"
     return "any"
+
+
+def pronoun_number(word: str) -> Optional[bool]:
+    """Whether a pronoun points back to many things (True), to one (False), or is no pronoun that says (None)."""
+    word = word.lower()
+    if word in ("they", "them", "their", "theirs", "themselves", "these", "those"):
+        return True
+    if word in ("it", "its", "itself", "he", "him", "his", "himself", "she", "her", "hers", "herself"):
+        return False
+    return None
 
 
 # ── the sentences taught with their meanings, aligned to their words; the view memory keeps ────────────────────────

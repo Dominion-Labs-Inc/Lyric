@@ -186,6 +186,10 @@ class HeldWords(Words):
                     self.changes[item.word_class][(form[k:], item.base[k:])] += n
         self.knowledge = knowledge or Knowledge()
         self.form_uses: Dict[str, Counter] = defaultdict(Counter)
+        #: Each use, how often in a sentence that asks (True) and in one that tells (False), every word together.
+        self.asked: Dict[str, Counter] = defaultdict(Counter)
+        #: Each use, how often the word after it is a doing's -ing form (True) and how often not, every word together.
+        self.before_doing: Dict[str, Counter] = defaultdict(Counter)
         self.forms: Dict[str, Counter] = defaultdict(Counter)
         self.verb_frames: Dict[str, Counter] = defaultdict(Counter)
         self.shapes: Dict[str, Counter] = defaultdict(Counter)
@@ -225,7 +229,11 @@ class HeldWords(Words):
         if key not in self._names:
             base = self.lexeme(word, cls)
             held = base != word.lower() or bool(self.knowledge.classes(base).get(cls))
-            self._names[key] = base if held else self.name_of(word, cls)
+            # A WORD OF A CLASS WORDNET DOES NOT NAME IS THE WORD IT IS: memory names a word by WordNet's senses, and
+            # WordNet has no prepositions, so the name it gave was another word's sense. On main "for" was `forget`,
+            # "in" `inch`, "of" `inactive off` and "to" `excessive`, and what each says was learned under that name
+            # (2026-10-21).
+            self._names[key] = base if held or (cls not in INFLECTED and cls != "NAME") else self.name_of(word, cls)
         return self._names[key]
 
     def lexeme(self, word: str, cls: str) -> str:
@@ -299,13 +307,18 @@ class HeldWords(Words):
             form = words[i].lower()
             use = self.use_of(words, classes, heads, relations, under, asks, i)
             self.form_uses[form][use] += 1
+            self.asked[use][asks] += 1
+            self.before_doing[use][i + 1 < n and classes[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")] += 1
             if i > 0 and words[i][:1].isupper() and words[i - 1] not in ('"', ":", "``"):
                 # As written, inside a sentence: "Norwegian" before a town, "Bill" a name.
                 self.written[words[i]][use.split(":")[0]] += 1
             if classes[i] in ("VERB", "AUXILIARY"):
                 self.forms[form][self._form_of(words, classes, heads, relations, under, i)] += 1
             if classes[i] == "VERB":
-                self.verb_frames[self._name(words[i], "VERB")][_frame_of([relations[k] for k in under[i]])] += 1
+                doing = any(relations[k].split(":")[0] == "xcomp" and classes[k] == "VERB"
+                            and words[k].lower().endswith("ing") for k in under[i])
+                self.verb_frames[self._name(words[i], "VERB")][
+                    _frame_of([relations[k] for k in under[i]], doing)] += 1
                 if i + 1 < n and classes[i + 1] not in MARKS:
                     together = heads[i + 1] == i + 1 and relations[i + 1] == "compound:prt"
                     self.particles[(self._name(words[i], "VERB"), words[i + 1].lower())][together] += 1
@@ -390,11 +403,17 @@ class HeldWords(Words):
         if relation == "compound:prt":
             return "PARTICLE"
         if cls == "SUBORDINATOR":
+            if "mark:purpose" in uses and relation == "mark" and h is not None and classes[h] == "VERB" \
+                    and words[h].lower().endswith("ing") and relations[h].startswith("acl"):
+                # "a place for getting an education": what the thing is for (`mark:purpose`).
+                return "mark:purpose"
             return "comp" if h is not None and relations[h] == "ccomp" else "sub"
         if cls == "PREPOSITION" and h is not None:
             if relations[h] == "obl:agent":
                 return "case:agent"
             up = heads[h] - 1 if heads[h] else None
+            if "case:part" in uses and relations[h].startswith("nmod") and up is not None and classes[up] == "NUMERAL":
+                return "case:part"
             if relations[h].startswith("nmod") or relations[h] == "acl":
                 return "PREPOSITION:thing"
             if any(relations[k] == "cop" for k in under.get(h, [])):
@@ -405,6 +424,11 @@ class HeldWords(Words):
         if cls == "ADVERB" and h is not None and classes[h] in ("ADJECTIVE", "ADVERB") and relation == "advmod":
             return "ADVERB:degree"
         if cls == "NUMERAL" and relation != "nummod":
+            # "Two of them": that many of them, said by the numeral and what its "of" names (`case:part`).
+            if any(relations[k].startswith("nmod") and any(
+                    relations[c] == "case" and "case:part" in self.closed.get(words[c].lower(), ())
+                    for c in under.get(k, [])) for k in kids):
+                return "NUMERAL:partitive"
             return "NUMERAL:alone"
         if cls == "NOUN" and relation == "compound":
             return "NOUN:compound"
@@ -510,6 +534,14 @@ class HeldWords(Words):
     def bare_relatives(self) -> Tuple[float, float]:
         return float(self.relatives[False]), float(self.relatives[True])
 
+    def doing_after(self, use: str) -> Tuple[float, float]:
+        held = self.before_doing.get(use, {})
+        return float(held.get(True, 0)), float(held.get(False, 0))
+
+    def asking(self, use: str) -> Tuple[float, float]:
+        held = self.asked.get(use, {})
+        return float(held.get(True, 0)), float(held.get(False, 0))
+
     def to_purposes(self) -> Tuple[float, float]:
         return float(self.purposes[True]), float(self.purposes[False])
 
@@ -569,12 +601,16 @@ def _verb_form(features: str) -> str:
     return ""
 
 
-def _frame_of(relations: Sequence[str]) -> str:
-    """A verb's frame from the relations of the words under it."""
+def _frame_of(relations: Sequence[str], doing: bool = False) -> str:
+    """A verb's frame from the relations of the words under it; `doing`, the clause it takes is said by an -ing word
+    ("began working on Python"), whose doer is the verb's own as a "to" clause's is ("began to work"). Counted as a
+    "to" clause, no reading took it, and "began working" was a beginning of some work no one did."""
     rels = {r.split(":")[0] for r in relations}
     if "ccomp" in rels:
         return "that"
     if "xcomp" in rels:
+        if doing and "obj" not in rels:
+            return "ing"
         return "told to" if "obj" in rels else "to"
     if "iobj" in rels and "obj" in rels:
         return "ditransitive"

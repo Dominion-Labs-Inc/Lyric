@@ -4686,6 +4686,28 @@
     "use": "case:agent"
    }
   ],
+  "of": [
+   {
+    "cat": "PP[of].y/NP.y",
+    "use": "case:part"
+   }
+  ],
+  "for": [
+   {
+    "cat": "(N.x\\N.x)/(S[ng].e\\NP.x)",
+    "sem": [
+     [
+      "fact",
+      "used_for",
+      "x",
+      "e",
+      "-"
+     ]
+    ],
+    "use": "mark:purpose",
+    "label": "for:purpose"
+   }
+  ],
   "than": [
    {
     "cat": "((S[adj].q\\NP.x)\\(S[adj].q\\NP.x))/NP.y",
@@ -5473,6 +5495,25 @@
     "cat": "NP.@",
     "label": "number",
     "use": "NUMERAL:alone"
+   },
+   {
+    "cat": "NP.x/PP[of].y",
+    "sem": [
+     [
+      "count",
+      "x",
+      "@"
+     ],
+     [
+      "fact",
+      "part_of",
+      "x",
+      "y",
+      "-"
+     ]
+    ],
+    "label": "partitive",
+    "use": "NUMERAL:partitive"
    }
   ],
   "ADVERB": [
@@ -5612,6 +5653,7 @@
    "transitive": true,
    "ditransitive": true,
    "to": true,
+   "ing": true,
    "that": true,
    "told to": true
   },
@@ -5691,6 +5733,35 @@
    "to": [
     {
      "cat": "(S[b].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "ing": [
+    {
+     "cat": "(S[b].e\\NP.x)/(S[ng].c\\NP.x)",
      "sem": [
       [
        "event",
@@ -5900,6 +5971,39 @@
      ]
     }
    ],
+   "ing": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[ng].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
    "that": [
     {
      "cat": "(S[dcl].e\\NP.x)/S[em].c",
@@ -6061,6 +6165,39 @@
    "to": [
     {
      "cat": "(S[dcl].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
+   "ing": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[ng].c\\NP.x)",
      "sem": [
       [
        "event",
@@ -6298,6 +6435,43 @@
      ]
     }
    ],
+   "ing": [
+    {
+     "cat": "(S[dcl].e\\NP.x)/(S[ng].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "past",
+       "e"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ],
+      [
+       "finite",
+       "e"
+      ]
+     ]
+    }
+   ],
    "that": [
     {
      "cat": "(S[dcl].e\\NP.x)/S[em].c",
@@ -6455,6 +6629,35 @@
    "to": [
     {
      "cat": "(S[ng].e\\NP.x)/(S[to].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
+   "ing": [
+    {
+     "cat": "(S[ng].e\\NP.x)/(S[ng].c\\NP.x)",
      "sem": [
       [
        "event",
@@ -6711,6 +6914,35 @@
      ]
     }
    ],
+   "ing": [
+    {
+     "cat": "(S[pt].e\\NP.x)/(S[ng].c\\NP.x)",
+     "sem": [
+      [
+       "event",
+       "e",
+       "@"
+      ],
+      [
+       "role",
+       "e",
+       "x",
+       "subject"
+      ],
+      [
+       "role",
+       "e",
+       "c",
+       "object"
+      ],
+      [
+       "clause",
+       "e",
+       "c"
+      ]
+     ]
+    }
+   ],
    "that": [
     {
      "cat": "(S[pt].e\\NP.x)/S[em].c",
@@ -6835,6 +7067,9 @@
    28,
    32,
    35
+  ],
+  "ing": [
+   33
   ],
   "that": [
    26,

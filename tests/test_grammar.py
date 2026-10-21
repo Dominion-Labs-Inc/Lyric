@@ -11,14 +11,15 @@ NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "wh
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
          "shirt": "shirt", "account": "account", "park": "park"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
-         "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep"}
+         "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
+         "began": "begin", "working": "work", "work": "work"}
 ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy"}
 PREPOSITIONS = ("in", "on", "from")
 FORMS = {"chased": {"past": 5.0, "participle": 1.0}, "barked": {"past": 5.0}, "unbuttoned": {"past": 2.0},
-         "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}}
+         "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0}}
 FRAMES = {"chase": {"transitive": 9.0}, "bark": {"intransitive": 9.0}, "fly": {"intransitive": 9.0},
           "unbutton": {"transitive": 9.0}, "lock": {"transitive": 9.0}, "kick": {"transitive": 9.0},
-          "sleep": {"intransitive": 9.0}}
+          "sleep": {"intransitive": 9.0}, "begin": {"ing": 6.0, "to": 3.0}, "work": {"intransitive": 9.0}}
 
 
 class Held(gm.Words):
@@ -101,6 +102,33 @@ def test_his_is_the_one_before_it(grammar):
     assert read(grammar, "Tom unbuttoned his shirt.") == (
         "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, unbutton) & instance_of(?v1, shirt) & "
         "owned_by(?v1, tom) & precedes(?v0, ?now)")
+
+
+def test_a_doing_an_ing_clause_says_is_done_by_the_one_who_does_the_verb(grammar):
+    """"Tom began working.": the working is Tom's, as "Tom began to work." says. Read as a beginning of some work, no
+    one did the working, and "Who began working on Python?" found nothing (UNDERSTANDS-PROSE-01, 2026-10-21)."""
+    words = gm.tokens_of("Tom began working.", grammar.lexicon.words)
+    meaning = grammar.read(words).meaning
+    assert meaning is not None
+    facts = {(f.relation, f.subject, f.obj) for f in meaning.facts}
+    begin = next(s for r, s, o in facts if r == "instance_of" and o == "begin")
+    work = next(s for r, s, o in facts if r == "instance_of" and o == "work")
+    assert {("done_by", begin, "tom"), ("done_to", begin, work), ("done_by", work, "tom")} <= facts, facts
+    from core.semantics.grammar_words import _frame_of
+    assert _frame_of(["nsubj", "xcomp"], doing=True) == "ing"
+    assert _frame_of(["nsubj", "xcomp"]) == "to"
+
+
+def test_a_number_of_them_is_that_many_of_them(grammar):
+    """"Two of them work in the park.": two things, part of what "them" points back to, do the working; never the
+    number 2 working, part of them (UNDERSTANDS-PROSE-01, 2026-10-21)."""
+    words = gm.tokens_of("Two of them work in the park.", grammar.lexicon.words)
+    meaning = grammar.read(words).meaning
+    assert meaning is not None
+    facts = {(f.relation, f.subject, f.obj) for f in meaning.facts}
+    work = next(s for r, s, o in facts if r == "instance_of" and o == "work")
+    doer = next(o for r, s, o in facts if r == "done_by" and s == work)
+    assert doer != "2" and {("has_count", doer, "2"), ("part_of", doer, "?previous")} <= facts, facts
 
 
 def test_what_is_said_of_a_kind(grammar):
