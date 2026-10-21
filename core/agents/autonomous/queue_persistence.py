@@ -74,7 +74,7 @@ _ENUM_FIELDS = {
 # Everything else copies straight through as JSON-native values.
 _PLAIN_FIELDS = (
     "id", "description", "estimated_duration", "dependencies", "result",
-    "provenance", "actor", "created_by", "governance_approved",
+    "provenance", "expected_outcomes", "actor", "created_by", "governance_approved",
     "governance_action_id", "success_criteria", "acceptance_criteria",
     "required_artifacts", "validation_strategy", "completion_score",
     "remaining_risks", "open_questions", "assumptions", "max_time_seconds",

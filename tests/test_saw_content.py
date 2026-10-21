@@ -7,28 +7,22 @@ that check, and a `patch_file` was not observed at all. Each act now reports a
 fingerprint of what the file should hold, and SAW compares it with a fresh
 reading of the file. The last act on a target decides what should be true of it.
 
-The acts here are the real filesystem tools; each run record is built the way
-the coordinator's declared-tools path builds it.
+The acts here are the real filesystem tools; each run record is built by the
+coordinator's own `_run_record`.
 """
 
 import asyncio
 from types import SimpleNamespace
 
-from core.agents.autonomous.autonomous_coordinator import (
-    AutonomousCoordinator, _INTERVENTION_TARGET_ARG)
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, _run_record
 from core.tools.filesystem_tools import DeleteFileTool, PatchFileTool, WriteFileTool
 
 TOOLS = {"write_file": WriteFileTool, "patch_file": PatchFileTool, "delete_file": DeleteFileTool}
 
 
 def _act(tool, **args):
-    outcome = asyncio.run(TOOLS[tool]().execute(**args))
-    return {
-        "tool": tool,
-        "success": outcome.success,
-        "output": outcome.output if outcome.success else None,
-        "intervention_target": args.get(_INTERVENTION_TARGET_ARG.get(tool)),
-    }
+    ran = asyncio.run(TOOLS[tool]().execute(**args))
+    return _run_record(tool, args, {"success": ran.success, "output": ran.output, "error": ran.error})
 
 
 def _saw(*records):

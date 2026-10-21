@@ -258,6 +258,11 @@ class Task:
     #: learned rule that authorised it. Kept so the record answers not only what
     #: Lyric did but which acquired experience gave it authority to do it.
     provenance: Optional[Dict[str, Any]] = None
+    #: WHAT THE PERSON EXPECTS THIS WORK TO LEAVE TRUE, in their words: a
+    #: workflow's objectives and verification requirements, a goal's outcome.
+    #: The completion belief weighs each on its own; one nothing observes stays
+    #: unconfirmed, and the work is not done.
+    expected_outcomes: List[str] = field(default_factory=list)
 
     # Phase 5A: Task source tracking for governance
     source: TaskSource = TaskSource.AUTONOMOUS

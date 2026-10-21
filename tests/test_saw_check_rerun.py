@@ -6,8 +6,8 @@ have changed that code. SAW runs the latest check again against a confined clone
 of the directory it ran in: it writes only inside the clone, reaches no network,
 and the clone is deleted. What the check does there is the observation.
 
-The acts are the real tools; each run record is built the way the coordinator's
-declared-tools path builds it. Confinement here is macOS's sandbox.
+The acts are the real tools; each run record is built by the coordinator's own
+`_run_record`. Confinement here is macOS's sandbox.
 """
 
 import asyncio
@@ -16,8 +16,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from core.agents.autonomous.autonomous_coordinator import (
-    AutonomousCoordinator, _INTERVENTION_TARGET_ARG, _check_of, _tool_resource)
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, _check_of, _run_record
 from core.tools.execution_tools import RunShellCommandTool, run_in_disposable_copy
 
 pytestmark = pytest.mark.skipif(sys.platform != "darwin", reason="confinement is macOS's sandbox")
@@ -27,13 +26,9 @@ PYTHON = sys.executable
 
 def _shell(command, ws, **extra):
     args = {"command": command, "working_directory": str(ws), **extra}
-    outcome = asyncio.run(RunShellCommandTool().execute(**args))
-    return {"tool": "run_shell_command", "success": outcome.success,
-            "output": outcome.output if outcome.success else None,
-            "error": None if outcome.success else outcome.error,
-            "resource": _tool_resource("run_shell_command", args),
-            "intervention_target": args.get(_INTERVENTION_TARGET_ARG.get("run_shell_command")),
-            "check": _check_of("run_shell_command", args)}
+    ran = asyncio.run(RunShellCommandTool().execute(**args))
+    return _run_record("run_shell_command", args,
+                       {"success": ran.success, "output": ran.output, "error": ran.error})
 
 
 def _coordinator_and_task():

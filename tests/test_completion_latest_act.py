@@ -8,16 +8,18 @@ a run whose final check failed, or whose second write to a file failed, reached
 done. The collapse now keeps the latest member, as SAW keeps the last act on a
 target.
 
-The acts are the real tools; each run record is built the way the coordinator's
-declared-tools path builds it, and the decision is the coordinator's own.
+The acts are the real tools; each run record is built by the coordinator's own
+`_run_record`, and the decision is the coordinator's own.
 """
 
 import asyncio
 import os
+import sys
 from types import SimpleNamespace
 
-from core.agents.autonomous.autonomous_coordinator import (
-    AutonomousCoordinator, _INTERVENTION_TARGET_ARG, _tool_resource)
+import pytest
+
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, _run_record
 from core.tools.execution_tools import RunShellCommandTool
 from core.tools.filesystem_tools import PatchFileTool, WriteFileTool
 
@@ -26,15 +28,8 @@ TOOLS = {"write_file": WriteFileTool, "patch_file": PatchFileTool,
 
 
 def _act(tool, **args):
-    outcome = asyncio.run(TOOLS[tool]().execute(**args))
-    return {
-        "tool": tool,
-        "success": outcome.success,
-        "output": outcome.output if outcome.success else None,
-        "error": None if outcome.success else outcome.error,
-        "resource": _tool_resource(tool, args),
-        "intervention_target": args.get(_INTERVENTION_TARGET_ARG.get(tool)),
-    }
+    ran = asyncio.run(TOOLS[tool]().execute(**args))
+    return _run_record(tool, args, {"success": ran.success, "output": ran.output, "error": ran.error})
 
 
 def _done(*records):
@@ -54,18 +49,23 @@ def _fixed_file(tmp_path):
     return _act("patch_file", file_path=str(path), old_string="value = 1", new_string="value = 2")
 
 
-def test_a_final_check_that_fails_holds_the_run_short_of_done(tmp_path):
+def test_a_final_command_that_fails_holds_the_run_short_of_done(tmp_path):
     ws = str(tmp_path)
     assert not _done(_act("run_shell_command", command="true", working_directory=ws),
                      _fixed_file(tmp_path),
                      _act("run_shell_command", command="false", working_directory=ws))
 
 
+@pytest.mark.skipif(sys.platform != "darwin", reason="the re-run's confinement is macOS's sandbox")
 def test_a_check_that_failed_and_then_passed_does_not_hold_it(tmp_path):
     ws = str(tmp_path)
-    assert _done(_fixed_file(tmp_path),
-                 _act("run_shell_command", command="false", working_directory=ws),
-                 _act("run_shell_command", command="true", working_directory=ws))
+    (tmp_path / "check.py").write_text("import module\nassert module.value == 2\n", encoding="utf-8")
+    check = f"'{sys.executable}' check.py"
+    failed = _act("run_shell_command", command=check, working_directory=ws)
+    fixed = _fixed_file(tmp_path)
+    passed = _act("run_shell_command", command=check, working_directory=ws)
+    assert not failed["success"] and passed["success"]
+    assert _done(failed, fixed, passed)
 
 
 def test_a_second_write_that_failed_holds_the_run_short_of_done(tmp_path):

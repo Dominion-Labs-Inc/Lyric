@@ -412,7 +412,7 @@ class Evidence:
         aggregate 'verified' verdict = the AND of tool successes). Derived evidence
         is never an independent confirmation; it is dropped before compounding.
     """
-    proposition: str
+    proposition: str               # what it bears on: for completion, one expected outcome
     polarity: bool                 # True = supports the proposition, False = against
     strength: float                # [0,1]
     provenance_key: str            # the underlying source/resource it depends on
@@ -2176,6 +2176,70 @@ def _check_of(tool: str, args: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     return {"command": command, "working_directory": args.get("working_directory"),
             "timeout": args.get("timeout")}
+
+
+def _fact_key(text: Any) -> str:
+    """A stated condition or fact as its key: the same words however spaced."""
+    return "".join(str(text).split())
+
+
+def _outcome_of(tool: str, args: Dict[str, Any]) -> Optional[str]:
+    """The EXPECTED OUTCOME an act bears on: what it was meant to leave true, as
+    the key the completion belief weighs it under. None for an act that only
+    looks, which leaves nothing that has to hold.
+
+      effect:<target>  a file or directory the act writes, makes, moves or removes
+      read:<path>      a reading, which should be what the file holds
+      check:<dir>      the latest check run in that directory, which should pass
+      shell:<dir>      what the other commands run there were for. A shell edit
+                       names no file it can be checked by, so the check that
+                       passes in the same directory is what confirms it.
+      act:<resource>   anything else an act changes
+    """
+    args = args or {}
+    target_arg = _INTERVENTION_TARGET_ARG.get(tool)
+    if target_arg and args.get(target_arg):
+        return f"effect:{args[target_arg]}"
+    if tool == "read_file" and args.get("file_path"):
+        return f"read:{args['file_path']}"
+    action, _ = classify_action(tool, args)
+    if action is ActionClass.INVESTIGATE:
+        return None
+    if tool == "run_shell_command":
+        where = args.get("working_directory") or ""
+        return f"check:{where}" if _check_of(tool, args) else f"shell:{where}"
+    return f"act:{_tool_resource(tool, args)}"
+
+
+def _run_record(tool: Optional[str], args: Dict[str, Any],
+                ran: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    """What the completion belief reads of one act that ran (`ran` is the tool's
+    result, None when it never reached the tool): the one place a run's record
+    is built."""
+    args = args or {}
+    ok = ran is not None and ran.get("success") is True
+    target_arg = _INTERVENTION_TARGET_ARG.get(tool)
+    return {
+        "tool": tool,
+        "success": ok,
+        "output": (ran or {}).get("output") if ok else None,
+        # Prefer the tool's OWN error so DID can read an already-satisfied
+        # intent (e.g. removal of an already-absent target); the generic
+        # message stands in only when the step was refused before running.
+        "error": None if ok else
+                 ((ran or {}).get("error")
+                  or "tool did not execute successfully (refused before running)"),
+        # Provenance for completion evidence: `resource` is what the act named;
+        # `intervention_target` is the world resource SAW re-observes fresh; a
+        # check is run again in the end state; `outcome` is what the act was meant
+        # to leave true, and `observes` says it only looked.
+        "resource": _tool_resource(tool, args),
+        "intervention_target": (args.get(target_arg) if target_arg else None),
+        "check": _check_of(tool, args),
+        "outcome": _outcome_of(tool, args),
+        "observes": classify_action(tool, args)[0] is ActionClass.INVESTIGATE,
+        "seconds": (ran or {}).get("seconds"),
+    }
 
 
 @dataclass(frozen=True)
@@ -13344,7 +13408,6 @@ class AutonomousCoordinator:
 
     def _operating_verdict(
         self, result: Any, confidence: Optional[float], is_complete: bool,
-        contradicted: Sequence[Dict[str, Any]] = (),
     ) -> Dict[str, Any]:
         """Did this work OPERATE CORRECTLY in its domain, and is the answer
         evidence about that at all?
@@ -13418,18 +13481,6 @@ class AutonomousCoordinator:
         elif runtime_outcome:
             world_verdict = runtime_outcome == RuntimeOutcome.CONFIRMATION.value
             grounded_in = "runtime evidence"
-
-        # THE SAME HOLDS INSIDE THE BELIEF. A belief that the goal holds while
-        # some of its own groundings say a part of it does not -- a failed act,
-        # a fresh look that found otherwise -- was outvoted, not resolved, and is
-        # not a measurement of operating correctly either. Denied, said out loud.
-        if believed and contradicted:
-            logger.warning(
-                "operating credit denied: the substrate believes the goal holds "
-                "(posterior %.3f) while its own evidence says otherwise: %s",
-                confidence, "; ".join(f"{g['channel']} on {g['provenance']}" for g in contradicted))
-            return verdict(False, OutcomeClass.INDETERMINATE,
-                           "the completion evidence disagrees with itself")
 
         if world_verdict is not None and world_verdict != believed:
             logger.warning(
@@ -13677,11 +13728,8 @@ class AutonomousCoordinator:
     #: only DEFENSIBLY complete at >= 0.95, raised toward 0.99 by the self's
     #: standing caution. Verified against the belief math: one strong observation
     #: reaches ~0.72, so a single signal NEVER completes — DONE demands
-    #: CORROBORATION (>= 2 independent grounded confirmations), and any real
-    #: failure among the effects holds the task short of done. The belief math
-    #: alone held that only while confirmations were few: three outvote one
-    #: contradiction (a check the end state fails, among a landed edit and its
-    #: own logged pass, stood at 0.978), so `_decide_completion` holds it.
+    #: CORROBORATION (>= 2 independent grounded confirmations) of EVERY expected
+    #: outcome, and a real failure of any one holds the task below the bar.
     COMPLETION_ACCEPT = 0.95
     COMPLETION_ACCEPT_MAX = 0.99
 
@@ -13696,80 +13744,171 @@ class AutonomousCoordinator:
     _EV_DECLARED = 0.3
 
     async def _observe_completion_evidence(self, task, result) -> None:
-        """Move the completion belief on INDEPENDENT groundings only.
+        """Move the completion belief on INDEPENDENT groundings, one belief per
+        EXPECTED OUTCOME.
 
-        Completion is "how many independent ways does the substrate know the goal
-        is true," not "how many mechanisms reported success." So we gather DID
-        evidence (the intervention's own report, through the action-runtime
-        channel) and SAW evidence (a FRESH, post-intervention re-observation of the
-        world), drop derived items, collapse correlated ones (same causal lineage)
-        to their latest, and feed ONE belief update per genuinely-independent
-        grounding. A task that only ACTED (DID ≈ 0.72) has one grounding and cannot
-        reach the bar — the high threshold itself forces the fresh SAW that
-        compounds to done. Isolated; never fabricates. Groundings are stashed on
-        the task for audit and for the outcome memory."""
-        from core.reasoning.bayesian_uncertainty import evidence_step, probability_of
-        held = (task.metadata or {}).get("completion_log_odds")
-        if held is None:
+        Completion is "does the work leave true what it was expected to," not
+        "did its steps run." Each expected outcome (`_expected_outcomes`: the
+        person's, the plan's, and what each act was meant to leave true) is a
+        belief of its own, opened at the low prior and moved only by evidence
+        about IT: DID (the act's own report, through the action-runtime channel)
+        and SAW (a FRESH, post-intervention re-observation of the world). Derived
+        items are dropped and correlated ones (same outcome, same causal lineage)
+        collapse to their latest. An outcome only ACTED on (DID ≈ 0.72) has one
+        grounding and cannot reach the bar — the high threshold itself forces the
+        fresh SAW that compounds to done.
+
+        THE GOAL IS NO MORE BELIEVABLE THAN ITS WEAKEST OUTCOME. One belief over
+        all the evidence let confirmations of one outcome outvote the failure of
+        another: a check the end state fails, beside a landed edit and the check's
+        own logged pass, stood at 0.978. A confirmed edit is no evidence that a
+        check passes. Each outcome is weighed on its own, and the task's belief is
+        the least of them, so a contradiction counts by its weight against the
+        outcome it bears on. Isolated; never fabricates. Outcomes and groundings
+        are stashed on the task for audit and for the outcome memory."""
+        from core.reasoning.bayesian_uncertainty import evidence_step, log_odds_of, probability_of
+        if (task.metadata or {}).get("completion_log_odds") is None:
             raise RuntimeError(f"task {getattr(task, 'id', '?')} has no completion belief to move: "
                                f"it was not opened before acting (`_open_completion`)")
         evidence = self._gather_did_evidence(task, result)
         evidence += await self._saw_reobserve(task, result)
-        groundings = self._independent_groundings(evidence)
+        outcomes = self._expected_outcomes(task, result)
+        groundings = [g for g in self._independent_groundings(evidence) if g.proposition in outcomes]
+        held = {key: log_odds_of(self.COMPLETION_PRIOR) for key in outcomes}
         for g in groundings:
-            held += evidence_step(g.strength, g.polarity)
+            held[g.proposition] += evidence_step(g.strength, g.polarity)
+        weakest = min(held.values())
         # Kept on the task, which is stored with it: a completion -- or a reversal
-        # where SAW contradicted DID -- survives a restart with the task. The
-        # posterior is read from the log-odds.
-        task.metadata["completion_log_odds"] = held
-        task.metadata["completion_posterior"] = probability_of(held)
+        # where SAW contradicted DID -- survives a restart with the task. Each
+        # posterior is read from its log-odds.
+        task.metadata["completion_log_odds"] = weakest
+        task.metadata["completion_posterior"] = probability_of(weakest)
+        task.metadata["completion_outcomes"] = [
+            {"outcome": key, "states": about["states"], "source": about["source"],
+             "posterior": round(probability_of(held[key]), 4),
+             "groundings": sum(1 for g in groundings if g.proposition == key),
+             "against": sum(1 for g in groundings if g.proposition == key and not g.polarity)}
+            for key, about in outcomes.items()]
         task.metadata["completion_evidence"] = [
-            {"epoch": g.epoch, "channel": g.observation_channel,
+            {"outcome": g.proposition, "epoch": g.epoch, "channel": g.observation_channel,
              "provenance": g.provenance_key, "supports": g.polarity,
              "strength": round(g.strength, 3)} for g in groundings]
 
+    def _stated_outcomes(self, task, result) -> Dict[str, Dict[str, str]]:
+        """The outcomes stated for a task before any act's evidence, keyed as their
+        evidence is: the PERSON's (`expected_outcomes`: a workflow's objectives and
+        verification requirements, a goal's outcome), a driven plan's GOAL
+        CONDITIONS, the effects a grounded operator claims, and the facts the work
+        says it learned. A stated outcome nothing observes stays at the prior:
+        not confirmed, and the work is not done."""
+        res = result if isinstance(result, dict) else {}
+        out: Dict[str, Dict[str, str]] = {}
+        for text in (getattr(task, "expected_outcomes", None) or []):
+            out.setdefault(f"condition:{_fact_key(text)}", {"states": str(text), "source": "person"})
+        if res.get("execution_path") == "substrate_plan":
+            for cond in (res.get("goal_conditions") or []):
+                out.setdefault(f"condition:{_fact_key(cond)}", {"states": str(cond), "source": "plan"})
+        elif res.get("execution_path") == "substrate":
+            for eff in (res.get("effects") or []):
+                fact = eff.get("effect")
+                if fact:
+                    gone = str(eff.get("polarity", "")).lower() == "delete"
+                    out.setdefault(f"condition:{_fact_key(fact)}",
+                                   {"states": f"{fact} no longer holds" if gone else str(fact),
+                                    "source": "work"})
+        for fact in (res.get("learned") or [])[:3]:
+            out.setdefault(f"fact:{fact}", {"states": f"{fact} is held", "source": "work"})
+        return out
+
+    def _expected_outcomes(self, task, result) -> Dict[str, Dict[str, str]]:
+        """Every outcome the task is expected to leave true: the stated ones, then
+        what each act was meant to leave true (`_outcome_of`), in the order the
+        acts ran. A task with none is expected to achieve its own stated goal.
+
+        A LOOK IS HOW THE WORK WAS DONE, NOT WHAT IT WAS FOR. A reading is an
+        outcome only when looking is all the work did -- then what it read is what
+        it was asked for, and reading again confirms it. Where the work changed
+        something its readings were the means, and a look that failed changed
+        nothing and claimed nothing."""
+        out = self._stated_outcomes(task, result)
+        records = [r for r in ((result.get("tools_run") or []) if isinstance(result, dict) else [])
+                   if isinstance(r, dict)]
+        looked_only = not any(r.get("outcome") and not r.get("observes") for r in records)
+        for r in records:
+            key = r.get("outcome")
+            if not key or key in out:
+                continue
+            if r.get("observes") and not (looked_only and r.get("success")):
+                continue
+            kind, _, named = key.partition(":")
+            if kind == "effect":
+                states = (f"{named} is gone" if r.get("tool") in _TOOL_WANTS_ABSENT
+                          else f"{named} holds what was written"
+                          if r.get("tool") in ("write_file", "atomic_write_file", "patch_file")
+                          else f"{named} exists")
+            elif kind == "read":
+                states = f"what was read from {named} is what it holds"
+            elif kind == "check":
+                latest = [x for x in records if isinstance(x, dict) and x.get("outcome") == key]
+                states = f"the check `{latest[-1]['check']['command']}` passes"
+            elif kind == "shell":
+                where = named or "Lyric's own directory"
+                states = f"the commands run in {where} did what they were for"
+            else:
+                states = f"{r.get('tool')} did what it was for ({named})"
+            out[key] = {"states": states, "source": "work"}
+        if not out:
+            out["task"] = {"states": (task.metadata or {}).get("completion_anchor") or "the task is complete",
+                           "source": "task"}
+        return out
+
     def _gather_did_evidence(self, task, result) -> List["Evidence"]:
         """DID — the intervention's OWN report that it produced the effect, through
-        the action-runtime channel. Multiple tools against the SAME resource are
-        consequences of one causal event (same lineage → they collapse). The
-        aggregate 'verified' verdict is DERIVED from the tool successes, so it is
-        emitted derived=True and dropped before compounding."""
+        the action-runtime channel, under the expected outcome it bears on. Acts
+        on the SAME outcome are consequences of one causal event (same lineage →
+        they collapse to the latest). A look that failed changed nothing and
+        claimed nothing, so it is no evidence about any outcome. The aggregate
+        'verified' verdict is DERIVED from the tool successes, so it is emitted
+        derived=True and dropped before compounding."""
         if not isinstance(result, dict):
             return []
-        prop = (task.metadata or {}).get("completion_anchor", "goal")
         ev: List["Evidence"] = []
         tools = result.get("tools_run") or []
         if tools:
             for r in tools:
                 if not isinstance(r, dict) or not r.get("tool"):
                     continue
+                outcome = r.get("outcome")
+                if not outcome or (r.get("observes") and not r.get("success")):
+                    continue
                 # Score the intervention by whether it achieved its INTENDED
                 # target-state, not the raw success flag: a removal that "fails"
                 # because the target was already gone has achieved the absence.
                 achieved = self._did_intent_achieved(r)
                 res = r.get("resource") or f"tool:{r.get('tool')}"
-                ev.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
-                                   res, "tool_runtime", f"did:{res}", "did"))
+                ev.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                                   res, "tool_runtime", f"did:{outcome}", "did"))
             # the aggregate verdict is the AND of the above — derived, never counted.
-            ev.append(Evidence(prop, result.get("verification_state") == "verified",
+            ev.append(Evidence("task", result.get("verification_state") == "verified",
                                self._EV_VERIFIED, "aggregate", "tool_runtime",
                                "did:aggregate", "did", derived=True))
             return ev
-        # No granular effects: the handler's report IS the single DID grounding.
+        # No granular effects: the handler's report IS the single DID grounding,
+        # and it is a report on every outcome the task states, or on its own goal.
         vs = result.get("verification_state")
         method = result.get("method", "handler")
         if vs == "verified":
-            ev.append(Evidence(prop, True, self._EV_VERIFIED, f"handler:{method}",
-                               "handler_report", f"did:{method}:{task.id}", "did"))
+            said = (True, self._EV_VERIFIED, f"handler:{method}", f"did:{method}:{task.id}")
         elif vs in ("failed", "blocked", "in_progress", "partially_complete"):
-            ev.append(Evidence(prop, False, self._EV_AGAINST, f"handler:{method}",
-                               "handler_report", f"did:{method}:{task.id}", "did"))
+            said = (False, self._EV_AGAINST, f"handler:{method}", f"did:{method}:{task.id}")
         elif result.get("success") is True:
-            ev.append(Evidence(prop, True, self._EV_DECLARED, "declared",
-                               "handler_report", f"did:declared:{task.id}", "did"))
+            said = (True, self._EV_DECLARED, "declared", f"did:declared:{task.id}")
         else:
-            ev.append(Evidence(prop, False, self._EV_AGAINST, "no_result",
-                               "handler_report", f"did:none:{task.id}", "did"))
+            said = (False, self._EV_AGAINST, "no_result", f"did:none:{task.id}")
+        polarity, strength, provenance, lineage = said
+        for outcome in (self._stated_outcomes(task, result) or {"task": None}):
+            ev.append(Evidence(outcome, polarity, strength, provenance,
+                               "handler_report", lineage, "did"))
         return ev
 
     def _did_intent_achieved(self, r: Dict[str, Any]) -> bool:
@@ -13798,7 +13937,6 @@ class AutonomousCoordinator:
         import os
         if not isinstance(result, dict):
             return []
-        prop = (task.metadata or {}).get("completion_anchor", "goal")
         saw: List["Evidence"] = []
         seen = set()
         # THE LAST ACT ON A TARGET DECIDES WHAT SHOULD BE TRUE OF IT: a file
@@ -13810,6 +13948,7 @@ class AutonomousCoordinator:
                 last[r["intervention_target"]] = r
         for target, r in last.items():
             seen.add(target)
+            outcome = r.get("outcome") or f"effect:{target}"
             # THE STRONGEST THING THE ACT CLAIMED IS WHAT IS OBSERVED. A write that
             # states what the file should now hold is checked against what the file
             # holds: presence alone passes a file that was there before and that
@@ -13821,7 +13960,7 @@ class AutonomousCoordinator:
                 if held is None and os.path.exists(target):
                     continue  # there but unreadable: no observation, not a contradiction
                 achieved = held == claimed
-                saw.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                saw.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                                     target, "filesystem_content", f"saw:content:{target}", "saw"))
                 continue
             try:
@@ -13833,7 +13972,7 @@ class AutonomousCoordinator:
             # present-goal. Read from the operation, not the description.
             wants_absent = r.get("tool") in _TOOL_WANTS_ABSENT
             achieved = (not exists) if wants_absent else exists
-            saw.append(Evidence(prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+            saw.append(Evidence(outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                                 target, "filesystem_scan", f"saw:filesystem:{target}", "saw"))
         # A READING IS CONFIRMED BY READING AGAIN. A read changes nothing, so it
         # names no intervention target and the branch above had nothing to look
@@ -13858,29 +13997,40 @@ class AutonomousCoordinator:
                     matches = fresh_file.read() == content
             except (OSError, UnicodeDecodeError):
                 matches = False
-            saw.append(Evidence(prop, matches, self._EV_EFFECT if matches else self._EV_AGAINST,
+            saw.append(Evidence(r.get("outcome") or f"read:{path}", matches,
+                                self._EV_EFFECT if matches else self._EV_AGAINST,
                                 path, "filesystem_read", f"saw:reading:{path}", "saw"))
         # A CHECK IS CONFIRMED BY RUNNING IT AGAIN. A test run's success is a fact
         # about the code it ran against, and the work may have changed that code
         # since. So the latest check is run again against a disposable copy of the
         # end state (`_rerun_check`), and what it does there is the observation:
         # passing supports the goal; failing, or not finishing within the act's own
-        # limit, is against it. ONE re-run, the latest check, one grounding: a run
-        # cannot pile up confirmations by repeating commands. When no confined copy
-        # can be had, nothing runs and nothing is claimed.
-        checks = [r["check"] for r in (result.get("tools_run") or [])
-                  if isinstance(r, dict) and r.get("check")]
-        if checks:
-            again = await self._rerun_check(checks[-1])
-            if again is not None:
-                passed = again.get("exit_code") == 0
-                saw.append(Evidence(prop, passed, self._EV_EFFECT if passed else self._EV_AGAINST,
-                                    f"check:{checks[-1]['command']}", "check_rerun", "saw:check", "saw"))
+        # limit, is against it. ONE re-run per directory, its latest check, one
+        # grounding: a run cannot pile up confirmations by repeating commands.
+        # The same look confirms what the other commands run there were for: a
+        # shell edit names no file to read back, and the code passing its check is
+        # what it was for. When no confined copy can be had, nothing runs and
+        # nothing is claimed.
+        records = [r for r in (result.get("tools_run") or []) if isinstance(r, dict)]
+        latest_check: Dict[str, Dict[str, Any]] = {}
+        for r in records:
+            if r.get("check"):
+                latest_check[r["check"].get("working_directory") or ""] = r
+        shell_work = {r.get("outcome") for r in records if str(r.get("outcome") or "").startswith("shell:")}
+        for where, r in latest_check.items():
+            again = await self._rerun_check(r["check"])
+            if again is None:
+                continue
+            passed = again.get("exit_code") == 0
+            for outcome in [r["outcome"]] + ([f"shell:{where}"] if f"shell:{where}" in shell_work else []):
+                saw.append(Evidence(outcome, passed, self._EV_EFFECT if passed else self._EV_AGAINST,
+                                    f"check:{r['check']['command']}", "check_rerun",
+                                    f"saw:check:{where}", "saw"))
         for fact in (result.get("learned") or [])[:3]:
             held = self._saw_memory_holds(fact)
             if held is None:
                 continue
-            saw.append(Evidence(prop, held, self._EV_EFFECT if held else self._EV_AGAINST,
+            saw.append(Evidence(f"fact:{fact}", held, self._EV_EFFECT if held else self._EV_AGAINST,
                                 f"fact:{fact}", "memory", f"saw:memory:{fact}", "saw"))
         # A GROUNDED-OPERATOR execution and a DRIVEN PLAN both apply their effects
         # through the operator-binding/world layer, not a filesystem tool, so
@@ -13910,8 +14060,8 @@ class AutonomousCoordinator:
         # independent look, which is what makes it a belief rather than a copy.
         _path = result.get("execution_path")
         if _path == "substrate":
-            #: (claimed fact, whether its satisfied state is ABSENCE)
-            claimed = [(eff.get("effect"),
+            #: (the outcome it is, claimed fact, whether its satisfied state is ABSENCE)
+            claimed = [(f"condition:{_fact_key(eff.get('effect'))}", eff.get("effect"),
                         str(eff.get("polarity", "")).lower() == "delete")
                        for eff in (result.get("effects") or [])]
         elif _path == "substrate_plan":
@@ -13923,7 +14073,8 @@ class AutonomousCoordinator:
             claimed = []
             for cond in (result.get("goal_conditions") or []):
                 denied = TemporalReasoningSystem.denied(str(cond))
-                claimed.append((denied, True) if denied is not None else (cond, False))
+                key = f"condition:{_fact_key(cond)}"
+                claimed.append((key, denied, True) if denied is not None else (key, cond, False))
         else:
             claimed = []
         if claimed:
@@ -13941,13 +14092,13 @@ class AutonomousCoordinator:
                 def _norm(s):
                     return "".join(str(s).split())
                 present = {_norm(f) for f in observed}
-                for fact, wants_absent in claimed:
+                for outcome, fact, wants_absent in claimed:
                     if not fact:
                         continue
                     here = _norm(fact) in present
                     achieved = (not here) if wants_absent else here
                     saw.append(Evidence(
-                        prop, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
+                        outcome, achieved, self._EV_EFFECT if achieved else self._EV_AGAINST,
                         f"world:{fact}", "world_reobserve", f"saw:world:{_norm(fact)}", "saw"))
         return saw
 
@@ -13978,39 +14129,35 @@ class AutonomousCoordinator:
 
     def _independent_groundings(self, evidence) -> List["Evidence"]:
         """Reduce raw evidence to INDEPENDENT groundings: drop derived items, group
-        by causal_lineage (correlated evidence shares a lineage), and keep one
-        representative per group — the latest. Only these compound in the belief
-        update, so correlated evidence can never multiply into false confidence.
+        by what it bears on and its causal_lineage (correlated evidence about one
+        proposition shares a lineage), and keep one representative per group —
+        the latest. Only these compound in the belief update, so correlated
+        evidence can never multiply into false confidence. One look bearing on
+        two propositions is one grounding for each.
 
         THE LATEST, NOT THE STRONGEST. Evidence arrives in the order the acts ran,
         and a lineage is one resource: what it holds now is what the last act on it
         left. Keeping the strongest let a success hide a failure that came after it
         (a success weighs 0.9, a failure 0.85), so a run whose final check failed
         read as done."""
-        by_lineage: Dict[str, "Evidence"] = {}
+        by_lineage: Dict[Tuple[str, str], "Evidence"] = {}
         for e in evidence:
             if e.derived:
                 continue
-            by_lineage[e.causal_lineage] = e
+            by_lineage[(e.proposition, e.causal_lineage)] = e
         return list(by_lineage.values())
 
     def _decide_completion(self, task, result, verify_bar: float):
-        """DONE from the substrate's completion belief: has its posterior reached
-        the DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution), with
-        no independent grounding against it? Returns (is_complete, confidence,
-        issues).
-
-        A GOAL HOLDS ONLY IF EVERY EFFECT IT RESTS ON HOLDS. One act that failed,
-        or one fresh look that found the world otherwise, is a part of the goal
-        that does not hold, however many other parts were confirmed; adding them
-        up let confirmations outvote it. Each grounding is the latest word on its
-        own resource, so a failure the work went on to repair is not one."""
+        """DONE from the substrate's completion belief: has it reached the
+        DEFENSIBLE acceptance (>= 0.95, raised toward 0.99 by caution) for every
+        expected outcome? The task's posterior is its weakest outcome's. Returns
+        (is_complete, confidence, issues), the issues naming each outcome short
+        of the bar: NOT MET when evidence speaks against it, NOT CONFIRMED when
+        nothing fresh has looked."""
         posterior = float(task.metadata["completion_posterior"])
         caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
         accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
-        against = [g for g in (task.metadata.get("completion_evidence") or []) if not g.get("supports")]
-        confident = posterior + 1e-9 >= accept
-        if confident and not against:
+        if posterior + 1e-9 >= accept:
             return True, posterior, []
         # WHAT THE WORK ITSELF REPORTED COMES FIRST. A task whose every path
         # declined said why ("no substrate handler for an ANALYSIS task yet …");
@@ -14018,10 +14165,13 @@ class AutonomousCoordinator:
         # belief 0.01 < acceptance 0.96" -- true, and no reason at all.
         reported = (result.get('error') if isinstance(result, dict)
                     and result.get('success') is not True else None)
+        short = [o for o in (task.metadata.get("completion_outcomes") or [])
+                 if o["posterior"] + 1e-9 < accept]
         return False, posterior, ([str(reported)] if reported else []) + [
-            f"contradicted: {g['channel']} on {g['provenance']}" for g in against] + ([] if confident else [
+            f"{'not met' if o['against'] else 'not confirmed'}: {o['states']} ({o['posterior']:.2f})"
+            for o in short] + [
             f"completion belief {posterior:.2f} < acceptance {accept:.2f} — "
-            f"goal not yet grounded-confident (needs corroboration)"])
+            f"goal not yet grounded-confident (needs corroboration)"]
 
     def _acceptance_band(self) -> Tuple[float, float]:
         """(verification_intensity, accept) — THE SAME BAND as `_decide_completion`.
@@ -14961,9 +15111,7 @@ class AutonomousCoordinator:
                 # asks "did the operation achieve its intent?" -- and for work that
                 # carries an intent, the substrate now OWNS that answer instead of
                 # inferring it. See _operating_verdict.
-                _verdict = self._operating_verdict(
-                    result, confidence, is_complete,
-                    [g for g in (_tmd.get("completion_evidence") or []) if not g.get("supports")])
+                _verdict = self._operating_verdict(result, confidence, is_complete)
                 if task.metadata is None:
                     task.metadata = {}
                 task.metadata["operating_verdict"] = {
@@ -18757,26 +18905,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 verdict = outcome["judgment"]
             if (outcome or {}).get("redirected_from"):
                 redirected.append(outcome["redirected_from"])
-            # Provenance for completion evidence: `resource` is the DID causal
-            # lineage (tools on the SAME resource collapse to one event);
-            # `intervention_target` is the world resource SAW re-observes fresh.
-            target_arg = _INTERVENTION_TARGET_ARG.get(tool)
-            results.append({
-                "tool": tool,
-                "success": ok,
-                "output": (outcome or {}).get("output") if ok else None,
-                # Prefer the tool's OWN error so DID can read an already-satisfied
-                # intent (e.g. removal of an already-absent target); the generic
-                # message stands in only when the step was refused before running.
-                "error": None if ok else
-                         ((outcome or {}).get("error")
-                          or "tool did not execute successfully (refused before running)"),
-                "resource": _tool_resource(tool, args),
-                "intervention_target": (args.get(target_arg) if target_arg else None),
-                # A check SAW confirms by running it again in the end state.
-                "check": _check_of(tool, args),
-                "seconds": (outcome or {}).get("seconds"),
-            })
+            results.append(_run_record(tool, args, outcome))
             if run is not None:
                 run.update(done=list(results), judgment=verdict, redirected=list(redirected))
 
