@@ -116,8 +116,8 @@ VERDICTS = {"true": True, "false": False}
 #: A taught phrase with more unknowns than this is refused (`Phrase`): the reader builds phrases into readings, and
 #: a phrase of many unknowns multiplies them. A sentence's meaning has no such limit: it was refused past six
 #: unknowns while `canonical` followed every tie (n things of one kind, n! ways), and "We propose a new method for
-#: detecting anomalies in network traffic." (seven) could not be held; unknowns told apart alike are followed once
-#: (`_colours`), and forty are written in milliseconds (2026-10-21).
+#: detecting anomalies in network traffic." (seven) could not be held; ties are settled by what is said of the
+#: unknowns (`_least_naming`), and forty are written in milliseconds (2026-10-21).
 MAX_FREE_VARIABLES = 6
 
 #: The score of a construction nothing has observed yet: where the paper starts a new one.
@@ -249,74 +249,72 @@ def _canonical(meaning: "Meaning") -> str:
     return _canonical_of(meaning.act, meaning.facts, meaning.asked)
 
 
-def _least_namings(facts: Sequence["MeaningFact"], free: Collection[str],
-                   first: Sequence[str] = ()) -> List[Dict[str, str]]:
-    """Every naming of the unknowns `free` to `?v0, ?v1, ...` under which the facts, each written and all sorted, are
-    least: the namings the smallest writing is among, as trying every one finds it, without trying every one.
+def _least_naming(facts: Sequence["MeaningFact"], free: Collection[str], first: Sequence[str] = (),
+                  asked: Sequence[str] = ()) -> Dict[str, str]:
+    """The naming of the unknowns `free` to `?v0, ?v1, ...` a meaning is written by, whatever they were called.
 
-    Every naming was tried, and a meaning of six unknowns is written 720 times: "The dog barked, the cat ran and the
-    bird flew." read for 46 seconds, nearly all of it in writing its 180 readings (2026-10-11). The least writing is
-    built a fact at a time instead. Its first fact is the least any fact can be written, its unknowns given the least
-    names not taken, in the order the fact writes them; no naming writes anything less first, and only that naming of
-    them writes that. Each next fact likewise, with the names already given kept. Where facts tie, each is followed.
-    `first` are named before any fact, in order (a phrase writes its anchor ahead of its facts)."""
+    It is built a fact at a time. The first fact is the least any fact can be written, its unknowns given the least
+    names not taken, in the order the fact writes them; each next fact likewise, with the names already given kept.
+    `first` are named before any fact, in order (a phrase writes its anchor ahead of its facts).
+
+    WHERE FACTS TIE, WHAT IS SAID OF THEIR UNKNOWNS DECIDES. Two facts written alike name different unknowns ("The
+    dog barked. The cat ran.": `done_by(?v0, ?v1)` either way). Each unknown is told apart by the facts it is in and,
+    round by round, by what the unknowns beside it are told apart as (colour refinement, Weisfeiler and Leman 1968),
+    an unknown asked about by its place, and one named by its name, told apart again as each is named: three people
+    each in the next are alike until one is named, and then the one it is in is not the one in it. None of it depends
+    on what the unknowns were called. Of facts that tie, the one whose unknowns are told apart least is written
+    first; unknowns told apart alike are alike in all that is said of them, and either is. Every tie was followed, and
+    the least writing of all
+    kept: n things of one kind, each doing one thing, were followed n! ways, and a meaning of more than six unknowns
+    was refused for it (`MAX_FREE_VARIABLES`, before); then ties of unknowns told apart alike were followed once,
+    and n things each told apart, each doing one thing, were still followed n! ways: sixteen unknowns were written
+    in 35 seconds, and a page of entries read as one sentence never was (2026-10-21)."""
     pool = sorted(f"?v{i}" for i in range(len(free)))
     unknown = set(free)
-    start: Dict[str, str] = {}
+    names: Dict[str, str] = {}
     for variable in first:
-        if variable in unknown and variable not in start:
-            start[variable] = pool[len(start)]
-    found: List[Dict[str, str]] = []
-    # UNKNOWNS NOTHING TELLS APART ARE FOLLOWED ONCE. Where facts tie, each was followed, and n things of one kind
-    # each doing one thing were followed n! ways ("The dogs barked, the cats ran ..."): a meaning of more than six
-    # unknowns was refused for it (`MAX_FREE_VARIABLES`, before). Each unknown is told apart by the facts it is in and,
-    # round by round, what the unknowns beside it are told apart as (colour refinement, Weisfeiler and Leman 1968);
-    # ties that name unknowns told apart alike are one, and one of them is followed.
-    colour = _colours(facts, unknown)
-
-    def follow(names: Dict[str, str], left: List["MeaningFact"]) -> None:
-        if not left:
-            found.append(names)
-            return
-        least: Optional[str] = None
-        ties: List[Tuple[int, Dict[str, str]]] = []
+        if variable in unknown and variable not in names:
+            names[variable] = pool[len(names)]
+    asking = {v: ("asked", i) for i, v in reversed(list(enumerate(asked))) if v in unknown}
+    incident: Dict[str, List["MeaningFact"]] = {v: [] for v in unknown}
+    for fact in facts:
+        for term in set(fact.terms()) & unknown:
+            incident[term].append(fact)
+    colour: Dict[str, int] = {}
+    told_by = -1
+    left = list(facts)
+    while left:
+        if told_by != len(names):
+            colour = _colours(incident, {**asking, **{v: ("named", n) for v, n in names.items()}})
+            told_by = len(names)
+        least: Optional[Tuple[str, Tuple[int, ...], int, Dict[str, str]]] = None
         for k, fact in enumerate(left):
             trial = dict(names)
             for term in fact.terms():
                 if term in unknown and term not in trial:
                     trial[term] = pool[len(trial)]
             written = fact.renamed(trial).render()
-            if least is None or written < least:
-                least, ties = written, [(k, trial)]
-            elif written == least:
-                ties.append((k, trial))
-        followed: List[Dict[str, str]] = []
-        alike: Set[Tuple] = set()
-        for k, trial in ties:
-            if trial in followed:   # facts written alike under one naming are one fact, whichever goes first
-                continue
-            told = tuple(colour.get(t) for t in sorted(set(trial) - set(names), key=trial.get))
-            if told in alike:
-                continue
-            alike.add(told)
-            followed.append(trial)
-            follow(trial, left[:k] + left[k + 1:])
-
-    follow(start, list(facts))
-    return found
+            told = tuple(colour[t] for t in sorted(set(trial) - set(names), key=trial.get))
+            if least is None or (written, told) < least[:2]:
+                least = (written, told, k, trial)
+        _, _, k, names = least  # type: ignore[misc]
+        del left[k]
+    return names
 
 
-def _colours(facts: Sequence["MeaningFact"], unknown: Collection[str]) -> Dict[str, int]:
-    """Each unknown told apart by what is said of it (colour refinement): first by the facts it is in, as written
-    with every unknown alike; then, round by round, by those and what the unknowns beside it were told apart as, until
-    no round tells more apart."""
+def _colours(incident: Mapping[str, Sequence["MeaningFact"]],
+             marked: Mapping[str, Tuple[str, Any]] = {}) -> Dict[str, int]:
+    """Each unknown told apart by what is said of it (colour refinement): first by the facts it is in (`incident`),
+    as written with every unknown alike, and by its mark (`marked`: asked about and its place, or its name); then,
+    round by round, by those and what the unknowns beside it were told apart as, until no round tells more apart."""
     def plain(term: str) -> str:
-        return "?" if term in unknown else term
+        return "?" if term in incident else term
     colour: Dict[str, Any] = {}
-    for v in unknown:
-        colour[v] = tuple(sorted((f.relation, f.subject == v, plain(f.obj if f.subject == v else f.subject),
-                                  f.positive, f.condition, f.alternative, f.unasserted, f.given)
-                                 for f in facts if v in f.terms()))
+    for v, facts in incident.items():
+        colour[v] = (marked.get(v, ()), tuple(sorted(
+            (f.relation, f.subject == v, plain(f.obj if f.subject == v else f.subject),
+             f.positive, f.condition, f.alternative, f.unasserted, f.given)
+            for f in facts)))
     rounds = 0
     while rounds <= len(colour):
         rounds += 1
@@ -324,7 +322,7 @@ def _colours(facts: Sequence["MeaningFact"], unknown: Collection[str]) -> Dict[s
         before = {v: named[c] for v, c in colour.items()}
         colour = {v: (before[v], tuple(sorted(
             (f.relation, f.subject == v, before.get(f.obj if f.subject == v else f.subject, -1))
-            for f in facts if v in f.terms()))) for v in unknown}
+            for f in facts))) for v, facts in incident.items()}
         if len(set(colour.values())) == len(set(before.values())):
             return before
     named = {c: k for k, c in enumerate(sorted(set(colour.values()), key=repr))}
@@ -335,14 +333,10 @@ def _canonical_of(act: str, facts: Sequence["MeaningFact"], asked: Sequence[str]
     """A meaning's parts written as `Meaning.canonical` writes it, without the meaning having to be one."""
     evaluated = _evaluated(facts)
     free = sorted({t for f in evaluated for t in f.terms() if is_variable(t) and not _named(t)})
-    best: Optional[str] = None
-    for names in _least_namings(evaluated, free):
-        rendered = " & ".join(sorted(f.renamed(names).render() for f in evaluated))
-        asking = ", ".join(names.get(v, v) for v in asked)
-        text = f"{act}: {rendered}" + (f" ? {asking}" if asking else "")
-        if best is None or text < best:
-            best = text
-    return best  # type: ignore[return-value]
+    names = _least_naming(evaluated, free, asked=asked)
+    rendered = " & ".join(sorted(f.renamed(names).render() for f in evaluated))
+    asking = ", ".join(names.get(v, v) for v in asked)
+    return f"{act}: {rendered}" + (f" ? {asking}" if asking else "")
 
 
 def slot_name(index: int) -> str:
@@ -504,9 +498,9 @@ class Meaning:
     def canonical(self) -> str:
         """This meaning written one way, whatever its unknowns were called.
 
-        Every renaming of the unknowns to `?v0, ?v1, ...` is tried and the smallest rendering kept, so two meanings
-        that differ only in what their unknowns were named render identically -- and two that differ in anything
-        else do not. The situation's variables and the slots keep their names: `?speaker` is not `?listener`, and
+        The unknowns are renamed `?v0, ?v1, ...` by what is said of them (`_least_naming`), never by what they were
+        called, so two meanings that differ only in what their unknowns were named render identically -- and two
+        that differ in anything else do not. The situation's variables and the slots keep their names: `?speaker` is not `?listener`, and
         `?slot0` is the first open place in the form. A number built from numbers is written as its value
         (`evaluated`): "twenty-one dogs" and "21 dogs" are one meaning. A meaning never changes, so it is written
         once.
@@ -856,8 +850,8 @@ class Link:
 
 def _phrase_canonical(anchor: str, facts: Iterable[MeaningFact]) -> str:
     """What a phrase names, written one way whatever its unknowns were called: as `Meaning.canonical` writes a
-    meaning, every renaming of the unknowns to `?v0, ?v1, ...` tried and the smallest kept, and a number built from
-    numbers written as its value. A phrase never changes, so it is written once."""
+    meaning, its anchor named first (`_least_naming`), and a number built from numbers written as its value. A phrase
+    never changes, so it is written once."""
     return _phrase_written(anchor, tuple(facts))
 
 
@@ -867,12 +861,8 @@ def _phrase_written(anchor: str, facts: Tuple[MeaningFact, ...]) -> str:
     anchor = values.get(anchor, anchor)
     free = sorted({t for f in facts for t in f.terms()} | {anchor})
     free = [t for t in free if is_variable(t) and not _named(t)]
-    best: Optional[str] = None
-    for names in _least_namings(facts, free, first=(anchor,)):
-        text = names.get(anchor, anchor) + " : " + " & ".join(sorted(f.renamed(names).render() for f in facts))
-        if best is None or text < best:
-            best = text
-    return best  # type: ignore[return-value]
+    names = _least_naming(facts, free, first=(anchor,))
+    return names.get(anchor, anchor) + " : " + " & ".join(sorted(f.renamed(names).render() for f in facts))
 
 
 @dataclass(frozen=True)
