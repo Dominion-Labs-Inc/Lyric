@@ -1603,6 +1603,14 @@ class BayesianUncertaintySystem:
         Used to calibrate future confidence estimates.
         """
         self._refuse_if_frozen(f"confidence calibration moved: {domain}")
+        self._absorb_prediction(domain, predicted_confidence, bool(actual_outcome))
+        self._save_calibration_data(domain, predicted_confidence, bool(actual_outcome))
+        self.stats['calibration_updates'] += 1
+
+    def _absorb_prediction(self, domain: str, predicted_confidence: float,
+                           actual_outcome: bool) -> None:
+        """One prediction and its outcome into the domain's calibration, in this
+        process: what recording a prediction and restoring a recorded one share."""
         # Get or create calibration for domain
         if domain not in self.calibrations:
             self.calibrations[domain] = ConfidenceCalibration(
@@ -1626,11 +1634,31 @@ class BayesianUncertaintySystem:
         
         # Recalculate calibration metrics
         self._update_calibration_metrics(calibration)
-        
-        # Persist to database
-        self._save_calibration_data(domain, predicted_confidence, actual_value)
-        
-        self.stats['calibration_updates'] += 1
+
+    #: The bins counted as stated with confidence, and without it, when asking
+    #: whether confidence discriminates (`confidence_gap`): at and above, and at
+    #: and below. The calibration drift detector's baseline is set against this
+    #: split.
+    CONFIDENT_BIN = 0.8
+    UNSURE_BIN = 0.3
+
+    def confidence_gap(self, domain: str) -> Optional[float]:
+        """How much more often the substrate is right when it is confident than
+        when it is not, in one domain: the success rate of predictions made at
+        high confidence minus the rate of those made at low confidence.
+
+        None while it cannot be measured: fewer than ten predictions, or none
+        on one side. An unmeasured gap is not a gap of zero."""
+        calibration = self.calibrations.get(domain)
+        if calibration is None or calibration.total_predictions < 10:
+            return None
+        confident = [o for b, outcomes in calibration.calibration_bins.items()
+                     if b >= self.CONFIDENT_BIN for o in outcomes]
+        unsure = [o for b, outcomes in calibration.calibration_bins.items()
+                  if b <= self.UNSURE_BIN for o in outcomes]
+        if not confident or not unsure:
+            return None
+        return sum(confident) / len(confident) - sum(unsure) / len(unsure)
     
     def _update_calibration_metrics(self, calibration: ConfidenceCalibration):
         """Update Brier score and calibration error"""
@@ -2005,6 +2033,18 @@ class BayesianUncertaintySystem:
             logger.warning("save_domain_volatility failed: %s", e)
             return 0
 
+    async def _load_calibrations(self) -> int:
+        """Every recorded prediction and its outcome, back into its domain's
+        calibration. Returns how many were restored."""
+        from core.agents.memory_agent import memory_agent
+        rows = await memory_agent().calibration_records()
+        for row in rows:
+            self._absorb_prediction(row["domain"], float(row["confidence"]), bool(row["outcome"]))
+        if rows:
+            logger.info("restored %d calibration record(s) over %d domain(s)",
+                        len(rows), len({row["domain"] for row in rows}))
+        return len(rows)
+
     async def _load_domain_volatility(self) -> int:
         try:
             await self._ensure_volatility_table()
@@ -2236,8 +2276,13 @@ class BayesianUncertaintySystem:
         logger.info("Bayesian uncertainty: restored %d open known unknown(s)", loaded)
         return {row["unknown_id"] for row in rows}
 
-    def _save_calibration_data(self, domain: str, predicted_confidence: float, actual_outcome: float):
-        """Persist calibration data point to PostgreSQL. Fire-and-forget."""
+    def _save_calibration_data(self, domain: str, predicted_confidence: float, actual_outcome: bool):
+        """Persist calibration data point to PostgreSQL. Fire-and-forget.
+
+        The outcome column is a boolean. This passed 1.0 / 0.0, every write was
+        refused by the driver ("a boolean is required (got type float)"), and the
+        refusal was logged at debug: no calibration was ever stored, in any
+        store, and none could be restored."""
         import asyncio
         async def _write():
             try:
@@ -2257,10 +2302,11 @@ class BayesianUncertaintySystem:
                 from core.agents.memory_agent import memory_agent
                 await memory_agent().hold_calibration(
                     domain=domain, prediction=f"{domain} confidence calibration",
-                    confidence=predicted_confidence, outcome=actual_outcome,
+                    confidence=predicted_confidence, outcome=bool(actual_outcome),
                     timestamp=datetime.now())
             except Exception as e:
-                logger.debug(f"_save_calibration_data non-fatal: {e}")
+                logger.error("calibration for %s was not stored: %s: %s",
+                             domain, type(e).__name__, e)
         try:
             loop = asyncio.get_running_loop()
             loop.create_task(_write())
@@ -2324,6 +2370,9 @@ class BayesianUncertaintySystem:
             # Restore adaptive decay rates too, so reflection's volatility work
             # survives a restart rather than resetting to the 0.01 default.
             await self._load_domain_volatility()
+            # And how well its confidence has tracked what happened. Recorded
+            # and never read back, every restart began uncalibrated.
+            await self._load_calibrations()
             # Persistence is up now — replay anything buffered before the DB was
             # ready, so no early belief update is lost.
             await self.flush_pending_writes()

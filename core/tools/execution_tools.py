@@ -27,7 +27,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from .tool_registry import Tool, ToolParameter, ToolResult, ToolCategory, ToolSafety
-from core.execution import command_console
 from .tool_registry import PrimitiveProfile, PrimitiveUse, Primitive
 from core.security.secrets import get_secrets_authority
 
@@ -395,7 +394,6 @@ class RunShellCommandTool(Tool):
         """Execute shell command"""
         try:
             cwd = resolve_working_directory(working_directory)
-            started = time.time()
 
             process = await asyncio.create_subprocess_shell(
                 command if shell else command.split(),
@@ -412,13 +410,6 @@ class RunShellCommandTool(Tool):
                 )
             except asyncio.TimeoutError:
                 process.kill()
-                # A timeout is an executed command too. Showing only the ones
-                # that finish would make the terminal quietest at exactly the
-                # moment something is hanging.
-                command_console.show(
-                    command, None, duration_sec=time.time() - started,
-                    stderr=f"timed out after {timeout}s",
-                    cwd=str(cwd) if cwd else None, tool="run_shell_command")
                 return ToolResult(
                     success=False,
                     output=None,
@@ -446,11 +437,6 @@ class RunShellCommandTool(Tool):
                     "report 'none found' or 'not connected'. Verify with a different "
                     "command before concluding anything."
                 )
-
-            command_console.show(
-                command, process.returncode, stdout=out, stderr=err,
-                duration_sec=time.time() - started,
-                cwd=str(cwd) if cwd else None, tool="run_shell_command")
 
             return ToolResult(
                 success=process.returncode == 0,

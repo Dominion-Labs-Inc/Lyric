@@ -254,20 +254,6 @@ class HealthMonitor:
                                      'description': 'Automatic failure recovery',
                                      'metric_prefixes': ('recovery_',)},
                              }},
-        'execution':        {'type': 'cognitive', 'category': 'control',
-                             'module': 'core.execution.iteration_controller',
-                             'description': 'Iteration budgets and convergence gating',
-                             'monitoring_enabled': True,
-                             'subcomponents': {
-                                 'convergence_gate': {
-                                     'module': 'core.execution.convergence_gate',
-                                     'description': 'Convergence decisions',
-                                     'metric_prefixes': ('convergence_',)},
-                                 'iteration_controller': {
-                                     'module': 'core.execution.iteration_controller',
-                                     'description': 'Iteration budget allocation',
-                                     'metric_prefixes': ('iteration_',)},
-                             }},
         'system_awareness': {'type': 'infrastructure', 'category': 'awareness',
                              'module': 'core.system.environment_state',
                              'description': 'Environment, service discovery, topology',
@@ -778,8 +764,6 @@ class HealthMonitor:
                 metrics, issues = await self._check_domain_health()
             elif component == "health_system":
                 metrics, issues = await self._check_health_system_health()
-            elif component == "execution":
-                metrics, issues = await self._check_execution_health()
             elif component == "system_awareness":
                 metrics, issues = await self._check_system_awareness_health()
             elif component == "intelligence":
@@ -1104,8 +1088,7 @@ class HealthMonitor:
             elif key.endswith('_rate') and isinstance(value, (int, float)):
                 if is_cognitive and key.endswith('_success_rate'):
                     continue  # cognitive outcome, informational (see is_cognitive)
-                # POLARITY IS NOT UNIFORM. success_rate and convergence_rate are
-                # better when high; failure_rate, error_rate, threat_rate and
+                # POLARITY IS NOT UNIFORM. success_rate is better when high; failure_rate, error_rate, threat_rate and
                 # violation_rate are better when LOW. Treating every *_rate as
                 # "higher is better" scored zero failures as 0.0 UNHEALTHY and a
                 # 100% failure rate as 1.0 HEALTHY -- an exact inversion on the
@@ -1411,45 +1394,6 @@ class HealthMonitor:
         except Exception as e:
             metrics['health_system_available'] = False
             issues.append(f"Health system self-check error: {e}")
-        return metrics, issues
-
-    async def _check_execution_health(self) -> tuple[Dict[str, Any], List[str]]:
-        """Iteration budgets and convergence — whether reasoning terminates."""
-        metrics: Dict[str, Any] = {}
-        issues: List[str] = []
-        try:
-            from core.execution.convergence_gate import get_convergence_gate
-            cg = get_convergence_gate().get_stats()
-            # LIVENESS WAS NEVER REPORTED. This check emitted only counters and
-            # a rate that is undefined until something runs, so an execution
-            # subsystem that was loaded and working produced zero signals and
-            # graded UNKNOWN at 0.0 coverage -- indistinguishable from one whose
-            # modules are absent. Resolving the provider and getting a reading
-            # out of it is the evidence; it was being discarded.
-            metrics['convergence_gate_available'] = True
-            metrics['convergence_total_checks'] = cg['total_checks']
-            metrics['convergence_converged'] = cg['converged']
-            self._record_rate(metrics, 'convergence_rate',
-                              cg['convergence_rate'], cg['total_checks'])
-            metrics['convergence_failed_constraints'] = cg['failed_constraints']
-
-            from core.execution.iteration_controller import get_iteration_controller
-            ic = get_iteration_controller().get_stats()
-            metrics['iteration_controller_available'] = True
-            metrics['iteration_budgets_created'] = ic['total_budgets_created']
-            metrics['iteration_bayesian'] = ic['bayesian_iterations']
-            metrics['iteration_heuristic_fallbacks'] = ic['heuristic_fallbacks']
-            metrics['iteration_temporal_limits_hit'] = ic['temporal_limits_hit']
-
-            if cg['total_checks'] >= 10 and cg['convergence_rate'] < 0.5:
-                issues.append(
-                    f"Convergence rate {cg['convergence_rate']:.0%} over "
-                    f"{cg['total_checks']} checks — reasoning frequently fails to converge")
-            if ic['temporal_limits_hit'] > 0:
-                issues.append(f"{ic['temporal_limits_hit']} iteration budget(s) hit the temporal limit")
-        except Exception as e:
-            metrics['execution_available'] = False
-            issues.append(f"Execution health check error: {e}")
         return metrics, issues
 
     async def _check_system_awareness_health(self) -> tuple[Dict[str, Any], List[str]]:

@@ -26,8 +26,8 @@ from __future__ import annotations
 #: single subsystem can be reclassified without moving it in a taxonomy.
 SUBSTRATE_OWNED_COMPONENTS = frozenset({
     # Cognition -- only alive with the substrate
-    "memory", "learning", "reasoning", "agents", "llm", "quantum",
-    "execution", "intelligence", "domain",
+    "memory", "learning", "reasoning", "agents", "quantum",
+    "intelligence", "domain",
     # Security/policy that gates the substrate's OWN actions
     "security", "safety", "constitution",
     # Substrate capabilities and its own surface

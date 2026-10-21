@@ -742,11 +742,7 @@ async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -
         except KeyError:
             task_type = TaskType.RESEARCH
 
-        # Compute deadline from timeout so IterationController uses the actual
-        # time budget instead of falling back to the 3-minute complexity default.
         import datetime as _dt
-        _timeout_s = test.get("timeout", 300)
-        _deadline = _dt.datetime.now() + _dt.timedelta(seconds=_timeout_s)
 
         # Substitute runtime placeholders in the description so the model
         # receives the actual values rather than literal template strings.
@@ -759,7 +755,6 @@ async def suite_task_execution(executor, diag: DiagResult, suite: str = "all") -
             type=task_type,
             status=TaskStatus.PENDING,
             source=TaskSource.MANUAL,
-            deadline=_deadline,
         )
 
         log.info("  [task] %s  → %s", test["id"], test["description"][:80])

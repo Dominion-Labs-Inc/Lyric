@@ -6390,17 +6390,22 @@ class GoalConclusionDrift(DriftDetector):
         return float(standing.get("concludable_concluded") or 0) / eligible
 
 
+#: The belief system's calibration domain for completion: the completion
+#: belief's posterior at the end of an act, against whether the world agreed.
+COMPLETION_CALIBRATION = "completion"
+
+
 class CalibrationDrift(DriftDetector):
     """IS THE SUBSTRATE'S CONFIDENCE EARNED?
 
-    Absorbed from `convergence_gate._validate_calibration`, which computed this
-    and then reported it to `logger.error` and nothing else — the highest-value
-    unwired signal in the inventory. It buckets real `(uncertainty, outcome)`
-    pairs and asks whether stated uncertainty tracks actual correctness: low
-    uncertainty should mean high success, high uncertainty should mean low
-    success. The distance between those two rates is the `calibration_gap`.
+    It reads real `(confidence, outcome)` pairs and asks whether stated
+    confidence tracks actual correctness: high confidence should mean high
+    success, low confidence low success. The distance between those two rates is
+    the `calibration_gap`.
 
-    The gate remains the OWNER of the computation — this reads it rather than
+    The belief system is the OWNER of the computation
+    (`BayesianUncertaintySystem.confidence_gap`, over the completion pairs
+    `_record_calibration_outcome` records) — this reads it rather than
     re-deriving it, so there is no second opinion on what the substrate's
     calibration is.
 
@@ -6416,10 +6421,10 @@ class CalibrationDrift(DriftDetector):
             Baseline(
                 name="calibration_gap",
                 expected=0.20,
-                why=("the gate's own standard: the success rate at low stated "
-                     "uncertainty must exceed the rate at high stated uncertainty "
-                     "by at least this much, or confidence is not tracking "
-                     "correctness and the substrate is confident for no reason"),
+                why=("the success rate at high stated confidence must exceed the "
+                     "rate at low stated confidence by at least this much, or "
+                     "confidence is not tracking correctness and the substrate "
+                     "is confident for no reason"),
                 bands=((0.20, DriftSeverityBand.CRITICAL),
                        (0.12, DriftSeverityBand.SIGNIFICANT),
                        (0.06, DriftSeverityBand.MODERATE),
@@ -6433,15 +6438,11 @@ class CalibrationDrift(DriftDetector):
         return max(0.0, shortfall)
 
     def read(self) -> Optional[float]:
-        from core.execution.convergence_gate import get_convergence_gate
-        metrics = get_convergence_gate()._validate_calibration()
-        # The gate says so itself when it has too few samples, per bucket or
-        # overall. VACANT, not a zero gap — an unmeasured calibration is not a
-        # perfect one, and it is not a failed one either.
-        if metrics.get("status") in ("insufficient_data", "insufficient_data_per_bucket"):
-            return None
-        gap = metrics.get("calibration_gap")
-        return None if gap is None else float(gap)
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        # None when there are too few pairs, overall or on one side. VACANT, not
+        # a zero gap — an unmeasured calibration is not a perfect one, and it is
+        # not a failed one either.
+        return get_uncertainty_system().confidence_gap(COMPLETION_CALIBRATION)
 
 
 class KnowledgeDrift(DriftDetector):
@@ -18437,15 +18438,12 @@ The substrate must realign with its constitutional responsibilities immediately.
                                     confidence: float) -> None:
         """WAS THAT CONFIDENCE EARNED? — the pair that makes calibration real.
 
-        The convergence gate could always compute whether stated uncertainty
-        tracks actual correctness. It had NO CALLER: `record_convergence_outcome`
-        was never invoked from anywhere, so `_calibration_data` stayed empty
-        forever and the check returned `insufficient_data` for the life of the
-        system. A complete computation with no input.
+        Recorded with the belief system, which owns confidence and its
+        calibration (`record_prediction`, in the `COMPLETION_CALIBRATION`
+        domain), so the record is stored and restored at boot with the rest of
+        what the substrate believes. Both halves already exist at this point:
 
-        This is the pair, and both halves already exist at this point:
-
-          uncertainty  1 − the completion belief's posterior. What the substrate
+          confidence   the completion belief's posterior. What the substrate
                        STATED about its own confidence, before knowing whether it
                        was right.
           success      whether the WORLD agreed — `matched_aim` from the
@@ -18466,14 +18464,20 @@ The substrate must realign with its constitutional responsibilities immediately.
             # No independent verdict — record nothing. A calibration sample whose
             # "truth" came from the same belief being graded is not a sample.
             return
+        from core.database.postgres_config import ModelFrozenError
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         try:
-            uncertainty = max(0.0, min(1.0, 1.0 - float(confidence)))
-            from core.execution.convergence_gate import get_convergence_gate
-            get_convergence_gate().record_convergence_outcome(
-                uncertainty, bool(outcome["matched_aim"]))
+            get_uncertainty_system().record_prediction(
+                COMPLETION_CALIBRATION, max(0.0, min(1.0, float(confidence))),
+                bool(outcome["matched_aim"]))
+        except ModelFrozenError:
+            # A frozen release does not move what it believes, its calibration
+            # included; the refusal is counted where it is raised.
+            return
         except Exception as e:
             # Never fails the task it is describing; never silent either.
-            logger.debug("calibration pair not recorded for %s: %s", task.id, e)
+            logger.warning("calibration pair not recorded for %s: %s: %s",
+                           task.id, type(e).__name__, e)
 
     async def _appraise_substrate_execution(
         self, task: "Task", evidence, attribution, observation,

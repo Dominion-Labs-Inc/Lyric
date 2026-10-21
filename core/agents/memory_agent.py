@@ -3861,6 +3861,22 @@ class MemoryAgent(IMemoryConsolidation):
             (domain, prediction, confidence, outcome, timestamp),
         )
 
+    async def calibration_records(self) -> List[Any]:
+        """Every prediction held against its outcome (`hold_calibration`), oldest
+        first: what each domain's calibration is restored from."""
+        return await self._memory_db().execute_query(
+            "SELECT domain, confidence, outcome FROM unified.calibration_data"
+            " ORDER BY timestamp, id",
+            fetch_all=True) or []
+
+    async def forget_calibration(self, *, domain: str) -> int:
+        """Forget every prediction held in one calibration domain. Returns how
+        many were forgotten."""
+        rows = await self._memory_db().execute_query(
+            "DELETE FROM unified.calibration_data WHERE domain = $1 RETURNING id",
+            (domain,), fetch_all=True) or []
+        return len(rows)
+
     # ---- rules and demonstrations ---------------------------------------------
 
     async def hold_rule(self, *, rule_id: str, domain_id: str, rule_kind: str,

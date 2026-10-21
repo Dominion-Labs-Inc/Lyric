@@ -252,7 +252,6 @@ class Task:
     dependencies: List[str] = field(default_factory=list)
     result: Optional[Dict[str, Any]] = None
     completed_at: Optional[datetime] = None
-    deadline: Optional[datetime] = None  # Hard deadline for IterationController time budget
     #: How this task came to exist. For a state plan: the goal and plan it
     #: belongs to, the planning mode and verdict, the grounded operator, and the
     #: learned rule that authorised it. Kept so the record answers not only what
