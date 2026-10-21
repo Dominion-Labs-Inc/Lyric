@@ -22198,30 +22198,43 @@ class Conversation:
         def classification(content: str):
             """The first kind the text says the phrase is -- `isa(phrase, class)`,
             read by the one reader -- and the utterance it says it in (the lead,
-            when nothing reads)."""
-            # A definitional lead wedges a parenthetical (an IPA gloss, a
-            # portmanteau note) between the subject and its "is a ...":
-            # "A memristor ( ... ) is a component". Strip parentheticals so the
-            # classification reads.
-            clean = _re.sub(r"\([^()]*\)", " ", content)
-            # Fetched text puts a space before punctuation ("A peristaltic pump ,
-            # also known as ..."); the lead is kept as the concept's description
-            # and said back, so it is kept as written English.
-            clean = _re.sub(r"[ \t]+([,.;:!?])", r"\1", clean)
-            utterances = read_text(clean.strip())
-            for utterance in utterances:
-                for reading in utterance.readings:
-                    # A reading whose words are each held for several things names them as the listener takes them
-                    # (`meant`), never a word's every sense in turn.
-                    reading = meant((reading,)) if reading.senses else reading
-                    if reading is None or reading.meaning.act != "tell":
-                        continue
-                    for fact in reading.meaning.asserted:
-                        if (fact.relation == "isa" and fact.positive
-                                and not is_variable(fact.subject) and not is_variable(fact.obj)
-                                and normalize_term(fact.subject) == want):
-                            return fact, utterance.text
-            return None, (utterances[0].text if utterances else clean.strip())
+            when nothing reads).
+
+            A FETCHED PAGE IS READ A BLOCK AT A TIME. Its text is one block of the
+            page a line -- a paragraph, a list entry, a heading (`WebFetchTool`) --
+            and no sentence runs from one block into the next. Read whole, a line
+            is no end to the reader: the "Load" page's sixty entries, none ending in
+            a full stop, were one utterance of 524 words, and its chart was still
+            being built an hour later (2026-10-21). Blocks are read in order, and
+            the first that says what the phrase is ends the reading."""
+            lead = ""
+            for block in content.split("\n"):
+                # A definitional lead wedges a parenthetical (an IPA gloss, a
+                # portmanteau note) between the subject and its "is a ...":
+                # "A memristor ( ... ) is a component". Strip parentheticals so the
+                # classification reads.
+                clean = _re.sub(r"\([^()]*\)", " ", block)
+                # Fetched text puts a space before punctuation ("A peristaltic pump ,
+                # also known as ..."); the lead is kept as the concept's description
+                # and said back, so it is kept as written English.
+                clean = _re.sub(r"[ \t]+([,.;:!?])", r"\1", clean).strip()
+                if not clean:
+                    continue
+                utterances = read_text(clean)
+                lead = lead or (utterances[0].text if utterances else clean)
+                for utterance in utterances:
+                    for reading in utterance.readings:
+                        # A reading whose words are each held for several things names them as the listener takes
+                        # them (`meant`), never a word's every sense in turn.
+                        reading = meant((reading,)) if reading.senses else reading
+                        if reading is None or reading.meaning.act != "tell":
+                            continue
+                        for fact in reading.meaning.asserted:
+                            if (fact.relation == "isa" and fact.positive
+                                    and not is_variable(fact.subject) and not is_variable(fact.obj)
+                                    and normalize_term(fact.subject) == want):
+                                return fact, utterance.text
+            return None, lead
 
         # A SNIPPET IS NOT THE PAGE. Only the top hit arrives with its page's
         # text; every other hit is the search engine's snippet: an excerpt, cut
