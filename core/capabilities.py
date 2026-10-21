@@ -275,7 +275,7 @@ class Capabilities:
     def _means(steps: List[str]) -> Tuple[Dict[str, List[str]], List[str]]:
         """The tools a method's steps run, each with the primitives it performs,
         read from the registry; and any step no registered tool performs."""
-        from core.execution.tool_domain import predicate_for
+        from core.tools.tool_registry import predicate_for
         from core.memory.lift import from_formulas
         from core.tools.tool_registry import get_tool_registry
         registry = get_tool_registry()

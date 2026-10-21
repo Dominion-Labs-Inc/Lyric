@@ -31,6 +31,11 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core.execution.operator_binding import get_binding_registry
 from core.learning.rule_induction import Fact, TrainingExample
+from core.learning.rule_induction import as_constant
+from typing import TYPE_CHECKING, Sequence, Tuple
+
+if TYPE_CHECKING:
+    from core.perception.perception_faculty import ToolObservedWorld
 
 logger = logging.getLogger(__name__)
 
@@ -368,3 +373,290 @@ class SubstrateExplorer:
                     summary["positive"], summary["negative"],
                     summary["contrastive"], summary["operators_executable"])
         return summary
+
+
+# =============================================================================
+# PRACTICE: WHERE THE SUBSTRATE MAY TRY ACTS UNASKED, AND WHAT IT TRIES THERE
+# =============================================================================
+
+
+
+
+def derive_domain(domain_id: str, *,
+                  observations: Sequence[Tuple[str, Dict[str, Any]]],
+                  actions: Sequence[str]) -> Dict[str, Any]:
+    """Make a domain ACTABLE and OBSERVABLE out of tools the substrate has.
+
+    This is the answer to `BINDING_GAP -> ESCALATE` for every action a tool
+    already performs. A domain is declared by saying what to look at and which
+    tools may act on it; the operators, their arguments, and the mapping back to
+    each tool's parameters are all derived from what the tools declare.
+
+    Registers the domain as EXPLORABLE too, so the always-online learner can
+    practise in it -- which is what turns a bound domain into a domain with
+    learned operators.
+
+    Returns what was actually bound, including what could not be and why, so a
+    caller is never told a domain is actable when half its tools were missing.
+    """
+    from core.perception.perception_faculty import _senses, resource_kind, world_of
+    from core.tools.tool_registry import ACTING_CLASSES, action_binding
+    from core.learning.exploration import register_explorable_domain
+    from core.agents.autonomous.autonomous_coordinator import classify_action
+    from core.tools import get_tool_registry
+
+    registry = get_tool_registry()
+    # ONE WORLD CLASS. A domain declared this way and a domain met by acting
+    # must be the same kind of thing, or the proposer works for one and not the
+    # other. The declared observations seed the resources; acting adds to them.
+    world = world_of(domain_id)
+    senses = _senses()
+    for observation_tool, arguments in observations:
+        for parameter_name, value in (arguments or {}).items():
+            if isinstance(value, str) and value.strip():
+                kind = resource_kind(parameter_name)
+                world.encountered(kind, value)
+                # A declared place is a place given to practise in, and the self
+                # LOOKS at it: what is in it is what can be practised on.
+                if kind in senses:
+                    world.allow_practice(kind, value)
+                    world.perceive(value)
+    bound: List[str] = []
+    refused: List[Dict[str, str]] = []
+
+    for tool_name in actions:
+        tool = registry.get_tool(tool_name)
+        if tool is None:
+            refused.append({"tool": tool_name, "why": "no such tool"})
+            continue
+        try:
+            action_class, _ = classify_action(tool_name, {})
+        except Exception as e:
+            refused.append({"tool": tool_name, "why": f"unclassifiable: {e}"})
+            continue
+        kind = getattr(action_class, "value", str(action_class))
+        if kind not in ACTING_CLASSES:
+            # AN OPERATOR MOVES THE WORLD. A tool that changes nothing is an
+            # observation, and calling it an operator would give the planner a
+            # step that can never make progress.
+            refused.append({"tool": tool_name,
+                            "why": f"{kind} — changes nothing, so it is not an operator"})
+            continue
+        binding = action_binding(tool_name, tool, world.observe)
+        if binding is None:
+            refused.append({"tool": tool_name, "why": "declares no parameters"})
+            continue
+        get_binding_registry().register(domain_id, binding)
+        bound.append(binding.predicate)
+
+    proposer = _proposer_for(domain_id, world)
+    register_explorable_domain(domain_id, proposer)
+    logger.info("derived domain %s: %d operator(s) from tools, %d observation(s)",
+                domain_id, len(bound), len(observations))
+    return {"domain_id": domain_id, "operators": bound, "refused": refused,
+            "observations": [t for t, _ in observations],
+            "actable": bool(bound), "observable": world.observe() is not None}
+
+
+#: domain_id -> how many times its proposer has been asked. Rotates which
+#: encountered resources are tried, so successive cycles vary the grounding
+#: instead of repeating one act -- variation is where contrast comes from, and
+#: contrast is what separates a precondition from a coincidence.
+_PROPOSED: Dict[str, int] = {}
+
+#: How reversible an act must be for the substrate to try it unasked.
+PRACTISABLE = ("FULLY_REVERSIBLE", "MOSTLY_REVERSIBLE")
+
+
+def _proposer_for(domain_id: str, world: "ToolObservedWorld") -> Callable[[], List[Fact]]:
+    """Candidate acts to TRY, and only inside the places given for practice.
+
+    AN ACT IS TRIED ON WHAT IS THERE AND ON WHERE THINGS COULD GO. Drawing
+    arguments from every constant an observation happened to report proposed
+    `MOVE_FILE(1, 2, <a path>)`; drawing them from every resource met proposed
+    moving a directory onto a directory. The self's sense names both halves
+    instead: the things it perceives inside the practice place, and the name a
+    thing would have inside another container there -- a free place, which is
+    where an act that relocates something can succeed. Nothing else is named.
+
+    PER THING, A ROUND TRIP AND TWO CONTRASTS, run in order against the live
+    world:
+
+      1. the thing to a free place       what the act does when it can
+      2. back again                      so practice leaves things where they
+                                         were, and the demonstrations do not
+                                         freeze on one direction
+      3. something not there, to another free place
+                                         what the act does when there is nothing
+                                         to act on; without it nothing
+                                         contradicts a rule that needs no
+                                         precondition
+      4. a thing onto a place that is taken
+                                         what the act does when where it goes is
+                                         not free. The self sees a free place
+                                         (ABSENT), but a rule that ignores it
+                                         explains every success just as well;
+                                         only this failure keeps it
+
+    A one-place act is tried on a thing and on a free place.
+
+    ONLY WHAT CAN BE UNDONE IS PRACTISED. Practice is acting unasked, and an act
+    the constitution rates less than mostly reversible cannot be taken back if
+    what it touched mattered. Such an act is learned when the substrate is asked
+    to perform it, never tried to see what happens. That rating is also what
+    makes contrast 4 safe to try: an act that would destroy what is already at a
+    place is not rated reversible.
+
+    Successive cycles rotate through the things, so the demonstrations differ:
+    variation is where contrast comes from, and contrast is what separates a
+    precondition from a coincidence.
+    """
+    from core.perception.perception_faculty import DESCRIBING_MEASURES, _senses, resource_kind
+    from core.tools.tool_registry import payload_parameters, payload_term, resource_parameters
+    def propose() -> List[Fact]:
+        from core.agents.autonomous.autonomous_coordinator import classify_action
+        from core.tools import get_tool_registry
+
+        registry = get_tool_registry()
+        turn = _PROPOSED.get(domain_id, 0)
+        _PROPOSED[domain_id] = turn + 1
+        senses = _senses()
+        #: free places already given to an act this cycle, so no act lands
+        #: where an earlier one in the same cycle put something
+        claimed: set = set()
+
+        def free(sensed, place: str) -> bool:
+            if place in claimed:
+                return False
+            try:
+                return sensed.perceive(place) is None
+            except OSError:
+                return False
+
+        # What may be practised here, and on what.
+        practisable = []
+        for binding in get_binding_registry().bindings_for(domain_id):
+            tool = registry.get_tool(binding.tool_name)
+            if tool is None:
+                continue
+            try:
+                _class, irreversibility = classify_action(binding.tool_name, {})
+            except Exception:
+                continue
+            if getattr(irreversibility, "value", str(irreversibility)) not in PRACTISABLE:
+                continue
+            kinds = [resource_kind(p.name) for p in resource_parameters(tool)]
+            if not kinds or len(kinds) > 2 or len(set(kinds)) != 1:
+                continue
+            sensed = senses.get(kinds[0])
+            if sensed is None or sensed.relocate is None:
+                continue
+            things, containers = world.practice_view(kinds[0])
+            if things:
+                practisable.append((binding, len(kinds), sensed, things, containers))
+
+        def free_places(sensed, containers, things) -> List[str]:
+            return [p for p in (sensed.relocate(t, c) for t in things for c in containers)
+                    if p not in things and free(sensed, p)]
+
+        # FIRST, WHAT EACH ACT DOES WHEN IT CAN. Each starts from a different
+        # thing and takes the first that still has somewhere free to go, so no
+        # act is left with nowhere because another took the only free place.
+        rounds: List[List[Fact]] = []
+        for index, (binding, arity_, sensed, things, containers) in enumerate(practisable):
+            order = [things[(turn + index + i) % len(things)] for i in range(len(things))]
+            acts: List[Fact] = []
+            if arity_ == 1:
+                acts.append(Fact(binding.predicate, (as_constant(order[0]),)))
+            else:
+                for thing in order:
+                    places = [p for p in (sensed.relocate(thing, c) for c in containers)
+                              if p != thing and free(sensed, p)]
+                    if places:
+                        there = places[turn % len(places)]
+                        claimed.add(there)
+                        acts.append(Fact(binding.predicate, (as_constant(thing), as_constant(there))))
+                        acts.append(Fact(binding.predicate, (as_constant(there), as_constant(thing))))
+                        break
+            rounds.append(acts)
+
+        # THEN, WHAT EACH DOES WHEN IT CANNOT, from what is still free: the
+        # contrasts use only places no working act needed.
+        for index, (binding, arity_, sensed, things, containers) in enumerate(practisable):
+            spare = free_places(sensed, containers, things)
+            if arity_ == 1 and spare:
+                absent = spare[turn % len(spare)]
+                claimed.add(absent)
+                rounds[index].append(Fact(binding.predicate, (as_constant(absent),)))
+            elif arity_ == 2:
+                if len(spare) >= 2:
+                    absent, target = spare[turn % len(spare)], spare[(turn + 1) % len(spare)]
+                    if absent != target:
+                        claimed.update((absent, target))
+                        rounds[index].append(Fact(binding.predicate,
+                                                  (as_constant(absent), as_constant(target))))
+                # Onto a place something already holds, and something that is
+                # not what the act would put there: onto an identical copy, the
+                # act succeeding and the act refused leave the same world, and
+                # the contrast teaches nothing. A container holding the thing is
+                # never the target.
+                thing = things[turn % len(things)]
+                try:
+                    measured = sensed.perceive(thing) or {}
+                except OSError:
+                    measured = {}
+
+                def differs(place: str) -> bool:
+                    try:
+                        entry = sensed.perceive(place)
+                    except OSError:
+                        return False
+                    return entry is not None and any(
+                        entry.get(m) != measured.get(m) for m in DESCRIBING_MEASURES)
+
+                taken = [p for p in things + containers
+                         if p != thing
+                         and not (sensed.within is not None and sensed.within(p, thing))
+                         and differs(p)]
+                if taken:
+                    rounds[index].append(Fact(binding.predicate,
+                                              (as_constant(thing), as_constant(taken[turn % len(taken)]))))
+
+        # An act that puts something into the world is practised with a text of
+        # its own, different each time, so what it carries can be seen to land.
+        payload_count = {binding.predicate: len(payload_parameters(registry.get_tool(binding.tool_name)))
+                         for binding, *_ in practisable}
+        proposed: List[Fact] = []
+        for k, act in enumerate(a for acts in rounds for a in acts):
+            extra = tuple(as_constant(payload_term(f"practice {turn}.{k}.{i}\n"))
+                          for i in range(payload_count.get(act.predicate, 0)))
+            proposed.append(Fact(act.predicate, act.args + extra) if extra else act)
+        return proposed
+
+    return propose
+
+
+def take_up_workspace(domain_id: str, root: str) -> int:
+    """A directory the substrate was given to work in: look at it, and let it
+    practise there.
+
+    What is in it enters the domain's world through the self's own perception,
+    and the domain becomes explorable with practice bounded to the directory.
+    Which acts may be practised there is the domain's own: the operators it has
+    met or learned, and of those only what can be undone. Returns how many
+    resources entered the world.
+    """
+    from core.perception.perception_faculty import world_of
+    import os
+    from core.learning.exploration import get_proposer, register_explorable_domain
+
+    if not (root and os.path.isdir(root)):
+        # A place the substrate would practise in must be a real place.
+        logger.info("%s is not a directory; there is no workspace to take up", root)
+        return 0
+    world = world_of(domain_id)
+    added = world.perceive(root)
+    world.allow_practice("path", root)
+    if get_proposer(domain_id) is None:
+        register_explorable_domain(domain_id, _proposer_for(domain_id, world))
+    return added

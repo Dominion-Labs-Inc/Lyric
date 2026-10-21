@@ -191,8 +191,8 @@ def static_checks():
           "consequence\", None" not in classify_src and "getattr(tool" not in classify_src
           and "trigger" not in classify_src.lower().replace("triggers", ""),
           "classify_action reads the tool name and its arguments only")
-    import core.execution.tool_domain as td
-    check("the tool domain reads the substrate's measurement",
+    import core.tools.tool_registry as td
+    check("tools as operators read the substrate's measurement",
           "autonomous_coordinator import classify_action" in inspect.getsource(td), "")
 
 

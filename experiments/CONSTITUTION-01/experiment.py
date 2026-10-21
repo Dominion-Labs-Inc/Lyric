@@ -44,7 +44,8 @@ async def main():
         AutonomousCoordinator, Constitution, Verdict)
     from core.agents.autonomous.shared_types import GoalType, Priority
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import sensed_fact, take_up_workspace
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store
     from core.reasoning.intent_authority import get_intent_authority

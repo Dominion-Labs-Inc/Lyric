@@ -71,7 +71,10 @@ async def main():
 
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
     from core.agents.autonomous.shared_types import Priority, Task, TaskType
-    from core.execution import tool_domain as TD
+    from core.learning.exploration import derive_domain
+    from core.learning.unified_learning_system import ActFrame, _DISCRIMINATING, discriminating_predicates
+    from core.perception.perception_faculty import _OBSERVER_PREDICATES, _OBSERVER_WARM, observer_index, world_of
+    from core.tools.tool_registry import encounter
     from core.learning.demonstration_store import get_demonstration_store
     from core.reasoning.intent_authority import (
         SUBSTRATE_ACTOR, continuity_goal, get_intent_authority)
@@ -87,7 +90,7 @@ async def main():
     # ── A. the derivation, from the registry alone ───────────────────────────
     print("\n== A. What the substrate can see and act on, derived from tools ==")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        index = TD.observer_index()
+        index = observer_index()
     check("an observation index is derived with no domain declared",
           len(index) > 1, f"{len(index)} kind(s), e.g. "
           f"{sorted(index)[:6]}")
@@ -99,8 +102,8 @@ async def main():
     probe = root / "inbox" / "probe.txt"
     probe.write_text("x\n")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        not_an_act = await TD.ActFrame.open("read_file", {"file_path": str(probe)})
-        nothing_to_see = await TD.ActFrame.open("web_search", {"query": "anything"})
+        not_an_act = await ActFrame.open("read_file", {"file_path": str(probe)})
+        nothing_to_see = await ActFrame.open("web_search", {"query": "anything"})
     check("an INVESTIGATION is not watched — it has no effect to learn",
           not_an_act is None)
     check("an act naming nothing observable is not watched, not guessed at",
@@ -114,7 +117,7 @@ async def main():
     scratch.write_text("met you\n")
     before_binding = get_binding_registry().get("tools:path", "MOVE_FILE")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        met = TD.encounter("move_file", {"source_path": str(scratch),
+        met = encounter("move_file", {"source_path": str(scratch),
                                          "destination_path": str(root / "archive" / "e.txt")})
     after_binding = get_binding_registry().get("tools:path", "MOVE_FILE")
     check("the act's own arguments name the domain — no workspace_root declared",
@@ -123,7 +126,7 @@ async def main():
           after_binding is not None,
           f"{before_binding is not None} -> {after_binding is not None}; "
           f"tool={getattr(after_binding, 'tool_name', None)}")
-    world = TD.world_of("tools:path")
+    world = world_of("tools:path")
     check("its world is the resources it has MET, not a directory someone named",
           bool(world.resources.get("path")),
           f"{len(world.resources.get('path', ()))} path(s) encountered")
@@ -140,7 +143,7 @@ async def main():
     for i in range(3):
         (root / "inbox" / f"s{i}.txt").write_text(f"sandbox {i}\n")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        derived = TD.derive_domain(
+        derived = derive_domain(
             SANDBOX,
             observations=[("list_directory", {"directory_path": str(root / "inbox")}),
                           ("list_directory", {"directory_path": str(root / "archive")})],
@@ -237,8 +240,8 @@ async def main():
 
     # ── F. the frame narrows itself from its own evidence ────────────────────
     print("\n== F. The frame is learned, not chosen ==")
-    TD._DISCRIMINATING.clear()
-    discriminating = await TD.discriminating_predicates("tools:path", "MOVE_FILE", 2)
+    _DISCRIMINATING.clear()
+    discriminating = await discriminating_predicates("tools:path", "MOVE_FILE", 2)
     check("it knows which observations this operator MOVES",
           bool(discriminating),
           f"{len(discriminating)}: {sorted(discriminating)[:6]}")
@@ -246,7 +249,7 @@ async def main():
     narrowing = root / "inbox" / "narrowed.txt"
     narrowing.write_text("narrow me\n")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        narrowed_frame = await TD.ActFrame.open(
+        narrowed_frame = await ActFrame.open(
             "move_file", {"source_path": str(narrowing),
                           "destination_path": str(root / "archive" / "narrowed.txt")})
     narrow = len(narrowed_frame._readings) if narrowed_frame else 0
@@ -255,10 +258,10 @@ async def main():
 
     # ── G. restart survival: the evidence IS the calibration ─────────────────
     print("\n== G. It survives a restart — the evidence is the calibration ==")
-    TD._DISCRIMINATING.clear()
-    TD._OBSERVER_PREDICATES.clear()
-    TD._OBSERVER_WARM.clear()
-    reread = await TD.discriminating_predicates("tools:path", "MOVE_FILE", 2)
+    _DISCRIMINATING.clear()
+    _OBSERVER_PREDICATES.clear()
+    _OBSERVER_WARM.clear()
+    reread = await discriminating_predicates("tools:path", "MOVE_FILE", 2)
     check("with every in-process cache dropped, it is re-derived from the store",
           reread == discriminating and bool(reread),
           f"{len(reread)} predicate(s) recovered from unified.operator_demonstrations")

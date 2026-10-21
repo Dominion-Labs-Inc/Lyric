@@ -193,7 +193,7 @@ async def main() -> int:
     from core.reasoning.intent_authority import (
         get_intent_authority, continuity_goal, SUBSTRATE_ACTOR)
     from uuid import uuid4
-    from core.execution.tool_domain import derived_domain_id, encounter
+    from core.tools.tool_registry import derived_domain_id, encounter
     import tempfile
     from pathlib import Path as _Path
     # The removal is an operator of the domain acts on paths belong to. Meeting

@@ -96,7 +96,7 @@ async def still_world(tag: str, root: Path) -> bool:
     is really there. A still world of nothing refutes nothing, and then the
     hypothesis that an effect happens without the act survives."""
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import world_of
+    from core.perception.perception_faculty import world_of
     from core.learning.rule_induction import TrainingExample
     from core.learning.unified_learning_system import get_learning_authority
     world_of(DOMAIN).perceive(str(root))
@@ -158,7 +158,7 @@ async def round_of_demonstrations(coord, root: Path, tag: str, intent_id) -> dic
 
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.execution.tool_domain import derived_domain_id
+    from core.tools.tool_registry import derived_domain_id
     from core.learning.rule_store import get_rule_store
     from core.learning.unified_learning_system import get_learning_authority
     from core.reasoning.intent_authority import (

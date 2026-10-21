@@ -30,6 +30,9 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 # Chaos engineering decorators
 from core.chaos.decorators import inject_latency, inject_error
+from core.execution.operator_binding import OperatorBinding, get_binding_registry
+from core.learning.rule_induction import from_constant
+from typing import Sequence
 
 
 # ── Tool failures ─────────────────────────────────────────────────────────────
@@ -2160,3 +2163,344 @@ def _register_default_tools():
     total_eager = len(registry.tools)
     logger.info(f"✅ Registered {total_factories} tool factories (lazy) + {total_eager} eager tools = {total_factories + total_eager} total")
     logger.info(f"💡 Tools will load on-demand when first accessed (fixes slow startup!)")
+
+
+# =============================================================================
+# TOOLS AS OPERATORS: A DOMAIN THE SUBSTRATE CAN ACT IN, DERIVED FROM ITS TOOLS
+# =============================================================================
+#
+# THE CLAIM THIS KEEPS TRUE: the substrate can learn to do anything. It cannot,
+# if every domain it may act in has to be hand-written first. A domain becomes
+# learnable when it is OBSERVABLE (its state can be read back -- perception's
+# worlds) and ACTABLE (a real tool changes it). Neither is written by hand:
+# every tool the consequence map classes as changing the world becomes an
+# operator, its predicate the tool's name and its arguments the tool's declared
+# parameters in declared order (`action_binding`). Nothing is invented -- the
+# mapping back is a zip. What this deliberately does not do is invent a
+# vocabulary: derived facts say what the tool reported, in the tool's own words
+# (experiments/TOOLDOMAIN-01).
+
+
+#: Consequence classes that CHANGE the world. An operator is something that can
+#: move the world from one state to another, so a tool that changes nothing is
+#: not an operator however useful it is.
+ACTING_CLASSES = ("modify", "archive", "delete", "execute")
+
+#: The class that changes nothing and reports something.
+OBSERVING_CLASS = "investigate"
+
+#: What names a derived domain: the kinds of resource its acts touch.
+DERIVED_PREFIX = "tools:"
+
+
+def derived_domain_id(kinds) -> str:
+    """The domain an act belongs to, named by the kinds of thing it touches."""
+    return DERIVED_PREFIX + "-".join(sorted(set(kinds)))
+
+
+def predicate_for(tool_name: str) -> str:
+    """The operator name for a tool. Its own name, upper-cased — never a
+    invented one, so the rule the substrate learns can always be traced back to
+    the thing that does it."""
+    return "".join(ch if ch.isalnum() else "_" for ch in str(tool_name)).upper()
+
+
+def declared_parameters(tool) -> List[Any]:
+    """The tool's declared parameters, in declared order -- TYPED ones only.
+
+    Six of the 356 registered tools put a raw JSON schema here instead of
+    `ToolParameter` records, so `parameters` reads as the bare strings
+    ("type", "properties", "required"). Nothing can be derived from those: a
+    string is not a name, a type or a requirement. They are dropped rather than
+    guessed at, which makes such a tool honestly underivable instead of binding
+    an operator whose arguments are the words of a schema.
+    """
+    declared = list(getattr(tool, "parameters", None) or [])
+    typed = [p for p in declared if hasattr(p, "name") and hasattr(p, "type")]
+    if declared and not typed:
+        logger.debug("%s declares untyped parameters; nothing to derive from it",
+                     getattr(tool, "name", tool))
+    return typed
+
+
+def action_binding(tool_name: str, tool, observe) -> Optional[OperatorBinding]:
+    """One operator, derived from what the tool declares about itself.
+
+    ITS ARGUMENTS ARE THE TOOL'S RESOURCE PARAMETERS, in declared order, then
+    its payloads as fingerprints (`payload_term`). Resources are the only
+    arguments whose values appear as terms in the observed world, and an
+    argument that appears nowhere in the world is one induction can never
+    connect to a precondition or an effect. It is also what keeps this operator
+    the SAME operator `ActFrame` names when the substrate watches itself act --
+    two spellings of MOVE_FILE at different arities would split one capability's
+    evidence in half, which is how one file move came to be relearned eight
+    times.
+
+    EVERY OTHER DECLARED PARAMETER IS SUPPLIED FROM ITS OWN DECLARED DEFAULT,
+    and the trade deserves stating because the alternative is defensible too.
+    A hand-written binding could pin `create_dirs=False`, so that a move to a
+    directory that is not there FAILS and gives the learner a negative to learn
+    from. That is a person's judgement about what makes a good lesson, and it
+    cannot be derived. Exposing the option instead makes it
+    an argument the learner must vary blindly, with no term in the world to
+    reason about.
+
+    So the option takes the value the tool itself would use. The cost is real
+    and worth naming: `move_file` defaults `create_dirs=True`, so a move to a
+    missing directory SUCCEEDS, and the substrate will not learn a
+    destination-directory precondition from it. What it learns instead is true
+    of the operator it actually performs -- called this way, `move_file` really
+    does not require the destination to exist. Negative evidence still comes
+    from the world (a source that is not there, a path it may not write), just
+    not from an option set to make the act fail.
+    """
+    resources = resource_parameters(tool)
+    if not resources:
+        return None
+    declared = declared_parameters(tool)
+    names = [str(p.name) for p in resources]
+    # The act's payloads follow its places, as `ActFrame` names them, so the
+    # operator the substrate performs is the one it watched itself perform.
+    payload_names = [str(p.name) for p in payload_parameters(tool)]
+
+    def parameters(args: Sequence[str]) -> Dict[str, Any]:
+        supplied: Dict[str, Any] = {}
+        for name, raw, declared_param in zip(names, args, resources):
+            supplied[name] = _coerce(from_constant(str(raw)), declared_param)
+        for name, raw in zip(payload_names, list(args)[len(names):]):
+            digest = from_constant(str(raw))
+            text = payload_for(digest)
+            if text is None:
+                # A fingerprint is not the text. An act whose payload the
+                # substrate does not hold cannot be performed, and is refused
+                # here, before anything is done, rather than sent without it.
+                raise LookupError(
+                    f"{tool_name}: the text with fingerprint {digest} is not held, "
+                    f"so this act cannot be performed")
+            supplied[name] = text
+        for parameter in declared:
+            if parameter.name not in supplied:
+                default = getattr(parameter, "default", None)
+                if default is not None:
+                    supplied[parameter.name] = default
+                elif (getattr(parameter, "required", False)
+                      and str(getattr(parameter, "type", "")).lower() == "boolean"):
+                    # A REQUIRED YES/NO WITH NO DEFAULT IS A GATE THE CALLER
+                    # OPENS TO PROCEED -- `delete_file`'s `confirm`, "must be set
+                    # to true to proceed", is the one in the registry. It changes
+                    # nothing about what the act does. An act performed through a
+                    # binding has already been judged by the constitution, so
+                    # performing it is proceeding.
+                    supplied[parameter.name] = True
+        return supplied
+
+    return OperatorBinding(
+        predicate=predicate_for(tool_name), tool_name=tool_name,
+        parameters=parameters, observe=observe,
+        observe_async=getattr(observe, "__self__", None) and
+                      getattr(observe.__self__, "observe_async", None),
+        description=str(getattr(tool, "description", "") or ""))
+
+
+def _coerce(value: str, declared) -> Any:
+    """A logic constant back to the type the tool declared.
+
+    Terms are strings because logic constants are; tools take booleans and
+    numbers. Reported honestly rather than guessed: a value that does not parse
+    as its declared type is passed through as the string it is, so the tool's
+    own validation refuses it rather than this silently substituting something.
+    """
+    kind = str(getattr(declared, "type", "") or "").lower()
+    if kind == "boolean":
+        if value.lower() in ("true", "1", "yes"):
+            return True
+        if value.lower() in ("false", "0", "no"):
+            return False
+        return value
+    if kind in ("number", "integer"):
+        try:
+            return int(value) if kind == "integer" or value.isdigit() else float(value)
+        except ValueError:
+            return value
+    return value
+
+#: Parameter names carrying a PAYLOAD rather than naming a thing in the world.
+#: Their value is bytes the act writes, not a resource that can be looked at,
+#: so they are neither observable nor usable as a logic term.
+PAYLOAD_PARAMS = frozenset({
+    "content", "code", "command", "data", "body", "text", "payload", "sql",
+})
+
+def payload_parameters(tool) -> List[Any]:
+    """The declared parameters that carry what an act PUTS INTO the world (the
+    text a write is given), in declared order. Nothing can be pointed at them, so
+    they are not resources; but they are what the act is FOR, since a write is
+    right when the file then holds its payload. They join the act as the
+    payload's fingerprint (`payload_term`)."""
+    return [p for p in declared_parameters(tool)
+            if str(getattr(p, "type", "")).lower() == "string"
+            and str(p.name).lower() in PAYLOAD_PARAMS]
+
+
+#: The texts the substrate has been given to put into the world, by fingerprint,
+#: so an act that names one by its fingerprint can be performed. Held in this
+#: process: a planned write names the text its goal was given.
+_PAYLOADS: Dict[str, str] = {}
+
+
+def payload_term(text: Any) -> str:
+    """The fingerprint an act carries for a payload, in the form the self's
+    sense gives what a file holds, so `CONTENT(file, x)` and the act's argument
+    agree exactly when the file holds the payload. The text is kept by it. An
+    absent payload is the empty text, so an act's arity does not vary."""
+    from core.agents.autonomous.autonomous_coordinator import text_digest
+    text = text if isinstance(text, str) else ""
+    digest = text_digest(text)
+    _PAYLOADS[digest] = text
+    return digest
+
+
+def payload_for(digest: str) -> Optional[str]:
+    """The text held under a payload fingerprint, or None."""
+    return _PAYLOADS.get(digest)
+
+
+def resource_parameters(tool) -> List[Any]:
+    """The declared parameters that NAME SOMETHING IN THE WORLD.
+
+    A parameter names a resource exactly when the substrate has some way of
+    LOOKING at that kind of thing -- when `observer_index` holds an entry for
+    its kind. That is not a list of resource-ish words; it is the observability
+    requirement itself, applied per argument. `grep_search(pattern=...)` names
+    no resource because nothing in the registry can be pointed at a `pattern`,
+    while `path` is one because `read_file`, `list_directory` and `get_file_info`
+    can each be pointed at one.
+
+    An unobservable argument is therefore not a defect to route around. It is
+    the honest report that the substrate can change something it cannot see, and
+    it must not become a term in an operator: a rule whose precondition can
+    never be read is a rule that can never be checked.
+    """
+    from core.perception.perception_faculty import _senses, observer_index, resource_kind
+    index = observer_index()
+    senses = _senses()
+    return [p for p in declared_parameters(tool)
+            if str(getattr(p, "type", "")).lower() == "string"
+            and str(p.name).lower() not in PAYLOAD_PARAMS
+            and (resource_kind(p.name) in senses or resource_kind(p.name) in index)]
+
+
+def encounter(tool_name: str, parameters: Dict[str, Any]) -> Optional[str]:
+    """Make the domain this act belongs to ACTABLE and OBSERVABLE, on meeting it.
+
+    THE ENCOUNTER IS THE DECLARATION. A task that declares `workspace_root`
+    already installs the filesystem domain on encounter -- this is the same
+    idea with nothing left for a person to name: the act itself says which
+    resources are in play, what kind of thing they are, and which tool changes
+    them, so the binding, the world and the explorable registration can all be
+    derived from it.
+
+    What this does NOT do is authorise anything. It registers a real binding for
+    a real tool and a world that can really be read; the constitution then
+    judges the act exactly as it would any other, and the accounts it demands
+    (`_experiment_is_earned` checks this registry and the explorable registry)
+    are satisfied by something true rather than something claimed. An act with
+    no account is still refused.
+
+    Returns the domain id, or None when nothing here is derivable.
+    """
+    from core.perception.perception_faculty import resource_kind, world_of
+    from core.learning.exploration import get_proposer  # noqa: F401
+    from core.agents.autonomous.autonomous_coordinator import classify_action
+    from core.tools import get_tool_registry
+
+    registry = get_tool_registry()
+    tool = registry.get_tool(tool_name)
+    if tool is None:
+        return None
+    try:
+        action_class, _ = classify_action(tool_name, parameters or {})
+    except Exception:
+        return None
+    if getattr(action_class, "value", str(action_class)) not in ACTING_CLASSES:
+        return None
+
+    resources = [(resource_kind(p.name), str(parameters.get(p.name)))
+                 for p in resource_parameters(tool)
+                 if isinstance(parameters.get(p.name), str)
+                 and str(parameters.get(p.name)).strip()]
+    if not resources:
+        return None
+
+    domain_id = derived_domain_id(kind for kind, _ in resources)
+    world = world_of(domain_id)
+    for kind, value in resources:
+        world.encountered(kind, value)
+
+    predicate = predicate_for(tool_name)
+    if get_binding_registry().get(domain_id, predicate) is None:
+        binding = action_binding(tool_name, tool, world.observe)
+        if binding is None:
+            return None
+        get_binding_registry().register(domain_id, binding)
+        logger.info("encountered %s: %s is now a bound operator of %s",
+                    tool_name, predicate, domain_id)
+    # DELIBERATELY NOT REGISTERED EXPLORABLE HERE, and this is the honest edge
+    # of what encounter can settle by itself.
+    #
+    # Binding an operator says "this tool changes this kind of thing, and the
+    # substrate can read the result". Registering the domain explorable says
+    # something else entirely: that the substrate may PRACTISE here, choosing
+    # its own acts to find out what they do. A domain assembled from every
+    # resource the substrate has touched is not a sandbox -- it would let
+    # exploration move a file it once read for a user, which is why practice is
+    # bounded to a place someone gave it (`take_up_workspace`, `derive_domain`).
+    #
+    # Acting when ASKED and practising UNASKED are different permissions, and
+    # nothing derivable from a tool's declaration tells them apart. So the
+    # binding is registered (which is true, and what the constitution's account
+    # checks need) and the licence to practise is not.
+    return domain_id
+
+
+async def bind_learned() -> List[str]:
+    """Bind the tool behind every operator already learned in a derived domain,
+    so what was learned before a restart can be planned with and done again.
+
+    A derived domain's operators are bound when an act is met, and nothing is
+    met again just because the process restarted: the operator would sit in the
+    store, validated, with nothing to perform it. The tool is found by the
+    operator's own name, which is the tool's name (`predicate_for`).
+
+    Returns "<domain>/<operator>" for each binding made.
+    """
+    from core.perception.perception_faculty import world_of
+    from core.learning.rule_store import get_rule_store
+    from core.tools import get_tool_registry
+
+    registry = get_tool_registry()
+    by_predicate = {predicate_for(name): name
+                    for name in set(list(registry.tools) + list(registry.tool_factories))}
+    bound: List[str] = []
+    for stored in await get_rule_store().executable_rules():
+        domain_id = str(stored.domain_id or "")
+        action = getattr(stored.rule, "action", None)
+        if not domain_id.startswith(DERIVED_PREFIX) or action is None:
+            continue
+        if get_binding_registry().get(domain_id, action.predicate) is not None:
+            continue
+        tool_name = by_predicate.get(action.predicate)
+        tool = registry.get_tool(tool_name) if tool_name else None
+        if tool is None:
+            logger.warning("learned operator %s in %s names no tool; it cannot be "
+                           "performed", action.predicate, domain_id)
+            continue
+        binding = action_binding(tool_name, tool, world_of(domain_id).observe)
+        if binding is None:
+            continue
+        get_binding_registry().register(domain_id, binding)
+        bound.append(f"{domain_id}/{action.predicate}")
+    if bound:
+        logger.info("bound %d learned operator(s) of derived domains: %s",
+                    len(bound), ", ".join(bound))
+    return bound

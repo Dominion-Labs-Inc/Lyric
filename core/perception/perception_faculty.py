@@ -47,6 +47,9 @@ from typing import Any, Dict, List, Optional
 
 from . import hearing, music, reading, senses, speech, vision
 from .senses import SenseProcess
+from core.execution.operator_binding import get_binding_registry
+from core.learning.rule_induction import Fact, as_constant, from_constant
+from typing import FrozenSet, Sequence, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -1558,3 +1561,708 @@ def get_perception_faculty() -> PerceptionFaculty:
     if _faculty is None:
         _faculty = PerceptionFaculty()
     return _faculty
+
+
+# =============================================================================
+# WORLDS: WHAT A PLACE HOLDS, READ BY THE SELF'S SENSES AND BY THE TOOLS
+# =============================================================================
+#
+# A domain's world is what can be read of it. What the self senses with its own
+# perception -- the filesystem, path by path -- is read by that sense and by no
+# tool: one observation, one interpretation. Every other kind of thing is read
+# by the tools the consequence map classes `investigate`, which change nothing
+# and report something; their reports are lifted to facts by shape, not by
+# meaning (`facts_from`). A world met by acting (`EncounteredWorld`) holds
+# exactly the resources the substrate has had its hands on, and is read through
+# the observations that have earned a place in it (learning's
+# `refresh_earned`).
+
+
+#: The observer name for the self's own perception. A resource of a kind the
+#: self senses is read by that sense and by no tool: one observation, one
+#: interpretation.
+SELF_SENSE = "self"
+
+
+def facts_from(report: Any, *, source: str) -> FrozenSet[Fact]:
+    """What an observation tool reported, as facts — read by SHAPE, not meaning.
+
+    Three shapes cover what tools actually return, and each maps to relations
+    the same way regardless of what the tool is about:
+
+      {"files": ["a/b.txt", ...]}   a named list  -> FILES(<source>, <item>)
+      {"total_files": 1}            a named scalar -> TOTAL_FILES(<source>, 1)
+      [{"id": 1, "state": "open"}]  a list of records -> STATE(<id>, open)
+
+    NOTHING HERE KNOWS WHAT A FILE IS. `FILES(root, inbox/report.txt)` is not as
+    good a fact as `FILE_IN(report, inbox)`, and that is the honest trade: the
+    substrate reads the structure the tool actually reports instead of one
+    somebody wrote down for it in advance. A fact that changes when the world
+    changes is all induction needs; whether these are sharp enough to induce a
+    usable operator is measured, not asserted.
+    """
+    facts: set = set()
+    subject = as_constant(source)
+
+    def add(predicate: str, args: Tuple[str, ...]) -> None:
+        name = "".join(ch if ch.isalnum() else "_" for ch in predicate).upper()
+        if name and name[0].isdigit():
+            name = "P" + name
+        if name:
+            facts.add(Fact(name, args))
+
+    def walk(value: Any, subject_term: str) -> None:
+        if isinstance(value, dict):
+            for key, item in value.items():
+                if isinstance(item, (str, int, float, bool)) or item is None:
+                    if item is not None:
+                        add(str(key), (subject_term, as_constant(item)))
+                elif isinstance(item, list):
+                    for entry in item:
+                        if isinstance(entry, (str, int, float, bool)):
+                            add(str(key), (subject_term, as_constant(entry)))
+                        elif isinstance(entry, dict):
+                            # A LIST OF RECORDS names its own subjects.
+                            ident = entry.get("id") or entry.get("name") or \
+                                entry.get("path")
+                            walk(entry, as_constant(ident) if ident else subject_term)
+                elif isinstance(item, dict):
+                    walk(item, subject_term)
+        elif isinstance(value, list):
+            for entry in value:
+                walk(entry, subject_term)
+
+    walk(report, subject)
+    return frozenset(facts)
+
+
+def _senses() -> Dict[str, Any]:
+    from core.agents.autonomous.autonomous_coordinator import SENSES
+    return SENSES
+
+
+def identity(kind: str, value: str) -> str:
+    """The one name a resource goes by. A kind the self senses is named the way
+    its sense names it, so a file reached by two spellings is one term; any
+    other kind is taken as given."""
+    sensed = _senses().get(kind)
+    return sensed.identify(value) if sensed is not None else value
+
+
+def term(kind: str, value: str) -> str:
+    """A resource as a logic term: its identity, encoded. What a goal must use to
+    speak about the same thing the substrate perceives and acts on."""
+    return as_constant(identity(kind, value))
+
+
+def sensed_fact(measure: str, kind: str, value: str, measured: Any) -> Fact:
+    """The fact the self's perception states when `value` measures `measured`
+    -- that a path is a file, say. What a goal says, in perception's words."""
+    return Fact(measure.upper(), (term(kind, value), as_constant(measured)))
+
+
+#: What the self's perception MEASURES about a thing: what kind it is, its size,
+#: which thing it is, and for a file what it holds. Its name, extension and depth
+#: are read off the path itself and change only when the path does, so as facts
+#: they would only restate the term they are about.
+SENSED_MEASURES = ("kind", "size", "identity", "content")
+
+#: The measures that say what a thing is LIKE, as opposed to which thing it is:
+#: two copies of one file are alike, in kind, size and what they hold, and are
+#: two things.
+DESCRIBING_MEASURES = ("kind", "size", "content")
+
+#: What the self's perception states when it looks at a place and nothing is
+#: there. A fact of its own rather than a kind called "none": nothing is not a
+#: kind of thing, and as a value it would read as something an act carries --
+#: a move would be learned to give its source whatever its destination held.
+ABSENT = "ABSENT"
+
+
+def gone_everywhere(kind: str, value: str) -> Optional[str]:
+    """The goal that the thing now at `value` exists nowhere: no place holds its
+    identity. A removal asked for is this, not "nothing at this path", which a
+    move satisfies while keeping the thing. None when nothing is there to
+    identify."""
+    held = next((fact for fact in (sense(kind, value) or ())
+                 if fact.predicate == "IDENTITY"), None)
+    return f"¬IDENTITY(?where, {held.args[1]})" if held is not None else None
+
+
+def sense(kind: str, value: str) -> Optional[FrozenSet[Fact]]:
+    """The self's own reading of one resource, as facts about its identity.
+
+    ABSENT(<it>) when nothing is there: the world answered, and "nothing is
+    here" is what a move leaves at its source and what it needs at its
+    destination. None when the thing could not be looked at, or is not a kind
+    the self senses, which is not the same.
+    """
+    sensed = _senses().get(kind)
+    if sensed is None:
+        return None
+    name = sensed.identify(value)
+    try:
+        entry = sensed.perceive(name)
+    except OSError:
+        return None
+    subject = as_constant(name)
+    if entry is None:
+        return frozenset({Fact(ABSENT, (subject,))})
+    return frozenset(Fact(measure.upper(), (subject, as_constant(entry[measure])))
+                     for measure in SENSED_MEASURES if entry.get(measure) is not None)
+
+
+class ToolObservedWorld:
+    """A world read by running the domain's declared observation tools.
+
+    An observer is not derivable from a tool alone: a tool needs ARGUMENTS, and
+    which directory (or repository, or case queue) this domain is about is the
+    one thing the registry cannot know. So a domain declares its observations as
+    (tool, arguments) pairs -- a line, not a class -- and everything after that
+    is mechanical.
+
+    UNREADABLE IS NOT EMPTY. If no observation succeeds, this returns None:
+    planning against a world that was never read authorises a plan on a state
+    that does not exist.
+    """
+
+    def __init__(self, domain_id: str,
+                 observations: Sequence[Tuple[str, Dict[str, Any]]]) -> None:
+        self.domain_id = domain_id
+        self.observations = list(observations)
+        self._registry = None
+
+    def _tools(self):
+        if self._registry is None:
+            from core.tools import get_tool_registry
+            self._registry = get_tool_registry()
+        return self._registry
+
+    def _current_observations(self) -> List[Tuple[str, Dict[str, Any]]]:
+        """The observations a reading of this world is made of, now."""
+        return list(self.observations)
+
+    def observe(self) -> Optional[FrozenSet[Fact]]:
+        """Read the world NOW, by looking.
+
+        Runs synchronously from whatever context asks, because `observe` is a
+        plain callable in the binding contract and every existing caller treats
+        it as one. What the self senses is read directly; only observations made
+        by running tools need a loop.
+        """
+        current = self._current_observations()
+        if all(tool == SELF_SENSE for tool, _ in current):
+            return self._read_sensed(current)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        if loop is not None and loop.is_running():
+            # An async caller should be using `observe_async` (the binding
+            # carries it). Reaching here means a synchronous caller inside a
+            # running loop, and the thread below is the only way to serve it.
+            # Already inside the substrate's loop: the observation tools are
+            # investigate-class and cheap, but they are coroutines, so they are
+            # run on a private loop in a worker thread rather than blocking this
+            # one or being silently skipped.
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                return pool.submit(lambda: asyncio.run(self._observe(current))).result()
+        return asyncio.run(self._observe(current))
+
+    async def observe_async(self) -> Optional[FrozenSet[Fact]]:
+        """Read the world on the CALLER'S loop. The honest path for a world made
+        of tools -- see `OperatorBinding.observe_async`."""
+        return await self._observe()
+
+    @staticmethod
+    def _read_sensed(observations) -> Optional[FrozenSet[Fact]]:
+        """What the self senses of these resources; None if it could see none."""
+        facts: set = set()
+        read_anything = False
+        for _sense, arguments in observations:
+            for kind, value in arguments.items():
+                answered = sense(kind, value)
+                if answered is not None:
+                    read_anything = True
+                    facts |= answered
+        return frozenset(facts) if read_anything else None
+
+    async def _observe(self, observations=None) -> Optional[FrozenSet[Fact]]:
+        current = (self._current_observations() if observations is None
+                   else list(observations))
+        facts: set = set()
+        read_anything = False
+        sensed = self._read_sensed([o for o in current if o[0] == SELF_SENSE])
+        if sensed is not None:
+            read_anything = True
+            facts |= sensed
+        tooled = [o for o in current if o[0] != SELF_SENSE]
+        registry = self._tools() if tooled else None
+        for tool_name, arguments in tooled:
+            try:
+                result = await registry.execute_tool(tool_name, dict(arguments))
+            except Exception as e:
+                logger.info("observation %s of %s raised: %s",
+                            tool_name, self.domain_id, e)
+                continue
+            if not getattr(result, "success", False):
+                continue
+            read_anything = True
+            source = next((str(v) for v in arguments.values() if v), tool_name)
+            output = getattr(result, "output", None)
+            facts |= facts_from(output, source=source)
+        if not read_anything:
+            return None
+        return frozenset(facts)
+
+
+
+# =============================================================================
+# WATCHING AN ACT THE SUBSTRATE WAS NEVER TAUGHT
+# =============================================================================
+#
+# The header above names the gap this section closes:
+#
+#     "An observer is not derivable from a tool alone: a tool needs ARGUMENTS,
+#      and which directory (or repository, or case queue) this domain is about
+#      is the one thing the registry cannot know."
+#
+# A CALL KNOWS. `move_file(source_path=A, destination_path=B)` names A and B.
+# So the arguments the registry could not supply come from the act itself, and
+# nobody has to declare a domain, a directory or a tool list before the
+# substrate can watch itself act. Point it at a SOC and the act names a host or
+# an address instead; nothing here knows the difference.
+#
+# WHY THIS EXISTS AT ALL. `_execute_via_substrate` already observes before,
+# acts, re-observes and files the triple -- but only after it has found a
+# VALIDATED learned rule, in a declared domain, with a registered binding. You
+# need an operator to record the demonstration that would teach you an
+# operator. Every other act the substrate performs went through `_run_tool`,
+# which observed no world state at all: 185 acting tools producing evidence for
+# the completion judgment ("did I reach the goal?") and none for learning what
+# the act DOES. That is why 898,593 knowledge items sat beside 14 operators.
+
+#: How long one reading of a WARM observation may take. Past it the answer is
+#: UNKNOWN, not empty -- see `observe_resources`.
+OBSERVATION_BUDGET_SECONDS = 10.0
+
+#: The budget for an observation that has never run in this process.
+#:
+#: A tool's FIRST execution loads the tool; every execution after it answers
+#: about the world. Measured on the live registry: first call 11.6s, then
+#: 0.1-0.4ms. Charging the load to the observation budget is what made the first
+#: watched act read nothing at all -- 38 readings started cold at once, all but
+#: the few that failed fast exceeded 10s, and the frame kept only the failures.
+#: The budget exists to bound how long the substrate waits for an ANSWER, not
+#: how long a tool takes to load itself once, so the two are separated. The
+#: readings run concurrently, so this is paid once per process as roughly the
+#: slowest single load, not once per observation.
+COLD_OBSERVATION_BUDGET_SECONDS = 60.0
+
+#: Observations that have completed at least once in this process, whatever
+#: they answered. A tool that ran and reported "not a directory" is warm; it
+#: answered. Only an observation that has never returned is charged the cold
+#: budget.
+_OBSERVER_WARM: set = set()
+
+
+#: tool -> the predicates its reports were OBSERVED to produce. Grown from real
+#: readings, never declared. Empty after a restart, which costs one wide
+#: reading per tool to refill -- the durable half (which predicates actually
+#: discriminate) lives in `unified.operator_demonstrations` and survives.
+_OBSERVER_PREDICATES: Dict[str, set] = {}
+
+_OBSERVER_INDEX: Optional[Dict[str, List[Tuple[str, str]]]] = None
+
+
+def resource_kind(parameter_name: str) -> str:
+    """The KIND of thing a parameter names, from its head noun.
+
+    `source_path`, `destination_path`, `directory_path` and `path` all name a
+    path; `host` names a host. English compounds put the head last, so the final
+    underscore-delimited token is the kind and what precedes it is the ROLE that
+    parameter plays in this particular act.
+
+    THIS IS A CANDIDATE GENERATOR, NOT AN AUTHORITY, and the distinction is the
+    whole reason the rest of this section exists. Measured against the live
+    registry, the rule also claims `metric_name`, `table_name` and
+    `service_name` are the same kind of thing. They are not. A name cannot
+    settle what a thing is, so nothing here relies on it being right: an
+    observer it proposes is kept only if the world answers when it is pointed at
+    the value, and kept in the frame only if it was observed to DISCRIMINATE.
+    Naming proposes; the world disposes.
+    """
+    return str(parameter_name).strip().lower().rsplit("_", 1)[-1]
+
+
+def observer_index(*, rebuild: bool = False) -> Dict[str, List[Tuple[str, str]]]:
+    """kind -> [(tool_name, parameter_name)] for every POINTABLE observation.
+
+    Two conditions, both read off the tool's own declaration:
+
+      it changes nothing    `classify_action` puts it in `investigate`. An
+                            observation taken twice around an act must not be
+                            able to alter the world it is reading, or the
+                            before/after difference is partly the reader's own
+                            doing.
+
+      it can be pointed     exactly ONE required parameter, and that parameter
+                            is a string. A tool with two required arguments
+                            needs a second value nobody has, and inventing one
+                            is how an observation starts reporting on something
+                            other than what the act touched.
+
+    A function of the registry rather than of any call, so it is built once.
+    """
+    from core.tools.tool_registry import OBSERVING_CLASS, declared_parameters
+    global _OBSERVER_INDEX
+    if _OBSERVER_INDEX is not None and not rebuild:
+        return _OBSERVER_INDEX
+
+    from core.agents.autonomous.autonomous_coordinator import classify_action
+    from core.tools import get_tool_registry
+
+    registry = get_tool_registry()
+    index: Dict[str, List[Tuple[str, str]]] = {}
+    for name in sorted(set(list(registry.tools) + list(registry.tool_factories))):
+        try:
+            tool = registry.get_tool(name)
+        except Exception:
+            continue
+        if tool is None:
+            continue
+        declared = declared_parameters(tool)
+        if not declared:
+            continue
+        try:
+            action_class, _ = classify_action(name, {})
+        except Exception:
+            continue
+        if getattr(action_class, "value", str(action_class)) != OBSERVING_CLASS:
+            continue
+        required = [p for p in declared if getattr(p, "required", False)]
+        if len(required) != 1:
+            continue
+        only = required[0]
+        if str(getattr(only, "type", "")).lower() != "string":
+            continue
+        index.setdefault(resource_kind(only.name), []).append((name, str(only.name)))
+
+    _OBSERVER_INDEX = index
+    logger.info("observation index: %d kind(s) the substrate can be pointed at",
+                len(index))
+    return index
+
+
+async def observe_resources(
+    readings: Sequence[Tuple[str, str, str]],
+) -> Dict[Tuple[str, str], Optional[FrozenSet[Fact]]]:
+    """Point each observation at each value and keep the three answers apart.
+
+    UNREADABLE IS NOT EMPTY, and "the world says no" is not "we could not ask":
+
+      facts          the observation ran and reported. What it reported becomes
+                     facts by shape, in the tool's own words.
+      frozenset()    the observation ran and the world answered NOTHING -- a
+                     `read_file` of a path that is gone, a `list_directory` of
+                     something that is not a directory. That is a reading, and
+                     it is exactly the reading a deletion is supposed to produce.
+      None           the observation did not complete: it raised, or the budget
+                     expired. Nothing about the world follows from that, so a
+                     None on EITHER side removes that reading from BOTH -- see
+                     `ActFrame.close`. Letting it stand as empty would make
+                     every fact it had reported before the act look deleted by
+                     the act, which is a fabricated effect.
+
+    READINGS RUN IN SERIES, and that is a measurement rather than a preference.
+    Asking them concurrently looks right -- they are independent questions about
+    a world that is moving, and a serial pass spreads the "before" over a span
+    in which it could change. But most of these tools do blocking work inside an
+    `async def`, so `gather` yields no concurrency at all: 38 readings that take
+    45ms in series did not finish in 60s under `gather`, and the first watched
+    act read nothing. A budget cannot preempt a blocking body either, so
+    `wait_for` bounds only the tools that actually await. The serial pass is
+    what the registry supports; the alternative was a frame that timed out.
+    """
+    from core.tools import get_tool_registry
+
+    registry = get_tool_registry()
+
+    async def one(observer: str, parameter: str, value: str):
+        result = await registry.execute_tool(observer, {parameter: value})
+        if not getattr(result, "success", False):
+            # A REFUSAL IS NOT A READING. The constitution is wired to
+            # `execute_tool`, so it judges these observations too. An act it
+            # refused never ran, and reporting "the world answered nothing"
+            # would turn the substrate's own law into evidence about the world
+            # -- the same false negative that once refuted a validated operator
+            # because Law 2 had replanned the move behind it.
+            if (getattr(result, "metadata", None) or {}).get(
+                    "error_type") == "CONSTITUTION_REFUSED":
+                return None
+            return frozenset()
+        return facts_from(getattr(result, "output", None), source=value)
+
+    unique: List[Tuple[str, str, str]] = []
+    seen: set = set()
+    for observer, parameter, value in readings:
+        if (observer, value) not in seen:
+            seen.add((observer, value))
+            unique.append((observer, parameter, value))
+
+    out: Dict[Tuple[str, str], Optional[FrozenSet[Fact]]] = {}
+    for observer, parameter, value in unique:
+        if observer == SELF_SENSE:
+            # The self's own perception: `parameter` carries the kind it senses.
+            out[(observer, value)] = sense(parameter, value)
+            continue
+        budget = (OBSERVATION_BUDGET_SECONDS if observer in _OBSERVER_WARM
+                  else COLD_OBSERVATION_BUDGET_SECONDS)
+        try:
+            answer = await asyncio.wait_for(one(observer, parameter, value),
+                                            timeout=budget)
+        except Exception as e:
+            logger.debug("observation %s of %r did not complete: %s",
+                         observer, value, type(e).__name__)
+            out[(observer, value)] = None
+            continue
+        out[(observer, value)] = answer
+        # It ANSWERED -- including "not a directory", which is an answer about
+        # the world. Only a reading that never returned stays cold.
+        _OBSERVER_WARM.add(observer)
+        if answer:  # None (refused/incomplete) and frozenset() both teach nothing here
+            _OBSERVER_PREDICATES.setdefault(observer, set()).update(
+                fact.predicate for fact in answer)
+    return out
+
+
+class EncounteredWorld(ToolObservedWorld):
+    """A domain's world, made of the resources the substrate has ACTUALLY MET.
+
+    THIS IS THE OTHER HALF OF THE GAP IN THIS MODULE'S HEADER. `ToolObservedWorld`
+    needs (tool, arguments) pairs, and the arguments -- which directory,
+    repository or case queue this domain is about -- are what the registry
+    cannot know. A task that names a workspace supplies them
+    (`take_up_workspace`), and so does every act: it names what it touches.
+
+    ACTING NAMES THE PLACE. Every act names the resources it touches, so a
+    domain's world can be assembled from what the substrate has had its hands
+    on. Nothing is declared and nothing is invented: this world contains exactly
+    what it has met.
+    """
+
+    def __init__(self, domain_id: str) -> None:
+        super().__init__(domain_id, [])
+        self.resources: Dict[str, set] = {}
+        #: kind -> the places the substrate was given to work in, where it may
+        #: also PRACTISE: act unasked to find out what its acts do. Nowhere
+        #: else -- a world assembled from everything it has touched is not a
+        #: sandbox, and practice there would move a file it once read for a user.
+        self.practice_places: Dict[str, set] = {}
+        #: Directories this world is LOOKED AT again whenever it is observed. A
+        #: place the substrate works in is watched, not remembered: a file that
+        #: arrives after the first look is part of the world at the next one.
+        self.watched: set = set()
+
+    def allow_practice(self, kind: str, place: str) -> None:
+        """Let the substrate practise inside `place`."""
+        self.practice_places.setdefault(kind, set()).add(identity(kind, place))
+
+    def practisable(self, kind: str, value: str) -> bool:
+        """Whether `value` is inside a place given for practice -- never the
+        place itself, which is where the work is, not something to act on."""
+        sensed = _senses().get(kind)
+        if sensed is None or sensed.within is None:
+            return False
+        value = sensed.identify(value)
+        return any(value != place and sensed.within(place, value)
+                   for place in self.practice_places.get(kind, ()))
+
+    def practice_view(self, kind: str) -> Tuple[List[str], List[str]]:
+        """(things, containers) of this kind inside the practice places, as the
+        self perceives them now. The places themselves can hold things too."""
+        sensed = _senses().get(kind)
+        containers = set(self.practice_places.get(kind, ()))
+        things: List[str] = []
+        if sensed is None:
+            return things, sorted(containers)
+        for value in sorted(self.resources.get(kind, ())):
+            if not self.practisable(kind, value):
+                continue
+            try:
+                entry = sensed.perceive(value)
+            except OSError:
+                continue
+            if entry is None:
+                continue
+            if sensed.holds is not None and sensed.holds(entry):
+                containers.add(value)
+            else:
+                things.append(value)
+        return things, sorted(containers)
+
+    def perceive(self, root: str) -> int:
+        """Populate this world by LOOKING AT IT — the substrate's own perception.
+
+        WHAT IS HERE IS A QUESTION PERCEPTION ANSWERS, NOT ONE TO INFER FROM A
+        TOOL'S REPORT. Reading contents out of the shape of an observation's
+        output cannot tell CONTENTS from MENTIONS, and measured, it does not:
+        `list_directory` returns an IGNORE list beside its entries, so the world
+        absorbed `.git`, `node_modules` and `build`. Bounded to the sandbox those
+        became invented paths that `copy_file` then CREATED, and the substrate
+        spent every cycle copying into `.git/.git/.git`, filing each as a
+        success. Unbounded, `SmartPathResolver` resolved the bare names against
+        the real project root and exploration proposed `MOVE_FILE(.git, .venv)`.
+
+        `_react_investigate_environment` already had the right answer -- "what is
+        in my world: scan it directly, recursively, bounded" -- and
+        `_scan_environment` reports each entry's KIND, which is exactly the
+        distinction the report-shape reading could not make and the reason every
+        act moved a directory onto a directory. It is permission-honest (an
+        unreadable directory is skipped, never guessed), symlink-safe, and
+        bounded, so none of the failures above are reachable through it.
+
+        The directory looked at is itself a thing in this world, as is
+        everything the scan finds in it, and it stays WATCHED: every observation
+        of this world looks at it again. Returns how many resources this added.
+        """
+        import os
+
+        if not (root and os.path.isdir(root)):
+            logger.info("%s is not a directory to perceive; world unchanged", root)
+            return 0
+        self.watched.add(identity("path", root))
+        added = self._look(root)
+        logger.info("perceived %s: %d resource(s) entered the world of %s",
+                    root, added, self.domain_id)
+        return added
+
+    def _look(self, root: str) -> int:
+        """Bring what is in `root` now into this world; how many were new."""
+        from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
+        added = int(self.encountered("path", root))
+        for entry in AutonomousCoordinator._scan_environment(root):
+            # A LINK OR A SOCKET IS NOT A THING TO ACT ON. `_scan_environment`
+            # records them and refuses to follow them; an operator grounded on
+            # one would be learning about the link, not about what it names.
+            if entry.get("kind") not in ("file", "dir"):
+                continue
+            path = entry.get("path")
+            if isinstance(path, str) and path and self.encountered("path", path):
+                added += 1
+        return added
+
+    def encountered(self, kind: str, value: str) -> bool:
+        """Note a resource this domain is about. True if it had not been met.
+
+        A kind the self senses is read by that sense alone; any other kind by
+        the tools that can be pointed at it.
+        """
+        value = identity(kind, value)
+        known = self.resources.setdefault(kind, set())
+        if value in known:
+            return False
+        known.add(value)
+        senses = _senses()
+        index = observer_index()
+        observations: List[Tuple[str, Dict[str, Any]]] = []
+        for a_kind, values in sorted(self.resources.items()):
+            for met in sorted(values):
+                if a_kind in senses:
+                    observations.append((SELF_SENSE, {a_kind: met}))
+                else:
+                    observations.extend((observer, {parameter: met})
+                                        for observer, parameter in index.get(a_kind, ()))
+        self.observations = observations
+        return True
+
+    def look_at(self, terms: Sequence[str]) -> FrozenSet[Fact]:
+        """Look now at the things these terms name, and keep them in view.
+
+        AN ACT OR A GOAL CAN NAME A PLACE THIS WORLD HAS NEVER LOOKED AT. Where
+        a move is to put something is a place nothing is at yet, and no look at
+        a workspace finds it. A plan that needs it free then has nothing to go
+        on, and an act recorded against a world that never looked there says
+        nothing about it before and something after -- one move reads as
+        deleting what the next does not. So what is named is looked at first,
+        with the senses this world perceives with, and from then on it is part
+        of the world.
+        """
+        senses = _senses()
+        kinds = [kind for kind in self.resources if kind in senses]
+        seen: set = set()
+        for named in terms:
+            value = from_constant(named)
+            for kind in kinds:
+                self.encountered(kind, value)
+                answered = sense(kind, value)
+                if answered:
+                    seen |= answered
+        return frozenset(seen)
+
+    def _current_observations(self) -> List[Tuple[str, Dict[str, Any]]]:
+        """Read the encountered world through the observations that have EARNED
+        a place in it.
+
+        Unnarrowed this grows as the product of resources met and observations
+        pointable at them, and most of it is noise: pointed at a file, 14 of 19
+        observations answer, and `find_dead_code`, `find_todos` and
+        `security_scan` are among them. So the same rule `ActFrame` uses applies
+        to the whole domain -- an observation earns its place by having reported
+        something one of this domain's operators actually moved. Until any
+        operator has demonstrations, everything pointable is read, which is the
+        bootstrap that produces the evidence the narrowing is made of. What the
+        self senses is always kept: it is how this world is perceived at all.
+
+        A narrowed COPY is returned, never swapped onto the instance: the
+        observation list is rebuilt whenever the world gains a resource.
+        """
+        import os
+        for root in sorted(self.watched):
+            if os.path.isdir(root):
+                self._look(root)
+        earned = self._earned_here()
+        if earned:
+            kept = [(tool, args) for tool, args in self.observations
+                    if tool == SELF_SENSE or tool in earned]
+            if kept:
+                return kept
+        return list(self.observations)
+
+    def _earned_here(self) -> Optional[FrozenSet[str]]:
+        """The observations that have earned a place in THIS domain's world.
+
+        Read from a cache and never from the database, because `observe()` is a
+        plain synchronous callable in the binding contract and may be called
+        from a throwaway event loop in a worker thread. Reaching the demonstration
+        store from there took the connection pool out from under the loop that
+        owned it ("Database not initialized"), which is what a sync/async seam
+        does when you pretend it is not there. `refresh_earned` fills this from a
+        proper async context instead.
+        """
+        return _EARNED_OBSERVERS.get(self.domain_id)
+
+
+#: domain_id -> the observations that have earned a place in its world. Filled
+#: only by `refresh_earned`, from an async context that owns the database.
+_EARNED_OBSERVERS: Dict[str, FrozenSet[str]] = {}
+
+
+#: domain_id -> the world it has met. One world per domain, because a domain is
+#: one world and two readings of it that disagree is the duplicate-authority
+#: fault this codebase has paid for elsewhere.
+_WORLDS: Dict[str, EncounteredWorld] = {}
+
+
+def world_of(domain_id: str) -> EncounteredWorld:
+    """The one world of this derived domain."""
+    world = _WORLDS.get(domain_id)
+    if world is None:
+        world = EncounteredWorld(domain_id)
+        _WORLDS[domain_id] = world
+    # Registered on every call, not only at creation: a registry cleared for this
+    # domain must still be able to see its world.
+    get_binding_registry().register_world(domain_id, world.observe, world.observe_async,
+                                          look_at=world.look_at)
+    return world

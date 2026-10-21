@@ -130,7 +130,8 @@ async def main() -> int:
         Priority, SUBSTRATE_ACTOR, Task, TaskType)
     from core.database import get_database_manager
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import sensed_fact, take_up_workspace
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact
     from core.learning.demonstration_store import get_demonstration_store
     from core.reasoning.intent_authority import continuity_goal, get_intent_authority
 

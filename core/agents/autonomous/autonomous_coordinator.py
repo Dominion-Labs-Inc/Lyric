@@ -17014,7 +17014,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             # What was learned before this process started can be done again:
             # the tools behind operators learned in derived domains are bound.
             try:
-                from core.execution.tool_domain import bind_learned
+                from core.tools.tool_registry import bind_learned
                 await bind_learned()
             except Exception as _ble:
                 raise_if_structural(_ble, "initialize_execution_faculty.bind_learned")
@@ -17096,7 +17096,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         # workspace becomes somewhere the substrate may practise, bounded to it.
         workspace_root = provenance.get("workspace_root")
         if workspace_root:
-            from core.execution.tool_domain import take_up_workspace
+            from core.learning.exploration import take_up_workspace
             take_up_workspace(domain_id, workspace_root)
 
         world_state = self._observe_world(domain_id)
@@ -18322,7 +18322,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         nothing else.
         """
         try:
-            from core.execution.tool_domain import ActFrame, encounter
+            from core.learning.unified_learning_system import ActFrame
+            from core.tools.tool_registry import encounter
             # MEETING A DOMAIN IS HOW IT BECOMES ONE. Without it the substrate
             # could act only where a person had named a directory, and every
             # act outside one was refused by Law 2 for want of a bound operator.
@@ -18369,8 +18370,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         try:
             from core.intelligence.effect_verification import (
                 RuntimeEvidence, RuntimeOutcome)
-            from core.execution.tool_domain import (
-                note_demonstration, refresh_earned)
+            from core.learning.unified_learning_system import note_demonstration, refresh_earned
 
             closed = await frame.close()
             if closed is None:

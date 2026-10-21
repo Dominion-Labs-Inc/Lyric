@@ -638,7 +638,8 @@ def test_a_workspace_task_has_the_substrate_take_it_up():
     workspace takes nothing up.
     """
     from types import SimpleNamespace
-    from core.execution.tool_domain import sensed_fact, take_up_workspace, world_of
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact, world_of
     from core.learning.exploration import (
         explorable_domains, get_proposer, unregister_explorable_domain)
 

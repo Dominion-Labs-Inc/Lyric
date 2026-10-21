@@ -60,7 +60,8 @@ async def main():
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.shared_types import Priority
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import gone_everywhere, sensed_fact, take_up_workspace
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import gone_everywhere, sensed_fact
     from core.learning.rule_grounding import ground_for_problem
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store

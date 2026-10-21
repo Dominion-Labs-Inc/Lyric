@@ -85,7 +85,8 @@ async def main():
     from core.agents.autonomous.shared_types import Priority
     from core.intelligence.effect_verification import RuntimeOutcome
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import sensed_fact, take_up_workspace, term
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact, term
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import EpistemicStatus, get_rule_store
     from core.reasoning.intent_authority import get_intent_authority

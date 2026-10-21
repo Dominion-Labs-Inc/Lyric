@@ -105,7 +105,8 @@ async def main():
     from core.database import get_database_manager
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, TaskSource
-    from core.execution.tool_domain import sensed_fact, take_up_workspace, term
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact, term
     from core.integration.universal_domain_master import get_universal_domain_master
     from core.learning.meta_learning import OutcomeClass
 

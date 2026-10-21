@@ -83,7 +83,8 @@ async def main():
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import gone_everywhere, take_up_workspace
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import gone_everywhere
     from core.learning.rule_grounding import ground_for_problem
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import get_rule_store

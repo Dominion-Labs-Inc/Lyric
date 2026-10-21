@@ -9,8 +9,8 @@ no belief.
   shape         what a method does, whoever it was done for: its steps' tools,
                 in order, each with the names of the arguments it was given.
   facts         the method as logic atoms, one per step: the tool's own name,
-                upper-cased (`tool_domain.predicate_for`), over its argument
-                values encoded as constants (`tool_domain._encode`).
+                upper-cased (`tool_registry.predicate_for`), over its argument
+                values encoded as constants (`rule_induction.as_constant`).
   vocabulary    the values a method gives its tools that are the tools' own
                 words, so no one's particular: a truth value for an argument the
                 tool declares boolean, or a value it declares the argument takes.
@@ -36,7 +36,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
-from core.execution.tool_domain import _decode, _encode, predicate_for
+from core.learning.rule_induction import from_constant, as_constant
+from core.tools.tool_registry import predicate_for
 from core.learning.rule_induction import Fact, anti_unify
 from core.reasoning.unification import VARIABLE_PREFIX, is_variable
 
@@ -82,7 +83,7 @@ def method_facts(method: Any) -> Optional[List[Fact]]:
     steps = _steps(method)
     if steps is None:
         return None
-    return [Fact(predicate_for(tool), tuple(_encode(value_text(args[name])) for name in sorted(args)))
+    return [Fact(predicate_for(tool), tuple(as_constant(value_text(args[name])) for name in sorted(args)))
             for tool, args in steps]
 
 
@@ -114,7 +115,7 @@ def lift_one(facts: Sequence[Fact], kept: Set[str]) -> List[Fact]:
     for fact in facts:
         args = []
         for arg in fact.args:
-            if is_variable(arg) or _decode(arg) in kept:
+            if is_variable(arg) or from_constant(arg) in kept:
                 args.append(arg)
             else:
                 args.append(named.setdefault(arg, f"{VARIABLE_PREFIX}V{len(named)}"))
@@ -139,7 +140,7 @@ def is_instance(general: Sequence[Fact], ground: Sequence[Fact]) -> bool:
 
 def constants(facts: Iterable[Fact]) -> Set[str]:
     """The values a method keeps as constants, decoded."""
-    return {_decode(arg) for fact in facts for arg in fact.args if not is_variable(arg)}
+    return {from_constant(arg) for fact in facts for arg in fact.args if not is_variable(arg)}
 
 
 def person_terms(parts: Iterable[Dict[str, Any]], *also: str) -> Set[str]:

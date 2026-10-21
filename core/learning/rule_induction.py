@@ -44,6 +44,7 @@ from core.reasoning.unification import (is_variable, match_body, match_literal,
                                         unify)
 from core.reasoning.value_authority import (arity, catalogue, evaluate,
                                             is_commutative)
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -1266,3 +1267,43 @@ def get_rule_inducer() -> RuleInducer:
     if _inducer is None:
         _inducer = RuleInducer()
     return _inducer
+
+
+# --------------------------------------------------------------------------
+# Values as logic constants
+# --------------------------------------------------------------------------
+
+
+
+def as_constant(value: Any) -> str:
+    """Any reported value as a logic constant, bijectively.
+
+    The same escape scheme the filesystem domain uses, for the same reason: a
+    term must be an identifier and the world is full of dots, slashes and
+    spaces. Dropping such values would make the substrate blind to exactly the
+    things tools report.
+    """
+    out = ["F"]
+    for byte in str(value).encode("utf-8"):
+        ch = chr(byte)
+        out.append(ch if (ch.isascii() and ch.isalnum()) else "_%02x" % byte)
+    return "".join(out)
+
+
+def from_constant(ident: str) -> str:
+    """Invert `as_constant`. An action carries encoded terms; the tool needs the
+    real values back before it runs."""
+    body = ident[1:] if ident.startswith("F") else ident
+    buffer = bytearray()
+    index = 0
+    while index < len(body):
+        if body[index] == "_":
+            try:
+                buffer.append(int(body[index + 1:index + 3], 16))
+                index += 3
+                continue
+            except ValueError:
+                pass
+        buffer.append(ord(body[index]))
+        index += 1
+    return buffer.decode("utf-8", errors="replace")

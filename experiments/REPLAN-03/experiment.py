@@ -109,7 +109,8 @@ async def main():
     from core.agents.autonomous.planning_engine import PlanningEngine
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
     from core.agents.autonomous.shared_types import Priority, Task, TaskType
-    from core.execution import tool_domain as TD
+    from core.learning.exploration import derive_domain, take_up_workspace
+    from core.perception.perception_faculty import sensed_fact, world_of
     from core.execution.operator_binding import get_binding_registry
     from core.learning.exploration import SubstrateExplorer, get_proposer
     from core.learning.rule_store import EpistemicStatus, get_rule_store
@@ -124,17 +125,17 @@ async def main():
     (root / "inbox" / "report.txt").write_text("the quarterly numbers\n")
 
     def report_in(d):
-        return TD.sensed_fact("kind", "path", str(root / d / "report.txt"), "file")
+        return sensed_fact("kind", "path", str(root / d / "report.txt"), "file")
 
     await forget_the_domain(get_rule_store())
 
     # The sandbox a person hands over: this directory, and the act it may be
     # practised with. Everything else is the substrate's own doing.
-    declared = TD.derive_domain(
+    declared = derive_domain(
         DOMAIN, observations=[("list_directory", {"directory_path": str(root)})],
         actions=["move_file"])
-    TD.take_up_workspace(DOMAIN, str(root))
-    world = TD.world_of(DOMAIN)
+    take_up_workspace(DOMAIN, str(root))
+    world = world_of(DOMAIN)
     print("\n== A. A sandbox it may practise in, perceived by the self ==")
     check("the domain is bound — observable and actable",
           declared.get("actable") and get_proposer(DOMAIN) is not None,

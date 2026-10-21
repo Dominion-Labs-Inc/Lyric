@@ -107,7 +107,7 @@ async def round_of_demonstrations(coord, root: Path, tag: str, intent_id) -> dic
 
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.execution.tool_domain import derived_domain_id
+    from core.tools.tool_registry import derived_domain_id
     from core.learning.rule_store import get_rule_store
     from core.learning.unified_learning_system import get_learning_authority
     from core.reasoning.intent_authority import (

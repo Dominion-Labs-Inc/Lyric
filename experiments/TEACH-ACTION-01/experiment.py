@@ -75,7 +75,8 @@ async def main():
         coordinator = system.autonomous_coordinator
 
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
-    from core.execution import tool_domain as TD
+    from core.learning.exploration import derive_domain
+    from core.perception.perception_faculty import world_of
     from core.learning.demonstration_store import get_demonstration_store
     from core.learning.exploration import SubstrateExplorer, get_proposer
     from core.learning.rule_store import get_rule_store
@@ -96,7 +97,7 @@ async def main():
     SANDBOX = f"teachaction_{uuid4().hex[:8]}"
     print(f"\n== A. A sandbox it is ALLOWED to practise in ==")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        derived = TD.derive_domain(
+        derived = derive_domain(
             SANDBOX,
             observations=[("list_directory", {"directory_path": str(root / "inbox")}),
                           ("list_directory", {"directory_path": str(root / "archive")})],
@@ -105,7 +106,7 @@ async def main():
           set(derived.get("operators") or []) == {"COPY_FILE", "MOVE_FILE"},
           f"operators={derived.get('operators')} refused={derived.get('refused')}")
 
-    world = TD.world_of(SANDBOX)
+    world = world_of(SANDBOX)
     # IT LOOKS AT WHERE IT IS. Not "parse the shape of a tool's report" — the
     # substrate's own environment scan, which reports each entry's KIND.
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):

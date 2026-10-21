@@ -412,7 +412,8 @@ async def main():
     print("\n[F] the real drive path names its intent at the gate")
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.shared_types import Task, TaskType, TaskSource
-    from core.execution.tool_domain import sensed_fact, take_up_workspace
+    from core.learning.exploration import take_up_workspace
+    from core.perception.perception_faculty import sensed_fact
 
     # THE PRECONDITION IS DECLARED, NOT ASSUMED. This plans over a MOVE_FILE
     # operator the substrate LEARNED from its own acts. That was ambient state:

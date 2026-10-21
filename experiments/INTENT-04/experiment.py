@@ -91,7 +91,7 @@ async def main():
     from core.agents.autonomous.appraisal import get_appraisal_system
     from core.agents.autonomous.shared_types import Priority
     from core.execution.operator_binding import get_binding_registry
-    from core.execution.tool_domain import sensed_fact
+    from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus

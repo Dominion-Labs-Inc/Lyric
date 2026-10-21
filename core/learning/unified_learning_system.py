@@ -83,6 +83,8 @@ from core.domain import (
     CrossDomainReasoner, DomainRegistry, UniversalOntology, UnknownDomain,
     UnresolvedDomainReference)
 from core.structural_defects import raise_if_structural
+from core.learning.rule_induction import Fact, as_constant
+from typing import FrozenSet
 
 #: How deep learning has recurred WITHIN THE CURRENT TASK.
 #:
@@ -5953,3 +5955,263 @@ def get_learning_authority() -> UnifiedLearningSystem:
     and learning_authority.py deleted), so this and `get_unified_learning_system`
     return the same object."""
     return get_unified_learning_system()
+
+
+# =============================================================================
+# WATCHING AN ACT: THE WORLD BEFORE IT AND AFTER IT, FILED AS A DEMONSTRATION
+# =============================================================================
+
+
+
+#: (domain_id, predicate, arity) -> the predicates that were observed to change.
+#: Memoised because it is read before every act; refreshed when that signature
+#: gains a demonstration (`note_demonstration`).
+_DISCRIMINATING: Dict[Tuple[str, str, int], FrozenSet[str]] = {}
+
+
+def note_demonstration(domain_id: str, predicate: str, arity: int) -> None:
+    """Forget the memo for a signature that just gained evidence, so the next
+    act re-reads what discriminates instead of trusting a stale answer."""
+    _DISCRIMINATING.pop((domain_id, predicate, arity), None)
+
+
+async def discriminating_predicates(domain_id: str, predicate: str,
+                                    arity: int) -> FrozenSet[str]:
+    """Which predicates this operator was OBSERVED to move.
+
+    THE FRAME IS LEARNED, NOT CHOSEN. Pointed at a file, 14 of 19 observations
+    answer -- `find_dead_code`, `find_todos`, `trace_dependencies` and
+    `security_scan` all report happily on a file that was moved, and none of it
+    is what the move did. Keeping all of them would put the induction back where
+    an unscoped generalisation retained 4098 literals and the suite stopped
+    finishing.
+
+    So an observation earns its place in the frame by having reported something
+    that CHANGED when this operator ran. That is read from the demonstrations
+    already stored for the signature, which is why it survives a restart with no
+    table of its own: the evidence is the calibration.
+
+    Empty while a signature has no demonstrations yet -- the bootstrap, where
+    the substrate watches everything it can once in order to find out what is
+    worth watching.
+    """
+    key = (domain_id, predicate, arity)
+    memo = _DISCRIMINATING.get(key)
+    if memo is not None:
+        return memo
+
+    from core.learning.demonstration_store import get_demonstration_store
+    try:
+        examples = await get_demonstration_store().load(
+            domain_id=domain_id, predicate=predicate, arity=arity)
+    except Exception as e:
+        # An unreadable store is not an empty one. Returning "nothing
+        # discriminates" would silently narrow every future frame to nothing.
+        logger.warning("could not read demonstrations for %s/%d in %s: %s",
+                       predicate, arity, domain_id, e)
+        return frozenset()
+
+    moved: set = set()
+    for example in examples:
+        before = {f.predicate for f in example.before}
+        after = {f.predicate for f in example.after}
+        moved |= before ^ after
+        # A predicate present on both sides may still have MOVED -- the same
+        # relation about different arguments. Compared as whole facts, not as
+        # bare names, or a rename inside one predicate reads as no change.
+        moved |= {f.predicate for f in set(example.before) ^ set(example.after)}
+
+    result = frozenset(moved)
+    _DISCRIMINATING[key] = result
+    return result
+
+
+class ActFrame:
+    """The world one act touches, read before it and again after it.
+
+    This is the before/action/after triple for an act nobody planned, in a
+    domain nobody declared. It is opened from the call's own arguments, so the
+    substrate can watch itself do something it has never done, in an environment
+    it was never told about.
+
+    THE SAME QUESTIONS BOTH TIMES. The readings are fixed when the frame opens
+    and re-run unchanged when it closes. A frame that asked different questions
+    either side of the act would report the difference between two questions as
+    an effect of the act.
+    """
+
+    def __init__(self, *, tool_name: str, action: Fact, domain_id: str,
+                 readings: List[Tuple[str, str, str]],
+                 before: Dict[Tuple[str, str], Optional[FrozenSet[Fact]]]) -> None:
+        self.tool_name = tool_name
+        self.action = action
+        self.domain_id = domain_id
+        self._readings = readings
+        self._before = before
+
+    @classmethod
+    async def open(cls, tool_name: str,
+                   parameters: Dict[str, Any]) -> Optional["ActFrame"]:
+        """Read the world this call is about to touch, or decline to watch.
+
+        Declines (None), never guesses, when:
+          - the tool is not registered, or declares no typed parameters;
+          - no argument names anything the substrate can look at, so there is
+            no world here to have a before and an after;
+          - nothing could be read at all, which is not the same as an empty
+            world and must not be planned or learned from as if it were.
+        """
+        from core.perception.perception_faculty import SELF_SENSE, _senses, identity, observe_resources, observer_index, resource_kind
+        from core.tools.tool_registry import ACTING_CLASSES, derived_domain_id, payload_parameters, payload_term, predicate_for, resource_parameters
+        from core.agents.autonomous.autonomous_coordinator import classify_action
+        from core.tools import get_tool_registry
+
+        tool = get_tool_registry().get_tool(tool_name)
+        if tool is None:
+            return None
+
+        # ONLY AN ACT HAS AN EFFECT TO LEARN. An investigation changes nothing,
+        # so watching one would spend two readings to observe that the world
+        # stayed as it was -- and would file that as a demonstration that the
+        # investigation does nothing, which is true and useless.
+        try:
+            action_class, _ = classify_action(tool_name, parameters or {})
+        except Exception as e:
+            logger.debug("%s could not be classified; not watching it: %s",
+                         tool_name, e)
+            return None
+        if getattr(action_class, "value", str(action_class)) not in ACTING_CLASSES:
+            return None
+
+        resources: List[Tuple[str, str]] = []
+        for parameter in resource_parameters(tool):
+            value = parameters.get(parameter.name)
+            if isinstance(value, str) and value.strip():
+                kind = resource_kind(parameter.name)
+                resources.append((kind, identity(kind, value)))
+        if not resources:
+            return None
+
+        # WHAT THE ACT WAS ASKED TO PUT INTO THE WORLD follows the places it
+        # names, as the payload's fingerprint, so the act and the self's reading
+        # of the file can be compared (`payload_term`). Not a resource: nothing
+        # here looks at it, and it adds no kind to the domain.
+        payloads = [payload_term(parameters.get(p.name)) for p in payload_parameters(tool)]
+        action = Fact(predicate_for(tool_name),
+                      tuple(as_constant(value) for _kind, value in resources)
+                      + tuple(as_constant(digest) for digest in payloads))
+        domain_id = derived_domain_id(kind for kind, _ in resources)
+
+        # A kind the self senses is read by that sense alone; any other kind by
+        # the tools that can be pointed at it.
+        senses = _senses()
+        index = observer_index()
+        candidates: List[Tuple[str, str, str]] = []
+        for kind, value in resources:
+            if kind in senses:
+                candidates.append((SELF_SENSE, kind, value))
+            else:
+                candidates.extend((observer, parameter, value)
+                                  for observer, parameter in index.get(kind, ()))
+        readings = await cls._earned(domain_id, action, candidates)
+        if not readings:
+            return None
+
+        before = await observe_resources(readings)
+        if all(facts is None for facts in before.values()):
+            logger.info("%s: the world could not be read before acting; "
+                        "not watching this act", tool_name)
+            return None
+        return cls(tool_name=tool_name, action=action, domain_id=domain_id,
+                   readings=readings, before=before)
+
+    @staticmethod
+    async def _earned(domain_id: str, action: Fact,
+                      candidates: List[Tuple[str, str, str]]
+                      ) -> List[Tuple[str, str, str]]:
+        """Narrow the candidates to the observations that have EARNED a place.
+
+        An observation earns it by having reported something this operator was
+        seen to move. Until that is known -- a signature with no demonstrations,
+        or a process that has not yet learned which observation produces which
+        predicate -- everything pointable is read, which is the bootstrap that
+        produces the evidence the narrowing is made of.
+
+        NARROWED BY OBSERVATION, NOT BY FACT. A discriminating observation is
+        one watching the right ASPECT of the world; its UNCHANGED facts are
+        exactly the preconditions. Keeping only facts that moved would throw the
+        preconditions away and leave an operator that names its effects and
+        nothing it needs.
+        """
+        from core.perception.perception_faculty import SELF_SENSE, _OBSERVER_PREDICATES
+        discriminating = await discriminating_predicates(
+            domain_id, action.predicate, action.arity)
+        if not discriminating:
+            return candidates
+        earned = [observer for observer, produced in _OBSERVER_PREDICATES.items()
+                  if produced & discriminating]
+        if not earned:
+            return candidates
+        narrowed = [c for c in candidates if c[0] == SELF_SENSE or c[0] in earned]
+        return narrowed or candidates
+
+    async def close(self) -> Optional[Tuple[FrozenSet[Fact], FrozenSet[Fact]]]:
+        """Re-read the world and return (before, after) over the readings that
+        answered BOTH times.
+
+        A reading that did not complete on either side is dropped from both,
+        because an unknown is not a state and the difference between a known and
+        an unknown is not an effect. Returns None when nothing survives -- the
+        world was not legible around this act, and `_record_execution_
+        demonstration` already refuses to file a demonstration in that case.
+        """
+        from core.perception.perception_faculty import observe_resources
+        after = await observe_resources(self._readings)
+        agreed = [key for key, facts in after.items()
+                  if facts is not None and self._before.get(key) is not None]
+        if not agreed:
+            logger.info("%s: no reading answered both before and after; "
+                        "nothing observed about this act", self.tool_name)
+            return None
+
+        before_facts: set = set()
+        after_facts: set = set()
+        for key in agreed:
+            before_facts |= self._before[key]
+            after_facts |= after[key]
+        return frozenset(before_facts), frozenset(after_facts)
+
+
+async def domain_discriminating(domain_id: str) -> FrozenSet[str]:
+    """Every predicate any operator of this domain was observed to move."""
+    from core.learning.demonstration_store import get_demonstration_store
+
+    demos = get_demonstration_store()
+    try:
+        signatures = await demos.signatures(domain_id=domain_id)
+    except Exception as e:
+        logger.warning("could not read the signatures of %s: %s", domain_id, e)
+        return frozenset()
+    moved: set = set()
+    for predicate, arity in signatures:
+        if (predicate, arity) == demos.CONTRASTIVE:
+            continue
+        moved |= await discriminating_predicates(domain_id, predicate, arity)
+    return frozenset(moved)
+
+
+async def refresh_earned(domain_id: str) -> FrozenSet[str]:
+    """Recompute which observations this domain's world is worth reading through.
+
+    Called after a demonstration is filed -- new evidence can only be turned
+    into a narrower world from a context that can reach the store.
+    """
+    from core.perception.perception_faculty import _EARNED_OBSERVERS, _OBSERVER_PREDICATES
+    moved = await domain_discriminating(domain_id)
+    earned = frozenset(observer for observer, produced
+                       in _OBSERVER_PREDICATES.items() if produced & moved)
+    if earned:
+        _EARNED_OBSERVERS[domain_id] = earned
+    else:
+        _EARNED_OBSERVERS.pop(domain_id, None)
+    return earned

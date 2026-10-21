@@ -6028,7 +6028,7 @@ class MemoryAgent(IMemoryConsolidation):
     @staticmethod
     def _declared_parameters(tool_name: str) -> Dict[str, Any]:
         """A tool's declared parameters by name, from the tool registry."""
-        from core.execution.tool_domain import declared_parameters
+        from core.tools.tool_registry import declared_parameters
         from core.tools.tool_registry import get_tool_registry
         tool = get_tool_registry().get_tool(tool_name)
         return {str(p.name): p for p in declared_parameters(tool)} if tool is not None else {}
