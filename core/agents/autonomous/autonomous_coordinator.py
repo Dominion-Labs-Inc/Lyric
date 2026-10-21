@@ -407,7 +407,7 @@ class Evidence:
         reasoning, memory…). DID all comes through the action-runtime channel.
       - `causal_lineage` — the causal pathway. Two items sharing a lineage are
         correlated (the same underlying event/observation) and must NOT compound;
-        they collapse to their strongest member. Different lineage → independent.
+        they collapse to their latest member. Different lineage → independent.
       - `derived` — true when this item is COMPUTED from other evidence (e.g. an
         aggregate 'verified' verdict = the AND of tool successes). Derived evidence
         is never an independent confirmation; it is dropped before compounding.
@@ -13654,7 +13654,7 @@ class AutonomousCoordinator:
         evidence (the intervention's own report, through the action-runtime
         channel) and SAW evidence (a FRESH, post-intervention re-observation of the
         world), drop derived items, collapse correlated ones (same causal lineage)
-        to their strongest, and feed ONE belief update per genuinely-independent
+        to their latest, and feed ONE belief update per genuinely-independent
         grounding. A task that only ACTED (DID ≈ 0.72) has one grounding and cannot
         reach the bar — the high threshold itself forces the fresh SAW that
         compounds to done. Isolated; never fabricates. Groundings are stashed on
@@ -13900,15 +13900,19 @@ class AutonomousCoordinator:
     def _independent_groundings(self, evidence) -> List["Evidence"]:
         """Reduce raw evidence to INDEPENDENT groundings: drop derived items, group
         by causal_lineage (correlated evidence shares a lineage), and keep one
-        representative per group — the strongest. Only these compound in the belief
-        update, so correlated evidence can never multiply into false confidence."""
+        representative per group — the latest. Only these compound in the belief
+        update, so correlated evidence can never multiply into false confidence.
+
+        THE LATEST, NOT THE STRONGEST. Evidence arrives in the order the acts ran,
+        and a lineage is one resource: what it holds now is what the last act on it
+        left. Keeping the strongest let a success hide a failure that came after it
+        (a success weighs 0.9, a failure 0.85), so a run whose final check failed
+        read as done."""
         by_lineage: Dict[str, "Evidence"] = {}
         for e in evidence:
             if e.derived:
                 continue
-            cur = by_lineage.get(e.causal_lineage)
-            if cur is None or e.strength > cur.strength:
-                by_lineage[e.causal_lineage] = e
+            by_lineage[e.causal_lineage] = e
         return list(by_lineage.values())
 
     def _decide_completion(self, task, result, verify_bar: float):
