@@ -13,9 +13,11 @@ to walk relation edges to conclusions -- reachability is not entailment.
 Licensed derivations, all conservative and all PROVENANCE-TAGGED:
 
     TRANSITIVITY   A -r-> B -r-> C   |=  A -r-> C
-                   only when r is ALWAYS-transitive (ISA, PART_OF, LOCATED_IN),
-                   or ONTOLOGY_DEFINED AND a context explicitly licenses r
-                   (CAUSES, PRECEDES ... never chain on their own).
+                   only when r is ALWAYS-transitive (ISA, PART_OF, LOCATED_IN,
+                   PRECEDES, CAUSES ...: every relation a chain of holds), or
+                   ONTOLOGY_DEFINED AND a context explicitly licenses r. Never
+                   MEMBER_OF, NEAR, LOCATED_AT ("on") or OWNS: a chain of them
+                   does not hold.
 
     PLACE          A -in-> B -part of-> C  |=  A -in-> C
                    A -part of-> B -in-> C  |=  A -in-> C

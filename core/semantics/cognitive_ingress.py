@@ -402,15 +402,18 @@ class CognitiveIngress:
         """Does `obj` already reach `subject` by the same ALWAYS-transitive
         relation? Returns the path as text when it does, else None.
 
-        Only ALWAYS-transitive relations are checked, and `relation_types` says
-        which those are -- today that is `isa` alone, so nothing else pays for
-        this. `UNION` (not `UNION ALL`) dedups the frontier, which matters: 24%
-        of concepts have more than one parent, and the path count is exponential
+        Only ALWAYS-transitive relations nothing can stand in to itself are
+        checked (`acyclic`), and `relation_types` says which those are: a kind,
+        a part, where a thing is, what is before or above it. Equals and
+        synonyms chain and are each in it to the other, and a loop of causes is
+        a feedback: a cycle of them is no contradiction, and none is refused.
+        `UNION` (not `UNION ALL`) dedups the frontier, which matters: 24% of
+        concepts have more than one parent, and the path count is exponential
         where the node count is not.
         """
         from core.semantics.relation_types import SPEC, classify, Transitivity
         spec = SPEC[classify(relation).relation]
-        if spec.transitivity is not Transitivity.ALWAYS:
+        if spec.transitivity is not Transitivity.ALWAYS or not spec.acyclic:
             return None
         db = self._db
         if db is None:
@@ -466,9 +469,11 @@ class CognitiveIngress:
             result.refusals.append(refusal)
             return result
 
-        # A KIND HIERARCHY MUST NOT HAVE CYCLES.
+        # A KIND HIERARCHY MUST NOT HAVE CYCLES, nor any relation that chains and
+        # that nothing stands in to itself (`acyclic`: parts, where a thing is,
+        # what is before it).
         #
-        # `isa` is the one ALWAYS-transitive relation (`relation_types.SPEC`),
+        # `isa` was the one ALWAYS-transitive relation (`relation_types.SPEC`),
         # and the reasoner walks it. "X is a kind of Y" together with "Y is a
         # kind of X" says the two are the same kind, and a walker that believes
         # both makes every member of the loop an ancestor of every other.

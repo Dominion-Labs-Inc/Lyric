@@ -312,17 +312,37 @@ def test_inverse_is_derived_with_provenance_not_observed():
     assert answer("zorble", R.HAS_PART, "flippers", edges).basis == "observed"
 
 
-def test_ontology_defined_relations_do_not_chain_by_default():
+def test_every_relation_a_chain_of_holds_chains_and_no_other():
+    """A cause of a cause is a cause, what is before what is before a thing is before it, and so are above, more than,
+    a need of a need and the stuff of a thing's stuff; a chain of nearness, membership, "on", owning or likeness holds
+    nothing (2026-10-21). Nothing chaining stands in itself where a loop of it is a contradiction, so only those are
+    guarded against cycles at admission: not equals, nor causes, whose loop is a feedback."""
     from core.reasoning.relation_algebra import answer, UNKNOWN, TRUE
-    from core.semantics.relation_types import SemanticRelation as SR
-    # smoking CAUSES cancer, cancer CAUSES death -- CAUSES is ONTOLOGY_DEFINED,
-    # so it must NOT chain on its own.
-    edges = [Edge("smoking", SR.CAUSES, "cancer"), Edge("cancer", SR.CAUSES, "death")]
-    assert answer("smoking", SR.CAUSES, "death", edges).verdict == UNKNOWN
-    # ...but a context that licenses CAUSES transitivity DOES chain it.
-    licensed = answer("smoking", SR.CAUSES, "death", edges,
-                      context_licenses=frozenset({SR.CAUSES}))
-    assert licensed.verdict == TRUE
+    from core.semantics.relation_types import SemanticRelation as SR, get_spec
+    for relation in (SR.CAUSES, SR.PRECEDES, SR.ABOVE, SR.EXCEEDS, SR.REQUIRES, SR.MADE_OF, SR.EQUALS):
+        chain = [Edge("a", relation, "b"), Edge("b", relation, "c")]
+        assert answer("a", relation, "c", chain).verdict == TRUE, relation
+    for relation in (SR.NEAR, SR.MEMBER_OF, SR.LOCATED_AT, SR.OWNS, SR.SIMILAR_TO):
+        chain = [Edge("a", relation, "b"), Edge("b", relation, "c")]
+        assert answer("a", relation, "c", chain).verdict == UNKNOWN, relation
+    assert get_spec(SR.PART_OF).acyclic and get_spec(SR.PRECEDES).acyclic
+    assert not get_spec(SR.EQUALS).acyclic and not get_spec(SR.CAUSES).acyclic
+    import asyncio
+    from core.semantics.cognitive_ingress import CognitiveIngress
+
+    class Unreachable:
+        initialized = True
+
+        async def execute_query(self, *a, **k):
+            raise AssertionError("a loop of what is no contradiction is never looked for")
+    guard = CognitiveIngress(db_manager=Unreachable())
+    for relation, subject, obj in (("causes", "stress", "insomnia"), ("equals", "paris", "capital_1")):
+        assert asyncio.run(guard._would_close_a_cycle(relation, subject, obj)) is None
+    try:
+        asyncio.run(guard._would_close_a_cycle("part of", "paris", "france"))
+        raise AssertionError("a part's loop is looked for")
+    except RuntimeError as looked:
+        assert "could not run" in str(looked)
 
 
 def test_a_part_of_a_part_is_a_part_and_what_is_in_a_thing_is_where_it_is():

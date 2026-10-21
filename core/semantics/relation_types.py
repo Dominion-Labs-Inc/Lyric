@@ -198,20 +198,21 @@ def is_worded(relation: str) -> bool:
 class Transitivity(Enum):
     """Whether A -r-> B -r-> C entails A -r-> C.
 
-    The middle state is the important one: some relations (CAUSES, PRECEDES)
-    ARE transitive in some ontologies/contexts and not others, and assuming they
-    always chain is exactly the contamination this whole layer exists to stop.
-    ONTOLOGY_DEFINED means "only when a context explicitly licenses it" -- the
-    conservative default is NOT to chain.
+    EVERY RELATION A CHAIN OF HOLDS, CHAINS: a part of a part is a part, what is
+    in a thing is in what that thing is in, what is before what is before a
+    thing is before it, a cause of a cause is a cause, and so on (2026-10-21).
+    They were held to chain only where a context licensed them, ONTOLOGY_DEFINED,
+    and no context ever did: "Is the Eiffel Tower in France?" was never answered,
+    told it is in Paris and Paris part of France (UNDERSTANDS-PROSE-01).
 
-    A PART OF A PART IS A PART, AND WHAT IS IN A THING IS IN WHAT THAT THING IS IN:
-    PART_OF and LOCATED_IN chain. Held only in context, and no context licensing
-    them, "Is the Eiffel Tower in France?" was never answered, told it is in
-    Paris and Paris part of France (UNDERSTANDS-PROSE-01, 2026-10-21). What
-    chained into nonsense ("finger part of hand ... person part of team") is
-    membership, which never chains (MEMBER_OF).
+    NEVER is a relation a chain of does not hold: membership (a player in a team
+    in a league is no member of the league), nearness and adjacency (London near
+    Oxford near Birmingham), "on" (the book on the table on the floor), owning,
+    likeness and opposites, and every part of a happening. What chained into
+    nonsense ("finger part of hand ... person part of team") was membership.
+    ONTOLOGY_DEFINED, a relation that chains only where a context says, has none.
     """
-    ALWAYS = "always"                    # logically safe (ISA, PART_OF, LOCATED_IN)
+    ALWAYS = "always"                    # a chain of it holds (ISA, PART_OF, PRECEDES ...)
     NEVER = "never"                      # chaining is unsound
     ONTOLOGY_DEFINED = "ontology_defined"  # licensed only in context
 
@@ -237,6 +238,11 @@ class RelationSpec:
       inverse      -- the relation of B r' A, DERIVABLE (not observed) from A r B
       generic_safe -- a bare indefinite subject may be read as a universal law
                       about the KIND, rather than one existential situation.
+      acyclic      -- nothing stands in it to itself, however long the chain:
+                      a part of a part of itself is no part, and nothing is
+                      before what is before it. Equals and synonyms (each in it
+                      to the other), causes, requires and enables (a loop of
+                      them is a feedback, a mutual need) are not.
       of_any_part  -- relates concepts of whatever part of speech they are, each
                       as it is: "hot" and "cold" are qualities, "buy" and "sell"
                       doings, "day" and "night" things, and the relation takes
@@ -259,6 +265,7 @@ class RelationSpec:
     gloss: str = ""
     of_any_part: bool = False
     heading_forms: FrozenSet[str] = frozenset()
+    acyclic: bool = False
 
     @property
     def transitive(self) -> bool:
@@ -289,7 +296,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"is a", "is an", "are a", "are", "is kind of",
                             "is a kind of", "is type of", "is a type of",
                             "is sort of", "is a sort of", "isa"}),
-                 transitivity=Transitivity.ALWAYS, gloss="subsumption between kinds"),
+                 transitivity=Transitivity.ALWAYS, gloss="subsumption between kinds", acyclic=True),
     RelationSpec(SemanticRelation.INSTANCE_OF,
                  frozenset({"is instance of", "is an instance of",
                             "is the", "instance of"}),
@@ -300,12 +307,12 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  frozenset({"is part of", "part of", "is a part of"}),
                  inverse=SemanticRelation.HAS_PART, transitivity=Transitivity.ALWAYS,
                  gloss="proper part of a whole",
-                 heading_forms=frozenset({"parent", "assembly", "system", "subsystem"})),
+                 heading_forms=frozenset({"parent", "assembly", "system", "subsystem"}), acyclic=True),
     RelationSpec(SemanticRelation.HAS_PART,
                  frozenset({"has part", "has a", "have", "has", "consists of",
                             "is made up of", "comprises"}),
                  inverse=SemanticRelation.PART_OF, inheritable=True,
-                 gloss="a whole has a part"),
+                 gloss="a whole has a part", transitivity=Transitivity.ALWAYS, acyclic=True),
     RelationSpec(SemanticRelation.MEMBER_OF,
                  frozenset({"is member of", "is a member of", "member of",
                             "belongs to"}),
@@ -321,10 +328,11 @@ _SPECS: Tuple[RelationSpec, ...] = (
                             "is made from", "composed of", "is composed of",
                             "built from", "is built from"}),
                  inverse=SemanticRelation.MATERIAL_OF,
-                 gloss="substance a thing is composed of (does NOT imply ISA)"),
+                 gloss="substance a thing is composed of (does NOT imply ISA)", transitivity=Transitivity.ALWAYS,
+                 acyclic=True),
     RelationSpec(SemanticRelation.MATERIAL_OF,
                  frozenset({"is material of", "material of"}),
-                 inverse=SemanticRelation.MADE_OF),
+                 inverse=SemanticRelation.MADE_OF, transitivity=Transitivity.ALWAYS, acyclic=True),
     # spatial
     RelationSpec(SemanticRelation.LOCATED_IN,
                  frozenset({"is in", "in", "lives in", "located in",
@@ -333,10 +341,11 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  inverse=SemanticRelation.CONTAINS, transitivity=Transitivity.ALWAYS,
                  generic_safe=False,
                  gloss="containment location (contextual, not a kind law)",
-                 heading_forms=frozenset({"location", "compartment", "space", "room", "installed in"})),
+                 heading_forms=frozenset({"location", "compartment", "space", "room", "installed in"}), acyclic=True),
     RelationSpec(SemanticRelation.CONTAINS,
                  frozenset({"contains", "holds", "encloses"}),
-                 inverse=SemanticRelation.LOCATED_IN, generic_safe=False),
+                 inverse=SemanticRelation.LOCATED_IN, generic_safe=False, transitivity=Transitivity.ALWAYS,
+                 acyclic=True),
     RelationSpec(SemanticRelation.LOCATED_AT,
                  frozenset({"is at", "at", "located at", "is located at",
                             "on", "is on", "on top of", "sits on", "rests on"}),
@@ -350,23 +359,23 @@ _SPECS: Tuple[RelationSpec, ...] = (
     # for them is learned from lessons. Each has its inverse; none chains unless
     # a context licenses it, since "above" held of places, not kinds, is contextual.
     RelationSpec(SemanticRelation.ABOVE, frozenset(), inverse=SemanticRelation.BELOW,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="higher than another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="higher than another thing", acyclic=True),
     RelationSpec(SemanticRelation.BELOW, frozenset(), inverse=SemanticRelation.ABOVE,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="lower than another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="lower than another thing", acyclic=True),
     RelationSpec(SemanticRelation.LEFT_OF, frozenset(), inverse=SemanticRelation.RIGHT_OF,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="to the left of another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="to the left of another thing", acyclic=True),
     RelationSpec(SemanticRelation.RIGHT_OF, frozenset(), inverse=SemanticRelation.LEFT_OF,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="to the right of another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="to the right of another thing", acyclic=True),
     RelationSpec(SemanticRelation.IN_FRONT_OF, frozenset(), inverse=SemanticRelation.BEHIND,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="nearer the one looking than another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="nearer the one looking than another thing", acyclic=True),
     RelationSpec(SemanticRelation.BEHIND, frozenset(), inverse=SemanticRelation.IN_FRONT_OF,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="farther from the one looking than another thing"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="farther from the one looking than another thing", acyclic=True),
     RelationSpec(SemanticRelation.BETWEEN, frozenset(), generic_safe=False,
                  gloss="between the members of a group"),
     RelationSpec(SemanticRelation.NEAR, frozenset(), symmetric=True, generic_safe=False,
@@ -411,7 +420,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
     # Arithmetic said in words: an operation's value and the numbers it is made of, each in its own place. The
     # symbolic mathematics faculty works these out; nothing chains through them. NO SURFACE FORMS: learned.
     RelationSpec(SemanticRelation.EQUALS, frozenset(), symmetric=True,
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
                  gloss="two values that are the same number"),
     RelationSpec(SemanticRelation.HAS_AUGEND, frozenset(), generic_safe=False,
                  gloss="a sum and the number added to"),
@@ -449,8 +458,8 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.HAS_DEGREE, frozenset(), generic_safe=False,
                  gloss="a thing and its degree of a property"),
     RelationSpec(SemanticRelation.EXCEEDS, frozenset(),
-                 transitivity=Transitivity.ONTOLOGY_DEFINED, generic_safe=False,
-                 gloss="one degree of a property, or one number, more than another"),
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="one degree of a property, or one number, more than another", acyclic=True),
     RelationSpec(SemanticRelation.GREATEST_OF, frozenset(), generic_safe=False,
                  gloss="a degree the most of its property among the things of a kind"),
     # "two meters long": the degree of long, and the amount it measures.
@@ -460,23 +469,23 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.CAUSES,
                  frozenset({"causes", "cause", "leads to", "results in",
                             "brings about", "induces"}),
-                 inverse=SemanticRelation.CAUSED_BY, transitivity=Transitivity.ONTOLOGY_DEFINED,
+                 inverse=SemanticRelation.CAUSED_BY, transitivity=Transitivity.ALWAYS,
                  gloss="one thing brings another about"),
     RelationSpec(SemanticRelation.CAUSED_BY,
                  frozenset({"is caused by", "caused by", "results from",
                             "due to", "stems from"}),
-                 inverse=SemanticRelation.CAUSES),
+                 inverse=SemanticRelation.CAUSES, transitivity=Transitivity.ALWAYS),
     RelationSpec(SemanticRelation.ENABLES,
-                 frozenset({"enables", "allows", "permits", "facilitates"})),
+                 frozenset({"enables", "allows", "permits", "facilitates"}), transitivity=Transitivity.ALWAYS),
     RelationSpec(SemanticRelation.PREVENTS,
                  frozenset({"prevents", "stops", "blocks", "inhibits"})),
     RelationSpec(SemanticRelation.REQUIRES,
                  frozenset({"requires", "needs", "depends on", "presupposes"}),
                  inverse=SemanticRelation.REQUIRED_BY, inheritable=True,
-                 heading_forms=frozenset({"requires", "dependency", "dependencies"})),
+                 heading_forms=frozenset({"requires", "dependency", "dependencies"}), transitivity=Transitivity.ALWAYS),
     RelationSpec(SemanticRelation.REQUIRED_BY,
                  frozenset({"is required by", "required by"}),
-                 inverse=SemanticRelation.REQUIRES),
+                 inverse=SemanticRelation.REQUIRES, transitivity=Transitivity.ALWAYS),
     # functional
     RelationSpec(SemanticRelation.USED_FOR,
                  frozenset({"is used for", "used for", "used to", "for"}),
@@ -514,7 +523,7 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.SYNONYM_OF,
                  frozenset({"means", "is synonym of", "same as",
                             "is the same as", "is synonymous with"}),
-                 symmetric=True, transitivity=Transitivity.ONTOLOGY_DEFINED, of_any_part=True),
+                 symmetric=True, transitivity=Transitivity.ALWAYS, of_any_part=True),
     RelationSpec(SemanticRelation.ANTONYM_OF,
                  frozenset({"is opposite of", "antonym of",
                             "is the opposite of", "opposite of"}),
@@ -530,15 +539,15 @@ _SPECS: Tuple[RelationSpec, ...] = (
                  gloss="a sense and a sense its definition is written with"),
     RelationSpec(SemanticRelation.DERIVED_FROM,
                  frozenset({"is derived from", "derived from", "comes from",
-                            "originates from"})),
+                            "originates from"}), transitivity=Transitivity.ALWAYS, acyclic=True),
     # temporal
     RelationSpec(SemanticRelation.PRECEDES,
                  frozenset({"precedes", "comes before", "is before"}),
-                 inverse=SemanticRelation.FOLLOWS, transitivity=Transitivity.ONTOLOGY_DEFINED,
-                 generic_safe=False),
+                 inverse=SemanticRelation.FOLLOWS, transitivity=Transitivity.ALWAYS,
+                 generic_safe=False, acyclic=True),
     RelationSpec(SemanticRelation.FOLLOWS,
                  frozenset({"follows", "comes after", "is after"}),
-                 inverse=SemanticRelation.PRECEDES, generic_safe=False),
+                 inverse=SemanticRelation.PRECEDES, generic_safe=False, transitivity=Transitivity.ALWAYS, acyclic=True),
     RelationSpec(SemanticRelation.DURING, frozenset(), generic_safe=False,
                  gloss="an event or state at the same time as another, or as a time"),
     # event participants. "Tie your shoe." is a tying, done by the listener, done
