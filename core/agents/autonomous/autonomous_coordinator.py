@@ -8638,7 +8638,11 @@ class AutonomousCoordinator:
             provenance={"goal_conditions": [str(f) for f in sorted(effects.add)]
                         + [f"¬{f}" for f in sorted(effects.delete)],
                         "domain_id": expectation.domain_id,
-                        "expectation_id": expectation.expectation_id},
+                        "expectation_id": expectation.expectation_id,
+                        # WHAT IT RESTS ON: the thing as it was left. Pursued
+                        # later (her yes comes later, a queue waits), it is
+                        # pursued only while that still holds.
+                        "requires": [str(f) for f in sorted(expectation.held)]},
             metadata={"told_taken_on": True},
         )
         if await self.task_queue.add_task(task, held_for_person=offered):
@@ -15430,8 +15434,10 @@ class AutonomousCoordinator:
                             deficit=_deficit),
                         origin="_execute_and_validate_task"))
 
-                # Retry or fail
-                if task.retry_count < task.max_retries:
+                # Retry or fail. A goal the world no longer calls for (`moot`) is
+                # not retried: nothing about it can change by trying again.
+                if (task.retry_count < task.max_retries
+                        and not (isinstance(result, dict) and result.get("moot"))):
                     logger.warning(f"🔄 Task failed validation, retrying: {task.id}")
                     task.retry_count += 1
 
@@ -17556,6 +17562,24 @@ The substrate must realign with its constitutional responsibilities immediately.
         if spec is None:
             return None
 
+        # A GOAL THAT RESTS ON HOW SOMETHING WAS LEFT is moot once it is not so:
+        # put right after the person dealt with it otherwise, it would undo what
+        # they did. Measured (EXPECT-02, run 9): a file left in the inbox and
+        # filed to ARCHIVE before the goal ran, planned to be moved back -- the
+        # constitution refused it, and the goal should never have got that far.
+        # Ended without acting and without a retry; they are told why.
+        required = (getattr(task, "provenance", None) or {}).get("requires")
+        if required:
+            seen = {str(fact) for fact in spec["world_state"]}
+            gone = [fact for fact in required if fact not in seen]
+            if gone:
+                return {
+                    'success': False, 'moot': True, 'task_id': task.id,
+                    'execution_path': 'substrate_plan', 'model_free': True,
+                    'domain_id': spec["domain_id"],
+                    'error': f"it was dealt with before I got to it: {', '.join(gone)} no longer holds",
+                }
+
         engine = await self._get_planning_engine()
         if engine is None:
             return None
@@ -18167,6 +18191,9 @@ The substrate must realign with its constitutional responsibilities immediately.
                     binding.tool_name, binding.parameters(action.args))
                 after = binding.observe()
                 interfered = _overlapped()
+                # What this act changed, so a reading of the domain can tell it
+                # from what the world did to everything else there.
+                _overlapped.changed(before, after)
         finally:
             reset_acting_intent(_intent_token)
             reset_acting_actor(_actor_token)

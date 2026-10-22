@@ -143,20 +143,27 @@ def _json_safe(value: Any) -> Any:
 #: not keep it is then theirs to have answered -- when it is more likely than not
 #: that it holds at least this often: its rate's lower bound, half a standard
 #: error below it (one-sided 69%), is at least this (`regularity_relied_on`).
-#: Chosen by Stefan (2026-10-22) over 84% and 95%, which answered 83% and 59% of a
+#: Chosen over 84% and 95%, which answered 83% and 59% of a
 #: 90% habit's misses where this answers 93%, a 75% one's 9%, a 50% one's none.
 RELIED_ON_RATE = 0.8
 #: The two-sided level whose lower bound is the one-sided 69% above (z = 0.5).
 RELIED_ON_CONFIDENCE = 2 * NormalDist().cdf(0.5) - 1
+#: And never on fewer outcomes than this: so lenient a bound relied on a habit at
+#: its first confirmation, and a step kept every other time was answered twice
+#: before its rate showed it (EXPECT-01, section E).
+RELIED_ON_MIN_OUTCOMES = 5
 
 
 def relied_on_rate(held: int, expected: int) -> bool:
     """Whether a habit that held `held` times of `expected` is more likely than
-    not to hold at least `RELIED_ON_RATE` of the time. Nine of ten is; eight of
-    ten is not; seventy-five of a hundred never will be, however long it runs."""
+    not to hold at least `RELIED_ON_RATE` of the time, on at least
+    `RELIED_ON_MIN_OUTCOMES` outcomes. Five of five is; one of one is not yet;
+    nine of ten is; eight of ten is not; seventy-five of a hundred never will be."""
     from core.learning.meta_learning import wilson_interval
+    if expected < RELIED_ON_MIN_OUTCOMES:
+        return False
     lower, _upper = wilson_interval(held, expected, confidence_level=RELIED_ON_CONFIDENCE)
-    return expected > 0 and lower >= RELIED_ON_RATE
+    return lower >= RELIED_ON_RATE
 
 
 _BASIS_POSITIVES = 8
@@ -421,13 +428,20 @@ def world_change_examples(before, after, *, evidence_stem: str
     return examples
 
 
+def expected_things(effects, world) -> frozenset:
+    """The things an expected change is about -- the file that should move, not
+    the rooms it moves between -- by the same cut its changes are learned by."""
+    predicted = effects.add | effects.delete
+    return frozenset(t for _facts, about in _changed_things(predicted, frozenset(world))
+                     for t in about)
+
+
 def expectation_case(held, now, effects, *, evidence_id: str) -> "TrainingExample":
     """An unmet expectation as a counter-example: what held about its terms when
     it was formed, and what holds of them now, with the effects it predicted
     absent. Cut by the same restriction as the changes it is compared with."""
     predicted = effects.add | effects.delete
-    things = {t for _facts, about in _changed_things(predicted, frozenset(held) | frozenset(now))
-              for t in about}
+    things = expected_things(effects, frozenset(held) | frozenset(now))
     named = {t for f in predicted for t in f.args}
     relations = {f.predicate for f in predicted}
     return TrainingExample(

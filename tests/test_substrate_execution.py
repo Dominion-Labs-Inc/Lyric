@@ -17,6 +17,7 @@ that moves the wrong way is CONTRADICTION.
 import asyncio
 import shutil
 import tempfile
+import uuid
 from pathlib import Path
 from uuid import uuid4
 
@@ -702,10 +703,36 @@ def test_a_habit_is_relied_on_by_how_often_it_held():
     four or every other time never is, however long it runs."""
     from core.learning.unified_learning_system import relied_on_rate
     assert not relied_on_rate(0, 0)
+    assert not relied_on_rate(1, 1) and not relied_on_rate(4, 4) and relied_on_rate(5, 5)
     assert relied_on_rate(9, 10) and not relied_on_rate(8, 10)
     assert relied_on_rate(90, 100)
     assert not relied_on_rate(75, 100) and not relied_on_rate(750, 1000)
     assert not relied_on_rate(50, 100) and not relied_on_rate(500, 1000)
+
+
+def test_what_the_substrate_touched_is_told_apart_per_thing():
+    """An act that says what it changed names those things, and the world's own
+    change of anything else is still the world's; one that does not say, or one
+    still under way, counts as having touched everything."""
+    from core.intelligence.effect_verification import (act_mark, acts_touched,
+                                                       concurrent_execution_guard)
+    domain = f"touch_{uuid.uuid4().hex[:6]}"
+    before = frozenset({Fact("AT", ("pdf026", "INBOX")), Fact("AT", ("pdf027", "INBOX"))})
+    after = frozenset({Fact("AT", ("pdf026", "DONE")), Fact("AT", ("pdf027", "INBOX"))})
+
+    start = act_mark(domain)
+    with concurrent_execution_guard(domain) as act:
+        assert acts_touched(domain, start, act_mark(domain)) is None      # under way
+        act.changed(before, after)
+    told = act_mark(domain)
+    with concurrent_execution_guard(domain):
+        pass                                                              # says nothing
+    untold = act_mark(domain)
+
+    assert acts_touched(domain, start, told) == {"pdf026", "INBOX", "DONE"}
+    assert "pdf027" not in acts_touched(domain, start, told)
+    assert acts_touched(domain, told, untold) is None
+    assert acts_touched(domain, told, told) == frozenset()
 
 
 def test_a_kind_of_change_names_its_places_and_leaves_the_thing_open():

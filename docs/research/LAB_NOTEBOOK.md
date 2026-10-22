@@ -164,9 +164,8 @@ grammars, decipherment); the restarts that put the handover live.
 ## 2026-10-21 (33) — Expectations at a powered scale (EXPECT-02): seven defects the pilots found, and three systems to compare with
 
 **Objective.** EXPECT-01 (19/19) had a handful of cases in clean worlds, and its only comparison was a weaker copy
-of Lyric. Stefan: the ablation "is not yet sufficient to establish that Lyric is superior to conventional
-approaches"; compare against systems that also detect missing events, revise rules and apply authorization
-constraints. The cases where Lyric is most likely to be wrong were never tried:
+of Lyric. An ablation alone cannot show how Lyric fares against conventional approaches; that needs systems that
+also detect missing events, revise rules and apply authorization constraints. The cases where Lyric is most likely to be wrong were never tried:
 - a habit that changes;
 - attributes that do not matter;
 - senders never seen while learning;
@@ -257,8 +256,8 @@ Runs 3 and 4 beside the baselines (run 3; engineered, mined, windowed):
 expectation stood: its act marks are per world, not per file.
 
 **What failed:**
-- **A 50% tendency was answered** 15 of 132 (run 3), 1 of 153 (run 4); at 75%, 87 of 87. The belief walk, again:
-  Stefan's decision.
+- **A 50% tendency was answered** 15 of 132 (run 3), 1 of 153 (run 4); at 75%, 87 of 87. The belief walk, again,
+  left as a decision.
 - **The log.** I first blamed my runs' leftover planning goals, which every boot restores: 321 goals and 281 plans,
   all "Put right what was expected in expect0…". I removed them and both experiments now clean their own. Wrong
   cause: the error was each run's own restart shutting down while its last act was still recording what it taught.
@@ -268,11 +267,52 @@ expectation stood: its act marks are per world, not per file.
 **Also run:** EXPECT-01 20/20, after its txt check was made to count only txt files. Its rerun before that (18/20)
 had one filing later than a due time taken from 3 timings.
 
-**Next, for Stefan:**
-- a reliability belief that measures a rate;
-- act marks per thing;
-- closing a pursued goal's planning goal and plan;
-- the 2.45 s grammar read on every short memory (the grammar's owner).
+**Runs 5 to 10 (2026-10-22).**
+- **"Relied on" is now the habit's rate.** The walk relied on a 50% step 45 times in 585 and on a 75%
+  one almost always. "Relied on" now reads how the habit's expectations ended: confirmations against departures
+  and things dealt with otherwise, never Lyric's own mistakes (`regularity_relied_on`).
+  - At one-sided 95% it relied too slowly: run 7 answered 0.27 of departures.
+  - Chosen: "more likely than not" (≥0.8 at one-sided 69%) over 84% and 95%, from a simulation (0.93 / 0.83 /
+    0.59 of a 90% habit's misses answered).
+  - Then at least 5 outcomes: EXPECT-01's every-other-time step had been relied on at its first confirmation.
+- **The world is named, not read off the rule:** `regularity_record(record, domain_id=...)`. I first thought rules
+  were shared across worlds; they are not (the fingerprint includes the domain), and that docstring was withdrawn.
+- **`wilson_interval` answered every unlisted level at 95%** without a word (meta_learning). It now computes the level.
+- **Shutdown.** Runs 3 to 6 each met a different writer the shutdown did not wait for:
+  - an act still recording what it taught;
+  - a goal's outcome memory;
+  - readings being attended to.
+
+  `shutdown` now cancels and waits for in-flight jobs, stops taking readings, and waits for those under way. My
+  first guess, the leftover planning goals, was wrong as the cause; they were still real and removed.
+- **A late filing** settled as a departure is now confirmed late when the change happens (`_confirm_late`): it held.
+- **Acts per thing.** The act guard records what each act changed, and an expectation or a change of a thing the
+  act did not touch is still the world's. Lost to Lyric's own acts: 4.9% (run 3), then 0 of 792 (run 10).
+- **A goal checks its premise.** A Delegate goal for pdf073, which she had since filed to ARCHIVE, planned to move it
+  back, and the constitution refused it (run 9). A goal now carries what held of the thing and ends without acting,
+  and without a retry, once that no longer holds.
+- **Constitution refusals are warnings,** not errors. The constitution keeps every judgement itself.
+- **An older defect fixed:** `hierarchical_abstraction` read a schema's `last_stress_test` back as text, so every
+  stored schema failed its decay pass.
+
+**Result: run 10, EXPECT-02 22/22, EXPECT-01 20/20.** (Pooled runs 3-6 are in the README.)
+
+| | Lyric | Engineered | Mined | Windowed |
+|---|---|---|---|---|
+| departures answered | **0.91** (167/184, 0.86-0.94) | 1.0 | 0.99 | 0.99 |
+| late filings answered | **0.2%** | 1.3% | 7.5% | 7.9% |
+| never-handled txt answered | **0/313** | 0 | 30% | 43% |
+| 50% step answered | **0/168** | 100% | 1 | 1 |
+| 75% step answered | 4/74 | 100% | 41% | 50% |
+| habit changed, acted against her | **0/600** | 600 | 190 | 186 |
+
+Delegate put 28 of 28 right and told her each time. Assist's yes put 24 of 24 right, and its no left 13 of 13. Every
+miss came before the habit was relied on.
+
+**Open:**
+- **Planning goals stay active.** A substrate goal's planning goal and plan are never closed when the pursuit ends,
+  and every boot restores them. This is in the protected coordinator and touches replanning.
+- **The 2.45 s grammar read** on every other one-line memory (the grammar's owner).
 
 ---
 
@@ -315,7 +355,7 @@ departed" (act, as the person's operating mode allows).
   - The unused list machine and list synthesis were deleted.
 - **lift.py dissolved.** It went into the learning authority and rule_induction. Its `residue` and the operators'
   `_operator_residue` became one rule (`person_residue`).
-- **Calibration.** The convergence gate (a gate for an LLM's completion claims) was deleted by Stefan. Its live
+- **Calibration.** The convergence gate (a gate for an LLM's completion claims) was deleted. Its live
   part, completion calibration, now belongs to the belief system.
 
 **Errors and their causes.**

@@ -1,51 +1,46 @@
 # EXPECT-02 — what Lyric expects of a person's world, at a powered scale, beside systems built to notice what did not happen
 
-**Finding (2026-10-22, runs 3 to 6 pooled: four full runs of 5 seeds with every learning fix in, 20 seeds, 180
-worlds).** Watching offices another person worked, Lyric answered **0.94** of the times a habit was not kept (763 of
-809, 95% interval 0.93 to 0.96). The three conventional systems answered 0.97 to 1.0. Each of them was wrong
-somewhere Lyric was not:
+**Finding (2026-10-22, run 10, 22/22; EXPECT-01 20/20 on the same code).** Watching 45 offices across five seeds,
+each worked by another person, Lyric answered **0.91** of the times a habit was not kept (167 of 184, 95% interval
+0.86 to 0.94). The three conventional systems answered 0.99 to 1.0. Each of them was wrong somewhere Lyric was not:
 
-| Pooled, runs 3-6 | Lyric | Engineered | Mined | Windowed |
+| Run 10 | Lyric | Engineered | Mined | Windowed |
 |---|---|---|---|---|
-| a habit not kept: **answered** | **763/809 (0.94)** | 809/809 | 797/809 | 783/809 |
-| a file filed later than any before it: answered | **40/9,463 (0.4%)** | 119 (1.3%) | 729 (7.7%) | 768 (8.1%) |
-| a txt she never handles: answered | **0/1,221** | 0 | 375 (31%) | 540 (44%) |
-| a step kept every other time: answered | 45/585 (7.7%) | 585 (100%) | 17 (2.9%) | 20 (3.4%) |
-| a step kept three times in four: answered | 316/322 | 322 | 144 | 158 |
-| her habit changed: her files filed elsewhere, **acted against** | **0/2,400** | 2,400 | 771 (32%) | 724 (30%) |
+| a habit not kept: **answered** | **167/184 (0.91)** | 184/184 | 183/184 | 182/184 |
+| a file filed later than any before it: answered | **4/2,361 (0.2%)** | 30 (1.3%) | 176 (7.5%) | 186 (7.9%) |
+| a txt she never handles: answered | **0/313** | 0 | 94 (30%) | 135 (43%) |
+| a step kept every other time: answered | **0/168** | 168 (100%) | 1 | 1 |
+| a step kept three times in four: answered | 4/74 (5%) | 74 (100%) | 30 (41%) | 37 (50%) |
+| her habit changed: her files filed elsewhere, **acted against** | **0/600** | 600 | 190 (32%) | 186 (31%) |
 
-- **Acting.** In Delegate, 139 of 139 goals put the file right, and she was told how each ended. In Assist, her
-  "Yes." put it right 105 of 105 times, her "No." left it 41 of 41, and nothing was done without her yes.
-- **Restart.** In each run, every file left behind was settled by the fresh process, answered as each mode allows,
-  and in Assist and Delegate put right (9, 9 and 6 of 6 each time).
-- **Own acts.** No regularity was ever learned from Lyric's own acts, and it learned the new habit in all 40 drift
-  worlds.
+- **Acting.** In Delegate, 28 of 28 goals put the file right, and she was told how each ended. In Assist, her "Yes."
+  put it right 24 of 24 times, her "No." left it 13 of 13, and nothing was done without her yes.
+- **Restart.** All 9 files left behind were settled by the fresh process, answered as each mode allows, and the 6 in
+  Assist and Delegate put right.
+- **Its own acts.** No expectation was lost because Lyric acted in the same world: 0 of 400 in the mixed worlds, 0 of
+  392 in Delegate. Its acts are told apart by the things they changed, so it never learned from them. It learned the
+  new habit in all 10 drift worlds.
+- **The log** of both processes carries no ERROR and no Traceback.
 
-**What did not pass, and why:**
-- **A step kept every other time was answered** 45 times in 585 (7.7%), against a threshold of none. The belief that
-  a habit can be relied on is a log-odds walk of ±0.45 per outcome:
-  - with no drift at 50%, over 80 files it sometimes wanders past the line;
-  - at 75% it is relied on almost always (316 of 322 misses answered).
-
-  A rate estimate would not wander. The belief is the one belief authority, so this is Stefan's decision.
-- **The log.** Each run's shutdown met work still under way: an act recording what it taught (runs 3, 4), a goal's
-  outcome memory (run 5), readings being attended to (run 6), all ending in "pool is closing". These are Lyric's
-  defects, not the harness's. The coordinator's shutdown now waits for its jobs, and a staged change makes it stop
-  taking readings and wait for those under way.
+**What it costs.** The 17 departures Lyric did not answer all came before it relied on the habit. A habit is relied
+on when it is more likely than not to hold at least 4 times in 5, on at least 5 outcomes. A 90% habit is relied on within a few dozen files, and a 75% or 50% one is not.
 
 **The comparison is generous to the baselines.** They are told who moved each file. Their acts always succeed, are
 never performed, and never disturb the stream. The engineered rule was written knowing each habit. Lyric was told
 nothing and had to tell its own acts apart from hers.
 
-**What the runs before found** (all fixed; the pilots and runs 1 and 2 are kept in `results/`):
+**What each run found** (every run's record and cases are kept in `results/`; the pilots in `EXPECT-02-pilot/`):
 
-| Run | Departures answered | What was wrong |
-|---|---|---|
-| 1 | 0.67 | One early skip by a sender not yet seen poisoned the habit: 45 of 47 departures in those worlds went unanswered |
-| 2 | 0.78 | The sample a miss is compared with was the habit's first 8 changes, all from one sender: every other sender's miss was "told apart" |
-| 3-6 | 0.95, 0.93, 0.95, 0.95 | The belief walk; three shutdown races, each a writer the shutdown did not wait for |
+| Run | Departures answered | Checks | Found, and fixed |
+|---|---|---|---|
+| 1 | 0.67 | 19/22 | One early skip by a sender not yet seen poisoned the habit for good: a counter-example is now judged again as its kind's changes accumulate |
+| 2 | 0.78 | 19/22 | The sample a miss is compared with was the habit's first 8 changes, all from one sender: it is now spread over what the changes were like |
+| 3-6 | 0.94 pooled | 20/22 | A 50% step relied on 45 of 585 times: "relied on" was a log-odds walk, now the habit's rate. Three shutdown races: shutdown now waits for jobs and readings |
+| 7 | 0.27 | 17/22 | The rate at one-sided 95% was too strict (and a filing later than the due time counted as a miss) |
+| 8-9 | 0.76, 0.83 | 21/22, 20/22 | A late filing is now "held, late". Lyric's own act in the same world blinded it to every other file there: acts are now told apart per thing. A goal now checks the thing is still as it was left |
+| 10 | 0.91 | **22/22** | |
 
-The pilots found seven more defects, now fixed (lab notebook, 2026-10-21 (33)):
+The pilots found seven more defects before the full runs (lab notebook, 2026-10-21 (33)):
 - a goal's end was never told;
 - an offer held nothing;
 - a sparse world was cut wrong;
@@ -53,12 +48,6 @@ The pilots found seven more defects, now fixed (lab notebook, 2026-10-21 (33)):
 - a changed habit was "put right";
 - an expectation's memory cost 2.45 s, read by the grammar (every other one-line memory still does);
 - reliability started over with each hypothesis.
-
-**Not fixed, measured.** Every departure Lyric missed in run 3 (10 of 203), and 12 of 13 in run 4, was one where it
-had acted in the same world while the expectation stood. In the Delegate, Assist and mixed worlds it was putting
-another file right or practising. Its own acts are marked per world, not per file, so one act on pdf026 leaves every
-expectation in that office unjudgeable. Marking each act by the things it changed is the fix; it touches the
-protected coordinator.
 
 The design, sample sizes and thresholds below were fixed before the first run.
 

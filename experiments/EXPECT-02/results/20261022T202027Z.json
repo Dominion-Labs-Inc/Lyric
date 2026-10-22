@@ -1,0 +1,823 @@
+{
+  "experiment": "EXPECT-02",
+  "claim": "Watching people's worlds, Lyric answers the times a habit is not kept, as each person's operating mode allows, and puts them right when allowed; it does not answer what was never a habit, what it got wrong, a tendency, or a habit that changed; and it is measured beside an engineered absence rule and two mined rule systems over the same stream, behind the same mode gate.",
+  "hypothesis": "A missed departure, an answer to a txt, a tendency or a changed habit, an act against her, an act her mode does not allow, a goal left untold, a regularity learned from Lyric's own acts, or an expectation lost at a restart would each show here, counted, with an interval.",
+  "started_at": "2026-10-22T20:20:27.489734+00:00",
+  "duration_seconds": 1665.681,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "38bee2eb9e783a673350dcfdb3c2a0ff1100b678",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 7,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 22,
+    "passed": 22,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "comparison",
+      "value": {
+        "lyric": {
+          "departure": {
+            "k": 167,
+            "n": 184,
+            "rate": 0.908,
+            "ci95": [
+              0.857,
+              0.942
+            ]
+          },
+          "kept": {
+            "k": 4,
+            "n": 2361,
+            "rate": 0.002,
+            "ci95": [
+              0.001,
+              0.004
+            ]
+          },
+          "never": {
+            "k": 0,
+            "n": 313,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.012
+            ]
+          },
+          "tendency": {
+            "k": 4,
+            "n": 242,
+            "rate": 0.017,
+            "ci95": [
+              0.006,
+              0.042
+            ]
+          },
+          "elsewhere": {
+            "k": 7,
+            "n": 600,
+            "rate": 0.012,
+            "ci95": [
+              0.006,
+              0.024
+            ]
+          },
+          "tendency_75": {
+            "k": 4,
+            "n": 74,
+            "rate": 0.054,
+            "ci95": [
+              0.021,
+              0.131
+            ]
+          },
+          "tendency_50": {
+            "k": 0,
+            "n": 168,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.022
+            ]
+          },
+          "acts_against_her": {
+            "k": 0,
+            "n": 600,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.006
+            ]
+          },
+          "median_s_to_answer_a_departure": 3.6
+        },
+        "engineered": {
+          "departure": {
+            "k": 184,
+            "n": 184,
+            "rate": 1.0,
+            "ci95": [
+              0.98,
+              1.0
+            ]
+          },
+          "kept": {
+            "k": 30,
+            "n": 2361,
+            "rate": 0.013,
+            "ci95": [
+              0.009,
+              0.018
+            ]
+          },
+          "never": {
+            "k": 0,
+            "n": 313,
+            "rate": 0.0,
+            "ci95": [
+              0.0,
+              0.012
+            ]
+          },
+          "tendency": {
+            "k": 242,
+            "n": 242,
+            "rate": 1.0,
+            "ci95": [
+              0.984,
+              1.0
+            ]
+          },
+          "elsewhere": {
+            "k": 600,
+            "n": 600,
+            "rate": 1.0,
+            "ci95": [
+              0.994,
+              1.0
+            ]
+          },
+          "tendency_75": {
+            "k": 74,
+            "n": 74,
+            "rate": 1.0,
+            "ci95": [
+              0.951,
+              1.0
+            ]
+          },
+          "tendency_50": {
+            "k": 168,
+            "n": 168,
+            "rate": 1.0,
+            "ci95": [
+              0.978,
+              1.0
+            ]
+          },
+          "acts_against_her": {
+            "k": 600,
+            "n": 600,
+            "rate": 1.0,
+            "ci95": [
+              0.994,
+              1.0
+            ]
+          },
+          "median_s_to_answer_a_departure": 3.0
+        },
+        "mined": {
+          "departure": {
+            "k": 183,
+            "n": 184,
+            "rate": 0.995,
+            "ci95": [
+              0.97,
+              0.999
+            ]
+          },
+          "kept": {
+            "k": 176,
+            "n": 2361,
+            "rate": 0.075,
+            "ci95": [
+              0.065,
+              0.086
+            ]
+          },
+          "never": {
+            "k": 94,
+            "n": 313,
+            "rate": 0.3,
+            "ci95": [
+              0.252,
+              0.353
+            ]
+          },
+          "tendency": {
+            "k": 31,
+            "n": 242,
+            "rate": 0.128,
+            "ci95": [
+              0.092,
+              0.176
+            ]
+          },
+          "elsewhere": {
+            "k": 190,
+            "n": 600,
+            "rate": 0.317,
+            "ci95": [
+              0.281,
+              0.355
+            ]
+          },
+          "tendency_75": {
+            "k": 30,
+            "n": 74,
+            "rate": 0.405,
+            "ci95": [
+              0.301,
+              0.519
+            ]
+          },
+          "tendency_50": {
+            "k": 1,
+            "n": 168,
+            "rate": 0.006,
+            "ci95": [
+              0.001,
+              0.033
+            ]
+          },
+          "acts_against_her": {
+            "k": 190,
+            "n": 600,
+            "rate": 0.317,
+            "ci95": [
+              0.281,
+              0.355
+            ]
+          },
+          "median_s_to_answer_a_departure": 2.1
+        },
+        "windowed": {
+          "departure": {
+            "k": 182,
+            "n": 184,
+            "rate": 0.989,
+            "ci95": [
+              0.961,
+              0.997
+            ]
+          },
+          "kept": {
+            "k": 186,
+            "n": 2361,
+            "rate": 0.079,
+            "ci95": [
+              0.069,
+              0.09
+            ]
+          },
+          "never": {
+            "k": 135,
+            "n": 313,
+            "rate": 0.431,
+            "ci95": [
+              0.378,
+              0.487
+            ]
+          },
+          "tendency": {
+            "k": 38,
+            "n": 242,
+            "rate": 0.157,
+            "ci95": [
+              0.117,
+              0.208
+            ]
+          },
+          "elsewhere": {
+            "k": 186,
+            "n": 600,
+            "rate": 0.31,
+            "ci95": [
+              0.274,
+              0.348
+            ]
+          },
+          "tendency_75": {
+            "k": 37,
+            "n": 74,
+            "rate": 0.5,
+            "ci95": [
+              0.389,
+              0.611
+            ]
+          },
+          "tendency_50": {
+            "k": 1,
+            "n": 168,
+            "rate": 0.006,
+            "ci95": [
+              0.001,
+              0.033
+            ]
+          },
+          "acts_against_her": {
+            "k": 186,
+            "n": 600,
+            "rate": 0.31,
+            "ci95": [
+              0.274,
+              0.348
+            ]
+          },
+          "median_s_to_answer_a_departure": 2.06
+        },
+        "setup": {
+          "lyric": "nothing written",
+          "engineered": "1 rule per world, T = 3.0 s",
+          "mined": "support 5, confidence 0.8",
+          "windowed": "support 5, confidence 0.8, window 20"
+        }
+      },
+      "unit": "",
+      "note": "per system: answered / cases in each class, with a 95% Wilson interval"
+    },
+    {
+      "name": "delegate_put_right",
+      "value": {
+        "k": 28,
+        "n": 28,
+        "rate": 1.0,
+        "ci95": [
+          0.879,
+          1.0
+        ]
+      },
+      "unit": "",
+      "note": "goals formed for a departure, file in DONE"
+    },
+    {
+      "name": "lost_to_own_acts_mixed",
+      "value": {
+        "k": 0,
+        "n": 400,
+        "rate": 0.0,
+        "ci95": [
+          0.0,
+          0.01
+        ]
+      },
+      "unit": "",
+      "note": "expectations Lyric could not judge because it acted in the same world meanwhile"
+    },
+    {
+      "name": "lost_to_own_acts_habit_delegate",
+      "value": {
+        "k": 0,
+        "n": 392,
+        "rate": 0.0,
+        "ci95": [
+          0.0,
+          0.01
+        ]
+      },
+      "unit": "",
+      "note": "expectations Lyric could not judge because it acted in the same world meanwhile"
+    },
+    {
+      "name": "lost_to_own_acts_habit_observe",
+      "value": {
+        "k": 0,
+        "n": 390,
+        "rate": 0.0,
+        "ci95": [
+          0.0,
+          0.01
+        ]
+      },
+      "unit": "",
+      "note": "expectations Lyric could not judge because it acted in the same world meanwhile"
+    },
+    {
+      "name": "drift_recovery",
+      "value": [
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 26
+          },
+          "windowed": {
+            "acted_against": 18,
+            "of": 60,
+            "last": 35
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 28
+          },
+          "windowed": {
+            "acted_against": 18,
+            "of": 60,
+            "last": 59
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 19,
+            "of": 60,
+            "last": 42
+          },
+          "windowed": {
+            "acted_against": 19,
+            "of": 60,
+            "last": 57
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 16,
+            "of": 60,
+            "last": 19
+          },
+          "windowed": {
+            "acted_against": 17,
+            "of": 60,
+            "last": 55
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 32
+          },
+          "windowed": {
+            "acted_against": 19,
+            "of": 60,
+            "last": 38
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 17,
+            "of": 60,
+            "last": 16
+          },
+          "windowed": {
+            "acted_against": 16,
+            "of": 60,
+            "last": 23
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 25
+          },
+          "windowed": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 50
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 25
+          },
+          "windowed": {
+            "acted_against": 20,
+            "of": 60,
+            "last": 54
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 22,
+            "of": 60,
+            "last": 40
+          },
+          "windowed": {
+            "acted_against": 23,
+            "of": 60,
+            "last": 43
+          }
+        },
+        {
+          "lyric": {
+            "acted_against": 0,
+            "of": 60,
+            "last": null
+          },
+          "engineered": {
+            "acted_against": 60,
+            "of": 60,
+            "last": 59
+          },
+          "mined": {
+            "acted_against": 16,
+            "of": 60,
+            "last": 18
+          },
+          "windowed": {
+            "acted_against": 16,
+            "of": 60,
+            "last": 36
+          }
+        }
+      ],
+      "unit": "",
+      "note": "files she filed elsewhere that each system acted against, per world"
+    },
+    {
+      "name": "new_senders_departures",
+      "value": {
+        "k": 38,
+        "n": 43,
+        "rate": 0.884,
+        "ci95": [
+          0.755,
+          0.949
+        ]
+      },
+      "unit": "",
+      "note": "departures among files from senders met after learning from one"
+    },
+    {
+      "name": "new_senders_taken_for_own_mistake",
+      "value": 0,
+      "unit": "count",
+      "note": "a skip told apart by its sender, so taken for Lyric's own mistake"
+    },
+    {
+      "name": "files",
+      "value": 4600,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "scored_departures",
+      "value": 184,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "seconds",
+      "value": 1665.6,
+      "unit": "s",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-22T20:21:28.569151+00:00"
+    },
+    {
+      "label": "every file left behind is expected when the process stops",
+      "passed": true,
+      "detail": "[('habit_observe_s5', 'pdf900', True), ('habit_observe_s5', 'pdf901', True), ('habit_observe_s5', 'pdf902', True), ('habit_assist_s5', 'pdf900', True), ('habit_assist_s5', 'pdf901', True), ('habit_assist_s5', 'pdf902', True), ('habit_delegate_s5', 'pdf900', True), ('habit_delegate_s5', 'pdf901', True), ('habit_delegate_s5', 'pdf902', True)]",
+      "at": "2026-10-22T20:46:29.243455+00:00"
+    },
+    {
+      "label": "a habit not kept is answered (95% interval above 0.8)",
+      "passed": true,
+      "detail": "{'k': 167, 'n': 184, 'rate': 0.908, 'ci95': [0.857, 0.942]}",
+      "at": "2026-10-22T20:46:29.513466+00:00"
+    },
+    {
+      "label": "a txt she never handles is never answered",
+      "passed": true,
+      "detail": "{'k': 0, 'n': 313, 'rate': 0.0, 'ci95': [0.0, 0.012]}",
+      "at": "2026-10-22T20:46:29.513481+00:00"
+    },
+    {
+      "label": "a step kept every other time is never answered",
+      "passed": true,
+      "detail": "{'k': 0, 'n': 168, 'rate': 0.0, 'ci95': [0.0, 0.022]}",
+      "at": "2026-10-22T20:46:29.513488+00:00"
+    },
+    {
+      "label": "a file filed late is answered at most one time in twenty",
+      "passed": true,
+      "detail": "{'k': 4, 'n': 2361, 'rate': 0.002, 'ci95': [0.001, 0.004]}",
+      "at": "2026-10-22T20:46:29.513494+00:00"
+    },
+    {
+      "label": "no answer goes beyond the person's operating mode",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-22T20:46:29.514481+00:00"
+    },
+    {
+      "label": "in Delegate, a departure acted on is put right",
+      "passed": true,
+      "detail": "{'k': 28, 'n': 28, 'rate': 1.0, 'ci95': [0.879, 1.0]}",
+      "at": "2026-10-22T20:46:29.514518+00:00"
+    },
+    {
+      "label": "and she is told how each goal ended",
+      "passed": true,
+      "detail": "{'k': 28, 'n': 28, 'rate': 1.0, 'ci95': [0.879, 1.0]}",
+      "at": "2026-10-22T20:46:29.514531+00:00"
+    },
+    {
+      "label": "in Assist, her yes puts it right",
+      "passed": true,
+      "detail": "{'k': 24, 'n': 24, 'rate': 1.0, 'ci95': [0.862, 1.0]}",
+      "at": "2026-10-22T20:46:29.514566+00:00"
+    },
+    {
+      "label": "and her no leaves it where it is",
+      "passed": true,
+      "detail": "{'k': 13, 'n': 13, 'rate': 1.0, 'ci95': [0.772, 1.0]}",
+      "at": "2026-10-22T20:46:29.514577+00:00"
+    },
+    {
+      "label": "in Assist nothing is done without her yes",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-22T20:46:29.514750+00:00"
+    },
+    {
+      "label": "Lyric's own acts are never learned as what her world does",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-22T20:46:29.514760+00:00"
+    },
+    {
+      "label": "the habit was relied on before it changed, in every drift world",
+      "passed": true,
+      "detail": "[True, True, True, True, True, True, True, True, True, True]",
+      "at": "2026-10-22T20:46:29.515466+00:00"
+    },
+    {
+      "label": "after her habit changes, Lyric acts against it at most once in each world",
+      "passed": true,
+      "detail": "[{'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}, {'acted_against': 0, 'of': 60, 'last': None}]",
+      "at": "2026-10-22T20:46:29.515817+00:00"
+    },
+    {
+      "label": "and it learns the new habit",
+      "passed": true,
+      "detail": "[True, True, True, True, True, True, True, True, True, True]",
+      "at": "2026-10-22T20:46:29.515846+00:00"
+    },
+    {
+      "label": "where it may act, Lyric learned to move her files by practising",
+      "passed": true,
+      "detail": "[(1, 7, True), (1, 7, True), (1, 7, True), (1, 7, True), (1, 7, True), (1, 7, True)]",
+      "at": "2026-10-22T20:46:29.515925+00:00"
+    },
+    {
+      "label": "after a restart every file left behind is settled by the fresh process's own reading, as the world departing",
+      "passed": true,
+      "detail": "9 of 9",
+      "at": "2026-10-22T20:48:13.080138+00:00"
+    },
+    {
+      "label": "and each is answered as her mode allows",
+      "passed": true,
+      "detail": "9 of 9",
+      "at": "2026-10-22T20:48:13.080193+00:00"
+    },
+    {
+      "label": "in Assist (after her yes) and Delegate, it is put right after the restart",
+      "passed": true,
+      "detail": "6 of 6",
+      "at": "2026-10-22T20:48:13.080201+00:00"
+    },
+    {
+      "label": "the restarted process ran to its end",
+      "passed": true,
+      "detail": "exit 0; 3 checks",
+      "at": "2026-10-22T20:48:13.080215+00:00"
+    },
+    {
+      "label": "the run's log, both processes, carries no ERROR or Traceback",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-22T20:48:13.081246+00:00"
+    }
+  ],
+  "notes": [
+    "nonce 3471b6; 5 seed(s); intents and planning goals recorded while acting are left in the sandbox"
+  ]
+}

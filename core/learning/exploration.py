@@ -316,6 +316,7 @@ class SubstrateExplorer:
                     logger.info("exploration action %s raised: %s", action, e)
                 s_after = await observe_world_async(domain_id)
                 interfered = _overlapped()
+                _overlapped.changed(s_before, s_after)
             reset_acting_intent(token)
             if refused is not None:
                 # A REFUSAL IS NOT EVIDENCE ABOUT THE WORLD. The act never ran,

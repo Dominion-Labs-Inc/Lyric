@@ -1050,7 +1050,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
 
     async def attend(self, reading) -> None:
         """Learn, settle, expect: one reading, in order with the others of its world."""
-        from core.intelligence.effect_verification import acted_between
+        from core.intelligence.effect_verification import acts_touched
         from core.perception.perception_faculty import owner_of
         lock = self._reading_locks.setdefault(reading.domain_id, asyncio.Lock())
         async with lock:
@@ -1065,14 +1065,18 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 fact: first_seen_before.get(fact, reading.at) for fact in reading.facts or ()}
 
             owner = owner_of(reading.domain_id)
-            if previous is not None and not acted_between(previous.mark, reading.mark):
-                await self._learn_change(previous, reading, owner, first_seen_before)
-                await self._confirm_late(previous, reading)
+            if previous is not None:
+                # WHAT THE SUBSTRATE TOUCHED IN BETWEEN is its own; any other
+                # thing that changed changed on its own (`acts_touched`).
+                touched = acts_touched(reading.domain_id, previous.mark, reading.mark)
+                if touched is not None:
+                    await self._learn_change(previous, reading, owner, first_seen_before, touched)
+                    await self._confirm_late(previous, reading, touched)
             await self._settle_expectations(reading)
             await self._expect(reading, owner)
 
     async def _learn_change(self, previous, reading, owner: Optional[str],
-                            first_seen: Dict[Any, datetime]) -> None:
+                            first_seen: Dict[Any, datetime], touched: FrozenSet[str]) -> None:
         if previous.facts is None or reading.facts is None or previous.facts == reading.facts:
             return
         from core.learning.demonstration_store import regularity_signature
@@ -1082,7 +1086,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         for example, things in world_change_examples(previous.facts, reading.facts,
                                                      evidence_stem=stem):
             effects = example.observed_effects
-            if not effects:
+            if not effects or things & touched:
                 continue
             held_since = max((first_seen.get(f, previous.at) for f in example.before),
                              default=previous.at)
@@ -1092,7 +1096,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 owner=owner, before_at=held_since, after_at=reading.at)
             self.expectation_stats["world_changes"] += 1
 
-    async def _confirm_late(self, previous, reading) -> None:
+    async def _confirm_late(self, previous, reading, touched: FrozenSet[str]) -> None:
         """What was taken for the world departing, seen happening after all.
 
         An expectation is due when the change was ever seen to take longest, and
@@ -1108,8 +1112,11 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         from core.agents.memory_agent import memory_agent
         from core.learning.rule_store import get_rule_store
         from core.learning.unified_learning_system import get_learning_authority
+        from core.learning.unified_learning_system import expected_things
         for row in await memory_agent().departed_expectations(domain_id=reading.domain_id):
             expectation = _expectation_of(row)
+            if expected_things(expectation.effects, expectation.held | reading.facts) & touched:
+                continue
             if (_already_holds(expectation.effects, previous.facts)
                     or not _already_holds(expectation.effects, reading.facts)):
                 continue
@@ -1141,10 +1148,16 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             await self._conclude(expectation, evidence, reading, committed=bool(row["committed"]))
 
     async def _acted_meanwhile(self, expectation, reading) -> bool:
-        from core.intelligence.effect_verification import acted_between
+        """Whether the substrate acted on what this expectation is about while
+        it stood: on the thing itself, not merely somewhere in its world."""
+        from core.intelligence.effect_verification import acted_between, acts_touched
+        from core.learning.unified_learning_system import expected_things
         formed = self._formed_at.get(expectation.expectation_id)
         if formed is not None:
-            return acted_between(formed, reading.mark)
+            touched = acts_touched(expectation.domain_id, formed, reading.mark)
+            return touched is None or bool(
+                touched & expected_things(expectation.effects,
+                                          expectation.held | (reading.facts or frozenset())))
         # FORMED BEFORE THIS PROCESS BEGAN: its acts since are counted from
         # nothing, and what was done before is what the store recorded.
         if acted_between((0, False), reading.mark):

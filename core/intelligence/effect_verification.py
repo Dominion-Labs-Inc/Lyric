@@ -75,20 +75,57 @@ _overlapped_tokens: set = set()
 #: can tell whether the substrate acted there in between -- which is what
 #: separates a change the world made on its own from one the substrate made.
 _acts_by_domain: Dict[str, int] = defaultdict(int)
+#: domain -> each execution's number -> the terms of every fact it was seen to
+#: make or unmake; None while it has not said (`_ActInDomain.changed`), which
+#: counts as having touched everything.
+_act_touched: Dict[str, Dict[int, Optional[FrozenSet[str]]]] = defaultdict(dict)
+#: How many executions of a domain are remembered by what they changed; one
+#: older than that counts, again, as having touched everything.
+_ACTS_REMEMBERED = 4096
+
+
+class _ActInDomain:
+    """One execution inside the guard: asked, whether another overlapped it
+    (the value for `AttributionContext.external_interference`); told, what it
+    was seen to change (`changed`)."""
+
+    def __init__(self, key: str, token: str, number: int):
+        self._key, self._token, self._number = key, token, number
+
+    def __call__(self) -> bool:
+        with _interference_lock:
+            return self._token in _overlapped_tokens
+
+    def changed(self, before, after) -> None:
+        """What this execution was seen to change, from its world read before
+        and after it. A reading that could not be taken says nothing, and the
+        execution keeps counting as having touched everything."""
+        if before is None or after is None:
+            return
+        terms = frozenset(t for fact in frozenset(after) ^ frozenset(before) for t in fact.args)
+        with _interference_lock:
+            _act_touched[self._key][self._number] = terms
 
 
 @contextlib.contextmanager
 def concurrent_execution_guard(domain_id: Optional[str]):
     """Mark a substrate execution active in `domain_id` for its duration.
 
-    Yields a callable returning whether another execution in the same domain
-    overlapped this one in time -- the value to pass as
-    `AttributionContext.external_interference`.
+    Yields the execution (`_ActInDomain`): called, it returns whether another
+    execution in the same domain overlapped this one in time -- the value to
+    pass as `AttributionContext.external_interference`; told what it changed,
+    a reading of the domain can tell what the substrate did there from what
+    the world did (`acts_touched`).
     """
     token = uuid.uuid4().hex
     key = domain_id or "__no_domain__"
     with _interference_lock:
         _acts_by_domain[key] += 1
+        number = _acts_by_domain[key]
+        touched = _act_touched[key]
+        touched[number] = None
+        while len(touched) > _ACTS_REMEMBERED:
+            del touched[min(touched)]
         peers = _active_by_domain[key]
         if peers:
             # We overlap everyone already here, and they overlap us.
@@ -96,12 +133,8 @@ def concurrent_execution_guard(domain_id: Optional[str]):
             _overlapped_tokens.update(peers)
         peers.add(token)
 
-    def overlapped() -> bool:
-        with _interference_lock:
-            return token in _overlapped_tokens
-
     try:
-        yield overlapped
+        yield _ActInDomain(key, token, number)
     finally:
         with _interference_lock:
             _active_by_domain[key].discard(token)
@@ -129,6 +162,34 @@ def acted_between(first: ActMark, second: ActMark) -> bool:
     side of a reading, so a change seen around it cannot be called the world's
     own."""
     return first[0] != second[0] or first[1] or second[1]
+
+
+def acts_touched(domain_id: Optional[str], first: ActMark,
+                 second: ActMark) -> Optional[FrozenSet[str]]:
+    """What the substrate's executions in a domain between two marks of it were
+    seen to change: the terms of every fact they made or unmade, empty when it
+    did nothing there.
+
+    PER THING, NOT PER WORLD. That the substrate acted in a world said nothing
+    of which thing it acted on: one move of one file left every expectation in
+    that office unjudgeable (EXPECT-02: every miss in a run, 10 of 203). A
+    thing none of its executions touched is still the world's own to judge.
+
+    None when what was touched is not known -- an execution under way at either
+    mark, one that did not say what it changed, or one too old to remember --
+    and the caller takes the whole world as touched."""
+    if first[1] or second[1]:
+        return None
+    key = domain_id or "__no_domain__"
+    touched: set = set()
+    with _interference_lock:
+        known = _act_touched.get(key, {})
+        for number in range(first[0] + 1, second[0] + 1):
+            terms = known.get(number)
+            if terms is None:
+                return None
+            touched |= terms
+    return frozenset(touched)
 
 
 class Polarity(Enum):

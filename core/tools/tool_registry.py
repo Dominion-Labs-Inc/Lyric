@@ -1221,7 +1221,10 @@ class ToolRegistry:
             # own or someone else's, which decides what it may risk with them.
             actor=get_acting_actor())
         if not judgment.allowed:
-            logger.error("📜 CONSTITUTION %s — Law %d (%s): %s",
+            # A REFUSAL IS THE GATE WORKING, not a fault: it is said as a warning.
+            # The constitution keeps every judgement itself (`Constitution._record`);
+            # said as an error, each one was also filed as a system failure.
+            logger.warning("📜 CONSTITUTION %s — Law %d (%s): %s",
                          judgment.verdict.value.upper(), judgment.law_number,
                          judgment.law_name, judgment.reason)
             return ToolResult(
