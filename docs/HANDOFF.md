@@ -501,7 +501,8 @@ evidence, and reasons over a concept graph. No neural model reads or writes for 
 **Records and git**
 - Every experiment gets a RunRecord (`experiments/_evidence.py`), a README and a row in `experiments/README.md`.
   Every session gets a lab notebook entry.
-- Commit only when the owner asks. No AI attribution. Never put the owner's name, or quotes of the owner, in the
+- Commit and push everything in the working tree, every session's changes, whenever work is done, without being
+  asked (the owner's rule since 2026-10-22). No AI attribution. Never put the owner's name, or quotes of the owner, in the
   repo. Datasets are never pushed. Never copy the GitHub token in `Lyric/.env.production`.
 - **Before any push**, look at what it sends: `git rev-list --count origin/main..main`, and
   `git log origin/main..main --format=%B | grep -ci co-authored-by` must be 0.
