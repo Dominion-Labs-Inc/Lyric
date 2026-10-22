@@ -172,6 +172,10 @@ class LyricSystem:
         self.initialized = False
         #: Listening and looking while it runs (`run`); None until then.
         self.live_senses = None
+        #: Its attachment to its world (`WorldInhabitant`), when a world is named; None otherwise.
+        self.world_inhabitant = None
+        #: Its own door, for a handover (`InstanceDoor`), opened while it runs (`run`); None until then.
+        self.door = None
 
         # PHASE 2: Database Systems
         self.unified_database = None  # PostgreSQL unified database
@@ -1172,10 +1176,13 @@ class LyricSystem:
                 # inhabitant: what a person sends through the gate (a turn, their reward
                 # allowance) reaches the front door and the appraisal authority from
                 # here. Only when a world is named; a Lyric with none is simply not in one.
+                # A new release taking over from a running one (scripts/handover.py) starts
+                # with LYRIC_ATTACH=later and attaches when the running one lets go.
                 if os.environ.get("TET_WORLD_ADDRESS"):
                     from core.integration.world_inhabitant import WorldInhabitant
                     self.world_inhabitant = WorldInhabitant(self.autonomous_coordinator)
-                    self.world_inhabitant.attach()
+                    if os.environ.get("LYRIC_ATTACH", "start") != "later":
+                        self.world_inhabitant.attach()
             else:
                 logger.error("Failed to initialize autonomous_controller - check logs above for details")
                 self.stats['services_failed'] += 1
@@ -1367,6 +1374,22 @@ class LyricSystem:
             logger.error(f"Service startup failed: {e}", exc_info=True)
             raise
 
+    async def open_senses(self):
+        """Listen and look, as the environment names the microphone and camera (`core.perception.live`)."""
+        if self.autonomous_coordinator and self.live_senses is None:
+            from core.perception.live import LiveSenses, sources_from_environment
+            microphone, camera = sources_from_environment()
+            if microphone or camera:
+                self.live_senses = LiveSenses(self.autonomous_coordinator,
+                                              microphone=microphone, camera=camera)
+                await self.live_senses.start()
+
+    async def close_senses(self):
+        """Stop listening and looking: when it lets go of its world for another Lyric, and when it stops."""
+        if self.live_senses is not None:
+            senses, self.live_senses = self.live_senses, None
+            await senses.stop()
+
     async def run(self):
         """Main event loop"""
         if not self.running:
@@ -1377,14 +1400,16 @@ class LyricSystem:
         # time, keeping only what is said to it (`core.perception.live`). They
         # start here, with the running substrate, and never with a boot that
         # only starts its services -- an experiment or a test opens no
-        # microphone and no camera.
-        if self.autonomous_coordinator:
-            from core.perception.live import LiveSenses, sources_from_environment
-            microphone, camera = sources_from_environment()
-            if microphone or camera:
-                self.live_senses = LiveSenses(self.autonomous_coordinator,
-                                              microphone=microphone, camera=camera)
-                await self.live_senses.start()
+        # microphone and no camera. A new release taking over (LYRIC_ATTACH=later)
+        # opens them when it attaches: two Lyrics never listen at once.
+        if os.environ.get("LYRIC_ATTACH", "start") != "later":
+            await self.open_senses()
+        # ITS DOOR, for a handover to a new release without going down: opened with the
+        # running substrate, as the senses are, never by a boot that only starts its services.
+        from core.integration.instance_door import InstanceDoor
+        self.door = InstanceDoor(self)
+        await self.door.open()
+        self.door.ready = True
         logger.info("📡 Creating startup signal...")
         logger.info("📡 Startup signal created - proceeding to launch servers")
 
@@ -1464,11 +1489,15 @@ class LyricSystem:
 
     async def shutdown(self):
         """Graceful shutdown"""
-        # Guard against multiple shutdown calls
-        if hasattr(self, '_shutdown_in_progress') and self._shutdown_in_progress:
-            logger.debug("Shutdown already in progress, ignoring duplicate call")
+        # A SECOND CALL WAITS FOR THE FIRST. main()'s `finally` calls this while the
+        # shutdown a signal began is still running; returning at once ended the loop and
+        # cancelled that shutdown half-way. Measured 2026-10-21 (HANDOVER-01): it never
+        # reached "Stopping services".
+        if getattr(self, '_shutdown_done', None) is not None:
+            await self._shutdown_done.wait()
             return
 
+        self._shutdown_done = asyncio.Event()
         self._shutdown_in_progress = True
 
         logger.info("=" * 80)
@@ -1478,16 +1507,30 @@ class LyricSystem:
         self.running = False
 
         try:
+            # LET GO OF THE WORLD FIRST: the turn being answered is answered, and what
+            # comes after waits in the world for the next inhabitant, never for a Lyric
+            # that is stopping. Then the door closes.
+            if self.world_inhabitant is not None:
+                try:
+                    await self.world_inhabitant.detach()
+                except Exception as e:
+                    logger.error(f"Error letting go of the world: {e}")
+            if self.door is not None:
+                self.door.ready = False
+                try:
+                    await self.door.close()
+                except Exception as e:
+                    logger.error(f"Error closing the instance's door: {e}")
+
             # Stop services
             logger.info("Stopping services...")
 
             # The live senses stop first: nothing more is heard or seen once the
             # substrate is shutting down.
-            if self.live_senses is not None:
-                try:
-                    await self.live_senses.stop()
-                except Exception as e:
-                    logger.error(f"Error stopping the live senses: {e}")
+            try:
+                await self.close_senses()
+            except Exception as e:
+                logger.error(f"Error stopping the live senses: {e}")
 
             # Shutdown autonomous coordinator first (stops coordination cycle + modules)
             if self.autonomous_coordinator:
@@ -1577,6 +1620,8 @@ class LyricSystem:
 
         except Exception as e:
             logger.error(f"Error during shutdown: {e}", exc_info=True)
+        finally:
+            self._shutdown_done.set()
 
     async def get_system_status(self) -> Dict[str, Any]:
         """Get comprehensive system status"""
@@ -1669,8 +1714,11 @@ if __name__ == "__main__":
     runtime_dir = Path(__file__).parent.parent / "runtime"
     runtime_dir.mkdir(exist_ok=True)
 
-    # Write PID file for robust process management
-    pid_file = runtime_dir / "lyric_main.pid"
+    # Write PID file for robust process management. A new instance started beside a
+    # running one (scripts/handover.py) writes its own, and is written as Lyric's
+    # main PID only once it has taken over.
+    instance = os.environ.get("LYRIC_INSTANCE_ID")
+    pid_file = runtime_dir / (f"lyric_{instance}.pid" if instance else "lyric_main.pid")
     try:
         with open(pid_file, 'w') as f:
             f.write(str(os.getpid()))
@@ -1682,9 +1730,10 @@ if __name__ == "__main__":
         # Run the system
         asyncio.run(main())
     finally:
-        # Clean up PID file on exit
+        # Clean up PID file on exit: its own only. During a handover the new
+        # instance has written its own over it, and the old one leaves that be.
         try:
-            if pid_file.exists():
+            if pid_file.exists() and pid_file.read_text().strip() == str(os.getpid()):
                 pid_file.unlink()
                 logger.info(f"PID file removed: {pid_file}")
         except Exception as e:

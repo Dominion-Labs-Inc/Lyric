@@ -17,6 +17,12 @@ The world's address and the inhabitant's key come from the environment (TET_WORL
 TET_OPERATOR_PRIVATE_KEY). Neither has a default: without them Lyric is not attached to a world, and
 `attach` says so.
 
+A HANDOVER. A new release of Lyric takes over from the running one without either going down
+(`scripts/handover.py`): the new one attaches, the running one lets go (`detach`), and a turn arriving in
+between waits in the world. Each person talks in a conversation of their own (`world:<identity>`), held by
+the instance they talk to; while the old instance still holds a person's conversation, the new one passes
+their turns to it (`pass_to`) until it has gone quiet, so no one's conversation is cut off mid-way.
+
 Run alone, this attaches the appraisal authority only (no turns are taken):
     ./venv_lyric/bin/python3 -m core.integration.world_inhabitant
 """
@@ -29,8 +35,9 @@ import logging
 import os
 import sys
 import threading
+import time
 from pathlib import Path
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +52,21 @@ INDIVIDUAL = "individual"
 _BESIDE = Path(__file__).resolve().parents[3]
 
 
+#: What is held for a person in one instance and so follows them during a handover: their conversation, and
+#: what their device is in the middle of hearing.
+_HELD_FOR_A_PERSON = ("message", "hearing")
+
+
 def _tet():
-    """The world's own client for its inhabitant, and the inhabitant's key."""
+    """The world's own client for its inhabitant, its hold on the world, and the inhabitant's key."""
     try:
         from Tet.walls._config import operator_private_key
-        from Tet.walls.lyric_main import serve_messages
+        from Tet.walls.lyric_main import Attachment, serve_messages
     except ImportError:
         sys.path.insert(0, str(_BESIDE))
         from Tet.walls._config import operator_private_key
-        from Tet.walls.lyric_main import serve_messages
-    return serve_messages, operator_private_key
+        from Tet.walls.lyric_main import Attachment, serve_messages
+    return serve_messages, Attachment, operator_private_key
 
 
 class WorldInhabitant:
@@ -66,8 +78,18 @@ class WorldInhabitant:
         self._coordinator = coordinator
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
+        #: Its hold on the world (`Tet.walls.lyric_main.Attachment`), while it has one.
+        self._attachment = None
         #: Lyric's ears on people's devices (`DeviceEars`), made when the first device is heard.
         self._ears = None
+        #: When each person last spoke to this instance, or was heard by it: whose conversation it holds.
+        self.last_heard: Dict[str, float] = {}
+        #: During a handover, the instance that still holds some people's conversations: where their turns
+        #: are passed, with the door's key ({"to", "key", "people"}). None otherwise.
+        self._passing: Optional[Dict[str, Any]] = None
+        self._takes = {"message": self._message, "reward_allowance": self._reward_allowance,
+                       "operating_mode": self._operating_mode, "shared_learning": self._shared_learning,
+                       "hearing": self._hearing, "device": self._device}
 
     def attach(self, world_address: Optional[str] = None, key=None) -> None:
         """Start taking what the world holds for Lyric. Called from Lyric's running loop: each thing
@@ -75,31 +97,95 @@ class WorldInhabitant:
         address = world_address or os.environ.get("TET_WORLD_ADDRESS")
         if not address:
             raise RuntimeError("TET_WORLD_ADDRESS is not set: Lyric is not attached to a world")
-        serve_messages, operator_private_key = _tet()
+        if self.taking:
+            raise RuntimeError("this Lyric is already attached to its world")
+        serve_messages, Attachment, operator_private_key = _tet()
         self._loop = asyncio.get_running_loop()
+        self._attachment = Attachment()
         self._thread = threading.Thread(
             target=serve_messages, name="world-inhabitant", daemon=True,
             args=(address, INHABITANT_PRINCIPAL, key if key is not None else operator_private_key(),
-                  {"message": self._on_loop(self._message),
-                   "reward_allowance": self._on_loop(self._reward_allowance),
-                   "operating_mode": self._on_loop(self._operating_mode),
-                   "shared_learning": self._on_loop(self._shared_learning),
-                   "hearing": self._on_loop(self._hearing),
-                   "device": self._on_loop(self._device)}))
+                  {intent: self._on_loop(intent) for intent in self._takes}),
+            kwargs={"attachment": self._attachment})
         self._thread.start()
         logger.info("Lyric attached to its world at %s as its inhabitant", address)
 
-    def _on_loop(self, turn) -> Callable[[str, str], Any]:
-        """`turn`, run on Lyric's loop from the thread that pulls from the world."""
+    @property
+    def taking(self) -> bool:
+        """Whether it takes what the world holds for it: attached, and not letting go."""
+        return (self._thread is not None and self._thread.is_alive() and self._attachment is not None
+                and not self._attachment.letting_go)
+
+    async def detach(self) -> None:
+        """Let go of the world: the turn being answered is answered, and whatever comes after waits in the
+        world for the next inhabitant. Returns once it has let go."""
+        if self._attachment is None:
+            return
+        connected = self._attachment.attached
+        self._attachment.detach()
+        thread = self._thread
+        # Only a connected inhabitant can hold a turn, so only one is waited for: one still reaching for a world
+        # that has gone holds none, and lets go if it ever connects (`serve_messages`).
+        if thread is not None and connected:
+            await asyncio.get_running_loop().run_in_executor(None, thread.join)
+        logger.info("Lyric let go of its world")
+
+    def holds(self, quiet_for: float) -> Dict[str, float]:
+        """The people whose conversation it holds: each who spoke to it, or was heard by it, within the last
+        `quiet_for` seconds, with when."""
+        since = time.time() - quiet_for
+        return {person: at for person, at in self.last_heard.items() if at >= since}
+
+    def pass_to(self, door: Optional[str], key: Optional[str] = None, people: Iterable[str] = ()) -> None:
+        """During a handover: the turns of `people`, whose conversations the instance at `door` still holds,
+        are passed to it. `door` None passes nothing on."""
+        self._passing = {"to": door.rstrip("/"), "key": key, "people": frozenset(people)} if door else None
+
+    def _on_loop(self, intent: str) -> Callable[[str, str], Any]:
+        """What the world holds of `intent`, taken on Lyric's loop from the thread that pulls from the world."""
         def take(identity: str, payload: str):
-            return asyncio.run_coroutine_threadsafe(turn(identity, payload), self._loop).result()
+            return asyncio.run_coroutine_threadsafe(self.take(intent, identity, payload), self._loop).result()
         return take
+
+    async def take(self, intent: str, identity: str, payload: str) -> Any:
+        """One thing the world held for Lyric: taken here, or passed to the instance that holds the person's
+        conversation (`pass_to`)."""
+        passing = self._passing
+        if passing is not None and intent in _HELD_FOR_A_PERSON and identity in passing["people"]:
+            import aiohttp
+            try:
+                return await self._pass_on(passing, intent, identity, payload)
+            except aiohttp.ClientConnectorError as gone:
+                # NO ONE HOLDS IT ANY MORE: the instance that held their conversation has gone, so it is taken here.
+                logger.warning("the instance holding %s's conversation is gone (%s); taking their turn here",
+                               identity, gone)
+                self._passing = {**passing, "people": passing["people"] - {identity}}
+        taken = self._takes.get(intent)
+        if taken is None:
+            return {"refused": f"the inhabitant does not take {intent!r}"}
+        if intent in _HELD_FOR_A_PERSON:
+            self.last_heard[identity] = time.time()
+        return await taken(identity, payload)
+
+    @staticmethod
+    async def _pass_on(passing: Dict[str, Any], intent: str, identity: str, payload: str) -> Any:
+        import aiohttp
+        async with aiohttp.ClientSession() as session:
+            async with session.post(f"{passing['to']}/take",
+                                    json={"intent": intent, "identity": identity, "payload": payload},
+                                    headers={"Authorization": f"Bearer {passing['key']}"}) as answer:
+                if answer.status != 200:
+                    raise RuntimeError(f"the instance holding {identity}'s conversation refused their turn: "
+                                       f"{answer.status} {await answer.text()}")
+                return (await answer.json())["taken"]
 
     async def _message(self, identity: str, text: str) -> Dict[str, Any]:
         if self._coordinator is None:
             return {"refused": "Lyric is not taking turns in this process"}
+        # A CONVERSATION OF THEIR OWN. With no conversation named, every person's turn from the world was taken
+        # in one shared conversation ("api:unsessioned"), so one person's "it" could be what another had said.
         reply = await self._coordinator.handle_user_request(
-            text, source="api", metadata={"actor_identity": identity})
+            text, source="api", metadata={"actor_identity": identity, "conversation_id": f"world:{identity}"})
         return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
 
     async def _reward_allowance(self, identity: str, payload: str) -> Dict[str, Any]:
