@@ -16,6 +16,8 @@ stops the conversation is kept with what stopped it, counted apart, and the run 
 ASKED WITHOUT BEING REMEMBERED, SO IT RUNS ON MAIN: each conversation is held with `remembers=False`, keeps what it
 is told for as long as it lasts, and writes nothing to the store; the server's own counters before and after say so.
 
+UNDERSTANDS-PROSE-02 runs this same harness (`main`) on texts of its own, held out from all of this.
+
 Run (from the Lyric folder; starts no substrate):
     POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-PROSE-01/experiment.py
 """
@@ -24,7 +26,9 @@ import contextlib
 import io
 import json
 import logging
+import math
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -33,10 +37,8 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
 sys.path.insert(0, str(ROOT))
 os.chdir(ROOT)
-LOG = HERE / "results" / "run.log"
-LOG.parent.mkdir(exist_ok=True)
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    handlers=[logging.FileHandler(LOG, mode="w")])
+CLAIM = ("the substrate reads prose as its sources write it and reasons over what it read: it understands the "
+         "sentences, answers what they say and what follows, and does not answer wrongly what it did not understand")
 
 #: Fixed before the run: what a reader that understood would reach.
 BARS = {
@@ -76,11 +78,30 @@ def understood_whole(understanding) -> bool:
     return bool(reply) and not any(marker in reply for marker in UNREAD)
 
 
+def said(word, reply) -> bool:
+    """Whether a reply says `word` where a word of it begins ("droplet" in "droplets"), a number only whole: the "5"
+    of 10.0.0.5 or of 47068 does not say 5."""
+    start = r"(?<![0-9A-Za-z.,])" if word[0].isdigit() else r"(?<![0-9A-Za-z])"
+    end = r"(?![0-9])" if word[-1].isdigit() else ""
+    return re.search(start + re.escape(word.lower()) + end, reply.lower()) is not None
+
+
+def interval(k, n, z=1.96):
+    """The 95% (Wilson) interval of k in n."""
+    if not n:
+        return 0.0, 1.0
+    p, spread = k / n, z * z / n
+    middle = (p + spread / 2) / (1 + spread)
+    half = z * math.sqrt(p * (1 - p) / n + spread / (4 * n)) / (1 + spread)
+    return max(0.0, middle - half), min(1.0, middle + half)
+
+
 def scored(question, understanding) -> str:
     """right, not answered, or wrong. A question asking what, who or how many is answered only where an answer was
     given (`understanding.answers`), as a yes or no is only by a verdict. Scored by its words alone, a reply naming
     what it holds nothing of was an answer: "I hold 10.0.0.5 but nothing said about it yet." was right for "How many
-    failed attempts were there?" (five), by the "5" in the address (2026-10-21)."""
+    failed attempts were there?" (five), by the "5" in the address (2026-10-21); since, a word is found only where a
+    word of the reply begins, and a number only whole (`said`)."""
     gold = question["answer"]
     reply = (understanding.reply or "").strip()
     verdicts = [a.verdict for a in (understanding.answers or []) if a.verdict is not None]
@@ -91,21 +112,24 @@ def scored(question, understanding) -> str:
         return "right" if all(v is wanted for v in verdicts) else "wrong"
     if not understanding.answers:
         return "not answered"
-    if any(word.lower() in reply.lower() for word in gold):
+    if any(said(word, reply) for word in gold):
         return "right"
     if not reply or reply.startswith(NOT_ANSWERED):
         return "not answered"
     return "wrong"
 
 
-async def main() -> int:
+async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=1, end=None) -> int:
+    """Tells and asks the texts of `here`/texts.json, from text number `start` to `end` (the last, when None), and
+    writes the run to `here`/results. Each text is told in a conversation of its own, so a run stopped between texts goes on exactly
+    from the next."""
+    (here / "results").mkdir(exist_ok=True)
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                        handlers=[logging.FileHandler(here / "results" / "run.log", mode="w")])
     from experiments._evidence import RunRecord
-    EV = RunRecord("UNDERSTANDS-PROSE-01",
-                   claim="the substrate reads prose as its sources write it and reasons over what it read: it "
-                         "understands the sentences, answers what they say and what follows, and does not answer "
-                         "wrongly what it did not understand",
-                   hypothesis="each measure reaches its bar, fixed before the run (BARS)")
-    texts = json.loads((HERE / "texts.json").read_text())
+    EV = RunRecord(experiment, claim=claim, hypothesis="each measure reaches its bar, fixed before the run (BARS)",
+                   results_dir=here / "results")
+    texts = json.loads((here / "texts.json").read_text())
     from core.semantics import derived_reader
     composing = "on" if derived_reader.COMPOSING else "off"
     EV.note(f"reading by English's grammar {composing}: an utterance no taught frame reads is "
@@ -169,9 +193,22 @@ async def main() -> int:
     tally = {"right": 0, "not answered": 0, "wrong": 0, "stopped": 0}
     by_kind = {}
     transcript = []
-    for n, text in enumerate(texts):
+    # KEPT AS IT GOES: each sentence and question is written the moment it is done, so a run stopped part-way keeps
+    # all it did. UNDERSTANDS-PROSE-02's first run was stopped after 14 hours on one sentence, and its transcript,
+    # written only at the end, was lost.
+    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+    going = (here / "results" / f"{stamp}_transcript.jsonl").open("a")
+
+    def kept(entry):
+        transcript.append(entry)
+        going.write(json.dumps(entry, default=str) + "\n")
+        going.flush()
+    end = end or len(texts)
+    if start > 1 or end < len(texts):
+        EV.note(f"texts {start} to {end} only, of {len(texts)}: the rest run apart")
+    for n, text in list(enumerate(texts))[start - 1:end]:
         say(f"\n=== {text['name']} ({text['kind']})")
-        conversation = get_conversation(f"understands_prose_01_{n}", remembers=False)
+        conversation = get_conversation(f"{experiment.lower().replace('-', '_')}_{n}", remembers=False)
         kind = by_kind.setdefault(text["kind"], {"read": 0, "of": 0, "right": 0, "asked": 0, "wrong": 0})
         for sentence in text["text"]:
             started = time.perf_counter()
@@ -185,7 +222,7 @@ async def main() -> int:
             reply = (u.reply or "") if u is not None else f"STOPPED: {stop}"
             line = f"  told  {'read  ' if whole else 'UNREAD'} {sentence!r} ({time.perf_counter() - started:.1f}s)"
             say(line + (f"\n          -> {reply.strip()[:160]!r}" if not whole else ""))
-            transcript.append({"text": text["name"], "told": sentence, "read": whole, "reply": reply,
+            kept({"text": text["name"], "told": sentence, "read": whole, "reply": reply,
                                "readings": readings_of(conversation, sentence)})
         for question in text["questions"]:
             started = time.perf_counter()
@@ -199,7 +236,7 @@ async def main() -> int:
             reply = (u.reply or "") if u is not None else f"STOPPED: {stop}"
             say(f"  asked {question['q']!r} -> {result.upper() if result != 'right' else 'right'} "
                 f"({time.perf_counter() - started:.1f}s)\n          -> {reply.strip()[:200]!r}")
-            transcript.append({"text": text["name"], "asked": question["q"], "gold": question["answer"],
+            kept({"text": text["name"], "asked": question["q"], "gold": question["answer"],
                                "result": result, "reply": reply, "readings": readings_of(conversation, question["q"]),
                                "answers": [{"about": a.about, "relation": a.relation, "others": list(a.others),
                                             "verdict": a.verdict, "support": list(a.support),
@@ -215,10 +252,12 @@ async def main() -> int:
     for label, (bar, must_be_low) in BARS.items():
         k, n = values[label]
         value = k / max(1, n)
+        low, high = interval(k, n)
         ok = value <= bar if must_be_low else value >= bar
-        EV.check(f"{label} {'≤' if must_be_low else '≥'} {bar:.0%}", ok, f"{k}/{n} = {value:.1%}")
-        EV.metric(label, round(value, 4), unit="fraction", note=f"{k}/{n}")
-        say(f"  {label:42} {k}/{n} = {value:.1%}  (bar {'≤' if must_be_low else '≥'} {bar:.0%})")
+        EV.check(f"{label} {'≤' if must_be_low else '≥'} {bar:.0%}", ok,
+                 f"{k}/{n} = {value:.1%} (95% interval {low:.1%} to {high:.1%})")
+        EV.metric(label, round(value, 4), unit="fraction", note=f"{k}/{n}; 95% interval {low:.1%} to {high:.1%}")
+        say(f"  {label:42} {k}/{n} = {value:.1%}  [{low:.1%}, {high:.1%}]  (bar {'≤' if must_be_low else '≥'} {bar:.0%})")
     EV.check("nothing told or asked stopped the conversation", stopped + tally["stopped"] == 0,
              f"{stopped} told, {tally['stopped']} asked")
     EV.metric("told or asked and stopped", stopped + tally["stopped"], unit="sentences")
@@ -228,9 +267,8 @@ async def main() -> int:
                 f"wrong {k['wrong']}")
         say(f"    {line}")
         EV.note(line)
-    (HERE / "results").mkdir(exist_ok=True)
-    stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
-    (HERE / "results" / f"{stamp}_transcript.json").write_text(json.dumps(transcript, indent=1, default=str))
+    going.close()
+    (here / "results" / f"{stamp}_transcript.json").write_text(json.dumps(transcript, indent=1, default=str))
 
     # NOTHING WRITTEN: the server's counters, a moment after the last question, against the ones before the first.
     await asyncio.sleep(1)

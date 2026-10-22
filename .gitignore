@@ -264,3 +264,7 @@ test_data/syntax/
 
 # The Parallel Meaning Bank (Groningen): English with full meanings, taught to the composer (datasets are never pushed)
 test_data/semantics/
+
+# What UNDERSTANDS-PROSE-02's texts were drawn from, as fetched (datasets are never pushed)
+experiments/UNDERSTANDS-PROSE-02/sources/
+experiments/UNDERSTANDS-PROSE-02/texts_raw.json
