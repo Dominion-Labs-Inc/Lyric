@@ -69,4 +69,13 @@ POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiment
 
 **Results:** `results/<UTC timestamp>.json` and `.md`, the transcript beside them, and `results/run.log`, as 01's.
 
-**Runs on main:** none yet.
+**Runs on main:**
+
+- **2026-10-21, stopped (`terminal.txt`).** Texts 1 to 43 read and asked; then 14 hours on text 44's third sentence
+  ("To handle changes in electric current caused by weather variations, ..."), stopped by hand. The transcript was
+  written only at the end, so what it did is what it printed, saved to `results/terminal.txt` (not yet scored). The
+  stall: `derived_reader._least_claimed` tried every choice of every sense (lab notebook 2026-10-22 (34)), fixed.
+  The harness now writes each sentence and question as it is done.
+- **2026-10-22, texts 45 to 50** (`--from 45`, on the code before the fix; transcript
+  `20261022T113957Z_transcript.jsonl`): stopped at 47 of 70, in text 48, when the session running it ended.
+- To run: text 44 on the fix (`--from 44 --to 44`), and texts 48 to 50 (`--from 48`).

@@ -4424,22 +4424,39 @@ def _least_claimed(alike: Sequence[Tuple[Adjunct, _Filling]],
     words = [stand_in for stand_in, _, _, _ in alike[0][1].senses]
     each = [sorted({s.lexical.value for read in alike for w, options, _, _ in read[1].senses if w == word
                     for s in options}) for word in words]
+    # SENSES THAT COST THE SAME ARE CHOSEN AS ONE. Which reading supposes least depends on a word's sense only
+    # through what that sense costs in each reading (`_supposes`), so senses costing the same in every reading
+    # always pick the same reading. Every choice of every sense was tried before: "To handle changes in electric
+    # current caused by weather variations, ..." (UNDERSTANDS-PROSE-02) has six words of many senses each on main,
+    # and was still being read 14 hours later (2026-10-22). Their cost groups are a few each.
+    groups = []
+    for i, word in enumerate(words):
+        by_cost: Dict[Tuple[FrozenSet[Tuple[bool, int, int]], ...], List[str]] = {}
+        for value in each[i]:
+            by_cost.setdefault(tuple(
+                frozenset((s.lexical.key not in view, 0 if s.held else 1, s.sized)
+                          for w, options, _, _ in filling.senses if w == word
+                          for s in options if s.lexical.value == value)
+                for _, filling in alike), []).append(value)
+        groups.append(list(by_cost.values()))
     won: Dict[int, List[Tuple[str, ...]]] = {}
-    for chosen in itertools.product(*each):
+    for chosen in itertools.product(*(range(len(g)) for g in groups)):
         best = None
         for k, (_, filling) in enumerate(alike):
-            narrowed = _narrowed(filling, dict(zip(words, (frozenset((v,)) for v in chosen))))
+            narrowed = _narrowed(filling, {word: frozenset((groups[i][chosen[i]][0],)) for i, word in enumerate(words)})
             if any(not options for _, options, _, _ in narrowed.senses):
                 continue
             rank = (_supposes(narrowed, view), k)
             if best is None or rank < best:
                 best = rank
         if best is not None:
-            won.setdefault(best[1], []).append(chosen)
+            won.setdefault(best[1], []).append(tuple(str(g) for g in chosen))
     out = []
     for k in sorted(won):
         adjunct, filling = alike[k]
-        out.extend((adjunct, _narrowed(filling, region)) for region in _regions(words, won[k]))
+        out.extend((adjunct, _narrowed(filling, {word: frozenset(v for g in region[word] for v in groups[i][int(g)])
+                                                 for i, word in enumerate(words)}))
+                   for region in _regions(words, won[k]))
     return out
 
 

@@ -1,11 +1,89 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-20)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-22)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
-2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10) and 2026-10-17 (11) to
-2026-10-20 (26) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
+2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-20, late)
+## 0. Where it stands (2026-10-22)
+
+**DONE 2026-10-21: ENGLISH'S GRAMMAR READS WHAT NO FRAME READS** (lab notebook (31), (32), `experiments/GRAMMAR-01`).
+`core/semantics/grammar.py`: each word's category and meaning combined by general rules (a packed chart), English
+held as data (`data/grammar/english.json`), what words hold learned from taught sentences. On the PMB dev split
+(884): 181 strict (20.5%), 359 senses aside (40.6%), 458 unnamed (51.8%). The composer is left behind.
+
+**UNDERSTANDS-PROSE-01 PASSED on main** (`20261021T184936Z`): 33/33 sentences, 36/37 questions, 0 wrong. It does not
+show Lyric reads prose: each miss had been fixed against those same texts (rules of English, not its sentences), and
+37 questions cannot show the bar of 2% wrong (0 of 37 has a 95% interval of 0% to 9.4%).
+
+**UNDERSTANDS-PROSE-02, HELD OUT, IN PROGRESS** (`experiments/UNDERSTANDS-PROSE-02`, README). 50 texts taken as
+published (Wikipedia, GOV.UK, Python docs, arXiv, Loghub logs, Wikinews, the US Constitution), drawn by seed
+20261021 and cut by rule (`draw.py`); 456 questions written before any was read (`questions.py`, checked by
+`assemble.py`); 431 sentences; sized for about five points either way, each measure with its 95% interval. 01's
+harness, shared (`main(experiment, here, claim, start)`): an answer's word found only where a word of the reply
+begins, a number only whole (01's last run scores the same under it); the transcript written as it goes
+(`*_transcript.jsonl`); `--from N` goes on from text N.
+- **Its first run on main stalled 14 hours** on text 44's third sentence ("To handle changes in electric current
+  caused by weather variations, ..."). Texts 1 to 43 are in `results/terminal.txt` (what the run printed, saved by
+  hand; not yet scored). Texts 45 to 50 ran from 07:33 (`--from 45`, `results/run_from45.out`, transcript
+  `results/20261022T113957Z_transcript.jsonl`) and **stopped at 47 of their 70 sentences and questions**, in text 48
+  ("The President"), when the session that ran them ended. Texts 48 to 50 and text 44 (on the fix) are still to run.
+- **The stall, found and fixed** (lab notebook (34)): `derived_reader._least_claimed` tried every choice of every
+  sense of every word of an adjunct's readings (`itertools.product`), millions on main for six words of many WordNet
+  senses (lyric_dev holds few senses: 8.6 s there). Senses costing the same in every reading now count as one
+  choice. The same choices won, call for call: lyric_dev 147 of 147 (largest 13 choices). **Not yet shown on main**,
+  where the large cases are: the comparison (`experiments/UNDERSTANDS-PROSE-02/same_choices.py`) stopped with the
+  session. Run it on main before relying on the fix.
+- **Not decided (the owner's):** whether to split the 50 texts into a half fixed against and a half kept unseen.
+  Its transcript of texts 1 to 43 now exists, so a split now keeps unseen only what no one has read.
+
+**DONE 2026-10-21/22: A RELEASE HANDOVER** (lab notebook (34)): a new release, or new code, takes over from the running
+Lyric without either going down.
+- **The world** (Tet, `Tet/walls`): a turn handed to an inhabitant that left without answering goes back to the front
+  of the channel (`WorldRuntime._lyric_conn`, `_put_back`). Before, the thread still waiting for an inhabitant that
+  had left took the next person's turn and dropped it, every time Lyric reconnected or restarted. An inhabitant can
+  let go (`lyric_main.Attachment.detach`), waiting for a turn it is answering. `Tet/experiments/WORLD-HANDOVER-01`:
+  10/10, six runs (0/10 on the code before); WORLD-MESSAGE-01 8/8. **Live only after the world's containers restart
+  (the owner's).**
+- **Lyric:** `core/integration/world_inhabitant.py` attaches, lets go (`detach`), and passes a person's turns to the
+  instance that still holds their conversation (`pass_to`). Each person now has a conversation of their own
+  (`world:<identity>`): before, every person's turn from the world was taken in one shared conversation
+  (`api:unsessioned`), so one person's "it" could be another's. `core/integration/instance_door.py`: each running
+  instance's local, keyed door (health, check, attach, detach, pass, take), recorded in `runtime/instances/`.
+  `core/main.py`: `LYRIC_ATTACH=later`; the senses open with the attachment, so two Lyrics never listen at once;
+  the door opens in `run()`; shutdown lets go of the world first; **a second shutdown call waits for the first**
+  (before, `main()`'s `finally` returned at once and the loop's end cancelled the shutdown a signal began, so it
+  never reached "Stopping services"); a PID file of its own for an instance started beside another.
+- **`scripts/handover.py`**: start the new instance (`--release N` for a release; it checks itself as every release
+  does), check it against the running one (each question the running one answers, answered the same), switch, drain
+  (the old one answers the people it holds, through the new one, until each is quiet for `--quiet`), stop the old
+  one; every step in `runtime/handovers.jsonl`.
+- **`experiments/HANDOVER-01`** (two whole Lyrics on lyric_dev, in a world of its own): its third run went through
+  every step, the check compared, the old instance let go and stopped cleanly. Not yet shown: a conversation going on
+  across the switch (the run's quiet period, 45 s, was shorter than the new instance's start, so the old one held no
+  one; now 300 s). To run again.
+- **Live** once the owner restarts the world and Lyric with this code; every update after is a handover. No
+  environment file names `TET_WORLD_ADDRESS`: how main is attached to its world is to be confirmed.
+- The gateway (`services/api-gateway`) is not on this path: the apps reach Lyric through `/api/tet`, the field and
+  the world. Its old chat routes (to 9080, 9001, 8201) point at servers retired 2026-08-28
+  (`archive/api_serving_retired_2026-08-28`); `/api/lyric/chat` names a service the gateway does not list.
+
+**NEXT, in this order:**
+1. **The fix compared on main**, old against new call for call (lab notebook (34)); then **text 44 of
+   UNDERSTANDS-PROSE-02 on main, on the fix** (`--from 44 --to 44`) and **texts 48 to 50** (`--from 48`), run and
+   watched by the session (the owner's word: the session runs them itself and watches them); then texts 1 to 43 scored from `terminal.txt`, 44 and 45 to 50 from
+   their transcripts: the held-out result, with intervals. Record it in the README's runs.
+2. **HANDOVER-01 again**, for a conversation going on across the switch.
+3. **The wording the owner asked for:** a word Lyric has never met is reported as understood ("I understood
+   '𐎧𐏁𐏂', 'Xšāça'"). It is to say what kind of thing it took it as. In `autonomous_coordinator.py` (protected:
+   only while no experiment, teaching run or main runs).
+4. **Symbols** (the owner's direction): what a symbol is, from Unicode's table (script, name, the sound its name
+   gives: 𐎧𐏁𐏂 is XA, SHA, SSA, the "Xšāça" beside it); breaking classical ciphers with Lyric's reader as the judge
+   of a guessed key, measured at scale; reading code, LaTeX and log formats by their grammars; deciphering an unknown
+   script by where its signs stand (Linear B's method).
+5. The restarts that put the handover live (the owner's).
+
+## 0 (2026-10-20, late, as it stood then)
 
 **DONE 2026-10-20 (lab notebook (27), (28), `experiments/PMB-01`): THE COMPOSER COMPOSES.** `core/semantics/composition.py`
 rebuilt: each word's standing (a thing, a known thing, a thing of no kind, a name, a situation's term, what is asked,

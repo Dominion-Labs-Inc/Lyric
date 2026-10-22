@@ -16,6 +16,68 @@ Conventions:
 
 ---
 
+## 2026-10-22 (34) — A held-out prose test (UNDERSTANDS-PROSE-02); the reader's 14-hour stall found and fixed; a release hands over to the next without going down
+
+**Objective.** Measure reading on prose nobody fitted the reader to, at a size that can say something; and let a new
+release of Lyric take over from the running one without a restart.
+
+**UNDERSTANDS-PROSE-01 passed on main** (`20261021T184936Z`): 33/33, 36/37, 0 wrong. Not evidence Lyric reads prose:
+each miss had been fixed against those texts, and 0 wrong of 37 has a 95% interval of 0% to 9.4%.
+
+**UNDERSTANDS-PROSE-02** (README): 50 texts as published, drawn by seed and cut by rule (`draw.py`; its sources
+fetched once to `sources/`, not pushed), 431 sentences, 456 questions written before any was read. Choices made on
+the way, each by rule: lists, tables, "See also" boxes, image lines and datelines left out; a module documented in a
+list (urllib) replaced by a draw of a second seed. Errors found building it: the splitter took "Arabic." and
+"Africa." for the abbreviations "c." and "ca." (it compared endings, not words); an empty-parentheses rule stripped
+"()" from "init()"; GOV.UK wraps list items in paragraphs. Each fixed in `draw.py` before any question was written.
+Pilot (eight Volcano sentences, not in the set, lyric_dev): 1 to 26 s each, 2 taken in, 1 misread.
+
+**The stall.** The first run on main read texts 1 to 43 and then spent 14 hours on text 44's third sentence ("To
+handle changes in electric current caused by weather variations, the new system involves adjusting desalination
+rates several times a second based on the detected changes in solar irradiance."). It read in 8.6 s on lyric_dev, and
+stalled again on main read only. Sampled every 0.2 s for 3 minutes (928 samples): 99.5% inside
+`derived_reader._least_claimed`, under the frames reader's nested phrase and adjunct fillings. **Cause:** to keep each
+choice of senses with the reading that supposes least, it tried every choice of every sense of every word
+(`itertools.product`), each ranking every reading: six words of many WordNet senses on main make millions. **Fix:**
+the reading a choice keeps depends on a sense only through what it costs in each reading (`_supposes`), so senses
+costing the same in every reading are tried as one; a word's senses fall in a few such groups. **Verified:** old and
+new run side by side on every call while reading 01's 33 sentences and four Volcano sentences: lyric_dev 147 of 147
+the same choices kept for the same readings (largest 13 choices). On main, where the large cases are, the same
+comparison was started and stopped with the session before it finished: not yet shown there.
+
+**Errors of the session's own.** I told the owner `--from 44` would start at the Labour story: text 44 is the
+desalination story, so it stalled again (the texts are numbered from 1; I counted the Bolsonaro story, 43, as 42). The
+harness wrote its transcript only at the end, so the stopped run kept nothing but what the terminal showed (saved by
+hand); it now writes each sentence and question as it is done, and `--from`/`--to` run part of the texts. I left a
+run's stopping to the owner and answered "how much longer" with an investigation before the answer.
+
+**The handover.** The apps reach Lyric through the world (`/api/tet`, the field, the world), and Lyric pulls each turn
+from it (`serve_messages`); the gateway's Lyric chat routes point at servers retired 2026-08-28.
+- **Found in the world (Tet):** when an inhabitant left while waiting for a turn, the world's thread still waiting
+  for it took the next person's turn, failed to send it, and dropped it (`Tet/experiments/WORLD-HANDOVER-01`: 0/10 on
+  the code as it was). Now a turn handed to an inhabitant that leaves unanswered goes back to the front of the
+  channel; `Attachment.detach` lets go, waiting for a turn being answered so none is answered twice. 10/10, six runs;
+  WORLD-MESSAGE-01 8/8.
+- **Found in Lyric:** every person's turn from the world was taken in one shared conversation (`api:unsessioned`):
+  now `world:<identity>`. A second `shutdown()` returned at once, so the loop ended and cancelled the shutdown a
+  signal had begun, before "Stopping services" (seen in HANDOVER-01's instance log): now it waits for the first.
+- **Built:** `core/integration/instance_door.py`, the inhabitant's `detach`/`pass_to`/`take`, `LYRIC_ATTACH=later`,
+  senses opened with the attachment, `scripts/handover.py` (start, check against the running instance, switch, drain,
+  stop, each step recorded).
+- **HANDOVER-01** (two whole Lyrics on lyric_dev in a world of its own, microphone and camera off). Run 1: the door's
+  key check was an undecorated aiohttp middleware, taken for an old-style factory (500 on every request). Run 2: the
+  check asked "Is a dog an animal?", which lyric_dev does not hold; the check is now against the running instance.
+  The test then waited forever for an instance a refused handover leaves running. Run 3: every step went through and
+  the old instance stopped cleanly, but its quiet period (45 s) was shorter than the new instance's start, so no
+  conversation was held across the switch; the test then asked the stopped instance's door and, in cleaning up,
+  polled a child that had exited (a zombie polls as alive) for 10 hours. Quiet period now 300 s; its own children
+  reaped. To run again.
+
+**Open:** the fix compared on main; text 44 on the fix; texts 48 to 50 (the `--from 45` run stopped at 47 of 70
+when the session running it ended); texts 1 to 43 scored from `terminal.txt`; HANDOVER-01 again; the wording of an unknown
+word ("I understood '𐎧𐏁𐏂'"), in a protected module; symbols (Unicode's table, ciphers, LaTeX and code by their
+grammars, decipherment); the restarts that put the handover live.
+
 ## 2026-10-21 — Lyric expects things of the world; core/execution and lift dissolved into their owners
 
 **Objective.** Until today everything Lyric did unasked began with something that had already happened (a task
