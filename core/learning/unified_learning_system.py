@@ -4,6 +4,7 @@ Lyric Unified Learning System
 Integrated learning system combining all learning components
 """
 
+from statistics import NormalDist
 import hashlib
 import logging
 import asyncio
@@ -138,9 +139,49 @@ def _json_safe(value: Any) -> Any:
 # demonstrations accumulate (measured: ~0.03s at 12 examples, ~0.9s at 16, ~17s
 # at 20, non-terminating past that), while the information LGG needs saturates
 # early. Held-out validation (reserved separately) remains the correctness guard.
+#: A habit of a person's world is relied on -- what Lyric does when the world does
+#: not keep it is then theirs to have answered -- when it is more likely than not
+#: that it holds at least this often: its rate's lower bound, half a standard
+#: error below it (one-sided 69%), is at least this (`regularity_relied_on`).
+#: Chosen by Stefan (2026-10-22) over 84% and 95%, which answered 83% and 59% of a
+#: 90% habit's misses where this answers 93%, a 75% one's 9%, a 50% one's none.
+RELIED_ON_RATE = 0.8
+#: The two-sided level whose lower bound is the one-sided 69% above (z = 0.5).
+RELIED_ON_CONFIDENCE = 2 * NormalDist().cdf(0.5) - 1
+
+
+def relied_on_rate(held: int, expected: int) -> bool:
+    """Whether a habit that held `held` times of `expected` is more likely than
+    not to hold at least `RELIED_ON_RATE` of the time. Nine of ten is; eight of
+    ten is not; seventy-five of a hundred never will be, however long it runs."""
+    from core.learning.meta_learning import wilson_interval
+    lower, _upper = wilson_interval(held, expected, confidence_level=RELIED_ON_CONFIDENCE)
+    return expected > 0 and lower >= RELIED_ON_RATE
+
+
 _BASIS_POSITIVES = 8
 _BASIS_NEGATIVES = 8
 _BASIS_CONTRASTIVE = 6
+
+
+def _description(example: "TrainingExample") -> Tuple[str, ...]:
+    """What a change the world made on its own says about the thing it changed,
+    the thing's own name aside: a pdf from alice and another from alice are
+    alike, one from erin is not.
+
+    THE BASIS IS SPREAD OVER THESE, as an operator's is over its acts. A change
+    the world made has no act, so every one fell in one bucket and the cap kept
+    the earliest: the first eight, all alice's while only alice's had come. Every
+    later miss of another sender's was then told apart by its sender -- "the
+    substrate was wrong" -- however many of theirs had moved since (EXPECT-02:
+    a habit of six senders lost to the first fifteen files)."""
+    from collections import Counter
+    counts = Counter(t for f in example.before for t in f.args)
+    if not counts:
+        return ()
+    thing = max(sorted(counts), key=lambda t: counts[t])
+    return tuple(sorted(f"{f.predicate}({','.join('_' if a == thing else a for a in f.args)})"
+                        for f in example.before))
 
 
 def _bounded_basis(
@@ -173,10 +214,11 @@ def _bounded_basis(
         buckets: Dict[Any, List["TrainingExample"]] = {}
         order: List[Any] = []
         for example in unique:
-            if example.action not in buckets:
-                buckets[example.action] = []
-                order.append(example.action)
-            buckets[example.action].append(example)
+            key = example.action if example.action is not None else _description(example)
+            if key not in buckets:
+                buckets[key] = []
+                order.append(key)
+            buckets[key].append(example)
         selected: List["TrainingExample"] = []
         depth = 0
         while len(selected) < cap and any(len(buckets[a]) > depth for a in order):
@@ -317,19 +359,29 @@ def _bears_on(fact: "Fact", anchors, named, changed) -> bool:
 def _changed_things(changed, world) -> List[Tuple[frozenset, frozenset]]:
     """The changed facts, grouped by the thing each is about.
 
-    A fact names places and things; what changed in it is the thing least
-    connected in the world it was seen in -- a file moved from one room to
-    another is named in a few facts, each room in many. Facts sharing such a
-    thing are one change; two files moved between the same rooms at once are
-    two. Returns (the facts, the things they are about) per change."""
+    A fact names places and things; what changed in it is the thing the change
+    is most about -- named in the most of the facts that changed: a file that
+    moved is in both the fact taken away and the fact added, each room in one;
+    a file that arrived is in every fact that appeared. Where the change names
+    several equally, as two files moved between the same rooms at once name
+    the rooms as often as the files, it is the one least connected in the world
+    it was seen in: each room is in many facts. Facts sharing such a thing are
+    one change; those two files are two.
+
+    The world alone decided it before, and a sparse world decided it wrong: an
+    inbox holding one file is in fewer facts than the file, and a sender of one
+    file in fewer still, so a file's arrival was filed as a change of the inbox,
+    of its sender and of its kind, and never of the file. Returns (the facts,
+    the things they are about) per change."""
     from collections import Counter
     counts = Counter(t for f in world for t in f.args)
+    shared = Counter(t for f in changed for t in set(f.args))
     groups: List[Tuple[set, set]] = []
     for fact in sorted(changed, key=str):
         if not fact.args:
             continue
-        fewest = min(counts[t] for t in fact.args)
-        about = {t for t in fact.args if counts[t] == fewest}
+        best = min((-shared[t], counts[t]) for t in fact.args)
+        about = {t for t in fact.args if (-shared[t], counts[t]) == best}
         joined = [g for g in groups if g[1] & about]
         facts, things = {fact}, set(about)
         for g in joined:
@@ -5514,9 +5566,30 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _regularity_basis(self, *, domain_id: str, predicate: str, arity: int
                                 ) -> List["TrainingExample"]:
+        """A kind's changes, and the cases where it was wrong that still are.
+
+        A COUNTER-EXAMPLE IS JUDGED AGAIN as the changes of its kind accumulate.
+        A miss told apart from the confirmations was the substrate's mistake on
+        what had been seen THEN: with only alice's pdfs moved, erin's left behind
+        differed by its sender. Once erin's move too, nothing tells that miss
+        apart any more, and it was the world departing, seen in hindsight. Kept as
+        a counter-example it contradicted every hypothesis that explained the
+        changes, induction found none, and the habit was gone for good (EXPECT-02:
+        45 of 47 departures unanswered, four of five such worlds with no
+        regularity left). The question is the one `separates` asked when the miss
+        happened, put again to everything seen since."""
         from core.learning.demonstration_store import get_demonstration_store
-        return await get_demonstration_store().load(
+        examples = await get_demonstration_store().load(
             domain_id=domain_id, predicate=predicate, arity=arity)
+        positives = [e for e in examples if e.positive]
+        if len(positives) < 2 or all(e.positive for e in examples):
+            return examples
+        departed = set()
+        for negative in (e for e in examples if not e.positive):
+            result = self.induce(_bounded_basis(positives, ()) + [negative])
+            if result.status is InductionStatus.NO_RULE and result.negative_coverage:
+                departed.add(negative.evidence_id)
+        return [e for e in examples if e.evidence_id not in departed]
 
     async def _judge_regularity(self, *, domain_id: str, predicate: str,
                                 arity: int) -> Dict[str, Any]:
@@ -5574,6 +5647,26 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         stored = await self.record(result, basis, domain_id=domain_id, rule_kind=REGULARITY_KIND)
         summary["rule_ids"] = [r.rule_id for r in stored]
+        # A HYPOTHESIS THAT NO LONGER EXPLAINS EVERY CHANGE OF ITS KIND is not one
+        # of the kind's any more. "A pdf from alice moves", induced while only
+        # alice's had moved, is still true of hers once erin's moves too, so
+        # nothing refutes it; but it no longer accounts for the kind, and kept
+        # beside the hypotheses that do, it made every case outside it a question
+        # rather than a commitment, so the world departing there was never
+        # answered (EXPECT-02's pilot). It is superseded by what the kind's
+        # changes, all of them, are now explained by.
+        from core.learning.rule_induction import derives
+        positives = [e for e in examples if e.positive]
+        for held in await self.store.expectation_rules(domain_id=domain_id):
+            if (held.rule_id in summary["rule_ids"]
+                    or self._regularity_signature_of(held) != (predicate, arity)
+                    or all(derives(held.rule, e) for e in positives)):
+                continue
+            accounts = [r for r in stored if all(derives(r.rule, e) for e in positives)]
+            if accounts:
+                await self.store.supersede(held, accounts[0])
+                logger.info("regularity %s no longer explains every change of its kind; "
+                            "superseded by %s", held.rule_id, accounts[0].rule_id)
         for record in stored:
             if held_out:
                 try:
@@ -5617,15 +5710,26 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             return False
         return None
 
-    @staticmethod
-    def regularity_claim(rule_id: str) -> str:
-        """The claim that a regularity of the world can be relied on."""
-        return f"the world regularity {rule_id} holds"
+    @classmethod
+    def regularity_claim(cls, record, domain_id: str) -> str:
+        """The claim that a kind of change a world makes on its own can be relied
+        on: the habit, in its world, and not one hypothesis about its conditions.
 
-    async def regularity_belief(self, rule_id: str, *, owner: Optional[str]) -> Optional[float]:
+        It was one belief per rule, and the rules of a kind are what the learner
+        currently thinks its conditions are: each counter-example that narrowed
+        them ("what is in the inbox moves" refuted, "a pdf moves" induced) made a
+        new rule, and its belief started from nothing, though every confirmation
+        of the old rule was one of the new. Departures went unanswered while it
+        caught up (EXPECT-02's pilot). Lyric's own mistakes never move it (only a
+        confirmation or the world departing does), so it measures the habit."""
+        signature = cls._regularity_signature_of(record)
+        return f"the world regularity {signature[0]} holds in {domain_id}"
+
+    async def regularity_belief(self, record, *, domain_id: str,
+                                owner: Optional[str]) -> Optional[float]:
         """How far a regularity can be relied on, now: in its owner's context
         for a person's world, in the substrate's own beliefs for its own."""
-        claim = self.regularity_claim(rule_id)
+        claim = self.regularity_claim(record, domain_id)
         if owner:
             from core.learning.scoped_context_store import get_scoped_context_store
             held = await get_scoped_context_store().belief(str(owner), claim)
@@ -5633,7 +5737,48 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         belief = self.belief_for_claim(claim)
         return None if belief is None else float(belief.posterior_probability)
 
-    async def observe_regularity(self, rule_id: str, *, held: bool, owner: Optional[str],
+    async def regularity_record(self, record, *, domain_id: str) -> Tuple[int, int]:
+        """How the kind of change `record` is of has fared in its world, as
+        (held, expected): read from how each expectation of it ended, counted as
+        its reliability is moved -- a confirmation, or the world departing or
+        dealing with the thing otherwise. The substrate's own mistakes, and what
+        its own acts left unjudgeable, say nothing about the habit. `domain_id`
+        is the world the expectations were held of."""
+        from core.agents.memory_agent import memory_agent
+        signature = self._regularity_signature_of(record)
+        kinds: Dict[str, Optional[Tuple[str, int]]] = {}
+        held = expected = 0
+        for row in await memory_agent().expectation_outcomes(domain_id=domain_id):
+            rule_id = row["rule_id"]
+            if rule_id not in kinds:
+                rule = await self.store.get(rule_id)
+                kinds[rule_id] = self._regularity_signature_of(rule) if rule is not None else None
+            if kinds[rule_id] != signature:
+                continue
+            n = int(row["n"])
+            if row["status"] == "confirmed" and row["attribution"] == "rule_evidence":
+                held += n
+                expected += n
+            elif row["status"] == "unmet" and row["attribution"] == "external_failure":
+                expected += n
+        return held, expected
+
+    async def regularity_relied_on(self, record, *, domain_id: str) -> bool:
+        """Whether a person's habit (a kind of change in their world) is relied
+        on: shown, by how its expectations ended, to hold at least
+        `RELIED_ON_RATE` of the time.
+
+        It was the belief's posterior, settled in favour. That belief is a
+        log-odds walk, a fixed step per outcome, and a walk climbs to certainty
+        for anything kept more often than not: a step kept three times in four was
+        relied on, and every miss answered (316 of 322); one kept every other
+        time wandered past the line 45 times in 585 (EXPECT-02). The belief still
+        moves with each outcome, as what is held in their context; whether to
+        answer for them reads the rate."""
+        held, expected = await self.regularity_record(record, domain_id=domain_id)
+        return relied_on_rate(held, expected)
+
+    async def observe_regularity(self, record, *, domain_id: str, held: bool, owner: Optional[str],
                                  observation: str, memory_id: Optional[str]) -> Optional[float]:
         """One settled expectation as one witness of whether a regularity can be
         relied on. A person's world is theirs: its regularity's belief is held
@@ -5642,7 +5787,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         a regularity is relied on only after several agree, and a departure
         moves it back. Returns the posterior it moved to."""
         from core.integration.universal_domain_master import UniversalDomainMaster
-        claim = self.regularity_claim(rule_id)
+        claim = self.regularity_claim(record, domain_id)
         quality = UniversalDomainMaster.COMPETENCE_EVIDENCE_QUALITY
         if owner:
             from core.learning.scoped_context_store import get_scoped_context_store

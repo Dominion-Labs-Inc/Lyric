@@ -8619,11 +8619,14 @@ class AutonomousCoordinator:
             await self.speak_to(expectation.owner, told, why="expected",
                                 about=expectation.expectation_id)
             return
-        if how == "offer":
-            await self.speak_to(expectation.owner, told + " I can see to it if you ask.",
-                                why="expected", about=expectation.expectation_id)
-            return
-
+        # A GOAL OF ITS OWN, FOR THEM: "the expected change holds". Offered, it is
+        # held for their yes from the moment it exists, and their "Yes." goes on
+        # with it (`go_on_with`); on its own, it is pursued now. Either way they
+        # were told it was taken on, so they are told how it ended
+        # (`_speak_of_ended_work`). An offer used to be words alone, with nothing
+        # held that a yes could answer; a goal pursued used to end unsaid, after
+        # "I am seeing to it" (EXPECT-01: every one failed, and she was not told).
+        offered = how == "offer"
         task = Task(
             id=f"expect_{expectation.expectation_id}",
             type=TaskType.EXECUTION,
@@ -8636,10 +8639,15 @@ class AutonomousCoordinator:
                         + [f"¬{f}" for f in sorted(effects.delete)],
                         "domain_id": expectation.domain_id,
                         "expectation_id": expectation.expectation_id},
+            metadata={"told_taken_on": True},
         )
-        if await self.task_queue.add_task(task):
-            await self.speak_to(expectation.owner, told + " I am seeing to it.",
-                                why="expected", about=task.id)
+        if await self.task_queue.add_task(task, held_for_person=offered):
+            if offered:
+                await self.speak_to(expectation.owner, told + " Shall I put it right?",
+                                    why=Conversation.CONFIRM, about=task.id)
+            else:
+                await self.speak_to(expectation.owner, told + " I am putting it right.",
+                                    why="expected", about=task.id)
         else:
             logger.warning("the queue refused the goal for unmet expectation %s; %s is told only",
                            expectation.expectation_id, expectation.owner)
@@ -16317,8 +16325,15 @@ class AutonomousCoordinator:
         if not any(j["task_id"] == task_id for j in await self.task_queue.work_of(actor, limit=50)):
             return False
         queued = self.task_queue.tasks_by_id.get(task_id)
-        run = (queued.task.metadata or {}).get("capability_run") if queued is not None else None
-        if run is None or run.get("asked") is None or queued.status != TaskStatus.BLOCKED:
+        if queued is None or queued.status != TaskStatus.BLOCKED:
+            return False
+        run = (queued.task.metadata or {}).get("capability_run")
+        if run is None:
+            # HELD WHOLE: a goal formed for them and held for their yes from the
+            # moment it existed (`add_task(held_for_person=True)`). Their yes
+            # lets all of it go on.
+            return await self.task_queue.resume_task(task_id)
+        if run.get("asked") is None:
             return False
         run["confirmed"] = run["asked"]
         return await self.task_queue.resume_task(task_id)
@@ -16436,12 +16451,14 @@ class AutonomousCoordinator:
             logger.error("messages owed could not be armed again: %s", error)
 
     async def _speak_of_ended_work(self, job: Dict[str, Any], task: Task) -> None:
-        """WORK A PERSON ASKED FOR HAS ENDED, AND THE SUBSTRATE SAYS SO: how it
-        ended and what it found, to them, unasked (`speak_to`), in the
-        conversation they asked in. The substrate's own work is its own."""
+        """WORK A PERSON ASKED FOR, OR WAS TOLD THE SUBSTRATE TOOK ON FOR THEM, HAS
+        ENDED, AND THE SUBSTRATE SAYS SO: how it ended and what it found, to them,
+        unasked (`speak_to`), in the conversation they asked in. The substrate's
+        own work is its own."""
         from .shared_types import is_substrate_actor
         actor = getattr(task, "actor", None)
-        if is_substrate_actor(actor) or task.source not in (TaskSource.API, TaskSource.MANUAL):
+        asked = task.source in (TaskSource.API, TaskSource.MANUAL)
+        if is_substrate_actor(actor) or not (asked or (task.metadata or {}).get("told_taken_on")):
             return
         session = str((task.metadata or {}).get("conversation_id")
                       or (task.metadata or {}).get("session_id") or "") or None
@@ -16929,6 +16946,26 @@ The substrate must realign with its constitutional responsibilities immediately.
                 pass
 
         await self._stop_reactions()
+
+        # WORK UNDER WAY ENDS BEFORE WHAT IT WRITES TO DOES. A job whose act was
+        # done was still recording how it went (its outcome memory, its pursuit)
+        # when the modules and then the database closed behind it: "pool is
+        # closing", and the failure could not even be recorded (EXPECT-02, each
+        # restart). Cancelled, then waited for, as the queue authority does with
+        # its own jobs; what was interrupted is restored at the next boot.
+        # No reading of a world is taken in from here on, and none is left half
+        # attended to: each is attended to on a task of its own (the predictive
+        # intelligence system's `on_reading`), and one forming an expectation
+        # met the database closing behind it (EXPECT-02, run 6).
+        stop_reading = getattr(self, "_stop_attending_readings", None)
+        if stop_reading is not None:
+            stop_reading()
+        running = [job for job in self._inflight_tasks.values() if not job.done()]
+        for job in running:
+            job.cancel()
+        if running:
+            await asyncio.gather(*running, return_exceptions=True)
+        await self.intelligence.readings_settled()
 
         # The queue authority this started stops with it, releasing this
         # instance's lease: the work still owed is claimed by the next instance
@@ -18211,6 +18248,15 @@ The substrate must realign with its constitutional responsibilities immediately.
         # no overlap was seen keeps single-task and cross-domain learning intact;
         # the guard raises it only for a real, observed concurrent overlap, so a
         # correct rule is never revised because another task happened to run.
+        # A TOOL THAT FAILED CHANGED NOTHING, by its own report. If a precondition
+        # that held in the reading before it no longer holds after it, something
+        # else removed it while the act was being judged and run -- the act raced
+        # someone -- and the mismatch is not this rule's to answer for. Measured
+        # (EXPECT-02's pilot): MOVE refuted by "contradicted: add AT(pdf012, DONE);
+        # 1 effect(s) confirmed" after she filed pdf012 while the act was judged.
+        if (not interfered and after is not None and not getattr(result, "success", False)
+                and any(literal.substitute(bindings) not in after for literal in rule.preconditions)):
+            interfered = True
         attribution, why = attribute(evidence, AttributionContext(
             preconditions_observed=True,      # checked against `before`
             rule_validated_at_execution=True,  # status re-read above
@@ -19981,6 +20027,8 @@ class Turn:
     #: The job the substrate asked, in this turn, to go on with: what a
     #: following "Yes." or "No." answers.
     asking: Optional[str] = None
+    #: The job this turn's "Yes." or "No." answered: its question is closed.
+    answering: Optional[str] = None
 
 
 #: How many remembered things a turn has to choose from (`Conversation.understand`).
@@ -20970,13 +21018,23 @@ class Conversation:
 
     async def _kind_of(self, name: str) -> Optional[str]:
         """What a particular thing is (`kelt_1`, a kelt), where that is held;
-        None for a kind, or a thing known only by its name."""
+        None for a kind, or a thing known by a name of its own.
+
+        A PARTICULAR IS NAMED FOR ITS KIND, with a mark (`kelt_1`; a happening
+        told, `provide_f11f8919`: `_known_of`, `teaching.told_events`). A thing
+        held as one of a kind under a name of its own is said by its name: West
+        Africa, held an instance of a geographical area, answered "Where did the
+        Tichitt Tradition flourish?" as "Geographical area."
+        (UNDERSTANDS-PROSE-02, 2026-10-22)."""
+        from core.semantics.cognitive_ingress import normalize_term
         if name in self._particulars:
             return self._particulars[name][0]
         held = await self.resolve_name(name)
         for relation, other in held.relations:
             kind, denied = _link_kind(relation)
-            if kind == "instance_of" and not denied:
+            stem = (normalize_term(str(other)) or str(other)) + "_"
+            if kind == "instance_of" and not denied and str(name).startswith(stem) \
+                    and str(name)[len(stem):].isalnum():
                 return str(other)
         return None
 
@@ -21366,7 +21424,9 @@ class Conversation:
         understanding = Understanding(sentence=sentence, asked=asked)
         understanding.reply = reply
         self._turns.append(Turn(said=sentence, asked=asked, subject=self._last_subject,
-                                reply=reply, asking=asking))
+                                reply=reply, asking=asking,
+                                answering=(route.get("job") if route.get("what") in ("go", "decline")
+                                           else None)))
         self._last_reply = reply
         await self._hand_over_turn(understanding, route, outcome)
 
@@ -21467,9 +21527,9 @@ class Conversation:
               incoming: Optional[Dict[str, Sequence[Tuple[str, str, str, bool]]]] = None) -> List["Answer"]:
         """The held relations that answer what the question MEANS.
 
-        A yes/no question asks whether one fact holds, and is answered by that
-        fact held on the concept it names -- or by its denial, which answers no
-        from evidence rather than from silence. Where both are held, the belief
+        A yes/no question asks whether all it says holds, and is answered yes by
+        each of its facts held on the concept it names -- or no by the denial of
+        one, from evidence rather than from silence. Where both are held, the belief
         in the fact decides which is so: a later, weaker source that denies it
         dents the belief and does not turn the answer. A question asking for
         something asks for every held relation of that kind on the concept named
@@ -21492,7 +21552,6 @@ class Conversation:
 
         by_name = {r.phrase.lower(): r for r in resolved if r.known}
         pointing = {name.lower(): facts for name, facts in (incoming or {}).items()}
-        answers: List[Answer] = []
         bound = list(zip(meaning.facts, meaning.bound(self._situation(sentence), self._known_found(meaning))))
         if not meaning.asked and any(is_variable(fact.subject) or is_variable(fact.obj)
                                      for said, fact in bound if not said.condition and not said.given):
@@ -21501,11 +21560,29 @@ class Conversation:
             # and was answered "Yes." of a changing told as not done (UNDERSTANDS-PROSE-01 on main, 2026-10-21). The
             # happenings told answer it (`_asked_of_events`).
             return []
+        # A QUESTION IS ALL IT ASKS AT ONCE. What it asks for, described by more than one fact ("In which journal did
+        # the engineers publish?": a journal, and what the publishing was done in), is not answered by one of them:
+        # any journal held answered it, said "Journal." (UNDERSTANDS-PROSE-02, 2026-10-22). What holds all of them is
+        # found as a whole (`_asked_of_events`).
+        described: Dict[str, int] = {}
+        for said, _ in bound:
+            if not (said.condition or said.given):
+                for term in {said.subject, said.obj} & set(meaning.asked):
+                    described[term] = described.get(term, 0) + 1
+        by_fact: List[List[Answer]] = []
         for said, fact in bound:
+            answers = []
+            by_fact.append(answers)
             # WHAT A KNOWN THING IS PICKS IT OUT; IT IS NOT ASKED. "Did the blip
             # run?" asks of the blip a running, not whether it is a blip: held,
             # that would answer yes to anything asked of it.
             if said.condition or said.given:
+                continue
+            asks = {said.subject, said.obj} & set(meaning.asked)
+            if meaning.asked and (not asks or any(described[term] > 1 for term in asks)):
+                # A QUESTION ASKING FOR SOMETHING IS NOT ANSWERED YES OR NO by a fact naming nothing it asks: "How many
+                # times can a person be elected to the office of the President?" was "Yes. A The office is part of a
+                # president.", the office's description held (UNDERSTANDS-PROSE-02, 2026-10-22).
                 continue
             if is_variable(fact.subject):
                 # WHAT HOLDS THE RELATION TO THE NAMED THING: each answer is said
@@ -21548,7 +21625,19 @@ class Conversation:
                 answers.append(Answer(item.phrase, relation, (other,),
                                       verdict=fact.positive != denied,
                                       alternative=said.alternative))
-        return answers
+        if not meaning.asked:
+            # A YES OR NO IS OF ALL A QUESTION SAYS: one part denied is no, and yes is every part held. "Can a person
+            # be elected to the office of the President three times?" was "Yes." by the office's description alone,
+            # nothing held of the electing (UNDERSTANDS-PROSE-02, 2026-10-22). An "or" question's alternatives are
+            # each their own answer, said as they hold.
+            plain = [found for (said, _), found in zip(bound, by_fact)
+                     if not (said.condition or said.given or said.alternative)]
+            denied = [answer for found in plain for answer in found if answer.verdict is False]
+            if denied:
+                return denied
+            if not all(any(answer.verdict for answer in found) for found in plain):
+                return []
+        return [answer for found in by_fact for answer in found]
 
     async def _held_ways(self, facts: Sequence[Any], held: "_Held") -> List[Dict[str, str]]:
         """EVERY WAY WHAT IS HELD MAKES ALL OF A QUESTION'S FACTS HOLD, each `{unknown: held thing}`: "What absorbs the
@@ -21634,6 +21723,11 @@ class Conversation:
         held = _Held(self, incoming)
         answers: List[Answer] = []
         qualified: List[Answer] = []
+        # What the question already says each thing it asks for is ("Which base class ...?": a base class).
+        asked_as: Dict[str, Set[str]] = {}
+        for f in facts:
+            if f.relation == "instance_of" and f.subject in meaning.asked and not is_variable(f.obj):
+                asked_as.setdefault(f.subject, set()).add(held.plain(f.obj))
         for way in await self._held_ways(facts, held):
             candidate = way[main] if main else next(
                 (f.subject for f in facts if not is_variable(f.subject)), next(iter(way.values()), ""))
@@ -21660,6 +21754,13 @@ class Conversation:
                 kind = await self._kind_of(value)
                 if kind:
                     kinds[value] = kind
+            if meaning.asked and all(unknown in filled and filled[unknown] in kinds
+                                     and held.plain(kinds[filled[unknown]]) in asked_as.get(unknown, ())
+                                     for unknown in meaning.asked):
+                # AN ANSWER THAT ONLY SAYS WHAT THE QUESTION SAYS IS NONE: what fills what is asked, known only as one
+                # of the kind the question already names it, was said by that kind ("Which base class does unittest
+                # provide?" "Base class.", UNDERSTANDS-PROSE-02, 2026-10-22).
+                continue
             tellings = []
             for timed in ((True, False) if qualities else (True,)):
                 try:
@@ -21873,7 +21974,7 @@ class Conversation:
         from core.reasoning.neural_bridge import ReasoningMode, ReasoningRequest, get_neural_bridge
         result = await get_neural_bridge().reason(ReasoningRequest(
             query=sentence, reading=meaning, mode=ReasoningMode.SYMBOLIC, cached_memories=[],
-            task_metadata={"actor": self._actor}))
+            task_metadata={"actor": self._actor, "remembers": self._remembers}))
         worked = (result.metadata or {}).get("worked")
         understanding = Understanding(sentence=sentence, asked=True)
         if worked is None or not worked.ok:
@@ -22079,7 +22180,8 @@ class Conversation:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
                 query=sentence, context=premises, reading=affirmative,
-                task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in)}))
+                task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
+                               "remembers": self._remembers}))
             if not (result.metadata or {}).get("verified") or not result.answer:
                 return await self._held_as_both(fact)
             # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
@@ -22115,7 +22217,8 @@ class Conversation:
             return []
         result = await bridge.reason(ReasoningRequest(
             query=sentence, context=premises, reading=reading,
-            task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in)}))
+            task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
+                           "remembers": self._remembers}))
         if not (result.metadata or {}).get("verified") or not result.answer:
             return []
         support = self._support_used(premises, result.reasoning_steps,
@@ -22368,7 +22471,11 @@ class Conversation:
             from core.learning.teaching import told_events, told_kinds
             from core.semantics.cognitive_ingress import normalize_term
             from core.semantics.derived_reader import Meaning
-            told_of = Meaning(meaning.act, meaning.bound({}, known), meaning.asked)
+            # ONE THING NAMED TWICE IS ONE FACT: "the office of the President ... the office of President", each
+            # description bound to the known office it picks out, states the same fact twice, and a meaning holds a
+            # fact once (UNDERSTANDS-PROSE-02, text 50, 2026-10-22). `bound` keeps one fact per fact: its callers
+            # zip the two.
+            told_of = Meaning(meaning.act, tuple(dict.fromkeys(meaning.bound({}, known))), meaning.asked)
             events = {unknown: normalize_term(name)
                       for unknown, name in told_events(told_of, said, described=True).items()}
             kinds_told = told_kinds(told_of, described=True)
@@ -22745,9 +22852,17 @@ class Conversation:
         turn, within the same window, that either asked about a job or admitted
         a memory, when it is the question. A memory admitted since is what a
         verdict judges instead (`_feedback_referent`)."""
+        # THE MOST RECENT QUESTION STILL OPEN. Three questions asked at once and
+        # answered "Yes." three times: each yes answered the last question, the
+        # first yes closed it, and the other two reached a job no longer waiting
+        # while two others waited unanswered (EXPECT-02, at a restart).
         window = list(self._turns)[-_FEEDBACK_WINDOW:]
+        answered = set()
         for turn in reversed(window):
-            if turn.asking:
+            if turn.answering:
+                answered.add(turn.answering)
+                continue
+            if turn.asking and turn.asking not in answered:
                 return turn
             if turn.memories:
                 return None

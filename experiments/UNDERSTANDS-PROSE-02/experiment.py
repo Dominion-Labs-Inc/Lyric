@@ -14,6 +14,7 @@ Run (from the Lyric folder; starts no substrate):
 """
 import asyncio
 import importlib.util
+import json
 import sys
 from pathlib import Path
 
@@ -32,5 +33,18 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--from", dest="start", type=int, default=1, help="the text to begin at (1 is the first)")
     parser.add_argument("--to", dest="end", type=int, default=None, help="the last text to run (the last of all if not given)")
+    parser.add_argument("--half", choices=("fit", "held"), default=None,
+                        help="only the texts of one half of split.json: those fixed against, or those kept unseen")
+    parser.add_argument("--texts", default=None,
+                        help="only these texts of the half fixed against, by number: 8,13,14 (never a text kept unseen)")
     asked = parser.parse_args()
-    sys.exit(asyncio.run(prose.main("UNDERSTANDS-PROSE-02", HERE, CLAIM, start=asked.start, end=asked.end)))
+    split = json.loads((HERE / "split.json").read_text())
+    only = set(split[asked.half]) if asked.half else None
+    part = f"the half {'fixed against' if asked.half == 'fit' else 'kept unseen'}" if asked.half else None
+    if asked.texts:
+        only = {int(n) for n in asked.texts.split(",")}
+        if only - set(split["fit"]):
+            parser.error(f"texts kept unseen are run only as their half, once: {sorted(only - set(split['fit']))}")
+        part = "texts of the half fixed against"
+    sys.exit(asyncio.run(prose.main("UNDERSTANDS-PROSE-02", HERE, CLAIM, start=asked.start, end=asked.end, only=only,
+                                    part=part)))

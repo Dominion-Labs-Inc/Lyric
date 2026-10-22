@@ -1,0 +1,120 @@
+{
+  "experiment": "UNDERSTANDS-PROSE-02",
+  "claim": "the substrate reads prose nobody fitted it to as its sources write it, and reasons over what it read: it understands the sentences, answers what they say and what follows, and does not answer wrongly what it did not understand",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-22T13:11:10.085770+00:00",
+  "duration_seconds": 1126.04,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "a56f80e1be30cc74f0b86687297cf2ed80499d67",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 19,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 4,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "2/2; 95% interval 34.2% to 100.0%"
+    },
+    {
+      "name": "questions answered right",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5; 95% interval 0.0% to 43.4%"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.4,
+      "unit": "fraction",
+      "note": "2/5; 95% interval 11.8% to 76.9%"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-22T13:15:18.064865+00:00"
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": true,
+      "detail": "2/2 = 100.0% (95% interval 34.2% to 100.0%)",
+      "at": "2026-10-22T13:29:55.119088+00:00"
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": false,
+      "detail": "0/5 = 0.0% (95% interval 0.0% to 43.4%)",
+      "at": "2026-10-22T13:29:55.119115+00:00"
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": false,
+      "detail": "2/5 = 40.0% (95% interval 11.8% to 76.9%)",
+      "at": "2026-10-22T13:29:55.119128+00:00"
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-10-22T13:29:55.119139+00:00"
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-22T13:29:56.137941+00:00"
+    }
+  ],
+  "notes": [
+    "reading by English's grammar on: an utterance no taught frame reads is read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)",
+    "an utterance every frame reads only by supposing more than any lesson read as taught is read by the grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)",
+    "texts 50 to 50 only, of 50: the rest run apart",
+    "premises and a rule: sentences 2/2, questions right 0/5, wrong 2"
+  ]
+}

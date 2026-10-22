@@ -16,6 +16,89 @@ Conventions:
 
 ---
 
+## 2026-10-22 (35) — UNDERSTANDS-PROSE-02 whole: on prose nobody fitted it to, Lyric reads half the sentences and answers a tenth of the questions, and as many wrongly
+
+**Objective.** Finish the held-out run (text 44 on the stall fix, texts 48 to 50) and score all 50 texts.
+
+**Run on main, read only, started and watched by the session.** Text 44 (`20261022T120503Z`): the sentence that
+had run 14 hours read in 410.7 s, not taken in; the text 2/5 sentences, 0/8 right, 1 wrong. Texts 48 to 50
+(`20261022T122438Z`): 6/8, 0/16, 1 wrong, one sentence stopped. Both logs clean (no ERROR, no traceback), and the
+store not written to (the server's counters). The first attempt to start text 44 was refused by the permission
+check, as a session's run on main was before; started again in plain form on the owner's word, it ran.
+
+**Scored** (`results/all_50_scored.json`, README): texts 1 to 43 from what their run printed (`terminal.txt`; the
+verdicts as scored then, every reply with a word answer checked again by `said`, which changed none), 44 to 50 from
+their transcripts.
+
+| Measure | Result | 95% interval | Bar |
+|---|---|---|---|
+| Sentences understood | 210/431 = 48.7% | 44.0% to 53.4% | ≥ 90% |
+| Questions answered right | 43/456 = 9.4% | 7.1% to 12.5% | ≥ 80% |
+| Questions answered wrong | 43/456 = 9.4% | 7.1% to 12.5% | ≤ 2% |
+
+UNDERSTANDS-PROSE-01, fitted, was 33/33, 36/37, 0 wrong. Held out, every bar fails by far: what 01 measured was
+the fitting. Security logs 0/50 sentences read; webpages 1/45 right, news 1/48.
+
+**Errors found, and their causes.**
+1. **Every wrong answer asks what, who, which or when** (no yes or no was answered wrongly). 21 say the kind asked
+   for back: "In which journal did the engineers publish?" "Journal.". Traced on its record: the reasoner settled
+   nothing; `Conversation.asked` took the question's fact `instance_of(?v2, journal)` alone and answered it by the
+   journal held from the telling (`Answer("journal_1", "instance_of", ("journal",))`), never asking whether the
+   engineers published in it, and said it by its kind, which is the question's own word. `_held_ways` asks all of a
+   question's facts at once; `asked` still answers one at a time. 14 answer "Yes." to a question asking what or when
+   ("When was the Siege of Baghdad?"). 8 others: "also called" answered by what the thing is, things found by their
+   kind alone ("Supply.").
+2. **A sentence naming one known thing three times stops the conversation** (text 50, "No person shall be elected
+   to the office of the President more than twice, ..."): `ValueError: a meaning states the same fact twice`. Each
+   description, bound to the known office it picks out, makes the same fact, and `_telling` builds a `Meaning` of
+   the bound facts (`Meaning(meaning.act, meaning.bound({}, known), meaning.asked)`), which refuses a fact twice.
+   `bound` keeps one fact per fact on purpose (its callers zip the two); the fix is to hold each fact once where
+   the meaning is built. Made on the owner's word once nothing ran (the coordinator is protected; another session's
+   EXPECT-02 substrate had been running). **Verified** on main, text 50 again (`20261022T131110Z`): the sentence read
+   in 487.0 s, its "No" held (the electing `false`), nothing stopped, nothing written.
+2a. **Freed, that sentence exposed a second answering fault**: 2 of text 50's 5 questions answered wrongly, both
+   "Yes. A The office is part of a president." ("How many times can a person be elected to the office of the
+   President?", "Can a person be elected ... three times?"). The question's description of the office,
+   `part_of(office_1, president)`, is held, and `Conversation.asked` answered it as if it were asked; of a known
+   thing's description only its `instance_of` is passed over as what picks it out ("WHAT A KNOWN THING IS PICKS IT
+   OUT; IT IS NOT ASKED"). Likely also the 14 "Yes." to questions asking what or when ("In whom is the executive
+   Power vested?" "Yes. The power is vested."): to trace each before saying so.
+2b. **A recall timed out while the reader held the loop**: in that run, the live recall of the second sentence was
+   sent at 09:22:15 and both its queries failed at 09:27:13 (`TimeoutError`, the store's 60 s command timeout); the
+   sentence took 297.6 s to read, all of it on the event loop. The only ERROR lines of the run; that recall's
+   memories were not had.
+3. **The stall fix is slow still**: 410.7 s for one sentence is not 14 hours, but not reading either. Where those
+   seconds go is not traced.
+
+**Session errors.** I first reported the state from before the owner's latest commit (`a56f80e1` landed at 08:00,
+while I was reading). My scoring script printed "stopped none" as fixed text; caught before it was recorded.
+
+**Split and fixed (the owner's word).** The 50 texts split by rule into a half fixed against and a half kept unseen
+(`split.py`; 44 and 50, already traced, fixed against). Fixed as rules, each with a test failing before:
+`Conversation.asked` answers a question all at once (what it asks for, described twice, is not answered by one fact;
+a fact naming nothing asked gives no yes or no; yes is every part held); a thing with a name of its own is said by its
+name (`_kind_of`); an answer only saying the kind the question names is none; "whom" never a subject. Measured on
+main: the half fixed against wrong 25 to 8 of 231, right 20 to 21; texts 8, 13, 14, 28, 31 after the second fixes
+wrong 7 to 4, right 10 to 11; UNDERSTANDS-PROSE-01 33/33, 36/37, 0 wrong throughout.
+
+**Error found: main was written by these read-only runs.** The fit run's store check failed (`memory_hot` +3 and
+learning rows). A question reaching the abstract reasoning engine had its reasoning stored and learned from
+(`_update_learning`, `_store_in_memory`), the engine never told the conversation remembers nothing. Nine such memories
+on main from PROSE-02's runs since 2026-10-21; the runs that passed the check had only not reached a strategy. Fixed:
+`ReasoningContext.remembered`, from the request's `remembers`, which the conversation now sends; the five-text run
+after wrote nothing. Deleting the nine is the owner's call.
+
+**Why so few are right**, counted on the half fixed against: 78 questions had the answer's sentence and the question
+both read and never met, the question read otherwise than its telling; 65 of 112 unread sentences had every word read
+but not how they fit. The reader, not the answering, is what holds the score down.
+
+**Session errors.** My first fit run was killed by a restart of the session (it ran attached); run detached since.
+I took the "whom" entry for the cause of "Whom did Cyrus defeat?": the reading did not change, its cause is the link
+learned for "defeat"'s second place.
+
+**Open:** the fix compared on main (`same_choices.py`); questions read as their tellings are; sentences whose words
+are read but not how they fit; reading that holds the event loop for minutes; the half kept unseen, once.
+
 ## 2026-10-22 (34) — A held-out prose test (UNDERSTANDS-PROSE-02); the reader's 14-hour stall found and fixed; a release hands over to the next without going down
 
 **Objective.** Measure reading on prose nobody fitted the reader to, at a size that can say something; and let a new
@@ -77,6 +160,121 @@ from it (`serve_messages`); the gateway's Lyric chat routes point at servers ret
 when the session running it ended); texts 1 to 43 scored from `terminal.txt`; HANDOVER-01 again; the wording of an unknown
 word ("I understood '𐎧𐏁𐏂'"), in a protected module; symbols (Unicode's table, ciphers, LaTeX and code by their
 grammars, decipherment); the restarts that put the handover live.
+
+## 2026-10-21 (33) — Expectations at a powered scale (EXPECT-02): seven defects the pilots found, and three systems to compare with
+
+**Objective.** EXPECT-01 (19/19) had a handful of cases in clean worlds, and its only comparison was a weaker copy
+of Lyric. Stefan: the ablation "is not yet sufficient to establish that Lyric is superior to conventional
+approaches"; compare against systems that also detect missing events, revise rules and apply authorization
+constraints. The cases where Lyric is most likely to be wrong were never tried:
+- a habit that changes;
+- attributes that do not matter;
+- senders never seen while learning;
+- Lyric's own acts mixed with the person's;
+- tendencies at more than one rate.
+
+**Built.** EXPECT-02, designed and pre-registered before any run (folder README): nine worlds a seed, five seeds,
+about 200 scored departures. Three conventional systems are replayed over the same stream behind the same mode gate:
+- an engineered absence rule;
+- rules mined over all history;
+- the same rules over a 20-case window.
+
+**Errors found, and their causes.**
+1. **EXPECT-01's Delegate goals had all failed.** "No sequence of the available actions achieves the goal", after
+   "I am seeing to it", and she was never told. `_speak_of_ended_work` speaks only for work a person asked for.
+   EXPECT-01 counted a goal forming as a pass.
+2. **The Assist offer had nothing behind it.** "I can see to it if you ask" held no goal a yes could answer, and
+   `go_on_with` resumed only capability runs.
+3. **A sparse world was cut wrong** (`_changed_things`). The thing a change is about was taken to be the term in the
+   fewest facts of the world. With one file in the inbox, or one file from a sender, those were the inbox, the sender
+   and the kind, never the file. Now: the term the change names most often, with world counts breaking ties.
+4. **MOVE could not be learned in an office.** Plotkin's LGG paired every room's OPEN fact with every other whenever
+   moves swapped source and destination: 2, 4, 8, 16 literals, past the body bound before minimization. Now
+   `generalize` applies Plotkin's reduction: a literal whose variables occur nowhere else is dropped when another of
+   its predicate holds the same.
+5. **A habit that changed was put "right".** A file she filed to ARCHIVE was, to Lyric, a departure, and in
+   Delegate it set out to move seven of her files back. A thing the world changed since the expectation formed, only
+   not as expected, is now dealt with otherwise: its reliability moves, and nothing is raised.
+6. **Every one-line memory cost 2.45 s.** Since the grammar was wired into memory today, `_readable_claim` reads
+   every one-line memory under 200 characters with the grammar, on the substrate's loop. Profiled: 183 of the 186 s
+   spent attending to readings. An expectation's ending is now kept as an episode on two lines, the memory agent's
+   form for one: about 18 s per file became 1.6 s. **Every other short memory in Lyric still pays it.**
+7. **Reliability started over with every hypothesis.** One belief per rule, and each counter-example that narrowed
+   a kind made a new rule. The belief is now of the kind of change in its world (the habit). A hypothesis that no
+   longer explains every change of its kind ("a pdf from alice moves", once erin's moved too) is superseded instead
+   of leaving everything outside it a question.
+
+Also found:
+- **A failed act was charged to its operator.** Lyric planned a MOVE, she filed the file in the seconds the
+  constitution took to judge the act, and the failed tool was charged to MOVE as rule evidence. It moved nothing.
+  The fix, together with 1 and 2, is staged for the protected coordinator.
+- **The belief kernel is a log-odds walk (±0.45 per outcome).** It climbs to certainty for anything kept more often
+  than not (a 75% habit was answered 6 times in 7). After 40 confirmations, about 37 misses are needed before a
+  changed habit stops being relied on. Reported, not changed: it is the one belief authority.
+- **Harness faults of mine:**
+  - her filing was timed from the end of Lyric's reading, not the arrival;
+  - the restart files came due before the stop;
+  - the office reported no file without an extension.
+
+**Pilots** (1 seed, a third of the files; a check of the harness, not evidence). In the last pilot, Lyric:
+- answered no txt and no 50% tendency miss;
+- answered 1 of 124 files filed late;
+- answered none of the 36 files she filed elsewhere after her habit changed, and acted against none.
+
+Over the same files the mined systems acted against her 20 times and the engineered rule 36. Lyric's misses were
+all where the habit was not yet relied on (the full run scores from the 20th file) or where its own practice blinded
+it. The median answer came 2.8 s after the file arrived.
+
+**How verified.** Unit tests (`test_substrate_execution`, `test_rule_induction`, `test_numeric_induction`,
+`test_rule_authority`): 91, then 22 after the belief change. The new tests fail without their fix. pyflakes shows no
+new warnings. Every pilot log is clean of ERROR and Traceback.
+
+**2026-10-22, the full runs** (5 seeds, 45 worlds; `experiments/EXPECT-02/results/`). The coordinator patch went in
+at 07:58, with no substrate running:
+- the offer is a goal held for her yes;
+- a goal she was told was taken on is told when it ends;
+- a failed act that raced someone is not charged to its operator.
+
+Later, "Yes." was made to answer the most recent question still open: three asked at once had all been answered by
+the first.
+
+| Run | Departures answered | Found |
+|---|---|---|
+| 1 | 129/193, 0.67 | One early skip by a sender not yet seen was told apart by its sender and poisoned the habit for good (45 of 47 missed in those worlds). **Fixed:** a counter-example is judged again as the kind's changes accumulate. |
+| 2 | 148/189, 0.78 | The sample a miss is compared with (`_bounded_basis`, 8) spread over an act, and a world's change has none, so it was the first 8 changes, all alice's. **Fixed:** spread over what each change says of its thing. |
+| 3 | 193/203, 0.95 | 20/22 |
+| 4 | 166/179, 0.93 | 20/22 |
+
+Runs 3 and 4 beside the baselines (run 3; engineered, mined, windowed):
+- departures: 1.0, 0.99, 0.98;
+- late filings answered: Lyric 7 of 2,382 (35, 184, 193);
+- txt she never handles: 0 of 296 (0, 86, 130);
+- files she filed elsewhere after her habit changed, acted against: **0 of 600** (600, 200, 197);
+- Delegate and Assist put it right 63 of 63, and she was told about every goal;
+- restart: 9 of 9 answered, 6 of 6 put right.
+
+**Every miss in run 3 (10) and 12 of 13 in run 4** came where Lyric had acted in the same world while the
+expectation stood: its act marks are per world, not per file.
+
+**What failed:**
+- **A 50% tendency was answered** 15 of 132 (run 3), 1 of 153 (run 4); at 75%, 87 of 87. The belief walk, again:
+  Stefan's decision.
+- **The log.** I first blamed my runs' leftover planning goals, which every boot restores: 321 goals and 281 plans,
+  all "Put right what was expected in expect0…". I removed them and both experiments now clean their own. Wrong
+  cause: the error was each run's own restart shutting down while its last act was still recording what it taught.
+  The harness now waits for goals to end. The leftovers were still real, and so is the defect behind them:
+  **a substrate goal's planning goal and plan are never closed when the pursuit ends.**
+
+**Also run:** EXPECT-01 20/20, after its txt check was made to count only txt files. Its rerun before that (18/20)
+had one filing later than a due time taken from 3 timings.
+
+**Next, for Stefan:**
+- a reliability belief that measures a rate;
+- act marks per thing;
+- closing a pursued goal's planning goal and plan;
+- the 2.45 s grammar read on every short memory (the grammar's owner).
+
+---
 
 ## 2026-10-21 — Lyric expects things of the world; core/execution and lift dissolved into their owners
 

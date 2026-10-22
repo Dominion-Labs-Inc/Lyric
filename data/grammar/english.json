@@ -1432,16 +1432,6 @@
   ],
   "whom": [
    {
-    "cat": "S[wq].e/(S[dcl].e\\NP.x)",
-    "sem": [
-     [
-      "asked",
-      "x"
-     ]
-    ],
-    "use": "wh:subject"
-   },
-   {
     "cat": "S[wq].e/(S[q].e/NP.x)",
     "sem": [
      [

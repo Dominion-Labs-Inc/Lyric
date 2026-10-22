@@ -1,0 +1,2307 @@
+[
+ {
+  "text": "Rain",
+  "told": "Rain or rainfall is a form of atmospheric precipitation composed of droplets of water aerosols that have condensed from atmospheric water vapor and fall by gravity.",
+  "read": true,
+  "reply": "Noted - I'll hold that about condense_b6bc6950.\nNoted - I'll hold that about rain_ca295a09.\nNoted - I'll hold that about rainfall_901b8f23.\nNoted - Composed is a kind of precipitation.\nNoted - I'll hold that about droplet_d9c4c6b0.\nNoted - I'll hold that about water_aerosol_f5a1c3ec.\nNoted - I'll hold that about water_vapor_7fdcc6e6.\nNoted - I'll hold that about fall_d1cf1c20.\nNoted - I'll hold that about gravity_72ce5e40.\nNoted - I'll hold that about form_8f7712c3.\nNoted - Composed is atmospheric.\nNoted - I'll hold that about composed.\nNoted - A droplet d9c4c6b0 is part of a water aerosol f5a1c3ec.\nNoted - A group a80eded3 is atmospheric.\nNoted - I'll hold that about group_a80eded3.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_with(?v0, ?v2) & has_member(?v3, ?v4) & has_member(?v3, ?v5) & has_member(?v6, ?v7) & has_member(?v6, ?v8) & has_property(?v3, atmospheric) & has_property(composed, atmospheric) & instance_of(?v0, condense) & instance_of(?v1, water aerosol) & instance_of(?v2, gravity) & instance_of(?v4, fall) & instance_of(?v5, water vapor) & instance_of(?v6, form) & instance_of(?v7, rain) & instance_of(?v8, rainfall) & instance_of(?v9, droplet) & isa(composed, precipitation) & moves_from(?v0, ?v3) & part_of(?v6, composed) & part_of(?v9, ?v1) & part_of(composed, ?v9) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "Depending on the intensity, rain can be described as a drizzle (very light, sporadic rainfall), a shower (brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or \"torrential\" rainfall).",
+  "read": false,
+  "reply": "I understood 'rainfall', but not how 'Depending on the intensity, rain can be described as a drizzle (very light, sporadic rainfall), a shower (brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or' fits with it.",
+  "readings": [
+   [],
+   [
+    "composed: tell: instance_of(?v0, rainfall)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "It is also often accompanied by other weather phenomena such as strong wind (rainstorm) and lightning (thunderstorm), and may be mixed with hail/ice pellet, snow (sleet) and sandstorm (dust rain).",
+  "read": false,
+  "reply": "I understood 'It', 'often', 'accompanied', 'weather', 'phenomena', 'such', 'as', 'strong', 'wind', 'rainstorm', 'lightning', 'thunderstorm', 'may be mixed with hail', 'ice', 'pellet', 'snow', 'sleet', 'sandstorm' and 'dust rain', but not how 'is also', 'by other', 'and', 'and' and 'and' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "Rain is a major component of the water cycle and is responsible for depositing most of the fresh water on Earth.",
+  "read": true,
+  "reply": "Noted - I'll hold that about water_cycle_1.\nNoted - I'll hold that about depositing.\nNoted - I'll hold that about fresh_water_1.\nNoted - Rains are major.\nNoted - A rain is part of a the water cycle.\nNoted - A rain is a kind of component.\nNoted - I'll hold that about rain.",
+  "readings": [
+   [
+    "composed: tell: about(depositing, ?v0) & equals(rain, depositing) & given instance_of(?v0, fresh water) & given instance_of(?v1, water cycle) & has_count(depositing, most) & has_property(rain, major) & isa(depositing, causative responsible) & isa(rain, component) & part_of(rain, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "It provides water for hydroelectric power plants, crop irrigation, and suitable conditions for many types of ecosystems.",
+  "read": true,
+  "reply": "Noted - I'll hold that about provide_1439d598.\nNoted - I'll hold that about water_fd60acd5.\nNoted - I'll hold that about power_plant_973a2003.\nNoted - I'll hold that about crop_irrigation_ba24a702.\nNoted - I'll hold that about condition_2fa35103.\nNoted - I'll hold that about type_20f4e890.\nNoted - I'll hold that about ecosystem_b68d9f54.\nNoted - A group b3c39668 is hydroelectric.\nNoted - A condition 2fa35103 is suitable.\nNoted - I'll hold that about group_b3c39668.\nNoted - A type 20f4e890 is part of an ecosystem b68d9f54 attack.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v0, ?v3) & has_count(?v1, many) & has_member(?v2, ?v4) & has_member(?v2, ?v5) & has_member(?v2, ?v6) & has_property(?v2, hydroelectric) & has_property(?v4, suitable) & instance_of(?v0, provide) & instance_of(?v1, type) & instance_of(?v3, water) & instance_of(?v4, condition) & instance_of(?v5, crop irrigation) & instance_of(?v6, power plant) & instance_of(?v7, ecosystem) & part_of(?v1, ?v7)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "The major cause of rain production is moisture moving along three-dimensional zones of temperature and moisture contrasts known as weather fronts.",
+  "read": false,
+  "reply": "Noted - I'll hold that about cause_1.\nNoted - I'll hold that about rain_production_c36c7c19.\nNoted - I'll hold that about moisture_moving_ddbac7a1.\nNoted - I'll hold that about zone_2cd53611.\nNoted - I'll hold that about temperature_ee2c4610.\nNoted - I'll hold that about moisture_contrast_52114153.\nNoted - The cause is major.\nNoted - A The cause is part of a rain production c36c7c19.\nNoted - A zone 2cd53611 is three-d.\nNoted - A zone 2cd53611 is part of a group 40837a45.\nNoted - A moisture contrast 52114153 is known.\nNoted - I'll hold that about group_40837a45.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: equals(?v0, ?v1) & given instance_of(?v0, cause) & has_member(?v2, ?v3) & has_member(?v2, ?v4) & has_property(?v0, major) & has_property(?v3, known) & has_property(?v5, three-dimensional) & instance_of(?v1, moisture moving) & instance_of(?v3, moisture contrast) & instance_of(?v4, temperature) & instance_of(?v5, zone) & instance_of(?v6, rain production) & instance_of(?v7, weather front) & part_of(?v0, ?v6) & part_of(?v5, ?v2) & word_along(?v0, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "If enough moisture and upward motion is present, precipitation falls from convective clouds (those with strong upward vertical motion) such as cumulonimbus (thunder clouds) which can organize into narrow rainbands.",
+  "read": false,
+  "reply": "I understood 'enough', 'moisture and upward motion is present', 'precipitation falls', 'convective', 'clouds', 'strong upward vertical motion', 'such', 'as', 'cumulonimbus', 'thunder', 'can', 'organize' and 'narrow rainbands', but not how 'If', 'from', 'those with', 'which' and 'into' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "In mountainous areas, heavy precipitation is possible where upslope flow is maximized within windward sides of the terrain at elevation which forces moist air to condense and fall out as rainfall along the sides of mountains.",
+  "read": false,
+  "reply": "Noted - I'll hold that about flow_c242e86a.\nNoted - I'll hold that about maximize_c71459d1.\nNoted - I'll hold that about force_66e1fdf3.\nNoted - I'll hold that about condense_e7af8c3e.\nNoted - I'll hold that about possible.\nNoted - I'll hold that about precipitation_7182bab9.\nNoted - I'll hold that about upslope_0a0b64d2.\nNoted - I'll hold that about windward_side_e112fabe.\nNoted - I'll hold that about terrain_1.\nNoted - I'll hold that about elevation_15b2ed31.\nNoted - I'll hold that about air_b9884b7c.\nNoted - I'll hold that about fall_7a45c4b5.\nNoted - I'll hold that about side_1.\nNoted - I'll hold that about mountain_c079d02b.\nNoted - A precipitation 7182bab9 is heavy.\nNoted - A windward side e112fabe is part of a the terrain.\nNoted - An air b9884b7c is moist.\nNoted - I'll hold that about group_937573f0.\nNoted - A The side is part of a mountain c079d02b.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, ?v11) & done_by(?v12, ?v13) & done_to(?v10, ?v0) & done_to(?v14, ?v2) & done_to(?v14, possible) & equals(?v3, possible) & given instance_of(?v4, side) & given instance_of(?v5, terrain) & has_member(?v2, ?v11) & has_member(?v2, ?v6) & has_property(?v1, moist) & has_property(?v3, heavy) & has_property(possible, mountainous) & instance_of(?v0, condense) & instance_of(?v1, air) & instance_of(?v10, force) & instance_of(?v11, elevation) & instance_of(?v12, flow) & instance_of(?v13, upslope) & instance_of(?v14, maximize) & instance_of(?v3, precipitation) & instance_of(?v6, fall) & instance_of(?v7, mountain) & instance_of(?v8, rainfall) & instance_of(?v9, windward side) & isa(possible, area) & located_in(?v12, possible) & moves_through(?v14, ?v4) & part_of(?v4, ?v7) & part_of(?v9, ?v5) & received_by(?v10, ?v1) & word_within(?v14, ?v9)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "On the leeward side of mountains, desert climates can exist due to the dry air caused by downslope flow which causes heating and drying of the air mass.",
+  "read": true,
+  "reply": "Noted - I'll hold that about air_c3f70d67.\nNoted - I'll hold that about flow.\nNoted - I'll hold that about exist_74b28925.\nNoted - An exist 74b28925 is allowed.\nNoted - I'll hold that about to_leeward_1.\nNoted - I'll hold that about mountain_adf880ad.\nNoted - I'll hold that about desert_d4c16738.\nNoted - I'll hold that about dry_1.\nNoted - A flow is a kind of downslope.\nNoted - I'll hold that about heating_42354d65.\nNoted - I'll hold that about change_dry_32e33c9f.\nNoted - I'll hold that about air_mass_1.\nNoted - I'll hold that about group_50beb721.\nNoted - A change dry 32e33c9f is part of a the air mass.\nNoted - I'll hold that about group_57dd15ef.",
+  "readings": [
+   [
+    "composed: tell: causes(?v0, ?v1) & causes(flow, ?v10) & done_by(?v2, climate) & done_with(?v2, ?v3) & given instance_of(?v1, dry) & given instance_of(?v4, air mass) & given instance_of(?v5, to leeward) & has_member(?v3, ?v6) & has_member(?v3, flow) & has_member(?v7, ?v8) & has_member(?v7, ?v9) & has_property(?v2, allowed) & instance_of(?v0, air) & instance_of(?v10, heating) & instance_of(?v2, exist) & instance_of(?v6, change dry) & instance_of(?v8, desert) & instance_of(?v9, mountain) & isa(flow, downslope) & located_in(?v2, ?v5) & part_of(?v5, ?v7) & part_of(?v6, ?v4) & word_due_to(?v2, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "told": "The movement of the monsoon trough, or Intertropical Convergence Zone, brings rainy seasons to savannah climes.",
+  "read": true,
+  "reply": "Noted - I'll hold that about bring_9b9d556e.\nNoted - I'll hold that about movement_1.\nNoted - I'll hold that about monsoon_trough_1.\nNoted - I'll hold that about rainy_season_46e38c51.\nNoted - I'll hold that about savannah_clime_dea9a801.\nNoted - A The movement is part of a group e219174e.\nNoted - I'll hold that about group_e219174e.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, movement) & given instance_of(?v3, monsoon trough) & has_member(?v4, ?v3) & has_member(?v4, intertropical convergence zone) & instance_of(?v0, bring) & instance_of(?v2, rainy season) & instance_of(?v5, savannah clime) & part_of(?v1, ?v4) & received_by(?v0, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "Is rain a form of precipitation?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A rain is a kind of precipitation.\nA rain is a kind of precipitation. Rains are major. A rain is part of a water cycle 1. A rain is a kind of component.",
+  "readings": [
+   [
+    "composed: ask: instance_of(?v0, precipitation) & isa(rain, form) & part_of(rain, ?v0)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, precipitation)",
+     "part_of(rain, ?v0)",
+     "isa(rain, form)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What is rain composed of?",
+  "gold": [
+   "droplet",
+   "water"
+  ],
+  "result": "right",
+  "reply": "Droplet d9c4c6b0.",
+  "readings": [
+   [
+    "composed: ask: equals(rain, composed) & part_of(composed, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "composed",
+    "relation": "part_of",
+    "others": [
+     "droplet_d9c4c6b0"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "part_of(composed, ?v0)",
+     "equals(rain, composed)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What is a brief, moderate rainfall called?",
+  "gold": [
+   "shower"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A rain is a kind of precipitation.\nI hold things about call that I have not been taught to say yet.\nI hold rainfall but nothing said about it yet.\nI hold things about moderate that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & instance_of(?v0, brief) ? ?v1"
+   ],
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_property(?v1, moderate) & instance_of(?v0, call) & instance_of(?v1, rainfall) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, call)",
+     "precedes(?v0, 2026-10-22T19:28:58Z)",
+     "instance_of(?v1, rainfall)",
+     "has_property(?v1, moderate)",
+     "done_by(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What is a prolonged heavy rainfall called?",
+  "gold": [
+   "downpour"
+  ],
+  "result": "not answered",
+  "reply": "I hold rainfall but nothing said about it yet.\nI hold nothing for prolonged. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, rainfall) & has_property(rainfall, heavy) & has_property(rainfall, prolonged) & instance_of(?v0, call) & isa(rainfall, ?v1) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, call)",
+     "has_property(rainfall, prolonged)",
+     "has_property(rainfall, heavy)",
+     "done_to(?v0, rainfall)",
+     "isa(rainfall, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "Is rain a component of the water cycle?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. A rain is part of a the water cycle.\nYes. A rain is a kind of component.",
+  "readings": [
+   [
+    "composed: ask: given instance_of(?v0, water cycle) & isa(rain, component) & part_of(rain, ?v0)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "rain",
+    "relation": "part of",
+    "others": [
+     "water_cycle_1"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "rain",
+    "relation": "isa",
+    "others": [
+     "component"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(water_cycle_1, water cycle)",
+     "part_of(rain, water_cycle_1)",
+     "isa(rain, component)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "Does rain provide water for crop irrigation?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, rain) & done_to(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, provide) & instance_of(?v1, crop irrigation) & instance_of(?v2, water)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "provide_1439d598",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, provide)",
+     "instance_of(?v1, water)",
+     "instance_of(?v2, crop irrigation)",
+     "done_by(?v0, rain)",
+     "done_to(?v0, ?v1)",
+     "done_to(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What is the major cause of rain production?",
+  "gold": [
+   "moisture",
+   "weather front"
+  ],
+  "result": "right",
+  "reply": "Moisture moving ddbac7a1.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & given instance_of(?v0, cause) & has_property(?v0, major) & instance_of(?v2, rain production) & part_of(?v0, ?v2) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "cause_1",
+    "relation": "equals",
+    "others": [
+     "moisture_moving_ddbac7a1"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(cause_1, cause)",
+     "instance_of(?v1, rain production)",
+     "has_property(cause_1, major)",
+     "part_of(cause_1, ?v1)",
+     "equals(cause_1, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What are cumulonimbus clouds also called?",
+  "gold": [
+   "thunder cloud"
+  ],
+  "result": "wrong",
+  "reply": "A cumulonimbus cloud is a kind of cloud.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, cumulonimbus) & instance_of(?v0, call) & instance_of(?v1, cloud) & isa(cumulonimbus, ?v2) & precedes(?v0, ?now) ? ?v2"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "cumulonimbus",
+    "relation": "isa",
+    "others": [
+     "atmospheric_phenomenon_cloud"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, call)",
+     "precedes(?v0, 2026-10-22T19:29:22Z)",
+     "instance_of(?v1, cloud)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, cumulonimbus)",
+     "isa(cumulonimbus, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "On which side of mountains can desert climates exist?",
+  "gold": [
+   "leeward"
+  ],
+  "result": "not answered",
+  "reply": "I hold things about exist that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, exist) & has_property(?v0, allowed) & instance_of(?v0, desert) & instance_of(?v1, side) & instance_of(?v2, mountain) & isa(exist, climate) & part_of(?v1, ?v2) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, desert)",
+     "has_property(?v0, allowed)",
+     "instance_of(?v1, side)",
+     "instance_of(?v2, mountain)",
+     "isa(exist, climate)",
+     "part_of(?v1, ?v2)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, exist)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Rain",
+  "asked": "What brings rainy seasons to savannah climes?",
+  "gold": [
+   "monsoon",
+   "Intertropical Convergence Zone"
+  ],
+  "result": "wrong",
+  "reply": "Movement.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & instance_of(?v0, bring) & instance_of(?v2, rainy season) & instance_of(?v3, savannah clime) & received_by(?v0, ?v3) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "bring_9b9d556e",
+    "relation": "",
+    "others": [
+     "movement"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, bring)",
+     "instance_of(?v1, rainy season)",
+     "instance_of(?v2, savannah clime)",
+     "done_by(?v0, ?v3)",
+     "done_to(?v0, ?v1)",
+     "received_by(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "The Achaemenid Empire (, \u0259-KEE-m\u0259-nid; Old Persian: \ud800\udfa7\ud800\udfc1\ud800\udfc2, X\u0161\u0101\u00e7a, lit. 'The Empire' or 'The Kingdom') was an ancient Iranian empire founded by Cyrus the Great of the Achaemenid dynasty in 550 BC.",
+  "read": false,
+  "reply": "I understood 'Achaemenid', 'Empire', '\u0259', 'KEE', 'm\u0259', 'nid', 'Old', 'Persian', '\ud800\udfa7\ud800\udfc1\ud800\udfc2', 'X\u0161\u0101\u00e7a', 'lit', 'or', 'Kingdom', 'an ancient Iranian empire founded by Cyrus the Great', 'dynasty', 'in', '550' and 'BC', but not how 'The', 'The', 'The', 'was' and 'of the' fit with it.",
+  "readings": [
+   [],
+   []
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "At peak, its territorial extent was roughly 5.5 million square kilometres (2.1 million square miles), making it the largest empire of its time.",
+  "read": false,
+  "reply": "I understood 'At', 'peak', 'its territorial extent was roughly 5.5 million square kilometres', '2.1 million square miles', 'making it the largest empire' and 'its time', but not how 'of' fits with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "Based in the Iranian plateau, it stretched from the Balkans and Cyrenaica in the west to the Indus Valley in the east, including Anatolia, Cyprus, Mesopotamia, the Levant, the South Caucasus, parts of Eastern Arabia, and large parts of Central Asia.",
+  "read": false,
+  "reply": "Noted - I'll hold that about stretch_f88c0eb7.\nNoted - I'll hold that about include_32096d3a.\nNoted - I'll hold that about plateau_1.\nNoted - I'll hold that about east_5dff7f78.\nNoted - I'll hold that about part_935ffcb3.\nNoted - I'll hold that about part_1.\nNoted - I'll hold that about based.\nNoted - I'll hold that about group_9c3035c2.\nNoted - I'll hold that about group_e0452707.\nNoted - I'll hold that about group_463b2b8b.\nNoted - A The part is part of an eastern arabia.\nNoted - I'll hold that about group_7ea322c7.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, indus valley) & done_by(?v1, ?v0) & done_by(?v1, based) & done_by(?v2, ?v3) & done_to(?v2, ?v4) & given instance_of(?v0, part) & given instance_of(?v5, plateau) & has_member(?v4, anatolia) & has_member(?v4, cyprus) & has_member(?v4, levant) & has_member(?v4, mesopotamia) & has_member(?v4, south caucasus) & has_member(?v6, ?previous) & has_member(?v6, ?v5) & has_member(?v7, ?v3) & has_member(?v7, ?v8) & has_member(?v9, balkans) & has_member(?v9, cyrenaica) & has_property(?v0, large) & has_property(?v0, location west) & has_property(?v5, iranian) & instance_of(?v1, stretch) & instance_of(?v2, include) & instance_of(?v3, east) & instance_of(?v8, part) & located_in(based, ?v6) & moves_from(?v1, ?v9) & part_of(?v0, central asia) & part_of(?v8, eastern arabia) & precedes(?v1, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "By the 7th century BC, the region of Persis, located in the southwestern part of the Iranian plateau, had been settled by Persian people.",
+  "read": true,
+  "reply": "Noted - I'll hold that about locate_e0e9d695.\nNoted - I'll hold that about century_1.\nNoted - I'll hold that about region_1.\nNoted - I'll hold that about part_935ffcb3.\nNoted - I'll hold that about plateau_1.\nNoted - I'll hold that about people_5d70d991.\nNoted - The century is seventh.\nNoted - A The region is part of a persis.\nNoted - The part is southwestern.\nNoted - I'll hold that about group_c746775f.\nNoted - A group c746775f is part of a the plateau.\nNoted - A people 5d70d991 is settled.",
+  "readings": [
+   [
+    "composed: tell: done_to(?v0, ?v1) & equals(?v2, ?v3) & given instance_of(?v1, region) & given instance_of(?v4, century) & given instance_of(?v5, part) & given instance_of(?v6, plateau) & has_member(?v2, ?v1) & has_member(?v2, bc) & has_property(?v3, settled) & has_property(?v4, seventh) & has_property(?v5, southwestern) & has_property(?v6, iranian) & instance_of(?v0, locate) & instance_of(?v3, people) & located_in(?v0, ?v5) & part_of(?v1, persis) & part_of(?v2, ?v6)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "From Persis, Cyrus rose and defeated Media, Lydia, and the Neo-Babylonian Empire, thus marking the establishment of a new imperial polity in the ancient Near East.",
+  "read": false,
+  "reply": "Noted - I'll hold that about rise_23c5fd15.\nNoted - I'll hold that about defeat_472fc3f6.\nNoted - I'll hold that about mark_5d13053f.\nNoted - I'll hold that about know_0e1400f6.\nNoted - I'll hold that about ancient.\nNoted - I'll hold that about establishment_1.\nNoted - I'll hold that about 3c745dab.\nNoted - I'll hold that about polity_b5fa26b2.\nNoted - A mark 5d13053f is thus.\nNoted - I'll hold that about group_ddbd79c8.\nNoted - A group ddbd79c8 is part of a 3c745dab.\nNoted - A polity b5fa26b2 is imperial.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, cyrus) & done_by(?v2, near east) & done_by(?v3, cyrus) & given instance_of(?v4, establishment) & has_member(?v5, ?v0) & has_member(?v5, lydia) & has_member(?v5, media) & has_member(?v5, neo babylonian empire) & has_property(?v0, thus) & has_property(?v6, imperial) & has_property(?v6, new) & instance_of(?v0, mark) & instance_of(?v2, defeat) & instance_of(?v3, rise) & instance_of(?v6, polity) & located_in(?v0, ancient) & moves_from(?v3, persis) & part_of(?v4, ?v6) & precedes(?v2, ?now) & precedes(?v3, ?now) & received_by(?v0, ?v4) & received_by(?v2, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "The empire expanded rapidly, but was repulsed from Scythia in 513 BC and from Greece in 492\u2013490 BC and 480\u2013479 BC.",
+  "read": true,
+  "reply": "Noted - I'll hold that about expand_66b55da5.\nNoted - I'll hold that about repulse_0256294a.\nNoted - I'll hold that about empire_1.\nNoted - I'll hold that about bc_b3720047.\nNoted - A bc is a kind of 492-490.\nNoted - An expand 66b55da5 is rapidly.\nNoted - I'll hold that about group_a8840457.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v2, ?v1) & given instance_of(?v1, empire) & has_count(?v3, 513) & has_member(?v4, bc) & has_property(?v0, rapidly) & instance_of(?v0, expand) & instance_of(?v2, repulse) & instance_of(?v3, bc) & isa(bc, 492\u2013490) & located_in(?v2, ?v3) & located_in(?v2, ?v4) & moves_from(?v2, greece) & moves_from(?v2, scythia) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "In 330 BC, amidst a Macedonian military campaign that began in 336 BC, the Achaemenid Empire was conquered in its entirety by Alexander the Great, who annexed it to his Macedonian Empire.",
+  "read": false,
+  "reply": "",
+  "readings": [
+   [
+    "composed: request: done_by(?v0, bc) & done_by(?v1, bc) & done_by(?v2, great) & done_to(?v0, great) & done_to(?v2, ?v3) & done_to(?v4, ?v5) & done_with(?v4, alexander) & has_member(?v5, achaemenid empire) & has_member(?v5, bc) & has_property(bc, military) & instance_of(?v0, amidst) & instance_of(?v1, begin) & instance_of(?v2, annex) & instance_of(?v3, empire) & instance_of(?v4, conquer) & instance_of(?v6, entirety) & instance_of(?v7, macedonian) & isa(alexander, macedonian) & isa(bc, campaign) & located_in(?previous, ?v7) & located_in(?v0, 330) & located_in(?v1, 336) & located_in(?v4, ?v6) & owned_by(?v6, bc) & owned_by(?v7, great) & precedes(?v1, ?now) & precedes(?v2, ?now) & precedes(?v4, ?now) & received_by(?v0, alexander) & received_by(?v2, ?previous)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "Upon Alexander's death, which sparked the beginning of the Hellenistic period in 323 BC, the majority of the former Achaemenid Empire's territories came under the rule of the Seleucid Empire and the Ptolemaic Kingdom.",
+  "read": false,
+  "reply": "I understood 'Upon Alexander's death', 'sparked the beginning', 'Hellenistic', 'period', 'in', '323', 'BC', 'majority', 'the former Achaemenid Empire's territories came', 'rule', 'Seleucid', 'Empire', 'Ptolemaic' and 'Kingdom', but not how 'which', 'of the', 'the', 'of', 'under the', 'of the' and 'and the' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "Almost a century later, Iranian elites in the central plateau successfully reclaimed power from the Seleucids and established the Parthian Empire, which existed for nearly half a millennium before being succeeded by the Iranian Sasanian Empire.",
+  "read": false,
+  "reply": "Noted - I'll hold that about reclaim_10ac29a1.\nNoted - I'll hold that about establish_710700b3.\nNoted - I'll hold that about exist_3758be92.\nNoted - I'll hold that about succeed_0d7463a4.\nNoted - I'll hold that about century_b5ff4bb9.\nNoted - I'll hold that about plateau_1.\nNoted - I'll hold that about power_75ccc30d.\nNoted - I'll hold that about millennium_e8313de6.\nNoted - A reclaim 10ac29a1 is almost.\nNoted - A reclaim 10ac29a1 is late.\nNoted - The plateau is central.\nNoted - A reclaim 10ac29a1 is successfully.\nNoted - A succeed 0d7463a4 is nearly.\nPart of that is about something I have no name for yet, so I did not hold it.\nI did not take that as a fact - object 'before' not admitted: 'before' is made only of words that name nothing. If I am wrong, correct me and I will weigh it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_by(?v3, iranian sasanian empire) & done_by(?v4, parthian empire) & done_to(?v0, ?v5) & done_to(?v2, parthian empire) & done_to(?v3, ?v6) & done_to(?v4, ?v3) & given instance_of(?v7, plateau) & has_property(?v0, almost) & has_property(?v0, late) & has_property(?v0, successfully) & has_property(?v1, iranian) & has_property(?v3, before) & has_property(?v3, half) & has_property(?v3, nearly) & has_property(?v7, central) & instance_of(?v0, reclaim) & instance_of(?v1, century) & instance_of(?v2, establish) & instance_of(?v3, succeed) & instance_of(?v4, exist) & instance_of(?v5, power) & instance_of(?v8, millennium) & located_in(?v1, ?v7) & moves_from(?v0, seleucids) & precedes(?v0, ?now) & precedes(?v2, ?now) & precedes(?v4, ?now) & word_a(?v6, ?v8)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "told": "In the modern era, the Achaemenid Empire has been recognized for its centralized bureaucracy and administration; its multicultural policy and religious tolerance, especially under Cyrus; its complex infrastructure projects, such as the Royal Road and an organized postal system; the use of official languages (Persian and Aramaic) across its territories; and the development of a civil service and a large, professional army and navy.",
+  "read": false,
+  "reply": "Noted - I'll hold that about project_0db9faca.\nNoted - I'll hold that about use_04836586.\nNoted - I'll hold that about modern_era_1.\nNoted - I'll hold that about bureaucracy_eab9f489.\nNoted - I'll hold that about administration_b3c99a3f.\nNoted - I'll hold that about policy_2047145e.\nNoted - I'll hold that about tolerance_f452ca5a.\nNoted - I'll hold that about infrastructure_067d6dd1.\nNoted - I'll hold that about organized_84d038a1.\nNoted - I'll hold that about system_e9d5b338.\nNoted - I'll hold that about language_f9c4c59b.\nNoted - I'll hold that about persian_82eccced.\nNoted - I'll hold that about aramaic_0e8953da.\nNoted - I'll hold that about territory_6dec3c16.\nNoted - I'll hold that about development_1.\nNoted - I'll hold that about civil_service_7a92f057.\nNoted - I'll hold that about army_fd87c1fc.\nNoted - I'll hold that about navy_6db1c454.\nNoted - A group e75692d4 is recognized.\nNoted - I'll hold that about group_432bf14f.\nNoted - A group 432bf14f is centralized.\nNoted - I'll hold that about group_9211ec53.\nNoted - A tolerance f452ca5a is religious.\nNoted - A project 0db9faca is especially.\nNoted - An infrastructure 067d6dd1 is complex.\nNoted - A system e9d5b338 is much such.\nNoted - I'll hold that about group_9d981ace.\nNoted - A system e9d5b338 is postal.\nNoted - An administration b3c99a3f is part of a language f9c4c59b.\nNoted - I'll hold that about group_e75692d4.\nNoted - I'll hold that about achaemenid empire.\nNoted - A The development is part of a group 8558b82f.\nNoted - I'll hold that about group_8558b82f.\nNoted - I'll hold that about group_7bb10db6.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: comes_from(?v0, multicultural) & done_by(?v1, ?v0) & done_by(?v10, ?v11) & done_to(?v1, ?v12) & done_to(?v10, ?v13) & equals(achaemenid empire, ?v14) & given instance_of(?v15, development) & given instance_of(?v16, modern era) & has_member(?v0, ?v13) & has_member(?v0, ?v17) & has_member(?v14, ?v18) & has_member(?v14, ?v19) & has_member(?v2, ?v12) & has_member(?v2, ?v20) & has_member(?v21, ?v15) & has_member(?v21, ?v22) & has_member(?v23, ?v24) & has_member(?v23, ?v3) & has_member(?v23, ?v4) & has_member(?v5, ?v6) & has_member(?v5, royal road) & has_property(?v10, especially) & has_property(?v11, complex) & has_property(?v13, religious) & has_property(?v14, recognized) & has_property(?v2, centralized) & has_property(?v7, large) & has_property(?v7, professional) & has_property(?v8, much such) & has_property(?v8, postal) & has_property(?v9, official) & instance_of(?v1, use) & instance_of(?v10, project) & instance_of(?v11, infrastructure) & instance_of(?v12, administration) & instance_of(?v13, tolerance) & instance_of(?v17, policy) & instance_of(?v18, aramaic) & instance_of(?v19, persian) & instance_of(?v20, bureaucracy) & instance_of(?v22, territory) & instance_of(?v24, army) & instance_of(?v3, civil service) & instance_of(?v4, navy) & instance_of(?v6, organized) & instance_of(?v8, system) & instance_of(?v9, language) & owned_by(?v0, ?v12) & owned_by(?v11, ?v13) & owned_by(?v2, ?v16) & owned_by(?v22, ?v18) & part_of(?v12, ?v9) & part_of(?v15, ?v23) & received_by(?v10, ?v8) & word_across(achaemenid empire, ?v21) & word_under(?v10, cyrus)"
+   ]
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Who founded the Achaemenid Empire?",
+  "gold": [
+   "Cyrus"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nA found is a kind of wage.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, achaemenid empire) & instance_of(?v0, found) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, found)",
+     "precedes(?v0, 2026-10-22T19:43:55Z)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, achaemenid empire)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "When was the Achaemenid Empire founded?",
+  "gold": [
+   "550"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nA found is a kind of wage.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, achaemenid empire) & during(?v0, ?v1) & instance_of(?v0, found) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, found)",
+     "precedes(?v0, 2026-10-22T19:44:02Z)",
+     "during(?v0, ?v1)",
+     "done_to(?v0, achaemenid empire)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Was the Achaemenid Empire the largest empire of its time?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: equals(achaemenid empire, ?v0) & given instance_of(?v0, empire) & greatest_of(?v1, empire) & has_degree(?v0, ?v1) & instance_of(?v1, large) & instance_of(?v2, time) & owned_by(?v2, ?v0) & part_of(?v0, ?v2)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(empire_1, empire)",
+     "instance_of(?v1, time)",
+     "has_degree(empire_1, ?v2)",
+     "instance_of(?v2, large)",
+     "greatest_of(?v2, empire)",
+     "part_of(empire_1, ?v1)",
+     "owned_by(?v1, empire_1)",
+     "equals(achaemenid empire, empire_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Where was the Achaemenid Empire based?",
+  "gold": [
+   "Iranian plateau"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nA base is a kind of military installation.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, achaemenid empire) & instance_of(?v0, base) & located_in(?v0, ?v1) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, base)",
+     "precedes(?v0, 2026-10-22T19:44:20Z)",
+     "located_in(?v0, ?v1)",
+     "done_to(?v0, achaemenid empire)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Did the Achaemenid Empire include Cyprus?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: cyprus defined with country.\nI hold things about include that I have not been taught to say yet.\nI hold things about achaemenid empire that I have not been taught to say yet.\nA The country is part of an island cyprus.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, achaemenid empire) & done_to(?v0, cyprus) & instance_of(?v0, include) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, include)",
+     "precedes(?v0, 2026-10-22T19:44:27Z)",
+     "done_by(?v0, achaemenid empire)",
+     "done_to(?v0, cyprus)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Whom did Cyrus defeat?",
+  "gold": [
+   "Media",
+   "Lydia",
+   "Neo-Babylonian"
+  ],
+  "result": "wrong",
+  "reply": "Cyrus.\nNear east.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_by(?v0, cyrus) & instance_of(?v0, defeat) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "defeat_472fc3f6",
+    "relation": "",
+    "others": [
+     "cyrus"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "defeat_472fc3f6",
+    "relation": "",
+    "others": [
+     "near_east"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, defeat)",
+     "precedes(?v0, 2026-10-22T19:44:36Z)",
+     "done_by(?v0, cyrus)",
+     "done_by(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Who conquered the Achaemenid Empire?",
+  "gold": [
+   "Alexander"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nI hold things about conquer that I have not been taught to say yet.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, achaemenid empire) & instance_of(?v0, conquer) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, conquer)",
+     "precedes(?v0, 2026-10-22T19:44:41Z)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, achaemenid empire)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "When was the Achaemenid Empire conquered?",
+  "gold": [
+   "330"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nI hold things about conquer that I have not been taught to say yet.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, achaemenid empire) & during(?v0, ?v1) & instance_of(?v0, conquer) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, conquer)",
+     "precedes(?v0, 2026-10-22T19:44:48Z)",
+     "during(?v0, ?v1)",
+     "done_to(?v0, achaemenid empire)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "What were the official languages of the Achaemenid Empire?",
+  "gold": [
+   "Persian",
+   "Aramaic"
+  ],
+  "result": "not answered",
+  "reply": "I remember: persia instance of empire.\nA language is a kind of communication.\nOfficials are skilled worker.\nI hold things about achaemenid empire that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & given instance_of(?v0, language) & has_property(?v0, official) & part_of(?v0, achaemenid empire) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(language_f9c4c59b, language)",
+     "has_property(language_f9c4c59b, official)",
+     "part_of(language_f9c4c59b, achaemenid empire)",
+     "equals(language_f9c4c59b, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Achaemenid Empire",
+  "asked": "Was the empire repulsed from Greece?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & given instance_of(?v1, empire) & instance_of(?v0, repulse) & moves_from(?v0, greece) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "repulse_0256294a",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, repulse)",
+     "precedes(?v0, 2026-10-22T19:45:13Z)",
+     "instance_of(empire_1, empire)",
+     "done_to(?v0, empire_1)",
+     "moves_from(?v0, greece)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "Archaic humans emerged out of Africa between 0.5 and 1.8 million years ago.",
+  "read": false,
+  "reply": "I understood 'Archaic', 'humans emerged out of Africa' and '0.5 and 1.8 million years', but not how 'between' and 'ago' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "This was followed by the emergence of modern humans (Homo sapiens) in East Africa around 300,000\u2013250,000 years ago who spread across the world.",
+  "read": true,
+  "reply": "I hold things about human that I have not been taught to say yet.\nI hold nothing for this, 300,000-250,000. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, human) & done_by(?v1, human) & given instance_of(?v2, emergence) & given instance_of(?v3, world) & has_count(?v4, 300,000\u2013250,000) & has_degree(human, ?v5) & has_property(?v5, inactive off) & has_property(?v6, this) & has_property(human, sapiens) & instance_of(?v0, follow) & instance_of(?v1, spread) & instance_of(?v4, year) & instance_of(?v5, modern) & isa(human, homo) & moves_through(?v1, ?v3) & word_around(human, ?v4) & word_by(human, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "The oral word is revered in most African cultures, and history has predominantly been passed down through oral tradition.",
+  "read": true,
+  "reply": "Noted - I'll hold that about pass_3c9937de.\nNoted - I'll hold that about word_1.\nNoted - I'll hold that about culture_33890472.\nNoted - I'll hold that about history_23dcdc27.\nNoted - I'll hold that about tradition_91e8e86c.\nNoted - The word is oral.\nNoted - The word is revered.\nNoted - I'll hold that about african_cccc0d0c.\nNoted - A pass 3c9937de is predominantly.\nNoted - A tradition 91e8e86c is oral.",
+  "readings": [
+   [
+    "composed: tell: done_to(?v0, ?v1) & given instance_of(?v2, word) & greatest_of(?v3, culture) & has_degree(?v4, ?v3) & has_property(?v0, predominantly) & has_property(?v2, oral) & has_property(?v2, revered) & has_property(?v5, oral) & instance_of(?v0, pass) & instance_of(?v1, history) & instance_of(?v3, african) & instance_of(?v4, culture) & instance_of(?v5, tradition) & moves_through(?v0, ?v5) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "In the 4th and 3rd millennia BCE Ancient Egypt and Kerma arose in the northeast, while the Tichitt Tradition flourished in West Africa.",
+  "read": true,
+  "reply": "Noted - I'll hold that about arise_51b51938.\nNoted - I'll hold that about flourish_4eca3333.\nNoted - I'll hold that about fourth_cbe5e42e.\nNoted - I'll hold that about millennium_a1457793.\nNoted - I'll hold that about northeast_1.\nNoted - A millennium a1457793 is third.\nNoted - I'll hold that about group_33dbeba2.\nNoted - I'll hold that about group_1216f3e1.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, tichitt tradition) & during(?v0, ?v2) & given instance_of(?v3, northeast) & has_member(?v1, bce ancient egypt) & has_member(?v1, kerma) & has_member(?v4, ?v5) & has_member(?v4, ?v6) & has_property(?v5, third) & instance_of(?v0, arise) & instance_of(?v2, flourish) & instance_of(?v5, millennium) & instance_of(?v6, fourth) & located_in(?v0, ?v3) & located_in(?v0, ?v4) & located_in(?v2, west africa) & precedes(?v0, ?now) & precedes(?v2, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "Between around 3000 BCE and 500 CE, the Bantu expansion swept from north-western Central Africa (modern day Cameroon) across much of Central, Eastern, and Southern Africa, displacing or absorbing groups such as the Khoisan and Pygmies.",
+  "read": false,
+  "reply": "I understood 'around 3000', 'BCE', '500', 'CE', 'the Bantu expansion swept from north-western Central Africa', 'modern', 'day', 'Cameroon', 'much', 'Central', 'Eastern', 'Southern', 'Africa', 'displacing', 'or', 'absorbing', 'groups', 'such', 'as', 'Khoisan' and 'Pygmies', but not how 'Between', 'and', 'across', 'of', 'and', 'the' and 'and' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "Some societies were heterarchical and egalitarian, while others organised into chiefdoms.",
+  "read": true,
+  "reply": "Noted - I'll hold that about organise_400bd195.\nNoted - I'll hold that about society_18e27417.\nNoted - I'll hold that about heterarchical_af9943ff.\nNoted - I'll hold that about egalitarian_b8f3df55.\nNoted - I'll hold that about chiefdoms_9d382cc6.\nNoted - I'll hold that about group_d1f3c9be.\nI did not take that as a fact - object 'other' not admitted: 'other' is made only of words that name nothing. If I am wrong, correct me and I will weigh it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & equals(?v2, ?v3) & has_member(?v3, ?v4) & has_member(?v3, ?v5) & instance_of(?v0, organise) & instance_of(?v1, other) & instance_of(?v2, society) & instance_of(?v4, egalitarian) & instance_of(?v5, heterarchical) & instance_of(?v6, chiefdoms) & moves_to(?v0, ?v6) & precedes(?v0, ?now) & word_while(?v2, ?v0)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "At its peak it is estimated that Africa had around 10,000 polities, with most following traditional religions.",
+  "read": false,
+  "reply": "Noted - I'll hold that about follow_97dab8ec.\nNoted - Estimated is a peak.\nNoted - I'll hold that about polity_8c1a121d.\nNoted - I'll hold that about religion_e23b673b.\nNoted - I'll hold that about estimated.\nNoted - The continent owns a religion e23b673b.\nNoted - I'll hold that about traditional_c8b5ad04.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & equals(?v2, estimated) & has_count(?v3, 10000) & has_degree(?v4, ?v5) & has_measure(?v5, ?v3) & has_part(?v4, ?v0) & has_property(?v0, most) & instance_of(?v0, follow) & instance_of(?v3, polity) & instance_of(?v4, religion) & instance_of(?v5, traditional) & isa(estimated, peak) & located_in(?v6, estimated) & owned_by(estimated, ?previous) & owns(africa, ?v4)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "The continent has seen the rise and fall of many states, and there have long been extensive trading networks between its regions.",
+  "read": false,
+  "reply": "Noted - I'll hold that about see_16878f9b.\nNoted - I'll hold that about continent_1.\nNoted - I'll hold that about rise_af8abb12.\nNoted - I'll hold that about fall_e1607542.\nNoted - I'll hold that about state_bc8b693e.\nNoted - I'll hold that about trading_network_194000d8.\nNoted - I'll hold that about region_7aace09b.\nNoted - A fall e1607542 is part of a state bc8b693e.\nNoted - I'll hold that about group_331f988a.\nNoted - A trading network 194000d8 is extensive.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & equals(?v1, ?v3) & given instance_of(?v1, continent) & has_count(?v4, many) & has_member(?v2, ?v5) & has_member(?v2, ?v6) & has_property(?v3, extensive) & has_property(?v7, there) & instance_of(?v0, see) & instance_of(?v3, trading network) & instance_of(?v4, state) & instance_of(?v5, fall) & instance_of(?v6, rise) & instance_of(?v8, region) & owned_by(?v8, ?v3) & part_of(?v5, ?v4) & precedes(?v0, ?now) & word_between(?v3, ?v8)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "From the 7th century CE, Islam spread west amid the Arab conquest of North Africa, and by proselytization to the Horn of Africa, bringing with it a new social system.",
+  "read": false,
+  "reply": "Noted - I'll hold that about spread_2c26057e.\nNoted - I'll hold that about century_1.\nNoted - I'll hold that about norman_conquest.\nNoted - I'll hold that about horn_1.\nNoted - I'll hold that about bringing_a829aa72.\nNoted - I'll hold that about social_organization_09d34f68.\nNoted - The century is seventh.\nNoted - I'll hold that about group_9433bc65.\nNoted - A social organization 09d34f68 is new.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v2, ?v4) & given instance_of(?v1, horn) & given instance_of(?v5, century) & given instance_of(?v6, conquest) & has_member(?v3, ce) & has_member(?v3, islam) & has_part(?v0, ?previous) & has_property(?v0, location west) & has_property(?v4, new) & has_property(?v5, seventh) & has_property(?v6, arab) & instance_of(?v0, bringing) & instance_of(?v2, spread) & instance_of(?v4, social organization) & instance_of(?v7, proselytization) & part_of(?v1, africa) & part_of(?v6, north africa) & received_by(?v2, ?v0) & word_amid(?v0, ?v6) & word_from(?v2, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "told": "It later spread southwards to the Swahili coast assisted by Muslim dominance of the Indian Ocean trade, and across the Sahara into the western Sahel and Sudan, catalysed by the Fula jihads of the 18th and 19th centuries.",
+  "read": true,
+  "reply": "Noted - I'll hold that about do_a7e8154c.\nNoted - I'll hold that about assist_485d7de1.\nNoted - I'll hold that about catalyse_6014fcec.\nNoted - I'll hold that about spread_f099dbbf.\nNoted - I'll hold that about western.\nNoted - I'll hold that about coast_1ddac1e3.\nNoted - I'll hold that about dominance_0b88064e.\nNoted - Trades are oceans.\nNoted - I'll hold that about fula_1.\nNoted - I'll hold that about jihad_c9bea995.\nNoted - I'll hold that about century_1.\nNoted - A do a7e8154c is late.\nNoted - A do a7e8154c is southwards.\nNoted - I'll hold that about trade.\nNoted - I'll hold that about group_826fba2e.\nNoted - The century is eighteenth.\nNoted - The century is nineteenth.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_by(?v1, ?v2) & done_by(?v3, ?v4) & done_to(?v0, ?v5) & done_with(?v1, ?v6) & done_with(?v3, fula) & given instance_of(?v6, swahili) & given instance_of(?v7, century) & has_member(?v4, sahel) & has_member(?v4, sudan) & has_property(?v0, late) & has_property(?v7, eighteenth) & has_property(?v7, nineteenth) & has_property(?v8, southwards) & has_property(fula, muslim) & has_property(trade, indian) & instance_of(?v0, spread) & instance_of(?v1, assist) & instance_of(?v2, coast) & instance_of(?v3, catalyse) & instance_of(?v5, jihad) & isa(fula, dominance) & isa(trade, ocean) & located_in(fula, ?v6) & moves_through(?v3, sahara) & moves_to(?v3, western) & part_of(fula, trade) & precedes(?v1, ?now) & precedes(?v3, ?now) & received_by(?v0, fula) & word_of(?v5, ?v7)"
+   ]
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "When did archaic humans emerge out of Africa?",
+  "gold": [
+   "0.5",
+   "1.8"
+  ],
+  "result": "not answered",
+  "reply": "I remember: africa instance of continent.\nI hold things about emerge that I have not been taught to say yet.\nI hold things about human that I have not been taught to say yet.\nI hold things about archaic that I have not been taught to say yet.\nA The continent is part of an eastern hemisphere. The continent owns a religion e23b673b.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & during(?v0, ?v2) & has_property(?v1, archaic) & instance_of(?v0, emerge) & instance_of(?v1, human) & moves_from(?v0, africa) & precedes(?v0, ?now) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, emerge)",
+     "precedes(?v0, 2026-10-22T19:50:33Z)",
+     "instance_of(?v1, human)",
+     "during(?v0, ?v2)",
+     "has_property(?v1, archaic)",
+     "done_by(?v0, ?v1)",
+     "moves_from(?v0, africa)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Where did modern humans emerge?",
+  "gold": [
+   "East Africa"
+  ],
+  "result": "not answered",
+  "reply": "I remember: africa instance of continent.\nI hold things about emerge that I have not been taught to say yet.\nI hold things about human that I have not been taught to say yet.\nModern is the opposite of nonmodern.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_property(?v1, modern) & instance_of(?v0, emerge) & instance_of(?v1, human) & located_in(?v0, ?v2) & precedes(?v0, ?now) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, emerge)",
+     "precedes(?v0, 2026-10-22T19:50:40Z)",
+     "instance_of(?v1, human)",
+     "located_in(?v0, ?v2)",
+     "has_property(?v1, modern)",
+     "done_by(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Is the oral word revered in most African cultures?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: given instance_of(?v0, word) & greatest_of(?v1, culture) & has_degree(?v2, ?v1) & has_property(?v0, oral) & has_property(?v0, revered) & instance_of(?v1, african) & instance_of(?v2, culture)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "word_1",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(word_1, word)",
+     "instance_of(?v1, culture)",
+     "has_property(word_1, oral)",
+     "has_property(word_1, revered)",
+     "has_degree(?v1, ?v2)",
+     "instance_of(?v2, african)",
+     "greatest_of(?v2, culture)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "How has history been passed down in Africa?",
+  "gold": [
+   "oral"
+  ],
+  "result": "not answered",
+  "reply": "I remember: african defined with africa.\nA pass is a kind of go.\nA history is a past.\nA The continent is part of an eastern hemisphere. The continent owns a religion e23b673b.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & has_property(?v0, ?v2) & instance_of(?v0, pass) & instance_of(?v1, history) & located_in(?v0, africa) & precedes(?v0, ?now) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, pass)",
+     "precedes(?v0, 2026-10-22T19:50:56Z)",
+     "instance_of(?v1, history)",
+     "has_property(?v0, ?v2)",
+     "done_to(?v0, ?v1)",
+     "located_in(?v0, africa)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Where did the Tichitt Tradition flourish?",
+  "gold": [
+   "West Africa"
+  ],
+  "result": "right",
+  "reply": "West africa.\nAfrica.\nEastern hemisphere.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, tichitt tradition) & instance_of(?v0, flourish) & located_in(?v0, ?v1) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "flourish_4eca3333",
+    "relation": "",
+    "others": [
+     "west_africa"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "flourish_4eca3333",
+    "relation": "",
+    "others": [
+     "africa"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "flourish_4eca3333",
+    "relation": "",
+    "others": [
+     "eastern_hemisphere"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, flourish)",
+     "precedes(?v0, 2026-10-22T19:51:07Z)",
+     "located_in(?v0, ?v1)",
+     "done_by(?v0, tichitt tradition)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Where did Ancient Egypt and Kerma arise?",
+  "gold": [
+   "northeast"
+  ],
+  "result": "not answered",
+  "reply": "I remember: zukerman defined with violinist.\nI hold things about arise that I have not been taught to say yet.\nI hold kerma but nothing said about it yet.\nI hold nothing for ancient egypt. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_member(?v1, ancient egypt) & has_member(?v1, kerma) & instance_of(?v0, arise) & located_in(?v0, ?v2) & precedes(?v0, ?now) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, arise)",
+     "precedes(?v0, 2026-10-22T19:51:10Z)",
+     "located_in(?v0, ?v1)",
+     "has_member(?v2, ancient egypt)",
+     "has_member(?v2, kerma)",
+     "done_by(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Which modern country did the Bantu expansion sweep from?",
+  "gold": [
+   "Cameroon"
+  ],
+  "result": "not answered",
+  "reply": "I remember: Bantu is African.\nI hold things about do that I have not been taught to say yet.\nI hold things about sweep that I have not been taught to say yet.\nEach country is an administrative district.\nExpansion is an increase.\nModern is the opposite of nonmodern.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v4) & given instance_of(?v4, bantu) & has_property(?v1, modern) & instance_of(?v0, do) & instance_of(?v1, country) & instance_of(?v2, sweep) & instance_of(?v3, expansion) & moves_from(?v2, ?v4) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, do)",
+     "precedes(?v0, 2026-10-22T19:51:17Z)",
+     "instance_of(?v1, sweep)",
+     "instance_of(?v2, country)",
+     "given instance_of(?v3, bantu)",
+     "instance_of(?v4, expansion)",
+     "has_property(?v2, modern)",
+     "done_by(?v0, ?v2)",
+     "done_to(?v0, ?v3)",
+     "done_by(?v1, ?v4)",
+     "moves_from(?v1, ?v3)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "How many polities did Africa have at its peak?",
+  "gold": [
+   "10,000",
+   "10000"
+  ],
+  "result": "not answered",
+  "reply": "I remember: africa instance of continent.\nA The continent is part of an eastern hemisphere. The continent owns a religion e23b673b.\nI hold nothing for at it. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, africa) & has_count(africa, ?v1) & has_property(?v2, peak) & instance_of(?v0, do) & instance_of(?v2, at it) & isa(africa, polity) & owns(africa, ?v2) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, do)",
+     "isa(africa, polity)",
+     "instance_of(?v1, at it)",
+     "has_count(africa, ?v2)",
+     "done_by(?v0, africa)",
+     "owns(africa, ?v1)",
+     "has_property(?v1, peak)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Did Islam spread to the Swahili coast?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I hold things about spread that I have not been taught to say yet.\nI hold things about excessive that I have not been taught to say yet.\nI hold things about coast that I have not been taught to say yet.\nIslam is civilization.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, islam) & done_to(?v0, ?v1) & instance_of(?v0, spread) & instance_of(?v1, coast) & instance_of(?v2, excessive) & precedes(?v0, ?now) & received_by(?v0, ?v2)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, spread)",
+     "precedes(?v0, 2026-10-22T19:51:42Z)",
+     "instance_of(?v1, excessive)",
+     "instance_of(?v2, coast)",
+     "done_by(?v0, islam)",
+     "done_to(?v0, ?v2)",
+     "received_by(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "History of Africa",
+  "asked": "Were some African societies egalitarian?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: egalitarian defined with equality.\nA society is a kind of social group.\nAn equalitarian is a moralist.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & instance_of(?v0, society) & instance_of(?v1, egalitarian)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, society)",
+     "instance_of(?v1, egalitarian)",
+     "equals(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "(If you are already familiar with the basic concepts of testing, you might want to skip to the list of assert methods.)",
+  "read": false,
+  "reply": "I know these words, but not this way of putting them together.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_with(?v0, ?v3) & given if instance_of(?v4, list) & given instance_of(?v3, concept) & has_property(?v3, basic) & if done_by(?v5, ?listener) & if done_by(?v6, ?listener) & if done_to(?v6, ?v5) & if has_property(?listener, familiar) & if has_property(?v6, possible) & if has_property(?v7, already) & if instance_of(?v1, testing) & if instance_of(?v5, skip) & if instance_of(?v6, want) & if moves_to(?v5, ?v4) & if part_of(?v4, ?v1) & instance_of(?v0, assert) & instance_of(?v2, method)"
+   ],
+   []
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "The unittest unit testing framework was originally inspired by JUnit and has a similar flavor as major unit testing frameworks in other languages.",
+  "read": false,
+  "reply": "Noted - I'll hold that about test_36b93255.\nNoted - I'll hold that about test_706c04ce.\nNoted - I'll hold that about unit_1.\nNoted - I'll hold that about framework_61f4e245.\nNoted - I'll hold that about flavor_76014cad.\nNoted - I'll hold that about unit_f915ec4b.\nNoted - I'll hold that about framework_60524d41.\nNoted - I'll hold that about language_56d56920.\nNoted - A unit 1 is unittest.\nNoted - I'll hold that about inspired_d4e96290.\nNoted - A flavor 76014cad is similar.\nNoted - The unit is major.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, ?v2) & done_to(?v0, ?v3) & done_to(?v10, ?v4) & given instance_of(?v1, unit) & has_property(?v1, unittest) & has_property(?v2, major) & has_property(?v5, originally) & has_property(?v6, similar) & instance_of(?v0, test) & instance_of(?v10, test) & instance_of(?v2, unit) & instance_of(?v3, framework) & instance_of(?v4, framework) & instance_of(?v6, flavor) & instance_of(?v7, inspired) & instance_of(?v8, language) & located_in(?v10, ?v8) & owns(?v1, ?v6) & precedes(?v7, ?now) & state_of(?v7, ?v1) & word_as(?v9, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "It supports test automation, sharing of setup and shutdown code for tests, aggregation of tests into collections, and independence of the tests from the reporting framework.",
+  "read": true,
+  "reply": "Noted - I'll hold that about support_211aa92d.\nNoted - I'll hold that about share_1a5520ea.\nNoted - I'll hold that about test_automation_1d35e5a0.\nNoted - I'll hold that about setup_1e3286b0.\nNoted - I'll hold that about shutdown_code_dc3d478a.\nNoted - I'll hold that about test_f729d968.\nNoted - I'll hold that about aggregation_6c4f33e6.\nNoted - I'll hold that about test_dc0462b1.\nNoted - I'll hold that about collection_cffa292c.\nNoted - I'll hold that about independence_8ece4124.\nNoted - I'll hold that about test_706c04ce.\nNoted - I'll hold that about reporting_framework_1.\nNoted - A test automation 1d35e5a0 is part of a group ea6fd36a.\nNoted - I'll hold that about group_ea6fd36a.\nNoted - An aggregation 6c4f33e6 is part of a test dc0462b1.\nNoted - I'll hold that about group_eb31da05.\nNoted - I'll hold that about group_6dbf5faa.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_by(?v1, ?v10) & done_to(?v0, ?v10) & done_to(?v0, ?v11) & given instance_of(?v12, reporting framework) & given instance_of(?v13, test) & has_member(?v11, ?v14) & has_member(?v11, ?v2) & has_member(?v3, ?v4) & has_member(?v3, ?v5) & has_member(?v6, ?v7) & has_member(?v6, ?v8) & instance_of(?v0, support) & instance_of(?v1, share) & instance_of(?v10, test automation) & instance_of(?v14, aggregation) & instance_of(?v2, test) & instance_of(?v4, collection) & instance_of(?v5, independence) & instance_of(?v7, setup) & instance_of(?v8, shutdown code) & instance_of(?v9, test) & moves_from(?v0, ?v12) & moves_to(?v0, ?v3) & part_of(?v10, ?v6) & part_of(?v14, ?v9) & part_of(?v5, ?v13)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "A test case is the individual unit of testing.",
+  "read": true,
+  "reply": "Noted - I'll hold that about unit_f915ec4b.\nNoted - I'll hold that about testing_f8c80f92.\nNoted - The unit is individual.\nNoted - A The unit is part of a testing f8c80f92.\nNoted - I'll hold that about test case.",
+  "readings": [
+   [
+    "composed: tell: equals(test case, ?v0) & given instance_of(?v0, unit) & has_property(?v0, individual) & instance_of(?v1, testing) & part_of(?v0, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "It checks for a specific response to a particular set of inputs. unittest provides a base class, TestCase, which may be used to create new test cases.",
+  "read": true,
+  "reply": "Noted - I'll hold that about check_0c1c5ab2.\nNoted - I'll hold that about response_ea26bfe6.\nNoted - I'll hold that about set_968b71b3.\nNoted - I'll hold that about input_ffb53611.\nNoted - A response ea26bfe6 is specific.\nNoted - A set 968b71b3 is particular.\nNoted - A set 968b71b3 is part of an input ffb53611 attack.\nNoted - I'll hold that about provide_f11f8919.\nNoted - I'll hold that about use_5ac5e9d6.\nNoted - A use 5ac5e9d6 is possible.\nNoted - I'll hold that about base_class_df4bf9a2.\nNoted - I'll hold that about group_4c0b7b94.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & has_property(?v1, specific) & has_property(?v2, particular) & instance_of(?v0, check) & instance_of(?v1, response) & instance_of(?v2, set) & instance_of(?v3, input) & moves_to(?v0, ?v2) & part_of(?v2, ?v3)"
+   ],
+   [
+    "composed: tell: done_by(?v0, testcase) & done_by(?v1, unittest) & done_to(?v1, ?v2) & has_member(?v2, ?v3) & has_member(?v2, testcase) & has_property(?v0, possible) & instance_of(?v0, use) & instance_of(?v1, provide) & instance_of(?v3, base class) & unasserted creates(testcase, ?v4) & unasserted has_property(?v4, new) & unasserted has_purpose(?v0, ?v5) & unasserted instance_of(?v4, test case)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "A test suite is a collection of test cases, test suites, or both.",
+  "read": true,
+  "reply": "Noted - A test suite is a kind of collection.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: either about(test suite, ?v0) & either has_member(?v0, ?v1) & either has_member(?v0, ?v2) & either instance_of(?v1, test case) & either instance_of(?v2, test suite) & isa(test suite, collection)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "It is used to aggregate tests that should be executed together.",
+  "read": true,
+  "reply": "Noted - I'll hold that about use_33e7ec96.\nNoted - I'll hold that about execute_3fd2edc0.\nNoted - I'll hold that about test_c4b6a845.\nNoted - A test c4b6a845 is aggregate.\nNoted - An execute 3fd2edc0 is advisable.\nNoted - An execute 3fd2edc0 is together.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & done_to(?v1, ?v2) & has_property(?v1, advisable) & has_property(?v1, together) & has_property(?v2, aggregate) & has_purpose(?v0, ?v2) & instance_of(?v0, use) & instance_of(?v1, execute) & instance_of(?v2, test)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "A test runner is a component which orchestrates the execution of tests and provides the outcome to the user.",
+  "read": true,
+  "reply": "Noted - I'll hold that about orchestrate_a366c4db.\nNoted - I'll hold that about provide_b4eca916.\nNoted - I'll hold that about execution_1.\nNoted - I'll hold that about test_a9406f95.\nNoted - I'll hold that about outcome_1.\nNoted - I'll hold that about user_1.\nNoted - A The capital punishment is part of a test a9406f95.\nNoted - A test runner is a kind of component.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, test runner) & done_by(?v1, test runner) & done_to(?v0, ?v2) & done_to(?v1, ?v3) & given instance_of(?v2, execution) & given instance_of(?v3, outcome) & given instance_of(?v4, user) & instance_of(?v0, orchestrate) & instance_of(?v1, provide) & instance_of(?v5, test) & isa(test runner, component) & moves_to(?v1, ?v4) & part_of(?v2, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "The runner may use a graphical interface, a textual interface, or return a special value to indicate the results of executing the tests.",
+  "read": true,
+  "reply": "Noted - I'll hold that about runner_1.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: either done_by(?v0, ?v1) & either done_by(?v2, ?v1) & either done_to(?v0, ?v3) & either done_to(?v2, ?v4) & either has_property(?v0, possible) & either has_property(?v3, graphical) & either has_property(?v3, textual) & either has_property(?v4, special) & either instance_of(?v0, use) & either instance_of(?v2, return) & either instance_of(?v3, interface) & either instance_of(?v4, value) & given instance_of(?v1, runner) & unasserted either done_by(?v5, ?v1) & unasserted either done_by(?v6, ?v7) & unasserted either done_to(?v5, ?v8) & unasserted either done_to(?v6, ?v9) & unasserted either has_purpose(?v2, ?v5) & unasserted either instance_of(?v5, indicate) & unasserted either instance_of(?v6, execute) & unasserted either part_of(?v8, ?v6) & unasserted given either instance_of(?v8, result) & unasserted given either instance_of(?v9, test)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "told": "The unittest module provides a rich set of tools for constructing and running tests.",
+  "read": true,
+  "reply": "Noted - I'll hold that about provide_96e845e2.\nNoted - I'll hold that about construct_1878a718.\nNoted - I'll hold that about run_d262e166.\nNoted - I'll hold that about module_1.\nNoted - I'll hold that about set_7eea9429.\nNoted - I'll hold that about tool_fb714c22.\nNoted - I'll hold that about test_77cd9ad5.\nNoted - The module is unittest.\nNoted - A set 7eea9429 is rich.\nNoted - A set 7eea9429 is part of a tool fb714c22.\nNoted - A tool fb714c22 is used for construct 1878a718.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_by(?v3, ?v4) & done_to(?v0, ?v5) & done_to(?v2, ?v5) & done_to(?v3, ?v6) & given instance_of(?v4, module) & has_property(?v4, unittest) & has_property(?v6, rich) & instance_of(?v0, construct) & instance_of(?v1, tool) & instance_of(?v2, run) & instance_of(?v3, provide) & instance_of(?v5, test) & instance_of(?v6, set) & part_of(?v6, ?v1) & used_for(?v1, ?v0)"
+   ]
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What was unittest originally inspired by?",
+  "gold": [
+   "JUnit"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'unittest originally inspired', but not how 'What was' and 'by' fit with it.",
+  "readings": [
+   []
+  ],
+  "answers": [],
+  "reasoned": []
+ },
+ {
+  "text": "unittest",
+  "asked": "Does unittest support test automation?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I hold things about support that I have not been taught to say yet.\nI hold test automation but nothing said about it yet.\nA unittest requires test path.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, unittest) & done_to(?v0, ?v1) & instance_of(?v0, support) & instance_of(?v1, test automation)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, support)",
+     "instance_of(?v1, test automation)",
+     "done_by(?v0, unittest)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What is a test case?",
+  "gold": [
+   "individual unit",
+   "unit of testing"
+  ],
+  "result": "wrong",
+  "reply": "A test case is a kind of legal action.",
+  "readings": [
+   [
+    "ask: isa(test case, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "test case",
+    "relation": "isa",
+    "others": [
+     "legal_action"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(test case, ?x)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What does a test case check for?",
+  "gold": [
+   "response"
+  ],
+  "result": "right",
+  "reply": "Response.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, test case) & done_to(?v0, ?v1) & instance_of(?v0, check) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "check_0c1c5ab2",
+    "relation": "",
+    "others": [
+     "response"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, check)",
+     "done_by(?v0, test case)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "Which base class does unittest provide?",
+  "gold": [
+   "TestCase"
+  ],
+  "result": "not answered",
+  "reply": "I remember: stipulate provide isa stipulate.\nI hold things about provide that I have not been taught to say yet.\nA unittest requires test path.\nI hold nothing for base class. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, unittest) & done_to(?v0, ?v1) & instance_of(?v0, provide) & instance_of(?v1, base class) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, provide)",
+     "instance_of(?v1, base class)",
+     "done_by(?v0, unittest)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What is a test suite?",
+  "gold": [
+   "collection"
+  ],
+  "result": "right",
+  "reply": "A test suite is a kind of collection.",
+  "readings": [
+   [
+    "composed: ask: isa(test suite, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "test suite",
+    "relation": "isa",
+    "others": [
+     "collection"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(test suite, ?v0)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What is a test suite used for?",
+  "gold": [
+   "aggregate"
+  ],
+  "result": "not answered",
+  "reply": "I hold things about test that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, test) & instance_of(?v0, use) & isa(test, suite) & word_for(test, ?v1) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, use)",
+     "done_by(?v0, test)",
+     "word_for(test, ?v1)",
+     "isa(test, suite)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "What is a test runner?",
+  "gold": [
+   "component"
+  ],
+  "result": "right",
+  "reply": "A test runner is a kind of component.",
+  "readings": [
+   [
+    "composed: ask: isa(test runner, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "test runner",
+    "relation": "isa",
+    "others": [
+     "component"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(test runner, ?v0)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "May the runner use a graphical interface?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An interface is a program.\nI hold things about use that I have not been taught to say yet.\nI hold things about possible that I have not been taught to say yet.\nA runner is a kind of traveler.\nAn interface is a surface.\nI hold nothing for graphical. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, runner) & has_property(?v0, possible) & has_property(?v2, graphical) & instance_of(?v0, use) & instance_of(?v2, interface)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, use)",
+     "has_property(?v0, possible)",
+     "instance_of(runner_1, runner)",
+     "instance_of(?v2, interface)",
+     "done_by(?v0, runner_1)",
+     "done_to(?v0, ?v2)",
+     "has_property(?v2, graphical)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "unittest",
+  "asked": "Is a test suite a collection of test cases?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "A test suite is a kind of collection.",
+  "readings": [
+   [
+    "composed: ask: instance_of(?v0, test case) & isa(test suite, collection) & part_of(test suite, ?v0)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, test case)",
+     "part_of(test suite, ?v0)",
+     "isa(test suite, collection)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "The rapid growth of distributed photovoltaic (PV) generation is increasing the demand for accurate forecasting across large numbers of geographically dispersed stations.",
+  "read": false,
+  "reply": "I understood 'rapid growth', 'distributed', 'photovoltaic', 'PV', 'generation is increasing the demand', 'accurate', 'forecasting', 'large numbers' and 'geographically dispersed stations', but not how 'The', 'of', 'for', 'across' and 'of' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "Existing approaches are commonly developed for individual sites or specific forecasting horizons, requiring repeated training and maintenance as new stations are integrated and limiting direct reuse at previously unseen sites.",
+  "read": false,
+  "reply": "Noted - A horizon e9821ac5 requires group 66ae5793.\nNoted - I'll hold that about exist_27aae436.\nNoted - I'll hold that about develop_98d39ab3.\nNoted - I'll hold that about repeat_73b840d4.\nNoted - I'll hold that about approach_a89925a4.\nNoted - I'll hold that about site_e5796b82.\nNoted - I'll hold that about direct.\nNoted - I'll hold that about horizon_e9821ac5.\nNoted - I'll hold that about training_85e3f8c3.\nNoted - I'll hold that about maintenance_29999ef2.\nNoted - I'll hold that about station_3efb90d0.\nNoted - I'll hold that about site_c0ec5226.\nNoted - A develop 98d39ab3 is commonly.\nNoted - Reuses are individual.\nNoted - I'll hold that about group_66ae5793.\nNoted - A station 3efb90d0 is new.\nNoted - I'll hold that about reuse.\nNoted - A site c0ec5226 is unseen.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_to(?v10, ?v1) & done_to(?v10, ?v11) & done_to(?v10, reuse) & done_to(?v2, ?v3) & equals(?v4, direct) & has_member(?v3, ?v5) & has_member(?v3, ?v6) & has_member(reuse, ?v7) & has_member(reuse, direct) & has_property(?v10, commonly) & has_property(?v11, unseen) & has_property(?v8, new) & has_property(?v9, previously) & has_property(direct, integrated) & has_property(direct, limiting) & has_property(direct, specific) & has_property(reuse, individual) & instance_of(?v0, exist) & instance_of(?v1, approach) & instance_of(?v10, develop) & instance_of(?v11, site) & instance_of(?v2, repeat) & instance_of(?v4, horizon) & instance_of(?v5, maintenance) & instance_of(?v6, training) & instance_of(?v7, site) & instance_of(?v8, station) & isa(direct, forecasting) & requires(?v4, ?v3)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "To address this scalability gap, this paper presents a domain-specific foundation-style pretraining framework that learns a shared forecasting model from heterogeneous multi-site and multi-horizon PV data.",
+  "read": true,
+  "reply": "I read that as a conditional, but a side of it is not a single proposition I can hold.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, ?v1) & done_by(?v0, ?previous) & done_by(?v10, ?v11) & done_by(?v2, ?v3) & done_to(?v10, ?v4) & done_to(?v2, ?v5) & done_to(?v6, ?v1) & given instance_of(?v7, paper) & given instance_of(?v8, scalability gap) & has_member(?v11, ?v7) & has_member(?v11, ?v8) & has_property(?v9, multi-site) & has_property(pv, heterogeneous) & has_property(pv, multi-horizon) & if has_property(?v3, domain-specific) & if instance_of(?v3, foundation-style) & instance_of(?v0, learn) & instance_of(?v1, forecasting model) & instance_of(?v10, present) & instance_of(?v2, pretraining) & instance_of(?v4, address) & instance_of(?v5, data) & instance_of(?v6, share) & isa(pv, framework) & moves_from(?v0, pv) & moves_to(?v2, ?v4) & received_by(?v2, pv)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "NWP-assisted forecasting is formulated as a sequence-completion problem that unifies historical PV power, meteorological observations, future numerical weather prediction (NWP) forecasts, and time encodings.",
+  "read": true,
+  "reply": "I read that as a conditional, but a side of it is not a single proposition I can hold.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, nwp) & done_by(?v1, pv) & done_to(?v0, ?v2) & equals(?v3, ?v4) & has_member(?v4, ?v2) & has_member(?v4, ?v5) & has_member(?v4, ?v6) & has_member(?v4, ?v7) & has_property(?v4, formulated) & has_property(?v8, future) & has_property(?v8, numerical) & has_property(?v9, meteorological) & has_property(pv, historical) & has_property(pv, sequence-completion) & if has_property(?v3, nwp-assisted) & if instance_of(?v3, forecasting) & instance_of(?v0, forecast) & instance_of(?v1, unify) & instance_of(?v2, weather prediction) & instance_of(?v5, observation) & instance_of(?v6, power) & instance_of(?v7, time encoding) & isa(pv, problem) & precedes(?v1, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "Three pretraining objectives are designed and systematically evaluated, including forecast-aligned reconstruction, generic reconstruction, and mixed reconstruction.",
+  "read": false,
+  "reply": "Noted - I'll hold that about design_d55e687c.\nNoted - I'll hold that about evaluate_4f215e94.\nNoted - I'll hold that about include_f917c559.\nNoted - I'll hold that about mix_9a51223c.\nNoted - I'll hold that about pretraining_objective_a0ffe6bb.\nNoted - I'll hold that about reconstruction_9ad58922.\nNoted - I'll hold that about reconstruction_02d936f9.\nNoted - I'll hold that about reconstruction_f61a1ab1.\nNoted - An evaluate 4f215e94 is systematically.\nNoted - A group ea71fdc2 is forecast-aligned.\nNoted - I'll hold that about group_ea71fdc2.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_by(?v3, ?v4) & done_to(?v0, ?v5) & done_to(?v2, ?v0) & done_to(?v6, ?v1) & has_count(?v1, 3) & has_member(?v5, ?v4) & has_member(?v5, ?v7) & has_member(?v5, ?v8) & has_property(?v2, systematically) & has_property(?v5, forecast-aligned) & has_property(?v9, generic) & instance_of(?v0, include) & instance_of(?v1, pretraining objective) & instance_of(?v2, evaluate) & instance_of(?v3, mix) & instance_of(?v4, reconstruction) & instance_of(?v6, design) & instance_of(?v7, reconstruction) & instance_of(?v8, reconstruction) & precedes(?v2, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "The mixed objective combines the operational structure of PV forecasting with random sequence reconstruction and provides the most balanced performance across forecasting accuracy, degraded NWP conditions, and downstream adaptation.",
+  "read": true,
+  "reply": "Noted - I'll hold that about mix_736083f7.\nNoted - I'll hold that about combine_8e04dfc6.\nNoted - I'll hold that about provide_971671a1.\nNoted - I'll hold that about degrade_d8fd9d2e.\nNoted - I'll hold that about objective_1.\nNoted - Forecasting is a structure.\nNoted - I'll hold that about sequence_reconstruction_35a31f25.\nNoted - I'll hold that about performance_1.\nNoted - I'll hold that about forecasting_accuracy_82ce5e67.\nNoted - I'll hold that about condition_0c03b530.\nNoted - I'll hold that about adaptation_e582f842.\nNoted - Forecasting is operational.\nNoted - I'll hold that about forecasting.\nNoted - A sequence reconstruction 35a31f25 is random.\nNoted - I'll hold that about balanced_e8fda334.\nNoted - An adaptation e582f842 is downstream.\nNoted - I'll hold that about group_0c94c1b3.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, ?v1) & done_by(?v11, ?v1) & done_by(?v2, ?v1) & done_to(?v0, ?v3) & done_to(?v10, ?v4) & done_to(?v11, forecasting) & done_with(?v11, ?v5) & given instance_of(?v1, objective) & given instance_of(?v4, performance) & greatest_of(?v6, performance) & has_degree(?v4, ?v6) & has_member(?v3, ?v7) & has_member(?v3, ?v8) & has_property(?v5, random) & has_property(?v7, downstream) & has_property(forecasting, operational) & instance_of(?v0, degrade) & instance_of(?v10, provide) & instance_of(?v11, combine) & instance_of(?v2, mix) & instance_of(?v5, sequence reconstruction) & instance_of(?v6, balanced) & instance_of(?v7, adaptation) & instance_of(?v8, condition) & instance_of(?v9, forecasting accuracy) & isa(forecasting, structure) & moves_through(?v10, ?v9) & part_of(forecasting, pv) & precedes(?v0, ?now) & received_by(?v0, nwp)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "Experiments on 479 distributed PV stations use 340 stations for model development and 139 spatially held-out stations for zero-shot evaluation.",
+  "read": false,
+  "reply": "Noted - I'll hold that about use_3a597783.\nNoted - I'll hold that about forget_5b976a57.\nNoted - I'll hold that about experiment_678c247c.\nNoted - A pv is a kind of distributed.\nNoted - I'll hold that about station_bd63ef8f.\nNoted - I'll hold that about station_36c8e313.\nNoted - I'll hold that about model_development_04c6b5c3.\nNoted - I'll hold that about station_fc852f66.\nNoted - I'll hold that about evaluation_87d1fb7e.\nNoted - I'll hold that about pv.\nNoted - I'll hold that about group_f9a36102.\nNoted - I'll hold that about held_out_82bb2d44.\nNoted - An evaluation 87d1fb7e is zero-shot.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, ?v2) & done_to(?v0, ?v3) & done_to(?v10, pv) & has_count(?v4, 340) & has_count(pv, 479) & has_degree(?v5, ?v6) & has_measure(?v6, ?v4) & has_measure(?v6, pv) & has_member(?v7, 139) & has_member(?v7, ?v8) & has_property(?v3, zero-shot) & has_property(?v9, spatially) & instance_of(?v0, forget) & instance_of(?v1, experiment) & instance_of(?v10, use) & instance_of(?v2, station) & instance_of(?v3, evaluation) & instance_of(?v4, station) & instance_of(?v5, station) & instance_of(?v6, held-out) & instance_of(?v8, model development) & isa(pv, distributed) & located_in(?v1, ?v5) & precedes(?v0, ?now) & word_for(?v5, ?v7)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "Across horizons from 6 hours to 7 days, the multi-site pretrained MR model outperforms representative station-specific and shared baselines, as well as generalist time-series models, including a recent large-scale pretrained foundation model.",
+  "read": false,
+  "reply": "Noted - I'll hold that about outperform_3dca4bdd.\nNoted - I'll hold that about share_f2875fb7.\nNoted - I'll hold that about include_309cdeb0.\nNoted - I'll hold that about horizon_b65754b7.\nNoted - I'll hold that about hour_67f6a73f.\nNoted - I'll hold that about day_ac7adb9f.\nNoted - Mr is pretrained.\nNoted - I'll hold that about station_specific_1a01078c.\nNoted - I'll hold that about baseline_769f490d.\nNoted - I'll hold that about model_21a153d7.\nNoted - I'll hold that about foundation_model_f0df7cd0.\nNoted - I'll hold that about mr.\nNoted - I'll hold that about group_bb9d4e93.\nNoted - I'll hold that about group_6e416db0.\nNoted - A model 21a153d7 is time-series.\nNoted - A foundation model f0df7cd0 is recent.\nNoted - A foundation model f0df7cd0 is large-scale.\nNoted - A foundation model f0df7cd0 is pretrained.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, model) & done_to(?v0, ?v11) & done_to(?v10, ?v12) & done_to(?v13, ?v2) & has_count(?v3, 6) & has_count(?v4, 7) & has_member(?v12, ?v1) & has_member(?v12, ?v5) & has_member(?v12, ?v6) & has_member(?v7, ?v4) & has_member(?v7, mr) & has_property(?v1, time-series) & has_property(?v11, large-scale) & has_property(?v11, pretrained) & has_property(?v11, recent) & has_property(?v12, representative) & has_property(mr, multi-site) & instance_of(?v0, include) & instance_of(?v1, model) & instance_of(?v10, outperform) & instance_of(?v11, foundation model) & instance_of(?v13, share) & instance_of(?v3, hour) & instance_of(?v4, day) & instance_of(?v5, baseline) & instance_of(?v6, station-specific) & instance_of(?v8, generalist) & instance_of(?v9, horizon) & isa(mr, pretrained) & moves_through(?v10, ?v9) & moves_to(?v10, ?v7) & word_from(?v10, ?v3)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "told": "The pretrained model can also be directly deployed at new PV stations and subsequently adapted to region-specific operational objectives when local data become available, providing a scalable forecasting paradigm for large distributed PV fleets.",
+  "read": false,
+  "reply": "Noted - I'll hold that about deploy_a8d0dab1.\nNoted - A deploy a8d0dab1 is allowed.\nNoted - I'll hold that about know_b0b5fce5.\nNoted - I'll hold that about provide_13eb869f.\nNoted - I'll hold that about distribute_3c3d9179.\nNoted - I'll hold that about pretrained_1.\nNoted - I'll hold that about model_5f56bb7d.\nNoted - I'll hold that about station_fbc68f00.\nNoted - I'll hold that about objective_4e3ce546.\nNoted - Getting are data.\nNoted - I'll hold that about forecasting_paradigm_24a323de.\nNoted - I'll hold that about large_d0db725a.\nNoted - I'll hold that about fleet_ca3b830a.\nNoted - A deploy a8d0dab1 is directly.\nNoted - A fleet ca3b830a is adapted.\nNoted - An objective 4e3ce546 is region-specific.\nNoted - An objective 4e3ce546 is operational.\nNoted - Getting are local.\nNoted - Getting are available.\nNoted - A forecasting paradigm 24a323de is scalable.\nNoted - I'll hold that about group_236b84d5.\nPart of that is about something I have no name for yet, so I did not hold it.",
+  "readings": [
+   [
+    "composed: tell: about(?v0, ?v1) & done_by(?v10, ?v11) & done_by(?v12, become) & done_by(?v2, become) & done_to(?v10, ?v3) & done_to(?v12, ?v4) & done_to(?v12, ?v5) & done_to(?v2, ?v0) & done_to(?v2, pv) & done_to(?v6, ?v11) & done_to(?v6, ?v7) & given instance_of(?v11, pretrained) & has_member(?v3, ?v0) & has_member(?v3, ?v8) & has_property(?v0, adapted) & has_property(?v1, operational) & has_property(?v1, region-specific) & has_property(?v4, scalable) & has_property(?v6, allowed) & has_property(?v6, directly) & has_property(?v9, subsequently) & has_property(become, available) & has_property(become, local) & instance_of(?v0, fleet) & instance_of(?v1, objective) & instance_of(?v10, know) & instance_of(?v12, provide) & instance_of(?v2, distribute) & instance_of(?v4, forecasting paradigm) & instance_of(?v5, large) & instance_of(?v6, deploy) & instance_of(?v7, model) & instance_of(?v8, station) & isa(become, data) & precedes(?v10, ?now) & precedes(?v2, ?now) & received_by(?v10, pv)"
+   ]
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "What is increasing the demand for accurate forecasting?",
+  "gold": [
+   "growth"
+  ],
+  "result": "not answered",
+  "reply": "I hold things about increase that I have not been taught to say yet.\nI hold things about demand that I have not been taught to say yet.\nForecasting is a structure. Forecasting is operational.\nI hold things about accurate that I have not been taught to say yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v0, ?v3) & during(?v0, ?now) & given instance_of(?v3, demand) & has_property(?v2, accurate) & instance_of(?v0, increase) & instance_of(?v2, forecasting) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, increase)",
+     "during(?v0, 2026-10-22T20:02:49Z)",
+     "given instance_of(?v1, demand)",
+     "instance_of(?v2, forecasting)",
+     "done_by(?v0, ?v3)",
+     "done_to(?v0, ?v1)",
+     "done_to(?v0, ?v2)",
+     "has_property(?v2, accurate)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "What does the paper present?",
+  "gold": [
+   "framework"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A paper is a kind of material.\nI hold things about present that I have not been taught to say yet.\nA paper is a kind of directory. A paper is a kind of material. A paper is made of cellulose.\nI hold nothing for paper_1. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, paper) & instance_of(?v0, present) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, present)",
+     "instance_of(paper_1, paper)",
+     "done_by(?v0, paper_1)",
+     "done_to(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "What kind of forecasting model does the framework learn?",
+  "gold": [
+   "shared"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A framework is a kind of structure.\nI hold things about learn that I have not been taught to say yet.\nI hold things about kind that I have not been taught to say yet.\nA fabric is a kind of structure.\nI hold nothing for forecasting model. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: about(?v0, ?v1) & done_by(?v0, ?v2) & given instance_of(?v2, framework) & instance_of(?v0, learn) & instance_of(?v1, kind) & instance_of(?v3, forecasting model) & isa(?v1, ?v3) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, learn)",
+     "instance_of(?v1, kind)",
+     "instance_of(?v2, forecasting model)",
+     "given instance_of(?v3, framework)",
+     "isa(?v1, ?v2)",
+     "done_by(?v0, ?v3)",
+     "about(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "How many pretraining objectives are designed?",
+  "gold": [
+   "three",
+   "3"
+  ],
+  "result": "right",
+  "reply": "3.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & has_count(?v1, ?v2) & instance_of(?v0, design) & instance_of(?v1, pretraining objective) ? ?v2"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "design_d55e687c",
+    "relation": "",
+    "others": [
+     "3"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, design)",
+     "instance_of(?v1, pretraining objective)",
+     "has_count(?v1, ?v2)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "Which objective provides the most balanced performance?",
+  "gold": [
+   "mixed"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A specific performance is a kind of performance.\nI hold things about provide that I have not been taught to say yet.\nI hold things about objective that I have not been taught to say yet.\nPerformances are shows.\nBalanced is the opposite of unbalanced. Balanced is like well balanced.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, performance) & greatest_of(?v3, performance) & has_degree(?v2, ?v3) & instance_of(?v0, provide) & instance_of(?v1, objective) & instance_of(?v3, balanced) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, provide)",
+     "instance_of(?v1, objective)",
+     "instance_of(performance_1, performance)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, performance_1)",
+     "has_degree(performance_1, ?v3)",
+     "instance_of(?v3, balanced)",
+     "greatest_of(?v3, performance)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "How many distributed PV stations are in the experiments?",
+  "gold": [
+   "479"
+  ],
+  "result": "not answered",
+  "reply": "I understood 'many', 'distributed', 'PV', 'stations', 'are', 'in' and 'experiments', but not how 'How' and 'the' fit with it.",
+  "readings": [
+   []
+  ],
+  "answers": [],
+  "reasoned": []
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "How many stations are used for zero-shot evaluation?",
+  "gold": [
+   "139"
+  ],
+  "result": "not answered",
+  "reply": "I remember: Stations is a series.\nI hold things about use that I have not been taught to say yet.\nA station is a kind of facility.\nEvaluation is a judgment.\nI hold zero-shot but nothing said about it yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_count(?v1, ?v2) & has_property(?v3, zero-shot) & has_purpose(?v0, ?v3) & instance_of(?v0, use) & instance_of(?v1, station) & instance_of(?v3, evaluation) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, use)",
+     "instance_of(?v1, station)",
+     "instance_of(?v2, evaluation)",
+     "has_count(?v1, ?v3)",
+     "done_by(?v0, ?v1)",
+     "has_purpose(?v0, ?v2)",
+     "has_property(?v2, zero-shot)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "What does NWP stand for?",
+  "gold": [
+   "numerical weather prediction"
+  ],
+  "result": "not answered",
+  "reply": "A stand is a kind of rest.\nI hold nwp but nothing said about it yet.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, nwp) & done_to(?v0, ?v1) & instance_of(?v0, stand) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, stand)",
+     "done_by(?v0, nwp)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "Does the multi-site pretrained model outperform station-specific baselines?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: A site is a kind of position.\nI hold outperform but nothing said about it yet.\nA baseline is a kind of standard.\nI hold multi-site but nothing said about it yet.\nI hold station-specific but nothing said about it yet.\nI hold nothing for pretrained model. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, pretrained model) & has_property(?v1, multi-site) & has_property(?v2, station-specific) & instance_of(?v0, outperform) & instance_of(?v2, baseline)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, outperform)",
+     "given instance_of(?v1, pretrained model)",
+     "instance_of(?v2, baseline)",
+     "has_property(?v1, multi-site)",
+     "done_by(?v0, ?v1)",
+     "done_to(?v0, ?v2)",
+     "has_property(?v2, station-specific)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Foundation-Style Pretraining for Scalable and Transferable Distributed PV Forecasting",
+  "asked": "Can the pretrained model be deployed at new PV stations?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I understood 'Can the pretrained model', 'be', 'deployed', 'at', 'new', 'PV' and 'stations', but not how they go together.",
+  "readings": [
+   []
+  ],
+  "answers": [],
+  "reasoned": []
+ }
+]

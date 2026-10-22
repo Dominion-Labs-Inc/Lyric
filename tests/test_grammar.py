@@ -87,6 +87,13 @@ def test_a_question_asks_what_is_taken_from_its_place(grammar):
         "precedes(?v0, ?now) ? ?v2")
 
 
+def test_whom_asks_who_a_thing_was_done_to_never_who_did_it(grammar):
+    # "Whom" is the object's form: "Whom did Cyrus defeat?" was read on main as asking who did the defeating
+    # (done_by(?v0, ?v1) beside done_by(?v0, cyrus)), "whom" held as a subject (UNDERSTANDS-PROSE-02, 2026-10-22).
+    assert [entry["use"] for entry in grammar.lexicon.closed["whom"]] == ["wh:object"]
+    assert read(grammar, "Whom did the dog chase?") == read(grammar, "What did the dog chase?")
+
+
 def test_an_inverted_passive_question(grammar):
     assert read(grammar, "Was the account locked?") == (
         "ask: done_to(?v0, ?v1) & given instance_of(?v1, account) & instance_of(?v0, lock) & precedes(?v0, ?now)")

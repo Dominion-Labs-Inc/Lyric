@@ -434,7 +434,8 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         self._expectations_schema_ready = False
         self.expectation_stats: Dict[str, int] = {
             "readings": 0, "world_changes": 0, "expected": 0, "confirmed": 0, "unmet": 0,
-            "departures": 0, "learned_from_unmet": 0, "indeterminate": 0}
+            "departures": 0, "dealt_with_otherwise": 0, "confirmed_late": 0, "learned_from_unmet": 0,
+            "indeterminate": 0}
 
         self.logger = logging.getLogger(__name__)
 
@@ -1066,6 +1067,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             owner = owner_of(reading.domain_id)
             if previous is not None and not acted_between(previous.mark, reading.mark):
                 await self._learn_change(previous, reading, owner, first_seen_before)
+                await self._confirm_late(previous, reading)
             await self._settle_expectations(reading)
             await self._expect(reading, owner)
 
@@ -1089,6 +1091,43 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 regularity=regularity_signature(effects, things),
                 owner=owner, before_at=held_since, after_at=reading.at)
             self.expectation_stats["world_changes"] += 1
+
+    async def _confirm_late(self, previous, reading) -> None:
+        """What was taken for the world departing, seen happening after all.
+
+        An expectation is due when the change was ever seen to take longest, and
+        early on that is the longest of only a few: a filing later than any yet
+        seen lapsed, and was recorded as the habit failing. Counted against it,
+        those false misses held a habit kept nine times in ten below the bar for
+        relying on it (EXPECT-02, run 8). When the change it expected happens,
+        in this interval and with nothing of the substrate's in between, it held,
+        only late: recorded so, and its reliability moves as for a confirmation.
+        What was already said of it stays said."""
+        if previous.facts is None or reading.facts is None:
+            return
+        from core.agents.memory_agent import memory_agent
+        from core.learning.rule_store import get_rule_store
+        from core.learning.unified_learning_system import get_learning_authority
+        for row in await memory_agent().departed_expectations(domain_id=reading.domain_id):
+            expectation = _expectation_of(row)
+            if (_already_holds(expectation.effects, previous.facts)
+                    or not _already_holds(expectation.effects, reading.facts)):
+                continue
+            late = (reading.at - expectation.due).total_seconds()
+            if not await memory_agent().confirm_late(
+                    expectation_id=expectation.expectation_id,
+                    detail=f"it happened {late:.1f} s after it was due"):
+                continue
+            self.expectation_stats["confirmed_late"] += 1
+            self.logger.info("expectation %s in %s happened %.1f s late: %s",
+                             expectation.expectation_id, expectation.domain_id, late,
+                             describe_change(expectation.effects))
+            formed_by = await get_rule_store().get(expectation.rule_id)
+            if formed_by is not None:
+                await get_learning_authority().observe_regularity(
+                    formed_by, domain_id=expectation.domain_id, held=True,
+                    owner=expectation.owner, observation=expectation.expectation_id,
+                    memory_id=None)
 
     async def _settle_expectations(self, reading) -> None:
         from core.agents.memory_agent import memory_agent
@@ -1127,7 +1166,6 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
 
     async def _conclude(self, expectation, evidence, reading, *, committed: bool) -> None:
         from core.agents.memory_agent import memory_agent
-        from core.capabilities import settled_in_favour
         from core.intelligence.effect_verification import (
             Attribution, ExpectationOutcome, attribute_expectation)
         from core.learning.demonstration_store import regularity_signature
@@ -1152,12 +1190,33 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                                     evidence_id=f"unmet_{expectation.expectation_id}")
             separable = await learning.separates(formed_by, case, domain_id=expectation.domain_id)
         attribution, why = attribute_expectation(evidence, acted=acted, separable=separable)
+        # DEALT WITH OTHERWISE. A departure is the world not doing what it does to
+        # a thing. A thing the world DID change since the expectation was formed,
+        # only not as expected -- filed somewhere else, taken away -- was dealt
+        # with, by whoever deals with it, and putting the expected change right
+        # would undo what they did. Measured (EXPECT-02's pilot): a person who
+        # began filing to ARCHIVE had each of her files taken for a departure,
+        # and Lyric set out, on its own, to move them back. It still says the
+        # regularity did not hold this time: its reliability moves as for a
+        # departure, and nothing is raised.
+        otherwise = (attribution is Attribution.EXTERNAL_FAILURE and case is not None
+                     and frozenset(case.before) != frozenset(case.after))
+        if otherwise:
+            from core.learning.rule_induction import RuleEffects
+            done = RuleEffects(add=frozenset(case.after) - frozenset(case.before),
+                               delete=frozenset(case.before) - frozenset(case.after))
+            why = f"it was dealt with otherwise: {describe_change(done)}"
 
         # WHETHER IT WAS RELIED ON is read BEFORE this outcome moves it: a
         # departure from a regularity not yet relied on is not acted on.
-        beliefs = [await learning.regularity_belief(r.rule_id, owner=expectation.owner)
-                   for r in rules]
-        relied_on = bool(beliefs) and all(settled_in_favour(b) for b in beliefs)
+        # Relied on when the habit -- the kind of change, in this world: every rule
+        # here is of the kind that formed it (`_predicting`) -- is shown by how its
+        # expectations ended to hold often enough (`regularity_relied_on`).
+        held_so_far, expected_so_far = (
+            await learning.regularity_record(formed_by, domain_id=expectation.domain_id)
+            if formed_by is not None else (0, 0))
+        from core.learning.unified_learning_system import relied_on_rate
+        relied_on = relied_on_rate(held_so_far, expected_so_far)
 
         if attribution in (Attribution.RULE_EVIDENCE, Attribution.EXTERNAL_FAILURE):
             # Evidence about the regularity, or about the world departing from
@@ -1173,15 +1232,15 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             (evidence.outcome is ExpectationOutcome.CONFIRMATION
              and attribution is Attribution.RULE_EVIDENCE)
             or attribution is Attribution.EXTERNAL_FAILURE)
-        if counts_for_reliability:
-            for record in rules:
-                if not expectation.owner and not memory_id:
-                    self.logger.warning(
-                        "memory did not keep how expectation %s ended, so it moves no belief "
-                        "in %s", expectation.expectation_id, record.rule_id)
-                    continue
+        if counts_for_reliability and formed_by is not None:
+            if not expectation.owner and not memory_id:
+                self.logger.warning(
+                    "memory did not keep how expectation %s ended, so it moves no belief "
+                    "in %s", expectation.expectation_id, formed_by.rule_id)
+            else:
                 await learning.observe_regularity(
-                    record.rule_id, held=evidence.outcome is ExpectationOutcome.CONFIRMATION,
+                    formed_by, domain_id=expectation.domain_id,
+                    held=evidence.outcome is ExpectationOutcome.CONFIRMATION,
                     owner=expectation.owner, observation=expectation.expectation_id,
                     memory_id=memory_id)
         if separable and case is not None and signature is not None:
@@ -1199,11 +1258,14 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             return
         self._formed_at.pop(expectation.expectation_id, None)
         self.expectation_stats[status] += 1
-        self.logger.info("expectation %s in %s %s (%s): %s — %s", expectation.expectation_id,
-                         expectation.domain_id, status, attribution.value,
-                         describe_change(expectation.effects), why)
+        self.logger.info("expectation %s in %s %s (%s): %s — %s [the habit held %d of %d before it%s]",
+                         expectation.expectation_id, expectation.domain_id, status,
+                         attribution.value, describe_change(expectation.effects), why,
+                         held_so_far, expected_so_far, ", relied on" if relied_on else "")
 
-        if (evidence.outcome is ExpectationOutcome.CONTRADICTION
+        if otherwise:
+            self.expectation_stats["dealt_with_otherwise"] += 1
+        elif (evidence.outcome is ExpectationOutcome.CONTRADICTION
                 and attribution is Attribution.EXTERNAL_FAILURE):
             self.expectation_stats["departures"] += 1
             if self._on_departure is not None:
@@ -1225,9 +1287,15 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
             ending = f"it did not happen ({why})"
         else:
             ending = f"I could not tell whether it happened ({why})"
+        # AN EPISODE, NOT A CLAIM: what was expected, and on its own line how it
+        # ended, as the memory agent keeps an episode (`_readable_claim`: an
+        # episode written for a reader is not read for a claim to recall as a
+        # premise). On one line it was read by the grammar first, 2.45 s each on
+        # the substrate's loop: 183 of the 186 s spent attending to readings in
+        # EXPECT-02's profiled pilot.
         stored, memory_id = await memory_agent().store_memory(
             content=(f"In {expectation.domain_id} I expected {describe_change(expectation.effects)} "
-                     f"by {expectation.due.isoformat()}; {ending}."),
+                     f"by {expectation.due.isoformat()}.\n{ending[0].upper()}{ending[1:]}."),
             memory_type=MemoryType.EPISODIC, importance_score=0.6,
             tags=["expectation", _EXPECTATION_STATUS.get(evidence.outcome.value, "indeterminate")],
             source_context={"source_system": "predictive_intelligence",

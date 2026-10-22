@@ -747,7 +747,57 @@ def generalize(left: CandidateRule, right: CandidateRule) -> Optional[CandidateR
     if left.action is not None and right.action is not None:
         action = gen.fact(left.action, right.action)
 
-    return _canonical(body, RuleEffects(add=add, delete=delete), action)
+    effects = RuleEffects(add=add, delete=delete)
+    return _canonical(_reduced(body, effects, action), effects, action)
+
+
+def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) -> Set[Fact]:
+    """The body without the literals it holds twice over: Plotkin's reduction.
+
+    Pairing every literal of one body with every literal of the other makes the
+    body grow as a product. Facts true of every place in every demonstration
+    pair off whichever way the places' roles fell: two rooms, open in each
+    of six moves that swap source and destination, gave OPEN literals over
+    2, 4, 8, 16 variables, past the body bound before minimization could see
+    them (an office's MOVE never learned).
+
+    A literal whose variables occur nowhere else in the rule says only that some
+    such fact holds; when another literal of its predicate is in the body, that
+    one already says it, and mapping the first onto it leaves a rule that
+    subsumes the same states. It is removed. Nothing else is: a literal sharing
+    a variable with the action, the effects or another literal carries meaning
+    of its own."""
+    kept = set(body)
+    while True:
+        dropped = None
+        for literal in sorted(kept):
+            if literal == action or not literal.variables:
+                continue
+            rest = kept - {literal}
+            elsewhere = set().union(effects.variables, action.variables if action else set(),
+                                    *(f.variables for f in rest))
+            if literal.variables & elsewhere:
+                continue
+            if any(_maps_onto(literal, other) for other in rest if other.predicate == literal.predicate):
+                dropped = literal
+                break
+        if dropped is None:
+            return kept
+        kept.discard(dropped)
+
+
+def _maps_onto(literal: Fact, other: Fact) -> bool:
+    """Whether a substitution of `literal`'s variables alone makes it `other`."""
+    if len(literal.args) != len(other.args):
+        return False
+    bound: Dict[str, str] = {}
+    for mine, theirs in zip(literal.args, other.args):
+        if is_variable(mine):
+            if bound.setdefault(mine, theirs) != theirs:
+                return False
+        elif mine != theirs:
+            return False
+    return True
 
 
 # --------------------------------------------------------------------------

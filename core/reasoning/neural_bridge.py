@@ -3874,6 +3874,7 @@ class NeuralSymbolicBridge:
             problem_type="reasoning_request",
             actor=(request.task_metadata or {}).get("actor"),
             organization=(request.task_metadata or {}).get("organization"),
+            remembered=(request.task_metadata or {}).get("remembers", True) is not False,
             # THE CONTEXT IS SPLIT BY WHAT EACH ITEM IS.
             #
             # A flat list of strings was not enough. Abduction searches

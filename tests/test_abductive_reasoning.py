@@ -237,3 +237,25 @@ def test_explanation_accepts_a_bare_conclusion():
     lines = asyncio.run(engine.explain_reasoning(conclusion))
 
     assert any("Rain" in line for line in lines)
+
+
+def test_a_reasoning_not_to_be_remembered_is_neither_stored_nor_learned_from():
+    """A conversation held not to remember (`Conversation(remembers=False)`) writes nothing, its reasoning included.
+    Its questions' reasoning wrote nine memories, with their learning, to main during UNDERSTANDS-PROSE-02
+    (2026-10-21/22). Reasoned for one that remembers, both are written as before."""
+    engine = create_abstract_reasoning_engine()
+    written = []
+
+    async def learned(result):
+        written.append(("learned", result.context.remembered))
+
+    async def stored(result):
+        written.append(("stored", result.context.remembered))
+
+    engine.learning_engine, engine.memory = object(), object()
+    engine._update_learning, engine._store_in_memory = learned, stored
+    for remembered in (False, True):
+        ctx = context()
+        ctx.remembered = remembered
+        asyncio.run(engine.reason(ctx))
+    assert written == [("learned", True), ("stored", True)], written

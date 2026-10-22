@@ -119,9 +119,10 @@ def scored(question, understanding) -> str:
     return "wrong"
 
 
-async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=1, end=None) -> int:
-    """Tells and asks the texts of `here`/texts.json, from text number `start` to `end` (the last, when None), and
-    writes the run to `here`/results. Each text is told in a conversation of its own, so a run stopped between texts goes on exactly
+async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=1, end=None, only=None,
+               part=None) -> int:
+    """Tells and asks the texts of `here`/texts.json, from text number `start` to `end` (the last, when None), only
+    the numbers in `only` where it is given (`part` names them), and writes the run to `here`/results. Each text is told in a conversation of its own, so a run stopped between texts goes on exactly
     from the next."""
     (here / "results").mkdir(exist_ok=True)
     logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -206,7 +207,11 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
     end = end or len(texts)
     if start > 1 or end < len(texts):
         EV.note(f"texts {start} to {end} only, of {len(texts)}: the rest run apart")
+    if only is not None:
+        EV.note(f"{part or 'part'}: texts {sorted(only)} only, of {len(texts)}")
     for n, text in list(enumerate(texts))[start - 1:end]:
+        if only is not None and n + 1 not in only:
+            continue
         say(f"\n=== {text['name']} ({text['kind']})")
         conversation = get_conversation(f"{experiment.lower().replace('-', '_')}_{n}", remembers=False)
         kind = by_kind.setdefault(text["kind"], {"read": 0, "of": 0, "right": 0, "asked": 0, "wrong": 0})

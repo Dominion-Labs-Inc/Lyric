@@ -26,7 +26,7 @@ falls due.
 
 Every expected value is written here before the run. Runs in the SANDBOX (`lyric_dev`) and does not empty it.
 Removed at the end, by this run's ids: the worlds' rules, demonstrations and expectations, the memories they left,
-her beliefs, mode and messages. Left: her goal tasks in the queue's history.
+her beliefs, mode, messages, memories and goal tasks.
 
     POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/EXPECT-01/experiment.py
 """
@@ -180,12 +180,8 @@ class Run:
         await self.coord.learning.drain_pending_induction(limit=50)
 
     async def relied_on(self, domain: str, owner: str) -> bool:
-        from core.capabilities import settled_in_favour
         rules = await self.regularities(domain)
-        if not rules:
-            return False
-        beliefs = [await self.coord.learning.regularity_belief(r.rule_id, owner=owner) for r in rules]
-        return all(settled_in_favour(b) for b in beliefs)
+        return any([await self.coord.learning.regularity_relied_on(r, domain_id=domain) for r in rules])
 
     async def moved_pdf(self, office: Office, domain: str, kind: str = "pdf", src: str = "INBOX",
                         dst: str = "DONE", moved: bool = True) -> str:
@@ -281,7 +277,11 @@ async def phase_one(state) -> None:
             txt.append(await run.moved_pdf(office, main, kind="txt", moved=False))
         await run.settled(main)
         await run.learn(main)
-        txt_rows = [r for r in await run.expectations(main) if r["status"] != "confirmed"]
+        # The txt files' own expectations: a pdf filed late in B is not one of them.
+        txt_ids = {r["expectation_id"] for r in await db().execute_query(
+            "SELECT expectation_id FROM unified.held_expectations WHERE domain_id = $1 AND add_facts::text LIKE ANY($2)",
+            (main, [f'%"AT({name}, %' for name in txt]), fetch_all=True) or []}
+        txt_rows = [r for r in await run.expectations(main) if r["expectation_id"] in txt_ids]
         wrong = [r for r in txt_rows if r["attribution"] == "rule_evidence"]
         EV.metric("txt_expected", len(txt_rows), "count", "tentative expectations of a txt moving")
         check("no txt miss is taken for the world departing: each is Lyric's own mistake, or never expected",
@@ -318,23 +318,40 @@ async def phase_one(state) -> None:
         check("and the regularity is not refuted by it",
               any(r.status is EpistemicStatus.VALIDATED for r in rules_after),
               [(r.rule_id, r.status.value) for r in rules_after])
+        from core.agents.autonomous.shared_types import TaskStatus
         msgs = await run.messages(owner)
         expected = [m for m in msgs if m["why"] == "expected"]
-        told = [m for m in expected if "see to it" not in m["text"] and "seeing to it" not in m["text"]]
-        offered = [m for m in expected if "I can see to it if you ask" in m["text"]]
-        seeing = [m for m in expected if "I am seeing to it" in m["text"]]
-        goals = [t for tid, q in coord.task_queue.tasks_by_id.items() if tid.startswith("expect_")
-                 for t in [q.task] if getattr(t, "actor", None) == owner]
+        told = [m for m in expected if "putting it right" not in m["text"]]
+        offered = [m for m in msgs if m["why"] == "confirm" and m["text"].endswith("Shall I put it right?")]
+        seeing = [m for m in expected if "I am putting it right" in m["text"]]
+        ours = [q for tid, q in coord.task_queue.tasks_by_id.items() if tid.startswith("expect_")
+                and getattr(q.task, "actor", None) == owner]
+        held = [q.task for q in ours if q.status is TaskStatus.BLOCKED]
+        goals = [q.task for q in ours if q.status is not TaskStatus.BLOCKED]
         EV.metric("told", len(told), "count")
         EV.metric("offered", len(offered), "count")
         EV.metric("goals", len(goals), "count")
         check("Observe: she is told what was expected and that it has not happened",
               len(told) == SKIPS_PER_MODE, [m["text"][:90] for m in told])
-        check("Assist: she is told, and offered", len(offered) == SKIPS_PER_MODE, [m["text"][-40:] for m in offered])
+        check("Assist: she is asked whether it should be put right, and the goal waits for her yes",
+              len(offered) == SKIPS_PER_MODE and len(held) == SKIPS_PER_MODE
+              and {m["about"] for m in offered} == {t.id for t in held}, [m["text"][-40:] for m in offered])
         check("Delegate: a goal of Lyric's own forms for her, that the expected change holds",
               len(goals) == SKIPS_PER_MODE and len(seeing) == SKIPS_PER_MODE
               and all((g.provenance or {}).get("goal_conditions") for g in goals),
               [(g.id, (g.provenance or {}).get("goal_conditions")) for g in goals])
+        # NO OPERATOR HERE: Lyric has not learned to move her files in this office, so each goal ends unreached,
+        # and she is told so, as work she was told was taken on for her.
+        ended = []
+        deadline = time.time() + WAIT_S
+        while time.time() < deadline:
+            ended = [m for m in await run.messages(owner) if m["why"] == "work ended"
+                     and m["about"] in {g.id for g in goals}]
+            if len(ended) == len(goals):
+                break
+            await asyncio.sleep(0.5)
+        check("and she is told how each goal ended", goals and len(ended) == len(goals),
+              [m["text"][:120] for m in ended])
 
         say("\n== E. A tendency ==")
         tend = state["domains"]["tendency"]
@@ -433,10 +450,15 @@ async def cleanup(state) -> None:
     owner = state["owner"]
     domains = list(state["domains"].values())
     mdb = agent._memory_db()
-    memories, demos = [], []
+    memories, demos, tasks = [], [], []
+    for store in mdb.maintained_stores():
+        for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+            memories += [r["memory_id"] for r in await mdb.execute_query(
+                f"SELECT memory_id FROM {table} WHERE user_id = $1", (owner,), fetch_all=True, store=store) or []]
     for domain in domains:
         rows = await agent.expectations_of(domain_id=domain)
         memories += [r["memory_id"] for r in rows if r["memory_id"]]
+        tasks += [f"expect_{r['expectation_id']}" for r in rows]
         demos += [r["evidence_id"] for r in await db().execute_query(
             "SELECT evidence_id FROM unified.operator_demonstrations WHERE domain_id = $1", (domain,),
             fetch_all=True) or []]
@@ -454,11 +476,19 @@ async def cleanup(state) -> None:
                                 (memories,), commit=True, store=store)
         await mdb.execute_query("DELETE FROM unified.scoped_beliefs WHERE scope_actor = $1", (owner,),
                                 commit=True, store=store)
+    # THE PLANNING ENGINE'S GOALS FOR THEM, and their plans: left active, a later boot of anyone's would take them
+    # up again and act in a world that no longer exists.
+    patterns = [f"[substrate goal] Put right what was expected in {d}:%" for d in domains]
+    goals = [r["id"] for r in await db().execute_query(
+        "SELECT id FROM unified.goals WHERE description LIKE ANY($1::text[])", (patterns,), fetch_all=True) or []]
+    await db().execute_query("DELETE FROM unified.plans WHERE goal_id = ANY($1::text[])", (goals,), commit=True)
+    await db().execute_query("DELETE FROM unified.goals WHERE id = ANY($1::text[])", (goals,), commit=True)
     await db().execute_query("DELETE FROM unified.outbox WHERE actor = $1", (owner,), commit=True)
     await db().execute_query("DELETE FROM unified.operating_modes WHERE person = $1", (owner,), commit=True,
                              store="runtime")
+    await db().execute_query("DELETE FROM unified.task_queue WHERE task_id = ANY($1::text[])", (tasks,), commit=True)
     say(f"\n    removed by id: {len(domains)} worlds' rules and expectations, {len(demos)} demonstrations, "
-        f"{len(memories)} memories, her beliefs, mode and messages")
+        f"{len(memories)} memories, her goal tasks, beliefs, mode and messages")
 
 
 def _printed(name, ok, detail=""):
@@ -504,7 +534,7 @@ async def main() -> int:
         await cleanup(state)
     shutil.rmtree(work, ignore_errors=True)
     EV.metric("seconds", round(time.time() - started, 1), "s")
-    EV.note(f"nonce {nonce}: left in the sandbox, her goal tasks in the queue's history")
+    EV.note(f"nonce {nonce}")
     await EV.verify_database()
     EV.write()
     passed = sum(1 for c in EV.checks if c.passed)

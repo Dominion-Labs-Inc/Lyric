@@ -586,6 +586,128 @@ def test_a_world_change_is_cut_to_each_thing_that_changed():
     assert len({e.evidence_id for e, _ in examples}) == 2
 
 
+def test_in_a_sparse_world_the_change_is_still_the_file_s():
+    """One file in the inbox, one file from its sender: the inbox and the sender
+    are each in fewer facts than the file, and the change is still the file's.
+    Its arrival is one change of it, and so is its move."""
+    from core.learning.demonstration_store import regularity_signature
+    from core.learning.unified_learning_system import world_change_examples
+    empty = frozenset({Fact("OPEN", ("INBOX",)), Fact("OPEN", ("DONE",))})
+    arrived = empty | {Fact("AT", ("f", "INBOX")), Fact("KIND", ("f", "pdf")), Fact("FROM", ("f", "alice"))}
+    moved = (arrived - {Fact("AT", ("f", "INBOX"))}) | {Fact("AT", ("f", "DONE"))}
+
+    arrival = world_change_examples(empty, arrived, evidence_stem="a")
+    move = world_change_examples(arrived, moved, evidence_stem="m")
+
+    assert [things for _, things in arrival] == [{"f"}]
+    assert [things for _, things in move] == [{"f"}]
+    learned = RuleEffects(add={Fact("AT", ("?X0", "DONE"))}, delete={Fact("AT", ("?X0", "INBOX"))})
+    assert regularity_signature(move[0][0].observed_effects, move[0][1]) == regularity_signature(learned)
+
+
+def test_a_body_holds_no_literal_twice_over():
+    """Facts true of every place pair off whichever way the places' roles fell:
+    rooms open in every move, the moves swapping source and destination. The
+    body keeps what bears on the act and nothing it holds twice over, so the
+    move is learned instead of outgrowing the body bound."""
+    from core.learning.rule_induction import InductionStatus, TrainingExample
+    rooms = {Fact("OPEN", ("DONE",)), Fact("OPEN", ("ARCHIVE",))}
+    examples = []
+    for i, (thing, src, dst) in enumerate([("a", "DONE", "ARCHIVE"), ("a", "ARCHIVE", "DONE"),
+                                           ("b", "DONE", "ARCHIVE"), ("b", "ARCHIVE", "DONE"),
+                                           ("c", "DONE", "ARCHIVE"), ("c", "ARCHIVE", "DONE")]):
+        examples.append(TrainingExample(
+            before=tuple(sorted(rooms | {Fact("AT", (thing, src))})), action=Fact("MOVE", (thing, src, dst)),
+            after=tuple(sorted(rooms | {Fact("AT", (thing, dst))})), positive=True, evidence_id=f"m{i}"))
+
+    result = get_rule_inducer().induce(examples)
+
+    assert result.status is InductionStatus.RULE_LEARNED, result.detail
+    assert sum(1 for f in result.rule.body if f.predicate == "OPEN") <= 2
+
+
+def test_a_file_left_alone_differs_from_one_dealt_with_otherwise():
+    """What the predictive intelligence system reads to tell a departure from a
+    thing dealt with otherwise: left where it was, the unmet case is the same
+    before and after; filed somewhere else, it is not."""
+    from core.learning.unified_learning_system import expectation_case
+    held = _office(inbox=["p"], kinds={"p": "pdf"})
+    moved = RuleEffects(add={Fact("AT", ("p", "DONE"))}, delete={Fact("AT", ("p", "INBOX"))})
+    elsewhere = (held - {Fact("AT", ("p", "INBOX"))}) | {Fact("AT", ("p", "ARCHIVE"))}
+
+    left = expectation_case(held, held, moved, evidence_id="l")
+    filed = expectation_case(held, elsewhere, moved, evidence_id="f")
+
+    assert set(left.before) == set(left.after)
+    assert set(filed.before) != set(filed.after)
+    assert Fact("AT", ("p", "ARCHIVE")) in filed.after
+
+
+def test_a_miss_told_apart_by_what_had_been_seen_is_not_once_more_is_seen():
+    """With only alice's files moved, erin's left behind is told apart by its
+    sender: the substrate's mistake, then. Once erin's have moved too, nothing
+    tells it apart, and the same question answers that the world departed."""
+    from core.learning.rule_induction import InductionStatus
+    from core.learning.unified_learning_system import expectation_case, world_change_examples
+
+    def office(name, sender, room):
+        return _office(inbox=[name] if room == "INBOX" else [], done=[name] if room == "DONE" else [],
+                       kinds={name: "pdf"}) | {Fact("FROM", (name, sender))}
+
+    def moved(name, sender):
+        return [e for e, _ in world_change_examples(office(name, sender, "INBOX"), office(name, sender, "DONE"),
+                                                    evidence_stem=name)]
+    effects = RuleEffects(add={Fact("AT", ("e", "DONE"))}, delete={Fact("AT", ("e", "INBOX"))})
+    left = expectation_case(office("e", "erin", "INBOX"), office("e", "erin", "INBOX"), effects, evidence_id="u")
+
+    alices = moved("a1", "alice") + moved("a2", "alice") + moved("a3", "alice")
+    then = get_rule_inducer().induce(alices + [left])
+    now = get_rule_inducer().induce(alices + moved("e1", "erin") + moved("e2", "erin") + [left])
+
+    assert then.status in (InductionStatus.RULE_LEARNED, InductionStatus.MULTIPLE_HYPOTHESES)
+    assert now.status is InductionStatus.NO_RULE and now.negative_coverage
+
+
+def test_the_basis_spans_what_the_changes_were_like_not_only_the_first():
+    """Fifteen of alice's files moved first, then others': the bounded basis a
+    miss is compared with holds others' too, so erin's file left behind is not
+    told apart by its sender."""
+    from core.learning.rule_induction import InductionStatus
+    from core.learning.unified_learning_system import (_bounded_basis, expectation_case,
+                                                       world_change_examples)
+
+    def office(name, sender, room):
+        return _office(inbox=[name] if room == "INBOX" else [], done=[name] if room == "DONE" else [],
+                       kinds={name: "pdf"}) | {Fact("FROM", (name, sender))}
+
+    positives = []
+    for i, sender in enumerate(["alice"] * 15 + ["bob", "erin", "dan", "carol", "erin", "bob"]):
+        name = f"f{i}"
+        positives += [e for e, _ in world_change_examples(office(name, sender, "INBOX"),
+                                                          office(name, sender, "DONE"), evidence_stem=name)]
+    basis = _bounded_basis(positives, ())
+    effects = RuleEffects(add={Fact("AT", ("e", "DONE"))}, delete={Fact("AT", ("e", "INBOX"))})
+    left = expectation_case(office("e", "erin", "INBOX"), office("e", "erin", "INBOX"), effects, evidence_id="u")
+
+    senders = {f.args[1] for e in basis for f in e.before if f.predicate == "FROM"}
+    result = get_rule_inducer().induce(basis + [left])
+
+    assert senders > {"alice"}
+    assert result.status is InductionStatus.NO_RULE and result.negative_coverage
+
+
+def test_a_habit_is_relied_on_by_how_often_it_held():
+    """Relied on when it is more likely than not to hold at least four times in
+    five: nine of ten is, eight of ten is not, and a step kept three times in
+    four or every other time never is, however long it runs."""
+    from core.learning.unified_learning_system import relied_on_rate
+    assert not relied_on_rate(0, 0)
+    assert relied_on_rate(9, 10) and not relied_on_rate(8, 10)
+    assert relied_on_rate(90, 100)
+    assert not relied_on_rate(75, 100) and not relied_on_rate(750, 1000)
+    assert not relied_on_rate(50, 100) and not relied_on_rate(500, 1000)
+
+
 def test_a_kind_of_change_names_its_places_and_leaves_the_thing_open():
     """Inbox-to-done and done-to-archive are two kinds of change; two files
     moved inbox-to-done are one."""

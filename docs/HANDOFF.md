@@ -2,7 +2,7 @@
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34), (35) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-22)
@@ -16,7 +16,14 @@ held as data (`data/grammar/english.json`), what words hold learned from taught 
 show Lyric reads prose: each miss had been fixed against those same texts (rules of English, not its sentences), and
 37 questions cannot show the bar of 2% wrong (0 of 37 has a 95% interval of 0% to 9.4%).
 
-**UNDERSTANDS-PROSE-02, HELD OUT, IN PROGRESS** (`experiments/UNDERSTANDS-PROSE-02`, README). 50 texts taken as
+**UNDERSTANDS-PROSE-02, HELD OUT, DONE 2026-10-22: ALL THREE BARS FAIL** (`experiments/UNDERSTANDS-PROSE-02`, README,
+lab notebook (35)). All 50 texts, each from the one run that finished it: sentences understood 210/431 = **48.7%**
+(95% 44.0% to 53.4%), right 43/456 = **9.4%** (7.1% to 12.5%), wrong 43/456 = **9.4%** (7.1% to 12.5%); one sentence
+stopped the conversation. Security logs 0/50 sentences; webpages and news 1 right each. Every wrong answer is to a
+question asking what, who, which or when (no yes or no wrong): 21 say the kind asked for back ("Journal.":
+`Conversation.asked` answers the question's `instance_of(?x, journal)` alone, by any journal held, never asking the
+rest of what the question says of `?x`), 14 answer "Yes." to a question asking what or when, 8 others. The stall fix
+holds on main: text 44's third sentence read in 410.7 s (14 hours before). 50 texts as
 published (Wikipedia, GOV.UK, Python docs, arXiv, Loghub logs, Wikinews, the US Constitution), drawn by seed
 20261021 and cut by rule (`draw.py`); 456 questions written before any was read (`questions.py`, checked by
 `assemble.py`); 431 sentences; sized for about five points either way, each measure with its 95% interval. 01's
@@ -25,9 +32,20 @@ begins, a number only whole (01's last run scores the same under it); the transc
 (`*_transcript.jsonl`); `--from N` goes on from text N.
 - **Its first run on main stalled 14 hours** on text 44's third sentence ("To handle changes in electric current
   caused by weather variations, ..."). Texts 1 to 43 are in `results/terminal.txt` (what the run printed, saved by
-  hand; not yet scored). Texts 45 to 50 ran from 07:33 (`--from 45`, `results/run_from45.out`, transcript
-  `results/20261022T113957Z_transcript.jsonl`) and **stopped at 47 of their 70 sentences and questions**, in text 48
-  ("The President"), when the session that ran them ended. Texts 48 to 50 and text 44 (on the fix) are still to run.
+  hand), scored from it. Texts 45 to 50 ran from 07:33 (`--from 45`, `results/run_from45.out`, transcript
+  `results/20261022T113957Z_transcript.jsonl`) and stopped at 47 of their 70 sentences and questions, in text 48
+  ("The President"), when the session that ran them ended: 45 to 47 are taken from it. 44 and 48 to 50 ran on the fix
+  (records `20261022T120503Z`, `20261022T122438Z`). Every run's log is kept (`run_*.log`).
+- **The sentence that stops the conversation** (text 50, "No person shall be elected to the office of the President
+  more than twice, ..."): `ValueError: a meaning states the same fact twice`. The office named three times, each
+  description bound to the known office it picks out, makes one fact twice in `Conversation._telling`'s
+  `Meaning(meaning.act, meaning.bound({}, known), meaning.asked)`. Fix: hold each fact once there
+  (`tuple(dict.fromkeys(...))`; `bound` itself stays one fact per fact, since its callers zip the two). **Made
+  2026-10-22** (uncommitted, beside another session's uncommitted EXPECT-02 changes in the same file); text 50 again
+  on main (`20261022T131110Z`): read 2/2, nothing stopped, but 2 wrong ("Yes. A The office is part of a president."
+  to "How many times ...?" and "... three times?": `Conversation.asked` answers the question's description of a known
+  thing, `part_of(office_1, president)`, as if asked; only its `instance_of` is passed over). Its log: one recall timed
+  out (60 s command timeout) while the reader held the event loop for the 297.6 s of a sentence.
 - **The stall, found and fixed** (lab notebook (34)): `derived_reader._least_claimed` tried every choice of every
   sense of every word of an adjunct's readings (`itertools.product`), millions on main for six words of many WordNet
   senses (lyric_dev holds few senses: 8.6 s there). Senses costing the same in every reading now count as one
@@ -69,19 +87,37 @@ Lyric without either going down.
   (`archive/api_serving_retired_2026-08-28`); `/api/lyric/chat` names a service the gateway does not list.
 
 **NEXT, in this order:**
-1. **The fix compared on main**, old against new call for call (lab notebook (34)); then **text 44 of
-   UNDERSTANDS-PROSE-02 on main, on the fix** (`--from 44 --to 44`) and **texts 48 to 50** (`--from 48`), run and
-   watched by the session (the owner's word: the session runs them itself and watches them); then texts 1 to 43 scored from `terminal.txt`, 44 and 45 to 50 from
-   their transcripts: the held-out result, with intervals. Record it in the README's runs.
-2. **HANDOVER-01 again**, for a conversation going on across the switch.
-3. **The wording the owner asked for:** a word Lyric has never met is reported as understood ("I understood
+1. **The fix compared on main**, old against new call for call (lab notebook (34), `same_choices.py`). Text 44, 48 to 50
+   and the scoring of all 50: done 2026-10-22, above (the session runs and watches runs itself: the owner's word).
+2. ~~The duplicate fact in `_telling`~~: done 2026-10-22, text 50 run again (above).
+3. **The answering faults, IN PROGRESS 2026-10-22.** The 50 texts split on the owner's word (`split.py`,
+   `split.json`: 25 fixed against, `--half fit`; 25 kept unseen, `--half held`, run once after the fixes; README).
+   Fixed in `Conversation.asked` (uncommitted; three tests in `tests/test_conversation.py`, failing before): what a
+   question asks for, described by more than one fact, is not answered by one of them ("Journal."); a question asking
+   for something is not answered yes or no by a fact naming nothing it asks; a yes or no is of all a question says.
+   UNDERSTANDS-PROSE-01 on main after (`20261022T150121Z`): 33/33, 36/37, 0 wrong, unchanged. The half fixed against
+   on main (`20261022T152323Z`): wrong 25 to **8 of 231** (3.5%), right 20 to 21, read 49.5%. Then fixed: a thing with
+   a name of its own said by its name (`_kind_of`), an answer only saying the question's kind is none, "whom" never a
+   subject; texts 8, 13, 14, 28, 31 again (`20261022T191951Z`): wrong 7 to 4, right 10 to 11. PROSE-01 unchanged
+   (`20261022T190909Z`). README: the counts of why so few are right.
+   **MAIN WAS WRITTEN by PROSE-02's runs**: a question's reasoning reaching the abstract reasoning engine was stored
+   and learned from although the conversation remembers nothing; nine memories (`user_id` `understands_prose_02_*`,
+   "Learning: Abstract reasoning ...") with their learning rows. Fixed (`ReasoningContext.remembered`, carried from
+   `Conversation._remembers`; a test in `tests/test_abductive_reasoning.py`); the runs after it wrote nothing.
+   Deleting the nine is the owner's call.
+   **Next:** questions read as their tellings are (78 of the half's misses had both read and never met: "did X V",
+   "was X Ved", a name before a noun read as a quality, frame markers left in a question's meaning; the link learned
+   for "defeat"'s second place); then sentences whose words are read but not how they fit (65 of 112 unread). Then
+   the half fixed against whole, and the half kept unseen once. All uncommitted.
+4. **HANDOVER-01 again**, for a conversation going on across the switch.
+5. **The wording the owner asked for:** a word Lyric has never met is reported as understood ("I understood
    '𐎧𐏁𐏂', 'Xšāça'"). It is to say what kind of thing it took it as. In `autonomous_coordinator.py` (protected:
    only while no experiment, teaching run or main runs).
-4. **Symbols** (the owner's direction): what a symbol is, from Unicode's table (script, name, the sound its name
+6. **Symbols** (the owner's direction): what a symbol is, from Unicode's table (script, name, the sound its name
    gives: 𐎧𐏁𐏂 is XA, SHA, SSA, the "Xšāça" beside it); breaking classical ciphers with Lyric's reader as the judge
    of a guessed key, measured at scale; reading code, LaTeX and log formats by their grammars; deciphering an unknown
    script by where its signs stand (Linear B's method).
-5. The restarts that put the handover live (the owner's).
+7. The restarts that put the handover live (the owner's).
 
 ## 0 (2026-10-20, late, as it stood then)
 

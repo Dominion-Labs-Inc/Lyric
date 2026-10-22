@@ -484,6 +484,15 @@ class AbstractionPipeline:
                     kwargs[k] = datetime.fromisoformat(v)
                 except ValueError:
                     kwargs[k] = datetime.now()
+            elif k == "last_stress_test" and isinstance(v, str):
+                # Written as ISO text like the other times and read back as text,
+                # so every schema loaded from the store failed its decay pass:
+                # "unsupported operand type(s) for -: 'datetime.datetime' and
+                # 'str'". Unreadable, it was never stress-tested.
+                try:
+                    kwargs[k] = datetime.fromisoformat(v)
+                except ValueError:
+                    kwargs[k] = None
             elif k == "confidence_interval" and isinstance(v, list):
                 kwargs[k] = tuple(v)
             else:

@@ -9,8 +9,9 @@ person's habit with nothing done by itself, and came to rely on it:
 Every pdf left behind lapsed at its due time, by Lyric's own reading, and was taken for what it was: the world not
 doing what it does (6 of 6). The regularity survived all six.
 - **Observe:** she was told.
-- **Assist:** she was told and offered help.
-- **Delegate:** a goal of Lyric's own formed for her: `AT(pdf, DONE)`, `¬AT(pdf, INBOX)`.
+- **Assist:** she was asked "Shall I put it right?", with the goal held for her yes.
+- **Delegate:** a goal of Lyric's own formed for her (`AT(pdf, DONE)`, `¬AT(pdf, INBOX)`), and she was told how it
+  ended. This office has no learned MOVE, so each ended "I couldn't do it"; EXPECT-02 measures it putting files right.
 
 **When Lyric was wrong it learned instead.** It had two hypotheses, "what is in the inbox moves" and "a pdf moves".
 It expected four txt files to move and they did not. Each miss was told apart from the confirmations by its kind,
@@ -23,6 +24,11 @@ fresh process's own reading, and she was told.
 
 **Ablation.** Charge every miss to the regularity, as an act's outcome is charged to its rule. The first miss then
 refuted the regularity and no departure was ever raised: 0, against 6 in her honest world.
+
+**2026-10-22, rerun (20/20)** after EXPECT-02 found that both answers had been empty. The Delegate goals had
+all failed and she was never told, and the offer held nothing a yes could answer. One earlier rerun (18/20) had
+a filing later than the due time Lyric took from only 3 timings, and a check in D that counted it as a txt
+miss; the check now counts only the txt files.
 
 The first run (16/19) missed three checks for one reason in the experiment, not the substrate. A departure is
 answered on the substrate's deferred worker, under the mode that holds when it acts. The experiment had changed her
@@ -37,7 +43,7 @@ mode, and once checked for her message, before the answer came. The experiment n
 | B | Each expected change that happens is a confirmation, until the regularity is relied on in her world | 4 confirmations |
 | C | A change left undone lapses at its due time by Lyric's own reading, as the world departing, and is answered | 6 of 6 |
 | C | The regularity is not refuted by departures | validated after all six |
-| C | Observe tells, Assist offers, Delegate forms a goal | 2, 2, 2 |
+| C | Observe tells, Assist asks and holds the goal for her yes, Delegate forms a goal and tells her how it ended | 2, 2, 2 |
 | D | A miss told apart by what was observed is Lyric's own mistake: it learns, and does nothing for her | 4 of 4 told apart; no txt expected after |
 | E | A tendency is never relied on, and never acted on | 9 misses; 0 messages, 0 goals |
 | F | A waiting expectation survives a restart and is settled by the fresh process | settled as a departure; she was told |
@@ -65,6 +71,5 @@ POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/EXPECT-01/exper
 Removed at the end, by this run's ids:
 - the three worlds' rules, demonstrations and expectations;
 - the memories the expectations left;
-- her beliefs, operating mode and messages.
-
-Her goal tasks stay in the queue's history.
+- her beliefs, operating mode and messages;
+- her memories (the goals' outcomes among them) and her goal tasks.

@@ -289,7 +289,8 @@ class QueueAuthority:
                                "only safety, remediation, user-directed and critical admitted")
         return True, "hard: obligation admitted"
 
-    async def add_task(self, task: Task, priority: Priority = Priority.MEDIUM) -> bool:
+    async def add_task(self, task: Task, priority: Priority = Priority.MEDIUM, *,
+                       held_for_person: bool = False) -> bool:
         """Push a work job. Returns True when the job is queued, False if
         admission (backpressure) refused it or the queue is at capacity. The
         Constitution is not here — it is a blanket authority applied where the
@@ -301,7 +302,12 @@ class QueueAuthority:
         `tasks_already_queued`. It is not a refusal, so a caller does not end
         the pursuit the first copy is serving. A FINISHED id may be queued again
         as new work. Before this, a second add put a second copy on the heap:
-        the job ran twice, and its completed record flipped back to in_progress."""
+        the job ran twice, and its completed record flipped back to in_progress.
+
+        HELD FOR ITS PERSON FROM THE START (`held_for_person`): owed and kept
+        through a restart, but waiting for the person it is for to say go
+        ahead before it is ever drawn, as `hold_for_person` holds a job that
+        is already running; `resume_task` puts it in the queue."""
         async with self.lock:
             held = self.tasks_by_id.get(task.id)
             if held is not None and held.status in ACTIVE_STATUSES:
@@ -317,7 +323,8 @@ class QueueAuthority:
                 logger.warning("queue at capacity; refusing %s", task.id)
                 return False
             tp = self._priority_to_task_priority(priority)
-            queued = QueuedTask(task=task, priority=tp, added_at=datetime.now())
+            queued = QueuedTask(task=task, priority=tp, added_at=datetime.now(),
+                                status=TaskStatus.BLOCKED if held_for_person else TaskStatus.PENDING)
             # Held here from this moment, so a second add of the same id while
             # the durable write below is in flight finds it.
             self.tasks_by_id[task.id] = queued
@@ -332,9 +339,12 @@ class QueueAuthority:
             return self._already_queued(task.id, "held by another instance")
 
         async with self.lock:
+            self.total_tasks_added += 1
+            if held_for_person:
+                logger.info("owed %s, held for its person", task.id)
+                return True
             self._sequence += 1
             await self.queue.put((-tp.value, self._sequence, queued))
-            self.total_tasks_added += 1
         logger.info("queued %s (priority=%s, depth=%d)", task.id, tp.value, self.queue.qsize())
         return True
 

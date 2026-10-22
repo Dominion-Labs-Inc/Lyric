@@ -177,6 +177,12 @@ class ReasoningContext:
     #: their work for it: what it writes down is then the organization's Work
     #: Context (docs/research/SEPARATION_MAP.md §11.13).
     organization: Optional[str] = None
+    #: WHETHER WHAT THIS REASONING WRITES DOWN IS KEPT. A conversation held not to
+    #: remember (`Conversation(remembers=False)`) writes nothing, its reasoning
+    #: included: neither the memory of it nor the learning from it. Its questions'
+    #: reasoning wrote nine memories, with their learning, to main during
+    #: UNDERSTANDS-PROSE-02 (2026-10-21/22).
+    remembered: bool = True
 
     def origin(self, through: str):
         """Where what this reasoning writes down belongs: the person's, the
@@ -1949,11 +1955,11 @@ class AbstractReasoningEngine:
             result.reasoning_time = reasoning_time
 
             # Update learning
-            if self.learning_engine:
+            if self.learning_engine and context.remembered:
                 await self._update_learning(result)
 
             # Store in memory
-            if self.memory:
+            if self.memory and context.remembered:
                 await self._store_in_memory(result)
             
             # Clean up

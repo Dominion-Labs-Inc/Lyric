@@ -227,7 +227,12 @@ def wilson_interval(successes: int, trials: int, confidence_level: float = 0.95)
         return 0.0, 1.0
     import math
     p = successes / trials
-    z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence_level, 1.96)
+    # Any level is computed; one not listed used to be answered at 95% without a
+    # word, so asking for less certainty than that silently got more.
+    z = {0.90: 1.645, 0.95: 1.96, 0.99: 2.576}.get(confidence_level)
+    if z is None:
+        from statistics import NormalDist
+        z = NormalDist().inv_cdf(0.5 + confidence_level / 2.0)
     denominator = 1.0 + (z ** 2) / trials
     centre = (p + (z ** 2) / (2.0 * trials)) / denominator
     margin = z * math.sqrt((p * (1.0 - p) + (z ** 2) / (4.0 * trials)) / trials) / denominator

@@ -3915,6 +3915,25 @@ class MemoryAgent(IMemoryConsolidation):
             (expectation_id, status, attribution, detail, memory_id), fetch_all=True) or []
         return bool(rows)
 
+    async def departed_expectations(self, *, domain_id: str) -> List[Any]:
+        """The expectations of one domain's world settled as the world departing:
+        what a later change may yet show to have happened, only late."""
+        return await self._memory_db().execute_query(
+            "SELECT expectation_id, rule_id, domain_id, add_facts, delete_facts, held_facts,"
+            " since, due, owner, committed FROM unified.held_expectations"
+            " WHERE domain_id = $1 AND status = 'unmet' AND attribution = 'external_failure'",
+            (domain_id,), fetch_all=True) or []
+
+    async def confirm_late(self, *, expectation_id: str, detail: str) -> bool:
+        """An expectation settled as the world departing that happened after all,
+        later than its due time: it held. Returns False when it was not so settled."""
+        rows = await self._memory_db().execute_query(
+            "UPDATE unified.held_expectations SET status = 'confirmed', attribution = 'rule_evidence',"
+            " detail = $2 WHERE expectation_id = $1 AND status = 'unmet'"
+            " AND attribution = 'external_failure' RETURNING expectation_id",
+            (expectation_id, detail), fetch_all=True) or []
+        return bool(rows)
+
     async def pending_expectations(self, *, domain_id: Optional[str] = None) -> List[Any]:
         """The expectations still waiting on the world, in one domain or in all,
         soonest due first."""
@@ -3934,6 +3953,14 @@ class MemoryAgent(IMemoryConsolidation):
             "SELECT expectation_id, rule_id, owner, committed, status, attribution, detail,"
             " since, due, settled_at, memory_id FROM unified.held_expectations"
             " WHERE domain_id = $1 ORDER BY created_at, expectation_id",
+            (domain_id,), fetch_all=True) or []
+
+    async def expectation_outcomes(self, *, domain_id: str) -> List[Any]:
+        """How the expectations held of one domain's world ended, counted per
+        regularity that formed them, by status and attribution."""
+        return await self._memory_db().execute_query(
+            "SELECT rule_id, status, attribution, count(*) AS n FROM unified.held_expectations"
+            " WHERE domain_id = $1 GROUP BY rule_id, status, attribution",
             (domain_id,), fetch_all=True) or []
 
     async def forget_expectations(self, *, domain_id: str) -> int:

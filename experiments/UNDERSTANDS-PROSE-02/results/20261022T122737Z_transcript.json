@@ -1,0 +1,690 @@
+[
+ {
+  "text": "The President",
+  "told": "The executive Power shall be vested in a President of the United States of America.",
+  "read": true,
+  "reply": "Noted - I'll hold that about power_1.\nNoted - I'll hold that about president_36f09b68.\nNoted - The power is vested.\nNoted - I'll hold that about united states.",
+  "readings": [
+   [
+    "composed: tell: given instance_of(?v0, power) & has_property(?v0, executive) & has_property(?v0, vested) & instance_of(?v1, president) & part_of(united states, america) & word_of(?v1, united states)"
+   ]
+  ]
+ },
+ {
+  "text": "The President",
+  "told": "No Person except a natural born Citizen, or a Citizen of the United States, at the time of the Adoption of this Constitution, shall be eligible to the Office of President; neither shall any Person be eligible to that Office who shall not have attained to the Age of thirty five Years, and been fourteen Years a Resident within the United States.",
+  "read": false,
+  "reply": "I understood 'No', 'Person', 'a natural born Citizen', 'or', 'a', 'Citizen', 'United', 'States', 'at', 'time', 'Adoption', 'Constitution', 'be', 'eligible', 'Office', 'President', 'neither', 'any', 'that Office', 'not', 'have', 'attained', 'Age', 'thirty five Years' and 'been fourteen Years a Resident within the United States', but not how 'except', 'of the', 'the', 'of the', 'of this', 'shall', 'to the', 'of', 'shall', 'to', 'who shall', 'to the', 'of' and 'and' fit with it.",
+  "readings": [
+   []
+  ]
+ },
+ {
+  "text": "The President",
+  "told": "In case of the removal of the President from office or of his death or resignation, the Vice President shall become President.",
+  "read": true,
+  "reply": "Noted - I'll hold that about become_c28f81e9.\nNoted - I'll hold that about case_322e584d.\nNoted - I'll hold that about removal_1.\nNoted - A case 322e584d is part of a the removal.\nNoted - A The removal is part of a president.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, vice president) & done_to(?v0, president) & either comes_from(president, ?v1) & either has_member(?v2, ?v3) & either has_member(?v2, ?v4) & either instance_of(?v1, office) & either instance_of(?v3, death) & either instance_of(?v4, resignation) & either owned_by(?v2, president) & either part_of(president, ?v2) & follows(?v0, ?now) & given instance_of(?v5, removal) & instance_of(?v0, become) & instance_of(?v6, case) & located_in(?v0, ?v6) & part_of(?v5, president) & part_of(?v6, ?v5)"
+   ]
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "In whom is the executive Power vested?",
+  "gold": [
+   "President"
+  ],
+  "result": "wrong",
+  "reply": "Yes.\nYes. The power is vested.",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & given instance_of(?v0, power) & has_property(?v0, executive) & has_property(?v0, vested) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "power_1",
+    "relation": "has property",
+    "others": [
+     "executive"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "power_1",
+    "relation": "has property",
+    "others": [
+     "vested"
+    ],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(power_1, power)",
+     "has_property(power_1, executive)",
+     "has_property(power_1, vested)",
+     "equals(power_1, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "What age must a person have attained to be eligible to the Office of President?",
+  "gold": [
+   "thirty five",
+   "35"
+  ],
+  "result": "not answered",
+  "reply": "An office is a place of business. An office is part of an office building.\nWhich person do you mean - the one in english, or in english?\nI hold nothing for attain. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & has_property(?v0, necessary) & instance_of(?v0, attain) & instance_of(?v1, age) & instance_of(?v2, person) & precedes(?v0, ?now) & unasserted about(?v1, office) & unasserted has_property(?v1, eligible) & unasserted has_purpose(?v0, ?v3) & unasserted part_of(office, president) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, attain)",
+     "precedes(?v0, 2026-10-22T12:34:04Z)",
+     "instance_of(?v1, age)",
+     "instance_of(?v2, person)",
+     "has_property(?v0, necessary)",
+     "done_by(?v0, ?v1)",
+     "unasserted has_property(?v1, eligible)",
+     "unasserted about(?v1, office)",
+     "unasserted part_of(office, president)",
+     "unasserted has_purpose(?v0, ?v3)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "Is a person who is thirty years old eligible to the Office of President?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "I remember: An executive clemency is an office.\nPersons are causal agents. A person is a kind of organism. A person is a member of a group person.\nAn office is a place of business. An office is part of an office building.\nWhich person do you mean - the one in english, or in english?",
+  "readings": [
+   [
+    "composed: ask: about(person, office) & has_count(?v0, 30) & has_degree(person, ?v1) & has_measure(?v1, ?v0) & has_property(person, eligible) & instance_of(?v0, year) & instance_of(?v1, old) & part_of(office, president)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, year)",
+     "has_count(?v0, 30)",
+     "has_degree(person, ?v1)",
+     "instance_of(?v1, old)",
+     "has_measure(?v1, ?v0)",
+     "has_property(person, eligible)",
+     "about(person, office)",
+     "part_of(office, president)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "How many years must a person have been a Resident within the United States to be eligible to the Office of President?",
+  "gold": [
+   "fourteen",
+   "14"
+  ],
+  "result": "not answered",
+  "reply": "An office is a place of business. An office is part of an office building.\nWhich person do you mean - the one in english, or in english?",
+  "readings": [
+   [
+    "composed: ask: equals(?v0, ?v1) & has_count(?v0, ?v2) & has_property(?v3, necessary) & instance_of(?v0, year) & instance_of(?v1, resident) & instance_of(?v4, person) & unasserted about(?v0, office) & unasserted has_property(?v0, eligible) & unasserted has_purpose(?v3, ?v5) & unasserted part_of(office, president) & word_within(?v0, united states) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, year)",
+     "instance_of(?v1, person)",
+     "instance_of(?v2, resident)",
+     "has_count(?v0, ?v3)",
+     "has_property(?v4, necessary)",
+     "word_within(?v0, united states)",
+     "unasserted has_property(?v0, eligible)",
+     "unasserted about(?v0, office)",
+     "unasserted part_of(office, president)",
+     "unasserted has_purpose(?v4, ?v5)",
+     "equals(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "Who becomes President if the President resigns?",
+  "gold": [
+   "Vice President"
+  ],
+  "result": "not answered",
+  "reply": "I remember: become run isa become.\nA become is a kind of change state.\nI hold things about resign that I have not been taught to say yet.\nA president is a kind of corporate executive.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, president) & if done_by(?v2, president) & if instance_of(?v2, resign) & instance_of(?v0, become) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, become)",
+     "if instance_of(?v1, resign)",
+     "done_by(?v0, ?v2)",
+     "done_to(?v0, president)",
+     "if done_by(?v1, president)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The President",
+  "asked": "Does the Vice President become President on the death of the President?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "I remember: An executive vice president is a vice president.\nA become is a kind of change state.\nA death is a kind of change.\nA vice president is a kind of executive.\nA president is a kind of corporate executive.\nI hold nothing for death_a3c28bc4. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, vice president) & done_to(?v0, president) & given instance_of(?v1, death) & instance_of(?v0, become) & located_in(?v0, ?v1) & part_of(?v1, president)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, become)",
+     "instance_of(death_a3c28bc4, death)",
+     "done_by(?v0, vice president)",
+     "done_to(?v0, president)",
+     "located_in(?v0, death_a3c28bc4)",
+     "part_of(death_a3c28bc4, president)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "told": "The right of citizens of the United States to vote shall not be denied or abridged by the United States or by any State on account of race, color, or previous condition of servitude",
+  "read": true,
+  "reply": "Noted - I'll hold that about right_1.\nNoted - I'll hold that about citizen_fc43ed68.\nNoted - I'll hold that about vote_a2b7c0e5.\nNoted - A The right is part of a citizen fc43ed68.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: either done_by(?v0, united states) & either done_to(?v0, ?v1) & either done_to(?v10, ?v1) & either follows(?v10, ?now) & either has_member(?v11, ?v2) & either has_member(?v11, ?v3) & either has_member(?v11, ?v4) & either has_property(?v10, false) & either has_property(?v2, previous) & either instance_of(?v0, abridge) & either instance_of(?v10, deny) & either instance_of(?v2, condition) & either instance_of(?v3, color) & either instance_of(?v4, race) & either instance_of(?v5, account) & either instance_of(?v6, servitude) & either instance_of(?v7, state) & either located_in(?v0, ?v5) & either part_of(?v2, ?v6) & either part_of(?v5, ?v11) & given instance_of(?v1, right) & instance_of(?v8, citizen) & instance_of(?v9, vote) & located_in(?v1, ?v9) & part_of(?v1, ?v8) & part_of(?v1, united states)"
+   ]
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "told": "The right of citizens of the United States to vote shall not be denied or abridged by the United States or by any State on account of sex.",
+  "read": true,
+  "reply": "Noted - I'll hold that about right_1.\nNoted - I'll hold that about citizen_faa9daea.\nNoted - I'll hold that about vote_4aa89c64.\nNoted - A The right is part of a citizen faa9daea.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: either done_by(?v0, united states) & either done_to(?v0, ?v1) & either done_to(?v2, ?v1) & either follows(?v2, ?now) & either has_property(?v2, false) & either instance_of(?v0, abridge) & either instance_of(?v2, deny) & either instance_of(?v3, account) & either instance_of(?v4, sex) & either instance_of(?v5, state) & either located_in(?v0, ?v3) & either part_of(?v3, ?v4) & given instance_of(?v1, right) & instance_of(?v6, citizen) & instance_of(?v7, vote) & located_in(?v1, ?v7) & part_of(?v1, ?v6) & part_of(?v1, united states)"
+   ]
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "told": "The right of citizens of the United States, who are eighteen years of age or older, to vote shall not be denied or abridged by the United States or by any State on account of age.",
+  "read": true,
+  "reply": "Noted - I'll hold that about right_1.\nNoted - I'll hold that about citizen_350e038b.\nNoted - I'll hold that about year_c1cb6010.\nNoted - A The right is part of a citizen 350e038b.\nThat says one of those holds but not which, so I held neither.",
+  "readings": [
+   [
+    "composed: tell: either done_by(?v0, united states) & either done_to(?v0, ?v1) & either done_to(?v10, ?v1) & either follows(?v10, ?now) & either has_property(?v10, false) & either has_property(?v2, old) & either instance_of(?v0, abridge) & either instance_of(?v10, deny) & either instance_of(?v3, account) & either instance_of(?v4, age) & either instance_of(?v5, age) & either instance_of(?v6, state) & either located_in(?v0, ?v3) & either part_of(?v2, ?v4) & either part_of(?v3, ?v5) & equals(?v1, ?v2) & given instance_of(?v1, right) & has_count(?v2, 18) & instance_of(?v2, year) & instance_of(?v7, citizen) & part_of(?v1, ?v7) & part_of(?v1, united states) & unasserted either done_by(?v8, ?v2) & unasserted either has_purpose(?v9, ?v8) & unasserted either instance_of(?v8, vote)"
+   ]
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "asked": "Can the right of citizens to vote be denied on account of race?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "I remember: A citizen is a member of a citizenry.\nA The right is part of a citizen fc43ed68. A The right is part of a united state. A The right is part of a citizen faa9daea. A The right is part of a citizen 350e038b.\nI hold things about deny that I have not been taught to say yet.\nEvery right is an abstraction.\nA citizen is a kind of national. A citizen is a member of a citizenry.\nI hold things about vote that I have not been taught to say yet.\nI hold things about account that I have not been taught to say yet.\nA race is a kind of contest.\nI hold nothing for allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & given instance_of(?v1, right) & has_property(?v0, allowed) & instance_of(?v0, deny) & instance_of(?v2, account) & instance_of(?v3, citizen) & instance_of(?v4, race) & instance_of(?v5, vote) & located_in(?v0, ?v2) & located_in(?v1, ?v5) & part_of(?v1, ?v3) & part_of(?v2, ?v4)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, deny)",
+     "has_property(?v0, allowed)",
+     "instance_of(right_1, right)",
+     "instance_of(?v2, citizen)",
+     "instance_of(?v3, vote)",
+     "instance_of(?v4, account)",
+     "instance_of(?v5, race)",
+     "part_of(right_1, ?v2)",
+     "located_in(right_1, ?v3)",
+     "done_to(?v0, right_1)",
+     "located_in(?v0, ?v4)",
+     "part_of(?v4, ?v5)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "asked": "Can the right of citizens to vote be denied on account of sex?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "I remember: A citizen is a member of a citizenry.\nA The right is part of a citizen fc43ed68. A The right is part of a united state. A The right is part of a citizen faa9daea. A The right is part of a citizen 350e038b.\nI hold things about deny that I have not been taught to say yet.\nEvery right is an abstraction.\nA citizen is a kind of national. A citizen is a member of a citizenry.\nI hold things about vote that I have not been taught to say yet.\nI hold things about account that I have not been taught to say yet.\nA sex is a kind of class.\nI hold nothing for allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & given instance_of(?v1, right) & has_property(?v0, allowed) & instance_of(?v0, deny) & instance_of(?v2, account) & instance_of(?v3, citizen) & instance_of(?v4, sex) & instance_of(?v5, vote) & located_in(?v0, ?v2) & located_in(?v1, ?v5) & part_of(?v1, ?v3) & part_of(?v2, ?v4)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, deny)",
+     "has_property(?v0, allowed)",
+     "instance_of(right_1, right)",
+     "instance_of(?v2, citizen)",
+     "instance_of(?v3, vote)",
+     "instance_of(?v4, account)",
+     "instance_of(?v5, sex)",
+     "part_of(right_1, ?v2)",
+     "located_in(right_1, ?v3)",
+     "done_to(?v0, right_1)",
+     "located_in(?v0, ?v4)",
+     "part_of(?v4, ?v5)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "asked": "Can the right to vote of a citizen who is eighteen be denied on account of age?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "I remember: A citizen is a member of a citizenry.\nI hold things about deny that I have not been taught to say yet.\nA right to vote is a kind of franchise.\nA citizen is a kind of national. A citizen is a member of a citizenry.\nI hold things about account that I have not been taught to say yet.\nAn age is a property.\nEighteen is a large integer.\nI hold nothing for allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & equals(?v1, 18) & given instance_of(?v1, right to vote) & has_property(?v0, allowed) & instance_of(?v0, deny) & instance_of(?v2, account) & instance_of(?v3, age) & instance_of(?v4, citizen) & located_in(?v0, ?v2) & part_of(?v1, ?v4) & part_of(?v2, ?v3)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, deny)",
+     "has_property(?v0, allowed)",
+     "given instance_of(?v1, right to vote)",
+     "instance_of(?v2, citizen)",
+     "instance_of(?v3, account)",
+     "instance_of(?v4, age)",
+     "part_of(?v1, ?v2)",
+     "done_to(?v0, ?v1)",
+     "located_in(?v0, ?v3)",
+     "part_of(?v3, ?v4)",
+     "equals(?v1, 18)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "asked": "Can a State deny the right of citizens to vote on account of color?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "A state is a kind of administrative district. A state is a member of a country.\nI hold nothing for allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, state) & done_to(?v0, ?v1) & given instance_of(?v1, right) & has_property(?v0, allowed) & instance_of(?v0, deny) & unasserted done_by(?v2, state) & unasserted has_purpose(?v0, ?v2) & unasserted instance_of(?v2, vote) & unasserted instance_of(?v3, account) & unasserted instance_of(?v4, citizen) & unasserted instance_of(?v5, color) & unasserted located_in(?v2, ?v3) & unasserted part_of(?v3, ?v5) & unasserted part_of(state, ?v4)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, deny)",
+     "has_property(?v0, allowed)",
+     "unasserted instance_of(?v1, vote)",
+     "instance_of(right_1, right)",
+     "unasserted instance_of(?v3, citizen)",
+     "unasserted instance_of(?v4, account)",
+     "unasserted instance_of(?v5, color)",
+     "done_by(?v0, state)",
+     "done_to(?v0, right_1)",
+     "unasserted part_of(state, ?v3)",
+     "unasserted done_by(?v1, state)",
+     "unasserted located_in(?v1, ?v4)",
+     "unasserted part_of(?v4, ?v5)",
+     "unasserted has_purpose(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "The right to vote",
+  "asked": "From what age can the right to vote not be denied on account of age?",
+  "gold": [
+   "eighteen",
+   "18"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A voting age is a kind of age.\nI hold things about want that I have not been taught to say yet.\nI hold things about deny that I have not been taught to say yet.\nI hold things about false that I have not been taught to say yet.\nAn age is a property.\nA right to vote is a kind of franchise.\nI hold things about account that I have not been taught to say yet.\nI hold nothing for allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & done_to(?v2, ?v3) & given instance_of(?v1, right to vote) & has_property(?v0, allowed) & has_property(?v0, false) & instance_of(?v0, deny) & instance_of(?v2, want) & instance_of(?v3, age) & instance_of(?v4, account) & instance_of(?v5, age) & located_in(?v0, ?v4) & moves_from(?v0, ?v3) & part_of(?v4, ?v5)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, want)",
+     "instance_of(?v1, deny)",
+     "has_property(?v1, allowed)",
+     "has_property(?v1, false)",
+     "instance_of(?v2, age)",
+     "given instance_of(?v3, right to vote)",
+     "instance_of(?v4, account)",
+     "instance_of(?v5, age)",
+     "moves_from(?v1, ?v2)",
+     "done_to(?v0, ?v2)",
+     "done_to(?v1, ?v3)",
+     "located_in(?v1, ?v4)",
+     "part_of(?v4, ?v5)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "told": "No person shall be elected to the office of the President more than twice, and no person who has held the office of President, or acted as President, for more than two years of a term to which some other person was elected President shall be elected to the office of the President more than once.",
+  "read": false,
+  "reply": "STOPPED: ValueError: a meaning states the same fact twice (derived_reader.py:455 < autonomous_coordinator.py:22397 < autonomous_coordinator.py:22311 < autonomous_coordinator.py:23051)",
+  "readings": [
+   [
+    "composed: tell: done_to(?v0, ?v1) & done_to(?v10, president) & done_to(?v11, president) & either done_by(?v12, president) & either done_by(?v13, president) & either done_by(?v14, president) & either done_to(?v12, ?v15) & either instance_of(?v12, hold) & either instance_of(?v13, act) & either instance_of(?v14, forget) & either part_of(?v15, president) & either precedes(?v12, ?now) & either precedes(?v13, ?now) & either precedes(?v14, ?now) & equals(?v16, president) & exceeds(?v17, ?v18) & exceeds(?v19, ?v2) & exceeds(?v20, ?v3) & follows(?v0, ?now) & follows(?v10, ?now) & given either instance_of(?v15, office) & given instance_of(?v4, office) & given instance_of(?v5, office) & has_count(?v6, 2) & has_degree(?v4, ?v17) & has_degree(?v6, ?v2) & has_degree(?v7, ?v3) & has_degree(president, ?v18) & has_degree(president, ?v19) & has_degree(president, ?v20) & has_property(?v0, false) & instance_of(?v0, elect) & instance_of(?v1, person) & instance_of(?v10, elect) & instance_of(?v11, elect) & instance_of(?v16, person) & instance_of(?v17, much) & instance_of(?v18, much) & instance_of(?v19, much) & instance_of(?v2, much) & instance_of(?v20, much) & instance_of(?v3, much) & instance_of(?v6, year) & instance_of(?v7, once) & instance_of(?v8, person) & instance_of(?v9, term) & isa(president, excessive) & moves_to(?v0, ?v4) & moves_to(?v10, ?v5) & part_of(?v4, president) & part_of(?v5, president) & part_of(?v6, ?v9) & word_and(president, ?v8)"
+   ]
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "told": "The terms of the President and Vice President shall end at noon on the 20th day of January, and the terms of Senators and Representatives at noon on the 3d day of January, of the years in which such terms would have ended if this article had not been ratified; and the terms of their successors shall then begin.",
+  "read": true,
+  "reply": "I read that as a conditional, but a side of it is not a single proposition I can hold.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?v1) & done_by(?v10, vice president) & done_to(?v10, ?v1) & done_to(?v10, ?v11) & done_to(?v10, ?v12) & during(?v10, ?v13) & during(?v10, ?v14) & follows(?v10, ?now) & given if instance_of(?v15, article) & given if instance_of(?v16, term) & given instance_of(?v1, term) & given instance_of(?v13, day) & given instance_of(?v14, day) & given instance_of(?v17, term) & given instance_of(?v2, year) & has_member(?v3, ?v17) & has_member(?v3, january) & has_member(?v4, representatives) & has_member(?v4, senators) & has_property(?v13, appearance three-d) & has_property(?v14, twentieth) & has_property(?v5, hypothetical) & has_property(?v6, much such) & if done_by(?v7, ?v16) & if done_to(?v8, ?v15) & if follows(?v7, ?now) & if has_property(?v7, then) & if has_property(?v8, false) & if instance_of(?v7, begin) & if instance_of(?v8, ratify) & if instance_of(?v9, successor) & if owned_by(?v9, ?v16) & if part_of(?v16, ?v9) & if precedes(?v8, ?now) & instance_of(?v0, end) & instance_of(?v10, end) & instance_of(?v11, noon) & instance_of(?v12, noon) & instance_of(?v6, term) & owns(?v6, ?v1) & part_of(?v1, president) & part_of(?v14, ?v3) & part_of(?v17, ?v4) & precedes(?v0, ?now) & word_of(?v13, january) & word_of(january, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "asked": "How many times can a person be elected to the office of the President?",
+  "gold": [
+   "twice",
+   "two"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A president is a kind of presiding officer.\nI hold things about elect that I have not been taught to say yet.\nAn office is a place of business. An office is part of an office building.\nPersons are causal agents. A person is a kind of organism. A person is a member of a group person.\nA president is a kind of corporate executive.\nWhich person do you mean - the one in english, or in english?\nI hold nothing for office_1, allowed. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, person) & given instance_of(?v1, office) & has_count(?v0, ?v2) & has_property(?v0, allowed) & instance_of(?v0, elect) & moves_to(?v0, ?v1) & part_of(?v1, president) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, elect)",
+     "has_property(?v0, allowed)",
+     "instance_of(office_1, office)",
+     "has_count(?v0, ?v2)",
+     "done_to(?v0, person)",
+     "moves_to(?v0, office_1)",
+     "part_of(office_1, president)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "asked": "Can a person be elected to the office of the President three times?",
+  "gold": "no",
+  "result": "not answered",
+  "reply": "Persons are causal agents. A person is a kind of organism. A person is a member of a group person.\nWhich person do you mean - the one in english, or in english?\nI hold nothing for office_1, elected. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: about(person, ?v0) & given instance_of(?v0, office) & has_count(person, 3) & has_property(person, elected) & isa(person, time) & part_of(?v0, president)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(office_1, office)",
+     "has_property(person, elected)",
+     "about(person, office_1)",
+     "part_of(office_1, president)",
+     "has_count(person, 3)",
+     "isa(person, time)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "asked": "When do the terms of the President and Vice President end?",
+  "gold": [
+   "20th",
+   "January"
+  ],
+  "result": "not answered",
+  "reply": "I remember: An executive vice president is a vice president.\nI hold things about end that I have not been taught to say yet.\nA term is a kind of word.\nA president is a kind of corporate executive.\nA vice president is a kind of executive.\nI hold nothing for term_1. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & during(?v0, ?v2) & given instance_of(?v1, term) & has_member(?v3, president) & has_member(?v3, vice president) & instance_of(?v0, end) & part_of(?v1, ?v3) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, end)",
+     "instance_of(term_1, term)",
+     "during(?v0, ?v2)",
+     "part_of(term_1, ?v3)",
+     "has_member(?v3, president)",
+     "has_member(?v3, vice president)",
+     "done_by(?v0, term_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "asked": "On which day of January do the terms of Senators and Representatives end?",
+  "gold": [
+   "3d"
+  ],
+  "result": "not answered",
+  "reply": "I remember: nivose defined with january.\nI hold things about end that I have not been taught to say yet.\nEach day is a time unit.\nA term is a kind of word.\nJanuary is a Gregorian calendar month.\nSenators are legislators.\nRepresentatives are negotiators.\nI hold nothing for term_1. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, term) & has_member(?v3, representatives) & has_member(?v3, senators) & instance_of(?v0, end) & instance_of(?v2, day) & part_of(?v1, ?v3) & word_of(?v2, january) ? ?v2"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, end)",
+     "instance_of(?v1, day)",
+     "instance_of(term_1, term)",
+     "word_of(?v1, january)",
+     "part_of(term_1, ?v3)",
+     "has_member(?v3, senators)",
+     "has_member(?v3, representatives)",
+     "done_by(?v0, term_1)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "Terms of office",
+  "asked": "At what time of day do the terms end?",
+  "gold": [
+   "noon"
+  ],
+  "result": "not answered",
+  "reply": "I remember: A term is a kind of time period.\nI hold things about want that I have not been taught to say yet.\nI hold things about end that I have not been taught to say yet.\nA hour is a clock time.\nA term is a kind of word.\nI hold nothing for term_1. Tell me what it is and I will keep it.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & done_to(?v3, ?v2) & given instance_of(?v1, term) & instance_of(?v0, end) & instance_of(?v2, clock time hour) & instance_of(?v3, want)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, want)",
+     "instance_of(?v1, end)",
+     "instance_of(?v2, clock time hour)",
+     "instance_of(term_1, term)",
+     "done_to(?v1, ?v2)",
+     "done_to(?v0, ?v2)",
+     "done_by(?v1, term_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ }
+]

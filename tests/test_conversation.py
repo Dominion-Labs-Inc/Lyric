@@ -487,6 +487,65 @@ async def test_a_happening_found_answers_its_question_though_nothing_taught_says
 
 
 @pytest.mark.asyncio
+async def test_a_thing_with_a_name_of_its_own_is_said_by_its_name_not_its_kind(talk, monkeypatch):
+    """A particular is named for its kind, with a mark (`kelt_1`; a happening told, `provide_f11f8919`), and is said
+    by its kind. A thing held as one of a kind under a name of its own is said by its name: West Africa, held an
+    instance of a geographical area, answered "Where did the Tichitt Tradition flourish?" as "Geographical area."
+    (UNDERSTANDS-PROSE-02, 2026-10-22)."""
+    from types import SimpleNamespace
+    held = {"west_africa": [("instance of", "geographical_area")], "kelt_1": [("instance of", "kelt")],
+            "provide_f11f8919": [("instance of", "provide")], "base_class_1": [("instance of", "base class")]}
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=held.get(name, []))
+
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    assert await talk._kind_of("west_africa") is None
+    assert await talk._kind_of("kelt_1") == "kelt"
+    assert await talk._kind_of("provide_f11f8919") == "provide"
+    assert await talk._kind_of("base_class_1") == "base class"
+
+
+@pytest.mark.asyncio
+async def test_an_answer_that_only_says_what_the_question_says_is_none(talk, monkeypatch):
+    """Told unittest provides a base class (`base_class_1`, named for nothing else), "Which base class does unittest
+    provide?" found it and said it by its kind, "Base class.": the question's own words (UNDERSTANDS-PROSE-02,
+    2026-10-22). It is no answer. "What does unittest provide?", naming no kind, is answered by it."""
+    from types import SimpleNamespace
+    from core.semantics import derived_reader as dr
+    from core.semantics.derived_reader import MeaningFact
+    providing = "provide_f11f8919"
+    incoming = {"unittest": [(providing, "done by", "unittest", True)],
+                "provide": [(providing, "instance of", "provide", True)]}
+    held = {providing: [("instance of", "provide"), ("done by", "unittest"), ("done to", "base_class_1")],
+            "base_class_1": [("instance of", "base class")]}
+
+    def asked(*kind):
+        return Meaning("ask", (MeaningFact("done_by", "?e", "unittest"), MeaningFact("instance_of", "?e", "provide"),
+                               MeaningFact("done_to", "?e", "?x"))
+                       + tuple(MeaningFact("instance_of", "?x", k) for k in kind), ("?x",))
+
+    async def found(meaning, *, telling=False):
+        return {}
+
+    async def resolve_name(name):
+        return SimpleNamespace(known=True, relations=held.get(name, []))
+
+    async def kind_of(name):
+        return "base class" if name == "base_class_1" else None
+
+    monkeypatch.setattr(talk, "_known_of", found)
+    monkeypatch.setattr(talk, "resolve_name", resolve_name)
+    monkeypatch.setattr(talk, "_kind_of", kind_of)
+    monkeypatch.setattr(dr, "say", lambda *a, **k: ())
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked("base class"))
+    assert await talk._asked_of_events("Which base class does unittest provide?", incoming) == []
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: asked())
+    what, = await talk._asked_of_events("What does unittest provide?", incoming)
+    assert (what.about, what.others) == (providing, ("base class",)), what
+
+
+@pytest.mark.asyncio
 async def test_what_a_question_asks_of_those_a_happening_was_done_by_is_asked_of_them(talk, monkeypatch):
     """Told "The account was locked after five failed attempts." (a failing done by `attempt_1`, five of them), "How
     many failed attempts were there?" finds the failing and asks the count of the attempts it was done by: the attempts
@@ -712,6 +771,70 @@ def test_what_is_not_known_of_a_question_naming_only_a_known_thing_is_not_said()
     from core.agents.autonomous.autonomous_coordinator import _not_known
     from core.semantics.derived_reader import MeaningFact
     assert _not_known(Meaning("ask", (MeaningFact("instance_of", "?t0", "light", given=True),))) is None
+
+
+def _held(phrase, *relations):
+    from core.agents.autonomous.autonomous_coordinator import Resolved
+    return Resolved(phrase=phrase, concept_id=phrase, how="exact", relations=tuple(relations))
+
+
+def test_what_a_question_asks_for_and_describes_twice_is_not_answered_by_one_of_them(talk, monkeypatch):
+    """"In which journal did the engineers publish?" asks for a journal the publishing was done in. Any journal held
+    answered it by the one fact `instance_of(?v2, journal)`, said "Journal." (UNDERSTANDS-PROSE-02, 2026-10-22): a
+    question is all it asks at once, so what is asked for, described by more than one fact, is left to what is held
+    as a whole (`_asked_of_events`)."""
+    from core.semantics.derived_reader import MeaningFact
+    meaning = Meaning("ask", (MeaningFact("done_by", "?v0", "?v1"),
+                              MeaningFact("instance_of", "?v1", "engineer", given=True),
+                              MeaningFact("instance_of", "?v0", "publish"),
+                              MeaningFact("instance_of", "?v2", "journal"),
+                              MeaningFact("received_by", "?v0", "?v2")), asked=("?v2",))
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_found", lambda meaning: {"?v1": "engineer_1"})
+    incoming = {"journal": [("journal_1", "instance_of", "journal", True)]}
+    assert talk.asked("In which journal did the engineers publish?", [], incoming) == []
+    # Described once, it is answered by the one fact: "Which journal is prestigious?"
+    meaning = Meaning("ask", (MeaningFact("has_property", "?v2", "prestigious"),), asked=("?v2",))
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_found", lambda meaning: {})
+    incoming = {"prestigious": [("journal_1", "has_property", "prestigious", True)]}
+    found = talk.asked("What is prestigious?", [], incoming)
+    assert [(a.about, a.relation, a.others) for a in found] == [("journal_1", "has_property", ("prestigious",))]
+
+
+def test_a_question_asking_for_something_is_not_answered_yes_by_what_names_nothing_it_asks(talk, monkeypatch):
+    """"How many times can a person be elected to the office of the President?" was "Yes. A The office is part of a
+    president.": the office's description, held, answered as if asked (UNDERSTANDS-PROSE-02, 2026-10-22). A question
+    asking for something is answered only by facts that name what it asks."""
+    from core.semantics.derived_reader import MeaningFact
+    meaning = Meaning("ask", (MeaningFact("instance_of", "?v1", "office", given=True),
+                              MeaningFact("part_of", "?v1", "president"),
+                              MeaningFact("instance_of", "?v0", "elect"),
+                              MeaningFact("moves_to", "?v0", "?v1"),
+                              MeaningFact("has_count", "?v0", "?v2")), asked=("?v2",))
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_found", lambda meaning: {"?v1": "office_1"})
+    office = _held("office_1", ("part of", "president"))
+    assert talk.asked("How many times can a person be elected to the office of the President?", [office], {}) == []
+
+
+def test_a_yes_or_no_is_of_all_a_question_says(talk, monkeypatch):
+    """"Can a person be elected to the office of the President three times?" was "Yes." by the office's description
+    alone, nothing held of the electing (UNDERSTANDS-PROSE-02, 2026-10-22). Yes is every part held; one part denied
+    is no; a part not known leaves it unanswered."""
+    from core.semantics.derived_reader import MeaningFact
+    meaning = Meaning("ask", (MeaningFact("instance_of", "?v0", "office", given=True),
+                              MeaningFact("part_of", "?v0", "president"),
+                              MeaningFact("has_property", "person", "elected")))
+    monkeypatch.setattr(talk, "_meaning", lambda sentence: meaning)
+    monkeypatch.setattr(talk, "_known_found", lambda meaning: {"?v0": "office_1"})
+    office = _held("office_1", ("part of", "president"))
+    asked = "Can a person be elected to the office of the President?"
+    assert talk.asked(asked, [office, _held("person")], {}) == []
+    found = talk.asked(asked, [office, _held("person", ("has property", "elected"))], {})
+    assert sorted((a.about, a.verdict) for a in found) == [("office_1", True), ("person", True)], found
+    found = talk.asked(asked, [office, _held("person", ("not has property", "elected"))], {})
+    assert [(a.about, a.verdict) for a in found] == [("person", False)], found
 
 
 @pytest.mark.asyncio
