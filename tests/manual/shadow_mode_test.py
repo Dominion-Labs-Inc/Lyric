@@ -578,7 +578,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     # 2. An ordinary success must survive. This is the class survivorship bias ate.
     ok, mem_id = await agent.store_memory(
         content="Shadow run %s: refreshed the FL licence extract successfully." % stamp,
-        memory_type=MemoryType.EPISODIC, importance_score=0.7,
+        memory_type=MemoryType.EPISODIC, 
         tags=["task_outcome", "outcome_success"], origin=Origin.own("shadow_mode_test"))
     diag.record("memory", "routine_success_retained", bool(ok), "memory_id=%s" % mem_id)
 
@@ -588,7 +588,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     # returned the first memory's id for the second outcome.
     ok2, mem_id2 = await agent.store_memory(
         content="Shadow run %s: refreshed the FL licence extract successfully." % stamp,
-        memory_type=MemoryType.EPISODIC, importance_score=0.7,
+        memory_type=MemoryType.EPISODIC, 
         tags=["task_outcome", "outcome_success"], origin=Origin.own("shadow_mode_test"))
     diag.record("memory", "repeat_outcomes_not_merged",
                 bool(ok2) and mem_id2 != mem_id,
@@ -597,12 +597,12 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     # 3. Retention must not depend on caller verbosity: same episode, two shapes.
     verbose_ok, _ = await agent.store_memory(
         content="Shadow run %s verbose: resolved the ambiguity in domain mapping." % stamp,
-        memory_type=MemoryType.EPISODIC, importance_score=0.7,
+        memory_type=MemoryType.EPISODIC, 
         tags=["reasoning"],
         reasoning_trace=["step %d" % i for i in range(8)], origin=Origin.own("shadow_mode_test"))
     terse_ok, _ = await agent.store_memory(
         content="Shadow run %s terse: resolved the ambiguity in domain mapping." % stamp,
-        memory_type=MemoryType.EPISODIC, importance_score=0.7,
+        memory_type=MemoryType.EPISODIC, 
         tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
     diag.record("memory", "verbosity_independent", verbose_ok == terse_ok,
                 "verbose=%s terse=%s" % (verbose_ok, terse_ok))
@@ -616,10 +616,10 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     try:
         ok_f, mid_f = await agent.store_memory(
             content="Shadow run %s: analysed the registry and determined the loader filters on an unpopulated column." % stamp,
-            memory_type=MemoryType.EPISODIC, importance_score=0.7, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
+            memory_type=MemoryType.EPISODIC, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
         ok_x, mid_x = await agent.store_memory(
             content="Shadow run %s: task outcome recorded for admission check." % stamp,
-            memory_type=MemoryType.EPISODIC, importance_score=0.7,
+            memory_type=MemoryType.EPISODIC, 
             tags=["task_outcome", "outcome_success"], origin=Origin.own("shadow_mode_test"))
         for _label, _mid in (("filtered", mid_f), ("exempt", mid_x)):
             row = await _c.fetchrow(
@@ -653,7 +653,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
         ok_b, mid_b = await agent.store_memory(
             content=("Shadow run %s: arctic terns migrate pole to pole, the longest "
                      "annual journey of any bird." % stamp),
-            memory_type=MemoryType.EPISODIC, importance_score=0.7, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
+            memory_type=MemoryType.EPISODIC, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
         row = await _c2.fetchrow(
             "SELECT thinking_state FROM memory_hot.memory_hot WHERE memory_id=$1", mid_b)
         ts = row["thinking_state"] if row else None
@@ -674,7 +674,7 @@ async def suite_memory_agent(diag: DiagResult) -> None:
     get_appraisal_system().update(outcome_quality=0.8, intrinsic_reward=0.3)
     ok_a, mid_a = await agent.store_memory(
         content="Shadow run %s: pumice floats because of trapped volcanic gas." % stamp,
-        memory_type=MemoryType.EPISODIC, importance_score=0.7, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
+        memory_type=MemoryType.EPISODIC, tags=["reasoning"], origin=Origin.own("shadow_mode_test"))
     got_a = await agent.retrieve_memory(mid_a)
     snap = getattr(got_a, "appraisal_snapshot", None) or {}
     diag.record("memory", "appraisal_snapshot_captured",

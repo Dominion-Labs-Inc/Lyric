@@ -16,6 +16,69 @@ Conventions:
 
 ---
 
+## 2026-10-23 (41) — How important a memory is, the memory agent decides; one memory of one reasoning
+
+**Objective (the owner's order, "memory agent then coordinator").** Every producer chose its own importance, a number
+that decides how long a memory stays at hand (it fades 1% a day and recall hands back only what stands at 0.5 or
+more: 0.75 for 41 days, 0.6 for 18) and whether it may be forgotten (under 0.2 after 180 days). And the coordinator's
+`reason_about` wrote a second memory of each reasoning, with its own importance, beside the memory agent's. The owner
+chose how it is decided: by what the memory is, at the values its producers chose, so nothing recall hands back
+changes with who decides.
+
+**Built.**
+- `MemoryAgent.importance_of(tags, confidence, source_context)`: the first of a memory's tags naming its kind
+  (`IMPORTANCE_BY_KIND`: what it was taught and told 0.75; what it gathered of how English is used from that, and a
+  lesson's label, 0.6; a method 0.6, a standing 0.5; a pursuit, a failed step, an exchange, a review, a domain 0.7; an
+  expectation and evidence on a hypothesis 0.6, an experiment 0.8; the constitution check 1.0; a learning example
+  0.5); a conclusion as important as it is sure (`CONCLUSION_KINDS`: reasoning, a prediction, what two domains have in
+  common, how well it detects an attack); a goal 0.8 and up to 0.2 more by the reward it expects (`reward_potential`,
+  now handed over with the goal); a percept 0.6, the account of a perception formed as evidence (`evidence_id`) 0.5;
+  anything else 0.5, the default it had. A reasoning's importance is still weighed by its effort where it is handed
+  over (`take_in_reasoning`).
+- `store_memory` and `enqueue_memory` take no importance: passing one is refused (TypeError), as naming an owner is.
+  `formed_importance` is only for a memory taken from another store (`releases`), which keeps its own.
+  `scripts/separation_map.py` finds a hand-off that says how important it is (`test_every_hand_off_says_where_it_came_from`).
+- 25 producer sites in 13 files no longer pass it (9 in the coordinator), nor the memory agent's own 8 writes;
+  callers in tests, experiments and scripts updated (22 files). The coordinator's predictions and what it found in
+  common between domains now hand over their confidence (they were stored at confidence 1.0 with the confidence as
+  importance).
+- **One memory of one reasoning.** `take_in_reasoning` keeps what led to the answer (`reason`, the reasoning
+  authority's own account, handed over with the rest) and whether it was verified: "... I concluded this because
+  substrate_verified." / "I have not verified this.", and `verified`, `reason` in its context. `reason_about`'s
+  "I was asked: ... I answered: ..." memory is gone (it had importance 0.3 when unverified: never recalled).
+
+**Found.**
+- A learning example was stored at its accuracy, so one it got wrong formed at 0 and was the first thing forgotten (4
+  on lyric_dev, 12 on main). Now 0.5, wrong as right.
+- `MemoryAgent` defined `_held_word_classes` twice since the grammar was wired in (2026-10-21, `9bed9635`): the
+  grammar's (the reader's class names, with net evidence) replaced the structure view's (the treebank's names), so the
+  structure reader was handed MODAL for AUXILIARY and never NAME beside NOUN. The grammar's is `_net_word_classes`
+  now; `test_structure.py::test_mains_structure_view_asks_what_memory_holds_of_a_word` failed before this, passes now.
+  Not re-measured on the treebanks (STRUCTURE-03).
+- `world_inhabitant`'s device ears (`DeviceEars.hear`) said whose recording it is as `person`, positionally, and the
+  separation scan read that as saying nothing; it is said by name, and the scan knows the door's word for it.
+
+**Measured** (`importance_store_check.py` in the session scratchpad, read-only: for every memory, the importance the
+memory agent decides against the one its producer stored).
+- lyric_dev: 406,241 of 406,254 the same (327 skipped: importance changed after forming, by a schema's boost; 9
+  reasoning memories, decided by effort). The 13 others by design: 9 learning examples (5 at 1.0, 4 at 0, now 0.5),
+  and 4 goals stored before the reward was handed over (0.9; the formula is the same).
+- main (lyric_db): 1,447,803 of 1,455,098 the same. 7,282 stored at a fraction of what they formed with (0.75 ×
+  0.375 = 0.2814; 0.6 × 0.375 = 0.225; 0.7 × 0.3716 = 0.2601): the fading maintenance wrote back every cycle until
+  2026-10-11; they formed at what the memory agent decides. 13 learning examples (12 at 0, 1 at 1.0).
+- Changed and not measured in any store (none hold them): a prediction or a cross-domain finding under 0.7
+  confidence is no longer judged actionable by the worthiness filter, as its stored confidence was 1.0; a security
+  training session or model forms at its confidence (it was 0.5 + accuracy/200 + examples/200, and 0.6 + 0.3 × F1).
+
+**Tests** (lyric_dev). `test_memory_writers.py`, `test_coordinator_reason_about.py`, `test_experience_pool.py` 23
+passed (new: `test_how_important_a_memory_is_the_memory_agent_decides`; the unverified-is-not-knowledge check is now
+of the memory agent's one memory). `test_perception_owner.py`, `test_word_class_sentences.py`, `test_structure.py`,
+`test_composition.py`, `test_argument_structure.py`, `test_memory_worthiness_semantics.py`, `test_task_memory.py`,
+`tests/memory/test_memory_real_loop.py`: 78 passed and the one structure test above, which passes since; the four
+reading files again 40 passed, `test_grammar.py` 15. No memory written to lyric_dev or main by the runs.
+
+---
+
 ## 2026-10-23 (40) — Recall for every request, what memory holds deciding; how a word is used is taught language
 
 **Objective (the owner's question).** Recall was gated by the reasoning authority's complexity score (39), and "what

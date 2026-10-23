@@ -79,7 +79,7 @@ async def run() -> int:
 
     # ---- 1. STORE ----------------------------------------------------------
     ok, mem_id = await agent.store_memory(
-        content=claim, tags=["reasoning", "real_loop_test"], importance_score=0.9, origin=Origin.own("test_memory_real_loop"))
+        content=claim, tags=["reasoning", "real_loop_test"], origin=Origin.own("test_memory_real_loop"))
     check("store_memory persists the conclusion", bool(ok) and bool(mem_id),
           f"id={mem_id}")
 

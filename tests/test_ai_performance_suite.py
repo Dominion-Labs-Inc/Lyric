@@ -568,7 +568,6 @@ Question: Must all A be D? Explain your reasoning step by step."""
         success, memory_id = await self.memory_agent.store_memory(
             content=test_content,
             memory_type=MemoryType.EPISODIC,
-            importance_score=0.85,
             confidence_score=0.90,
             tags=["performance_test", "automated", "test_suite"],
             source_context={

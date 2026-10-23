@@ -53,7 +53,7 @@ async def main() -> int:
         print("\n== B. Stored, found, read back ==")
         ok, mid = await M.store_memory(
             content=f"isolation probe: the {TOKEN} lamp in the study is on",
-            memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
+            memory_type=MemoryType.SEMANTIC, confidence_score=0.9,
             tags=["isolation_probe"], origin=Origin.own("SYSTEM-MEMORY-01"))
         if mid:
             ids.append(mid)
@@ -81,7 +81,7 @@ async def main() -> int:
         print("\n== D. A memory can be forgotten ==")
         ok_f, forget_id = await M.store_memory(
             content=f"isolation probe: the {TOKEN} note to forget", memory_type=MemoryType.EPISODIC,
-            importance_score=0.5, origin=Origin.own("SYSTEM-MEMORY-01"))
+            origin=Origin.own("SYSTEM-MEMORY-01"))
         if forget_id:
             ids.append(forget_id)
         gone = await M.delete_memory(forget_id, reason="probe") if forget_id else False
@@ -97,7 +97,7 @@ async def main() -> int:
         A, B = f"isoprobe-a-{TOKEN}", f"isoprobe-b-{TOKEN}"
         said = f"isolation probe: the {TOKEN} kettle in speaker a's kitchen is copper"
         ok, a_mid = await M.store_memory(content=said, memory_type=MemoryType.SEMANTIC,
-                                         importance_score=0.7, tags=[f"owner_{TOKEN}"], origin=Origin.of(A, "SYSTEM-MEMORY-01"))
+                                         tags=[f"owner_{TOKEN}"], origin=Origin.of(A, "SYSTEM-MEMORY-01"))
         if a_mid:
             ids.append(a_mid)
         check("a user's memory is stored as theirs", ok is True and bool(a_mid), f"{a_mid}")
@@ -112,13 +112,13 @@ async def main() -> int:
                   seen[A] and not seen[B] and not seen[None],
                   f"owner={seen[A]} other={seen[B]} substrate={seen[None]}")
         ok, s_mid = await M.store_memory(content=said, memory_type=MemoryType.SEMANTIC,
-                                         importance_score=0.7, tags=[f"owner_{TOKEN}"], origin=Origin.own("SYSTEM-MEMORY-01"))
+                                         tags=[f"owner_{TOKEN}"], origin=Origin.own("SYSTEM-MEMORY-01"))
         if s_mid:
             ids.append(s_mid)
         check("the same words from the substrate are its own memory, not merged into the user's",
               ok is True and bool(s_mid) and s_mid != a_mid, f"user={a_mid} substrate={s_mid}")
         ok, a2 = await M.store_memory(content=said, memory_type=MemoryType.SEMANTIC,
-                                      importance_score=0.7, tags=[f"owner_{TOKEN}"], origin=Origin.of(A, "SYSTEM-MEMORY-01"))
+                                      tags=[f"owner_{TOKEN}"], origin=Origin.of(A, "SYSTEM-MEMORY-01"))
         if a2 and a2 not in ids:
             ids.append(a2)
         # NOTHING IS MERGED: the same words said again are a second memory of

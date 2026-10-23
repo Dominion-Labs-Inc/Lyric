@@ -130,10 +130,10 @@ async def main() -> int:
         print("\n== D. Memories ==")
         _, work_memory = await memory.store_memory(
             content=f"Wm{N}: the badge reader on floor two is replaced on Friday.", origin=at_work,
-            memory_type=MemoryType.EPISODIC, importance_score=0.9, tags=["org01"])
+            memory_type=MemoryType.EPISODIC, tags=["org01"])
         _, own_memory = await memory.store_memory(
             content=f"Pm{N}: dentist on Thursday.", origin=personal,
-            memory_type=MemoryType.EPISODIC, importance_score=0.9, tags=["org01"])
+            memory_type=MemoryType.EPISODIC, tags=["org01"])
         await memory.drain_writes()
         owner = await d.execute_query("SELECT user_id FROM memory_hot.memory_hot WHERE memory_id = $1",
                                       (work_memory,), fetch_one=True)

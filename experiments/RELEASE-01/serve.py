@@ -78,10 +78,10 @@ async def serve(mark: str, idle: float) -> dict:
                                                domain="release_01", surface="a florpane is a gadget",
                                                source="told")
             _, alice_memory = await agent.store_memory(content=f"Alice's note: the {mark} gauge reads low.",
-                                                       origin=Origin.of(ALICE, "RELEASE-01"), tags=["release_01"], importance_score=0.9)
+                                                       origin=Origin.of(ALICE, "RELEASE-01"), tags=["release_01"], )
             _, own_memory = await agent.store_memory(
                 content=f"The substrate's note while serving: {mark} was asked about today.",
-                tags=["release_01"], importance_score=0.9, origin=Origin.own("RELEASE-01"))
+                tags=["release_01"], origin=Origin.own("RELEASE-01"))
             released = await agent.postgres_storage.search_by_content(mark, actor=None, limit=10)
             recalled = [m.memory_id for m in released]
             for memory_id in recalled:

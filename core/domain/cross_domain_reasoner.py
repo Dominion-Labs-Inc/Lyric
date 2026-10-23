@@ -222,7 +222,6 @@ class CrossDomainReasoner:
                     origin=Origin.own("cross-domain reasoning"),
                     memory_type=MemoryType.SEMANTIC,
                     content=f"Cross-domain reasoning: {len(result.new_insights)} insights, {len(result.generated_mappings)} mappings",
-                    importance_score=result.confidence,
                     confidence_score=result.confidence,
                     tags=["cross_domain_reasoning", context.source_domain_id, context.target_domain_id, context.strategy.value],
                     thinking_state=thinking_state,

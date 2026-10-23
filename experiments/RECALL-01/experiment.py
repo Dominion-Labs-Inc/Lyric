@@ -247,7 +247,7 @@ async def main() -> int:
         agent = await get_memory_agent()
         ok, plain = await agent.store_memory(
             content=f"a thought with nothing met in it [{tag}]", memory_type=MemoryType.EPISODIC,
-            importance_score=0.8, origin=Origin.own("RECALL-01"))
+            origin=Origin.own("RECALL-01"))
         if plain:
             memory_ids.append(plain)
         check("E: nothing is rebuilt from it", bool(plain) and await coord.recollect(plain) == [],

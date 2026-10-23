@@ -203,21 +203,22 @@ def memory_writes(path, rel):
 
 
 #: The memory agent's doors for a memory: every call must say where the memory came from (`origin=`) and never
-#: whose it is (`user_id=`); the memory agent decides that.
+#: whose it is (`user_id=`) or how important it is (`importance_score=`); the memory agent decides those.
 HAND_OFFS = {"store_memory", "enqueue_memory"}
 
 #: The doors a perception comes in by, and what each must be told: whose image `see` is looking at, whose
 #: recording `hear` is listening to and whose moment `perceive_moment` takes in (`actor_identity=`, None for the
-#: substrate's own), and where a perception came from (`origin=`). `read` is the same door for a document; its
-#: name is every file object's too, so it cannot be found by name here.
-PERCEPTION_DOORS = {"see": "actor_identity", "hear": "actor_identity", "take_in": "actor_identity",
-                    "perceive_moment": "actor_identity", "process_input": "origin",
-                    "admit_percept": "origin", "note_percept": "origin", "remember_met": "origin"}
+#: substrate's own; a device's ears say it as `person=`), and where a perception came from (`origin=`). `read`
+#: is the same door for a document; its name is every file object's too, so it cannot be found by name here.
+PERCEPTION_DOORS = {"see": ("actor_identity",), "hear": ("actor_identity", "person"),
+                    "take_in": ("actor_identity",), "perceive_moment": ("actor_identity",),
+                    "process_input": ("origin",), "admit_percept": ("origin",), "note_percept": ("origin",),
+                    "remember_met": ("origin",)}
 
 
 def hand_offs_without_origin(path, rel):
-    """Calls of a memory hand-off that say no origin, or name an owner, and calls of a perception door that do not
-    say whose the perception is, as (file, line, call, what is wrong)."""
+    """Calls of a memory hand-off that say no origin, name an owner or say how important it is, and calls of a
+    perception door that do not say whose the perception is, as (file, line, call, what is wrong)."""
     try:
         tree = ast.parse(open(path, encoding="utf-8", errors="ignore").read())
     except SyntaxError:
@@ -231,15 +232,17 @@ def hand_offs_without_origin(path, rel):
         if call in HAND_OFFS:
             if "user_id" in keywords:
                 out.append((rel, node.lineno, call, "names an owner (user_id)"))
+            if "importance_score" in keywords:
+                out.append((rel, node.lineno, call, "says how important it is (importance_score)"))
             if "origin" not in keywords and None not in keywords:
                 out.append((rel, node.lineno, call, "says no origin"))
-        elif call in PERCEPTION_DOORS and PERCEPTION_DOORS[call] not in keywords and None not in keywords:
-            out.append((rel, node.lineno, call, f"says not whose it is ({PERCEPTION_DOORS[call]})"))
+        elif call in PERCEPTION_DOORS and not keywords & {*PERCEPTION_DOORS[call], None}:
+            out.append((rel, node.lineno, call, f"says not whose it is ({PERCEPTION_DOORS[call][0]})"))
     return out
 
 
 def hand_offs_that_say_no_origin():
-    """Every hand-off in `core/` that says no origin or names an owner."""
+    """Every hand-off in `core/` that says no origin, names an owner or says how important it is."""
     found = []
     for dirpath, dirs, files in os.walk(os.path.join(ROOT, "core")):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
@@ -318,7 +321,7 @@ def main() -> int:
         print(f"   {f}:{line} {table}")
     unsaid = hand_offs_that_say_no_origin()
     print(f"memory handed over, or a perception taken in, without saying where it came from, or naming its "
-          f"owner: {len(unsaid)}")
+          f"owner or how important it is: {len(unsaid)}")
     for f, line, call, what in unsaid:
         print(f"   {f}:{line} {call} {what}")
     return 1 if outside or unsaid else 0

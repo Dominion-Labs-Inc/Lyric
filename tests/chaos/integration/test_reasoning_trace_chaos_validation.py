@@ -106,7 +106,6 @@ class TestReasoningTraceChaosValidation:
             success, memory_id = await self.memory_agent.store_memory(
                 memory_type=MemoryType.SEMANTIC,
                 content=f"Test reasoning result {i}",
-                importance_score=0.8,
                 confidence_score=0.9,
                 tags=["test", "chaos", "reasoning"],
                 reasoning_trace=[
@@ -167,7 +166,6 @@ class TestReasoningTraceChaosValidation:
             success, memory_id = await self.memory_agent.store_memory(
                 memory_type=MemoryType.EPISODIC,
                 content=f"Chain of thought test {i}",
-                importance_score=0.85,
                 confidence_score=0.9,
                 tags=["test", "chain_of_thought", "persistence"],
                 reasoning_trace=[
@@ -221,7 +219,6 @@ class TestReasoningTraceChaosValidation:
             await self.memory_agent.store_memory(
                 memory_type=MemoryType.PROCEDURAL,
                 content=f"Complete chain of thought test {i}",
-                importance_score=0.9,
                 confidence_score=0.95,
                 tags=["test", "completeness", "resource_pressure"],
                 reasoning_trace=[

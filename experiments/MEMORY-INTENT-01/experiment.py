@@ -113,7 +113,7 @@ async def main() -> int:
         mem_id = await agent.store_memory(
             content=f"archived the quarterly report [{key}]",
             memory_type=MemoryType.EPISODIC,
-            importance_score=0.9, origin=Origin.own("MEMORY-INTENT-01"))
+            origin=Origin.own("MEMORY-INTENT-01"))
     finally:
         reset_acting_intent(token)
     # store_memory returns (ok, memory_id).

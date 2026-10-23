@@ -741,16 +741,12 @@ class SecurityTrainingPipeline:
                 }
             }
 
-            # Calculate importance based on accuracy and volume
-            importance = min(0.95, 0.5 + (session.accuracy / 200) + (min(session.examples_processed, 100) / 200))
-
             # Store with full rich metadata
             from core.memory import Origin
             await memory_agent.store_memory(
                 origin=Origin.own("security training"),
                 memory_type=MemoryType.PROCEDURAL,
                 content=f"Security training session ({session.phase.value}): {session.examples_processed} examples, {session.accuracy:.1f}% accuracy, {session.false_positives} FP, {session.false_negatives} FN",
-                importance_score=importance,
                 confidence_score=session.accuracy / 100.0,
                 tags=["security_training", session.phase.value, "adversarial_testing", f"accuracy_{int(session.accuracy)}pct"],
                 thinking_state=thinking_state,
@@ -818,16 +814,12 @@ class SecurityTrainingPipeline:
                 "training_size": len(training_examples)
             }
 
-            # Calculate importance based on model performance
-            importance = min(0.95, 0.6 + (model.f1_score / 100.0 * 0.3))
-
             # Store with full rich metadata
             from core.memory import Origin
             await memory_agent.store_memory(
                 origin=Origin.own("security training"),
                 memory_type=MemoryType.PROCEDURAL,
                 content=f"Security model trained: {model.model_type} v{model.version} for {len(model.attack_types)} attack types ({model.accuracy:.1f}% accuracy, F1: {model.f1_score:.2f})",
-                importance_score=importance,
                 confidence_score=model.f1_score / 100.0,
                 tags=["security_model", model.model_type, "threat_detection"] + [at.value for at in model.attack_types],
                 thinking_state=thinking_state,

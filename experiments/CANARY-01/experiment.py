@@ -345,7 +345,7 @@ async def _run(db, coord, main_before: int) -> int:
     say_line("\n== F. A note of the substrate's own ==")
     from core.memory import Origin
     ok, own_id = await agent.store_memory(content=f"The substrate's own note: {MS} came up in its own work.",
-                                          tags=["canary_01"], importance_score=0.9,
+                                          tags=["canary_01"], 
                                           origin=Origin.own("CANARY-01"))
     say_line(f"    stored: {ok} {own_id}")
 

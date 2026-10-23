@@ -2392,7 +2392,6 @@ class AbstractReasoningEngine:
                 # Reasoned for a user, over premises that may be their own
                 # context: their memory, not the shared mind's.
                 origin=result.context.origin("reasoning"),
-                importance_score=result.overall_confidence,
                 confidence_score=result.overall_confidence,
                 tags=["reasoning", result.context.problem_type, result.context.domain],
                 source_context={

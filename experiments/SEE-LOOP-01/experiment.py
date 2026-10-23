@@ -174,7 +174,7 @@ async def main() -> int:
         # a check that cannot fail is not testing the floor.
         ok_mem, weak_memory = await coord.memory.store_memory(
             content=f"I was shown something I could barely make out: {weak}",
-            memory_type=MemoryType.EPISODIC, importance_score=0.3,
+            memory_type=MemoryType.EPISODIC, 
             tags=["percept", DOMAIN], origin=Origin.own("SEE-LOOP-01"))
         await ep.submit_image(weak, {"subject": weak,
                                      "detections": [{"label": f"ghost_{tag}",
@@ -239,7 +239,7 @@ async def main() -> int:
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             ok, mem_id = await coord.memory.store_memory(
                 content=f"looked at the card [{subject}]",
-                memory_type=MemoryType.EPISODIC, importance_score=0.7, origin=Origin.own("SEE-LOOP-01"))
+                memory_type=MemoryType.EPISODIC, origin=Origin.own("SEE-LOOP-01"))
     finally:
         reset_acting_percept(token)
     recalled = await coord.memory.retrieve_memory(str(mem_id))

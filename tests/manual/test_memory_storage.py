@@ -104,7 +104,6 @@ class MemoryStorageTests(TestBase):
         success, memory_id = await memory_agent.store_memory(
             memory_type=MemoryType.EPISODIC,
             content="Autonomous coordinator test memory - verifying storage pipeline",
-            importance_score=0.8,
             confidence_score=1.0,
             tags=["test", "memory_verification", "autonomous"],
             thinking_state=thinking_state,

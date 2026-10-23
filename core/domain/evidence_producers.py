@@ -145,7 +145,6 @@ async def _remember_percept(envelope: "EvidenceEnvelope", origin: "Origin") -> O
         ok, memory_id = await agent.store_memory(
             origin=origin,
             content=account, memory_type=MemoryType.EPISODIC,
-            importance_score=0.5,
             tags=["percept", str(getattr(envelope, "producer", "") or "")],
             source_context={"source_system": "perception",
                             "evidence_id": getattr(envelope, "evidence_id", None),

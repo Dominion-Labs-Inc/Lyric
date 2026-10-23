@@ -384,7 +384,6 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         content: str,
         memory_type=None,
-        importance_score: float = 0.5,
         confidence_score: float = 1.0,
         tags=None,
         source_context=None,
@@ -397,15 +396,26 @@ class MemoryAgent(IMemoryConsolidation):
 
         Puts the memory onto the write queue and returns immediately.
         The memory is also placed in _pending_memories so the injector
-        can find it before it lands in postgres.
+        can find it before it lands in postgres. How important it is, is
+        decided here (`importance_of`).
 
         Returns a provisional memory_id (starts with 'pending_').
         """
-        import uuid
         if "user_id" in kwargs:
             raise TypeError("enqueue_memory() got an unexpected keyword argument 'user_id': "
                             "say where the memory came from (origin); the memory agent "
                             "decides whose it is")
+        if "importance_score" in kwargs:
+            raise TypeError("enqueue_memory() got an unexpected keyword argument 'importance_score': "
+                            "how important a memory is, the memory agent decides (importance_of)")
+        return self._enqueue(content, memory_type,
+                             self.importance_of(tags, confidence=confidence_score, source_context=source_context),
+                             confidence_score, tags, source_context, origin=origin, **kwargs)
+
+    def _enqueue(self, content: str, memory_type, importance_score: float, confidence_score: float, tags,
+                 source_context, *, origin: "Origin", **kwargs) -> str:
+        """Put a memory, its importance decided, on the write queue (`enqueue_memory`)."""
+        import uuid
         owner = self._owner_from(origin)
         pending_id = f"pending_{uuid.uuid4().hex}"
         entry = {
@@ -533,6 +543,55 @@ class MemoryAgent(IMemoryConsolidation):
             return None, None, ()
         return candidate, shape_of(meaning), meaning.facts
 
+    #: HOW IMPORTANT A MEMORY IS AS IT FORMS, BY WHAT IT IS (`importance_of`): the first of its tags naming its
+    #: kind. Importance is how long a memory stays at hand (it fades 1% a day, `decayed_importance`, and recall hands
+    #: back only what stands at 0.5 or more: at 0.75 for 41 days, at 0.6 for 18) and whether it may be forgotten
+    #: (under 0.2 after 180 days, `consolidate_memories`). Each producer chose its own before (2026-10-23); these
+    #: are the values they chose, so nothing recall hands back changed with who decides.
+    IMPORTANCE_BY_KIND = {
+        # What it was taught and told: how English goes, and the tellings it holds as knowledge.
+        "language_pattern": 0.75, "word_class": 0.75, "pronunciation": 0.75, "listening": 0.75,
+        "admitted_proposition": 0.75, "told_but_unread": 0.75,
+        # What it gathered of how English is used from what it was taught, and a lesson's label.
+        "said_of": 0.6, "heard_after": 0.6, "analysed_sentence": 0.6, "word_forms": 0.6, "word_group": 0.6,
+        "taught_sentence": 0.6, "argued_sentence": 0.6, "lesson": 0.6,
+        # Its ways of working, and how one has gone in a person's work.
+        "method": 0.6, "standing": 0.5,
+        # What happened in its work: a pursuit, a step that failed, an exchange, a review of what it was taught, a
+        # domain it has, an expectation it checked, evidence on a hypothesis and an experiment run on one.
+        "task_outcome": 0.7, "task_execution": 0.7, "user_exchange": 0.7, "review": 0.7, "domain": 0.7,
+        "expectation": 0.6, "hypothesis": 0.6, "hypothesis_testing": 0.8,
+        # What it found checking itself against its own laws.
+        "constitution": 1.0,
+        # An example it learned from. AS IMPORTANT WRONG AS RIGHT: its producer stored it at its accuracy, so an
+        # example it got wrong formed at 0 and was the first thing forgotten (four on lyric_dev, 2026-10-23).
+        "learning": 0.5,
+    }
+    #: What it concluded is as important as it is sure of it: reasoning, a prediction, what two domains have in
+    #: common, how well it detects an attack.
+    CONCLUSION_KINDS = frozenset({"reasoning", "prediction", "cross_domain", "cross_domain_reasoning",
+                                  "security_training", "security_model"})
+
+    def importance_of(self, tags: Optional[Sequence[str]], *, confidence: float = 1.0,
+                      source_context: Optional[Dict[str, Any]] = None) -> float:
+        """How important a memory is as it forms, decided by the memory agent from what it is: by the first of its
+        tags naming a kind (`IMPORTANCE_BY_KIND`); a conclusion as important as it is sure (`CONCLUSION_KINDS`); a goal
+        it set itself 0.8, and up to 0.2 more by the reward it expects of it (`reward_potential`); a percept 0.6, and
+        0.5 as the account of a perception formed as evidence for what is believed of it (`evidence_id`). Anything
+        else forms at 0.5. What a reasoning took to reach is weighed where it is handed over (`take_in_reasoning`)."""
+        context = source_context or {}
+        for tag in tags or ():
+            kind = str(tag).lower()
+            if kind in self.IMPORTANCE_BY_KIND:
+                return self.IMPORTANCE_BY_KIND[kind]
+            if kind in self.CONCLUSION_KINDS:
+                return max(0.0, min(1.0, float(confidence or 0.0)))
+            if kind == "goal":
+                return max(0.0, min(1.0, 0.8 + 0.2 * float(context.get("reward_potential") or 0.0)))
+            if kind == "percept":
+                return 0.5 if context.get("evidence_id") else 0.6
+        return 0.5
+
     @staticmethod
     def _owner_from(origin: Any) -> Optional[str]:
         """Whose memory a hand-off is, decided from where it came from: a
@@ -551,7 +610,6 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         content: str,
         memory_type: Optional[MemoryType] = None,
-        importance_score: float = 0.5,
         confidence_score: float = 1.0,
         tags: Optional[List[str]] = None,
         source_context: Optional[Dict[str, Any]] = None,
@@ -569,8 +627,13 @@ class MemoryAgent(IMemoryConsolidation):
         media_meta: Optional[Dict[str, Any]] = None,
         *,
         origin: "Origin",
+        formed_importance: Optional[float] = None,
     ) -> Tuple[bool, Optional[str]]:
         """Store one memory through the one memory pipeline (`_store_memory`).
+
+        HOW IMPORTANT IT IS, THE MEMORY AGENT DECIDES, by what it is (`importance_of`); the caller hands over what
+        it is (its tags, its confidence, where it came from), never how important. `formed_importance` is only for
+        a memory taken from another store (`releases`), which keeps the importance it formed with there.
 
         WHOSE IT IS, THE MEMORY AGENT DECIDES, from `origin`: where it came
         from -- which door or work, and the person it came from, or none for
@@ -581,7 +644,7 @@ class MemoryAgent(IMemoryConsolidation):
         """
         owner = self._owner_from(origin)
         return await self._store_memory(
-            content, memory_type=memory_type, importance_score=importance_score,
+            content, memory_type=memory_type, importance_score=formed_importance,
             confidence_score=confidence_score, tags=tags,
             source_context={**(source_context or {}), "origin": origin.to_dict()},
             embedding_metadata=embedding_metadata, related_memories=related_memories,
@@ -596,7 +659,7 @@ class MemoryAgent(IMemoryConsolidation):
         self,
         content: str,
         memory_type: Optional[MemoryType] = None,
-        importance_score: float = 0.5,
+        importance_score: Optional[float] = None,
         confidence_score: float = 1.0,
         tags: Optional[List[str]] = None,
         source_context: Optional[Dict[str, Any]] = None,
@@ -631,7 +694,8 @@ class MemoryAgent(IMemoryConsolidation):
         Args:
             content: Memory content (text) - REQUIRED
             memory_type: Type of memory (EPISODIC, SEMANTIC, etc.) - Optional, will be inferred
-            importance_score: Importance score (0.0-1.0)
+            importance_score: Importance score (0.0-1.0) - decided here by what the memory is (`importance_of`)
+                unless the memory agent already decided it (`take_in_reasoning`) or it was formed in another store
             confidence_score: Confidence in memory accuracy (0.0-1.0)
             tags: Optional tags for categorization
             source_context: Raw metadata about memory source (system analyzes this)
@@ -667,7 +731,6 @@ class MemoryAgent(IMemoryConsolidation):
         logger.debug(f"  Content length: {len(content)} chars")
         logger.debug(f"  Memory type: {memory_type}")
         logger.debug(f"  Tags: {tags}")
-        logger.debug(f"  Importance: {importance_score}")
         logger.debug(f"  Confidence: {confidence_score}")
         logger.debug(f"  Initialized: {self.initialized}")
 
@@ -700,6 +763,9 @@ class MemoryAgent(IMemoryConsolidation):
                               "met": (digests[0] if len(digests) == 1 else
                                       hashlib.sha256("".join(sorted(digests)).encode()).hexdigest()),
                               **flags}
+
+        if importance_score is None:
+            importance_score = self.importance_of(tags, confidence=confidence_score, source_context=source_context)
 
         # ========== STEP 1: GENERATE OR EXTRACT METADATA ==========
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 1: Generate/extract metadata")
@@ -4669,7 +4735,7 @@ class MemoryAgent(IMemoryConsolidation):
         from core.memory.utils.interfaces import MemoryType, Origin
         tag = self.LESSON_TAGS[key]
         stored, memory_id = await self.store_memory(
-            content=str(label), memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+            content=str(label), memory_type=MemoryType.SEMANTIC,
             tags=["lesson", tag], origin=Origin.own("lesson"),
             source_context={"source_system": "lesson", "lesson": {key: label}},
             media=trace, media_meta={"kind": trace_kind, "lesson": {key: label}})
@@ -4907,11 +4973,16 @@ class MemoryAgent(IMemoryConsolidation):
 
     def take_in_reasoning(self, *, query: str, steps: Sequence[str], answer: Optional[str], confidence: float,
                           kind: Optional[str], verified: bool, mode: Optional[str], premises: int, multimodal: bool,
-                          origin: "Origin") -> Optional[str]:
+                          origin: "Origin", reason: Optional[str] = None) -> Optional[str]:
         """A reasoning the reasoning authority finished, handed over as it happened: whether it is kept as a memory
         recall can hand back (`recall_for`), how important it is, what kind of memory it is and how it is written
         are the memory agent's. The reasoning authority decided them itself before (`_capture_reasoning_memory`,
         until 2026-10-23). Returns the pending id, or None where nothing is kept.
+
+        ONE MEMORY OF ONE REASONING, saying what led to its answer (`reason`, the reasoning authority's own account,
+        never a phrase chosen off a confidence score; where there is none it says so) and whether it was verified.
+        The coordinator's `reason_about` wrote a second memory of the same reasoning with its own importance ("I was
+        asked: ... I answered: ...", until 2026-10-23), so every question asked through it was remembered twice.
 
         Nothing is kept of a reasoning that concluded nothing, nor of one that took almost no reasoning and is
         unsure (`effort` under 0.15, confidence under 0.6). The effort is how many steps it took, how much it was
@@ -4945,8 +5016,10 @@ class MemoryAgent(IMemoryConsolidation):
             tags.append("multimodal")
         if len(steps or ()) >= 3:
             tags.append("multi_step")
-        return self.enqueue_memory(
-            content=f"Query: {query[:500]}{steps_block}\n\nAnswer: {answer[:800]}",
+        because = (f" I concluded this because {reason}." if reason else " I did not record what led me to it.")
+        standing = "" if verified else " I have not verified this."
+        return self._enqueue(
+            content=f"Query: {query[:500]}{steps_block}\n\nAnswer: {answer[:800]}{because}{standing}",
             memory_type=self.memory_type_of(kind, verified=verified),
             importance_score=importance,
             confidence_score=confidence,
@@ -4960,6 +5033,8 @@ class MemoryAgent(IMemoryConsolidation):
                 "conclusion": answer,
                 "conclusion_confidence": confidence,
                 "conclusion_kind": kind,
+                "verified": verified,
+                "reason": reason,
             },
             reasoning_trace=list(steps or ()),
             origin=origin,
@@ -5907,7 +5982,7 @@ class MemoryAgent(IMemoryConsolidation):
                   "method": {"shape": shape, "steps": formulas(general)},
                   "fixes": list(fixes), "instances": {}}
         stored, memory_id = await self.store_memory(
-            self._method_account(record), memory_type=MemoryType.PROCEDURAL, importance_score=0.6,
+            self._method_account(record), memory_type=MemoryType.PROCEDURAL,
             tags=list(self.METHOD_TAGS), thinking_state={"raw_event": record},
             origin=Origin.of(owner, "lift"))
         if not stored or not memory_id:
@@ -6121,7 +6196,7 @@ class MemoryAgent(IMemoryConsolidation):
                       **({"counted": [counted]} if counted else {})}
             stored, _ = await self.store_memory(
                 f"How my way of working {method_id} has gone in your work.",
-                memory_type=MemoryType.PROCEDURAL, importance_score=0.5, tags=["standing"],
+                memory_type=MemoryType.PROCEDURAL, tags=["standing"],
                 thinking_state={"raw_event": record}, origin=Origin.of(person, "lift"))
             if not stored:
                 raise RuntimeError(f"the standing of {method_id} could not be kept for its person")
@@ -6533,7 +6608,7 @@ class MemoryAgent(IMemoryConsolidation):
                                "things": held["things"], "seen": sorted(map(list, held["seen"]))}}
             if held["memory_id"] is None:
                 stored, memory_id = await self.store_memory(
-                    content=content, memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+                    content=content, memory_type=MemoryType.SEMANTIC,
                     confidence_score=0.9, tags=["language", self.SAID_OF_TAG], source_context=record,
                     origin=Origin.own("teaching"))
                 if not stored or not memory_id:
@@ -6690,7 +6765,7 @@ class MemoryAgent(IMemoryConsolidation):
                 counts["already"] += 1
                 continue
             stored, memory_id = await self.store_memory(
-                content=item.said(), memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
+                content=item.said(), memory_type=MemoryType.SEMANTIC, confidence_score=0.9,
                 tags=["language", self.STRUCTURE_TAG], source_context={"analysed": item.to_dict()},
                 origin=Origin.own("teaching"))
             if not stored or not memory_id:
@@ -6768,7 +6843,7 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is None:
             from core.semantics.grammar import GrammarView, closed_uses
             from core.semantics.grammar_words import GraphKnowledge, HeldWords
-            knowledge = GraphKnowledge(classes=self._held_word_classes, names=self._held_name)
+            knowledge = GraphKnowledge(classes=self._net_word_classes, names=self._held_name)
             for subject, relation, target in self._grammar_links:
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
@@ -6778,8 +6853,10 @@ class MemoryAgent(IMemoryConsolidation):
             self._grammar_view = view
         return self._grammar_view
 
-    def _held_word_classes(self, word: str) -> Dict[str, float]:
-        """The kinds of word memory holds a word as, with net evidence for them."""
+    def _net_word_classes(self, word: str) -> Dict[str, float]:
+        """The kinds of word memory holds a word as, with net evidence for them, for the grammar. Named as the
+        structure view's lookup was (`_held_word_classes`) until 2026-10-23, it replaced that one: the structure
+        reader was handed the reader's class names (MODAL, not the treebank's AUXILIARY; NOUN and never NAME)."""
         return {cls: float(n) for cls, n in self.word_classes(word).items() if n > 0}
 
     def _held_name(self, words: Sequence[str], word_class: str) -> Optional[str]:
@@ -6950,7 +7027,7 @@ class MemoryAgent(IMemoryConsolidation):
                 counts["corrected"] += 1
                 continue
             stored, memory_id = await self.store_memory(
-                content=content(item), memory_type=MemoryType.SEMANTIC, importance_score=0.6, confidence_score=0.9,
+                content=content(item), memory_type=MemoryType.SEMANTIC, confidence_score=0.9,
                 tags=["language", tag], source_context={field: item.to_dict()}, origin=Origin.own("teaching"))
             if not stored or not memory_id:
                 raise RuntimeError(f"{content(item)[:80]!r} was not kept: the memory was declined")
@@ -7046,7 +7123,7 @@ class MemoryAgent(IMemoryConsolidation):
             memory_id = self._heard_memory.get(word)
             if memory_id is None:
                 stored, memory_id = await self.store_memory(
-                    content=content, memory_type=MemoryType.SEMANTIC, importance_score=0.6,
+                    content=content, memory_type=MemoryType.SEMANTIC,
                     confidence_score=0.9, tags=["language", self.HEARD_TAG], source_context=record,
                     origin=Origin.own("teaching"))
                 if not stored or not memory_id:
@@ -7568,7 +7645,7 @@ class MemoryAgent(IMemoryConsolidation):
                            "evidence": {}, "about": str(intent_id)},
         }
         stored, memory_id = await self.store_memory(
-            pursuit_account(record), memory_type=MemoryType.META, importance_score=0.7,
+            pursuit_account(record), memory_type=MemoryType.META,
             tags=list(self.PURSUIT_TAGS), thinking_state={"raw_event": record}, origin=origin)
         return memory_id if stored else None
 

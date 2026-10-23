@@ -672,7 +672,7 @@ async def take(config: PostgresConfig, environment: str, agent) -> Dict[str, Any
                 origin=Origin.own(f"{environment} learning store"),
                 content=str(content),
                 memory_type=MemoryType(memory_type) if memory_type in {m.value for m in MemoryType} else None,
-                importance_score=float(row["importance_score"] or 0.5),
+                formed_importance=float(row["importance_score"] or 0.5),
                 confidence_score=float(row["confidence_score"] or 1.0),
                 tags=list(tags),
                 source_context={**metadata, "taken_from": f"{environment} learning store",

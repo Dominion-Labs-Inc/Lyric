@@ -1170,7 +1170,6 @@ class UniversalDomainMaster:
                 content=(f"The substrate has a domain it can learn and act in: "
                          f"{domain_id}."),
                 memory_type=MemoryType.SEMANTIC,
-                importance_score=0.7,
                 confidence_score=1.0,
                 tags=["domain", self.DOMAIN_MEMORY_TAG],
                 source_context={"producer": "domain_authority",

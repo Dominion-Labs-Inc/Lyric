@@ -802,7 +802,7 @@ class HypothesisTestingSystem:
         stored, memory_id = await memory_agent().store_memory(
             content=(f"Evidence {'for' if supports else 'against'} the hypothesis "
                      f"{hypothesis.claim!r}: {description}"),
-            memory_type=MemoryType.EPISODIC, importance_score=0.6,
+            memory_type=MemoryType.EPISODIC,
             tags=["hypothesis", "evidence"],
             origin=Origin.of(hypothesis.owner, "hypothesis testing"))
         if hypothesis.owner:
@@ -1167,7 +1167,6 @@ class HypothesisTestingSystem:
                 origin=Origin.of(experiment.owner, "hypothesis testing"),
                 memory_type=MemoryType.EPISODIC,  # Experiments are episodic events
                 content=content_summary,
-                importance_score=0.8,  # Experiments are important
                 confidence_score=hypothesis.confidence if hypothesis else 0.5,
                 tags=["hypothesis_testing", "experiment", experiment.status.value, hypothesis.domain if hypothesis else "general"],
                 source_context={

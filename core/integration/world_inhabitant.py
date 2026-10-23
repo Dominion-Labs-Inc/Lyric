@@ -276,7 +276,8 @@ class WorldInhabitant:
                 raise ValueError("what a device hears names the stream it is from")
             if said.get("end"):
                 return await self._ears.end(identity, stream)
-            return await self._ears.hear(identity, stream, sound, rate, attend=bool(said.get("attend")))
+            return await self._ears.hear(person=identity, stream=stream, pcm=sound, rate=rate,
+                                         attend=bool(said.get("attend")))
         except (ValueError, RuntimeError) as refused:
             return {"refused": str(refused)}
 

@@ -25,6 +25,7 @@ async def run() -> int:
     from core.reasoning.neural_bridge import get_neural_bridge
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.reasoning.reasoning_interfaces import ReasoningType
+    from core.memory import Origin
 
     bridge = get_neural_bridge()
     if hasattr(bridge, "initialize"):
@@ -62,7 +63,7 @@ async def run() -> int:
     at_default = 0
     for kind_value, question, ctx, expect in cases:
         rt = next(t for t in ReasoningType if t.value == kind_value)
-        result = await reason_about(question, ctx, rt)
+        result = await reason_about(question, ctx, rt, origin=Origin.own("coordinator-reason-about-real"))
         md = getattr(result, "metadata", {}) or {}
         answer = str(getattr(result, "answer", "") or "")
         route = md.get("route") or []
@@ -82,7 +83,7 @@ async def run() -> int:
         # nothing. Unpack it.
         async def _found(threshold):
             ok_search, items = await obj.memory.search_memories(
-                f"I was asked: {question}", min_similarity=threshold, limit=5)
+                question, min_similarity=threshold, limit=5)
             return bool(ok_search and any(
                 question.lower() in str(getattr(m, "content", "")).lower()
                 for m in (items or [])))

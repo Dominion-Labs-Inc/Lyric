@@ -74,7 +74,7 @@ async def main(mark: str, seconds: float) -> dict:
             agent = await get_memory_agent()
             stored, memory_id = await agent.store_memory(
                 content=f"The substrate's own note: {mark} is a word it was taught to remember.",
-                tags=["develop_phase"], importance_score=0.9, origin=Origin.own("_develop"))
+                tags=["develop_phase"], origin=Origin.own("_develop"))
             # A release is cut with every concept encoded: development finishes its own encoding first.
             from core.integration.universal_domain_master import get_universal_domain_master
             encoded = await get_universal_domain_master().start_concept_embedding()

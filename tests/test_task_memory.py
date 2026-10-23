@@ -62,7 +62,7 @@ def test_the_same_thing_on_two_days_is_two_memories(monkeypatch):
                          f"The backup of the {nonce} volume finished and the checksums matched.",
                          f"A {nonce} kidney is an organ.", f"A {nonce} liver is an organ."):
                 stored, memory_id = await agent.store_memory(
-                    said, memory_type=MemoryType.EPISODIC, importance_score=0.8,
+                    said, memory_type=MemoryType.EPISODIC, 
                     tags=["merge_check"], origin=Origin.own("task"))
                 assert stored
                 ids.append(memory_id)

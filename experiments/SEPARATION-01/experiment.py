@@ -270,7 +270,7 @@ async def _serve(db, coordinator, watch, main_before, development, development_a
                         (BOB, f"Bob's note: the {MARK} valve in bay 9 leaks."),
                         (None, f"The substrate's note while serving: {MARK} came up again today.")):
         ok, memory_id = await agent.store_memory(content=text, origin=Origin.of(owner, "SEPARATION-01"),
-                                                 tags=["separation_01"], importance_score=0.9)
+                                                 tags=["separation_01"], )
         stored[owner] = memory_id
         say_line(f"    stored for {owner or 'the substrate'}: {ok} {memory_id}")
     scoped = await fetch(STAGING["user_context"],

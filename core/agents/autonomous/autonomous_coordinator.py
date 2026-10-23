@@ -9392,7 +9392,6 @@ class AutonomousCoordinator:
                            note: Optional[str] = None, *,
                            origin: "Origin",
                            tags: Optional[List[str]] = None,
-                           importance: float = 0.6,
                            within: Optional[str] = None) -> Optional[str]:
         """Remember what was met at one moment -- each thing as `(path,
         modality, sensed)` -- as ONE memory: a recallable account of all of it,
@@ -9475,7 +9474,6 @@ class AutonomousCoordinator:
         ok, memory_id = await self.memory.store_memory(
             origin=origin,
             content=content, memory_type=MemoryType.EPISODIC,
-            importance_score=importance,
             tags=all_tags,
             source_context={"source_system": " and ".join(dict.fromkeys(systems)), **context},
             media=(kept_parts if len(kept_parts) > 1 else
@@ -9655,11 +9653,10 @@ class AutonomousCoordinator:
                 origin=Origin.own("goals"),
                 content=(f"I set myself a {priority.value} goal: {description}.{by_when}"),
                 memory_type=MemoryType.EPISODIC,
-                # CLAMPED. This read `1.2 + (potential * 0.3)`, and importance
-                # is passed through as confidence_score -- a probability --
-                # so every goal recorded a confidence above 1.0.
-                importance_score=max(0.0, min(1.0, 0.8 + (goal.intrinsic_reward_potential * 0.2))),
-                source_context={"source_system": "goal_setting", "goal_id": goal.id},
+                # The reward it expects of the goal, which the memory agent weighs its importance by
+                # (`MemoryAgent.importance_of`); this set its importance itself until 2026-10-23.
+                source_context={"source_system": "goal_setting", "goal_id": goal.id,
+                                "reward_potential": goal.intrinsic_reward_potential},
                 tags=["goal", "planning", "autonomous_system"]
             )
 
@@ -10042,40 +10039,9 @@ class AutonomousCoordinator:
         metadata["model_calls"] = AutonomousCoordinator._model_calls_on(result, metadata)
         result.metadata = metadata
 
-        # WHAT IT WAS ASKED, WHAT IT CONCLUDED, AND WHY.
-        #
-        # The why is `metadata["reason"]` -- the reasoning authority's own
-        # account of how it got there, not a phrase chosen off a confidence
-        # score. Where it has none, the memory SAYS it has none rather than
-        # inventing one, because a recorded reason that was never reasoned is
-        # worse than an absent one: it reads as introspection.
-        conclusion = getattr(result, "answer", None)
-        why = metadata.get("reason")
-        because = f" I concluded this because {why}." if why else \
-                  " I did not record what led me to it."
-        standing = ("" if metadata.get("verified")
-                    else " I have not verified this.")
-        # AN UNCHECKED ANSWER IS NOT KNOWLEDGE, AND THE TYPE HAS TO SAY SO: what
-        # kind of memory a conclusion is kept as is the memory agent's
-        # (`MemoryAgent.memory_type_of`), never a hardcoded SEMANTIC, which filed
-        # every unverified answer alongside solver-checked ones.
-        from core.agents.memory_agent import MemoryAgent
-        await self.memory.store_memory(
-            origin=origin,
-            content=(f"I was asked: {question} I answered: {conclusion}."
-                     f"{because}{standing}"),
-            memory_type=MemoryAgent.memory_type_of(metadata.get("kind"),
-                                                   verified=bool(metadata.get("verified"))),
-            importance_score=(float(getattr(result, "confidence", 0.0) or 0.0)
-                              if metadata.get("verified") else 0.3),
-            source_context={
-                "source_system": "reasoning",
-                "reasoning_mode": str(getattr(result, "mode_used", "")),
-                "verified": bool(metadata.get("verified")),
-                "evidence": supporting,
-            },
-            tags=["reasoning", "decision_making", "autonomous_system"],
-        )
+        # WHAT IT WAS ASKED, WHAT IT CONCLUDED AND WHY are remembered once, by the memory agent, from what the
+        # reasoning authority hands it (`MemoryAgent.take_in_reasoning`, with the reason and whether it was
+        # verified). This wrote a second memory of the same reasoning with its own importance (until 2026-10-23).
         return result
 
     @staticmethod
@@ -10121,7 +10087,7 @@ class AutonomousCoordinator:
                     content=(f"Looking at {domain.value} over the {horizon.value} "
                              f"horizon, I predicted {prediction.predicted_value}.{grounds}"),
                     memory_type=MemoryType.SEMANTIC,
-                    importance_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
+                    confidence_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
                     source_context={"source_system": "prediction",
                                     "domain": domain.value, "horizon": horizon.value},
                     tags=["prediction", "intelligence", "autonomous_system"]
@@ -10248,7 +10214,7 @@ class AutonomousCoordinator:
                              f"{', '.join(target_domains)} have in common, asking: "
                              f"{query_text} I found nothing connecting them."),
                     memory_type=MemoryType.SEMANTIC,
-                    importance_score=max(0.0, min(1.0, float(confidence or 0.0))),
+                    confidence_score=max(0.0, min(1.0, float(confidence or 0.0))),
                     source_context={"source_system": "cross_domain_reasoning",
                                     "domains_queried": result.domains_queried},
                     tags=["cross_domain", "reasoning", "domain_integration"]
@@ -10317,7 +10283,7 @@ class AutonomousCoordinator:
                     content=(f"I was asked what would happen with {prediction_target}. "
                              f"I predicted {prediction.predicted_value}.{grounds}"),
                     memory_type=MemoryType.SEMANTIC,
-                    importance_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
+                    confidence_score=max(0.0, min(1.0, float(prediction.confidence or 0.0))),
                     source_context={
                         "source_system": "prediction",
                         "domain_context": prediction_context.get("relevant_domains", []),
@@ -15578,7 +15544,6 @@ class AutonomousCoordinator:
                             content=(f"I tried to {task.description}, and it did not "
                                      f"work because {issues_str}.{attempt}"),
                             memory_type=MemoryType.EPISODIC,
-                            importance_score=0.7,
                             origin=_task_origin(task, "task"),
                             source_context={
                                 "source_system": "task_execution",
@@ -16451,7 +16416,7 @@ class AutonomousCoordinator:
                     memory_type=MemoryType.EPISODIC,
                     content=content,
                     origin=conv._origin("conversation"),
-                    importance_score=0.7, confidence_score=0.9,
+                    confidence_score=0.9,
                     tags=["user_exchange"] + (
                         ["answered"] if understanding.answered
                         else [agent.OPEN_TAG, "asked_back"]),
@@ -16710,7 +16675,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                              f"to them {assessment.average_compliance:.0%} overall. "
                              f"Where I am falling short: {broken}."),
                     memory_type=MemoryType.META,
-                    importance_score=1.0,
                     source_context={"source_system": "constitutional_alignment"},
                     tags=["constitution", "drift", "self_assessment"],
                 )

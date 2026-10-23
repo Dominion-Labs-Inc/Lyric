@@ -207,7 +207,6 @@ async def test_memory_storage(result, source_id, target_id):
         success, memory_id = await memory_agent.store_memory(
             memory_type=MemoryType.SEMANTIC,
             content=f"Cross-domain test: {len(result.new_insights)} insights, {len(result.generated_mappings)} mappings",
-            importance_score=result.confidence,
             confidence_score=result.confidence,
             tags=["cross_domain_test", source_id, target_id],
             thinking_state=thinking_state, origin=Origin.own("diagnose_cross_domain")

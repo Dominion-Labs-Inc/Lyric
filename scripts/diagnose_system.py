@@ -373,7 +373,7 @@ class SystemDiagnostics:
             stored, _memory_id = await memory.store_memory(
                 content=test_content,
                 tags=['diagnostic', 'test'],
-                importance_score=0.5, origin=Origin.own("diagnose_system")
+                origin=Origin.own("diagnose_system")
             )
             store_duration = time.time() - start
             

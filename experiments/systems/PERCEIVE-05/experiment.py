@@ -156,7 +156,7 @@ async def main() -> int:
     out.append("== 5. perception is stamped WITHIN a memory (the whole point) ==")
     stored, mid = await agent.store_memory(
         content="Observed the vision test card on the workbench.",
-        memory_type=MemoryType.EPISODIC, importance_score=0.85,
+        memory_type=MemoryType.EPISODIC, 
         confidence_score=0.9, tags=["perceive05", "episode"], origin=Origin.own("PERCEIVE-05"))
     check("a memory was stored to hang perception on", stored and bool(mid))
     ts = {}

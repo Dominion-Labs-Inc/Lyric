@@ -1024,7 +1024,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 success, memory_id = await self.memory_system.store_memory(
                     content=f"Learning: {example.get('content', str(example)[:200])}",
                     origin=Origin.of(example['actor'], "learning example"),
-                    importance_score=example.get('accuracy', 0.5),  # Hint for importance weighting
                     # strategy.strategy_id, not the dataclass. Memory lowercases
                     # every tag, so passing the object raised
                     # "'LearningStrategy' object has no attribute 'lower'" and
@@ -3628,7 +3627,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 origin=Origin.own("teaching"),
                 content=f"{word!r} is used as {_article(word_class)} {word_class.lower()}.",
                 memory_type=MemoryType.SEMANTIC,
-                importance_score=0.75,
                 confidence_score=float(quality),
                 tags=["language", agent.WORD_CLASS_TAG],
                 source_context={
@@ -3680,7 +3678,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 origin=Origin.own("teaching"),
                 content=f"{word!r} is said {phones}.",
                 memory_type=MemoryType.SEMANTIC,
-                importance_score=0.75,
                 confidence_score=float(quality),
                 tags=["language", agent.PRONUNCIATION_TAG],
                 source_context={
@@ -4351,7 +4348,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 origin=Origin.own("learning"),
                 content=(f"I reviewed {counts['reviewed']} things I was taught in {domain}: I could ask myself about "
                          f"{counts['asked']} of them, and answered {counts['right']} rightly."),
-                memory_type=MemoryType.META, importance_score=0.7, confidence_score=0.9,
+                memory_type=MemoryType.META, confidence_score=0.9,
                 tags=["review", "self_assessment", domain],
                 source_context={"review": {k: v for k, v in counts.items()}, "missed": missed, "domain": domain})
         logger.info("review of %s: %s", domain, counts)
@@ -4464,7 +4461,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 origin=Origin.own("teaching"),
                 content="What the listener's evidence is worth: how many readings at each level of each were the one "
                         "meant, counted on sentences whose meaning it was taught",
-                memory_type=MemoryType.SEMANTIC, importance_score=0.75, confidence_score=float(quality),
+                memory_type=MemoryType.SEMANTIC, confidence_score=float(quality),
                 tags=["language", agent.LISTENING_TAG],
                 source_context={"producer": getattr(provenance, "producer", "learning"), "source_id": source_id})
             if not stored or not memory_id:
@@ -4510,7 +4507,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             origin=Origin.own("teaching"),
             content=content,
             memory_type=MemoryType.SEMANTIC,
-            importance_score=0.75,
             confidence_score=float(quality),
             tags=["language", dr.PATTERN_TAG],
             source_context={"producer": producer, "source_id": source_id, "pattern_key": item.key,

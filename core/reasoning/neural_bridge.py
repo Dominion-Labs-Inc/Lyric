@@ -4264,7 +4264,7 @@ class NeuralSymbolicBridge:
                     confidence=result.confidence, kind=meta.get("kind"), verified=bool(meta.get("verified")),
                     mode=result.mode_used.value if result.mode_used else None,
                     premises=len(request.context or []), multimodal=bool(request.image or request.video),
-                    origin=origin)
+                    origin=origin, reason=meta.get("reason"))
 
         except Exception as e:
             # Background task — log and swallow; never propagate to caller

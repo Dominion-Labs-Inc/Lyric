@@ -86,7 +86,7 @@ Module-scope reason codes (155-212): `REASON_SUBSTRATE_VERIFIED/REFUTED/DERIVED_
 - **`_coerce_predictions(value, *, field)`** (static, 1106) — normalize predictions/alternatives to non-empty strings.
 - **`async generate_hypothesis(*, claim, domain, predictions, alternatives) -> Optional[str]`** (1141) — generates+persists a falsifiable hypothesis (single entry, e.g. intrinsic motivation).
 - **`async observe_tool_result(tool_name, parameters, output, success) -> int`** (1170) — folds a tool observation into the belief graph (executor post-tool seam).
-- **`async _capture_reasoning_memory(request, result)`** (3575) — background, never-raising trace persistence to memory (skips trivial low-confidence; tags the kind).
+- **`async _capture_reasoning_memory(request, result)`** (3575) — background, never-raising hand-over to the memory agent: the reasoning as an experience, and what was reasoned (`MemoryAgent.take_in_reasoning`: steps, answer, confidence, kind, verified, its reason), which decides whether its trace is kept, how important it is and what kind of memory it is.
 - **`_schemas_bearing_on(query)`** (3311) — learned schemas whose terms overlap the query.
 - *(Module helpers: `_is_implication` 221, `_content_terms` 241, `_query_topic` 257, `_relevant_to_topic` 279.)*
 

@@ -702,7 +702,6 @@ class CognitiveIngress:
         stored, memory_id = await agent.store_memory(
             content=surface,
             memory_type=MemoryType.SEMANTIC,
-            importance_score=0.75,
             confidence_score=0.9,
             tags=list(tags or ["language", "admitted_proposition"]),
             source_context={

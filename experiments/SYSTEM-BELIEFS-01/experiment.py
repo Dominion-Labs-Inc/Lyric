@@ -79,7 +79,7 @@ async def main() -> int:
         agent = await get_memory_agent()
         ok, mid = await agent.store_memory(
             content="isoprobe: the lamp in the isolation room was seen lit",
-            importance_score=0.8, tags=["isoprobe"], source_context={"producer": "SYSTEM-BELIEFS-01"}, origin=Origin.own("SYSTEM-BELIEFS-01"))
+            tags=["isoprobe"], source_context={"producer": "SYSTEM-BELIEFS-01"}, origin=Origin.own("SYSTEM-BELIEFS-01"))
         if ok and mid:
             memory_ids.append(mid)
         grounded = float(U.update_belief(b.belief_id, {"source": "SYSTEM-BELIEFS-01", "description": "seen lit",
@@ -141,7 +141,7 @@ async def main() -> int:
         agent = await get_memory_agent()
         ok, lamp_mid = await agent.store_memory(
             content=f"isoprobe: measured the {ABOUT} at 0.3 W",
-            importance_score=0.8, tags=["isoprobe"], source_context={"producer": "SYSTEM-BELIEFS-01"}, origin=Origin.own("SYSTEM-BELIEFS-01"))
+            tags=["isoprobe"], source_context={"producer": "SYSTEM-BELIEFS-01"}, origin=Origin.own("SYSTEM-BELIEFS-01"))
         if lamp_mid:
             memory_ids.append(lamp_mid)
         lamp = U.create_belief(f"the {ABOUT} is 0.3 W", DOMAIN, 0.5, None)

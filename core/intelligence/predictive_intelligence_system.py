@@ -1309,7 +1309,7 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         stored, memory_id = await memory_agent().store_memory(
             content=(f"In {expectation.domain_id} I expected {describe_change(expectation.effects)} "
                      f"by {expectation.due.isoformat()}.\n{ending[0].upper()}{ending[1:]}."),
-            memory_type=MemoryType.EPISODIC, importance_score=0.6,
+            memory_type=MemoryType.EPISODIC,
             tags=["expectation", _EXPECTATION_STATUS.get(evidence.outcome.value, "indeterminate")],
             source_context={"source_system": "predictive_intelligence",
                             "expectation_id": expectation.expectation_id,

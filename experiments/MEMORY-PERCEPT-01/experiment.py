@@ -83,7 +83,7 @@ async def main() -> int:
     # sight trace, never the picture. That memory is the percept.
     ok0, seeing_id = await agent.store_memory(
         content=f"{content.get('caption')} [{TAG}]", memory_type=MemoryType.EPISODIC,
-        importance_score=0.6, origin=Origin.own("MEMORY-PERCEPT-01"),
+        origin=Origin.own("MEMORY-PERCEPT-01"),
         media=decode_trace(content["trace"]),
         media_meta={"kind": "sight_trace", "caption": content.get("caption"),
                     "sha256": content.get("sha256"), "blobs": content.get("blobs")})
@@ -106,7 +106,7 @@ async def main() -> int:
     try:
         ok, seen_id = await agent.store_memory(
             content=f"observed the test card [{TAG}]",
-            memory_type=MemoryType.EPISODIC, importance_score=0.8, origin=Origin.own("MEMORY-PERCEPT-01"))
+            memory_type=MemoryType.EPISODIC, origin=Origin.own("MEMORY-PERCEPT-01"))
     finally:
         reset_acting_percept(token)
     row = await db.execute_query(
@@ -123,7 +123,7 @@ async def main() -> int:
     print("\n== C. A memory formed outside a seeing links to nothing ==")
     ok2, unseen_id = await agent.store_memory(
         content=f"an unrelated thought [{TAG}]",
-        memory_type=MemoryType.EPISODIC, importance_score=0.5, origin=Origin.own("MEMORY-PERCEPT-01"))
+        memory_type=MemoryType.EPISODIC, origin=Origin.own("MEMORY-PERCEPT-01"))
     row2 = await db.execute_query(
         "SELECT percept_id, percept_digest FROM memory_hot.memory_hot "
         "WHERE memory_id = $1", (str(unseen_id),), fetch_one=True)
@@ -197,7 +197,7 @@ async def main() -> int:
     try:
         ok3, audio_id = await agent.store_memory(
             content=f"heard the doorbell [{TAG}]",
-            memory_type=MemoryType.EPISODIC, importance_score=0.5, origin=Origin.own("MEMORY-PERCEPT-01"))
+            memory_type=MemoryType.EPISODIC, origin=Origin.own("MEMORY-PERCEPT-01"))
     finally:
         reset_acting_percept(heard)
     row3 = await db.execute_query(

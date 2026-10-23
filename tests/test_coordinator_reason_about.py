@@ -39,7 +39,7 @@ def _stub(bridge):
     # took an event dict and rendered it into prose; that wrapper is gone, and
     # `reason_about` now writes through the memory agent like everything else.
     # A stub of the deleted signature would pass while the real call failed.
-    async def store_memory(content=None, memory_type=None, importance_score=0.0,
+    async def store_memory(content=None, memory_type=None,
                            source_context=None, tags=None, **rest):
         stored.append({"content": content, "memory_type": memory_type,
                        **(source_context or {})})
@@ -124,7 +124,10 @@ async def test_premises_and_rules_reach_the_substrate():
 @pytest.mark.asyncio
 async def test_an_unverified_answer_is_not_recorded_as_knowledge():
     """A solver-checked verdict and an unchecked assertion must not be stored
-    with the same weight, or the memory becomes uncitable."""
+    with the same weight, or the memory becomes uncitable. The one memory of a
+    reasoning is the memory agent's (`take_in_reasoning`); `reason_about` keeps
+    none of its own (it wrote a second one until 2026-10-23)."""
+    from core.agents.memory_agent import MemoryAgent
     from core.memory import Origin
     from core.reasoning.neural_bridge import ReasoningMode, ReasoningResult
 
@@ -137,15 +140,23 @@ async def test_an_unverified_answer_is_not_recorded_as_knowledge():
     assert result.metadata["verified"] is False
     assert result.metadata["reason"] == "model_coverage"
     assert result.metadata["model_calls"] == 1, "a model answer must be visible in the provenance"
-    assert stub.stored and stub.stored[0]["verified"] is False
+    assert stub.stored == [], "reason_about remembered the reasoning a second time"
 
     # THE DOCSTRING'S CLAIM, NOW ACTUALLY CHECKED. Carrying `verified: False`
     # in the record was never enough on its own -- the memory was still filed
     # SEMANTIC, so recall handed an unchecked assertion back as general
     # knowledge and only a reader who thought to look at the field would know.
     # An unverified answer must not be typed as a fact about the world.
+    kept = []
+    agent = types.SimpleNamespace(memory_type_of=MemoryAgent.memory_type_of,
+                                  _enqueue=lambda **memory: kept.append(memory) or "pending_test")
+    MemoryAgent.take_in_reasoning(
+        agent, query="Is a whale a fish?", steps=["whale isa mammal"], answer="probably", confidence=0.9,
+        kind="deductive", verified=False, mode="neural", premises=1, multimodal=False,
+        origin=Origin.own("test_coordinator_reason_about"), reason="model_coverage")
     from core.memory.utils.interfaces import MemoryType
-    assert stub.stored[0]["memory_type"] is not MemoryType.SEMANTIC, (
-        "an unchecked assertion was filed as general knowledge")
-    assert stub.stored[0]["memory_type"] is MemoryType.EPISODIC, (
+    assert kept[0]["memory_type"] is MemoryType.EPISODIC, (
         "an unchecked assertion is an episode of reasoning, not a fact")
+    assert kept[0]["source_context"]["verified"] is False
+    assert kept[0]["content"].endswith(
+        "I concluded this because model_coverage. I have not verified this.")
