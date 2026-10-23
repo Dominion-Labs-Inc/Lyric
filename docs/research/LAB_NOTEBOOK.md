@@ -86,9 +86,14 @@ sentence.
 - **A page is read whole inside the event loop.** Fast or slow, the research step reads every block of a long page
   synchronously (`Conversation._research_phrase`, protected). And Wikipedia's citation marks stay in its sentences:
   only parentheses are taken out.
-- **Main.** The permission check refused a read-only timing run on `lyric_db` from this session. Main holds many
-  more senses and constructions, and its long sentences (UNDERSTANDS-PROSE-02 text 44's third, 410.7 s on 10-22;
-  text 50's, 297.6 s) are where the stall was. SPLITS-01 `--prose-only` on main reads them both ways.
+- **Main, measured since** (SPLITS-01 `--prose-only`, `20261023T134633Z`, the owner's run, 5/5, nothing written):
+  page 5 of 5 and prose 523 of 523 the same both ways; prose 1,413 s against 3,017 s; the slowest sentence 171.6 s
+  (422.0 s), text 44's third 120.3 s (171.5 s; 410.7 s on 10-22 in the conversation), text 50's two 31.3 s and
+  32.5 s (114.3 s, 118.4 s). The page's total read 185 s now against 165 s: its first paragraph, read now first,
+  carried the load's warming (127.1 s against 28.1 s); the other four 58.2 s against 136.9 s. The harness now reads
+  its first sentence once, untimed, before measuring. Six short sentences read 2 to 4 s slower now, in both orders;
+  on lyric_dev, warmed, three reads each way, each is 2.3 to 3.3 times faster now: not the change, not traced on
+  main. What takes minutes on main is the structures above.
 - **18 construction memories on lyric_dev do not read back as what they claim** (11 on main): warned at every warm
   since 10-21 at least, left out by design (`MemoryAgent.taught_patterns`); the same 18 after the keys were made
   once.

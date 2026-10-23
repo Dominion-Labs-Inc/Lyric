@@ -57,15 +57,18 @@ POSTGRES_DATABASE=lyric_dev POSTGRES_PORT=5433 POSTGRES_USER=stefan PYTHONPATH="
 | Run | Store | Page: same, seconds now / before | Prose: same, seconds now / before | Lessons: same, strictly same, seconds now / before | Nothing written |
 |---|---|---|---|---|---|
 | `20261023T121713Z` | lyric_dev | 5 of 5; 25.4 s / 72.3 s | 523 of 523; 348.7 s / 1,126.7 s | 3,054 of 3,054; 3,054; 52.7 s / 70.4 s | yes |
+| `20261023T134633Z` | main, `--prose-only` | 5 of 5; 185.2 s / 165.0 s (the first paragraph's read now carried the load's warming, 127.1 s against 28.1 s; the other four 58.2 s / 136.9 s) | 523 of 523; 1,413 s / 3,017 s | | yes |
 
 On lyric_dev the slowest paragraph of the page reads in 7.1 s (25.9 s before) and the slowest prose sentence in 26.0 s
 (95.1 s before: "Four out of the five justices voted to convict Bolsonaro on all charges, ..."). Lessons read as taught
 2,913 of 3,054, as PACKED-01 on the sandbox. Run before it, the coverings change alone (stopped at 175 of 528 to
 measure all four together, no record): 175 of 175 the same.
 
-**Not yet run:** main (`lyric_db`), where the long sentences of UNDERSTANDS-PROSE-02 stalled (text 44's third,
-410.7 s on 2026-10-22). `--prose-only` there reads them both ways:
+On main (628,369 constructions and links), every sentence reads the same both ways and prose takes 2.1 times less:
+the slowest, "Four out of the five justices voted to convict Bolsonaro on all charges, ...", 171.6 s (422.0 s
+before); UNDERSTANDS-PROSE-02 text 44's third, "To handle changes in electric current ...", 120.3 s (171.5 s); text
+50's two, 31.3 s and 32.5 s (114.3 s and 118.4 s). Six short sentences read slower now by 2 to 4 s (four read now
+first, two read before first); read on lyric_dev after a warming read, three times each way, each is 2.3 to 3.3 times
+faster now. Since this run the experiment reads its first sentence once, untimed, before measuring.
 
-```
-POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/SPLITS-01/experiment.py --prose-only
-```
+What still takes minutes on main is structures multiplying, not splits: lab notebook 2026-10-23 (37), "Open".

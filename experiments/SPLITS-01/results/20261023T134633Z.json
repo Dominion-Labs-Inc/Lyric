@@ -1,0 +1,135 @@
+{
+  "experiment": "SPLITS-01",
+  "claim": "the reader asking the chart where the words split between a form's slots, and the grammar making only the combinations it keeps, read every sentence exactly as before, in less time",
+  "hypothesis": "every utterance of every lesson, prose sentence and question and looked-up paragraph reads to the same readings both ways, and lessons read strictly to the same readings",
+  "started_at": "2026-10-23T13:46:33.973553+00:00",
+  "duration_seconds": 4952.662,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "c24d4b86e37bcb5649fcc6fb27d7e564f77be017",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 0,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 5,
+    "passed": 5,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "page: read to the same utterances and readings both ways",
+      "value": 5,
+      "unit": "count",
+      "note": "of 5"
+    },
+    {
+      "name": "page: seconds now",
+      "value": 185.2,
+      "unit": "seconds",
+      "note": "5 read"
+    },
+    {
+      "name": "page: seconds before",
+      "value": 165.1,
+      "unit": "seconds",
+      "note": "5 read"
+    },
+    {
+      "name": "page: slowest before, and now",
+      "value": "81.354s, 28.952s",
+      "unit": "",
+      "note": "Some organisms also perform anoxygenic photosynthesis, which does not produce oxygen. Some bacteria   use bacteriochloro"
+    },
+    {
+      "name": "prose: read to the same utterances and readings both ways",
+      "value": 523,
+      "unit": "count",
+      "note": "of 523"
+    },
+    {
+      "name": "prose: seconds now",
+      "value": 1412.9,
+      "unit": "seconds",
+      "note": "523 read"
+    },
+    {
+      "name": "prose: seconds before",
+      "value": 3017.5,
+      "unit": "seconds",
+      "note": "523 read"
+    },
+    {
+      "name": "prose: slowest before, and now",
+      "value": "422.046s, 171.569s",
+      "unit": "",
+      "note": "Four out of the five justices voted to convict Bolsonaro on all charges, which include heading an armed criminal organis"
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-10-23T13:49:10.071631+00:00"
+    },
+    {
+      "label": "memory holds what was taught of English",
+      "passed": true,
+      "detail": "628,369 constructions and links",
+      "at": "2026-10-23T13:49:10.086737+00:00"
+    },
+    {
+      "label": "page: every one read to the same readings both ways",
+      "passed": true,
+      "detail": "5 of 5",
+      "at": "2026-10-23T15:10:15.408209+00:00"
+    },
+    {
+      "label": "prose: every one read to the same readings both ways",
+      "passed": true,
+      "detail": "523 of 523",
+      "at": "2026-10-23T15:10:15.408653+00:00"
+    },
+    {
+      "label": "reading wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-23T15:10:16.471510+00:00"
+    }
+  ],
+  "notes": [
+    "read: 5 paragraphs of Wikipedia's Photosynthesis lead, 523 sentences and questions of UNDERSTANDS-PROSE-01 and of UNDERSTANDS-PROSE-02's half fixed against, 0 lesson sentences"
+  ]
+}

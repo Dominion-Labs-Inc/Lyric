@@ -20,13 +20,13 @@ is made once; the grammar makes a combination's pieces only once its chart keeps
 - **RESEARCH-WRITE-01 gets past its research step** (`20261023T124829Z`, 8/15): it read the whole Photosynthesis
   article (792 blocks; its first sentence, "Photosynthesis [ note 1 ] is a system of ...", reads to no kind) in
   9 min 50 s, found nothing saying what photosynthesis is, and closed the goal as abandoned.
-- **Still open, in this order:** (1) **main**: SPLITS-01 `--prose-only` on `lyric_db` (refused to this session by
-  the permission check; the owner's to run or allow):
-  `cd ~/"Dominion Labs/Lyric" && POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/SPLITS-01/experiment.py --prose-only`;
-  (2) **structures still multiply**: one paragraph of that article took 302 s of the 564, 404,340 combinations
+- **Main** (SPLITS-01 `--prose-only`, `20261023T134633Z`, the owner's run): page 5/5 and prose 523/523 the same,
+  nothing written; prose 1,413 s against 3,017 s; slowest sentence 171.6 s (422.0 s), text 44's third 120.3 s
+  (171.5 s), text 50's 31.3 s and 32.5 s (114.3 s, 118.4 s).
+- **Still open, in this order:** (1) **structures still multiply** (what keeps main's slowest sentences at minutes): one paragraph of that article took 302 s of the 564, 404,340 combinations
   built (phrases 203,806, frames 126,126, adjuncts 64,009), nearly all thrown away by `_phrase_fillings`' cut to the
   readings that suppose least; what a reading supposes adds up over its parts, so the least can be found best first
-  from the parts (the structural half of the packed chart, (25)); (3) a page is read whole inside the event loop by
+  from the parts (the structural half of the packed chart, (25)); (2) a page is read whole inside the event loop by
   the research step (`_research_phrase`, protected), and Wikipedia's citation marks stay in its sentences.
 
 **DONE 2026-10-22: THE PLANNING ENGINE IS DISSOLVED** into the authorities that own its parts (lab notebook (36)):

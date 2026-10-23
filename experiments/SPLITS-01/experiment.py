@@ -208,6 +208,13 @@ async def main() -> int:
             readings = dr.readings_of(tuple(p.text for p in form_of(sentence)), meaning, view)
             return readings, time.perf_counter() - started
 
+    # THE FIRST READ IN A LOAD WARMS WHAT THE VIEW WORKS OUT WHEN FIRST ASKED, the structure reader's training among
+    # it: on main the first paragraph read now took 127.1 s against 28.1 s before, read second (`20261023T134633Z`).
+    # One read of it beforehand, not timed.
+    heard_before = dict(heard)
+    dr.read_text(items[0][1], view, parts=items[0][0] == "prose")
+    heard.clear()
+    heard.update(heard_before)
     with path.open("a") as out:
         for at, (kind, sentence, meaning) in enumerate(items):
             ways = [("now", contextlib.nullcontext), ("before", as_before)]
