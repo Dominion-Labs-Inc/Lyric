@@ -16,6 +16,50 @@ Conventions:
 
 ---
 
+## 2026-10-23 (39) — How complex what arrives is, measured: the thinking it asks for and what of it is unknown
+
+**Objective.** The reasoning authority's score of what arrives (38) was the word count it took over from the memory
+injection policy: length, eleven words like "why" and "how", and clauses. Measured instead, from what the reasoning
+authority already has.
+
+**Built** (`NeuralSymbolicBridge.complexity_of`): the larger of two parts.
+- The thinking it asks for: the kinds of thinking its meaning asks for (`kinds_of_thinking_for`: a cause causal, a
+  before or an after temporal, a place spatial, an is-a deductive, a condition deductive), at `reasoning_difficulty`
+  (this authority's own runs, its declared prior until a kind has 5), between the easiest kind and the hardest.
+  Against the hardest alone, a plain is-a deduction scored 0.4 (1.0 of 2.5) and the memory agent recalled for nearly
+  every request (PROSE-01's questions 32 of 37); between the easiest and the hardest it is 0.
+- What of it is unknown: the share of its words no taught construction holds (`PatternInventory.knows`), or of its
+  sentences nothing reads.
+`reason` scores the question as heard and from the one read (`_question_heard` returns its utterances too; reading
+it again cost up to 4.8 s, now nothing measurable, the same score on 557 of 557). Tasks are no longer scored at the
+queue's door: the measure reads, and reading is not the queue's. On lyric_dev no kind of thinking has a measured run
+yet: every difficulty there is still its prior.
+
+**Measured** (lyric_dev, `complexity_compare.py` in the session scratchpad; each read as `reason` reads it):
+| | items | mean, word count → measured | recalled for, before → now |
+|---|---|---|---|
+| PROSE-01 sentences | 33 | 0.12 → 0.12 | 1 → 4 |
+| PROSE-01 questions | 37 | 0.07 → 0.09 | 0 → 2 |
+| PROSE-02 (fit half) sentences | 222 | 0.37 → 0.55 | 114 → 120 (48 on, 42 off) |
+| PROSE-02 (fit half) questions | 231 | 0.11 → 0.34 | 2 → 68 |
+| test_query_analysis cases | 35 | 0.12 → 0.35 | 4 → 14 |
+Now recalled for: what Lyric cannot read ("Did the server log a failed login?", 1.0) or holds words of it never
+met ("Is Python dynamically typed?", 0.5). No longer: long sentences of words it knows and reads, which length and
+commas had made complex ("They may consist of one or more military branches such as an army, navy, ...", 0.47 →
+0.09). Routine for Lyric: "hello", "show status", "who is Einstein" (0); not, on lyric_dev: "list files", "run
+tests" (0.5, a word of each held by no taught construction).
+
+**Tests.** `tests/test_arrival_complexity.py` rewritten for the measured parts (3 passed). `test_memory_real_loop.py`
+5/5 after two fixes to the test: it warms the reader's view (a measure that reads needs what was taught in view;
+cold, every word is one never met, and "hello" scored 1.0), and its routine example is "hello" ("list files" was
+chosen while complexity was a word count). `test_query_analysis.py` fails 17 of its 35 (15 before): its expectations
+are the keyword gate of 2026-08, which neither measure follows. Left as found.
+
+**Open.** The memory agent's line (`RECALL_COMPLEXITY`, 0.35) was set for the word count. The arbiter does not read
+the score yet (item 3 of the owner's list).
+
+---
+
 ## 2026-10-23 (38) — Complexity of what arrives is the reasoning authority's; memory injection and every keep decision are the memory agent's
 
 **Objective (the owner's).** Two owners: the reasoning authority scores how complex messages, tasks and projects are

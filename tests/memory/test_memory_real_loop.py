@@ -53,6 +53,9 @@ async def run() -> int:
 
     agent = await get_memory_agent()
     await agent.initialize()
+    # What was taught of English, in view: complexity is measured by reading what
+    # arrives, and with nothing taught in view every word is one never met.
+    await agent.warm_word_classes()
     bridge = get_neural_bridge()
     if hasattr(bridge, "initialize"):
         await bridge.initialize()
@@ -83,9 +86,10 @@ async def run() -> int:
 
     # ---- 2. RETRIEVE (wait until embedded/searchable) ----------------------
     # Above the memory agent's RECALL_COMPLEXITY (0.35) by construction — the unique
-    # nouns keep it ranking to THIS memory, the hint words (why/how/root cause/
-    # investigate) and clauses carry the complexity score over the floor — so a
-    # 0-injection here is a real failure, not the memory agent correctly declining.
+    # nouns keep it ranking to THIS memory, and its per-run token is a word no
+    # taught construction holds, which carries the measured complexity over the
+    # floor — so a 0-injection here is a real failure, not the memory agent
+    # correctly declining.
     probe_q = (f"why does the {tok} orbital telemetry buffer keep overflowing, "
                f"and how does the {tok} downlink scheduler starve the ring "
                f"allocator, and what is the root cause I should investigate to fix it")
@@ -124,9 +128,13 @@ async def run() -> int:
     # ---- 5. AND a routine query is correctly DECLINED (the other half) ------
     # A trivial request must not drag memory into cognition. This is the skip
     # behaviour the retired `test_query_skip.py` only printed; asserted here.
-    skip_complexity = bridge.complexity_of("list files")
+    # Routine to Lyric: every word of it held, read, asking no thinking harder
+    # than the easiest kind. ("list files" was the example while complexity was
+    # a word count; measured, a word of it no taught construction holds makes it
+    # a request memory may help with.)
+    skip_complexity = bridge.complexity_of("hello")
     check("routine query is declined (no injection below floor)",
-          not MemoryAgent.calls_for_recall("list files", skip_complexity),
+          not MemoryAgent.calls_for_recall("hello", skip_complexity),
           f"complexity={skip_complexity}")
 
     await _cleanup(agent, mem_id)

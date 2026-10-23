@@ -21,7 +21,7 @@ import uuid
 from core.semantics import lexical_normalization as _lexical
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Dict, Any, List, Optional, Set, Tuple
+from typing import Dict, Any, List, Optional, Sequence, Set, Tuple
 from enum import Enum
 
 from .arithmetic_reading import read as read_equation
@@ -202,15 +202,16 @@ def question_of(request: "ReasoningRequest") -> Optional[Any]:
     return chosen.meaning if chosen is not None else None
 
 
-async def _question_heard(query: str) -> Optional[Any]:
-    """The meaning of a query that is one utterance, taken as a listener with memory at hand takes it; None when it
-    is not one utterance, or the listener cannot tell which meaning was meant."""
+async def _question_heard(query: str) -> Tuple[Optional[Any], Tuple[Any, ...]]:
+    """The meaning of a query that is one utterance, taken as a listener with memory at hand takes it (None when it
+    is not one utterance, or the listener cannot tell which meaning was meant), and the utterances it was read to,
+    so what weighs it reads it no second time (`complexity_of`)."""
     from core.semantics.derived_reader import heard, read_text
     utterances = read_text(query)
     if len(utterances) != 1:
-        return None
+        return None, utterances
     chosen = await heard(utterances[0].readings)
-    return chosen.meaning if chosen is not None else None
+    return (chosen.meaning if chosen is not None else None), utterances
 
 
 def goal_fact(meaning: Optional[Any]) -> Optional[Any]:
@@ -1161,26 +1162,47 @@ class NeuralSymbolicBridge:
         ratio = (cell["total_latency"] / cell["runs"]) / baseline
         return max(self._DIFFICULTY_MIN, min(self._DIFFICULTY_MAX, ratio))
 
-    #: Words that ask for more than a fact held: why, how, a comparison, a design.
-    _COMPLEXITY_HINTS = ("why", "how", "compare", "analyse", "analyze", "explain", "investigate",
-                         "root cause", "trade-off", "tradeoff", "design")
+    def complexity_of(self, text: str, reading: Any = None, inventory: Any = None,
+                      utterances: Optional[Sequence[Any]] = None) -> float:
+        """How complex a message, a task or a request is, in [0, 1], MEASURED, the larger of two parts:
 
-    def complexity_of(self, text: str) -> float:
-        """How complex a message, a task or a request is, in [0, 1], scored by the reasoning authority as it
-        arrives: the task as the queue takes it (`QueueAuthority.add_task`, on its provenance), a request as it
-        reaches `reason` (on its `task_metadata`). One score, read by whatever needs it: the memory agent deciding
-        whether a request calls for what it remembers (`MemoryAgent.recall_for`), the curiosity a target arouses.
+          THE THINKING IT ASKS FOR   the kinds of thinking its meaning asks for (`kinds_of_thinking_for`: a cause
+                                     asks causal thinking, a before or an after temporal, an is-a deduction), as hard
+                                     as the hardest of them has been here (`reasoning_difficulty`, from this
+                                     authority's own runs, its declared prior until a kind has run enough), between
+                                     the easiest kind of all and the hardest;
+          WHAT OF IT IS UNKNOWN      the share of its words no taught construction holds (`PatternInventory.knows`),
+                                     or of its sentences nothing reads, the larger.
 
-        Memory injection scored requests itself before (`MemoryInjectionPolicy.assess_complexity`, 2026-10-23),
-        a second judge of what arrives. The measure came with it unchanged: its length, the words that ask for
-        more than a fact, and its clauses."""
-        q = (text or "").lower()
-        if not q:
+        `reading`: its meaning, where it was read already (`reason` passes the question as heard); otherwise each
+        sentence by its best reading, from `utterances` where it was read to them already, read here where not. Scored as a request reaches `reason` (on its `task_metadata`)
+        and wherever a description is weighed (the curiosity a target arouses); read by the memory agent deciding
+        whether a request calls for memory (`MemoryAgent.recall_for`).
+
+        Scored by its length, a list of words like "why" and "how" and its clauses before (2026-10-23), a measure the
+        memory injection policy had kept; nothing of it was measured."""
+        from core.reasoning.reasoning_interfaces import kinds_of_thinking_for
+        from core.semantics import derived_reader as dr
+        view = inventory if inventory is not None else dr.live_view()
+        words = [p.text for p in dr.form_of(text or "") if not dr._is_mark(p.text)]
+        if not words:
             return 0.0
-        length_term = min(1.0, len(q.split()) / 40.0)
-        hint_term = min(1.0, sum(1 for h in self._COMPLEXITY_HINTS if h in q) / 3.0)
-        clause_term = min(1.0, (q.count(",") + q.count(";") + q.count(" and ")) / 4.0)
-        return round(min(1.0, 0.5 * length_term + 0.3 * hint_term + 0.2 * clause_term), 4)
+        unread = 0.0
+        meanings = [reading] if reading is not None else []
+        if reading is None:
+            said = [u for u in (utterances if utterances is not None else dr.read_text(text, view))
+                    if any(not dr._is_mark(p.text) for p in u.pieces)]
+            unread = sum(1 for u in said if not u.readings) / len(said) if said else 1.0
+            meanings = [u.readings[0].meaning for u in said if u.readings]
+        unknown = max(sum(1 for w in words if not view.knows(w)) / len(words), unread)
+        kinds = {k for meaning in meanings for k in kinds_of_thinking_for(meaning)}
+        # Between the easiest kind of thinking here, no difficulty, and the hardest: a plain is-a deduction, the
+        # easiest, asks no more thinking than a fact held. Against the hardest alone, it scored 0.4 (1.0 of 2.5).
+        every = [self.reasoning_difficulty(k) for k in set(self._DECLARED_DIFFICULTY) | set(self._reasoning_telemetry)]
+        easiest, hardest = min(every), max(every)
+        asked = max((self.reasoning_difficulty(k) for k in kinds), default=easiest)
+        thinking = (asked - easiest) / (hardest - easiest) if hardest > easiest else 0.0
+        return round(min(1.0, max(thinking, unknown)), 4)
 
     # NOTE: how many agents-of-self a reasoning kind warrants in parallel (the
     # AGENT ALLOWANCE) is NOT a reasoning fact and no longer lives here. It is a
@@ -1798,15 +1820,20 @@ class NeuralSymbolicBridge:
         # self that silently stops recording its own intentions is the defect
         # this exists to prevent.
         _intent = await self._intent_engage(request)
-        # WHAT ARRIVES IS SCORED AS IT ARRIVES, once: a request already scored where it arrived keeps that score.
-        if request.task_metadata is None:
-            request.task_metadata = {}
-        request.task_metadata.setdefault("complexity", self.complexity_of(str(request.query or "")))
         if request.reading is None and request.query:
             # THE QUESTION IS LISTENED TO ONCE, where memory can be asked: where a word in it names several
             # things, which one was meant is taken as a listener takes it (`derived_reader.heard`), and every
             # step below reads that meaning (`question_of`).
-            request.reading = await _question_heard(str(request.query))
+            request.reading, read = await _question_heard(str(request.query))
+        else:
+            read = None
+        # WHAT ARRIVES IS SCORED AS IT ARRIVES, once, by what it means (`complexity_of`): a request already scored
+        # where it arrived keeps that score.
+        if request.task_metadata is None:
+            request.task_metadata = {}
+        if "complexity" not in request.task_metadata:
+            request.task_metadata["complexity"] = self.complexity_of(str(request.query or ""), request.reading,
+                                                                     utterances=read)
         result = await self._reason_impl(request)
         await self._intent_settle(_intent, request, result)
         try:

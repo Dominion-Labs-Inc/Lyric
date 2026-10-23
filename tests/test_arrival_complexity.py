@@ -1,40 +1,47 @@
-"""How complex what arrives is, scored once by the reasoning authority as it arrives, and read where it is needed.
+"""How complex what arrives is, measured once by the reasoning authority, and read where it is needed.
 
-A task is scored as the queue takes it in (`QueueAuthority.add_task`, on its provenance), by the reasoning authority
-(`NeuralSymbolicBridge.complexity_of`); a task that comes with its score keeps it. Whether a request calls for what
-is remembered is the memory agent's, from that score (`MemoryAgent.calls_for_recall`): it never scores a request
-itself. No store: the queue runs without persistence.
+The score is the larger of two measured parts (`NeuralSymbolicBridge.complexity_of`): the thinking it asks for, by the
+kinds of thinking its meaning asks for and how hard each has been (`reasoning_difficulty`), between the easiest kind
+and the hardest; and what of it is unknown, the share of its words no taught construction holds or of its sentences
+nothing reads. Whether a request calls for what is remembered is the memory agent's, from that score
+(`MemoryAgent.calls_for_recall`): it never scores a request itself. No store.
 """
 
-import asyncio
-
-from core.agents.autonomous.queue_authority import QueueAuthority
-from core.agents.autonomous.shared_types import Priority, Task, TaskType
 from core.agents.memory_agent import MemoryAgent
-from core.reasoning.neural_bridge import get_neural_bridge
+from core.reasoning.neural_bridge import NeuralSymbolicBridge
+from core.semantics.derived_reader import Lexical, Meaning, MeaningFact, PatternInventory
+from core.semantics.sentence_machine import Piece
 
 
-def test_a_task_is_scored_by_the_reasoning_authority_as_the_queue_takes_it_in():
-    async def run():
-        authority = QueueAuthority({"persist": False})
-        said = "Why does the backup fail on Fridays, and how should the retention policy change?"
-        task = Task(id="arrives_scored", type=TaskType.ANALYSIS, priority=Priority.MEDIUM, description=said)
-        assert await authority.add_task(task, Priority.MEDIUM)
-        assert task.provenance["complexity"] == get_neural_bridge().complexity_of(said)
+def _knowing(*words):
+    """A view holding these words, each as a word taught."""
+    view = PatternInventory()
+    for word in words:
+        view.add(Lexical((Piece(word, True),), word))
+    return view
 
-        kept = Task(id="arrives_with_its_score", type=TaskType.ANALYSIS, priority=Priority.MEDIUM,
-                    description=said, provenance={"complexity": 0.1})
-        assert await authority.add_task(kept, Priority.MEDIUM)
-        assert kept.provenance["complexity"] == 0.1, "scored once: a task that came with its score keeps it"
 
-    asyncio.run(run())
+def test_the_thinking_asked_for_is_as_hard_as_its_hardest_kind():
+    bridge = NeuralSymbolicBridge()          # measured nothing yet: each kind at its declared prior
+    view = _knowing("smoke", "causes", "fire", "a", "robin", "is", "bird")
+    caused = Meaning("tell", (MeaningFact("causes", "smoke", "fire"),))
+    kind = Meaning("tell", (MeaningFact("isa", "robin", "bird"),))
+    assert bridge.complexity_of("smoke causes fire", caused, inventory=view) == 1.0, "causal: the hardest kind"
+    assert bridge.complexity_of("a robin is a bird", kind, inventory=view) == 0.0, "is-a: the easiest kind"
+
+
+def test_what_of_it_is_unknown_is_complexity():
+    bridge = NeuralSymbolicBridge()
+    view = _knowing("a", "robin", "is")
+    kind = Meaning("tell", (MeaningFact("isa", "robin", "zorbel"),))
+    assert bridge.complexity_of("a robin is zorbel", kind, inventory=view) == 0.25, "one word of four never met"
+    assert bridge.complexity_of("whatever this says", inventory=PatternInventory()) == 1.0, "nothing of it read"
+    assert bridge.complexity_of("", inventory=view) == 0.0
 
 
 def test_the_memory_agent_recalls_by_the_reasoning_authoritys_score():
-    bridge = get_neural_bridge()
-    complex_request = "Why does the backup fail on Fridays, and how should the retention policy change?"
-    assert MemoryAgent.calls_for_recall(complex_request, bridge.complexity_of(complex_request))
-    assert not MemoryAgent.calls_for_recall("list files", bridge.complexity_of("list files"))
+    assert MemoryAgent.calls_for_recall("why does the backup fail on Fridays", 0.5)
+    assert not MemoryAgent.calls_for_recall("list files", 0.0)
     assert MemoryAgent.calls_for_recall("what did we discuss last time", 0.0), "a request asking for memory is recalled for"
     assert not MemoryAgent.calls_for_recall("list files", None), "with no score, only a request asking for memory"
     assert not MemoryAgent.calls_for_recall("   ", 1.0)
