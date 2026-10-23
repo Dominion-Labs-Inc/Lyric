@@ -92,35 +92,15 @@ class Priority(Enum):
     CRITICAL = "critical"
 
 
-#: The rank of each priority, defined once.
-#:
-#: `unified.goals.priority` is an INTEGER column while Priority's values are
-#: strings, so persistence needs an ordinal. That ordinal already existed
-#: implicitly inside PlanningEngine.get_next_tasks's sort; naming it here keeps
-#: storage and ordering from drifting into two different answers about whether
-#: HIGH outranks MEDIUM.
+#: The rank of each priority, defined once, so every ordering by priority (the
+#: ranking of the substrate's own goals, `IntentAuthority.ranked_own_goals`)
+#: gives the same answer about whether HIGH outranks MEDIUM.
 PRIORITY_ORDINAL: Dict["Priority", int] = {
     Priority.LOW: 0,
     Priority.MEDIUM: 1,
     Priority.HIGH: 2,
     Priority.CRITICAL: 3,
 }
-
-_ORDINAL_PRIORITY: Dict[int, "Priority"] = {v: k for k, v in PRIORITY_ORDINAL.items()}
-
-
-def priority_from_ordinal(ordinal: Optional[int]) -> Priority:
-    """Reverse PRIORITY_ORDINAL. Unknown ranks raise rather than defaulting.
-
-    Silently returning MEDIUM for an unrecognised value would let a corrupted
-    row load as an ordinary goal, and the corruption would never be visible.
-    """
-    if ordinal not in _ORDINAL_PRIORITY:
-        raise ValueError(
-            f"priority ordinal {ordinal!r} is not one of "
-            f"{sorted(_ORDINAL_PRIORITY)}"
-        )
-    return _ORDINAL_PRIORITY[ordinal]
 
 
 class TaskSource(Enum):

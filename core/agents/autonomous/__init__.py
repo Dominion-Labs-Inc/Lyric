@@ -10,7 +10,6 @@ from .shared_types import (
     Task, Goal, Plan, PerceptionData, SystemState, LearningData
 )
 
-from .planning_engine import PlanningEngine
 from .autonomous_coordinator import (
     AutonomousCoordinator, create_autonomous_system, get_autonomous_coordinator)
 

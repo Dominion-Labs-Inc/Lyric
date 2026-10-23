@@ -40,6 +40,11 @@ P1 is the case that had no repair at all until now: replanning fired only on
 refutation, so a pursuit knocked off course by an ordinary change in the world
 stopped at the diverged step and stayed there with the goal still reading
 `active`. That was ours to fix, not a fact about the world.
+
+The repair is the pursuit's own (`_drive_substrate_goal`): when a walk stops it
+plans again, inside the same pursuit, when something is new since the route was
+proved. Each route is recorded on the pursuit's route intent, so the routes it
+tried are read there (`earlier_attempts`).
 """
 import asyncio
 import contextlib
@@ -48,6 +53,7 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
@@ -78,20 +84,42 @@ def check(name, passed, detail=""):
     print(f"  [{'PASS' if passed else 'FAIL'}] {name}" + (f" — {detail}" if detail else ""))
 
 
-async def forget_the_domain(store, engine=None):
+async def forget_the_domain():
     """Remove everything this experiment's own domain holds: its bindings, its
-    rules and their evidence, the demonstrations it practised, what waits to be
-    induced, and the goals and plans it drove. The domain id is this
-    experiment's alone, so nothing else is touched. Run at the start too, so the
-    operator the checks read is the one THIS run induced from acting, not one an
-    earlier run left behind."""
+    rules and their evidence, the demonstrations it practised, and what waits to
+    be induced. The domain id is this experiment's alone, so nothing else is
+    touched. Run at the start too, so the operator the checks read is the one
+    THIS run induced from acting, not one an earlier run left behind."""
     from experiments._domains import forget_domain
     await forget_domain(DOMAIN)
-    db = store.db()
-    for plan in list((engine.active_plans if engine else {}).values()):
-        if any((t.provenance or {}).get("domain_id") == DOMAIN for t in plan.tasks):
-            await db.execute_query("DELETE FROM unified.plans WHERE id = $1", (plan.id,))
-            await db.execute_query("DELETE FROM unified.goals WHERE id = $1", (plan.goal_id,))
+
+
+#: This run's own: a pursuit's route intent is keyed by its task, so a task id
+#: an earlier run used would return to that run's intent and its attempts.
+RUN = uuid.uuid4().hex[:8]
+ROUTE_INTENTS = []
+
+
+async def routes_tried(task_id):
+    """The routes a pursuit proved, read from its route intent: the one it holds
+    now, and every earlier attempt it planned again from."""
+    from core.reasoning.intent_authority import (
+        SUBSTRATE_ACTOR, continuity_goal, get_intent_authority)
+    held = await get_intent_authority().get(
+        SUBSTRATE_ACTOR, continuity_goal(f"{task_id}:route"))
+    if held is None:
+        return None, 0
+    ROUTE_INTENTS.append(held.intent_id)
+    return held, 1 + len(held.shape.get("earlier_attempts") or [])
+
+
+async def forget_the_routes():
+    """The route intents this run's pursuits formed."""
+    from core.reasoning.intent_authority import get_intent_authority
+    db = get_intent_authority().store.db
+    for table in ("unified.scoped_intents", "unified.intents"):
+        await db.execute_query(f"DELETE FROM {table} WHERE intent_id = ANY($1::text[])",
+                               (sorted(set(ROUTE_INTENTS)),), commit=True)
 
 
 async def main():
@@ -106,7 +134,6 @@ async def main():
     if not getattr(coordinator, "_reactive_worker", None):
         raise SystemExit("the reactive drain worker is not running.")
 
-    from core.agents.autonomous.planning_engine import PlanningEngine
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
     from core.agents.autonomous.shared_types import Priority, Task, TaskType
     from core.learning.exploration import derive_domain, take_up_workspace
@@ -127,7 +154,7 @@ async def main():
     def report_in(d):
         return sensed_fact("kind", "path", str(root / d / "report.txt"), "file")
 
-    await forget_the_domain(get_rule_store())
+    await forget_the_domain()
 
     # The sandbox a person hands over: this directory, and the act it may be
     # practised with. Everything else is the substrate's own doing.
@@ -143,10 +170,6 @@ async def main():
     check("it reads the real directory as its world",
           report_in("inbox") in (world.observe() or ()),
           f"{len(world.observe() or ())} fact(s)")
-
-    engine = PlanningEngine({"max_concurrent_tasks": 10_000})
-    assert await engine.initialize() is True
-    coordinator.planning = engine
 
     # ── the substrate acts in order to learn the operator ────────────────────
     print("\n== B. It ACTS IN ORDER TO LEARN — no demonstration is written here ==")
@@ -173,7 +196,7 @@ async def main():
         for c in cycles:
             print(f"    cycle: { {k: v for k, v in c.items() if k != 'demonstrations'} }")
         shutil.rmtree(root, ignore_errors=True)
-        await forget_the_domain(store, engine)
+        await forget_the_domain()
         await _record().verify_database()
         print(f"run record: {_record().write()}")
         return 1
@@ -189,7 +212,7 @@ async def main():
             shutil.move(str(stray), str(root / "inbox" / "report.txt"))
 
     def goal_task(label):
-        return Task(id=f"replan03_{label}", type=TaskType.EXECUTION,
+        return Task(id=f"replan03_{label}_{RUN}", type=TaskType.EXECUTION,
                     description="file the report",
                     priority=Priority.MEDIUM,
                     provenance={"domain_id": DOMAIN,
@@ -233,18 +256,12 @@ async def main():
 
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
         first = await coordinator.execute_task(goal_task("p1"))
-        reached = False
-        for _ in range(200):
-            await asyncio.sleep(0.1)
-            if where() == "archive":
-                reached = True
-                break
 
     registry.register(DOMAIN, original)
-    check("the first attempt did NOT reach the goal straight away",
-          first is not None and first.get("success") is False,
-          f"success={None if first is None else first.get('success')} "
-          f"stopped_at={None if first is None else first.get('stopped_at')}")
+    route_p1, tried_p1 = await routes_tried(f"replan03_p1_{RUN}")
+    check("the first route was knocked off course, and the SAME pursuit planned again",
+          moved_once["done"] and tried_p1 >= 2,
+          f"{tried_p1} route(s) recorded on the pursuit's route intent")
     moved = {r.rule_id: r.status for r in await store.load(domain_id=DOMAIN)}
     check("nothing was refuted — MOVE_FILE is still true of this world",
           standing and all(moved.get(rule_id) is not EpistemicStatus.REFUTED
@@ -252,7 +269,8 @@ async def main():
           f"{ {k[:14]: v.value for k, v in moved.items()} }; standing before: "
           f"{sorted(r[:14] for r in standing)}")
     check("IT REPLANNED FROM WHERE THE FILE ACTUALLY WENT AND FINISHED THE JOB",
-          reached and where() == "archive",
+          first is not None and first.get("success") is True and where() == "archive",
+          f"success={None if first is None else first.get('success')}; "
           f"report.txt is in {where()} (expected archive)")
 
     # ── P2: the destination is taken away ────────────────────────────────────
@@ -276,27 +294,26 @@ async def main():
           (root / "inbox" / "report.txt").exists()
           or (root / "review" / "report.txt").exists(),
           f"report.txt is in {where()}")
-    stale = [p for p in engine.active_plans.values()
-             if (p.metadata or {}).get("invalidated_by") == "route_went_stale"]
-    check("a route that stopped was recorded as WITHDRAWN, not left standing",
-          bool(stale) or second.get("planning_status") is not None,
-          f"{len(stale)} withdrawn for staleness; "
+    route_p2, _ = await routes_tried(f"replan03_p2_{RUN}")
+    check("the route that stopped was closed as NOT reached, not left standing",
+          route_p2 is not None and route_p2.concluded and route_p2.status != "fulfilled"
+          and (route_p2.outcome or {}).get("matched_aim") is False,
+          f"route intent {None if route_p2 is None else route_p2.status}; "
           f"planning_status={second.get('planning_status')}")
 
     # ── the loop guard ───────────────────────────────────────────────────────
     print("\n== E. Repair is driven by the world, not by a retry count ==")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        before_plans = len(engine.active_plans)
         third = await coordinator.execute_task(goal_task("p3"))
-        await asyncio.sleep(3)
-        after_plans = len(engine.active_plans)
+    _, tried_p3 = await routes_tried(f"replan03_p3_{RUN}")
     check("an unchanged world does not spawn endless replans",
-          after_plans - before_plans <= 2,
-          f"{before_plans} -> {after_plans} plans")
+          third is not None and third.get("success") is False and tried_p3 <= 2,
+          f"{tried_p3} route(s) tried before the pursuit ended")
 
     # ── cleanup ──────────────────────────────────────────────────────────────
     shutil.rmtree(root, ignore_errors=True)
-    await forget_the_domain(store, engine)
+    await forget_the_domain()
+    await forget_the_routes()
 
     passed = sum(1 for c in CHECKS if c["passed"])
     print("\n" + "=" * 64)

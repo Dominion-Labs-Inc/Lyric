@@ -52,7 +52,7 @@ been verified in the sandbox, and that run names `lyric_db` on purpose.
 | [THREAT-SENSE-02](THREAT-SENSE-02/) | Whether the substrate knows WHAT it is attacked with, and answers a campaign against a target in proportion (quarantine, escalating, human-lifted) | `results/` + `.md` |
 | [CONSOLIDATION-01](CONSOLIDATION-01/) | Standing check: the Constitution is the ONE authority — nothing reaches the deleted governance and security modules — and every capability it absorbed works | `results/` + `.md` |
 | [BEARING-01](BEARING-01/) | What the substrate perceives may move belief, affect and intent — and never permission | `results/` + `.md` |
-| [TASK-GATE-01](TASK-GATE-01/) | A route the constitution replanned is withdrawn, and the task boundary refuses nothing else | `results/` + `.md` |
+| [TASK-GATE-01](TASK-GATE-01/) | A route the constitution replanned is planned again without the refused act, a step of a pursuit it sent back does not start, and the task boundary refuses nothing else | `results/` + `.md` |
 | [TASK-GATE-02](TASK-GATE-02/) | Whether the task gate asks INTENT if the pursuit a task serves is still live, and refuses nothing whose pursuit is live | `results/` + `.md` |
 | [PURSUIT-01](PURSUIT-01/) | Whether every piece of work carries the intent it serves, and its pursuit ends with what ended it — the constitution's verdict, never `abandoned` | `results/` + `.md` |
 | [DOMAIN-DISCOVERY-01](DOMAIN-DISCOVERY-01/) | Whether the substrate DECIDES which domains exist, or only files whatever string a caller passed | `results/` + `.md` |
@@ -105,9 +105,11 @@ been verified in the sandbox, and that run names `lyric_db` on purpose.
 
 | Experiment | What it tests | Saved runs |
 |---|---|---|
-| [PLANNING-01](PLANNING-01/) | One planning authority, and every planning path verified honest — proved plans grounded, unreachable goals yield no plan, template plans declare where their numbers came from | `results/` |
+| [PLANNING-01](PLANNING-01/) | One owner for each kind of plan (temporal reasoning for state goals, the execution plan adapter for goals in words), and every planning path verified honest — proved plans grounded, unreachable goals yield no plan, template plans declare where their numbers came from | `results/` |
 | [REPLAN-02](REPLAN-02/) | Knocked off course by a world its learned rule no longer fits, the substrate refutes the rule, replans from where the file really is, and still gets it there | `results/` + `.md` (JSON only before 2026-09-26) |
 | [REPLAN-03](REPLAN-03/) | Its own operator, learned by practice in a directory it was given, pursued while the world changes under it: replans when something else moves the file, does not claim a goal the world refused | `results/` |
+| [REPLAN-01](REPLAN-01/) | A pursuit whose rule the world refutes plans again inside itself, over what is still validated; one with nothing new is not planned again, and one whose world cannot be read is never planned against an invented world | `results/` |
+| [RESEARCH-WRITE-01](RESEARCH-WRITE-01/) | A goal in words, set as the substrate's own (`set_goal`): its pursuit decomposes it, researches the topic, writes what it learned to the file it names, and reads it back before the goal is closed | `results/` + `.md` |
 
 Record: `docs/research/BENCHMARKS.md` §6.
 

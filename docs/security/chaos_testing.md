@@ -13,7 +13,7 @@ If your memory system crashes when MySQL is slow, better to find out in testing 
 - **Learning**: Continuous learning pipeline, pattern recognition, model training
 - **Security**: WAF, malware sandbox, threat intelligence
 - **Reasoning**: Hypothesis testing, neural bridge, Bayesian inference
-- **Agents**: Governance queue, task executor, planning engine
+- **Agents**: Governance queue, task executor, planning
 - **Domain**: Cross-domain reasoner, ontology registry
 - **Memory**: MySQL hot tier, R2 cold tier, capability tokens
 - **Tools**: Tool registry, database connections, external APIs

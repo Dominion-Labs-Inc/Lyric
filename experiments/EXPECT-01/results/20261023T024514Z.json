@@ -1,0 +1,237 @@
+{
+  "experiment": "EXPECT-01",
+  "claim": "Lyric learns what a person's world does on its own, expects it by a time it learned, and when the world does not do it, decides on evidence whether it was wrong (it learns) or the world departed (its own event, acted on as her operating mode allows). A tendency is never acted on, a waiting expectation survives a restart, and charging every miss to the regularity loses the departures.",
+  "hypothesis": "A departure missed, a confirmation taken for a departure, a refuted regularity after a departure, an action taken on a tendency or on Lyric's own mistake, a mode not honoured, an expectation lost at a restart, or an ablation that detects as much would each show here.",
+  "started_at": "2026-10-23T02:45:14.783229+00:00",
+  "duration_seconds": 245.202,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 100,
+    "database_verified": null,
+    "database_verified_reason": "no initialized connection in this process"
+  },
+  "summary": {
+    "checks": 20,
+    "passed": 20,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "moves_to_validate",
+      "value": 3,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "confirmations_to_rely",
+      "value": 5,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "txt_expected",
+      "value": 4,
+      "unit": "count",
+      "note": "tentative expectations of a txt moving"
+    },
+    {
+      "name": "departures_detected",
+      "value": 6,
+      "unit": "count",
+      "note": "of 6 left behind"
+    },
+    {
+      "name": "told",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "offered",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "goals",
+      "value": 2,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "tendency_unmet",
+      "value": 8,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "ablation_noticed",
+      "value": 1,
+      "unit": "count",
+      "note": "of 6 left behind"
+    },
+    {
+      "name": "seconds",
+      "value": 245.2,
+      "unit": "s",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is in the sandbox",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-10-23T02:46:18.049220+00:00"
+    },
+    {
+      "label": "the other person's moves are learned as a regularity, with Lyric doing nothing",
+      "passed": true,
+      "detail": "3 moves; ['AT(?X0, INBOX) \u2192 AT(?X0, DONE) \u2296 AT(?X0, INBOX)', 'KIND(?X0, pdf) \u2192 AT(?X0, DONE) \u2296 AT(?X0, INBOX)']",
+      "at": "2026-10-23T02:46:20.534528+00:00"
+    },
+    {
+      "label": "a regularity of the world, never an operator: nothing of it can be executed",
+      "passed": true,
+      "detail": "['world_regularity', 'world_regularity']",
+      "at": "2026-10-23T02:46:20.534560+00:00"
+    },
+    {
+      "label": "how long the change takes is learned from the moves",
+      "passed": true,
+      "detail": "3 timed, longest 0.91s",
+      "at": "2026-10-23T02:46:20.563485+00:00"
+    },
+    {
+      "label": "each expected move is confirmed, until the regularity is relied on in her world",
+      "passed": true,
+      "detail": "5 confirmations; 5 confirmed of 5",
+      "at": "2026-10-23T02:46:26.026974+00:00"
+    },
+    {
+      "label": "no txt miss is taken for the world departing: each is Lyric's own mistake, or never expected",
+      "passed": true,
+      "detail": "4 txt expectation(s), 4 told apart",
+      "at": "2026-10-23T02:46:27.898594+00:00"
+    },
+    {
+      "label": "after it, a txt in the inbox is not expected to move",
+      "passed": true,
+      "detail": "['unmet', 'unmet', 'unmet']",
+      "at": "2026-10-23T02:46:27.906141+00:00"
+    },
+    {
+      "label": "and nothing was said or done for her about a txt",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-23T02:46:27.907490+00:00"
+    },
+    {
+      "label": "every pdf left behind lapses at its due time, by Lyric's own reading, as the world departing, and is answered",
+      "passed": true,
+      "detail": "[('observe', 'pdf014', [('unmet', 'external_failure')], [True]), ('observe', 'pdf017', [('unmet', 'external_failure')], [True]), ('assist', 'pdf023', [('unmet', 'external_failure')], [True]), ('assist', 'pdf029', [('unmet', 'external_failure')], [True]), ('delegate', 'pdf035', [('unmet', 'external_failure')], [True]), ('delegate', 'pdf040', [('unmet', 'external_failure')], [True])]",
+      "at": "2026-10-23T02:47:20.609610+00:00"
+    },
+    {
+      "label": "and the regularity is not refuted by it",
+      "passed": true,
+      "detail": "[('rule_8a5c428e1dd0', 'refuted'), ('rule_d38e7b26d4db', 'validated')]",
+      "at": "2026-10-23T02:47:20.610689+00:00"
+    },
+    {
+      "label": "Observe: she is told what was expected and that it has not happened",
+      "passed": true,
+      "detail": "['In expect01_main_abd69a, I expected AT(pdf014, DONE), no longer AT(pdf014, INBOX) by 2026-', 'In expect01_main_abd69a, I expected AT(pdf017, DONE), no longer AT(pdf017, INBOX) by 2026-']",
+      "at": "2026-10-23T02:47:20.612094+00:00"
+    },
+    {
+      "label": "Assist: she is asked whether it should be put right, and the goal waits for her yes",
+      "passed": true,
+      "detail": "['efore. It has not. Shall I put it right?', 'efore. It has not. Shall I put it right?']",
+      "at": "2026-10-23T02:47:20.612115+00:00"
+    },
+    {
+      "label": "Delegate: a goal of Lyric's own forms for her, that the expected change holds",
+      "passed": true,
+      "detail": "[('expect_exp_98c7138b29e63d46', ['AT(pdf035, DONE)', '\u00acAT(pdf035, INBOX)']), ('expect_exp_f0dca049b4a001e0', ['AT(pdf040, DONE)', '\u00acAT(pdf040, INBOX)'])]",
+      "at": "2026-10-23T02:47:20.612130+00:00"
+    },
+    {
+      "label": "and she is told how each goal ended",
+      "passed": true,
+      "detail": "['I couldn\\'t do \"Put right what was expected in expect01_main_abd69a: AT(pdf035, DONE), no longer AT(pdf035, INBOX)\". Vali', 'I couldn\\'t do \"Put right what was expected in expect01_main_abd69a: AT(pdf040, DONE), no longer AT(pdf040, INBOX)\". Vali']",
+      "at": "2026-10-23T02:47:23.976356+00:00"
+    },
+    {
+      "label": "a step taken every other time is never relied on, and nothing is done for her about it",
+      "passed": true,
+      "detail": "learned after 3; 8 unmet; relied on: False; messages 8->8",
+      "at": "2026-10-23T02:47:36.519147+00:00"
+    },
+    {
+      "label": "charged to the regularity, a miss refutes it and no departure is ever raised, where her honest world kept its regularity through the same misses",
+      "passed": true,
+      "detail": "departures 0 (honest: 6); validated after: 0; noticed 1",
+      "at": "2026-10-23T02:47:47.425048+00:00"
+    },
+    {
+      "label": "its expectation is waiting when the process stops",
+      "passed": true,
+      "detail": "1",
+      "at": "2026-10-23T02:47:51.663525+00:00"
+    },
+    {
+      "label": "after a restart it is settled, by the fresh process's own reading, as the world departing",
+      "passed": true,
+      "detail": "('unmet', 'external_failure')",
+      "at": "2026-10-23T02:49:19.946722+00:00"
+    },
+    {
+      "label": "and she is told, as her mode (Observe) allows",
+      "passed": true,
+      "detail": "['In expect01_main_abd69a, I expected AT(pdf078, DONE), no longer AT(pdf078, INBOX']",
+      "at": "2026-10-23T02:49:19.946840+00:00"
+    },
+    {
+      "label": "the restarted process ran to its end",
+      "passed": true,
+      "detail": "exit 0; 2 checks",
+      "at": "2026-10-23T02:49:19.946871+00:00"
+    }
+  ],
+  "notes": [
+    "nonce abd69a"
+  ]
+}

@@ -4117,17 +4117,6 @@ class MemoryAgent(IMemoryConsolidation):
             commit=True,
         )
 
-    async def mark_rule_authority_changes_consumed(self, *, event_ids: List[str],
-                                                   consumer: str) -> List[Any]:
-        """Claim these changes for `consumer`. Returns only the rows this call
-        claimed; ones already consumed are left alone."""
-        return await self._memory_db().execute_query(
-            "UPDATE unified.rule_authority_events SET consumed_at = NOW(), consumed_by = $1"
-            " WHERE event_id = ANY($2::varchar[]) AND consumed_at IS NULL"
-            " RETURNING event_id",
-            (consumer, event_ids), fetch_all=True,
-        )
-
     async def hold_conditional(self, *, conditional_id: str, ant_subject: str,
                                ant_relation: str, ant_object: Any, ant_positive: bool,
                                cons_subject: str, cons_relation: str, cons_object: Any,

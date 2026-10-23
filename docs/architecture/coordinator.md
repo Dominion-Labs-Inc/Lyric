@@ -53,7 +53,7 @@ Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async sin
 - **`_drive_substrate_goal(task)`** (11194) — plans a STATE goal over learned operators; the re-observed world decides success.
 - **`_execute_operation(task)`** (11861) — the ONE operation path (no per-TaskType switch): declared tools or the knowledge loop.
 - `_execute_declared_tools` (11889) · `_answer_via_knowledge_loop` (11953, via the single `understand` loop) · `_run_tool` (11708) · `_appraise_tool_outcome` (11779) · `_observe_tool_belief` (11845) · `_record_tool_metrics` (11822) · `_record_execution_demonstration` (11556) · `_appraise_substrate_execution` (11656) · `_execute_drive_goal` (6116, an intrinsic DRIVE goal as real learning).
-- Bring-up: `initialize_execution_faculty` (11004, binds `tool_registry`), `_ensure_dotenv_loaded` (11027), `_config_value` (11069), `_observe_world` (11085), `_derive_goal_spec` (11101), `_get_planning_engine` (11175).
+- Bring-up: `initialize_execution_faculty` (11004, binds `tool_registry`), `_ensure_dotenv_loaded` (11027), `_config_value` (11069), `_observe_world` (11085), `_derive_goal_spec` (11101), `_pursue_described_goal` (17760).
 - Adaptive type/experience: `_task_family_for`, `_record_adaptive_type_outcome`, `_record_experience_outcome`, **`_select_adaptive_task_type`** (the MetaLearner's CONTROL `tasktype:` arms; **None when no arm passes the production gate** — the exploration cycle then queues no task for that goal this cycle, and the decision still counts toward the exploration budget; the keyword match on the description that used to answer is deleted), `_recall_similar_task_experience` (8005), `_select_retry_method` (8060), `_extract_task_outcome` (7977).
 
 #### D — Grounded completion (DID / SAW belief pipeline)

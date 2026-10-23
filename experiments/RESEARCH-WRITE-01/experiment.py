@@ -5,13 +5,15 @@ write what it learned to a file, and verify the file before calling it done.
 WHY THIS AND NOT ANOTHER FILE-MOVE. Every operator the store held was a file
 relocation relearned in a sandbox, and the experiments that produced them all
 handed the substrate a tool and a pair of paths. That measures the harness. This
-gives it a GOAL, in words, and nothing else: the live planning engine decomposes
-it, the live queue orders it, the live coordinator executes it, the live
-knowledge loop does the research, and completion is judged by re-reading the
-world rather than by the tool's own report.
+gives it a GOAL, in words, and nothing else: it is set the way the substrate
+sets its own (`set_goal`), the live queue hands it out, its pursuit decomposes
+it and walks the steps through the live coordinator, the live knowledge loop
+does the research, and completion is judged by re-reading the world rather than
+by the tool's own report.
 
 WHAT IT TOUCHES, all of it live and none of it stubbed:
-    planning engine     create_goal -> generate_plan -> get_next_tasks
+    goals               set_goal -> its intent -> the queue
+    the pursuit         _pursue_described_goal -> plan_described_goal -> each step
     knowledge loop      `understand` — memory, then reasoning, then a gap
     tool usage          whatever the substrate decides to run
     verification        the file is read BACK and its contents checked
@@ -47,7 +49,7 @@ EV = RunRecord(
     claim=("Given a goal in words and no tool, the live substrate researches the "
            "topic, writes what it learned to a file, and verifies the file before "
            "calling the goal done."),
-    hypothesis=("If planning decomposes the goal, the knowledge loop does the "
+    hypothesis=("If the pursuit decomposes the goal, the knowledge loop does the "
                 "research, the creation step makes the declared artefact, and "
                 "completion re-reads the world, then the file exists with researched "
                 "content and completion is claimed only after reading it back."))
@@ -72,14 +74,24 @@ async def main():
         coordinator = system.autonomous_coordinator
 
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
-    from core.agents.autonomous.shared_types import Priority, SystemState
+    from core.agents.autonomous.shared_types import Priority, SUBSTRATE_ACTOR
     from core.database.unified_database_postgres import LyricUnifiedDatabase
+    from core.reasoning.intent_authority import continuity_goal, get_intent_authority
 
     check("the registry names the LIVE substrate",
           get_autonomous_coordinator() is coordinator)
-    planning = coordinator.planning
-    check("the LIVE planning engine is attached", planning is not None,
-          type(planning).__name__ if planning else "none")
+
+    # WHAT THE PURSUIT DID, recorded as it returns it. The queue keeps a failed
+    # job's error and not its steps, so the steps are read where they are made.
+    walked = {}
+    _pursue = coordinator._pursue_described_goal
+
+    async def recorded_pursuit(task):
+        out = await _pursue(task)
+        if out is not None:
+            walked[task.id] = out
+        return out
+    coordinator._pursue_described_goal = recorded_pursuit
 
     db = LyricUnifiedDatabase()
     if not db.initialized:
@@ -102,72 +114,48 @@ async def main():
                    f"learned at {target}")
     print(f"    goal: {description}")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        goal = await planning.create_goal(description, Priority.HIGH)
-        plan = await planning.generate_plan(getattr(goal, "goal_id", None)
-                                            or getattr(goal, "id", None))
-    check("the LIVE planning engine accepted the goal",
-          goal is not None, f"goal_id={getattr(goal, 'goal_id', None)}")
-    steps = list(getattr(plan, "tasks", None) or []) if plan else []
-    check("and decomposed it into a plan",
-          bool(steps), f"{len(steps)} step(s): "
-          f"{[(t.type.name, t.description[:34]) for t in steps][:4]}")
+        goal_id = await coordinator.set_goal(description, Priority.HIGH)
+    check("the substrate took the goal on", goal_id is not None, f"goal_id={goal_id}")
+    held = await get_intent_authority().get(
+        SUBSTRATE_ACTOR, continuity_goal(goal_id)) if goal_id else None
+    check("the goal IS its intent, how much it matters on its shape",
+          held is not None and held.origin_kind == "self_goal"
+          and held.shape.get("priority") == Priority.HIGH.value and held.aim == description,
+          f"intent={getattr(held, 'intent_id', None)} "
+          f"priority={(held.shape if held else {}).get('priority')}")
 
-    # ── B. the queue orders the work ─────────────────────────────────────────
+    # ── B. the queue hands the work out ──────────────────────────────────────
     print("\n== B. The live queue hands the work out ==")
-    with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        try:
-            # A real snapshot. `SystemState` is a dataclass, not an enum —
-            # `SystemState.IDLE` raises, and an experiment that swallows that
-            # reports the QUEUE as empty when it was never asked.
-            queued = await planning.get_next_tasks(SystemState())
-            queue_error = None
-        except Exception as e:
-            queued, queue_error = [], f"{type(e).__name__}: {e}"
-    if queue_error:
-        print(f"    get_next_tasks raised: {queue_error}")
-    check("the queue returned work to do",
-          bool(queued), f"{len(queued)} task(s) ready")
+    first = await coordinator.task_queue.result_for(goal_id, actor=SUBSTRATE_ACTOR) \
+        if goal_id else {"status": "not_found"}
+    check("the goal was queued as work, for the one dispatcher",
+          first.get("status") not in (None, "not_found"), f"status={first.get('status')}")
+    # A PURSUIT IS NOT ONE STEP. It is waited on until the queue says it ended,
+    # which is the queue's own answer, not a sleep that might pass for one.
+    ended = first
+    while goal_id and ended.get("status") not in ("completed", "failed", "not_found"):
+        await asyncio.sleep(0.5)
+        ended = await coordinator.task_queue.result_for(goal_id, actor=SUBSTRATE_ACTOR)
+    check("the live loop ran it to an ending",
+          ended.get("status") in ("completed", "failed"), f"status={ended.get('status')}")
 
-    # ── C. the substrate works the plan until it drains ─────────────────────
-    print("\n== C. The live coordinator works the plan to the end ==")
-    from core.agents.autonomous.shared_types import TaskStatus
-
-    ours = {t.id for t in steps}
-    stale = [t for t in (queued or []) if t.id not in ours]
-    results, rounds = [], 0
-    # A PLAN IS NOT ONE ROUND. The create step depends on the research it writes
-    # up, so it is correctly withheld until that completes — and a driver that
-    # executes one batch and stops reports the artefact missing when it was
-    # simply never reached.
-    while rounds < 14:
-        rounds += 1
-        with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-            ready = await planning.get_next_tasks(SystemState())
-        if not ready:
-            break
-        # WORK WHATEVER THE QUEUE HANDS OUT, which is what a live substrate
-        # does. Skipping other plans' steps leaves them PENDING, so they keep
-        # their dispatch slots and this goal never gets one — the experiment
-        # would be starving itself and calling it a defect.
-        for task in ready:
-            with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-                outcome = await coordinator.execute_task(task)
-            ok = bool(outcome and outcome.get("success"))
-            # Nothing in production advances a template plan's task status, so
-            # the driver records what happened. A step that failed is left
-            # PENDING, which is what keeps its dependents honestly blocked.
-            task.status = TaskStatus.COMPLETED if ok else TaskStatus.FAILED
-            if task.id in ours:
-                results.append((task, outcome))
-                print(f"    r{rounds} {task.type.name:<10} "
-                      f"{task.description[:44]:<44} success={ok}")
-    if stale:
-        print(f"    (queue also held {len(stale)} stale task(s) from earlier runs: "
-              f"{sorted({t.description[:22] for t in stale})})")
-    check("every step of OUR plan was reached and ran",
-          len(results) >= len(steps),
-          f"{len(results)}/{len(steps)} step(s) run over {rounds} round(s); "
-          f"{sum(1 for _t, o in results if o and o.get('success'))} succeeded")
+    # ── C. the pursuit decomposed the goal and walked every step ─────────────
+    print("\n== C. Its pursuit decomposes the goal and walks it to the end ==")
+    pursued = walked.get(goal_id) or {}
+    steps = list(pursued.get("steps") or [])
+    for step in steps:
+        print(f"    {step['type']:<10} {str(step['description'])[:44]:<44} "
+              f"success={step['success']}")
+    held = await get_intent_authority().get(
+        SUBSTRATE_ACTOR, continuity_goal(goal_id)) if goal_id else None
+    planned = int((held.shape if held else {}).get("steps") or 0)
+    check("and decomposed it into steps, recorded on the goal's intent",
+          planned > 0 and bool((held.shape if held else {}).get("step_kinds")),
+          f"{planned} step(s): {(held.shape if held else {}).get('step_kinds')}")
+    check("every step of the plan was reached and ran",
+          planned > 0 and len(steps) == planned,
+          f"{len(steps)}/{planned} step(s) run; "
+          f"{sum(1 for st in steps if st['success'])} succeeded")
 
     # ── D. did it actually LEARN anything ────────────────────────────────────
     print("\n== D. Research means knowledge changed, not a step marked done ==")
@@ -216,6 +204,14 @@ async def main():
           demos_after > demos_before,
           f"demonstrations {demos_before} -> {demos_after}")
 
+    # ── G. the pursuit is closed with how it ended ───────────────────────────
+    print("\n== G. The goal's intent is closed with how it ended ==")
+    closed = await get_intent_authority().get_by_id(held.intent_id) if held else None
+    check("the goal's intent is concluded, not left `active`",
+          closed is not None and closed.concluded,
+          f"status={getattr(closed, 'status', None)}")
+
+    coordinator._pursue_described_goal = _pursue
     shutil.rmtree(workspace, ignore_errors=True)
     passed = sum(1 for c in CHECKS if c["passed"])
     await EV.verify_database()

@@ -446,6 +446,11 @@ class IntentStore:
             (intent_id,), fetch_one=True)
         if not row:
             return None
+        return self._shape_row(row)
+
+    @staticmethod
+    def _shape_row(row: Any) -> Intent:
+        """A shape row as the actor-free view of its intent."""
         return Intent(
             intent_id=row["intent_id"], origin_kind=row["origin_kind"], actor="",
             continuity_key="", parent_intent_id=row["parent_intent_id"],
@@ -453,6 +458,19 @@ class IntentStore:
             outcome=_blob(row["outcome"]), status=row["status"],
             version=row["version"], created_at=row["created_at"],
             updated_at=row["updated_at"])
+
+    async def live_goals_of(self, origin_kind: str) -> List[Intent]:
+        """The live intents of one kind that are goals with a priority set,
+        as the actor-free shape view."""
+        await self._ready()
+        rows = await self.db.execute_query(
+            "SELECT intent_id, parent_intent_id, origin_kind, shape, outcome, "
+            "       status, version, created_at, updated_at "
+            "FROM unified.intents "
+            "WHERE origin_kind = $1 AND status = ANY($2::text[]) "
+            "  AND shape->>'priority' IS NOT NULL AND shape->'intrinsic' IS NOT NULL",
+            (origin_kind, list(LIVE)), fetch_all=True) or []
+        return [self._shape_row(row) for row in rows]
 
     async def standing(self, stale_after_hours: int = 24) -> Dict[str, Any]:
         """WHAT THE SUBSTRATE IS PURSUING RIGHT NOW, substrate-wide.
@@ -715,6 +733,27 @@ class IntentAuthority:
         pursuing goals nobody closed — is a property of the set, not of any
         member of it."""
         return await self.store.standing(stale_after_hours)
+
+    async def ranked_own_goals(self, intrinsic_weight: float = 0.3) -> List[Intent]:
+        """The goals the substrate set itself that are still live, the one most
+        worth pursuing first.
+
+        Each is weighed by the priority it was set with and the intrinsic reward
+        it was expected to bring, both recorded on its shape when it was set
+        (`AutonomousCoordinator._goal_shape`). `intrinsic_weight` is how much
+        the second counts: 0.0 is priority alone, 1.0 intrinsic motivation
+        alone. A priority counts as its rank among the priorities, the lowest a
+        quarter and the highest whole. Shape only, so the ranking never reads
+        whose request anything was."""
+        from core.agents.autonomous.shared_types import PRIORITY_ORDINAL, Priority
+
+        def worth(intent: Intent) -> float:
+            rank = PRIORITY_ORDINAL[Priority(str(intent.shape["priority"]))]
+            external = (rank + 1) / len(PRIORITY_ORDINAL)
+            potential = float(intent.shape["intrinsic"]["intrinsic_reward_potential"])
+            return (1.0 - intrinsic_weight) * external + intrinsic_weight * potential
+
+        return sorted(await self.store.live_goals_of("self_goal"), key=worth, reverse=True)
 
     async def forget_actor(self, actor: str) -> int:
         """Profile deletion. Content and continuity go; the anonymous shape stays."""

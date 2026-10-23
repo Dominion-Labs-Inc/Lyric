@@ -94,7 +94,7 @@ that owns it; everything else reads from that owner.
 | What has been learned to do, and whether it may be acted on | Rule store and rule authority |
 | What the system is trying to achieve | Intent authority (within the reasoning authority) |
 | Whether an act may happen | The constitution |
-| How plans are formed | Planning engine |
+| How plans are formed | Temporal reasoning (routes, by search) and the execution plan adapter (steps, and goals in words) |
 | What a domain is, and the system's standing in it | Domain authority |
 | What is learned, from any source | Learning authority |
 | How the system stands toward its situation | Appraisal |

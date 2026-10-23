@@ -1,0 +1,147 @@
+{
+  "experiment": "TASK-GATE-01",
+  "claim": "A route the constitution replanned is planned again without the act it refused, a step of a pursuit it sent back does not start, and the task boundary refuses nothing else.",
+  "hypothesis": "If a REPLAN verdict is answered inside the pursuit that walked the route, and the task boundary reads the pursuit's own record rather than re-judging the act, then a refused route stays refused without any ordinary task being refused.",
+  "started_at": "2026-10-23T01:30:06.541496+00:00",
+  "duration_seconds": 62.483,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 66,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 14,
+    "passed": 14,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "tasks_refused_at_gate",
+      "value": 3,
+      "unit": "tasks",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the pursuit plans again",
+      "passed": true,
+      "detail": "the constitution sent the route back under Law 2",
+      "at": "2026-10-23T01:31:09.002866+00:00"
+    },
+    {
+      "label": "and says WHY, in the constitution's own words",
+      "passed": true,
+      "detail": "the constitution sent the route back under Law 2",
+      "at": "2026-10-23T01:31:09.002909+00:00"
+    },
+    {
+      "label": "the next route leaves out the act the law refused",
+      "passed": true,
+      "detail": "left out: MOVE_FILE(note.txt, inbox, archive)",
+      "at": "2026-10-23T01:31:09.002920+00:00"
+    },
+    {
+      "label": "NO rule is blamed for the constitution's own refusal",
+      "passed": true,
+      "detail": "the constitution sent the route back under Law 2",
+      "at": "2026-10-23T01:31:09.006415+00:00"
+    },
+    {
+      "label": "an ALLOW, with nothing new, sends nothing back",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.007134+00:00"
+    },
+    {
+      "label": "the task boundary refuses it",
+      "passed": true,
+      "detail": "the constitution replanned the pursuit it is a step of (Law 2: would move a file with no current reading of it",
+      "at": "2026-10-23T01:31:09.013880+00:00"
+    },
+    {
+      "label": "and names the pursuit and the law that sent it back",
+      "passed": true,
+      "detail": "replanned",
+      "at": "2026-10-23T01:31:09.013899+00:00"
+    },
+    {
+      "label": "a task belonging to no pursuit proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.016514+00:00"
+    },
+    {
+      "label": "a task on a LIVE pursuit proceeds",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.016531+00:00"
+    },
+    {
+      "label": "an imperative DESCRIPTION is not treated as a directive",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.016558+00:00"
+    },
+    {
+      "label": "a pursuit whose record cannot be read is not treated as ended",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.016594+00:00"
+    },
+    {
+      "label": "the halt is asked of the LAW, and refuses the task",
+      "passed": true,
+      "detail": "Law 5: research is refused because this substrate is HALTED: TASK-GATE-01 pro",
+      "at": "2026-10-23T01:31:09.017655+00:00"
+    },
+    {
+      "label": "and lifting the halt lets work begin again",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:31:09.018023+00:00"
+    },
+    {
+      "label": "a boundary that could not be asked refuses, never permits",
+      "passed": true,
+      "detail": "whether work may begin could not be established (RuntimeError: the law could not be reache",
+      "at": "2026-10-23T01:31:09.018049+00:00"
+    }
+  ],
+  "notes": [
+    "E and F are the negative controls: the gate is a backstop made of state reads, and refuses no ordinary work."
+  ]
+}

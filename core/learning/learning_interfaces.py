@@ -34,9 +34,9 @@ context had been applied, from a body that read neither the context nor
 anything else. It named neither what is adapted nor from what evidence, which
 is why nothing could call it. The two mechanisms that really do adapt
 behaviour say both: `MetaLearner.adapt_strategies(task_type: TaskFamily)`
-adjusts strategy parameters from measured posteriors, and
-`adapt_plan(plan_id, feedback) -> ExecutionPlan` revises one plan given
-specific feedback. An interface for the vague third thing would imply somebody
+adjusts strategy parameters from measured posteriors, and a pursuit whose
+route stops plans again when something is new since it was proved
+(`AutonomousCoordinator._worth_planning_again`). An interface for the vague third thing would imply somebody
 should provide it.
 
 `predict_optimal_retry_delay` went the same way: its body returned a hardcoded

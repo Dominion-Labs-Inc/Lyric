@@ -1,23 +1,25 @@
 """The whole loop, on the production path, with no model involved.
 
-    persistent learned rule -> state goal -> PlanningEngine -> grounding ->
-    state search -> ordered task chain -> durable plan -> restart ->
-    only step A runnable -> A completes -> B becomes runnable
+    persistent learned rule -> state goal -> temporal reasoning (grounding ->
+    state search) -> the route recorded on its intent -> ordered task chain
 
 Each severance below removes exactly one link and asserts the loop stops in the
 way that link's absence should cause -- so a pass is evidence the link carries
 the capability rather than merely accompanying it.
+
+The route is planned by `TemporalReasoningSystem.plan_state_goal` and turned into
+steps by the drive's own `_route_of`, which records it on the pursuit's intent.
+No plan is stored to reload: the intent is the route's durable account, and the
+drive walks the steps in order (`_pursue_proved_route`).
 """
 import pytest
 import pytest_asyncio
 
+from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
 from core.agents.autonomous.execution_plan_adapter import (
-    PlanValidationError, validate_task_chain,
+    PlanValidationError, plan_described_goal, validate_task_chain,
 )
-from core.agents.autonomous.planning_engine import PlanningEngine
-from core.agents.autonomous.shared_types import (
-    GoalType, Priority, SystemState, Task, TaskStatus, TaskType,
-)
+from core.agents.autonomous.shared_types import Goal, Priority, Task, TaskType
 from core.learning.rule_induction import Fact, TrainingExample, get_rule_inducer
 from core.learning.rule_store import EpistemicStatus, RuleStore
 # THE MODEL-FREE GUARD IS GONE, AND SO IS WHAT IT GUARDED AGAINST.
@@ -27,7 +29,10 @@ from core.learning.rule_store import EpistemicStatus, RuleStore
 # CONSTRUCTION -- there is no longer a policy to set, because there is nothing to
 # set it against. The guard's subject is gone; the subject of these tests is not,
 # and they had been uncollectable ever since.
-from core.reasoning.temporal_reasoning import PlanningStatus
+from core.reasoning.intent_authority import (
+    IntentAuthority, SUBSTRATE_ACTOR, continuity_goal,
+)
+from core.reasoning.temporal_reasoning import PlanningStatus, TemporalReasoningSystem
 
 F = Fact.parse
 DOMAIN = "test_learn_plan_act"
@@ -69,7 +74,7 @@ HELD_OUT = [move("f", "R11", "R12", "h1"), move("g", "R13", "R14", "h2")]
 
 @pytest_asyncio.fixture
 async def substrate():
-    """A validated, persisted learned rule and an initialized engine."""
+    """A validated, persisted learned rule, and the planner."""
     store = RuleStore()
     await store.ensure_schema()
     stored = (await store.record_induction(
@@ -77,16 +82,8 @@ async def substrate():
         domain_id=DOMAIN, rule_kind="move"))[0]
     await store.validate(stored, HELD_OUT)
 
-    engine = PlanningEngine({})
-    assert await engine.initialize() is True
+    yield TemporalReasoningSystem(), store, stored
 
-    yield engine, store, stored
-
-    await engine.connection.execute_query(
-        "DELETE FROM plans WHERE goal_id IN (SELECT id FROM goals WHERE description LIKE $1)",
-        params=(f"{PROBE}%",), commit=True)
-    await engine.connection.execute_query(
-        "DELETE FROM goals WHERE description LIKE $1", params=(f"{PROBE}%",), commit=True)
     await store.db().execute_query(
         "DELETE FROM unified.rule_authority_events WHERE rule_id IN"
         " (SELECT rule_id FROM unified.learned_rules WHERE domain_id = $1)", (DOMAIN,))
@@ -97,102 +94,92 @@ async def substrate():
         "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
 
 
-async def _state_goal(engine, description=f"{PROBE} reach the vault"):
-    goal = await engine.create_goal(description, Priority.HIGH)
-    goal.state_conditions = list(GOAL_CONDITIONS)
-    return goal
+def _pursuit(description=f"{PROBE} reach the vault"):
+    from uuid import uuid4
+    return Task(id=f"{PROBE}_{uuid4().hex[:8]}", type=TaskType.EXECUTION,
+                description=description, priority=Priority.HIGH)
 
 
-def _context():
-    return {"world_state": list(WORLD), "domain_id": DOMAIN}
+async def _route(world=WORLD):
+    """The route the drive would walk for the goal, planned the drive's one way
+    (`_plan_route`), and the task pursuing it."""
+    pursuing = _pursuit()
+    outcome, route = await AutonomousCoordinator()._plan_route(
+        pursuing, list(GOAL_CONDITIONS), list(world), DOMAIN)
+    assert outcome.status is PlanningStatus.PLAN_FOUND, outcome.reason
+    return pursuing, route
 
 
 # ------------------------------------------------------------------ the loop
 
 @pytest.mark.asyncio
 async def test_a_state_goal_is_planned_by_search_not_templates(substrate):
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    assert goal.goal_type is GoalType.STATE
+    planner, _, _ = substrate
+    _, route = await _route()
 
-    outcome = await engine.plan_for_goal(goal.id, _context())
-
-    assert outcome.status is PlanningStatus.PLAN_FOUND
-    assert outcome.planning_mode == "state"
-    assert [t.description for t in outcome.plan.tasks] == [
+    assert route.metadata["planning_mode"] == "state"
+    assert [t.description for t in route.tasks] == [
         "MOVE(z, HALL, LAB)", "MOVE(z, LAB, VAULT)"]
+
+
+@pytest.mark.asyncio
+async def test_the_route_declares_what_it_was_formed_on(substrate):
+    """A state plan says what it was formed on, each from its owner: the world
+    it was proved against, the operators learned, and what has been earned in
+    the domain. What could not be had is reported as missing, never filled."""
+    planner, _, _ = substrate
+    _, route = await _route()
+    inputs = route.metadata["inputs"]
+
+    assert inputs["kind"] == "state"
+    assert inputs["required"] == ["observed_world", "learned_operators",
+                                  "operating_reliability"]
+    gathered = inputs["gathered"]
+    assert gathered["observed_world"]["facts"] >= len(WORLD)
+    assert gathered["learned_operators"]["source"] == "rule store"
+    assert {m["input"] for m in inputs["missing"]} | set(gathered) == set(inputs["required"])
 
 
 @pytest.mark.asyncio
 async def test_the_task_chain_preserves_the_proof_order(substrate):
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    tasks = (await engine.plan_for_goal(goal.id, _context())).plan.tasks
+    planner, _, _ = substrate
+    _, route = await _route()
 
-    assert tasks[0].dependencies == []
-    assert tasks[1].dependencies == [tasks[0].id]
-
-
-@pytest.mark.asyncio
-async def test_only_the_first_step_is_runnable_until_it_completes(substrate):
-    """get_next_tasks sorts by priority and returns several at once, so without
-    the chain both moves would be offered together and run out of order."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    tasks = (await engine.plan_for_goal(goal.id, _context())).plan.tasks
-    state = SystemState()
-
-    # SCOPED TO THIS PLAN. get_next_tasks offers runnable work across every
-    # active plan, and the store holds real ones, so asserting on the whole
-    # result made this a claim about the queue rather than about the dependency
-    # chain -- and it failed the moment any other plan was live.
-    mine = {t.id for t in tasks}
-
-    runnable = [t.id for t in await engine.get_next_tasks(state) if t.id in mine]
-    assert runnable == [tasks[0].id]
-
-    tasks[0].status = TaskStatus.COMPLETED
-    runnable = [t.id for t in await engine.get_next_tasks(state) if t.id in mine]
-    assert runnable == [tasks[1].id]
+    assert route.tasks[0].dependencies == []
+    assert route.tasks[1].dependencies == [route.tasks[0].id]
 
 
 @pytest.mark.asyncio
-async def test_the_plan_and_its_order_survive_a_restart(substrate):
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    plan = (await engine.plan_for_goal(goal.id, _context())).plan
+async def test_the_route_and_its_order_survive_on_its_intent(substrate):
+    """The route's durable account is its intent. A fresh authority -- what a
+    restarted process has -- reads back the operators in proof order and the
+    rule that licenses them."""
+    planner, _, stored = substrate
+    pursuing, route = await _route()
 
-    reloaded = PlanningEngine({})
-    assert await reloaded.initialize() is True
-    recovered = reloaded.active_plans[plan.id]
-
-    assert [t.description for t in recovered.tasks] == [
-        "MOVE(z, HALL, LAB)", "MOVE(z, LAB, VAULT)"]
-    assert recovered.tasks[1].dependencies == [recovered.tasks[0].id]
-
-    mine = {t.id for t in recovered.tasks}
-    runnable = [t.id for t in await reloaded.get_next_tasks(SystemState())
-                if t.id in mine]
-    assert runnable == [recovered.tasks[0].id], (
-        "after a restart only the first step may be runnable"
-    )
+    recorded = route.metadata["intent"]
+    assert recorded.get("recorded"), recorded
+    held = await IntentAuthority().get(SUBSTRATE_ACTOR,
+                                       continuity_goal(f"{pursuing.id}:route"))
+    assert held is not None and held.intent_id == recorded["intent_id"]
+    assert held.shape["operators"] == ["MOVE(z, HALL, LAB)", "MOVE(z, LAB, VAULT)"]
+    assert held.shape["goal_conditions"] == GOAL_CONDITIONS
+    assert stored.rule_id in held.shape["rule_ids"]
+    assert held.proved and held.stated()
+    assert all(t.provenance["intent_id"] == held.intent_id for t in route.tasks)
 
 
 @pytest.mark.asyncio
 async def test_provenance_traces_a_task_to_the_learned_rule(substrate):
     """Not only what Lyric did, but which acquired experience authorised it."""
-    engine, _, stored = substrate
-    goal = await _state_goal(engine)
-    plan = (await engine.plan_for_goal(goal.id, _context())).plan
-
-    reloaded = PlanningEngine({})
-    await reloaded.initialize()
-    provenance = reloaded.active_plans[plan.id].tasks[1].provenance
+    planner, _, stored = substrate
+    pursuing, route = await _route()
+    provenance = route.tasks[1].provenance
 
     assert provenance["learned_rule_id"] == stored.rule_id
     assert provenance["planning_mode"] == "state"
-    assert provenance["goal_id"] == goal.id
-    assert provenance["predecessor_task_id"] == plan.tasks[0].id
+    assert provenance["goal_id"] == pursuing.id
+    assert provenance["predecessor_task_id"] == route.tasks[0].id
     assert provenance["grounding_complete"] is True
 
 
@@ -201,13 +188,12 @@ async def test_provenance_traces_a_task_to_the_learned_rule(substrate):
 @pytest.mark.asyncio
 async def test_demoting_the_rule_removes_the_capability(substrate):
     """The execution gate the ablation proved causal, reached through planning."""
-    engine, store, stored = substrate
+    planner, store, stored = substrate
     await store.db().execute_query(
         "UPDATE unified.learned_rules SET epistemic_status = $1 WHERE rule_id = $2",
         (EpistemicStatus.SUPPORTED.value, stored.rule_id))
 
-    goal = await _state_goal(engine)
-    outcome = await engine.plan_for_goal(goal.id, _context())
+    outcome = await planner.plan_state_goal(list(GOAL_CONDITIONS), list(WORLD), DOMAIN)
 
     assert outcome.status is not PlanningStatus.PLAN_FOUND
     assert outcome.operators_considered == 0
@@ -217,26 +203,21 @@ async def test_demoting_the_rule_removes_the_capability(substrate):
 async def test_a_sealed_vault_is_unreachable_not_replanned_as_a_template(substrate):
     """The defect this whole design exists to prevent: an honest planning
     failure becoming Research -> Analyze -> Execute."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
+    planner, _, _ = substrate
     sealed = [c for c in WORLD if c != "OPEN(VAULT)"]
 
-    outcome = await engine.plan_for_goal(
-        goal.id, {"world_state": sealed, "domain_id": DOMAIN})
+    outcome = await planner.plan_state_goal(list(GOAL_CONDITIONS), sealed, DOMAIN)
 
     assert outcome.status is PlanningStatus.UNREACHABLE
-    assert outcome.plan is None
-    assert outcome.planning_mode == "state"
+    assert outcome.route is None
 
 
 @pytest.mark.asyncio
 async def test_truncated_grounding_reports_indeterminate_never_unreachable(substrate):
     """Unreached is not unreachable. Claiming impossibility from an operator set
     Lyric failed to enumerate would be a false proof about the world."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
+    planner, _, _ = substrate
 
-    import core.agents.autonomous.planning_engine as engine_module
     from core.learning import rule_grounding
 
     real = rule_grounding.ground_for_problem
@@ -249,7 +230,7 @@ async def test_truncated_grounding_reports_indeterminate_never_unreachable(subst
 
     rule_grounding.ground_for_problem = truncated
     try:
-        outcome = await engine.plan_for_goal(goal.id, _context())
+        outcome = await planner.plan_state_goal(list(GOAL_CONDITIONS), list(WORLD), DOMAIN)
     finally:
         rule_grounding.ground_for_problem = real
 
@@ -260,32 +241,31 @@ async def test_truncated_grounding_reports_indeterminate_never_unreachable(subst
 
 @pytest.mark.asyncio
 async def test_a_state_goal_is_refused_by_the_template_planner(substrate):
-    """Mode is chosen by goal type. The template path must be unreachable for a
-    state goal even when called directly, and it refuses by saying so rather
-    than returning what a broken planner would."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
+    """Mode is chosen by goal type. The decomposition of a goal in words must be
+    unreachable for a state goal even when called directly, and it refuses by
+    saying so rather than returning what a broken planner would."""
+    goal = Goal(id=f"{PROBE}_state", description=f"{PROBE} reach the vault",
+                priority=Priority.HIGH, state_conditions=list(GOAL_CONDITIONS))
     with pytest.raises(ValueError, match="must be planned by search"):
-        await engine.generate_plan(goal.id, _context())
+        await plan_described_goal(goal)
 
 
 @pytest.mark.asyncio
 async def test_a_descriptive_goal_still_uses_templates(substrate):
-    engine, _, _ = substrate
-    goal = await engine.create_goal(f"{PROBE} research widgets", Priority.LOW)
+    goal = Goal(id=f"{PROBE}_words", description=f"{PROBE} research widgets",
+                priority=Priority.LOW)
 
-    outcome = await engine.plan_for_goal(goal.id, {})
-    assert outcome.planning_mode == "template"
-    assert outcome.status is PlanningStatus.PLAN_FOUND
+    steps, claims = await plan_described_goal(goal)
+    assert claims["planning_mode"] == "template"
+    assert steps, "a goal in words was decomposed into no work"
 
 
 @pytest.mark.asyncio
 async def test_a_state_goal_without_a_world_is_indeterminate(substrate):
     """Assuming an empty world would make every goal unreachable for a reason
     about the caller rather than the world."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    outcome = await engine.plan_for_goal(goal.id, {"domain_id": DOMAIN})
+    planner, _, _ = substrate
+    outcome = await planner.plan_state_goal(list(GOAL_CONDITIONS), None, DOMAIN)
     assert outcome.status is PlanningStatus.INDETERMINATE
 
 
@@ -296,7 +276,7 @@ def _chain_task(identifier, dependencies):
                 dependencies=list(dependencies))
 
 
-def test_a_malformed_chain_is_refused_before_persistence():
+def test_a_malformed_chain_is_refused_before_it_is_handed_on():
     with pytest.raises(PlanValidationError, match="duplicate"):
         validate_task_chain([_chain_task("a", []), _chain_task("a", [])])
 
@@ -313,20 +293,3 @@ def test_a_malformed_chain_is_refused_before_persistence():
 def test_a_valid_chain_passes():
     validate_task_chain([_chain_task("a", []), _chain_task("b", ["a"]),
                          _chain_task("c", ["b"])])
-
-
-@pytest.mark.asyncio
-async def test_a_corrupted_dependency_blocks_execution(substrate):
-    """The runtime half of the invariant: validation prevents a bad chain being
-    created, this refuses to run one that became bad afterwards."""
-    engine, _, _ = substrate
-    goal = await _state_goal(engine)
-    tasks = (await engine.plan_for_goal(goal.id, _context())).plan.tasks
-
-    tasks[0].status = TaskStatus.COMPLETED
-    tasks[1].dependencies = ["a-task-that-does-not-exist"]
-
-    runnable = await engine.get_next_tasks(SystemState())
-    assert tasks[1].id not in [t.id for t in runnable], (
-        "an unresolvable dependency must block, not read as no blocker"
-    )

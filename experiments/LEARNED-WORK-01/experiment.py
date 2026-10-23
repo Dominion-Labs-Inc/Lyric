@@ -12,7 +12,7 @@ not already hold (pipeline corrosion and cathodic protection), then watches:
                  lesson contradicts, and one it was never taught
   C  CAN DO      asked, before trying, whether it can do two tasks
   D  DOES        a research-and-report goal in plain words through the front door, the same
-                 goal through the planning engine, and an inspection report to judge
+                 goal set as the substrate's own (`set_goal`), and an inspection report to judge
   E  AFTER       its confidence after the work, the same "can you" asked again, and the
                  same goal a second time
 
@@ -38,6 +38,10 @@ import tempfile
 import time
 from pathlib import Path
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -217,27 +221,42 @@ async def ask(coord, message, **kw):
     return outcome
 
 
+async def pursued(coord, description):
+    """A goal in words, set the way the substrate sets its own goals (`set_goal`)
+    and worked by the live loop to its end: the steps its pursuit walked, as they
+    ran. The queue keeps a failed job's error and not its steps, so the steps
+    are read where the pursuit returns them."""
+    from core.agents.autonomous.shared_types import Priority, SUBSTRATE_ACTOR
+    walked = {}
+    real = coord._pursue_described_goal
+
+    async def recorded(task):
+        out = await real(task)
+        if out is not None:
+            walked[task.id] = out
+        return out
+    coord._pursue_described_goal = recorded
+    try:
+        goal_id = await coord.set_goal(description, Priority.HIGH)
+        while goal_id:
+            ended = await coord.task_queue.result_for(goal_id, actor=SUBSTRATE_ACTOR)
+            if ended.get("status") in ("completed", "failed", "not_found"):
+                break
+            await asyncio.sleep(0.5)
+    finally:
+        coord._pursue_described_goal = real
+    return list((walked.get(goal_id) or {}).get("steps") or [])
+
+
 async def planned(coord, description):
-    """A goal given to the planning engine, worked to the end the way the live loop does."""
-    from core.agents.autonomous.shared_types import Priority, SystemState, TaskStatus
-    planning = coord.planning
-    goal = await planning.create_goal(description, Priority.HIGH)
-    plan = await planning.generate_plan(getattr(goal, "goal_id", None) or getattr(goal, "id", None))
-    steps = list(getattr(plan, "tasks", None) or []) if plan else []
-    ours = {t.id for t in steps}
-    say(f"    plan: {[(t.type.name, t.description[:60]) for t in steps]}")
+    """A goal in words given to the substrate as its own, worked to the end the way the live loop does."""
+    steps = await pursued(coord, description)
+    say(f"    plan: {[(st['type'], str(st['description'])[:60]) for st in steps]}")
     done = []
-    for _ in range(14):
-        ready = [t for t in await planning.get_next_tasks(SystemState()) if t.id in ours]
-        if not ready:
-            break
-        for task in ready:
-            outcome = await coord.execute_task(task)
-            ok = bool(outcome and outcome.get("success"))
-            task.status = TaskStatus.COMPLETED if ok else TaskStatus.FAILED
-            done.append((task.type.name, ok))
-            say(f"    step {task.type.name:<10} success={ok} method={(outcome or {}).get('method')} "
-                f"— {said(outcome)[:400]}")
+    for st in steps:
+        done.append((st["type"], st["success"]))
+        say(f"    step {st['type']:<10} success={st['success']} "
+            f"— {str(st.get('error') or st.get('verification_state') or '')[:400]}")
     return steps, done
 
 
@@ -302,7 +321,7 @@ async def main() -> int:
         observe("D1 learned", f"{await learned_since(d, t_d1)}")
         observe("D1 file", plain_path.read_text()[:1500] if plain_path.exists() else "not written")
 
-        say("\n-- D2. The same goal, given to the planning engine --")
+        say("\n-- D2. The same goal, set as the substrate's own --")
         plan_path = work / "report_planned.md"
         t_d2 = time.time()
         steps, done = await planned(

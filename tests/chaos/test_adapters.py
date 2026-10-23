@@ -117,7 +117,7 @@ class TestAgentSystemAdapter:
         """Test planning error injection"""
         handle = await adapter.inject_error(
             target_id="test_exp",
-            component="planning_engine",
+            component="planning",
             injection_point="plan_generation",
             error_type="PlanningError",
             error_rate=0.1

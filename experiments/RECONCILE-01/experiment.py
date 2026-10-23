@@ -34,6 +34,10 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -82,7 +86,6 @@ def make_task(description, provenance=None, metadata=None):
 
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.agents.autonomous.shared_types import Priority
     from core.intelligence.effect_verification import RuntimeOutcome
     from core.tools.tool_registry import get_binding_registry
     from core.perception.perception_faculty import observe_world
@@ -91,7 +94,6 @@ async def main():
     from core.learning.rule_induction import Fact
     from core.learning.rule_store import EpistemicStatus, get_rule_store
     from core.reasoning.intent_authority import get_intent_authority
-    from core.reasoning.temporal_reasoning import PlanningStatus
 
     IA = get_intent_authority()
     store = get_rule_store()
@@ -124,7 +126,6 @@ async def main():
     # the substrate learned from its own acts, taught here if it is not there.
     check("the MOVE_FILE operator is held, or taught", await ensure_taught())
     check("execution faculty up", await coord.initialize_execution_faculty())
-    await coord.planning.initialize()
     take_up_workspace(DOMAIN, str(root))
     binding = get_binding_registry().get(DOMAIN, "MOVE_FILE")
 
@@ -149,27 +150,13 @@ async def main():
     pending_before = {tuple(row) for row in await demos.pending_signatures()}
     _append = demos.append
 
-    async def recorded_append(example, *, domain_id):
-        written = await _append(example, domain_id=domain_id)
+    async def recorded_append(example, **kwargs):
+        # Everything the store's own `append` takes is passed on as given.
+        written = await _append(example, **kwargs)
         if written:          # every domain: its reading steps file into `tools:path` too
             filed.append(example.evidence_id)
         return written
     demos.append = recorded_append
-
-    # EVERY GOAL THIS RUN CREATES IS REMOVED WITH IT. The cleanup used to delete
-    # the intents it formed and leave the goals and plans that name them — so
-    # each run left `active` goals ("[substrate goal] archive a and b") pointing
-    # at intents that no longer exist. Recorded here, at the one place goals are
-    # made, including the goal case A's drive creates internally.
-    created_goals = []
-    _create_goal = coord.planning.create_goal
-
-    async def recorded_goal(*args, **kwargs):
-        made = await _create_goal(*args, **kwargs)
-        if made is not None:
-            created_goals.append(made.id)
-        return made
-    coord.planning.create_goal = recorded_goal
 
     # ── instrumentation: count closes, run them unchanged ──────────────────
     closes = []
@@ -187,20 +174,20 @@ async def main():
         return [c for c in closes if c["intent_id"] == str(intent_id)]
 
     async def prove(conditions, label):
+        """A route proved the way the drive proves one (`_plan_route`): the
+        planner's verdict, the route, and the intent it is recorded as."""
         world = observe_world(DOMAIN) or set()
-        g = await coord.planning.create_goal(label, Priority.MEDIUM,
-                                             state_conditions=conditions)
-        out = await coord.planning.plan_for_goal(
-            g.id, {"world_state": [str(f) for f in world], "domain_id": DOMAIN})
-        if out.status is not PlanningStatus.PLAN_FOUND:
-            return out, None
-        iid = ((out.plan.metadata or {}).get("intent") or {}).get("intent_id")
+        out, route = await coord._plan_route(
+            make_task(label), conditions, [str(f) for f in world], DOMAIN)
+        if route is None:
+            return out, None, None
+        iid = ((route.metadata or {}).get("intent") or {}).get("intent_id")
         if iid:
             formed.add(iid)
         rested_on.update(t.provenance.get("learned_rule_id")
-                         for t in out.plan.tasks
+                         for t in route.tasks
                          if (t.provenance or {}).get("learned_rule_id"))
-        return out, iid
+        return out, route, iid
 
     def operator_step(plan):
         return next(t for t in plan.tasks
@@ -244,9 +231,9 @@ async def main():
 
     # ── B. a plan STEP is not the owner ────────────────────────────────────
     print("\n== B. A plan step runs but leaves the plan's intent to its owner ==")
-    out_b, iid_b = await prove(goal("step"), "archive step")
+    out_b, route_b, iid_b = await prove(goal("step"), "archive step")
     check("a route is proved", iid_b is not None, out_b.reason)
-    step_b = operator_step(out_b.plan)
+    step_b = operator_step(route_b)
     await read("step")
     res_b = await coord.execute_task(step_b)
     check("the step ran through the operator path and confirmed",
@@ -259,8 +246,8 @@ async def main():
 
     # ── C. STANDALONE operator owns its pursuit ────────────────────────────
     print("\n== C. A standalone operator closes its own intent ==")
-    out_c, iid_c = await prove(goal("solo"), "archive solo")
-    prov_c = dict(operator_step(out_c.plan).provenance)
+    out_c, route_c, iid_c = await prove(goal("solo"), "archive solo")
+    prov_c = dict(operator_step(route_c).provenance)
     prov_c.pop("plan_id", None)          # the same proved act, owned by no plan
     await read("solo")
     res_c = await coord.execute_task(make_task(prov_c["grounded_operator"], prov_c))
@@ -275,8 +262,8 @@ async def main():
 
     # ── D. the world decides: a confirmed step can still miss the intent ───
     print("\n== D. A step that confirmed its rule, but missed the intent ==")
-    out_d, iid_d = await prove(goal("stray"), "archive stray")
-    prov_d = dict(operator_step(out_d.plan).provenance)
+    out_d, route_d, iid_d = await prove(goal("stray"), "archive stray")
+    prov_d = dict(operator_step(route_d).provenance)
     prov_d.pop("plan_id", None)
     elsewhere = Fact("MOVE_FILE", (term("path", str(root / "inbox" / "stray.txt")),
                                    term("path", str(root / "elsewhere" / "stray.txt")))).to_formula()
@@ -304,8 +291,8 @@ async def main():
     # moved under it. The route is proved, then the file is relocated before the
     # act, and the executor refuses because its precondition no longer holds in
     # the observed world. A refused standalone operator, owning its pursuit.
-    out_e, iid_e = await prove(goal("moved"), "archive moved")
-    prov_e = dict(operator_step(out_e.plan).provenance)
+    out_e, route_e, iid_e = await prove(goal("moved"), "archive moved")
+    prov_e = dict(operator_step(route_e).provenance)
     prov_e.pop("plan_id", None)
     (root / "inbox" / "moved.txt").rename(root / "elsewhere" / "moved.txt")
     res_e = await coord.execute_task(make_task(prov_e["grounded_operator"], prov_e))
@@ -323,8 +310,8 @@ async def main():
 
     # ── F. OPERATION owner (declared tools) ────────────────────────────────
     print("\n== F. A declared-tool operation closes its own intent ==")
-    out_f, iid_f = await prove(goal("tool"), "archive tool")
-    args_f = binding.parameters(Fact.parse(operator_step(out_f.plan).description).args)
+    out_f, route_f, iid_f = await prove(goal("tool"), "archive tool")
+    args_f = binding.parameters(Fact.parse(operator_step(route_f).description).args)
     await read("tool")
     task_f = make_task("move tool.txt with a declared tool",
                        provenance={"intent_id": iid_f, "domain_id": DOMAIN},
@@ -340,8 +327,8 @@ async def main():
 
     # ── G. an operation that is a plan step does not close ─────────────────
     print("\n== G. A declared-tool plan step leaves the intent to its owner ==")
-    out_g, iid_g = await prove(goal("toolstep"), "archive toolstep")
-    step_g = operator_step(out_g.plan)
+    out_g, route_g, iid_g = await prove(goal("toolstep"), "archive toolstep")
+    step_g = operator_step(route_g)
     args_g = binding.parameters(Fact.parse(step_g.description).args)
     await read("toolstep")
     task_g = make_task("move toolstep.txt as a plan step",
@@ -369,7 +356,6 @@ async def main():
     # Self-cleaning
     coord._reconcile_intent = original
     await IA.store._ready()
-    coord.planning.create_goal = _create_goal
     del demos.append                     # the store's own method again
     if filed:
         await IA.store.db.execute_query(
@@ -385,18 +371,6 @@ async def main():
             "DELETE FROM unified.scoped_intents WHERE intent_id = $1", (intent_id,), commit=True)
         await IA.store.db.execute_query(
             "DELETE FROM unified.intents WHERE intent_id = $1", (intent_id,), commit=True)
-    if created_goals:
-        await IA.store.db.execute_query(
-            "DELETE FROM unified.plans WHERE goal_id = ANY($1::text[])",
-            (created_goals,), commit=True)
-        await IA.store.db.execute_query(
-            "DELETE FROM unified.goals WHERE id::text = ANY($1::text[])",
-            (created_goals,), commit=True)
-    for gid in created_goals:
-        coord.planning.current_goals.pop(gid, None)
-    for pid in [p.id for p in coord.planning.active_plans.values()
-                if p.goal_id in set(created_goals)]:
-        coord.planning.active_plans.pop(pid, None)
 
     await EV.verify_database()
     EV.write()

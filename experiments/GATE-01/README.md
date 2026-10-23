@@ -68,7 +68,7 @@ other law requires. Law 2's transparency test already carried that exemption; La
 
 ## What is real here, and what is not
 
-Real: the constitution, the tool registry, the intent authority, the planning engine, the rule store, the
+Real: the constitution, the tool registry, the intent authority, the planner (temporal reasoning), the rule store, the
 binding registry, real tools acting on real files, real Postgres. Refusals are checked against the
 filesystem, not against the gate's own report.
 

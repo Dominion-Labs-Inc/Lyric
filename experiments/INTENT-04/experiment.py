@@ -32,6 +32,10 @@ from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -89,7 +93,7 @@ async def drive(coord, root, domain, conditions, description):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
     from core.agents.autonomous.appraisal import get_appraisal_system
-    from core.agents.autonomous.shared_types import Priority
+    from core.agents.autonomous.shared_types import Task, TaskType
     from core.perception.perception_faculty import observe_world
     from core.perception.perception_faculty import sensed_fact
     from core.learning.rule_induction import Fact
@@ -118,7 +122,6 @@ async def main():
 
     coord = AutonomousCoordinator()
     check("execution faculty up", await coord.initialize_execution_faculty())
-    await coord.planning.initialize()
     def archived(name):
         # "Archive it", in perception's words: it is a file in archive, and is
         # no longer one in the inbox.
@@ -178,19 +181,18 @@ async def main():
     second = root / "inbox" / "second.txt"
     second.write_text("this one is never acted on\n")
     miss_goal = archived("second.txt")
-    goal2 = await coord.planning.create_goal(
-        "archive the second file", Priority.MEDIUM, state_conditions=miss_goal)
     world2 = observe_world(DOMAIN) or set()
-    out2 = await coord.planning.plan_for_goal(
-        goal2.id, {"world_state": [str(f) for f in world2], "domain_id": DOMAIN})
+    out2, route2 = await coord._plan_route(
+        Task(id=uuid4().hex, type=TaskType.EXECUTION, description="archive the second file"),
+        miss_goal, [str(f) for f in world2], DOMAIN)
     check("a route is proved for the second goal",
           out2.status is PlanningStatus.PLAN_FOUND, out2.reason)
-    miss_intent_id = ((out2.plan.metadata or {}).get("intent") or {}).get("intent_id")
+    miss_intent_id = ((route2.metadata or {}).get("intent") or {}).get("intent_id")
     created.append(miss_intent_id)
 
     # The plan is NOT run, so the world still does not satisfy the goal.
     reconciled2 = await coord._reconcile_plan_intent(
-        out2.plan, DOMAIN, goal_conditions=miss_goal,
+        route2, DOMAIN, goal_conditions=miss_goal,
         detail="the route was proved but not carried out")
     check("reconciliation reads the WORLD, and says missed",
           bool(reconciled2) and reconciled2["matched_aim"] is False

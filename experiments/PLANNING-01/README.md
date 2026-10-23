@@ -1,15 +1,18 @@
 # PLANNING-01 — one planning authority, every planning step verified honest
 
-**What it tests.** The planning faculty is what gives the substrate the ability to make plans, and
-`self.planning` is the only place a plan is formed or operated on. This checks that claim, and for each
-planning path that what it reports is **true** — a plan it calls proved really is proved, and a failure is
-reported as a failure rather than quietly becoming a plausible-looking plan.
+**What it tests.** Each kind of plan has one owner. A goal stated over world state is planned by search,
+temporal reasoning's `plan_state_goal`, asked by the drive through `_plan_route`, which records the proved
+route on the pursuit's intent. A goal stated in words is decomposed into the work it names by the execution
+plan adapter (`plan_described_goal`). No planning engine is held beside them (it was dissolved into these
+owners on 2026-10-22). This checks that claim, and for each planning path that what it reports is **true** —
+a plan it calls proved really is proved, and a failure is reported as a failure rather than quietly becoming
+a plausible-looking plan.
 
 Real coordinator, real rule store, real learned operators, real Postgres. Nothing mocked.
 
 | Section | What it establishes |
 |---|---|
-| A · One authority | the planner **is** `self.planning`; goals made through it are the goals it plans |
+| A · One owner each | no planning engine exists beside temporal reasoning and the adapter |
 | B · True positive | a state goal with a real operator route plans by search, and every step is grounded in a learned rule; a proved plan states confidence 1.0 because it is proved, not estimated |
 | C · No false positive | a state goal with no route returns UNREACHABLE with a real reason and **no plan** |
 | D · The guard | template decomposition produces no plan for a state goal, and that refusal is **distinguishable from a generic failure** |
@@ -107,3 +110,7 @@ absorbed hierarchical method, and declared inputs routed through their owners. T
 entries in `temporal_reasoning` were removed. `_derive_goal_spec` / `_observe_world` deliberately stay with
 the coordinator: it is the coordinator that observes the environment, and re-observing is how the substrate
 verifies it achieved a goal.
+
+**2026-10-22: 35/35** on `lyric_dev` (`20261023T013109Z`), through the new owners. A run the same evening on
+`lyric_db` by mistake (`20261023T012207Z`, 35/35) taught `MOVE_FILE` into main through `ensure_taught`; see lab
+notebook (36). It defaults to `lyric_dev` now.

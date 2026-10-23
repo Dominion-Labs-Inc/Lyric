@@ -1,0 +1,114 @@
+{
+  "experiment": "REPLAN-02",
+  "claim": "Knocked off course by a world that no longer behaves as its learned rule says, the substrate refutes that rule, replans from where the file actually is over what is still validated, and gets it there anyway.",
+  "hypothesis": "If a contradicted operator loses execution authority and the route standing on it is planned again from a fresh observation, then one polluted operator does not strand the goal.",
+  "started_at": "2026-10-23T01:18:18.623987+00:00",
+  "duration_seconds": 67.148,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 58,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 10,
+    "passed": 10,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "constructing an AutonomousCoordinator anywhere would displace it",
+      "at": "2026-10-23T01:19:19.971535+00:00"
+    },
+    {
+      "label": "the substrate holds BOTH movers as executable knowledge",
+      "passed": true,
+      "detail": "{'SBMOVE': 'validated', 'SBHAUL': 'validated'}",
+      "at": "2026-10-23T01:19:20.019806+00:00"
+    },
+    {
+      "label": "it planned a route on its own and acted",
+      "passed": true,
+      "detail": "path=substrate_plan steps=1",
+      "at": "2026-10-23T01:19:25.764034+00:00"
+    },
+    {
+      "label": "the polluted world defeated the FIRST route \u2014 it did not reach LAB by it",
+      "passed": true,
+      "detail": "1 earlier route(s); first ended abandoned",
+      "at": "2026-10-23T01:19:25.764045+00:00"
+    },
+    {
+      "label": "SBMOVE was REFUTED by the world",
+      "passed": true,
+      "detail": "status=refuted",
+      "at": "2026-10-23T01:19:25.764951+00:00"
+    },
+    {
+      "label": "SBHAUL was NOT touched \u2014 one bad operator is not all of them",
+      "passed": true,
+      "detail": "status=validated",
+      "at": "2026-10-23T01:19:25.764958+00:00"
+    },
+    {
+      "label": "THE SUBSTRATE GOT z TO LAB \u2014 it planned again and carried it out",
+      "passed": true,
+      "detail": "success=True; z is in LAB",
+      "at": "2026-10-23T01:19:25.765209+00:00"
+    },
+    {
+      "label": "the new route is over SBHAUL, not the refuted operator",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)']",
+      "at": "2026-10-23T01:19:25.765219+00:00"
+    },
+    {
+      "label": "it replanned FROM WHERE z ACTUALLY WAS, not from the remembered world",
+      "passed": true,
+      "detail": "route=['SBHAUL(z, ANNEX, LAB)'] \u2014 a remembered world would start from HALL",
+      "at": "2026-10-23T01:19:25.765225+00:00"
+    },
+    {
+      "label": "the replanned pursuit carries a reconciled outcome",
+      "passed": true,
+      "detail": "route intent fulfilled: {'detail': '1 step(s) ran', 'intent_id': 'f2acdc02a68f4da98dc62aebf843097d', 'matched_aim': True, 'outcome_class': 'success', 'goal_conditions': ['SBAT(z, LAB)'], 'goal_conditions_met': ['SBAT(z, LAB)']}",
+      "at": "2026-10-23T01:19:25.765231+00:00"
+    }
+  ],
+  "notes": []
+}

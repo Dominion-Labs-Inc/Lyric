@@ -151,6 +151,33 @@ class PlanningStatus(Enum):
     UNSUPPORTED_GOAL = "unsupported_goal"
 
 
+@dataclass
+class PlanningOutcome:
+    """What planning a state goal established, and from what.
+
+    Returned instead of a plan-or-None so a caller can tell UNREACHABLE (proved
+    impossible) from INDETERMINATE (not established) from UNSUPPORTED_GOAL.
+    Collapsing those into None is what let the absence of a plan look like an
+    ordinary result. On PLAN_FOUND it carries the proved route (`route`, the
+    search's result), the operators it was offered (`grounding`), and the world
+    it was proved against (`world`): a route is a route FROM a state, and
+    whether that state still holds is the first question when a pursuit stops.
+    """
+
+    status: PlanningStatus
+    reason: str = ""
+    goal_conditions: List[str] = field(default_factory=list)
+    grounding_complete: bool = True
+    operators_considered: int = 0
+    route: Any = None
+    grounding: Any = None
+    world: List[Any] = field(default_factory=list)
+
+    @property
+    def found(self) -> bool:
+        return self.status is PlanningStatus.PLAN_FOUND
+
+
 class PlanOutcome(Enum):
     """What planning established, status and guarantee read together.
 
@@ -663,6 +690,95 @@ class TemporalReasoningSystem:
     # MULTI-STEP PLANNING
     # ==================================================================================
     
+    async def plan_state_goal(self, goal_conditions: List[str], world_state: List[Any],
+                              domain_id: Optional[str], *,
+                              leaving_out: Tuple[str, ...] = ()) -> PlanningOutcome:
+        """Plan a goal stated over a world's state, over the operators the
+        substrate has learned there: the planner's whole job, from what the
+        caller observed to a proved route or an honest verdict.
+
+        `leaving_out` names grounded acts the search may not use: a route the
+        constitution sent back ("not this route") is planned again without the
+        act it refused, so a REPLAN yields another route or proves there is none,
+        rather than the same route refused again.
+
+        The world comes from the caller; nothing here invents one. Without it
+        there is no problem to solve, and guessing an empty world would make
+        every goal unreachable for a reason about the caller rather than the
+        world.
+        """
+        from core.learning.rule_grounding import ground_for_problem
+        from core.learning.rule_induction import Fact
+        from core.learning.rule_store import get_rule_store
+
+        if world_state is None:
+            return PlanningOutcome(
+                PlanningStatus.INDETERMINATE,
+                reason="no world_state supplied; the goal cannot be evaluated")
+
+        state_facts = [Fact.parse(str(c)) for c in world_state]
+
+        # A GOAL MAY STATE THAT A FACT MUST NOT HOLD. The search understands
+        # negation and works over formulas; GROUNDING needs the positive fact
+        # underneath, because that is the fact an operator's effects touch.
+        goal_formulas: List[str] = []
+        goal_facts: List[Fact] = []
+        for condition in (goal_conditions or []):
+            text = str(condition).strip()
+            core, negated = text, False
+            for marker in ("¬", "NOT ", "not "):
+                if core.startswith(marker):
+                    core, negated = core[len(marker):].strip(), True
+                    break
+            fact = Fact.parse(core)
+            goal_facts.append(fact)
+            goal_formulas.append(f"¬{fact.to_formula()}" if negated
+                                 else fact.to_formula())
+
+        # A GOAL NAMES PLACES, AND THE SELF LOOKS AT THEM. The world the caller
+        # read is what the self had met; where a move is to put something is a
+        # place nothing is at yet, and no look at a workspace finds it. What the
+        # domain's world sees of the things the goal names is added wherever the
+        # caller's reading says nothing about them.
+        from core.perception.perception_faculty import look_at
+        seen = look_at(
+            domain_id,
+            [fact.args[0] for fact in goal_facts
+             if fact.args and not fact.args[0].startswith("?")])
+        if seen:
+            mentioned = {term for fact in state_facts for term in fact.args}
+            state_facts += [fact for fact in sorted(seen, key=str)
+                            if fact.args and fact.args[0] not in mentioned]
+
+        rules = await get_rule_store().executable_rules(domain_id=domain_id)
+        grounding = ground_for_problem(rules, state_facts, goal_facts)
+        actions = [a for a in grounding.to_actions() if a.get("name") not in set(leaving_out)]
+
+        result = self.plan_for_state_goal(
+            goal_formulas,
+            {"conditions": [f.to_formula() for f in state_facts]},
+            actions,
+        )
+
+        # An exhausted search only proves impossibility if the search was given
+        # every operator. With a truncated grounding, "no plan" is ignorance
+        # about Lyric's own repertoire, not a fact about the world. Acts left out
+        # are not that: they were refused, so a search without them answers the
+        # question that is actually open.
+        status = result.status
+        reason = result.reason
+        if status is PlanningStatus.UNREACHABLE and not grounding.complete:
+            status = PlanningStatus.INDETERMINATE
+            reason = (f"{result.reason}; but grounding was truncated, so unreached is "
+                      f"not unreachable")
+        return PlanningOutcome(
+            status, reason=reason, goal_conditions=list(result.goal_conditions),
+            grounding_complete=grounding.complete,
+            operators_considered=len(grounding.operators),
+            route=result if status is PlanningStatus.PLAN_FOUND else None,
+            grounding=grounding,
+            world=sorted(state_facts, key=str))
+
     def plan_for_state_goal(
         self,
         goal: Any,

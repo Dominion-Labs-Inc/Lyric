@@ -298,12 +298,12 @@ AGENT_SCENARIOS = {
         "environment": "dev"
     },
 
-    "planning_engine_latency": {
-        "name": "Planning Engine Latency",
+    "planning_latency": {
+        "name": "Planning Latency",
         "description": "Test autonomous agents with slow planning",
         "target_system": "autonomous_agents",
         "chaos_type": ChaosType.LATENCY,
-        "component": "planning_engine",
+        "component": "planning",
         "injection_point": "plan_generation",
         "injection_config": {
             "delay_ms": 2000,

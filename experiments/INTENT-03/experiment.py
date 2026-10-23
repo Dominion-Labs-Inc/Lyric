@@ -26,7 +26,12 @@ import shutil
 import sys
 import tempfile
 from pathlib import Path
+from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -61,7 +66,7 @@ def check(label, ok, detail=""):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
-    from core.agents.autonomous.shared_types import Priority
+    from core.agents.autonomous.shared_types import Task, TaskType
     from core.tools.tool_registry import get_binding_registry
     from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
@@ -95,7 +100,6 @@ async def main():
     print("\n== A. The planner proves a route; the authority records it ==")
     coord = AutonomousCoordinator()
     check("execution faculty up", await coord.initialize_execution_faculty())
-    await coord.planning.initialize()
     # The workspace is handed over: the substrate looks at it with its own
     # perception, and what is there becomes the world it plans in.
     take_up_workspace(DOMAIN, str(root))
@@ -106,18 +110,16 @@ async def main():
     goal_conditions = [
         sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
         "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()]
-    goal = await coord.planning.create_goal(
-        "archive the report", Priority.MEDIUM, state_conditions=goal_conditions)
-    outcome = await coord.planning.plan_for_goal(
-        goal.id, {"world_state": [f.to_formula() for f in world],
-                  "domain_id": DOMAIN})
+    outcome, route = await coord._plan_route(
+        Task(id=uuid4().hex, type=TaskType.EXECUTION, description="archive the report"),
+        goal_conditions, [f.to_formula() for f in world], DOMAIN)
     check("the planning authority proved a route",
           outcome.status is PlanningStatus.PLAN_FOUND, outcome.reason)
     if outcome.status is not PlanningStatus.PLAN_FOUND:
         shutil.rmtree(root, ignore_errors=True)
         return 1
-    step = outcome.plan.tasks[0]
-    intent_id = ((outcome.plan.metadata or {}).get("intent") or {}).get("intent_id")
+    step = route.tasks[0]
+    intent_id = ((route.metadata or {}).get("intent") or {}).get("intent_id")
     intent = await IA.get_by_id(intent_id)
     check("the authority holds the proved intent",
           bool(intent) and intent.stated(), intent.proof if intent else None)

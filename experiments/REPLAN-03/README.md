@@ -11,10 +11,15 @@ The world changes in two ways:
 
 | | what changes | what must happen |
 |---|---|---|
-| P1 | something else moves the file while the route is being carried out | nothing is refuted; it replans from where the file went and finishes |
-| P2 | the destination directory is taken away and a plain file put in its place | the tool genuinely fails; it does not claim the goal, the file is still somewhere real, and the stopped route is withdrawn |
+| P1 | something else moves the file while the route is being carried out | nothing is refuted; the same pursuit plans again from where the file went and finishes |
+| P2 | the destination directory is taken away and a plain file put in its place | the tool genuinely fails; it does not claim the goal, the file is still somewhere real, and the stopped route is closed as not reached |
 
 It also checks that an unchanged world does not spawn endless replans.
+
+**2026-10-22: the repair is the pursuit's own.** It used to be a planning engine's, run in the background
+after the first attempt had returned. The engine is gone: the drive plans again inside the same pursuit
+when something is new since the route was proved (`_worth_planning_again`), so P1 finishes within the one
+`execute_task` call, and the routes it tried are read from the pursuit's route intent (`earlier_attempts`).
 
 **P2 changed on 2026-09-28.** Removing the directory is no longer a failure, because `move_file`
 recreates a missing destination directory by default, and the derived binding uses the tool's own
@@ -34,3 +39,6 @@ on an early exit and at the end, so the operator checked is the one this run ind
   and nothing was refuted.
 - The run before it failed on a refuted rule left by an earlier failed run, which had exited before its
   cleanup. That is why the cleanup now also runs at the start and on an early exit.
+- 2026-10-22: **12/12** on `lyric_dev` (`20261023T011806Z`), the repair inside the pursuit: P1 planned again once,
+  from where the file went. Its first run on the new drive, 10/12 (`20261023T011053Z`), found the world a route was
+  proved from read after its steps were rendered, when the move had already happened (lab notebook (36)).

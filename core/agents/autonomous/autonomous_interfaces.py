@@ -17,14 +17,6 @@ class AutonomyLevel(Enum):
     CREATIVE = "creative"
 
 
-class PlanningStrategy(Enum):
-    """Planning strategy types"""
-    HIERARCHICAL = "hierarchical"
-    REACTIVE = "reactive"
-    GOAL_ORIENTED = "goal_oriented"
-    ADAPTIVE = "adaptive"
-
-
 class DecisionType(Enum):
     """Types of decisions"""
     OPERATIONAL = "operational"
@@ -43,18 +35,6 @@ class Decision:
     selected_option: Optional[Dict[str, Any]] = None
     confidence: float = 0.0
     timestamp: float = 0.0
-
-
-@dataclass
-class ExecutionPlan:
-    """Execution plan data structure"""
-    plan_id: str
-    goal: str
-    strategy: PlanningStrategy
-    steps: List[Dict[str, Any]]
-    resources: Dict[str, Any]
-    constraints: List[str]
-    estimated_duration: float = 0.0
 
 
 class IDecisionEngine(ABC):
@@ -78,35 +58,6 @@ class IDecisionEngine(ABC):
     @abstractmethod
     async def make_decision(self, options: List[Dict[str, Any]]) -> Decision:
         """Make the final decision"""
-        pass
-
-
-class IPlanningEngine(ABC):
-    """Interface for planning and goal management"""
-    
-    @abstractmethod
-    async def create_goal(self, goal_data: Dict[str, Any]) -> str:
-        """Create a new goal"""
-        pass
-    
-    @abstractmethod
-    async def generate_plan(self, goal_id: str, strategy: PlanningStrategy) -> ExecutionPlan:
-        """Generate execution plan for a goal"""
-        pass
-    
-    @abstractmethod
-    async def update_plan(self, plan_id: str, updates: Dict[str, Any]) -> bool:
-        """Update an existing plan"""
-        pass
-    
-    @abstractmethod
-    async def monitor_execution(self, plan_id: str) -> Dict[str, Any]:
-        """Monitor plan execution progress"""
-        pass
-    
-    @abstractmethod
-    async def adapt_plan(self, plan_id: str, feedback: Dict[str, Any]) -> ExecutionPlan:
-        """Adapt plan based on feedback"""
         pass
 
 

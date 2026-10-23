@@ -28,9 +28,8 @@ from uuid import uuid4
 import pytest
 import pytest_asyncio
 
-from core.agents.autonomous.execution_plan_adapter import state_plan_to_tasks
 from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-from core.agents.autonomous.shared_types import Goal, Priority, Task, TaskType
+from core.agents.autonomous.shared_types import Priority, Task, TaskType
 from core.intelligence.effect_verification import RuntimeOutcome
 from core.tools.tool_registry import get_binding_registry
 from core.learning.rule_grounding import ground_for_problem
@@ -198,7 +197,7 @@ def plan_for(world, rules, goal_fact):
 
 
 async def tasks_for(result, goal_fact, grounding=None):
-    """The step tasks of a proved plan, made the way the planner makes them.
+    """The step tasks of a proved plan, made the way the pursuit makes them.
 
     THE PROVED ROUTE IS RECORDED AS AN INTENT BEFORE THE STEPS ARE CUT, and the
     steps carry its id. This called `state_plan_to_tasks` with `intent_id`
@@ -206,22 +205,23 @@ async def tasks_for(result, goal_fact, grounding=None):
     why the substrate is acting — and once the constitution went live, Law 2
     replanned every one of them before the tool ran.
 
-    `_record_plan_intent` is the planner's OWN recorder, so this uses it rather
-    than restating the shape it writes: a test that hand-builds the intent would
-    keep passing after the real one changed.
+    `_route_of` is the drive's OWN recorder and renderer of a proved route, so
+    this uses it rather than restating the shape it writes: a test that
+    hand-builds the intent would keep passing after the real one changed.
     """
-    from core.agents.autonomous.planning_engine import PlanningEngine
+    from core.reasoning.temporal_reasoning import PlanningOutcome
 
-    goal = Goal(id=f"goal_{uuid4().hex[:8]}", description=str(goal_fact),
-                priority=Priority.MEDIUM,
-                state_conditions=[goal_fact.to_formula()])
-    recorded = await PlanningEngine()._record_plan_intent(
-        goal, result, grounding, {"domain_id": DOMAIN})
+    pursuing = Task(id=f"goal_{uuid4().hex[:8]}", type=TaskType.EXECUTION,
+                    description=str(goal_fact), priority=Priority.MEDIUM)
+    proved = PlanningOutcome(PlanningStatus.PLAN_FOUND,
+                             goal_conditions=[goal_fact.to_formula()],
+                             grounding_complete=True, route=result,
+                             grounding=grounding)
+    route = await AutonomousCoordinator()._route_of(pursuing, proved, DOMAIN, None)
+    recorded = route.metadata["intent"]
     assert recorded.get("recorded"), (
         f"the proved route was not recorded as an intent: {recorded}")
-    return state_plan_to_tasks(result, goal, f"plan_{uuid4().hex[:8]}",
-                               grounding_complete=True, domain_id=DOMAIN,
-                               intent_id=recorded["intent_id"])
+    return route.tasks
 
 
 def learned(rules, name):

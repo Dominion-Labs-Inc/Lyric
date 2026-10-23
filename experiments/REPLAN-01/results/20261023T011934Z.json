@@ -1,0 +1,126 @@
+{
+  "experiment": "REPLAN-01",
+  "claim": "A pursuit whose rule the world refutes plans again inside itself, over what is still validated, without anything asking; one with nothing new is not planned again, and one whose world cannot be observed is never planned against an invented world.",
+  "hypothesis": "If the drive asks, whenever a walk stops, whether a rule its route stood on lost its authority, then a refutation caused by acting makes the same pursuit plan again rather than strand its goal.",
+  "started_at": "2026-10-23T01:19:34.181591+00:00",
+  "duration_seconds": 61.451,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 60,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 12,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "no second pursuer of a goal exists on the live substrate",
+      "passed": true,
+      "detail": "found: []",
+      "at": "2026-10-23T01:20:35.306460+00:00"
+    },
+    {
+      "label": "the registry still names the LIVE substrate",
+      "passed": true,
+      "detail": "a later AutonomousCoordinator() would have displaced it",
+      "at": "2026-10-23T01:20:35.306473+00:00"
+    },
+    {
+      "label": "the pursuit proved a route and walked it",
+      "passed": true,
+      "detail": "route=['SBMOVE(z, HALL, LAB)']",
+      "at": "2026-10-23T01:20:35.601008+00:00"
+    },
+    {
+      "label": "the act ran and the world CONTRADICTED the rule",
+      "passed": true,
+      "detail": "['runtime_contradiction']",
+      "at": "2026-10-23T01:20:35.603385+00:00"
+    },
+    {
+      "label": "the rule lost VALIDATED",
+      "passed": true,
+      "detail": "status=refuted",
+      "at": "2026-10-23T01:20:35.604300+00:00"
+    },
+    {
+      "label": "it PLANNED AGAIN, over what is still validated, without anything asking",
+      "passed": true,
+      "detail": "planning_status=unreachable operators=0",
+      "at": "2026-10-23T01:20:35.604309+00:00"
+    },
+    {
+      "label": "and ended saying so, not claiming the goal",
+      "passed": true,
+      "detail": "state space exhausted at 0 state(s); no sequence of the available actions achieves the goal",
+      "at": "2026-10-23T01:20:35.604313+00:00"
+    },
+    {
+      "label": "the route that stopped was closed as NOT reached",
+      "passed": true,
+      "detail": "route intent abandoned",
+      "at": "2026-10-23T01:20:35.604320+00:00"
+    },
+    {
+      "label": "the world is where the refusal left it \u2014 nothing was forced",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T01:20:35.604364+00:00"
+    },
+    {
+      "label": "a pursuit whose rules hold in an unchanged world is NOT planned again",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:20:35.625985+00:00"
+    },
+    {
+      "label": "a goal whose world cannot be observed is not planned at all",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:20:35.626156+00:00"
+    },
+    {
+      "label": "...and a stopped walk there is not planned again on a world nobody read",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T01:20:35.626160+00:00"
+    }
+  ],
+  "notes": []
+}

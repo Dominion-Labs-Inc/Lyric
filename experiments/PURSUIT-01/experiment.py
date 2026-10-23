@@ -36,6 +36,10 @@ import tempfile
 import uuid
 from pathlib import Path
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent.parent
 sys.path.insert(0, str(REPO))
@@ -150,21 +154,17 @@ async def main() -> int:
     queue_before = ids(await db.execute_query("SELECT task_id FROM unified.task_queue", ()), "task_id")
     demos = get_demonstration_store()
     pending_before = {tuple(r) for r in await demos.pending_signatures()}
-    filed, created_goals = [], []
-    _append, _create_goal = demos.append, coord.planning.create_goal
+    filed = []
+    _append = demos.append
 
-    async def recorded_append(example, *, domain_id):
-        written = await _append(example, domain_id=domain_id)
+    async def recorded_append(example, **kwargs):
+        # Everything the store's own `append` takes is passed on as given.
+        written = await _append(example, **kwargs)
         if written:
             filed.append(example.evidence_id)
         return written
 
-    async def recorded_goal(*args, **kwargs):
-        made = await _create_goal(*args, **kwargs)
-        if made is not None:
-            created_goals.append(made.id)
-        return made
-    demos.append, coord.planning.create_goal = recorded_append, recorded_goal
+    demos.append = recorded_append
 
     async def status(intent_id, actor=None):
         held = await authority.get_by_id(str(intent_id), actor) if intent_id else None
@@ -188,6 +188,9 @@ async def main() -> int:
 
     try:
         print("\n== A. Work carries its WHY, formed where it was taken on ==")
+        # The front door takes on work it can read: on a store that holds no
+        # English it answers that it does not know the words, and nothing is
+        # queued. What it said is kept in the check's detail.
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             ack = await coord.handle_user_request(
                 f"tidy the PURSUIT-01 scratch area {tag}", source="api",
@@ -195,7 +198,8 @@ async def main() -> int:
         iid, actor = await queued_intent((ack or {}).get("task_id"))
         held = await status(iid, actor)
         check("a USER REQUEST is queued naming its pursuit", bool(iid) and held is not None,
-              f"task={(ack or {}).get('task_id')} intent={iid}")
+              f"task={(ack or {}).get('task_id')} intent={iid} front door: "
+              f"{ {k: str((ack or {}).get(k))[:120] for k in ('kind', 'status', 'answer', 'error')} }")
         check("…scoped to the requester, their words the aim, the session recorded",
               held is not None and held.origin_kind == "goal"
               and held.actor == actor and actor != SUBSTRATE_ACTOR
@@ -247,12 +251,13 @@ async def main() -> int:
             "¬" + sensed_fact("kind", "path", str(root / "inbox" / "route.txt"), "file").to_formula()]
         world = observe_world(DOMAIN) or set()
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-            g = await coord.planning.create_goal("PURSUIT-01 route", Priority.MEDIUM,
-                                                 state_conditions=goal_fact)
-            proved = await coord.planning.plan_for_goal(
-                g.id, {"world_state": [str(f) for f in world], "domain_id": DOMAIN,
-                       "parent_intent_id": parent_id})
-        route_iid = (((getattr(proved, "plan", None) and proved.plan.metadata) or {})
+            # Planned the way the drive plans, for a task working on the parent
+            # pursuit: the route is recorded as that pursuit's child.
+            _proved, proved_route = await coord._plan_route(
+                Task(id=f"pursuit01_route_{tag}", type=TaskType.EXECUTION,
+                     description="PURSUIT-01 route", provenance={"intent_id": parent_id}),
+                goal_fact, [str(f) for f in world], DOMAIN)
+        route_iid = (((proved_route and proved_route.metadata) or {})
                      .get("intent") or {}).get("intent_id")
         route = await status(route_iid)
         check("a route proved while working on a pursuit is its CHILD, not merged into it",
@@ -414,7 +419,6 @@ async def main() -> int:
     finally:
         # ── remove everything this run wrote ─────────────────────────────────
         del demos.append                              # the store's own method again
-        coord.planning.create_goal = _create_goal
         if filed:
             await db.execute_query(
                 "DELETE FROM unified.operator_demonstrations WHERE evidence_id = ANY($1::text[])",
@@ -422,11 +426,6 @@ async def main() -> int:
         for domain_id, predicate, arity in await demos.pending_signatures():
             if (domain_id, predicate, arity) not in pending_before:
                 await demos.clear_pending(domain_id=domain_id, predicate=predicate, arity=arity)
-        if created_goals:
-            await db.execute_query("DELETE FROM unified.plans WHERE goal_id = ANY($1::text[])",
-                                   (created_goals,), commit=True)
-            await db.execute_query("DELETE FROM unified.goals WHERE id::text = ANY($1::text[])",
-                                   (created_goals,), commit=True)
         new_tasks = sorted(ids(await db.execute_query("SELECT task_id FROM unified.task_queue", ()),
                                "task_id") - queue_before)
         if new_tasks:

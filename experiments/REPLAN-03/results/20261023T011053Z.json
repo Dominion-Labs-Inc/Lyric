@@ -1,0 +1,126 @@
+{
+  "experiment": "REPLAN-03",
+  "claim": "The substrate learns its own operator by practice in a directory it was given, and pursues a goal over it while the world changes under it: it replans when the route goes stale and never claims a goal the world refused.",
+  "hypothesis": "If practice teaches the operator and repair is driven by the world, then a moved file is re-routed without refuting the rule, a destination the tool cannot use stops the pursuit honestly, and an unchanged world spawns no endless replans.",
+  "started_at": "2026-10-23T01:10:53.415460+00:00",
+  "duration_seconds": 4.011,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 50,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 10,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T01:10:53.415472+00:00"
+    },
+    {
+      "label": "the domain is bound \u2014 observable and actable",
+      "passed": true,
+      "detail": "operators: ['MOVE_FILE']",
+      "at": "2026-10-23T01:10:53.421589+00:00"
+    },
+    {
+      "label": "it reads the real directory as its world",
+      "passed": true,
+      "detail": "12 fact(s)",
+      "at": "2026-10-23T01:10:53.422533+00:00"
+    },
+    {
+      "label": "it tried real actions in the real world to find out what they do",
+      "passed": true,
+      "detail": "8 action(s) over 2 cycle(s)",
+      "at": "2026-10-23T01:10:54.115711+00:00"
+    },
+    {
+      "label": "it INDUCED an executable MOVE_FILE operator from what happened",
+      "passed": true,
+      "detail": "[('rule_dc4ffa979', 'validated')]",
+      "at": "2026-10-23T01:10:54.117066+00:00"
+    },
+    {
+      "label": "the first route was knocked off course, and the SAME pursuit planned again",
+      "passed": false,
+      "detail": "1 route(s) recorded on the pursuit's route intent",
+      "at": "2026-10-23T01:10:54.175273+00:00"
+    },
+    {
+      "label": "nothing was refuted \u2014 MOVE_FILE is still true of this world",
+      "passed": true,
+      "detail": "{'rule_dc4ffa979': 'validated'}; standing before: ['rule_dc4ffa979']",
+      "at": "2026-10-23T01:10:54.176128+00:00"
+    },
+    {
+      "label": "IT REPLANNED FROM WHERE THE FILE ACTUALLY WENT AND FINISHED THE JOB",
+      "passed": false,
+      "detail": "success=False; report.txt is in review (expected archive)",
+      "at": "2026-10-23T01:10:54.176888+00:00"
+    },
+    {
+      "label": "it did not claim to have filed a report into a place that is gone",
+      "passed": true,
+      "detail": "success=False status=unreachable",
+      "at": "2026-10-23T01:10:57.400318+00:00"
+    },
+    {
+      "label": "the file is still somewhere real \u2014 nothing was destroyed chasing it",
+      "passed": true,
+      "detail": "report.txt is in review",
+      "at": "2026-10-23T01:10:57.403651+00:00"
+    },
+    {
+      "label": "the route that stopped was closed as NOT reached, not left standing",
+      "passed": true,
+      "detail": "route intent abandoned; planning_status=unreachable",
+      "at": "2026-10-23T01:10:57.407484+00:00"
+    },
+    {
+      "label": "an unchanged world does not spawn endless replans",
+      "passed": true,
+      "detail": "0 route(s) tried before the pursuit ended",
+      "at": "2026-10-23T01:10:57.415770+00:00"
+    }
+  ],
+  "notes": []
+}

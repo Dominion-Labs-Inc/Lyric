@@ -36,6 +36,8 @@ The experiment deletes every intent it forms.
 A third defect was fixed before the run: a **refused** standalone operator returned before closing, so its
 intent stayed in `forming`.
 
-**Not covered.** Nothing in production dispatches queued plan steps (`PlanningEngine.get_next_tasks` has no
-production caller), so a route run step by step from a queue has no owner that closes it. That path is not
-live today; if it is wired, it needs an owner.
+**Not covered, and now not a path.** A route run step by step from a queue would have had no owner that
+closes it (`PlanningEngine.get_next_tasks` had no production caller). The planning engine is gone
+(2026-10-22): no route is queued step by step any more, and every route is walked by the pursuit that proved
+it (`_pursue_proved_route`), which closes it. Routes are proved here the way the drive proves them
+(`_plan_route`).

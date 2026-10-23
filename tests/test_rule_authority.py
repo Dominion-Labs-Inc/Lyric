@@ -1,13 +1,12 @@
-"""The edge from a refuted rule to a withdrawn plan.
+"""The edge from a refuted rule to a pursuit that plans again.
 
 The chain under test, end to end:
 
     runtime contradiction, attributable to the rule
       -> rule loses VALIDATED status                        (rule store)
       -> RuleAuthorityChanged written durably               (rule store)
-      -> plans standing on that rule are invalidated        (planning engine)
-      -> their queued steps stop being dispatched           (get_next_tasks)
-      -> the goal is re-planned over what is still validated (coordinator)
+      -> a step standing on that rule does not run          (each step re-reads its rule)
+      -> the pursuit plans again over what is still validated (the drive)
 
 Each link is checked on its own AND the chain is checked whole, because a
 chain that only works when driven by hand is not wired. The two properties
@@ -16,11 +15,11 @@ that matter most are negative:
   * a contradiction the credit invariant refuses to charge to the rule must
     produce NO authority event, or infrastructure failure silently rewrites
     learned knowledge;
-  * invalidation must not spread to plans built on other rules.
+  * a pursuit plans again only when something is new: a walk that stops with
+    its rules held and its world unchanged is not planned again.
 """
 import shutil
 import tempfile
-from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
@@ -28,18 +27,14 @@ import pytest
 import pytest_asyncio
 
 from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-from core.agents.autonomous.planning_engine import PlanningEngine
-from core.agents.autonomous.shared_types import (
-    Plan, Priority, Task, TaskStatus, TaskType, SystemState,
-)
+from core.agents.autonomous.shared_types import Plan, Task, TaskType
 from core.intelligence.effect_verification import (
     Attribution, EffectVerdict, EffectVerification, Polarity, RuntimeEvidence,
     RuntimeOutcome, outcome_class_for,
 )
 from core.tools.tool_registry import get_binding_registry
 from core.learning.rule_authority import (
-    AuthorityCause, RuleAuthorityChanged, authority_history, mark_consumed,
-    pending_authority_changes, record_authority_change,
+    AuthorityCause, RuleAuthorityChanged, authority_history, record_authority_change,
 )
 from core.learning.rule_induction import Fact, get_rule_inducer
 from core.learning.rule_store import (
@@ -62,15 +57,7 @@ PROBE = "authority_probe"
 
 
 
-async def _purge(store, engine=None):
-    if engine is not None and engine.connection:
-        await engine.connection.execute_query(
-            "DELETE FROM plans WHERE goal_id IN"
-            " (SELECT id FROM goals WHERE description LIKE $1)",
-            params=(f"{PROBE}%",), commit=True)
-        await engine.connection.execute_query(
-            "DELETE FROM goals WHERE description LIKE $1",
-            params=(f"{PROBE}%",), commit=True)
+async def _purge(store):
     await purge_domain(store)
 
 
@@ -96,28 +83,6 @@ async def locked():
     get_binding_registry().clear(DOMAIN)
     shutil.rmtree(root, ignore_errors=True)
     await _purge(store)
-
-
-@pytest_asyncio.fixture
-async def engine():
-    """A real engine, with the dispatch WINDOW opened wide.
-
-    `get_next_tasks` returns `available[:max_concurrent_tasks]` — five by
-    default — and `initialize()` loads every persisted plan, so a probe plan
-    made now sorts last among equal priorities and never reaches the window.
-    The assertion then reads "the step was not dispatchable" when what happened
-    is that five unrelated live tasks were ahead of it.
-
-    How many tasks the substrate runs at once is a throughput policy; whether a
-    step is still AUTHORISED is the invariant here, and one must not decide the
-    other. Widening the window measures the invariant; it does not relax it —
-    the negative half of every test below still requires the step to be absent
-    from a list nothing was truncating.
-    """
-    e = PlanningEngine({"max_concurrent_tasks": 10_000})
-    assert await e.initialize() is True
-    yield e
-    await _purge(RuleStore(), e)
 
 
 # ─────────────────────────────────────────────────── the event itself
@@ -160,13 +125,18 @@ async def test_validation_is_recorded_as_a_gain_not_a_loss(locked):
 
 
 @pytest.mark.asyncio
-async def test_a_gain_is_not_offered_to_the_planning_layer(locked):
-    """`lost_only` is what keeps a newly learned rule from causing churn."""
-    _, store, _ = locked
-    pending = await pending_authority_changes(store.db(), lost_only=True)
-    assert all(e.lost_authority for e in pending)
-    everything = await pending_authority_changes(store.db(), lost_only=False)
-    assert len(everything) > len(pending), "the gain was never recorded at all"
+async def test_the_history_tells_a_gain_from_a_loss(locked):
+    """A rule learned and a rule refuted are both on the record, and told apart:
+    reading a gain as a loss would have the substrate abandon routes every time
+    a rule was learned."""
+    _, store, stored = locked
+    await AutonomousCoordinator().execute_task(
+        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
+
+    events = await authority_history(store.db(), stored.rule_id)
+    assert [e.cause for e in events if e.gained_authority] == [AuthorityCause.VALIDATION]
+    assert [e.cause for e in events if e.lost_authority] == [
+        AuthorityCause.RUNTIME_CONTRADICTION]
 
 
 @pytest.mark.asyncio
@@ -182,34 +152,17 @@ async def test_a_transition_to_the_same_status_is_not_an_event(locked):
 
 
 @pytest.mark.asyncio
-async def test_draining_is_once_only(locked):
-    """Two consumers must not both act on the same withdrawal."""
-    _, store, stored = locked
-    await AutonomousCoordinator().execute_task(
-        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-
-    pending = await pending_authority_changes(store.db())
-    ids = [e.event_id for e in pending]
-    assert ids
-
-    assert await mark_consumed(ids, "first") == len(ids)
-    assert await mark_consumed(ids, "second") == 0
-    assert not [e for e in await pending_authority_changes(store.db())
-                if e.event_id in ids]
-
-
-@pytest.mark.asyncio
 async def test_the_event_outlives_the_object_that_wrote_it(locked):
     """Durability is the reason this is an event and not a method call: a
-    consumer that was not running at the time must still find it."""
+    reader that was not running at the time must still find it."""
     _, store, stored = locked
     await AutonomousCoordinator().execute_task(
         await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
     fresh = RuleStore()
     await fresh.ensure_schema()
-    found = await pending_authority_changes(fresh.db())
-    assert [e.rule_id for e in found] == [stored.rule_id]
+    found = await authority_history(fresh.db(), stored.rule_id)
+    assert [e.rule_id for e in found if e.lost_authority] == [stored.rule_id]
 
 
 # ─────────────────────────────────────────── the credit invariant holds
@@ -258,131 +211,79 @@ def test_only_rule_evidence_reaches_the_strategy(attribution, outcome, expected)
     assert outcome_class_for(evidence, attribution).value == expected
 
 
-# ────────────────────────────────────────── the planning layer consumes it
+# ─────────────────────────────── a pursuit standing on it plans again
 
-async def _plan_on(engine, rule_id, label, *, completed_first=True):
-    """A two-step plan: step one done, step two queued behind it."""
-    goal = await engine.create_goal(f"{PROBE} {label}", Priority.MEDIUM)
-    goal_id = goal.id
-
-    def step(index, status):
-        return Task(
-            id=f"{PROBE}_{goal_id}_{index}", type=TaskType.EXECUTION,
-            description=f"SBMOVE(z, R{index}, R{index + 1})",
-            priority=Priority.MEDIUM, status=status, created_at=datetime.now(),
-            dependencies=[f"{PROBE}_{goal_id}_0"] if index else [],
-            provenance={"learned_rule_id": rule_id, "plan_id": goal_id,
-                        "grounded_operator": f"SBMOVE(z, R{index}, R{index + 1})"},
-        )
-
-    plan = Plan(
-        id=f"plan_{uuid4().hex[:8]}", goal_id=goal_id,
-        tasks=[step(0, TaskStatus.COMPLETED if completed_first else TaskStatus.PENDING),
-               step(1, TaskStatus.PENDING)],
-        status="active",
-    )
-    engine.active_plans[plan.id] = plan
-    await engine._store_plan(plan)
-    return plan
+def _route_on(rule_ids, world):
+    """A route as the drive holds it for a walk: the rules it stood on and the
+    world it was proved from, as the drive read it."""
+    return Plan(id=f"route_{uuid4().hex[:8]}", goal_id=f"{PROBE}_goal", tasks=[],
+                metadata={"rule_ids": list(rule_ids),
+                          "planned_world": sorted(str(f) for f in world.observe())})
 
 
 @pytest.mark.asyncio
-async def test_a_plan_standing_on_a_refuted_rule_is_withdrawn(locked, engine):
-    _, store, stored = locked
-    plan = await _plan_on(engine, stored.rule_id, "goal_a")
+async def test_a_stop_with_nothing_new_is_not_planned_again(locked):
+    """Planning again must be driven by something new, not run every time a walk
+    stops: the same search over the same rules from the same world would find
+    the same route."""
+    world, _, stored = locked
+    route = _route_on([stored.rule_id], world)
 
-    await AutonomousCoordinator().execute_task(
-        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-    report = await engine.consume_rule_authority_changes()
-
-    assert plan.id in report["plans_invalidated"]
-    assert plan.status == "invalidated"
-    assert plan.tasks[1].status is TaskStatus.BLOCKED
-    assert plan.tasks[1].result["blocked_reason"] == \
-        "learned_rule_lost_execution_authority"
+    assert await AutonomousCoordinator()._worth_planning_again(
+        route, DOMAIN, {"success": False, "steps": []}) is None
 
 
 @pytest.mark.asyncio
-async def test_completed_work_is_not_retracted(locked, engine):
-    """The step already taken happened, under a rule that was validated at the
-    time. That is history, not something to undo."""
-    _, store, stored = locked
-    plan = await _plan_on(engine, stored.rule_id, "goal_b")
-
-    await AutonomousCoordinator().execute_task(
-        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-    await engine.consume_rule_authority_changes()
-
-    assert plan.tasks[0].status is TaskStatus.COMPLETED
-
-
-@pytest.mark.asyncio
-async def test_a_queued_step_does_not_run_because_its_predecessor_finished(locked, engine):
-    """The invariant the dependency chain does NOT provide: ordering is not
-    continued authorization."""
-    _, store, stored = locked
-    plan = await _plan_on(engine, stored.rule_id, "goal_c")
-
-    runnable_before = await engine.get_next_tasks(SystemState())
-    assert plan.tasks[1].id in {t.id for t in runnable_before}, \
-        "step two should be dispatchable while the rule is validated"
+async def test_a_route_whose_rule_was_refuted_is_planned_again(locked):
+    """The far end of the edge. Without this the refutation is correct and the
+    goal is stuck forever, which is a worse failure than the one it fixed."""
+    world, _, stored = locked
+    route = _route_on([stored.rule_id], world)
 
     await AutonomousCoordinator().execute_task(
         await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
 
-    runnable_after = await engine.get_next_tasks(SystemState())
-    assert plan.tasks[1].id not in {t.id for t in runnable_after}, \
-        "a step authorised by a refuted rule was still dispatched"
+    again = await AutonomousCoordinator()._worth_planning_again(
+        route, DOMAIN, {"success": False, "steps": []})
+    assert again is not None, "a route on a refuted rule was not planned again"
+    why, refused_act = again
+    assert stored.rule_id in why and "lost its authority" in why
+    assert refused_act is None, "a refuted rule is gone from the search; no act is left out"
 
 
 @pytest.mark.asyncio
-async def test_invalidation_does_not_spread_to_other_rules(locked, engine):
-    """Over-broad invalidation would make one bad rule stop unrelated work."""
-    _, store, stored = locked
-    affected = await _plan_on(engine, stored.rule_id, "goal_d")
-    unrelated = await _plan_on(engine, "rule_someone_else", "goal_e")
-
+async def test_a_route_on_other_rules_is_not_planned_again_for_this_loss(locked):
+    """One refuted rule must not send back routes that never stood on it."""
+    world, store, stored = locked
     await AutonomousCoordinator().execute_task(
         await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-    report = await engine.consume_rule_authority_changes()
+    assert stored.rule_id not in {
+        r.rule_id for r in await store.executable_rules(domain_id=DOMAIN)}
 
-    assert affected.id in report["plans_invalidated"]
-    assert unrelated.id not in report["plans_invalidated"]
-    assert unrelated.status == "active"
-    assert unrelated.tasks[1].status is TaskStatus.PENDING
-
-
-@pytest.mark.asyncio
-async def test_a_second_pass_finds_nothing_left_to_do(locked, engine):
-    """Drained events must not be re-applied every cycle."""
-    _, store, stored = locked
-    await _plan_on(engine, stored.rule_id, "goal_f")
-
-    await AutonomousCoordinator().execute_task(
-        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-    first = await engine.consume_rule_authority_changes()
-    second = await engine.consume_rule_authority_changes()
-
-    assert first["events"] >= 1 and first["plans_invalidated"]
-    assert second["events"] == 0 and second["plans_invalidated"] == []
+    route = _route_on([], world)
+    assert await AutonomousCoordinator()._worth_planning_again(
+        route, DOMAIN, {"success": False, "steps": []}) is None
 
 
 @pytest.mark.asyncio
-async def test_dispatch_stops_when_authority_cannot_be_checked(engine):
-    """Fail closed: dispatching on unknown authority is the failure the drain
-    exists to prevent."""
-    class Broken:
-        async def execute_query(self, *a, **k):
-            raise RuntimeError("authority log unreachable")
+async def test_the_pursuit_plans_again_inside_itself_when_its_rule_is_refuted(locked):
+    """End to end, through the one pursuer: the drive proves a route, walks it,
+    the world refutes the rule, and the same pursuit plans again over what is
+    still validated -- which here is nothing, so it ends with an honest verdict
+    rather than stopping at the failed step or leaving the goal to anyone else."""
+    world, store, stored = locked
+    goal = Task(id=f"{PROBE}_{uuid4().hex[:8]}", type=TaskType.EXECUTION,
+                description="put z in the lab",
+                provenance={"goal_conditions": ["SBAT(z, LAB)"], "domain_id": DOMAIN})
 
-    plan = await _plan_on(engine, "rule_x", "goal_g", completed_first=False)
-    working = engine.connection
-    engine.connection = Broken()
-    try:
-        assert await engine.get_next_tasks(SystemState()) == []
-    finally:
-        engine.connection = working
-    assert plan.tasks[0].status is TaskStatus.PENDING
+    result = await AutonomousCoordinator().execute_task(goal)
+
+    assert result["success"] is False
+    assert [e for e in await authority_history(store.db(), stored.rule_id)
+            if e.lost_authority], "the walk never reached the world"
+    assert result.get("planning_status") in ("unreachable", "indeterminate"), (
+        f"the pursuit did not plan again after its rule was refuted: {result}")
+    assert result.get("operators_considered") == 0
 
 
 # ──────────────────────────────────────────────── appraisal gets the signal
@@ -525,51 +426,3 @@ async def test_a_confirmed_rule_does_not_ask_for_replanning():
     assert result["success"] is True
     assert state.attribution == "success"
     assert get_behavior_arbiter().decide(state).should_replan is False
-
-
-# ────────────────────────────────────────── the goal is re-planned, not stranded
-
-async def _replan(engine):
-    """Repair is the ENGINE's, because plans are.
-
-    This used to reach for `AutonomousCoordinator._replan_phase` through a stub
-    holding a planning engine. There is no such phase — repair is not a slot in
-    a cycle that comes round, it is what the substrate does when it hears that a
-    pursuit lost its route. The coordinator's part is `_react_route_withdrawn`,
-    which only moves the work off the dispatch path; what it calls is this.
-    """
-    return await engine.replan_withdrawn_goals()
-
-
-@pytest.mark.asyncio
-async def test_a_goal_whose_route_was_withdrawn_is_replanned(locked, engine):
-    """The far end of the edge. Without this the refutation is correct and the
-    goal is stuck forever, which is a worse failure than the one it fixed."""
-    _, store, stored = locked
-    plan = await _plan_on(engine, stored.rule_id, "goal_h")
-    goal_id = plan.goal_id
-
-    await AutonomousCoordinator().execute_task(
-        await task_for(stored.rule_id, "SBMOVE(z, HALL, LAB)"))
-    await engine.consume_rule_authority_changes()
-    assert plan.status == "invalidated"
-
-    report = await _replan(engine)
-
-    assert report["stranded"] >= 1
-    assert report["replanned"] + report["unreachable"] >= 1
-    assert any(p.goal_id == goal_id and p.status == "active"
-               for p in engine.active_plans.values()), \
-        "the goal was left with no route at all"
-
-
-@pytest.mark.asyncio
-async def test_a_goal_that_still_has_a_plan_is_not_replanned(locked, engine):
-    """Repair must be driven by the absence of a route, not run every cycle."""
-    _, store, stored = locked
-    await _plan_on(engine, stored.rule_id, "goal_i")
-
-    report = await _replan(engine)
-
-    assert report["stranded"] == 0
-    assert report["replanned"] == 0

@@ -3404,8 +3404,7 @@ class UniversalDomainMaster:
         # concepts admitted there and turned them into a coverage score, which
         # is a real downstream use, not the admission repeating itself -- it
         # runs from the EVIDENCE_ADMITTED reaction, after the fact is already in.
-        # Drained only after the score is durably persisted, for the same reason
-        # the planning engine drains authority events last: marking first would
+        # Drained only after the score is durably persisted: marking first would
         # let a crash lose the event while the work looks done.
         try:
             from core.memory import knowledge_ledger as ledger

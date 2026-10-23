@@ -15,7 +15,8 @@ from types import SimpleNamespace
 import json
 import logging
 import os
-from typing import Dict, Any, Collection, FrozenSet, Iterable, List, Mapping, Optional, Set, Sequence, Tuple, Callable
+from typing import (TYPE_CHECKING, Dict, Any, Collection, FrozenSet, Iterable, List, Mapping,
+                    Optional, Set, Sequence, Tuple, Callable)
 
 from datetime import datetime, timedelta, timezone
 from collections import deque, OrderedDict
@@ -28,7 +29,6 @@ from .shared_types import (
     TaskType, TaskStatus, Priority, TaskSource, SUBSTRATE_ACTOR,
     is_substrate_actor
 )
-from .planning_engine import PlanningEngine
 from core.learning.unified_learning_system import get_learning_authority
 from core.learning.performance_profiler import profile_performance
 from core.intelligence.predictive_intelligence_system import Departure
@@ -54,8 +54,11 @@ from core.reasoning import (
 # Intent is the reasoning authority's, not the coordinator's. The coordinator
 # once defined its own `Intent` dataclass and reconstructed one from a task's
 # provenance; both are gone. What the constitution reads is what the authority
-# recorded.
-from core.reasoning.intent_authority import Intent
+# recorded. Named here for annotations only: the intent authority imports this
+# package's shared types, so importing it at load would close a cycle whenever
+# it is the first thing imported.
+if TYPE_CHECKING:
+    from core.reasoning.intent_authority import Intent
 from core.learning import UnifiedLearningSystem
 from core.intelligence import PredictionDomain, PredictionHorizon, get_predictive_intelligence
 from core.database.logging_database import LoggingDatabase
@@ -173,14 +176,6 @@ class SelfEventType(Enum):
     #: reaction begins investigating: turning what was already observed into held knowledge about the
     #: place, so the environment domain starts to fill. Payload: {environment_id, domain, facts}.
     ENVIRONMENT_ENCOUNTERED = "environment_encountered"
-    #: Plans standing on a rule that lost execution authority were withdrawn, so the
-    #: goals they served have no route. Emitted by the planning engine where the
-    #: withdrawal happens, because the engine is where plans live. Its reaction
-    #: gives each stranded goal a NEW route over what is still validated -- refuting
-    #: a rule and stranding the pursuit it served is a worse failure than the one the
-    #: refutation fixed. Deferred: replanning is a search, and it must not run on the
-    #: dispatch path that drained the withdrawal. Payload: RouteWithdrawn.
-    ROUTE_WITHDRAWN = "route_withdrawn"
     #: The world did not do what the substrate expected of it, and nothing
     #: observed tells the case apart from the times it did: the world departed
     #: from what it does (the predictive intelligence system's world expectations). The one event that
@@ -274,19 +269,6 @@ class CompetenceChanged:
     cause: str
     #: Known only where induction names the predicate it was working toward.
     predicate: Optional[str] = None
-
-
-@dataclass(frozen=True)
-class RouteWithdrawn:
-    """Plans standing on a refuted rule were withdrawn, stranding their goals.
-
-    Carries what was withdrawn rather than "go rescan the plans", so the
-    reaction repairs exactly the pursuits this refutation took a route from.
-    """
-    goal_ids: Tuple[str, ...]
-    plan_ids: Tuple[str, ...]
-    rule_ids: Tuple[str, ...]
-    tasks_blocked: int
 
 
 @dataclass(frozen=True)
@@ -397,7 +379,6 @@ _EVENT_PAYLOADS.update({
     SelfEventType.JOB_COMPLETED: JobCompleted,
     SelfEventType.DEFICIT_DIAGNOSED: DeficitDiagnosed,
     SelfEventType.ENVIRONMENT_ENCOUNTERED: EnvironmentEncountered,
-    SelfEventType.ROUTE_WITHDRAWN: RouteWithdrawn,
     SelfEventType.EXPECTATION_UNMET: Departure,
 })
 
@@ -720,7 +701,7 @@ class Judgment:
     capabilities: List[str] = field(default_factory=list)
     #: For REDIRECT: the permitted form of the same act, as a tool call.
     alternative: Optional[Dict[str, Any]] = None
-    intent: Optional[Intent] = None
+    intent: Optional["Intent"] = None
     #: HOW WELL ATTESTED the thing this act rests on is — the learned rule's own
     #: confirmations, contradictions and counterexamples, or None when the act
     #: rests on no learned rule (a raw tool call proves nothing, and inventing an
@@ -3657,7 +3638,7 @@ class Constitution:
         return origin
 
     def _purpose_of(self, action_class: str,
-                    intent: Optional[Intent]) -> Optional["Purpose"]:
+                    intent: Optional["Intent"]) -> Optional["Purpose"]:
         """WHY THIS ACT IS HAPPENING, in a form the constitution can CHECK.
 
         THE ACCOUNT IS NOW FIRST-CLASS, AND THAT IS THE WHOLE POINT. Law 2 asked
@@ -3714,16 +3695,18 @@ class Constitution:
             return Purpose(Account.CARRY_OUT, carrying)
         return None
 
-    def _carrying_out_is_earned(self, intent: Intent) -> Optional[str]:
-        """Whether this act really is a step of a plan, or only says so.
+    def _carrying_out_is_earned(self, intent: "Intent") -> Optional[str]:
+        """Whether this act really is a step of a goal being pursued, or only
+        says so.
 
-        Checked against what the PLANNER recorded, which the acting side does
-        not control: the plan must be one the engine is holding, the goal it
-        was made for must be a goal the engine has, and the artefact this act
-        names must be the artefact that goal asked for. A claim naming a plan
-        that does not exist, or aimed at a file the goal never mentioned, buys
-        nothing — which is what keeps this from becoming "any act inside a
-        plan is fine".
+        Checked against the PURSUIT, which the acting side does not control: the
+        account must name a goal in words the substrate is walking right now
+        (`_pursue_described_goal` holds it for the length of the walk), as a
+        child of the intent that goal is pursued under, and the artefact this
+        act names must be the one the goal's own words asked for. A claim naming
+        a pursuit nobody is walking, or aimed at a file the goal never
+        mentioned, buys nothing -- which is what keeps this from becoming "any
+        act inside a plan is fine".
 
         Returns why it counts, or None.
         """
@@ -3733,34 +3716,31 @@ class Constitution:
         artefact = str(intent.shape.get("artefact") or "")
         if not plan_id or not artefact:
             return None
-        # THE PLANNER IS REACHED THE WAY THE OTHER CHECKS REACH THEIR
-        # REGISTRIES. This runs on the Constitution, which is a faculty and has
-        # no `planning` of its own — reading `self.planning` here silently
-        # returned None and refused every act, which is exactly the shape of
-        # defect this codebase keeps paying for: a lookup that cannot succeed,
-        # failing quietly as though the claim were false.
+        # THE PURSUIT IS REACHED THE WAY THE OTHER CHECKS REACH THEIR
+        # REGISTRIES. This runs on the Constitution, which is a faculty and walks
+        # no goal of its own -- reading its own attributes here silently found
+        # nothing and refused every act, which is exactly the shape of defect
+        # this codebase keeps paying for: a lookup that cannot succeed, failing
+        # quietly as though the claim were false.
         from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
         live = get_autonomous_coordinator()
-        planning = getattr(live, "planning", None) if live else None
-        plan = getattr(planning, "active_plans", {}).get(plan_id) if planning else None
-        if plan is None:
+        walk = (getattr(live, "_walking", None) or {}).get(plan_id) if live else None
+        if walk is None or not walk.get("intent_id"):
             return None
-        goal = getattr(planning, "current_goals", {}).get(
-            getattr(plan, "goal_id", None))
-        if goal is None:
+        if str(intent.parent_intent_id or "") != str(walk["intent_id"]):
             return None
         # THE GOAL MUST HAVE ASKED FOR THIS THING. Read from the goal's own
-        # description by the same reader the planner used, so the account
+        # words by the same reader the decomposition used, so the account
         # cannot cover an act aimed anywhere else.
-        from core.agents.autonomous.planning_engine import PlanningEngine
-        named = PlanningEngine.artefact_named_by(getattr(goal, "description", ""))
+        from core.agents.autonomous.execution_plan_adapter import artefact_named_by
+        named = artefact_named_by(str(walk.get("description") or ""))
         if not named or os.path.realpath(os.path.expanduser(named)) != \
                 os.path.realpath(os.path.expanduser(artefact)):
             return None
-        return (f"a step of plan {plan_id[:8]} for a recorded goal whose stated "
-                f"product is {artefact}")
+        return (f"a step of plan {plan_id[:8]} for a goal being pursued whose "
+                f"stated product is {artefact}")
 
-    def _experiment_is_earned(self, intent: Intent) -> Optional[str]:
+    def _experiment_is_earned(self, intent: "Intent") -> Optional[str]:
         """Whether this really is an experiment, or only says so.
 
         An intent can claim anything; what makes a claim an account is that it
@@ -3791,7 +3771,7 @@ class Constitution:
 
     def _judge(self, action_kind: str, action_name: str,
                parameters: Optional[Dict[str, Any]],
-               intent: Optional[Intent],
+               intent: Optional["Intent"],
                authorised_redirect: Optional["Judgment"] = None,
                actor: Optional[str] = None) -> Judgment:
         params = dict(parameters or {})
@@ -5405,7 +5385,7 @@ class Constitution:
         }
 
     def _law_4_alignment(self, action_kind: str, action_name: str,
-                         action_class: str, intent: Intent,
+                         action_class: str, intent: "Intent",
                          authorised_redirect: Optional["Judgment"] = None
                          ) -> Optional[Judgment]:
         """Law 4 — the act must be the act reasoning proved.
@@ -5499,7 +5479,7 @@ class Constitution:
         return None
 
     def _law_2_transparency(self, action_kind: str, action_name: str,
-                            action_class: str, intent: Intent) -> Optional[Judgment]:
+                            action_class: str, intent: "Intent") -> Optional[Judgment]:
         """Law 2 — an act that changes something must be explainable by what the
         substrate said it is doing. No account at all is not a small omission: it
         means nothing can say why this happened, so it goes back to planning.
@@ -6833,7 +6813,12 @@ class AutonomousCoordinator:
         # what they took in, once.
         from core.perception.perception_faculty import get_perception_faculty
         self.vision = get_perception_faculty()
-        self.planning = PlanningEngine(self.config.get("planning", {}))
+        #: The goals in words being walked right now, by the id of their
+        #: decomposition: what the goal said, and the intent it is pursued under.
+        #: Held only for the walk (`_pursue_described_goal`), so Law 2's
+        #: CARRY_OUT account is checked against a pursuit really under way; the
+        #: intent is the pursuit's durable account.
+        self._walking: Dict[str, Dict[str, Any]] = {}
         # Learning is the ONE authority (UnifiedLearningSystem), the same one the
         # substrate-self reaches via learning() — not the dead LearningAdapter.
         # There is a SINGLE learning attribute now: `self.learning`. It used to
@@ -6984,13 +6969,6 @@ class AutonomousCoordinator:
         # other outcome. A failed job is logged with its error, never dropped.
         self.on(SelfEventType.JOB_COMPLETED, self._react_job_completed,
                 name="job_completed", mode="deferred", priority=40)
-
-        # A REFUTATION MUST NOT STRAND THE PURSUIT IT SERVED. Withdrawing the
-        # plans that stood on a refuted rule is only the near half of that edge;
-        # without this the goal keeps its `active` status forever with no route
-        # under it and nothing ever asks again.
-        self.on(SelfEventType.ROUTE_WITHDRAWN, self._react_route_withdrawn,
-                name="replan_withdrawn_routes", mode="deferred", priority=60)
 
         # COMPETENCE — a moved competence changes the per-domain competence DRIVE
         # (intrinsic motivation's inverted-U), so the motivation signals that read
@@ -7479,7 +7457,6 @@ class AutonomousCoordinator:
 
             # Initialize core modules
             modules = [
-                ("Planning Engine", self.planning),
                 # Learning is the SubstrateLearning authority — stateless over its
                 # stores, so it has no initialize() step (see Self.initialize).
                 ("Intrinsic Motivation System", self.intrinsic_motivation),
@@ -8059,23 +8036,6 @@ class AutonomousCoordinator:
                 count=d.get("count")),
             origin="learning"))
 
-    async def announce_route_withdrawal(self, *, goal_ids, plan_ids, rule_ids,
-                                        tasks_blocked: int) -> None:
-        """Plans were withdrawn under their goals. Tell the substrate.
-
-        THE ENGINE ANNOUNCES; THIS OWNS THE EVENT SHAPE — the same split as
-        `announce_evidence`. The planning engine must not have to know
-        `SelfEventType` to say that a pursuit lost its route, and it must not
-        hold a transport of its own; it reaches this through the runtime
-        registry.
-        """
-        await self.emit(SelfEvent(
-            type=SelfEventType.ROUTE_WITHDRAWN,
-            payload=RouteWithdrawn(
-                goal_ids=tuple(goal_ids), plan_ids=tuple(plan_ids),
-                rule_ids=tuple(rule_ids), tasks_blocked=int(tasks_blocked)),
-            origin="planning_engine"))
-
     async def emit(self, event: SelfEvent) -> None:
         """Dispatch a self-event. Sync reactions run inline in priority order,
         each isolated; deferred reactions are enqueued and the drain worker is
@@ -8373,6 +8333,13 @@ class AutonomousCoordinator:
         while self._induction_dirty and passes < self._COALESCE_MAX_PASSES:
             passes += 1
             self._induction_dirty = False
+            # What induction learns is recorded as competence in the domain
+            # faculty, so the drain brings that faculty up, as the faculty that
+            # acts does (`initialize_execution_faculty`): a coordinator that was
+            # never given one raised here on every signature drained.
+            if self.universal_domain_master is None:
+                from core.integration.universal_domain_master import get_universal_domain_master
+                self.universal_domain_master = get_universal_domain_master()
             udm = self.universal_domain_master
             drained_total = 0
             for _ in range(200):  # bound one pass at 200*50 signatures; re-loops if re-armed
@@ -8500,48 +8467,6 @@ class AutonomousCoordinator:
         natural, cheap moment to ensure the drain is awake."""
         self._wake_induction_drain()
 
-    async def _react_route_withdrawn(self, event: SelfEvent) -> None:
-        """Replan the goals a refutation left with no route.
-
-        The engine that withdrew the plans is the engine that owns replanning
-        them — this reaction does not decide anything about plans, it only gets
-        the work off the dispatch path that drained the withdrawal. Replanning
-        there would put a planning search inside the call that asks "what should
-        I run next".
-        """
-        engine = await self._get_planning_engine()
-        if engine is None:
-            logger.error(
-                "%d goal(s) lost their route and the planning engine is "
-                "unreachable, so none of them can be replanned: %s",
-                len(event.payload.goal_ids), ", ".join(event.payload.goal_ids))
-            return
-        report = await engine.replan_withdrawn_goals()
-        if report["stranded"]:
-            logger.info(
-                "route withdrawal: %d stranded → %d replanned, %d unreachable, "
-                "%d indeterminate, %d unobservable",
-                report["stranded"], report["replanned"], report["unreachable"],
-                report["indeterminate"], report["unobservable"])
-
-        # AND THE SUBSTRATE CARRIES THE NEW ROUTE OUT. A repaired pursuit that
-        # nobody runs is repaired in name only: the goal reads `active`, a plan
-        # sits under it, and the world is exactly where the refutation left it.
-        # The engine planned; running it and closing it out is the self's, which
-        # is why this goes through the same `_pursue_proved_route` a freshly
-        # planned goal does rather than a second executor written beside it.
-        for route in report["routes"]:
-            try:
-                await self._pursue_proved_route(
-                    route["plan"], domain_id=route["domain_id"] or "",
-                    goal_conditions=route["goal_conditions"],
-                    self_initiated=True)
-            except Exception as e:
-                # One pursuit failing must not strand the rest of them.
-                logger.error(
-                    "goal %s was replanned but its new route could not be "
-                    "carried out (%s: %s)", route["goal_id"], type(e).__name__, e)
-
     async def _attend_to_expectations(self) -> None:
         """Wire the predictive intelligence system's world expectations to this
         substrate, once: every reading of a world is attended to
@@ -8645,6 +8570,12 @@ class AutonomousCoordinator:
                         "requires": [str(f) for f in sorted(expectation.held)]},
             metadata={"told_taken_on": True},
         )
+        # WHY THIS WORK EXISTS, recorded where it is taken on, as for all work:
+        # the goal is theirs, raised by what Lyric expected of their world.
+        await self.intend(task, pursuit="expected_change", trigger={
+            "what": "expectation", "source": "substrate",
+            "content": {"expectation_id": expectation.expectation_id,
+                        "domain_id": expectation.domain_id, "expected": what}})
         if await self.task_queue.add_task(task, held_for_person=offered):
             if offered:
                 await self.speak_to(expectation.owner, told + " Shall I put it right?",
@@ -8655,6 +8586,8 @@ class AutonomousCoordinator:
         else:
             logger.warning("the queue refused the goal for unmet expectation %s; %s is told only",
                            expectation.expectation_id, expectation.owner)
+            await self.conclude_pursuit(
+                task, {"error": "task queue refused the work"}, completed=False)
             await self.speak_to(expectation.owner, told, why="expected",
                                 about=expectation.expectation_id)
 
@@ -9657,46 +9590,107 @@ class AutonomousCoordinator:
     async def set_goal(self, description: str, priority: Priority = Priority.MEDIUM,
                       deadline: Optional[datetime] = None,
                       intrinsic_values: Optional[Dict[str, float]] = None,
-                      state_conditions: Optional[List[str]] = None) -> Optional[str]:
-        """Set a new goal, as a STATE goal when conditions can be established.
+                      state_conditions: Optional[List[str]] = None,
+                      domain_id: Optional[str] = None) -> Optional[str]:
+        """Set myself a goal and take it on: its intent formed, its work queued.
 
-        `state_conditions` may be supplied by the caller; otherwise they are
-        read from the description when it states them formally.
+        THE GOAL IS ITS INTENT. It used to be a row in a planning engine's own
+        goal store, beside the intent and the task that already say what is
+        being pursued and why, and nothing pursued it: the engine's dispatcher
+        had no caller. Now the goal is formed through the intent authority
+        (`intend`, keyed on the goal), with how much it matters on the intent's
+        shape (`_goal_shape`), where the ranking of the substrate's own goals
+        reads it (`IntentAuthority.ranked_own_goals`); and its work is queued
+        like any other, so the one dispatcher hands it out and the one
+        completion authority closes it.
+
+        A goal that states world conditions is pursued by the drive, planned by
+        search over learned operators in the world of `domain_id`, which it must
+        name: conditions mean nothing outside the world they hold in.
+        `state_conditions` may be supplied; otherwise they are read from the
+        description when it states them formally. A goal in words is pursued by
+        `_pursue_described_goal`, which decomposes it into the work it names.
+
+        Returns the goal's id, which is its task's, or None when it was not
+        taken on.
         """
         try:
             if state_conditions is None:
                 state_conditions = self.extract_state_conditions(description)
+            if state_conditions and not domain_id:
+                logger.warning("goal %r states world conditions %s but names no world "
+                               "they hold in; not taken on", description[:80],
+                               state_conditions)
+                return None
+            goal = Goal(id=str(uuid.uuid4()), description=description,
+                        priority=priority, deadline=deadline,
+                        state_conditions=list(state_conditions) if state_conditions else None,
+                        **{k: v for k, v in (intrinsic_values or {}).items()
+                           if k in ("expected_novelty", "expected_competence_gain",
+                                    "curiosity_value", "intrinsic_reward_potential")})
+            provenance: Dict[str, Any] = {"goal_id": goal.id}
             if state_conditions:
                 logger.info("Goal carries %d state condition(s): %s",
                             len(state_conditions), state_conditions)
-            goal = await self.planning.create_goal(
-                description, priority, deadline, intrinsic_values,
-                state_conditions=state_conditions)
-            if goal:
-                self.system_state.active_goals.append(goal.id)
-                logger.info(f"New goal set: {description}")
-                
-                # Store goal in memory
-                by_when = f" I want it done by {deadline.isoformat()}." if deadline else ""
-                await self.memory.store_memory(
-                    origin=Origin.own("goals"),
-                    content=(f"I set myself a {priority.value} goal: {description}.{by_when}"),
-                    memory_type=MemoryType.EPISODIC,
-                    # CLAMPED. This read `1.2 + (potential * 0.3)`, and importance
-                    # is passed through as confidence_score -- a probability --
-                    # so every goal recorded a confidence above 1.0.
-                    importance_score=max(0.0, min(1.0, 0.8 + (goal.intrinsic_reward_potential * 0.2))),
-                    source_context={"source_system": "goal_setting", "goal_id": goal.id},
-                    tags=["goal", "planning", "autonomous_system"]
-                )
-                
-                return goal.id
-            return None
-            
+                provenance.update({"goal_conditions": list(state_conditions),
+                                   "domain_id": domain_id})
+            else:
+                provenance["described_goal"] = True
+            task = Task(id=goal.id, type=TaskType.EXECUTION, description=description,
+                        priority=priority, source=TaskSource.AUTONOMOUS,
+                        created_by="set_goal", provenance=provenance)
+            task.metadata["goal_id"] = goal.id
+            intent_id = await self.intend(
+                task, pursuit="own_goal", goal_id=goal.id,
+                goal_shape=self._goal_shape(goal),
+                trigger={"what": "goal", "source": "substrate",
+                         "content": {"goal_id": goal.id, "goal": description}})
+            if intent_id is None:
+                logger.warning("goal %r could not be formed as an intent; not taken on",
+                               description[:80])
+                return None
+            if not await self.task_queue.add_task(task, priority=priority):
+                await self.conclude_pursuit(
+                    task, {"error": "task queue refused the work"}, completed=False)
+                return None
+            self.system_state.active_goals.append(goal.id)
+            logger.info(f"New goal set: {description}")
+
+            # Store goal in memory
+            by_when = f" I want it done by {deadline.isoformat()}." if deadline else ""
+            await self.memory.store_memory(
+                origin=Origin.own("goals"),
+                content=(f"I set myself a {priority.value} goal: {description}.{by_when}"),
+                memory_type=MemoryType.EPISODIC,
+                # CLAMPED. This read `1.2 + (potential * 0.3)`, and importance
+                # is passed through as confidence_score -- a probability --
+                # so every goal recorded a confidence above 1.0.
+                importance_score=max(0.0, min(1.0, 0.8 + (goal.intrinsic_reward_potential * 0.2))),
+                source_context={"source_system": "goal_setting", "goal_id": goal.id},
+                tags=["goal", "planning", "autonomous_system"]
+            )
+
+            return goal.id
+
         except Exception as e:
             logger.error(f"Error setting goal: {e}")
             return None
-    
+
+    @staticmethod
+    def _goal_shape(goal: Goal) -> Dict[str, Any]:
+        """What a goal says about itself, for its intent's SHAPE: how much it
+        matters (the priority it was set with, and by when), the world state it
+        names when it names one, and the intrinsic reward it was expected to
+        bring. The ranking of the substrate's own goals reads these
+        (`IntentAuthority.ranked_own_goals`); none of it is whose goal it is."""
+        return {"priority": goal.priority.value,
+                "deadline": goal.deadline.isoformat() if goal.deadline else None,
+                "goal_conditions": list(goal.state_conditions or []),
+                "intrinsic": {"expected_novelty": goal.expected_novelty,
+                              "expected_competence_gain": goal.expected_competence_gain,
+                              "curiosity_value": goal.curiosity_value,
+                              "intrinsic_reward_potential": goal.intrinsic_reward_potential}}
+
     async def generate_curiosity_driven_goals(self, max_goals: Optional[int] = None) -> List[str]:
         """
         Autonomously generate goals based on curiosity and exploration targets
@@ -11657,7 +11651,8 @@ class AutonomousCoordinator:
             
             # Get module statuses
             perception_status = self.vision.awareness()
-            planning_status = await self.planning.get_planning_status()
+            from core.reasoning.intent_authority import get_intent_authority
+            pursuit_status = await get_intent_authority().standing()
             execution_status = await self.get_status()
             learning_insights = await self.learning.metrics()
             intrinsic_motivation_stats = await self.intrinsic_motivation.get_statistics()
@@ -11680,7 +11675,7 @@ class AutonomousCoordinator:
                 },
                 "modules": {
                     "perception": perception_status,
-                    "planning": planning_status,
+                    "pursuits": pursuit_status,
                     "execution": execution_status,
                     "learning": learning_insights,
                     "intrinsic_motivation": intrinsic_motivation_stats,
@@ -13218,50 +13213,38 @@ class AutonomousCoordinator:
                               (_type_decision.get("gate_blocked") or {}).items()),
                     getattr(selected_goal, "id", "?"))
                 return
-            # PERSIST THE GOAL BEFORE TURNING IT INTO A TASK.
+            # THE GOAL IS RECORDED BEFORE IT BECOMES WORK.
             #
             # The four intrinsic generators build real Goal objects, and every
             # one of them was discarded here: the description was copied onto a
-            # Task and the Goal itself never reached create_goal, so it was
-            # never written to unified.goals and the PlanningEngine never saw
-            # it. Motivation went straight to execution, skipping planning
-            # entirely, and the goal store stayed empty while 886 intrinsic
-            # motivation rows accumulated. Verified by running each generator
-            # against the live database: create_goal added a row, all four
-            # intrinsic generators added none.
-            #
-            # Persisting first also means the task and the goal share an id, so
-            # the outcome of the task is attributable to the goal that produced
-            # it rather than being an orphan.
-            persisted_goal = await self.planning.create_goal(
-                selected_goal.description,
-                Priority.LOW,
-                intrinsic_values={
-                    "expected_novelty": getattr(selected_goal, "expected_novelty", 0.5),
-                    "expected_competence_gain": getattr(
-                        selected_goal, "expected_competence_gain", 0.5),
-                    "curiosity_value": getattr(selected_goal, "curiosity_value", 0.5),
-                    "intrinsic_reward_potential": getattr(
-                        selected_goal, "intrinsic_reward_potential", 0.5),
-                },
+            # Task and the goal itself was recorded nowhere, so motivation went
+            # straight to execution while 886 intrinsic motivation rows
+            # accumulated. The goal is the intent formed for it below (`intend`,
+            # keyed on the goal), how much it matters on that intent's shape
+            # (`_goal_shape`); the task and the goal share an id, so the outcome
+            # of the task is attributable to the goal that produced it rather
+            # than being an orphan.
+            own_goal = Goal(
+                id=str(uuid.uuid4()),
+                description=selected_goal.description,
+                priority=Priority.LOW,
+                expected_novelty=getattr(selected_goal, "expected_novelty", 0.5),
+                expected_competence_gain=getattr(
+                    selected_goal, "expected_competence_gain", 0.5),
+                curiosity_value=getattr(selected_goal, "curiosity_value", 0.5),
+                intrinsic_reward_potential=getattr(
+                    selected_goal, "intrinsic_reward_potential", 0.5),
             )
-            if persisted_goal is None:
-                # A goal that could not be stored must not become a task: the
-                # task would run, complete, and have nothing to report against.
-                logger.warning(
-                    "Intrinsic goal could not be persisted (%s); not queueing a "
-                    "task for it", selected_goal.description[:80])
-                return
 
             intrinsic_task = Task(
-                id          = persisted_goal.id,
+                id          = own_goal.id,
                 type        = task_type,
-                description = persisted_goal.description,
+                description = own_goal.description,
                 priority    = Priority.LOW,
                 source      = TaskSource.AUTONOMOUS,
                 created_by  = "exploration_loop",
             )
-            intrinsic_task.metadata["goal_id"] = persisted_goal.id
+            intrinsic_task.metadata["goal_id"] = own_goal.id
 
             # Mark as intrinsic exploration for global cap/dedup (Known Gap 25.2)
             intrinsic_task.metadata["intrinsic_kind"] = "exploration"
@@ -13297,16 +13280,24 @@ class AutonomousCoordinator:
             # WHY THIS WORK EXISTS, recorded where the substrate chose it: the
             # goal it raised, keyed so a route later proved for that goal firms
             # up this same pursuit rather than starting a second account of it.
-            await self.intend(
-                intrinsic_task, goal_id=persisted_goal.id,
+            recorded = await self.intend(
+                intrinsic_task, goal_id=own_goal.id,
                 pursuit=str(intrinsic_task.metadata.get("drive")
                             or intrinsic_task.metadata.get("objective_type")
                             or "explore"),
+                goal_shape=self._goal_shape(own_goal),
                 trigger={"what": "drive", "source": "substrate",
-                         "content": {"goal_id": persisted_goal.id,
+                         "content": {"goal_id": own_goal.id,
                                      "goal": getattr(selected_goal, "description", None),
                                      "goal_metadata": getattr(selected_goal, "metadata", None),
                                      "task_metadata": dict(intrinsic_task.metadata or {})}})
+            if recorded is None:
+                # A goal that could not be recorded must not become a task: the
+                # task would run, complete, and have nothing to report against.
+                logger.warning(
+                    "Intrinsic goal could not be recorded (%s); not queueing a "
+                    "task for it", selected_goal.description[:80])
+                return
 
             # Add to task queue instead of executing directly
             logger.info(f"🔬 Queueing exploration task {intrinsic_task.id}: {intrinsic_task.description}")
@@ -16847,25 +16838,40 @@ The substrate must realign with its constitutional responsibilities immediately.
 
 
     async def _analyze_for_goal_creation(self, perception_data: PerceptionData) -> Optional[str]:
-        """Analyze perception data to determine if a new goal should be created"""
+        """Whether what was perceived asks for a goal; if it does, the goal,
+        formed through the intent authority for whoever the input belongs to
+        (its `origin`): a person's request is their goal, never the substrate's.
+        Returns the goal's id."""
         try:
             # Simple heuristics for goal creation
             content = perception_data.content
-            
+
             # Check for explicit requests
             if "request" in content or "goal" in content:
                 description = content.get("text", f"Handle {perception_data.data_type} input")
-                goal = await self.planning.create_goal(description, Priority.MEDIUM)
-                if goal:
-                    self.system_state.active_goals.append(goal.id)
-                    return goal.id
-            
+                origin = perception_data.origin
+                actor = (origin.owner if origin is not None else None) or SUBSTRATE_ACTOR
+                goal = Goal(id=str(uuid.uuid4()), description=str(description),
+                            priority=Priority.MEDIUM)
+                from core.reasoning.intent_authority import (
+                    continuity_goal, get_intent_authority)
+                await get_intent_authority().form(
+                    "self_goal" if is_substrate_actor(actor) else "goal",
+                    actor, continuity_goal(goal.id),
+                    shape={"pursuit": "perceived_request", "goal_id": goal.id,
+                           "source": perception_data.source,
+                           "data_type": perception_data.data_type,
+                           **self._goal_shape(goal)},
+                    content={"aim": goal.description[:500]})
+                self.system_state.active_goals.append(goal.id)
+                return goal.id
+
             return None
-            
+
         except Exception as e:
             logger.error(f"Error analyzing for goal creation: {e}")
             return None
-    
+
     async def _update_system_state(self):
         """Refresh the substrate's self-state from its real subsystems.
 
@@ -16917,16 +16923,18 @@ The substrate must realign with its constitutional responsibilities immediately.
         except Exception as e:
             logger.warning("system_state: goal_alignment unreadable: %s", e)
 
-        # Perception / planning transparency signals.
+        # Perception / pursuit transparency signals: what is being pursued is the
+        # intent authority's to say, and what work is waiting the queue's.
         try:
-            planning_status = await self.planning.get_planning_status()
+            from core.reasoning.intent_authority import get_intent_authority
+            standing = await get_intent_authority().standing()
             metrics.update({
                 "perception_queue_length": self.vision.awareness()["aware"],
-                "active_plans": planning_status.get("active_plans", 0),
-                "pending_tasks": planning_status.get("pending_tasks", 0),
+                "live_pursuits": standing.get("live", 0),
+                "pending_tasks": self.task_queue.get_queue_length(),
             })
         except Exception as e:
-            logger.warning("system_state: perception/planning metrics unreadable: %s", e)
+            logger.warning("system_state: perception/pursuit metrics unreadable: %s", e)
     
     async def shutdown(self):
         """Shutdown the autonomous system gracefully"""
@@ -16982,7 +16990,6 @@ The substrate must realign with its constitutional responsibilities immediately.
         modules = [
             ("Learning Adapter", self.learning),
             ("Intrinsic Motivation System", self.intrinsic_motivation),
-            ("Planning Engine", self.planning),
         ]
         
         for name, module in modules:
@@ -17165,33 +17172,6 @@ The substrate must realign with its constitutional responsibilities immediately.
     # INDETERMINATE -- and does not fall to generation.
     # ==================================================================
 
-    async def _get_planning_engine(self):
-        """The substrate's planner — `self.planning`, and only that.
-
-        Planning a state goal is the substrate choosing a sequence of its own
-        learned operators, and the planning faculty is what gives it that ability:
-        there is no planning without the substrate, and no plan formed anywhere
-        else. ONE engine, so the goals and plans it holds are the same ones every
-        other part of the substrate sees.
-
-        This used to build a SECOND PlanningEngine and keep it on
-        `self._planning_engine`. Goals created through `self.planning` were then
-        invisible to the engine that actually planned, and vice versa — two
-        divergent sets of goals, plans and stats inside one self.
-        """
-        engine = self.planning
-        if engine is None:
-            logger.error("the substrate has no planning faculty; it cannot plan")
-            return None
-        if not getattr(engine, "active", False):
-            # Normally brought up with the other core modules at startup; an
-            # entry point that reached planning first initializes the same one.
-            if not await engine.initialize():
-                logger.error("planning engine failed to initialize; the "
-                             "substrate cannot plan state goals")
-                return None
-        return engine
-
     async def _reconcile_plan_intent(self, plan: Any, domain_id: str, *,
                                      goal_conditions: Any,
                                      detail: str = "",
@@ -17350,6 +17330,7 @@ The substrate must realign with its constitutional responsibilities immediately.
 
     async def intend(self, task: Task, *, pursuit: str,
                      goal_id: Optional[str] = None,
+                     goal_shape: Optional[Dict[str, Any]] = None,
                      parent_intent_id: Optional[str] = None,
                      session: Optional[str] = None,
                      trigger: Optional[Dict[str, Any]] = None) -> Optional[str]:
@@ -17387,6 +17368,10 @@ The substrate must realign with its constitutional responsibilities immediately.
                  "raised_by": getattr(task, "created_by", None)}
         if goal_id:
             shape["goal_id"] = str(goal_id)
+        if goal_shape:
+            # What a goal says about itself (`_goal_shape`): its priority, its
+            # world state, the intrinsic reward expected of it.
+            shape.update(goal_shape)
         content = {"aim": str(getattr(task, "description", "") or "")[:500]}
         if session:
             content["session"] = str(session)
@@ -17546,12 +17531,22 @@ The substrate must realign with its constitutional responsibilities immediately.
                          "(%s: %s)", intent_id, type(e).__name__, e)
 
     async def _drive_substrate_goal(self, task: Task) -> Optional[Dict[str, Any]]:
-        """Plan a state goal over learned operators and execute it, model-free.
+        """Plan a state goal over learned operators and pursue it, model-free.
 
-        Returns None to decline -- the task names no state goal, or the planner
-        is unavailable -- leaving what comes next to the caller. Otherwise the
-        substrate owns the goal and the result says what happened: it reached
-        the goal, proved it unreachable, or stopped at the step that diverged.
+        Returns None to decline -- the task names no state goal. Otherwise this
+        drive IS the goal's pursuit, and its only one. The planner (temporal
+        reasoning) proves a route over what the substrate has learned; the route
+        is recorded on the pursuit's intent (the intent authority); it is walked
+        (`_pursue_proved_route`); and the result says what happened: it reached
+        the goal, proved it unreachable, or stopped where the world diverged.
+
+        PLANNED AGAIN INSIDE THE PURSUIT, never beside it. When a walk stops, the
+        drive plans once more only when there is something new to plan over
+        (`_worth_planning_again`) -- the world moved since the route was proved,
+        a rule it stood on lost its authority, or the constitution sent the route
+        back -- and only while what the goal rests on still holds. A planning
+        engine used to replan the goal on its own, outside the task that owned
+        it: without its premise, and without its person's yes.
 
         The world is re-observed for authorization by each step (inside
         _execute_grounded_operator) and once more at the end to decide success.
@@ -17562,243 +17557,435 @@ The substrate must realign with its constitutional responsibilities immediately.
         if spec is None:
             return None
 
-        # A GOAL THAT RESTS ON HOW SOMETHING WAS LEFT is moot once it is not so:
-        # put right after the person dealt with it otherwise, it would undo what
-        # they did. Measured (EXPECT-02, run 9): a file left in the inbox and
-        # filed to ARCHIVE before the goal ran, planned to be moved back -- the
-        # constitution refused it, and the goal should never have got that far.
-        # Ended without acting and without a retry; they are told why.
-        required = (getattr(task, "provenance", None) or {}).get("requires")
-        if required:
-            seen = {str(fact) for fact in spec["world_state"]}
-            gone = [fact for fact in required if fact not in seen]
-            if gone:
+        domain_id = spec["domain_id"]
+        self_initiated = (getattr(getattr(task, 'source', None), 'value', None) == 'autonomous')
+        world = spec["world_state"]
+        leaving_out: List[str] = []
+        while True:
+            moot = self._premise_gone(task, world, domain_id)
+            if moot is not None:
+                return moot
+
+            outcome, route = await self._plan_route(
+                task, spec["goal_conditions"], world, domain_id, leaving_out=leaving_out)
+
+            if route is None:
+                # Honest inability. UNREACHABLE is a proof about the world;
+                # INDETERMINATE is Lyric not (yet) knowing enough of its own
+                # repertoire. Neither is a reason to ask a model to guess -- but
+                # the substrate can go further than "I cannot": the domain
+                # authority diagnoses WHAT kind of knowledge is missing (operator,
+                # concept, causal link, binding, prerequisite, observation, or
+                # none learnable). The diagnosis is a MEASUREMENT, not a decision:
+                # it feeds the AppraisalSystem, which owns the disposition
+                # (explore / replan / disengage).
+                from core.integration.universal_domain_master import get_universal_domain_master
+
+                deficit = await get_universal_domain_master().diagnose_deficit(
+                    domain_id, spec["goal_conditions"], world, outcome)
+                try:
+                    self.appraisal.update(
+                        outcome_quality=0.0, self_initiated=self_initiated,
+                        **deficit.appraisal_signals(),
+                    )
+                except Exception as e:
+                    # Disposition is not allowed to decide whether the planning
+                    # result is returned; the deficit is already diagnosed.
+                    logger.warning("substrate planning-failure appraisal update failed: %s", e)
                 return {
-                    'success': False, 'moot': True, 'task_id': task.id,
-                    'execution_path': 'substrate_plan', 'model_free': True,
-                    'domain_id': spec["domain_id"],
-                    'error': f"it was dealt with before I got to it: {', '.join(gone)} no longer holds",
+                    'success': False,
+                    'task_id': task.id,
+                    'execution_path': 'substrate_plan',
+                    'model_free': True,
+                    'domain_id': domain_id,
+                    'goal_conditions': spec["goal_conditions"],
+                    'planning_status': outcome.status.value,
+                    'operators_considered': outcome.operators_considered,
+                    'grounding_complete': outcome.grounding_complete,
+                    'left_out': list(leaving_out),
+                    'error': f"substrate could not plan the goal: {outcome.reason}",
+                    'reason': outcome.reason,
+                    'deficit': deficit.to_dict(),
                 }
 
-        engine = await self._get_planning_engine()
-        if engine is None:
+            result = await self._pursue_proved_route(
+                route, domain_id=domain_id,
+                goal_conditions=spec["goal_conditions"], task_id=task.id,
+                self_initiated=self_initiated)
+            if result.get("success"):
+                return result
+            again = await self._worth_planning_again(route, domain_id, result)
+            if again is None:
+                return result
+            why, refused_act = again
+            if refused_act:
+                leaving_out.append(refused_act)
+            world = self._observe_world(domain_id)
+            if world is None:
+                return result
+            logger.info("pursuit %s plans again: %s", task.id, why)
+
+    @staticmethod
+    def _premise_gone(task: Task, world, domain_id: str) -> Optional[Dict[str, Any]]:
+        """The goal is moot when what it rests on no longer holds.
+
+        A GOAL THAT RESTS ON HOW SOMETHING WAS LEFT is moot once it is not so:
+        put right after the person dealt with it otherwise, it would undo what
+        they did. Measured (EXPECT-02, run 9): a file left in the inbox and
+        filed to ARCHIVE before the goal ran, planned to be moved back -- the
+        constitution refused it, and the goal should never have got that far.
+        Ended without acting and without a retry; they are told why. Asked
+        before every route, the first and any planned again."""
+        required = (getattr(task, "provenance", None) or {}).get("requires")
+        if not required:
             return None
-
-        from core.reasoning.temporal_reasoning import PlanningStatus
-
-        domain_id = spec["domain_id"]
-        goal = await engine.create_goal(
-            f"[substrate goal] {task.description}"[:200], task.priority,
-            state_conditions=spec["goal_conditions"])
-        if goal is None:
+        seen = {str(fact) for fact in world}
+        gone = [fact for fact in required if fact not in seen]
+        if not gone:
             return None
+        return {
+            'success': False, 'moot': True, 'task_id': task.id,
+            'execution_path': 'substrate_plan', 'model_free': True,
+            'domain_id': domain_id,
+            'error': f"it was dealt with before I got to it: {', '.join(gone)} no longer holds",
+        }
 
-        # The route this plans is a goal raised WHILE WORKING on this task, so its
-        # intent is its own — with the task's pursuit as its parent, which is the
-        # tree the intent authority keeps (a goal inside a pursuit, not merged).
-        outcome = await engine.plan_for_goal(
-            goal.id, {"world_state": spec["world_state"], "domain_id": domain_id,
-                      "parent_intent_id": (getattr(task, "provenance", None)
-                                           or {}).get("intent_id")})
+    async def _plan_route(self, task: Task, goal_conditions: List[str],
+                          observed: List[str], domain_id: str, *,
+                          leaving_out: Sequence[str] = ()) -> Tuple[Any, Optional["Plan"]]:
+        """Plan a state goal for the task pursuing it, over what the substrate
+        has learned in `domain_id`, from the world as it was just read: the
+        planner's verdict (temporal reasoning's `plan_state_goal`), and, when it
+        found a route, the route as the steps that walk it, recorded on the
+        pursuit's intent (`_route_of`). The one way a state goal is planned."""
+        from core.reasoning.temporal_reasoning import TemporalReasoningSystem
 
-        if outcome.status is not PlanningStatus.PLAN_FOUND:
-            # Honest inability. UNREACHABLE is a proof about the world;
-            # INDETERMINATE is Lyric not (yet) knowing enough of its own
-            # repertoire. Neither is a reason to ask a model to guess -- but the
-            # substrate can go further than "I cannot": the domain authority
-            # diagnoses WHAT kind of knowledge is missing (operator, concept,
-            # causal link, binding, prerequisite, observation, or none learnable).
-            # The diagnosis is a MEASUREMENT, not a decision: it feeds the
-            # AppraisalSystem, which owns the disposition (explore / replan /
-            # disengage). Until now a planning failure fed appraisal nothing, so
-            # the substrate's own inability never reached its disposition.
-            from core.integration.universal_domain_master import get_universal_domain_master
+        outcome = await TemporalReasoningSystem().plan_state_goal(
+            goal_conditions, observed, domain_id, leaving_out=tuple(leaving_out))
+        if not outcome.found:
+            return outcome, None
+        # THE WORLD THIS ROUTE WAS PROVED FROM, read as soon as it is proved and
+        # the way it will be read when a walk stops (`_worth_planning_again`):
+        # after the planner looked at the goal's places, which perception keeps
+        # in view from then on (`look_at`), and before anything is done about the
+        # route. The planner's own list is not such a reading -- compared with
+        # one, every world would have moved -- and a reading taken later would
+        # take in whatever changed meanwhile, which is what the question is for.
+        proved_from = self._observe_world(domain_id)
+        return outcome, await self._route_of(task, outcome, domain_id, proved_from)
 
-            deficit = await get_universal_domain_master().diagnose_deficit(
-                domain_id, spec["goal_conditions"], spec["world_state"], outcome)
-            try:
-                self.appraisal.update(
-                    outcome_quality=0.0,
-                    self_initiated=(
-                        getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'),
-                    **deficit.appraisal_signals(),
-                )
-            except Exception as e:
-                # Disposition is not allowed to decide whether the planning
-                # result is returned; the deficit is already diagnosed.
-                logger.warning("substrate planning-failure appraisal update failed: %s", e)
-            return {
-                'success': False,
-                'task_id': task.id,
-                'execution_path': 'substrate_plan',
-                'model_free': True,
-                'domain_id': domain_id,
-                'goal_conditions': spec["goal_conditions"],
-                'planning_status': outcome.status.value,
-                'operators_considered': outcome.operators_considered,
-                'grounding_complete': outcome.grounding_complete,
-                'error': f"substrate could not plan the goal: {outcome.reason}",
-                'reason': outcome.reason,
-                'deficit': deficit.to_dict(),
-            }
+    async def _route_of(self, task: Task, outcome, domain_id: str,
+                        proved_from: Optional[List[str]]) -> "Plan":
+        """A proved route as the steps that walk it, recorded on the pursuit's
+        intent. Held only for the walk: the intent is the route's durable
+        account, and the task is the work's. `proved_from` is the world it was
+        proved from, as `_plan_route` read it; None when it could not be read."""
+        from .execution_plan_adapter import assemble_inputs, state_plan_to_tasks
 
-        return await self._pursue_proved_route(
-            outcome.plan, domain_id=domain_id,
-            goal_conditions=spec["goal_conditions"], task_id=task.id,
-            self_initiated=(
-                getattr(getattr(task, 'source', None), 'value', None) == 'autonomous'))
+        recorded = await self._record_route_intent(task, outcome, domain_id)
+        pursued = Goal(id=task.id, description=str(task.description or ""),
+                       priority=task.priority,
+                       state_conditions=list(outcome.goal_conditions))
+        route_id = str(uuid.uuid4())
+        steps = state_plan_to_tasks(outcome.route, pursued, route_id,
+                                    outcome.grounding_complete, domain_id=domain_id,
+                                    intent_id=recorded.get("intent_id"))
+        rule_ids = [a.get("rule_id") for a in (getattr(outcome.route, "actions", None) or [])
+                    if a.get("rule_id")]
+        # A STATE plan declares what it was formed on: the world it was proved
+        # against, the operators the substrate learned, and what it has earned
+        # in this domain, each from its owner.
+        inputs = await assemble_inputs("state", pursued, {
+            "world_state": [str(f) for f in outcome.world], "domain_id": domain_id})
+        return Plan(
+            id=route_id, goal_id=task.id, tasks=steps,
+            confidence=1.0,  # proved, not estimated
+            metadata={"planning_mode": "state",
+                      "confidence_source": "proved_by_search",
+                      # THE WORLD THIS ROUTE WAS PROVED FROM. A route is a route
+                      # from a state, so when a walk stops the first question is
+                      # whether that state still holds.
+                      "planned_world": proved_from,
+                      "inputs": inputs,
+                      "rule_ids": rule_ids,
+                      "intent": recorded})
 
-    async def _route_went_stale(self, plan, domain_id: str, *, why: str) -> bool:
-        """A pursuit stopped, and the route is what stopped it. Say so, so the
-        goal can be given another one.
+    async def _record_route_intent(self, task: Task, outcome, domain_id: str) -> Dict[str, Any]:
+        """Record a proved route as the intent of the goal it reaches, through
+        the authority that owns intent.
 
-        A PROVED ROUTE GOES STALE TWO WAYS, and only one of them was wired. A
-        rule can stop being TRUE — that is refutation, and the rule store's
-        authority events already carry it. Or the WORLD can stop being where the
-        route assumed it was, which refutes nothing: the operator is still
-        correct, the plan is simply a route from a state that has moved on.
-        Something else wrote the file, a step half-succeeded, a law refused this
-        form of the act. Repair fired only on the first, so a pursuit knocked
-        off course by the second stopped at the diverged step and stayed there
-        forever, with the goal still reading `active`.
+        THE STEPS OF A ROUTE ARE ONE INTENT, not separate intentions: each step
+        references it and says which step it is. Its key is the pursuing task's,
+        so a route planned again, or the task tried again, is the same intent
+        returned to (the earlier attempts kept on it), a goal inside the task's
+        own pursuit and its child. The reasoning skeleton (operators, the rules
+        that license them, the goal state) is substrate-wide SHAPE; the aim and
+        the concrete bindings are CONTENT.
 
-        Both are the same condition from the goal's side: what was proved is no
-        longer a route to it.
+        Returns what happened, a reason when nothing was recorded, so the route
+        carries an honest account of whether an intent stands behind it."""
+        from core.reasoning.intent_authority import (
+            SUBSTRATE_ACTOR, continuity_goal, get_intent_authority)
+        result = outcome.route
+        steps = list(getattr(result, "steps", []) or [])
+        actions = list(getattr(result, "actions", []) or [])
+        operators = [str(step.get("action")) for step in steps if step.get("action")]
+        rule_ids = [a.get("rule_id") for a in actions if a.get("rule_id")]
+        try:
+            intent = await get_intent_authority().form(
+                "goal", SUBSTRATE_ACTOR, continuity_goal(f"{task.id}:route"),
+                shape={
+                    "proved": True,
+                    "operator": operators[0] if operators else "",
+                    "operators": operators,
+                    "goal_conditions": [str(c) for c in outcome.goal_conditions],
+                    "rule_ids": rule_ids,
+                    "domain": domain_id,
+                    "steps": len(operators),
+                    "grounding_complete": bool(outcome.grounding_complete),
+                    "plan_guarantee": getattr(getattr(result, "guarantee", None), "value", None),
+                },
+                content={
+                    "aim": str(task.description or ""),
+                    "bindings": [a.get("bindings", {}) for a in actions],
+                },
+                parent_intent_id=(getattr(task, "provenance", None) or {}).get("intent_id"))
+            return {"recorded": True, "intent_id": intent.intent_id,
+                    "actor": SUBSTRATE_ACTOR, "operators": len(operators)}
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator._record_route_intent")
+            logger.error("the proved route for %s was not recorded as intent: %s", task.id, e)
+            return {"recorded": False, "intent_id": None, "reason": str(e)}
 
-        THE GUARD IS THE WORLD, NOT A RETRY COUNT. Replanning is worth doing
-        when there is something NEW to plan over, so this announces only when
-        the world has actually changed since the plan was proved against it.
-        A route that fails in an unchanged world would be re-derived identically
-        by the same search — re-announcing there is a loop, and stopping after
-        an arbitrary N attempts would be a number nobody can defend. When
-        knowledge is what changed instead, the authority path announces, and it
-        is right to: the world may be untouched and the repertoire is not.
-        """
-        planned = (getattr(plan, "metadata", None) or {}).get("planned_world")
+    async def _worth_planning_again(self, route, domain_id: str,
+                                    result: Dict[str, Any]) -> Optional[Tuple[str, Optional[str]]]:
+        """A walk stopped. Whether its pursuit has something NEW to plan over:
+        (why, an act the next route must leave out), or None.
+
+        A PROVED ROUTE STOPS BEING THE ROUTE THREE WAYS. The constitution sends
+        it back (REPLAN: "not this route"), and the next route leaves out the
+        act it refused. A rule it stood on stops being TRUE, refuted by the
+        world, and the next search no longer has it. Or the WORLD stops being
+        where the route assumed it was, which refutes nothing: something else
+        moved the file, a step half-succeeded, and the route is from a state
+        that has moved on.
+
+        THE GUARD IS THE WORLD AND WHAT IS KNOWN, NOT A RETRY COUNT. A route that
+        fails in an unchanged world, over unchanged rules, would be re-derived
+        identically by the same search: planning again there is a loop, and
+        stopping after an arbitrary N attempts would be a number nobody can
+        defend."""
+        steps = list(result.get("steps") or [])
+        judgment = ((steps[-1] or {}).get("judgment") or {}) if steps else {}
+        if judgment.get("verdict") == Verdict.REPLAN.value:
+            stopped = route.tasks[len(steps) - 1] if 0 < len(steps) <= len(route.tasks) else None
+            refused = (getattr(stopped, "provenance", None) or {}).get("grounded_operator")
+            return (f"the constitution sent the route back under Law "
+                    f"{judgment.get('law_number', '?')}", refused)
+
+        stood_on = list((route.metadata or {}).get("rule_ids") or [])
+        if stood_on:
+            from core.learning.rule_store import get_rule_store
+            held = {r.rule_id for r in await get_rule_store().executable_rules(domain_id=domain_id)}
+            lost = [rule_id for rule_id in stood_on if rule_id not in held]
+            if lost:
+                return (f"a rule it stood on lost its authority ({', '.join(lost)})", None)
+
+        planned = (route.metadata or {}).get("planned_world")
         observed = self._observe_world(domain_id)
         if observed is None:
-            logger.warning(
-                "plan %s stopped (%s) and the world of %s cannot be read, so "
-                "whether its route is still the route is unknown; not replanned",
-                plan.id, why, domain_id)
-            return False
+            logger.warning("route %s stopped and the world of %s cannot be read, so whether "
+                           "it is still the route is unknown; not planned again",
+                           route.id, domain_id)
+            return None
         if planned is not None and list(planned) == list(observed):
-            logger.info(
-                "plan %s stopped (%s) in a world unchanged since it was proved; "
-                "the same search would find the same route, so it is not "
-                "replanned", plan.id, why)
-            return False
+            logger.info("route %s stopped in a world unchanged since it was proved; the "
+                        "same search would find the same route", route.id)
+            return None
+        return ("the world moved since the route was proved", None)
 
-        plan.status = "invalidated"
-        plan.metadata = {
-            **(getattr(plan, "metadata", None) or {}),
-            "invalidated_by": "route_went_stale",
-            "invalidated_reason": why,
-            "invalidated_at": datetime.now().isoformat(),
-        }
-        engine = await self._get_planning_engine()
-        if engine is None:
-            logger.error("plan %s went stale and there is no planning faculty "
-                         "to repair it: %s", plan.id, why)
-            return False
-        try:
-            await engine._store_plan(plan)
-        except Exception as e:
-            logger.error("plan %s could not be recorded as withdrawn (%s: %s); "
-                         "repairing it anyway", plan.id, type(e).__name__, e)
-        await self.announce_route_withdrawal(
-            goal_ids=[plan.goal_id], plan_ids=[plan.id], rule_ids=[],
-            tasks_blocked=sum(1 for t in plan.tasks
-                              if t.status in (TaskStatus.PENDING,
-                                              TaskStatus.PLANNED,
-                                              TaskStatus.BLOCKED)))
-        return True
+    async def _pursue_described_goal(self, task: Task) -> Optional[Dict[str, Any]]:
+        """Pursue a goal stated in words: decompose it into the work it names
+        and walk that work in order. Declines (None) for any other task.
 
-    async def _withdraw_replanned_route(self, judgment: Optional[Dict[str, Any]],
-                                        provenance: Dict[str, Any]) -> bool:
-        """A REPLAN verdict means the goal goes back to planning. Make it so.
+        A GOAL IN WORDS NAMES KINDS OF WORK -- find out, examine, make -- and no
+        world state, so there is no route to search for. The decomposition is
+        the execution plan adapter's (`plan_described_goal`); this is the
+        pursuit, and its only one. The steps are recorded on the goal's intent;
+        each carries that intent and the decomposition's id, and each is walked
+        through `execute_task`, the one door every act passes, so the task gate,
+        the constitution and appraisal see every one of them. What a step found
+        is handed to the step that writes it up (`provenance["findings"]`).
 
-        `Verdict.REPLAN` is the constitution saying "this is not the route" — not
-        "this may not happen" (that is BLOCK) and not "do it this other way"
-        (that is REDIRECT). Its whole content is an instruction to plan again.
-        **Nothing consumed it.** Measured: `Verdict.REPLAN` is produced in five
-        places and no code in the tree branched on it, so a route the
-        constitution had rejected stayed the active route. Every dispatch of it
-        was refused again at the tool gate, forever, and the goal it served was
-        never repaired — a livelock the laws themselves diagnosed on every pass.
-
-        The far half already exists and is proven: ROUTE_WITHDRAWN →
-        `replan_withdrawn_goals` → a new route (REPLAN-01). This is the near half
-        for a CONSTITUTIONAL withdrawal, beside the one for a refuted rule.
-
-        NO RULE IS NAMED, deliberately. `rule_ids=[]`, for exactly the reason the
-        refusal above records no runtime evidence: the constitution said "not
-        this act", never "this operator is wrong". Withdrawing the route while
-        blaming the rule would punish the substrate's knowledge for the
-        substrate's own law — the same false negative, one layer up.
-
-        Isolated and never fatal: the refusal is already the answer, and a
-        failure to repair the pursuit must not change what the caller is told.
+        A step that fails stops the walk: each step after it depends on it, and
+        writing up research that found nothing would only make an empty file.
+        The pursuit ends saying how far it got. Whether that is done is the
+        completion authority's to say, and it closes the intent
+        (`conclude_pursuit`).
         """
-        if (judgment or {}).get("verdict") != Verdict.REPLAN.value:
-            return False
-        plan_id = provenance.get("plan_id")
-        goal_id = provenance.get("goal_id")
-        if not plan_id:
-            # A single-operator act IS the whole pursuit; there is no route
-            # around it to withdraw, and saying so is better than inventing one.
-            logger.info("the constitution replanned %s, which belongs to no plan "
-                        "— nothing to withdraw", provenance.get("intent_id") or "an act")
-            return False
+        provenance = getattr(task, "provenance", None) or {}
+        if not provenance.get("described_goal") or provenance.get("plan_id"):
+            return None
+        from core.reasoning.intent_authority import get_intent_authority
+        from .execution_plan_adapter import plan_described_goal
+
+        goal_id = str(provenance.get("goal_id") or task.id)
+        goal = Goal(id=goal_id, description=str(task.description or ""),
+                    priority=task.priority)
+        steps, claims = await plan_described_goal(goal)
+        plan_id = str(uuid.uuid4())
+        intent_id = provenance.get("intent_id")
+        for step in steps:
+            # Whose work it is, and through which of their contexts, is the
+            # goal's; each step is a part of it.
+            step.actor, step.source, step.created_by = task.actor, task.source, "described_goal"
+            for key in ("context", "organization"):
+                if key in (task.metadata or {}):
+                    step.metadata[key] = task.metadata[key]
+            step.provenance = {**(step.provenance or {}), "plan_id": plan_id,
+                               "goal_id": goal_id, "intent_id": intent_id}
+        if intent_id:
+            # THE STEPS ARE RECORDED ON THE PURSUIT, with what the decomposition
+            # may claim about itself (measured, or said to be unmeasured) and the
+            # inputs it went without. What the inputs held is not shape.
+            try:
+                await get_intent_authority().refresh(
+                    str(intent_id), str(task.actor or SUBSTRATE_ACTOR),
+                    shape={"plan_id": plan_id, "planning_mode": "template",
+                           "steps": len(steps),
+                           "step_kinds": [step.type.value for step in steps],
+                           "confidence": claims.get("confidence"),
+                           "confidence_source": claims.get("confidence_source"),
+                           "estimated_duration": claims.get("estimated_duration"),
+                           "duration_source": claims.get("duration_source"),
+                           "inputs_missing": [
+                               missing.get("input") for missing in
+                               ((claims.get("inputs") or {}).get("missing") or [])]})
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator._pursue_described_goal")
+                logger.error("the steps of goal %s were not recorded on its intent: %s",
+                             goal_id, e)
+        await self._account_for_creation_steps(steps, plan_id, goal_id, intent_id)
+
+        self._walking[plan_id] = {"description": goal.description, "intent_id": intent_id}
+        walked: List[Dict[str, Any]] = []
+        findings: List[str] = []
         try:
-            engine = await self._get_planning_engine()
-            if engine is None:
-                logger.error("the constitution replanned plan %s and there is no "
-                             "planning faculty to repair it", plan_id)
-                return False
-            plan = getattr(engine, "active_plans", {}).get(plan_id)
-            if plan is None:
-                logger.info("the constitution replanned plan %s, which is no "
-                            "longer active — nothing to withdraw", plan_id)
-                return False
-            if getattr(plan, "status", None) == "invalidated":
-                return False          # already withdrawn; one withdrawal, not many
-            blocked = 0
-            for step in getattr(plan, "tasks", ()) or ():
-                if step.status in (TaskStatus.PENDING, TaskStatus.PLANNED,
-                                   TaskStatus.BLOCKED):
-                    step.status = TaskStatus.BLOCKED
-                    step.result = {
-                        **(step.result or {}),
-                        "blocked_reason": "constitution_replanned_the_route",
-                        "law_number": (judgment or {}).get("law_number"),
-                        "judgment_id": (judgment or {}).get("judgment_id"),
-                    }
-                    blocked += 1
-            plan.status = "invalidated"
-            plan.metadata = {
-                **(getattr(plan, "metadata", None) or {}),
-                "invalidated_by": "constitutional_replan",
-                "invalidated_reason": (judgment or {}).get("reason"),
-                "law_number": (judgment or {}).get("law_number"),
-                "judgment_id": (judgment or {}).get("judgment_id"),
-                "invalidated_at": datetime.now().isoformat(),
-            }
-            await engine._store_plan(plan)
-            logger.warning("plan %s withdrawn: the constitution replanned it under "
-                           "Law %s (%d step(s) blocked)", plan_id,
-                           (judgment or {}).get("law_number", "?"), blocked)
-            await self.announce_route_withdrawal(
-                goal_ids=[goal_id] if goal_id else [], plan_ids=[plan_id],
-                rule_ids=[], tasks_blocked=blocked)
-            self.stats["routes_withdrawn_by_law"] = (
-                self.stats.get("routes_withdrawn_by_law", 0) + 1)
-            return True
-        except Exception as error:
-            logger.error("the constitution replanned plan %s and it could not be "
-                         "withdrawn (%s: %s); the refusal still stands",
-                         plan_id, type(error).__name__, error)
-            return False
+            for step in steps:
+                if findings and (step.provenance or {}).get("artefact"):
+                    step.provenance["findings"] = list(findings)
+                outcome = await self.execute_task(step) or {}
+                step.result = outcome
+                done = bool(outcome.get("success"))
+                step.status = TaskStatus.COMPLETED if done else TaskStatus.FAILED
+                walked.append({"task_id": step.id, "type": step.type.name,
+                               "description": step.description, "success": done,
+                               "verification_state": outcome.get("verification_state"),
+                               "error": outcome.get("error")})
+                account = (step.provenance or {}).get("intent_id")
+                if account and account != intent_id:
+                    await self._settle_account(str(account), step, outcome, done)
+                if outcome.get("awaiting_person"):
+                    # Waiting on the person's go-ahead is not an ending: the
+                    # pursuit is held, and taken up again from the start when it
+                    # resumes (what was found is found again from memory).
+                    return {**outcome, "task_id": task.id, "plan_id": plan_id,
+                            "execution_path": "described_goal", "steps": walked}
+                if not done:
+                    break
+                answer = str(outcome.get("answer") or "").strip()
+                if answer and answer not in findings:
+                    findings.append(answer)
+        finally:
+            self._walking.pop(plan_id, None)
+
+        finished = bool(walked) and len(walked) == len(steps) and all(
+            w["success"] for w in walked)
+        last = walked[-1] if walked else {}
+        return {
+            "success": finished,
+            "model_free": True,
+            "execution_path": "described_goal",
+            "task_id": task.id,
+            "plan_id": plan_id,
+            "operated": bool(walked),
+            "verification_state": (last.get("verification_state") or "unverified")
+                                  if finished else "failed",
+            "steps": walked,
+            "claims": {key: claims.get(key) for key in (
+                "confidence", "confidence_source", "estimated_duration", "duration_source")},
+            "error": None if finished else (
+                f"step {len(walked)} of {len(steps)} ({last.get('type')}) did not "
+                f"succeed: {last.get('error')}" if walked
+                else "the goal was decomposed into no steps"),
+        }
+
+    async def _account_for_creation_steps(self, steps: List[Task], plan_id: str,
+                                          goal_id: str,
+                                          pursuit_intent_id: Optional[str]) -> int:
+        """Record WHY each step that must make something is happening.
+
+        The constitution reads an account at the gate, and a plain instruction
+        is none of its accounts, so a step planned to write a file the goal
+        explicitly asked for was refused as "an act nothing can explain" --
+        measured in RESEARCH-WRITE-01, where every step succeeded and no file
+        was ever written.
+
+        Each is a CARRY_OUT account, a child of the pursuit: it names the
+        decomposition and the artefact, and `_carrying_out_is_earned` checks it
+        against the pursuit being walked and the goal's own words, so this
+        states a claim rather than granting itself permission. A failure to
+        record leaves the step with no account of its own, and it is then
+        refused -- the correct answer to work nothing can explain, not a reason
+        to act anyway.
+        """
+        from core.reasoning.intent_authority import continuity_goal, get_intent_authority
+        stamped = 0
+        for step in steps:
+            artefact = (step.provenance or {}).get("artefact")
+            if not artefact or step.type is not TaskType.EXECUTION:
+                continue
+            try:
+                account = await get_intent_authority().form(
+                    "goal", SUBSTRATE_ACTOR, continuity_goal(f"{goal_id}:make:{step.id}"),
+                    shape={
+                        # `proved` is deliberately ABSENT: no route was proved
+                        # over a learned operator, and claiming one would be the
+                        # fabricated-intent hole the constitution closed.
+                        "purpose": "carry_out",
+                        "plan_id": plan_id,
+                        "goal_id": goal_id,
+                        "artefact": artefact,
+                        "steps": len(steps),
+                    },
+                    parent_intent_id=pursuit_intent_id)
+                step.provenance = {**(step.provenance or {}),
+                                   "intent_id": account.intent_id}
+                stamped += 1
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator._account_for_creation_steps")
+                logger.error("could not record an account for %s: %s -- it will "
+                             "be refused for having none", step.id, e)
+        return stamped
+
+    async def _settle_account(self, account_id: str, step: Task,
+                              outcome: Dict[str, Any], done: bool) -> None:
+        """Close a CARRY_OUT account with how its one step ended: it accounted
+        for that act and for nothing after it. Isolated: recording how a step
+        ended never changes how it ended."""
+        try:
+            from core.reasoning.intent_authority import get_intent_authority
+            stopped_as = None if done else self._pursuit_stopped_as(outcome.get("judgment"))
+            await get_intent_authority().reconcile(account_id, {
+                "intent_id": account_id,
+                "outcome_class": "success" if done else (stopped_as or "not_completed"),
+                "matched_aim": done,
+                "decided_by": "the step it accounted for",
+                "detail": "made" if done else str(outcome.get("error") or "not made")[:300],
+            }, status="fulfilled" if done else (stopped_as or "abandoned"))
+        except Exception as e:
+            raise_if_structural(e, "autonomous_coordinator._settle_account")
+            logger.error("the account for step %s was not closed: %s", step.id, e)
 
     async def _pursue_proved_route(
             self, plan, *, domain_id: str, goal_conditions: List[str],
@@ -17807,18 +17994,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         """Run a proved route and CLOSE IT OUT. The substrate's own work, from
         the first step to the reconciled intent.
 
-        WHOEVER MAKES A PLAN OWNS IT. Running a route and reconciling it were
-        the back half of `_drive_substrate_goal`, reachable only by planning a
-        goal and executing it in the same call — so a plan that was STORED
-        rather than driven had no owner at all. `replan_withdrawn_goals` makes
-        exactly such a plan: the substrate repaired the pursuit and then left
-        the new route sitting in `active_plans` with nothing to run it, which is
-        the orphan RECONCILE-01 recorded as "not covered" and is no repair at
-        all from the goal's point of view.
-
-        So this is one method, and both callers are the substrate: the goal it
-        plans now, and the goal it replans after a refutation. Reconciliation is
-        not an extra a dispatcher might remember to do — it is part of what
+        WHOEVER MAKES A PLAN OWNS IT. A route planned again after a refutation
+        used to be left in a planning engine's store with nothing to run it --
+        the orphan RECONCILE-01 recorded as "not covered", and no repair at all
+        from the goal's point of view. The drive is now the one pursuer: it
+        proves a route, walks it here, and plans again inside the same pursuit,
+        so every route is run by the pursuit that proved it. Reconciliation is
+        not an extra a dispatcher might remember to do -- it is part of what
         running a route IS, which is why it lives in here and not beside a call
         site.
 
@@ -17882,10 +18064,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                     detail=f"stopped at {step.description}",
                     alternative=result.get("alternative"),
                     judgment=result.get("judgment"))
-                await self._route_went_stale(
-                    plan, domain_id,
-                    why=f"stopped at {step.description}: "
-                        f"{result.get('refused') or result.get('runtime_outcome')}")
                 return {
                     'success': False, 'task_id': task_id,
                     'execution_path': 'substrate_plan', 'model_free': True,
@@ -18238,13 +18416,10 @@ The substrate must realign with its constitutional responsibilities immediately.
             # is a block wearing a kinder word.
             refusal["judgment"] = _judgment
             refusal["alternative"] = (_judgment or {}).get("alternative")
-            # AND A REPLAN ACTUALLY REPLANS. The comment above is right that a
-            # verdict reaching nobody is "a block wearing a kinder word" — and
-            # that was true of REPLAN itself, whose entire content is "plan
-            # again" and which nothing acted on. The route is withdrawn here,
-            # where the provenance naming the plan and the goal is in scope.
-            refusal["route_withdrawn"] = await self._withdraw_replanned_route(
-                _judgment, provenance)
+            # AND A REPLAN ACTUALLY REPLANS. Its whole content is "plan again",
+            # and the judgement travels back with the refusal to the pursuit
+            # that walked this step, which plans again without the act it
+            # refused (`_worth_planning_again`).
             return refusal
 
         observation = ToolObservation(
@@ -19230,22 +19405,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         # took `summary` for the topic and the file came out saying "summary is
         # a written or spoken work". A correct file, about nothing.
         #
-        # The research step already ran and its answer is recorded on the plan.
-        # "Write a summary of what you learned" means write THAT, so this reads
-        # the findings of the steps that came before it rather than re-deriving
+        # The research step already ran, and the pursuit hands this step what it
+        # found (`provenance["findings"]`, `_pursue_described_goal`). "Write a
+        # summary of what you learned" means write THAT, rather than re-deriving
         # a subject from a sentence.
-        findings: List[str] = []
-        plan_id = (getattr(task, "provenance", None) or {}).get("plan_id")
-        planning = getattr(self, "planning", None)
-        plan = getattr(planning, "active_plans", {}).get(plan_id) if planning else None
-        for earlier in (getattr(plan, "tasks", None) or []):
-            if earlier.id == task.id:
-                continue
-            result = getattr(earlier, "result", None) or {}
-            answer = str(result.get("answer") or "").strip()
-            if answer and answer not in findings:
-                findings.append(answer)
-        content = "\n\n".join(findings).strip()
+        findings = [str(found).strip() for found in
+                    ((getattr(task, "provenance", None) or {}).get("findings") or [])]
+        content = "\n\n".join(found for found in findings if found).strip()
         if not content:
             # NOTHING KNOWN IS NOT SOMETHING TO WRITE. An empty artefact that
             # reports success is worse than an honest gap: the validation step
@@ -19422,41 +19588,12 @@ The substrate must realign with its constitutional responsibilities immediately.
         if (task.metadata or {}).get("drive") in ("competence", "confidence"):
             return await self._execute_drive_goal(task)
 
-        outcome = await self._execute_task_paths(task)
-        if (outcome or {}).get("awaiting_person"):
-            return outcome
-        # THE PLAN IS TOLD WHAT HAPPENED, HERE, BECAUSE THIS IS THE ONE DOOR.
-        #
-        # `update_task_status` had a single caller, inside a scanner that only
-        # ever saw the legacy `_execution_phase` path and only reported
-        # COMPLETED. Everything executed through this method — which is every
-        # task the planner dispatches — left its step PENDING forever, so the
-        # plan never finished, never abandoned, and held its dispatch slots for
-        # good. Measured: 156 active plans, 3 completed EVER, a freshly planned
-        # goal receiving zero slots.
-        #
-        # Isolated: recording what happened must never change whether it
-        # happened, so a bookkeeping failure is logged and the real result is
-        # returned unchanged.
-        try:
-            planning = getattr(self, "planning", None)
-            if planning is not None:
-                from .shared_types import TaskStatus as _TaskStatus
-                await planning.update_task_status(
-                    task.id,
-                    _TaskStatus.COMPLETED if (outcome or {}).get("success")
-                    else _TaskStatus.FAILED,
-                    outcome)
-        except Exception as e:
-            raise_if_structural(e, 'autonomous_coordinator.execute_task.status')
-            logger.error("could not record the outcome of %s with the planner: "
-                         "%s: %s", task.id, type(e).__name__, e)
-        return outcome
+        return await self._execute_task_paths(task)
 
     async def _task_gate(self, task: Task) -> Optional[Dict[str, Any]]:
         """May this task begin? A refusal to return, or None to proceed.
 
-        THREE QUESTIONS, AND NONE IS A RE-JUDGEMENT.
+        TWO QUESTIONS, AND NEITHER IS A RE-JUDGEMENT.
 
         1. IS THE SUBSTRATE HALTED. Asked of the constitution (`may_start`),
            which runs only the halt law — the one law that is about the substrate
@@ -19488,19 +19625,13 @@ The substrate must realign with its constitutional responsibilities immediately.
                account of why the substrate acts that the intent authority
                exists to prevent. The act still meets the constitution carrying
                no intent, and Law 2 answers it there.
-           Unlike the plan, the record here is complete and durable, and an id is
-           only ever stamped onto a task after the pursuit it names was written —
-           so "not held" cannot be a pursuit that simply has not landed yet.
+           The record is complete and durable, and an id is only ever stamped
+           onto a task after the pursuit it names was written — so "not held"
+           cannot be a pursuit that simply has not landed yet.
 
-        3. HAS THIS ROUTE ALREADY BEEN WITHDRAWN. A STATE READ, not a judgement:
-           a plan marked `invalidated` is one the substrate itself has decided is
-           no longer the route — because a rule lost authority, because the world
-           moved under it, or because the constitution replanned it. Its steps
-           are already counted as blocked. Running one anyway is the exact hole
-           this gate exists for: "anything that reaches the task gate after it
-           was blocked or replanned". This is not question 2 asked twice: the
-           pursuit stays live while its route is withdrawn — that is what being
-           replanned means.
+        A ROUTE IS NOT ASKED ABOUT HERE. No route is held anywhere to have been
+        withdrawn: the pursuit that proved one walks it and plans again itself
+        (`_drive_substrate_goal`), and a step it stopped is one it never hands on.
 
         WHY NOT THE FULL LAW CHAIN — see `Constitution.may_start`. A task has a
         type and a description, not a measured consequence, so the laws would be
@@ -19542,8 +19673,8 @@ The substrate must realign with its constitutional responsibilities immediately.
                 held = await get_intent_authority().get_by_id(str(intent_id))
             except Exception as error:
                 raise_if_structural(error, 'autonomous_coordinator._task_gate.intent')
-                # NOT fail-closed, for the plan read's reason below: being unable
-                # to read the record is not evidence the pursuit ended. The act
+                # NOT fail-closed: being unable to read the record is not
+                # evidence the pursuit ended. The act
                 # still meets the tool gate, where the constitution reads this
                 # intent again — and judges an unreadable one as none stated.
                 readable = False
@@ -19577,28 +19708,6 @@ The substrate must realign with its constitutional responsibilities immediately.
                     intent_id=str(intent_id), intent_status=held.status,
                     intent_outcome=held.outcome)
 
-        plan_id = provenance.get("plan_id")
-        if plan_id:
-            try:
-                engine = await self._get_planning_engine()
-                plan = getattr(engine, "active_plans", {}).get(plan_id) if engine else None
-            except Exception as error:
-                # NOT fail-closed here, and the asymmetry is deliberate: being
-                # unable to read a plan's status is not evidence that the plan was
-                # withdrawn, and refusing every task because the planner hiccupped
-                # would stop the substrate working for a reason that is not about
-                # it. Reported, and the act still faces the tool gate.
-                logger.error("task %s belongs to plan %s whose status could not be "
-                             "read (%s); proceeding to the act's own gate",
-                             task.id, plan_id, error)
-                return None
-            if plan is not None and getattr(plan, "status", None) == "invalidated":
-                why = (getattr(plan, "metadata", None) or {})
-                return refused(
-                    f"plan {plan_id} was withdrawn "
-                    f"({why.get('invalidated_by') or 'unknown cause'}): "
-                    f"{why.get('invalidated_reason') or 'its route is no longer the route'}",
-                    plan_id=plan_id, withdrawn_by=why.get("invalidated_by"))
         return None
 
     async def _execute_task_paths(self, task: Task) -> Dict[str, Any]:
@@ -19616,6 +19725,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         if driven is not None:
             return driven
 
+        # A goal stated in WORDS names kinds of work, not a world state: it is
+        # decomposed into that work and walked step by step, each step through
+        # `execute_task`. Declines (None) for a task that is no such goal.
+        described = await self._pursue_described_goal(task)
+        if described is not None:
+            return described
+
         # The ONE operation path for every task type (no per-type switch): run the
         # tool(s) the task declares, or answer it through the knowledge loop if it
         # reads as a question. Model-free; declines (None) when the task is
@@ -19624,7 +19740,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         if tooled is not None:
             return tooled
 
-        # SUBSTRATE-ONLY. The three paths above are the substrate's own
+        # SUBSTRATE-ONLY. The paths above are the substrate's own
         # model-free execution. If none handled the task, the substrate cannot
         # YET do it — reported as an HONEST GAP, never delegated to a model.
         # The model path that used to follow here (self.llm /

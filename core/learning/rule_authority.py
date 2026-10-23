@@ -8,17 +8,20 @@ and it only reaches the one plan the executor happened to be running. Anything
 queued elsewhere, or queued in a process that was not running at the time,
 never hears about it.
 
-So the status change is written down instead. The rule store emits the event
-because the rule store is what changes the status; the planning layer reads it
-and decides what that means for its plans. Neither knows about the other.
+So the status change is written down instead, by the rule store, because the
+rule store is what changes the status: a durable history of each rule's
+authority (`authority_history`), reported as a regression when it is lost and
+as knowledge either way. No plan is held anywhere for it to invalidate. A
+pursuit whose walk stops asks the rule store whether the rules its route stood
+on still have authority (`AutonomousCoordinator._worth_planning_again`), and
+every step re-reads its own rule before it acts.
 
     RuleAuthorityChanged(rule_id=R1, old=VALIDATED, new=REFUTED,
                          cause=RUNTIME_CONTRADICTION, task_id=..., plan_id=...)
 
-`consumed_at` is a single drain marker for a single consumer, which is what
-exists today. A second consumer would need a per-consumer cursor -- sharing one
-marker would let whichever drained first silently starve the other. That is a
-stated limit, not an oversight.
+The `consumed_at` and `consumed_by` columns are kept as data: a planning
+engine once drained these events to withdraw the plans it stored, and nothing
+drains them now.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Optional
 
 from core.learning.rule_store import EpistemicStatus, confers_execution_authority
 
@@ -109,8 +112,8 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
     """Write the change down. A no-op transition is not an event.
 
     Raises rather than logging: an authority change that is not durably
-    recorded is one that outstanding plans will never learn about, and a
-    swallowed write here reads downstream as "no rule ever lost authority".
+    recorded is one nothing will ever learn about, and a swallowed write here
+    reads downstream as "no rule ever lost authority".
     """
     if event.old_status is event.new_status:
         raise ValueError(
@@ -148,8 +151,7 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
 
     # A RULE THAT CAN NO LONGER BE EXECUTED IS A CAPABILITY LOST.
     #
-    # This event has always been recorded here and read by the planning layer,
-    # which is exactly right for invalidating plans -- but nothing counted it
+    # This event has always been recorded here, but nothing counted it
     # alongside a capability score falling or a component dropping below its
     # baseline. So the system could lose three validated rules in an hour and
     # no consumer of "how are we doing" would see anything.
@@ -217,57 +219,6 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
                      stamped.rule_id, error)
 
     return stamped
-
-
-async def pending_authority_changes(
-    db, *, lost_only: bool = True, limit: int = 200
-) -> List[RuleAuthorityChanged]:
-    """Undrained events, oldest first.
-
-    `lost_only` is the planning layer's case: a rule that GAINED authority
-    invalidates nothing, so replanning on it would be churn.
-    """
-    await ensure_schema(db)
-    where = "consumed_at IS NULL" + (" AND lost_authority" if lost_only else "")
-    rows = await db.execute_query(
-        "SELECT event_id, rule_id, old_status, new_status, cause, observation_id,"
-        " task_id, plan_id, goal_id, detail, occurred_at"
-        f" FROM unified.rule_authority_events WHERE {where}"
-        " ORDER BY occurred_at, event_id LIMIT $1",
-        (limit,), fetch_all=True,
-    ) or []
-
-    return [
-        RuleAuthorityChanged(
-            rule_id=row["rule_id"],
-            old_status=EpistemicStatus(row["old_status"]),
-            new_status=EpistemicStatus(row["new_status"]),
-            cause=AuthorityCause(row["cause"]),
-            event_id=row["event_id"],
-            observation_id=row["observation_id"],
-            task_id=row["task_id"],
-            plan_id=row["plan_id"],
-            goal_id=row["goal_id"],
-            detail=row["detail"] or "",
-            occurred_at=row["occurred_at"],
-        )
-        for row in rows
-    ]
-
-
-async def mark_consumed(event_ids: Sequence[str], consumer: str) -> int:
-    """Drain. Returns how many rows this call actually claimed.
-
-    Already-consumed rows are left alone, so a second drainer cannot re-report
-    work someone else has done.
-    """
-    ids = [e for e in event_ids if e]
-    if not ids:
-        return 0
-    from core.agents.memory_agent import memory_agent
-    rows = await memory_agent().mark_rule_authority_changes_consumed(
-        event_ids=list(ids), consumer=consumer) or []
-    return len(rows)
 
 
 async def authority_history(db, rule_id: str) -> List[RuleAuthorityChanged]:

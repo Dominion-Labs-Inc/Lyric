@@ -1,0 +1,237 @@
+{
+  "experiment": "PURSUIT-01",
+  "claim": "Every piece of work the substrate takes on carries the intent it serves, formed where the work was taken on, and that pursuit ends with what actually ended it \u2014 the constitution's verdict when the law stopped it, never `abandoned`.",
+  "hypothesis": "If each producer forms the pursuit through the intent authority, the acting paths carry the constitution's judgement to reconciliation, and the task's own ending closes what the world did not, then no work is left without a reason and no refusal is recorded as a loss.",
+  "started_at": "2026-10-23T02:07:17.168451+00:00",
+  "duration_seconds": 60.134,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": "1",
+    "git_commit": "dc649bd6a43bdb1311b5006f2c1d0b1cbe4d14bf",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 87,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 27,
+    "passed": 23,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "intents_written_and_removed",
+      "value": 13,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "queued_tasks_written_and_removed",
+      "value": 1,
+      "unit": "count",
+      "note": ""
+    },
+    {
+      "name": "demonstrations_written_and_removed",
+      "value": 0,
+      "unit": "count",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the MOVE_FILE operator is held, or taught",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:07:20.427954+00:00"
+    },
+    {
+      "label": "a USER REQUEST is queued naming its pursuit",
+      "passed": false,
+      "detail": "task=None intent=None",
+      "at": "2026-10-23T02:08:09.339389+00:00"
+    },
+    {
+      "label": "\u2026scoped to the requester, their words the aim, the session recorded",
+      "passed": false,
+      "detail": "origin=None actor=None",
+      "at": "2026-10-23T02:08:09.339436+00:00"
+    },
+    {
+      "label": "\u2026and its anonymous shape says what kind of pursuit it is",
+      "passed": false,
+      "detail": "None",
+      "at": "2026-10-23T02:08:09.339448+00:00"
+    },
+    {
+      "label": "a REPAIR the substrate raised for its own error names its pursuit",
+      "passed": true,
+      "detail": "intent=509c2b8e37cd48b6844328bc2a33d360",
+      "at": "2026-10-23T02:08:09.554303+00:00"
+    },
+    {
+      "label": "AGENT work names its pursuit, and closes it with its real result",
+      "passed": true,
+      "detail": "success=True status=fulfilled",
+      "at": "2026-10-23T02:08:11.384184+00:00"
+    },
+    {
+      "label": "a route proved while working on a pursuit is its CHILD, not merged into it",
+      "passed": true,
+      "detail": "route=05ed194d74074784b6085d69e69a0fc7 parent=5535b7025ac34166a88a2c8bb1cb87be",
+      "at": "2026-10-23T02:08:11.628353+00:00"
+    },
+    {
+      "label": "a REPLANNED act leaves its pursuit `replanned`, with the law and why",
+      "passed": true,
+      "detail": "status=replanned L2: write_file would modify /var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn",
+      "at": "2026-10-23T02:08:13.073115+00:00"
+    },
+    {
+      "label": "\u2026and the file is untouched",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:13.073253+00:00"
+    },
+    {
+      "label": "a BLOCKED act concludes its pursuit `refused` \u2014 the one refusal that ends it",
+      "passed": true,
+      "detail": "status=refused L3",
+      "at": "2026-10-23T02:08:14.494625+00:00"
+    },
+    {
+      "label": "\u2026and nothing was removed",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:14.494706+00:00"
+    },
+    {
+      "label": "an act stopped by a HALT leaves its pursuit `halted` \u2014 not now, not never",
+      "passed": true,
+      "detail": "status=halted",
+      "at": "2026-10-23T02:08:16.033724+00:00"
+    },
+    {
+      "label": "\u2026and it did not write",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:16.033790+00:00"
+    },
+    {
+      "label": "(map) a REDIRECT \u2192 `redirected`; a Law 5 BLOCK that is not the halt \u2192 `refused`; the halt's own BLOCK \u2192 `halted`, read from the judgement and not from whether a halt still stands; an ALLOW \u2192 nothing",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:16.033806+00:00"
+    },
+    {
+      "label": "THE WORLD DECIDES FIRST \u2014 an aim that holds is fulfilled, however its act ended",
+      "passed": true,
+      "detail": "status=fulfilled",
+      "at": "2026-10-23T02:08:16.350664+00:00"
+    },
+    {
+      "label": "completed work closes its pursuit `fulfilled`",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:17.024577+00:00"
+    },
+    {
+      "label": "work that ended with no verdict closes `abandoned`, saying why",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:17.024617+00:00"
+    },
+    {
+      "label": "work the gate stopped for a halt closes `halted` \u2014 even closed after the halt was lifted, as the task runner's retries would",
+      "passed": true,
+      "detail": "status=halted",
+      "at": "2026-10-23T02:08:17.024627+00:00"
+    },
+    {
+      "label": "a step of a plan is not the owner \u2014 the plan closes its route",
+      "passed": true,
+      "detail": "status=forming",
+      "at": "2026-10-23T02:08:17.024635+00:00"
+    },
+    {
+      "label": "the LAW's record is never overwritten by the work's ending",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:17.025716+00:00"
+    },
+    {
+      "label": "the REPLANNED pursuit's work is not repeated at the gate, naming the law",
+      "passed": true,
+      "detail": "the constitution replanned the pursuit it is a step of (Law 2: write_file would modify /var/folders/",
+      "at": "2026-10-23T02:08:17.027426+00:00"
+    },
+    {
+      "label": "the REFUSED pursuit's work does not start",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:17.027437+00:00"
+    },
+    {
+      "label": "the HALTED pursuit's work starts again once the halt is lifted",
+      "passed": true,
+      "detail": "None",
+      "at": "2026-10-23T02:08:17.027448+00:00"
+    },
+    {
+      "label": "planning's RETURN reopens the replanned pursuit, and its work may start",
+      "passed": true,
+      "detail": "status=active",
+      "at": "2026-10-23T02:08:17.031685+00:00"
+    },
+    {
+      "label": "every Task the coordinator enqueues is intended first",
+      "passed": false,
+      "detail": "5 site(s); unintended=['_react_expectation_unmet:8573 (task)']",
+      "at": "2026-10-23T02:08:17.285855+00:00"
+    },
+    {
+      "label": "every ending of the task runner closes its pursuit",
+      "passed": true,
+      "detail": "4 ending(s), 4 close(s)",
+      "at": "2026-10-23T02:08:17.285899+00:00"
+    },
+    {
+      "label": "agent work is intended before it runs and closed after",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T02:08:17.285909+00:00"
+    }
+  ],
+  "notes": [
+    "A live, B on real acts at the real gate (REPLAN Law 2, BLOCK Law 3, halt Law 5); REDIRECT's status is checked on the map with a constructed judgement, labelled \u2014 a real one needs a proved removal of a declared-sensitive target, which OPERATOR-REMOVAL-01 judges and never executes."
+  ]
+}

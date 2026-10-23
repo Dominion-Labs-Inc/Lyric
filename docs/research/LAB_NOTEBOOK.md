@@ -16,6 +16,116 @@ Conventions:
 
 ---
 
+## 2026-10-22 (36) — The planning engine dissolved into the authorities that own its parts: one record of a pursuit, one pursuer, one dispatcher
+
+**Objective.** The leftover active goals came from a second copy of what other authorities already own.
+`core/agents/autonomous/planning_engine.py` (1,949 lines, carried over from the old controller) did not hold the
+route search: that has always been `TemporalReasoningSystem.plan_for_state_goal`, over operators prepared by
+`rule_grounding.ground_for_problem`. Around the search the engine kept:
+- a goal and plan store beside the task (queue authority) and the intent (intent authority), loaded again at
+  every boot;
+- a dispatcher (`get_next_tasks`) beside the queue, which nothing in Lyric called;
+- its own replanning of withdrawn routes (`replan_withdrawn_goals`), which pursued a goal outside the task that
+  owned it, without the goal's premise and without its person's go-ahead.
+
+Decided this session: dissolve it into the owners and use the authorities; the template decomposer moves and is
+wired; the ranking of goals moves to the intent authority. No capability lost.
+
+**Where each part went** (no new module):
+
+| Engine part | Owner now |
+|---|---|
+| Planning a state goal (conditions to facts, `look_at`, executable rules, grounding, search, INDETERMINATE when grounding was truncated) | Temporal reasoning: `TemporalReasoningSystem.plan_state_goal`, returning a `PlanningOutcome` (status, reason, the route, the grounding, the world it was proved against) |
+| Recording the route as the pursuit's intent | The drive, through the intent authority: `_plan_route` → `_route_of` → `_record_route_intent`, keyed by the pursuing task (`goal:<task>:route`), a child of the task's own intent |
+| Replanning (withdrawn routes, the ROUTE_WITHDRAWN event and reaction, stale routes, the constitution's REPLAN) | Inside the one pursuit (`_drive_substrate_goal`): when a walk stops it plans again only when something is new (`_worth_planning_again`): the constitution sent the route back (the next search leaves out the refused act, `leaving_out`), a rule it stood on lost its authority, or the world moved since the route was proved; and only while the goal's premise holds (`_premise_gone`) |
+| Goals Lyric sets itself, the exploration cycle's goals, goals perceived in input | The intent authority: each goal is its intent (`intend`, with `_goal_shape`: priority, deadline, world state, intrinsic values on the shape); a perceived request is formed for whoever its `origin` belongs to; the status reads `standing()` |
+| `get_prioritized_goals` | `IntentAuthority.ranked_own_goals`: live self-set goals by their priority's rank and the intrinsic reward recorded on their shape |
+| Decomposing a goal in words (phases, research/analysis/creation steps, the artefact and subject it names, plan inputs, tool suggestions, measured claims) | `execution_plan_adapter.py` (GOALS IN WORDS), `plan_described_goal`; wired: `set_goal` forms the goal and queues it, and its pursuit (`_pursue_described_goal`) decomposes it, records the steps on the intent, and walks them through `execute_task`, handing findings to the step that writes them up |
+| Law 2's CARRY_OUT account | Checked against the pursuit being walked (`_walking`): the account must be the child of that pursuit's intent, and the file it names must be the one the goal's words name. Each account is closed with how its one step ended (`_settle_account`); the engine's never were |
+| Dispatcher, plan store, stale retirement, boot load | Removed: the queue is the one dispatcher, the intent the one record. `unified.goals`/`unified.plans` stay as data, written by nothing |
+| The rule-authority drain (`pending_authority_changes`, `mark_consumed`, the memory agent's mark) | Removed with its only consumer; the event log stays as history (`authority_history`), still reported as a regression and as knowledge |
+| `IPlanningEngine` (and `PlanningStrategy`, `ExecutionPlan`, used only by it), the package export, `self.planning`, `_get_planning_engine`, `priority_from_ordinal` | Removed; the chaos scenario relabelled `planning` |
+
+**Errors found while dissolving, and their causes.**
+1. **A loop the first draft would have had.** The drive's "has the world moved" check compared a reading of the
+   domain with the planner's own list of facts, which includes what `look_at` added about the goal's places. The
+   two never match, so a tool error in an unchanged world would have replanned the same route without end. Then
+   the reading was taken after the route's steps were rendered, and REPLAN-03 P1 failed (10/12): rendering calls
+   the binding's `parameters()` (to find the files Law 2 requires read first), and the experiment's mid-pursuit
+   move fires there, so the "proved from" reading already held the moved file, and the stop read as an unchanged
+   world. The world a route was proved from is now read right after the search, before anything is done about
+   the route (`_plan_route`); 12/12.
+2. **A capability the move dropped, restored.** A proved route carried its declared inputs (observed world,
+   learned operators, the domain's earned reliability); the first `_route_of` lost them. Restored
+   (`metadata["inputs"]`, `assemble_inputs("state", ...)`), with a test.
+3. **A circular import, at HEAD too.** `intent_authority` imports `shared_types`, whose package `__init__` imports
+   the coordinator, which imported `Intent`: so importing the intent authority first failed, and INTENT-01 could
+   not start. The coordinator names `Intent` for annotations only now. Making the package exports lazy would have
+   dropped the coordinator's load-time `.env` and log-key redaction for any process importing a sibling module,
+   so that was not done.
+4. **Stale accounts left by step 2:** the task gate's docstring still described the removed plan-withdrawal
+   question; a comment in `plan_state_goal` claimed acts left out make "no plan" ignorance, which the code did
+   not do. Both corrected.
+5. **Experiments reading another run's record.** REPLAN-02 and REPLAN-03 used fixed task ids, so a route intent
+   (keyed by the task) returned to an earlier run's intent and its attempts: REPLAN-03 counted three routes for
+   one replan. Ids are per run now, and each run removes its route intents.
+6. **Two runs on the main store, my fault.** TASK-GATE-01 and PLANNING-01 do not set the database, and the chain
+   that ran them did not either, so both ran on `lyric_db`. PLANNING-01's `ensure_taught` taught `MOVE_FILE` into
+   main's `tools:path` (a validated rule, `rule_6a84733a4849`, 12 demonstrations, 63 relations, 3 concepts, 2
+   beliefs; 757 concept rows updated). TASK-GATE-01's halt-and-resume probe wrote a halt and a resume after main's
+   standing integrity halt (2026-10-14, to be lifted only by a person), so main's next boot would read the resume and
+   come up unhalted. Deleting the two probe rows was refused by the session's permission check as audit tampering;
+   both, with an exact-id inventory of every row, are left for the owner's decision. Main was not running and was
+   not started. Every experiment touched here now defaults to `lyric_dev`, and every run since was started with
+   the database named in its command.
+7. **A goal in words stalls in the reader, not the pursuit.** RESEARCH-WRITE-01 and TEACH-AND-DO-01 reach their
+   research step through `set_goal`, the queue and `_pursue_described_goal`; the knowledge loop looks the subject
+   up and the reader stays at full CPU reading the page (`derived_reader._slot_fillings`/`_phrase_fillings`, and
+   `grammar.chart` → `_combine` in the other; both read from stack dumps taken with `core/utils/stack_dump.py`),
+   blocking the event loop. That is the reader's search explosion, whose fix (a packed chart) is its own work.
+   Both runs were stopped and their goals cancelled on `lyric_dev`. The CARRY_OUT check against the pursuit being
+   walked is tested directly (`tests/test_goal_intents.py`).
+8. **Found on the way, fixed:** CREDIT-01, RECONCILE-01 and PURSUIT-01 wrapped the demonstration store's `append`
+   with the signature it had before it took `owner`, so CREDIT-01 crashed; they pass every argument through now.
+   The induction drain recorded competence on a domain faculty a coordinator was never given (an AttributeError
+   in every drain on such a coordinator); it brings the faculty up, as acting does. The goal formed for an unmet
+   expectation was queued with no intent formed (PURSUIT-01's standing check); it is intended first, and closed
+   if the queue refuses it.
+
+**Verified.** pyflakes: no new warnings on any touched file (the coordinator has two fewer). Fresh-interpreter
+imports of every touched module. No `planning_engine`/`PlanningEngine` left in code (two docstrings explain the
+history). Unit tests (`lyric_dev`): `test_learn_plan_act_loop` 13, `test_goal_intents` 8 (renamed from
+`test_planning_persistence`), `test_rule_authority` 18 (its engine sections restated against the pursuit,
+including the drive planning again inside itself after a refutation, end to end), `test_computational_execution`
+3, `test_substrate_execution` 26, `test_rule_induction` 20, `tests/chaos/test_adapters.py` 35, all passing.
+Experiments, one at a time on `lyric_dev`, each log read for ERROR and Traceback:
+
+| Experiment | Result on `lyric_dev` |
+|---|---|
+| REPLAN-03 | 12/12 (its first run, 10/12, found error 1) |
+| REPLAN-02 | 10/10: refuted, planned again inside the pursuit from ANNEX, over `SBHAUL`, reconciled |
+| REPLAN-01 | 12/12 |
+| TASK-GATE-01 | 14/14 |
+| PLANNING-01 | 35/35 |
+| CREDIT-01 | 26/26, clean log (after error 8) |
+| RECONCILE-01 | 28/28 |
+| CONSTITUTION-01 | 39/39 |
+| CONSTITUTION-03 | 8/8 |
+| INTENT-01 | 14/14 (it could not start before: error 3) |
+| INTENT-03 | 13/13 |
+| INTENT-04 | 15/15 |
+| OPERATOR-REMOVAL-01 | 22/22 |
+| PURSUIT-01 | 24/27. The three failing need a store that reads English: the front door answers "I don't know 'tidy' ... yet" and queues nothing. HEAD, with the engine, on the same store: 23/27 |
+| CONSTITUTION-02 | "reasoning still plans under noise" fails: in a 54-file directory the grounding is truncated and the search INDETERMINATE. The same at HEAD on the same store |
+| RESEARCH-WRITE-01, TEACH-AND-DO-01 | stalled in the reader at their research step (error 7) |
+| LEARNED-WORK-01 | not run: its goal's research step is the same path |
+| EXPECT-02 | 22/22: departures answered 0.906 (95% 0.859 to 0.938); after a habit changed, 0 of 600 files acted against; in Delegate 32/32 put right and told how each ended; late filings answered 0.4% |
+| EXPECT-01 | 20/20 |
+
+`unified.goals` (7 rows) and `unified.plans` (3 rows) on `lyric_dev` were not written to by the new code across
+all runs; the one row that appeared came from running HEAD's CONSTITUTION-02 (with the engine) for comparison, and
+was removed by its id. On `lyric_db`, neither table changed.
+
 ## 2026-10-22 (35) — UNDERSTANDS-PROSE-02 whole: on prose nobody fitted it to, Lyric reads half the sentences and answers a tenth of the questions, and as many wrongly
 
 **Objective.** Finish the held-out run (text 44 on the stall fix, texts 48 to 50) and score all 50 texts.

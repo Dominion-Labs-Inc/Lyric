@@ -304,7 +304,7 @@ Every authority below was verified present in the current tree, with its accesso
 | The only writer of `unified.concepts` | `ConceptIngestionService` | — | `core/domain/concept_ingestion.py` |
 | What the system is trying to achieve | `IntentAuthority` | `get_acting_intent()` | `core/reasoning/intent_authority.py` |
 | Whether an act may happen | `Constitution` | `get_constitution()` / `judge_act()` | the coordinator |
-| How plans are formed | `PlanningEngine` | held as `self.planning` | `core/agents/autonomous/planning_engine.py` |
+| How plans are formed | `TemporalReasoningSystem` (a route to a world state, by search) and `execution_plan_adapter` (a route's steps, and a goal in words decomposed into the work it names); each pursued by the coordinator's drive or `_pursue_described_goal`, recorded on the goal's intent | `plan_state_goal()` / `plan_described_goal()` | `core/reasoning/temporal_reasoning.py`, `core/agents/autonomous/execution_plan_adapter.py` |
 | Where a rule lives, and its status | `RuleStore` | — | `core/learning/rule_store.py` |
 | How the system stands toward its situation | `Appraisal` | held by the coordinator | `core/agents/autonomous/appraisal.py` |
 | What has been read, and of which version | `ReadingLedger` | held by the constitution | the coordinator |

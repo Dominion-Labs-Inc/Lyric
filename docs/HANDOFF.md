@@ -2,10 +2,25 @@
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34), (35) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34), (35), (36) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-22)
+
+**DONE 2026-10-22: THE PLANNING ENGINE IS DISSOLVED** into the authorities that own its parts (lab notebook (36)):
+temporal reasoning plans a state goal (`plan_state_goal`); the drive records each route on the pursuit's intent and
+plans again inside the one pursuit (`_plan_route`, `_worth_planning_again`); goals are intents (`set_goal`,
+`IntentAuthority.ranked_own_goals`); a goal in words is decomposed by `execution_plan_adapter.plan_described_goal`
+and walked by `_pursue_described_goal`. `planning_engine.py` is gone; `unified.goals`/`unified.plans` are written by
+nothing.
+- **A goal in words stalls in the reader** at its research step (the page looked up is read at full CPU,
+  `derived_reader._slot_fillings` / `grammar.chart`): RESEARCH-WRITE-01 and TEACH-AND-DO-01 cannot finish until the
+  reader's search is fixed (the packed chart).
+- **Two things on the main store wait for the owner's decision** (my runs, on `lyric_db` by mistake): TASK-GATE-01's
+  probe `halt` and `resume` rows (`unified.emergency_halts` ids 2 and 3) stand after main's integrity halt of
+  2026-10-14, so main would boot unhalted until they are dealt with; and PLANNING-01 taught `MOVE_FILE` into main's
+  `tools:path` (`rule_6a84733a4849`, 12 demonstrations and the rows around them). The session's inventory of every
+  row: `docs/research/main_writes_20261022.json`. Main has not been started since.
 
 **DONE 2026-10-21: ENGLISH'S GRAMMAR READS WHAT NO FRAME READS** (lab notebook (31), (32), `experiments/GRAMMAR-01`).
 `core/semantics/grammar.py`: each word's category and meaning combined by general rules (a packed chart), English

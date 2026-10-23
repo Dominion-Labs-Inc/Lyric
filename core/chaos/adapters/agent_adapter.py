@@ -6,7 +6,7 @@ Autonomous Agent System Chaos Adapter
 Chaos injection for autonomous agent system components:
 - Autonomous Coordinator
 - Intrinsic Motivation System
-- Planning Engine
+- Planning (route search, goal decomposition)
 - Directive System
 - Governance Queue & Session
 - Execution Controller
@@ -35,7 +35,7 @@ class AgentSystemAdapter(TargetSystemAdapter):
     Targets:
     - Autonomous Coordinator (agent lifecycle, coordination)
     - Intrinsic Motivation (7-dimensional motivation system)
-    - Planning Engine (plan generation, execution)
+    - Planning (route search, goal decomposition)
     - Directive System (directive management, evolution)
     - Governance Queue (decision queuing, processing)
     - Execution Controller (task execution)
@@ -46,7 +46,7 @@ class AgentSystemAdapter(TargetSystemAdapter):
     Components:
     - autonomous_coordinator: Agent lifecycle and coordination
     - intrinsic_motivation: 7D motivation system (curiosity, competence, novelty, mastery, autonomy, social, impact)
-    - planning_engine: Plan generation and execution
+    - planning: Route search and goal decomposition
     - directive_system: Directive management and evolution
     - governance_queue: Governance decision queuing
     - execution_controller: Task execution control
@@ -83,7 +83,7 @@ class AgentSystemAdapter(TargetSystemAdapter):
         Injection points:
         - coordination: Delay in agent coordination
         - motivation_calculation: Delay in intrinsic motivation computation
-        - plan_generation: Delay in planning engine
+        - plan_generation: Delay in planning
         - directive_evolution: Delay in directive updates
         - governance_processing: Delay in governance queue processing
         - task_execution: Delay in task execution

@@ -421,7 +421,11 @@ class LogicalFormulaParser:
         z3_vars must already declare every atom from formula_atoms(); a missing
         entry is a caller bug, not licence to invent a symbol.
         """
-        from z3 import And, Implies, Not, Or
+        # Resolve Z3 at runtime so importing this parser does not require the
+        # optional solver package to be installed.
+        from importlib import import_module
+
+        z3 = import_module("z3")
 
         kind = node[0]
         if kind == "atom":
@@ -430,13 +434,13 @@ class LogicalFormulaParser:
                 raise KeyError(f"no Z3 variable declared for atom {name!r}")
             return z3_vars[name]
         if kind == "not":
-            return Not(self.to_z3(node[1], z3_vars))
+            return z3.Not(self.to_z3(node[1], z3_vars))
         if kind == "and":
-            return And(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
+            return z3.And(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
         if kind == "or":
-            return Or(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
+            return z3.Or(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
         if kind == "implies":
-            return Implies(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
+            return z3.Implies(self.to_z3(node[1], z3_vars), self.to_z3(node[2], z3_vars))
         if kind == "iff":
             return self.to_z3(node[1], z3_vars) == self.to_z3(node[2], z3_vars)
         raise FormulaSyntaxError(f"unknown node kind {kind!r}")

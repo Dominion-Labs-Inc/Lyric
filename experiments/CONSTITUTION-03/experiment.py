@@ -25,7 +25,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -79,7 +84,7 @@ async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
     from core.agents.autonomous.execution_plan_adapter import state_plan_to_tasks
-    from core.agents.autonomous.shared_types import Goal, Priority
+    from core.agents.autonomous.shared_types import Goal, Task, TaskType
     from core.reasoning.intent_authority import get_intent_authority
     from core.reasoning.temporal_reasoning import PlanningStatus
     from core.perception.perception_faculty import observe_world
@@ -121,21 +126,18 @@ async def main():
         f"{len(rules)} rule(s)")
 
     observed = observe_world(DOMAIN) or frozenset()
-    # Through the ONE planning authority, which records the proved route as the
-    # goal's intent. The campaigns then NAME that intent; none of them can build
+    # Planned the way the drive plans (`_plan_route`): temporal reasoning proves
+    # the route, and it is recorded as the pursuit's intent. The campaigns then
+    # NAME that intent; none of them can build
     # one, which is the point — an unrecorded intent does not exist.
-    await coord.planning.initialize()
     # Gone everywhere: no place holds this file, which a move would not achieve.
-    goal = await coord.planning.create_goal(
-        "the obsolete file is gone", Priority.MEDIUM,
-        state_conditions=[gone_everywhere("path", str(doomed))])
-    plan_outcome = await coord.planning.plan_for_goal(
-        goal.id, {"world_state": [f.to_formula() for f in observed],
-                  "domain_id": DOMAIN})
+    plan_outcome, route = await coord._plan_route(
+        Task(id=uuid4().hex, type=TaskType.EXECUTION, description="the obsolete file is gone"),
+        [gone_everywhere("path", str(doomed))], [f.to_formula() for f in observed], DOMAIN)
     check("the planning authority proves the removal",
           plan_outcome.status is PlanningStatus.PLAN_FOUND, plan_outcome.reason)
-    step = plan_outcome.plan.tasks[0]
-    proved_removal_id = ((plan_outcome.plan.metadata or {}).get("intent")
+    step = route.tasks[0]
+    proved_removal_id = ((route.metadata or {}).get("intent")
                          or {}).get("intent_id")
     proved_removal = await get_intent_authority().get_by_id(proved_removal_id)
     check("that intent is the proved route the authority holds",

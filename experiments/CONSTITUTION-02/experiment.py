@@ -30,7 +30,12 @@ import sys
 import tempfile
 import time
 from pathlib import Path
+from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -101,7 +106,7 @@ def build_noise(root: Path) -> int:
 async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
-    from core.agents.autonomous.shared_types import Goal, Priority
+    from core.agents.autonomous.shared_types import Goal, Task, TaskType
     from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
     from core.perception.perception_faculty import sensed_fact
@@ -147,21 +152,19 @@ async def main():
         sensed_fact("kind", "path", str(root / "archive" / "report.txt"), "file").to_formula(),
         "¬" + sensed_fact("kind", "path", str(report), "file").to_formula()]
     rules = await get_rule_store().executable_rules(domain_id=DOMAIN)
-    # Through the ONE planning authority, which records the proved route as the
-    # goal's intent. Nothing here builds an intent; it names the recorded one.
-    await coord.planning.initialize()
-    goal = await coord.planning.create_goal(
-        "archive the report", Priority.MEDIUM, state_conditions=goal_conditions)
-    plan_outcome = await coord.planning.plan_for_goal(
-        goal.id, {"world_state": [f.to_formula() for f in world],
-                  "domain_id": DOMAIN})
+    # Planned the way the drive plans (`_plan_route`): temporal reasoning proves
+    # the route, and it is recorded as the pursuit's intent. Nothing here builds
+    # an intent; it names the recorded one.
+    plan_outcome, route = await coord._plan_route(
+        Task(id=uuid4().hex, type=TaskType.EXECUTION, description="archive the report"),
+        goal_conditions, [f.to_formula() for f in world], DOMAIN)
     check("reasoning still plans under noise",
           plan_outcome.status is PlanningStatus.PLAN_FOUND,
           f"{plan_outcome.status.value}: {plan_outcome.reason}")
     if plan_outcome.status is not PlanningStatus.PLAN_FOUND:
         return 1
-    step = plan_outcome.plan.tasks[0]
-    intent_id = ((plan_outcome.plan.metadata or {}).get("intent") or {}).get("intent_id")
+    step = route.tasks[0]
+    intent_id = ((route.metadata or {}).get("intent") or {}).get("intent_id")
     intent = await get_intent_authority().get_by_id(intent_id)
     check("intent is the proved route the authority recorded",
           bool(intent) and intent.stated(), intent.proof)
@@ -226,7 +229,6 @@ async def main():
     # one naming a bound operator and a rule id that does not exist was ALLOWED,
     # because `stated()` is a property of whatever object you pass.
     import inspect
-    from uuid import uuid4
     params = inspect.signature(con.judge).parameters
     check("the constitution cannot be handed an intent, only told which one",
           "intent_id" in params and "intent" not in params,

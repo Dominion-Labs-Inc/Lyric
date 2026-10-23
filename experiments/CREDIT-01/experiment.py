@@ -51,6 +51,10 @@ import tempfile
 import uuid
 from pathlib import Path
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -205,31 +209,24 @@ async def main():
     coord._induction_dirty = True
     await coord._coalesced_induction_drain()
 
-    # WHAT THIS RUN WRITES IS REMOVED WITH IT. The cleanup below used to delete
-    # only the intents the run formed, leaving the goals and plans that name them
-    # — `active` goals whose steps point at intents that no longer exist (this
-    # experiment's `MOVE_FILE(report.txt, inbox, archive)` was 166 of the 673 such
-    # steps on the live store) — and the demonstrations its acts filed, which the
-    # next process to wake the induction drain would learn from. Recorded at the
-    # one place each is made, and removed by id.
+    # WHAT THIS RUN WRITES IS REMOVED WITH IT: the intents it formed, and the
+    # demonstrations its acts filed, which the next process to wake the induction
+    # drain would learn from. Recorded at the one place each is made, and removed
+    # by id.
     from core.learning.demonstration_store import get_demonstration_store
     demos = get_demonstration_store()
-    filed, created_goals = [], []
+    filed = []
     pending_before = {tuple(row) for row in await demos.pending_signatures()}
-    _append, _create_goal = demos.append, coord.planning.create_goal
+    _append = demos.append
 
-    async def recorded_append(example, *, domain_id):
-        written = await _append(example, domain_id=domain_id)
+    async def recorded_append(example, **kwargs):
+        # Everything the store's own `append` takes is passed on as given.
+        written = await _append(example, **kwargs)
         if written:          # every domain: its reading steps file into `tools:path` too
             filed.append(example.evidence_id)
         return written
 
-    async def recorded_goal(*args, **kwargs):
-        made = await _create_goal(*args, **kwargs)
-        if made is not None:
-            created_goals.append(made.id)
-        return made
-    demos.append, coord.planning.create_goal = recorded_append, recorded_goal
+    demos.append = recorded_append
 
     att0, win0 = await counters(db, DOMAIN)
     rules_before = await rule_statuses(DOMAIN)
@@ -468,12 +465,12 @@ async def main():
               f"bar={operability['bar']} stakes={operability['stakes']} "
               f"earned={operability['earned']}")
 
-        engine = await coord._get_planning_engine()
-        from core.agents.autonomous.shared_types import Priority
-        goal_obj = await engine.create_goal(
-            "[substrate goal] put report.txt in archive", Priority.MEDIUM,
-            state_conditions=GOAL)
-        inputs = await engine.assemble_inputs(
+        from core.agents.autonomous.execution_plan_adapter import assemble_inputs
+        from core.agents.autonomous.shared_types import Goal, Priority
+        goal_obj = Goal(id=f"credit01_{uuid.uuid4().hex[:8]}",
+                        description="[substrate goal] put report.txt in archive",
+                        priority=Priority.MEDIUM, state_conditions=GOAL)
+        inputs = await assemble_inputs(
             "state", goal_obj, {"domain_id": DOMAIN,
                                 "world_state": sorted(str(f) for f in
                                                       (coord._observe_world(DOMAIN) or []))})
@@ -510,7 +507,6 @@ async def main():
                 "WHERE fingerprint = ANY($1::text[])", (added_fps,), commit=True,
                 store="runtime")
         del demos.append                     # the store's own method again
-        coord.planning.create_goal = _create_goal
         if filed:
             await db.execute_query(
                 "DELETE FROM unified.operator_demonstrations "
@@ -519,13 +515,6 @@ async def main():
             if (domain_id, predicate, arity) not in pending_before:
                 await demos.clear_pending(domain_id=domain_id, predicate=predicate,
                                           arity=arity)
-        if created_goals:
-            await db.execute_query(
-                "DELETE FROM unified.plans WHERE goal_id = ANY($1::text[])",
-                (created_goals,), commit=True)
-            await db.execute_query(
-                "DELETE FROM unified.goals WHERE id::text = ANY($1::text[])",
-                (created_goals,), commit=True)
         rows = await db.execute_query(
             "SELECT intent_id FROM unified.intents", (), fetch_all=True) or []
         for row in rows:

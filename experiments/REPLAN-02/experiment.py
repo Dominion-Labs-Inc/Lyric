@@ -18,19 +18,19 @@ What must happen, with nothing driving it:
 
   1. it plans a route to SBAT(z, LAB) and runs it
   2. the world CONTRADICTS the rule -- z is in ANNEX, not LAB
-  3. SBMOVE loses execution authority, and the plan standing on it is withdrawn
-  4. the goal is replanned OVER WHAT IS STILL VALIDATED, from where z ACTUALLY
-     IS -- not from where the withdrawn plan assumed it was
+  3. SBMOVE loses execution authority, and the route standing on it stops
+  4. the SAME pursuit plans again OVER WHAT IS STILL VALIDATED, from where z
+     ACTUALLY IS -- not from where the stopped route assumed it was
   5. the substrate carries the new route out and the file reaches LAB
 
 Step 4 is the one worth watching. Replanning from the remembered world would
 produce SBHAUL(z, HALL, ANNEX) -- a route from a room z left. Only re-observing
 gives SBHAUL(z, ANNEX, LAB).
 
-THE ONE THING THIS EXPERIMENT DRIVES BY HAND is the dispatch drain
-(`get_next_tasks`), because that seam has no production caller -- a gap
-RECONCILE-01 and DRIFT_CONSOLIDATION already record. It is called once, and
-labelled where it happens, so nothing here reads as more wired than it is.
+NOTHING IS DRIVEN BY HAND. The goal is handed over once (`execute_task`), and
+the repair is the pursuit's own (`_drive_substrate_goal`): when its walk stops
+over a rule that lost its authority, it plans again inside itself. Each route is
+recorded on the pursuit's route intent, so the routes it tried are read there.
 """
 import asyncio
 import contextlib
@@ -39,6 +39,7 @@ import os
 import shutil
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 for k, v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan",
@@ -57,7 +58,7 @@ EV = RunRecord(
            "says, the substrate refutes that rule, replans from where the file "
            "actually is over what is still validated, and gets it there anyway."),
     hypothesis=("If a contradicted operator loses execution authority and the route "
-                "standing on it is withdrawn and replanned from a fresh observation, "
+                "standing on it is planned again from a fresh observation, "
                 "then one polluted operator does not strand the goal."))
 
 DOMAIN = "replan02_world"
@@ -162,10 +163,8 @@ async def main():
         raise SystemExit("the reactive drain worker is not running; refusing to "
                          "measure a path that cannot run.")
 
-    from core.agents.autonomous.planning_engine import PlanningEngine
     from core.agents.autonomous.runtime_registry import get_autonomous_coordinator
-    from core.agents.autonomous.shared_types import (
-        Priority, SystemState, Task, TaskType)
+    from core.agents.autonomous.shared_types import Priority, Task, TaskType
     from core.tools.tool_registry import get_binding_registry
     from core.learning.rule_induction import Fact, get_rule_inducer
     from core.learning.rule_store import EpistemicStatus, RuleStore
@@ -193,10 +192,6 @@ async def main():
         await store.validate(stored, held_out)
         rules[predicate] = stored
 
-    engine = PlanningEngine({"max_concurrent_tasks": 10_000})
-    assert await engine.initialize() is True
-    coordinator.planning = engine
-
     print("\n== A. Two operators, both earned ==")
     executable = {r.rule_id for r in await store.executable_rules(domain_id=DOMAIN)}
     check("the substrate holds BOTH movers as executable knowledge",
@@ -210,7 +205,10 @@ async def main():
 
     # ── ONE goal, handed over, and nothing else ──────────────────────────────
     print("\n== C. Given one goal: get z to LAB. Nothing is told what to do ==")
-    task = Task(id="replan02_pursuit", type=TaskType.EXECUTION,
+    # This run's own: a pursuit's route intent is keyed by its task, so an id an
+    # earlier run used would return to that run's intent and its attempts.
+    task = Task(id=f"replan02_pursuit_{uuid.uuid4().hex[:8]}",
+                type=TaskType.EXECUTION,
                 description="get z to LAB",
                 priority=Priority.MEDIUM,
                 provenance={"domain_id": DOMAIN,
@@ -220,15 +218,19 @@ async def main():
 
     where = lambda: next((f.args[1] for f in world.observe()
                           if f.predicate == "SBAT" and f.args[0] == "z"), None)
+    from core.reasoning.intent_authority import (
+        SUBSTRATE_ACTOR, continuity_goal, get_intent_authority)
+    route = await get_intent_authority().get(
+        SUBSTRATE_ACTOR, continuity_goal(f"{task.id}:route"))
+    earlier = list((route.shape.get("earlier_attempts") or []) if route else [])
     check("it planned a route on its own and acted",
           first is not None and first.get("execution_path") == "substrate_plan",
           f"path={None if first is None else first.get('execution_path')} "
           f"steps={None if first is None else first.get('steps_executed')}")
-    check("the polluted world defeated the attempt — z did NOT reach LAB",
-          where() == "ANNEX", f"z is in {where()}")
-    check("...and the substrate did not claim success",
-          first is not None and first.get("success") is False,
-          f"success={None if first is None else first.get('success')}")
+    check("the polluted world defeated the FIRST route — it did not reach LAB by it",
+          bool(earlier) and (earlier[0].get("outcome") or {}).get("matched_aim") is False,
+          f"{len(earlier)} earlier route(s); first ended "
+          f"{earlier[0].get('status') if earlier else None}")
 
     print("\n== D. The knowledge that stopped being true lost its authority ==")
     reloaded = {r.rule_id: r for r in await store.load(domain_id=DOMAIN)}
@@ -239,79 +241,11 @@ async def main():
           reloaded[rules["SBHAUL"].rule_id].status is EpistemicStatus.VALIDATED,
           f"status={reloaded[rules['SBHAUL'].rule_id].status.value}")
 
-    print("\n== E. The withdrawal, and then the substrate on its own ==")
-    print("   (the ONE hand-driven call: the dispatch seam has no production caller)")
-    import logging
-    _caught = []
-    class _Grab(logging.Handler):
-        def emit(self, record):
-            if record.levelno >= logging.WARNING:
-                _caught.append(record.getMessage()[:240])
-    _h = _Grab()
-    _pursued = []
-    _orig_pursue = coordinator._pursue_proved_route
-    async def _spy_pursue(plan, **kw):
-        r = await _orig_pursue(plan, **kw)
-        _pursued.append({"plan": plan.id, "kw": {k: v for k, v in kw.items()},
-                         "success": r.get("success"),
-                         "intent_outcome": r.get("intent_outcome"),
-                         "error": r.get("error")})
-        return r
-    coordinator._pursue_proved_route = _spy_pursue
-    import traceback as _tb
-    from core.tools import get_tool_registry as _gtr
-    _reg = _gtr()
-    _moves = []
-    _orig_exec = _reg.execute_tool
-    async def _spy_exec(name, params=None, *a, **kw):
-        if name == "move_file":
-            _moves.append((str((params or {}).get("destination_path", ""))[-24:],
-                           [l.strip()[:90] for l in _tb.format_stack()[-7:-1]]))
-        return await _orig_exec(name, params, *a, **kw)
-    _reg.execute_tool = _spy_exec
-    _reacted = []
-    _orig_react = coordinator._react_route_withdrawn
-    async def _spy_react(event):
-        _reacted.append(("entered", event.payload.goal_ids))
-        try:
-            r = await _orig_react(event)
-            _reacted.append(("returned", None))
-            return r
-        except Exception as e:
-            _reacted.append(("raised", f"{type(e).__name__}: {e}"))
-            raise
-    for bucket in coordinator._reactions.values():
-        for reaction in bucket:
-            if reaction["name"] == "replan_withdrawn_routes":
-                reaction["handler"] = _spy_react
-    logging.getLogger("core.agents.autonomous.autonomous_coordinator").addHandler(_h)
-    logging.getLogger("core.reasoning.intent_authority").addHandler(_h)
-    with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
-        await engine.get_next_tasks(SystemState())
-        reached = False
-        for _ in range(200):
-            await asyncio.sleep(0.1)
-            if where() == "LAB":
-                reached = True
-                break
-
-    for dest, stack in _moves:
-        print(f"   [move] -> {dest}")
-        for line in stack:
-            print(f"          {line}")
-    print(f"   [react] {_reacted}")
-    print(f"   [pursue] n={len(_pursued)}")
-    for r in _pursued:
-        print(f"   [pursue] {r}")
-    for m in _caught:
-        print(f"   [log] {m}")
-    check("THE SUBSTRATE GOT z TO LAB — it replanned and carried it out",
-          reached and where() == "LAB", f"z is in {where()}")
-
-    new_plans = [p for p in engine.active_plans.values() if p.status == "active"
-                 and any((t.provenance or {}).get("domain_id") == DOMAIN
-                         for t in p.tasks)]
-    routes = [t.description for p in new_plans for t in p.tasks]
+    print("\n== E. The same pursuit planned again, on its own ==")
+    check("THE SUBSTRATE GOT z TO LAB — it planned again and carried it out",
+          first is not None and first.get("success") is True and where() == "LAB",
+          f"success={None if first is None else first.get('success')}; z is in {where()}")
+    routes = list(route.shape.get("operators") or []) if route else []
     check("the new route is over SBHAUL, not the refuted operator",
           routes and all("SBMOVE" not in r for r in routes),
           f"route={routes}")
@@ -320,33 +254,11 @@ async def main():
           f"route={routes} — a remembered world would start from HALL")
 
     print("\n== F. The pursuit was closed out, not just executed ==")
-    from core.reasoning.intent_authority import get_intent_authority
-    intent_ids = [((plan.metadata or {}).get("intent") or {}).get("intent_id")
-                  for plan in new_plans]
-    intent_ids = [i for i in intent_ids if i]
-    # THE RECONCILIATION IS WAITED ON, LIKE THE MOVE — the race REPLAN-01 had
-    # (fixed there 2026-09-25). z reaching LAB is the route's STEP; the pursuit
-    # is reconciled after it, once the step's evidence is recorded and the world
-    # re-observed. This read followed the move by one poll tick, while the
-    # pursuit was still running (`[pursue] n=0`: it had not returned), and
-    # failed 10/11 on 2026-09-26. Waited on the effect being checked, and
-    # bounded, exactly as the move above is.
-    intents = []
-    for _ in range(100):
-        intents = [await get_intent_authority().get_by_id(i) for i in intent_ids]
-        if intents and all(i is not None and i.outcome is not None for i in intents):
-            break
-        await asyncio.sleep(0.1)
-    closed = [i for i in intents if i is not None and i.outcome is not None]
-    for i in intents:
-        if i is not None:
-            print(f"   [diag] status={i.status} outcome={i.outcome}")
-            print(f"   [diag] shape.goal_conditions={i.goal_conditions}")
-    print(f"   [diag] world now = {sorted(str(f) for f in world.observe())}")
     check("the replanned pursuit carries a reconciled outcome",
-          bool(closed),
-          f"{len(intents)} intent(s), {len(closed)} reconciled: "
-          f"{[ (i.status, (i.outcome or {}).get('matched_aim')) for i in intents ]}")
+          route is not None and route.status == "fulfilled"
+          and (route.outcome or {}).get("matched_aim") is True,
+          f"route intent {None if route is None else route.status}: "
+          f"{None if route is None else route.outcome}")
 
     # ── cleanup ──────────────────────────────────────────────────────────────
     get_binding_registry().clear(DOMAIN)
@@ -359,12 +271,10 @@ async def main():
             (DOMAIN,))
     await db.execute_query(
         "DELETE FROM unified.learned_rules WHERE domain_id = $1", (DOMAIN,))
-    for plan in list(engine.active_plans.values()):
-        if any((t.provenance or {}).get("domain_id") == DOMAIN for t in plan.tasks):
-            await db.execute_query("DELETE FROM unified.plans WHERE id = $1",
-                                   (plan.id,))
-            await db.execute_query("DELETE FROM unified.goals WHERE id = $1",
-                                   (plan.goal_id,))
+    if route is not None:
+        for table in ("unified.scoped_intents", "unified.intents"):
+            await get_intent_authority().store.db.execute_query(
+                f"DELETE FROM {table} WHERE intent_id = $1", (route.intent_id,), commit=True)
 
     passed = sum(1 for c in CHECKS if c["passed"])
     print("\n" + "=" * 64)

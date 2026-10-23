@@ -2269,8 +2269,8 @@ class AbstractionPipeline:
 
 
 # Hierarchical planning — principles shape strategy BEFORE episodic retrieval —
-# now lives in the one planning authority as
-# `PlanningEngine._hierarchical_context`. The `HierarchicalPlanner` class that
+# now lives where a goal in words is decomposed, as
+# `execution_plan_adapter._hierarchical_context`. The `HierarchicalPlanner` class that
 # used to sit here had no callers, and its final step emitted prose "plan steps"
 # that proved nothing; the method was absorbed, that step was not.
 

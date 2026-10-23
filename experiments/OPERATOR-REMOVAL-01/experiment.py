@@ -21,6 +21,10 @@ import tempfile
 from pathlib import Path
 from uuid import uuid4
 
+# THE SANDBOX, NEVER THE MODEL. Unset, the store is `lyric_db`, the main model,
+# which holds only what it was taught. `lyric_dev` unless the run names a
+# database itself.
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from experiments._evidence import RunRecord  # noqa: E402
@@ -58,7 +62,7 @@ async def filed(tag):
 async def main():
     from core.agents.autonomous.autonomous_coordinator import (
         AutonomousCoordinator, Verdict)
-    from core.agents.autonomous.shared_types import Priority
+    from core.agents.autonomous.shared_types import Task, TaskType
     from core.tools.tool_registry import get_binding_registry
     from core.perception.perception_faculty import observe_world
     from core.learning.exploration import take_up_workspace
@@ -173,20 +177,18 @@ async def main():
           result.status.value == "plan_found", result.reason)
     if result.status.value != "plan_found":
         return 1
-    # Through the ONE planning authority, which records the proved route as the
-    # goal's intent. The experiment names that intent; it does not build one.
-    await coord.planning.initialize()
-    goal = await coord.planning.create_goal(
-        "the obsolete file is gone", Priority.MEDIUM, state_conditions=[gone])
-    plan_outcome = await coord.planning.plan_for_goal(
-        goal.id, {"world_state": [f.to_formula() for f in observed],
-                  "domain_id": DOMAIN})
+    # Planned the way the drive plans (`_plan_route`): temporal reasoning proves
+    # the route, and it is recorded as the pursuit's intent. The experiment names
+    # that intent; it does not build one.
+    plan_outcome, route = await coord._plan_route(
+        Task(id=uuid4().hex, type=TaskType.EXECUTION, description="the obsolete file is gone"),
+        [gone], [f.to_formula() for f in observed], DOMAIN)
     check("the planning authority proved the removal",
           plan_outcome.status is PlanningStatus.PLAN_FOUND, plan_outcome.reason)
     if plan_outcome.status is not PlanningStatus.PLAN_FOUND:
         return 1
-    step = plan_outcome.plan.tasks[0]
-    intent_id = ((plan_outcome.plan.metadata or {}).get("intent") or {}).get("intent_id")
+    step = route.tasks[0]
+    intent_id = ((route.metadata or {}).get("intent") or {}).get("intent_id")
     intent = await get_intent_authority().get_by_id(intent_id)
     print(f"     operator: {intent.operator}")
     check("the intent is a PROVED removal, as the authority recorded it",
