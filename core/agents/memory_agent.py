@@ -705,41 +705,27 @@ class MemoryAgent(IMemoryConsolidation):
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 1: Generate/extract metadata")
         worthiness_metadata = None
 
-        # Check if upstream system pre-generated metadata (DEPRECATED path)
-        if thinking_state and "worthiness_metadata" in thinking_state:
-            try:
-                from core.memory.utils.memory_worthiness import MemoryWorthinessMetadata
+        # WHETHER IT IS WORTH KEEPING IS THE MEMORY AGENT'S, from what it was handed: a producer's own account of
+        # why it should be stored (`thinking_state["worthiness_metadata"]`) was taken in its place before
+        # (2026-10-23), so the abstract reasoning engine and hypothesis testing judged their own results.
+        try:
+            logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Generating worthiness metadata...")
+            worthiness_metadata = await self._generate_worthiness_metadata(
+                content=content,
+                confidence_score=confidence_score,
+                tags=tags,
+                source_context=source_context,
+                reasoning_trace=reasoning_trace,
+                importance_score=importance_score
+            )
+            logger.debug(f"Generated worthiness metadata from raw inputs (source: {worthiness_metadata.source_system})")
+            logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Metadata generated: source={worthiness_metadata.source_system}")
 
-                # Deserialize metadata from dict
-                metadata_dict = thinking_state["worthiness_metadata"]
-                worthiness_metadata = MemoryWorthinessMetadata.from_dict(metadata_dict)
-
-                logger.debug(f"Extracted worthiness metadata from thinking_state (source: {worthiness_metadata.source_system})")
-
-            except Exception as e:
-                logger.warning(f"Failed to extract worthiness metadata: {e}")
-                worthiness_metadata = None
-
-        # PREFERRED PATH: Generate metadata from raw inputs
-        if worthiness_metadata is None:
-            try:
-                logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Generating worthiness metadata...")
-                worthiness_metadata = await self._generate_worthiness_metadata(
-                    content=content,
-                    confidence_score=confidence_score,
-                    tags=tags,
-                    source_context=source_context,
-                    reasoning_trace=reasoning_trace,
-                    importance_score=importance_score
-                )
-                logger.debug(f"Generated worthiness metadata from raw inputs (source: {worthiness_metadata.source_system})")
-                logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] Metadata generated: source={worthiness_metadata.source_system}")
-
-            except Exception as e:
-                logger.error(f"Failed to generate worthiness metadata: {e}")
-                logger.error(f"[MEMORY_AGENT.STORE_MEMORY] ✗ Metadata generation failed: {e}")
-                # Fail open - allow storage without metadata
-                worthiness_metadata = None
+        except Exception as e:
+            logger.error(f"Failed to generate worthiness metadata: {e}")
+            logger.error(f"[MEMORY_AGENT.STORE_MEMORY] ✗ Metadata generation failed: {e}")
+            # Fail open - allow storage without metadata
+            worthiness_metadata = None
 
         # ========== STEP 2: EVALUATE FILTERING DECISION ==========
         memory_admission = None
@@ -4905,6 +4891,194 @@ class MemoryAgent(IMemoryConsolidation):
             "SELECT organization FROM unified.work_authorizations WHERE person = $1 AND revoked_at IS NULL "
             "ORDER BY organization", (str(person),), fetch_all=True) or []
         return tuple(str(r["organization"]) for r in rows)
+
+    @staticmethod
+    def memory_type_of(kind: Optional[str], *, verified: bool):
+        """What kind of memory a conclusion is kept as. UNVERIFIED IS NEVER A FACT: a deduction the reasoning
+        authority could not verify is one it might have got wrong, and recalled as general knowledge it would launder
+        an unchecked step into a fact. A verified conclusion of a kind of thinking that yields facts
+        (`neural_bridge._FACT_YIELDING_KINDS`, the reasoning authority's) is SEMANTIC; anything else is EPISODIC,
+        better a general fact kept as a specific event than a specific event as a general fact. Chosen by the
+        reasoning authority before (`neural_bridge._memory_type_for`, until 2026-10-23)."""
+        from core.reasoning.neural_bridge import _FACT_YIELDING_KINDS
+        if verified and str(kind or "").strip().lower() in _FACT_YIELDING_KINDS:
+            return MemoryType.SEMANTIC
+        return MemoryType.EPISODIC
+
+    def take_in_reasoning(self, *, query: str, steps: Sequence[str], answer: Optional[str], confidence: float,
+                          kind: Optional[str], verified: bool, mode: Optional[str], premises: int, multimodal: bool,
+                          origin: "Origin") -> Optional[str]:
+        """A reasoning the reasoning authority finished, handed over as it happened: whether it is kept as a memory
+        recall can hand back (`recall_for`), how important it is, what kind of memory it is and how it is written
+        are the memory agent's. The reasoning authority decided them itself before (`_capture_reasoning_memory`,
+        until 2026-10-23). Returns the pending id, or None where nothing is kept.
+
+        Nothing is kept of a reasoning that concluded nothing, nor of one that took almost no reasoning and is
+        unsure (`effort` under 0.15, confidence under 0.6). The effort is how many steps it took, how much it was
+        given to reason with, how unsure it stayed, and a picture or a video it answered about; importance grows with
+        it and with confidence, and with what was seen. Its conclusion is kept as the claim it makes (`conclusion`),
+        the episode written out beside it."""
+        if not answer:
+            return None
+        effort = (min(len(steps or ()) / 5.0, 0.4) + min(premises / 10.0, 0.3)
+                  + min((1.0 - confidence) * 0.2, 0.1))
+        if multimodal and confidence > 0.5 and not any(
+                phrase in answer.lower() for phrase in ("sorry", "cannot see", "not visible", "unable to",
+                                                        "can't see", "image you intended", "please upload")):
+            effort += 0.3       # only a picture or a video it did answer about
+        effort = min(effort, 1.0)
+        if effort < 0.15 and confidence < 0.6:
+            logger.debug(f"Skipping trivial reasoning trace (effort={effort:.2f}, confidence={confidence:.2f})")
+            return None
+        steps_block = ""
+        if steps and list(steps) != ["Direct neural inference"]:
+            steps_text = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(steps))
+            steps_block = f"\n\nReasoning steps:\n{steps_text}"
+        importance = min(0.4 + effort * 0.4 + confidence * 0.2, 1.0)
+        if multimodal:
+            importance = min(importance + 0.1, 1.0)
+        mode_tag = mode or "hybrid"
+        tags = ["reasoning", mode_tag]
+        if kind and kind not in tags:
+            tags.append(str(kind))      # the kind of thinking, not only the route it took
+        if multimodal:
+            tags.append("multimodal")
+        if len(steps or ()) >= 3:
+            tags.append("multi_step")
+        return self.enqueue_memory(
+            content=f"Query: {query[:500]}{steps_block}\n\nAnswer: {answer[:800]}",
+            memory_type=self.memory_type_of(kind, verified=verified),
+            importance_score=importance,
+            confidence_score=confidence,
+            tags=tags,
+            source_context={
+                "source": "neural_bridge",
+                "mode": mode_tag,
+                "query_length": len(query),
+                # THE CLAIM, KEPT AS A CLAIM: what a past conclusion contributes to later reasoning is the
+                # conclusion ("disk exhaustion causes checkout timeout"), not a document about having concluded it.
+                "conclusion": answer,
+                "conclusion_confidence": confidence,
+                "conclusion_kind": kind,
+            },
+            reasoning_trace=list(steps or ()),
+            origin=origin,
+        )
+
+    #: Words with which a request asks for what was remembered: it is recalled for, however simple it is.
+    RECALL_ASKED = ("remember", "recall", "previously", "last time", "before", "earlier",
+                    "you said", "we discussed", "history", "past")
+    #: Below this complexity (the reasoning authority's, `NeuralSymbolicBridge.complexity_of`) a request is routine
+    #: enough that what is remembered is noise to it.
+    RECALL_COMPLEXITY = 0.35
+
+    @classmethod
+    def calls_for_recall(cls, query: Optional[str], complexity: Optional[float]) -> bool:
+        """Whether a request's words call for what is remembered: one that asks for it does, and otherwise one as
+        complex as `RECALL_COMPLEXITY`, by the reasoning authority's score of it (`complexity`)."""
+        words = (query or "").strip().lower()
+        return bool(words) and (any(k in words for k in cls.RECALL_ASKED)
+                                or (complexity is not None and complexity >= cls.RECALL_COMPLEXITY))
+
+    async def recall_for(self, query: Optional[str], *, complexity: Optional[float] = None,
+                         actor: Optional[str] = None, heard: Optional[Any] = None,
+                         seen: Optional[Dict[str, Any]] = None, limit: int = 3,
+                         min_similarity: float = 0.6, min_importance: float = 0.5) -> List[Dict[str, Any]]:
+        """What memory hands a request: the memories of the sound being heard and the picture being seen first,
+        recalled by them, then those its words find, each with the claim it makes (`claim`), visible to `actor`.
+
+        WHETHER A REQUEST CALLS FOR MEMORY IS THE MEMORY AGENT'S, from what it is told of the request: a sound or a
+        picture always does, a request that asks for what was remembered does, and otherwise one as complex as
+        `RECALL_COMPLEXITY`, by the reasoning authority's score (`complexity`). The memory agent never scores a
+        request itself. A separate injector and its policy decided this, scored the request themselves and shaped
+        what they found into a prompt (`memory_injector`, `memory_injection_policy`, deleted 2026-10-23).
+
+        Memories of no importance now are not recalled, however like the request (`decayed_importance`); a memory
+        not yet written is found among those waiting (`_pending_memories`) by the words it shares."""
+        from core.memory.utils.interfaces import decayed_importance
+        words = (query or "").lower()
+        by_words = self.calls_for_recall(query, complexity)
+        if not by_words and heard is None and seen is None:
+            logger.debug("no memory recalled: the request is routine (complexity %s)", complexity)
+            return []
+        try:
+            results = []
+            if heard is not None:
+                results = list(await self.retrieve(strategies=["sound"], heard=heard, actor=actor, limit=limit))
+            if seen is not None:
+                held = {r.memory_id for r in results}
+                results += [r for r in await self.retrieve(strategies=["sight"], seen=seen, actor=actor, limit=limit)
+                            if r.memory_id not in held]
+            if by_words:
+                # KNOWLEDGE ONLY: event records (task outcomes, safety events, verdicts) are kept for their count
+                # and answer nothing about a topic; found by likeness they only take the places of what is known.
+                success, found = await self.search_memories(
+                    query=query, limit=limit, min_similarity=min_similarity, include_events=False,
+                    require_named_match=True, actor=actor)
+                if not success:
+                    logger.warning("memory search failed")
+                    found = []
+                held = {r.memory_id for r in results}
+                results += [r for r in found if r.memory_id not in held]
+            memories: List[Dict[str, Any]] = []
+            for result in results:
+                importance = decayed_importance(getattr(result, 'importance_score', 1.0),
+                                                getattr(result, 'created_at', None))
+                if importance < min_importance:
+                    continue
+                # WHAT THIS MEMORY CLAIMS: a writer that knew its conclusion kept it as `conclusion`, and that is
+                # what the memory asserts; otherwise its content is all there is.
+                metadata = result.metadata or {}
+                claim = None
+                if isinstance(metadata, dict):
+                    source = metadata.get('source_context')
+                    claim = ((metadata.get('conclusion') or source.get('conclusion')) if isinstance(source, dict)
+                             else metadata.get('conclusion'))
+                memories.append({
+                    'memory_id': result.memory_id,
+                    'content': result.content,
+                    'claim': str(claim).strip() if claim else None,
+                    # Set only where likeness was measured: a memory found by its wording or its tag has none.
+                    'relevance_score': getattr(result, 'similarity_score', None),
+                    'importance_score': importance,
+                    'timestamp': result.created_at,
+                    'metadata': metadata,
+                    'reasoning_trace': getattr(result, 'reasoning_trace', None),
+                    'intent_id': getattr(result, 'intent_id', None),
+                    'intent_version': getattr(result, 'intent_version', None),
+                    'percept_id': getattr(result, 'percept_id', None),
+                    'percept_digest': getattr(result, 'percept_digest', None),
+                    'heard_match': getattr(result, 'heard_match', None),
+                    'seen_match': getattr(result, 'seen_match', None),
+                })
+            pending = getattr(self, '_pending_memories', {})
+            if pending and by_words:
+                from core.agents.autonomous.shared_types import visible_to
+                composed = await self.shared_world_context(actor)
+                query_words = set(words.split())
+                for pid, entry in list(pending.items()):
+                    if entry.get('importance_score', 0) < min_importance:
+                        continue
+                    # Not yet in the store, so the store's rule of whose it is has not been applied: applied here.
+                    if not visible_to((entry.get('kwargs') or {}).get('user_id'), composed):
+                        continue
+                    content_words = set(entry['content'].lower().split())
+                    overlap = len(query_words & content_words) / max(len(query_words), 1)
+                    if overlap < 0.1:
+                        continue
+                    memories.append({'memory_id': pid, 'content': entry['content'], 'claim': None,
+                                     'relevance_score': overlap,
+                                     'importance_score': entry.get('importance_score', 0.5),
+                                     'timestamp': None, 'metadata': {'pending': True}})
+                    if len(memories) >= limit:
+                        break
+            return memories[:limit]
+        except Exception as e:
+            # A WIRING FAULT MUST NOT READ AS "NOTHING WAS REMEMBERED": structural faults are raised; only a failed
+            # retrieval is empty, and says so.
+            raise_if_structural(e, 'memory_agent.recall_for')
+            logger.error(f"memory recall failed: {e}")
+            return []
 
     async def shared_world_context(self, actor: Optional[str]) -> Tuple[str, ...]:
         """The owners composed into what Lyric may reason over for `actor`: Lyric's own (World Knowledge), the

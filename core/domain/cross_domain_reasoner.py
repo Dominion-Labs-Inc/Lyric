@@ -183,32 +183,12 @@ class CrossDomainReasoner:
                     "source_domain": context.source_domain_id,
                     "target_domain": context.target_domain_id,
                     "strategy": context.strategy.value,
-                    # RICH METADATA: Justification
-                    "justification": {
-                        "store_reason": [
-                            "cross_domain_synthesis",
-                            "multi_domain_inference",
-                            context.strategy.value,
-                            f"{len(result.generated_mappings)}_mappings_generated"
-                        ],
-                        "decision_summary": f"Cross-domain reasoning from {context.source_domain_id} to {context.target_domain_id} using {context.strategy.value}",
-                        "alternatives_considered": ["single_domain_reasoning", "direct_transfer", "no_mapping"],
-                        "rejected_because": ["insufficient_domain_coverage", "requires_cross_domain_synthesis", "knowledge_gap"],
-                        "complexity_assessment": "very_high" if len(result.reasoning_steps) > 5 else "high",
-                        "novelty_assessment": "novel" if len(result.new_insights) > 2 and result.confidence > 0.8 else "incremental"
-                    },
                     # RICH METADATA: Outcome
                     "outcome": {
                         "action_type": "cross_domain_reasoning",
                         "action_summary": f"Generated {len(result.generated_mappings)} cross-domain mappings with {len(result.new_insights)} insights",
                         "affected_components": ["cross_domain_reasoner", context.source_domain_id, context.target_domain_id],
-                        "created_new_knowledge": len(result.new_insights) > 0,
                         "confidence": result.confidence,
-                        # Self-reported by the strategy that produced the
-                        # result. Labelled as such so a reader cannot mistake
-                        # it for an assessed impact.
-                        "impact_assessment": "critical" if result.confidence > 0.9 else "significant" if result.confidence > 0.7 else "moderate",
-                        "impact_assessment_basis": "self_reported_confidence",
                         # `require_validation` is a REQUEST for validation,
                         # not its outcome. Stamping "verified" from it meant
                         # asking for validation was sufficient to be marked

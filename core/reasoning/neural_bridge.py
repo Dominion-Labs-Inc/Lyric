@@ -78,29 +78,6 @@ logger = logging.getLogger(__name__)
 _FACT_YIELDING_KINDS = frozenset({"deductive", "logical", "causal"})
 
 
-def _memory_type_for(kind: Optional[str], *, verified: bool):
-    """The memory type for a conclusion reached by this kind of thinking.
-
-    UNVERIFIED IS NEVER A FACT. `verified` is part of the result's own
-    credit-assignment contract, and a deduction the bridge could not verify is
-    a deduction it might have got wrong -- recalling it as general knowledge
-    would launder an unchecked step into a fact.
-
-    Anything unrecognised is EPISODIC, which is the same principle the memory
-    agent's own inference states: better to treat general knowledge as a
-    specific event than a specific event as general knowledge. It is a real
-    answer, not a fallback -- a conclusion whose kind is unknown has not earned
-    the standing of a fact.
-    """
-    from core.memory.utils.interfaces import MemoryType
-
-    if not verified:
-        return MemoryType.EPISODIC
-    if str(kind or "").strip().lower() in _FACT_YIELDING_KINDS:
-        return MemoryType.SEMANTIC
-    return MemoryType.EPISODIC
-
-
 class ReasoningMode(Enum):
     """WHICH MACHINERY RUNS WHEN THE SUBSTRATE CANNOT SETTLE IT.
 
@@ -1184,6 +1161,27 @@ class NeuralSymbolicBridge:
         ratio = (cell["total_latency"] / cell["runs"]) / baseline
         return max(self._DIFFICULTY_MIN, min(self._DIFFICULTY_MAX, ratio))
 
+    #: Words that ask for more than a fact held: why, how, a comparison, a design.
+    _COMPLEXITY_HINTS = ("why", "how", "compare", "analyse", "analyze", "explain", "investigate",
+                         "root cause", "trade-off", "tradeoff", "design")
+
+    def complexity_of(self, text: str) -> float:
+        """How complex a message, a task or a request is, in [0, 1], scored by the reasoning authority as it
+        arrives: the task as the queue takes it (`QueueAuthority.add_task`, on its provenance), a request as it
+        reaches `reason` (on its `task_metadata`). One score, read by whatever needs it: the memory agent deciding
+        whether a request calls for what it remembers (`MemoryAgent.recall_for`), the curiosity a target arouses.
+
+        Memory injection scored requests itself before (`MemoryInjectionPolicy.assess_complexity`, 2026-10-23),
+        a second judge of what arrives. The measure came with it unchanged: its length, the words that ask for
+        more than a fact, and its clauses."""
+        q = (text or "").lower()
+        if not q:
+            return 0.0
+        length_term = min(1.0, len(q.split()) / 40.0)
+        hint_term = min(1.0, sum(1 for h in self._COMPLEXITY_HINTS if h in q) / 3.0)
+        clause_term = min(1.0, (q.count(",") + q.count(";") + q.count(" and ")) / 4.0)
+        return round(min(1.0, 0.5 * length_term + 0.3 * hint_term + 0.2 * clause_term), 4)
+
     # NOTE: how many agents-of-self a reasoning kind warrants in parallel (the
     # AGENT ALLOWANCE) is NOT a reasoning fact and no longer lives here. It is a
     # DEPLOYMENT decision owned by the coordinator (the self that does the
@@ -1800,6 +1798,10 @@ class NeuralSymbolicBridge:
         # self that silently stops recording its own intentions is the defect
         # this exists to prevent.
         _intent = await self._intent_engage(request)
+        # WHAT ARRIVES IS SCORED AS IT ARRIVES, once: a request already scored where it arrived keeps that score.
+        if request.task_metadata is None:
+            request.task_metadata = {}
+        request.task_metadata.setdefault("complexity", self.complexity_of(str(request.query or "")))
         if request.reading is None and request.query:
             # THE QUESTION IS LISTENED TO ONCE, where memory can be asked: where a word in it names several
             # things, which one was meant is taken as a listener takes it (`derived_reader.heard`), and every
@@ -1910,69 +1912,34 @@ class NeuralSymbolicBridge:
             else:
                 logger.debug("Skipping memory injection (memories already in conversation)")
         else:
-            # Standalone call (chat, one-shot reasoning) — perform fresh search
+            # Standalone call (chat, one-shot reasoning): THE MEMORY AGENT IS ASKED, and decides what it hands over
+            # (`MemoryAgent.recall_for`), told how complex the request is as it arrived here (`complexity_of`).
+            # Each memory reaches the eleven kinds of thinking as one claim, one premise: handed over as one
+            # prompt-shaped blob, causal reasoning read "you have access to the following relevant context from
+            # memory: ... causes ..." as a derived causal link at confidence 1.00.
             try:
-                from core.memory.utils.memory_injector import get_memory_injector, InjectionConfig, InjectionMode
-
-                injector = get_memory_injector()
-                config = InjectionConfig(
-                    mode=InjectionMode.USER_CONTEXT,
-                    max_memories=3,
-                    min_relevance_score=0.6
-                )
-
                 search_query = request.query
                 if request.image or request.video:
                     search_query = f"{request.query} [multimodal vision image analysis]"
                     logger.debug("Enhanced search query for multimodal memory injection")
-
-                injected = await injector.inject_memories(
-                    query=search_query,
-                    config=config,
-                    actor=(request.task_metadata or {}).get("actor"),
-                )
-
-                # ONE CONTEXT ITEM, ONE CLAIM.
-                #
-                # This inserted `injected.formatted_text` -- a header sentence
-                # plus every retrieved memory as bullets, in ONE string. That is
-                # correct for a prompt and wrong for everything downstream that
-                # reads a context item as a single statement, which now includes
-                # the eleven kinds of thinking: they take request.context as
-                # premises.
-                #
-                # Measured before this change: the blob passed to causal
-                # reasoning produced "you have access to the following relevant
-                # context from memory: ... causes ..." as a derived causal link
-                # at CONFIDENCE 1.00, plus a root cause built from the header
-                # text. Fabricated, confident, and headed for the memory store
-                # as knowledge.
-                #
-                # The individual claims carry the same text to the model -- the
-                # model path joins context with newlines -- while giving every
-                # other consumer one statement per item.
-                if injected.records:
+                recalled = (await self.memory_agent.recall_for(
+                    search_query, complexity=request.task_metadata.get("complexity"),
+                    actor=request.task_metadata.get("actor"), limit=3, min_similarity=0.6)
+                    if self.memory_agent is not None else [])
+                claims = [str(m.get("claim") or m.get("content") or "").strip() for m in recalled]
+                claims = [claim for claim in claims if claim]
+                if claims:
                     if isinstance(request.context, str):
-                        request.context = list(injected.records) + [request.context]
+                        request.context = claims + [request.context]
                     elif request.context is None:
-                        request.context = list(injected.records)
+                        request.context = claims
                     else:
-                        request.context[0:0] = list(injected.records)
-                    logger.info("✓ Injected %d memories as separate claims (%d tokens)",
-                                injected.total_memories, injected.total_tokens)
-                elif injected.formatted_text:
-                    logger.info(f"✓ Injected {injected.total_memories} relevant memories ({injected.total_tokens} tokens)")
-                    if isinstance(request.context, str):
-                        request.context = [injected.formatted_text, request.context]
-                    elif request.context is None:
-                        request.context = [injected.formatted_text]
-                    else:
-                        request.context.insert(0, injected.formatted_text)
+                        request.context[0:0] = claims
+                    logger.info("✓ Recalled %d memories as separate claims", len(claims))
                 else:
-                    logger.debug("No relevant memories found for injection")
-
+                    logger.debug("No relevant memories recalled")
             except Exception as e:
-                logger.warning(f"Memory injection failed (continuing without): {e}")
+                logger.warning(f"Memory recall failed (continuing without): {e}")
         # ================================================
 
         try:
@@ -4204,11 +4171,8 @@ class NeuralSymbolicBridge:
         """
         Hand a reasoning to the memory agent (background task, never raises): the
         whole of it as an experience, which waits in the pool as a candidate, and,
-        when it answered, its trace as a memory.
-
-        The memory filter decides whether the trace is worth keeping — trivial
-        single-step responses are rejected automatically, complex multi-step
-        reasoning with high confidence is retained.
+        when it answered, what it reasoned (`MemoryAgent.take_in_reasoning`),
+        which decides whether its trace is kept and how.
         """
         try:
             # WHOSE CONCLUSION THIS IS. A question reasoned FOR A USER chains
@@ -4263,160 +4227,21 @@ class NeuralSymbolicBridge:
                 about=str(md.get("goal_id") or md.get("thread_id") or md.get("conversation_id")
                           or md.get("session_id") or md.get("task_id") or "") or None))
 
-            if not result.answer:
-                return
-            complexity = self._calculate_complexity_score(request, result)
-
-            # Skip traces that are almost certainly noise (very low complexity + low confidence)
-            if complexity < 0.15 and result.confidence < 0.6:
-                logger.debug(f"Skipping trivial reasoning trace (complexity={complexity:.2f}, confidence={result.confidence:.2f})")
-                return
-
-            # Format content: query → steps → answer
-            steps_block = ""
-            if result.reasoning_steps and result.reasoning_steps != ["Direct neural inference"]:
-                steps_text = "\n".join(f"  {i+1}. {s}" for i, s in enumerate(result.reasoning_steps))
-                steps_block = f"\n\nReasoning steps:\n{steps_text}"
-
-            content = (
-                f"Query: {request.query[:500]}"
-                f"{steps_block}"
-                f"\n\nAnswer: {result.answer[:800]}"
-            )
-
-            # Importance: blend complexity and confidence, bias up for multimodal
-            importance = min(0.4 + complexity * 0.4 + result.confidence * 0.2, 1.0)
-            if request.image or request.video:
-                importance = min(importance + 0.1, 1.0)
-
-            # Tags
-            mode_tag = result.mode_used.value if result.mode_used else "hybrid"
-            tags = ["reasoning", mode_tag]
-
-            # TAG THE KIND OF THINKING, NOT ONLY THE ROUTE IT TOOK.
-            #
-            # `mode_used` is the execution route, so every kind-derived
-            # conclusion was stored as "abstract" -- a causal derivation and a
-            # spatial one were indistinguishable in the record, and a later
-            # reader could not ask "what has Lyric concluded causally?" at all.
-            # The kind is the more informative fact and is what makes the record
-            # readable afterwards.
-            kind = (result.metadata or {}).get("kind")
-            if kind and kind not in tags:
-                tags.append(str(kind))
-            if request.image or request.video:
-                tags.append("multimodal")
-            if len(result.reasoning_steps) >= 3:
-                tags.append("multi_step")
-
-            # WHAT KIND OF THING THIS CONCLUSION IS.
-            #
-            # This block imported `core.memory.models`, which does not exist,
-            # and asked it for `MemoryType.REASONING`, which is not a member of
-            # the enum. Both failures were caught by a bare `except Exception`
-            # that set `mem_type = None`, so the bridge never typed a single
-            # memory it wrote -- every one fell through to inference, which
-            # keys on `source_system` (the bridge writes `source`), missed, and
-            # took its EPISODIC default. The outcome was accidentally right and
-            # the mechanism was entirely dead.
-            #
-            # The bridge is the one that knows, so the bridge decides: it has
-            # the kind of thinking that settled the question, which is what
-            # says whether the answer is a general fact or something weaker.
-            mem_type = _memory_type_for(
-                (result.metadata or {}).get("kind"),
-                verified=bool((result.metadata or {}).get("verified")))
-
-            # Use enqueue_memory() — non-blocking fire-and-forget.
-            # The write queue worker in MemoryAgent will persist this
-            # in the background while the caller continues immediately.
-            # The pending dict makes it visible to injection right away.
-            self.memory_agent.enqueue_memory(
-                content=content,
-                memory_type=mem_type,
-                importance_score=importance,
-                confidence_score=result.confidence,
-                tags=tags,
-                source_context={
-                    "source": "neural_bridge",
-                    "mode": mode_tag,
-                    "query_length": len(request.query),
-                    "complexity": complexity,
-                    # THE CLAIM, KEPT AS A CLAIM.
-                    #
-                    # `content` renders the whole episode for a reader --
-                    # "Query: ... / Reasoning steps: ... / Answer: ..." -- and
-                    # `reasoning_trace` holds the derivation. Neither is a
-                    # statement: a trace step reads "link strength 1.00", which
-                    # is a measurement of the reasoning, not something that is
-                    # the case.
-                    #
-                    # What a past conclusion contributes to later reasoning is
-                    # the CONCLUSION. Recalling it should hand back "disk
-                    # exhaustion causes checkout timeout", not a document about
-                    # having concluded it. Stored here, at the moment it is
-                    # known, rather than parsed back out of prose later.
-                    "conclusion": result.answer,
-                    "conclusion_confidence": result.confidence,
-                    "conclusion_kind": (result.metadata or {}).get("kind"),
-                },
-                reasoning_trace=result.reasoning_steps,
-                origin=origin,
-            )
-            logger.debug(f"Reasoning trace enqueued (importance={importance:.2f})")
+            # WHETHER THE TRACE IS KEPT, how important it is and what kind of memory it is are the memory agent's:
+            # handed what was reasoned (`MemoryAgent.take_in_reasoning`), it decides. The reasoning authority
+            # scored its own trace and decided them itself before (2026-10-23).
+            if result.answer:
+                meta = result.metadata or {}
+                self.memory_agent.take_in_reasoning(
+                    query=request.query, steps=list(result.reasoning_steps or ()), answer=result.answer,
+                    confidence=result.confidence, kind=meta.get("kind"), verified=bool(meta.get("verified")),
+                    mode=result.mode_used.value if result.mode_used else None,
+                    premises=len(request.context or []), multimodal=bool(request.image or request.video),
+                    origin=origin)
 
         except Exception as e:
             # Background task — log and swallow; never propagate to caller
             logger.warning(f"_capture_reasoning_memory failed: {e}")
-
-    def _calculate_complexity_score(self, request: ReasoningRequest, result: ReasoningResult) -> float:
-        """Calculate complexity score (0.0-1.0) for neural-symbolic reasoning"""
-        score = 0.0
-
-        # Factor 1: Number of reasoning steps (up to 0.4)
-        if result.reasoning_steps:
-            score += min(len(result.reasoning_steps) / 5.0, 0.4)
-
-        # Factor 2: Context usage (up to 0.3)
-        score += min(len(request.context) / 10.0, 0.3)
-
-        # FACTOR 3 REMOVED: a flat +0.2 for `mode_used == HYBRID`.
-        #
-        # Complexity is a property of the RESULT -- how many steps it took, how
-        # much context it needed -- not of which engine produced it. This added
-        # 0.2 unconditionally for one enum member, and since complexity feeds
-        # `importance` at 0.4x, it made every hybrid answer 0.08 more important
-        # to remember than an identical answer from any other mode.
-        #
-        # Measured on identical content and identical steps, before removal:
-        #
-        #     symbolic @ 0.98 confidence -> importance 0.838
-        #     hybrid   @ 0.98 confidence -> importance 0.918
-        #     hybrid   @ 0.35 confidence -> importance 0.830
-        #
-        # A hybrid guess at 35% confidence was stored as almost exactly as
-        # important as a Z3-verified refutation proof at 98%. Nothing about the
-        # content justified the difference; the mode alone did.
-
-        # Factor 4: Confidence (up to 0.1, inverted - lower confidence = more complex)
-        score += min((1.0 - result.confidence) * 0.2, 0.1)
-
-        # Factor 5: Vision/multimodal processing (0.3) - ONLY if successful
-        # Vision queries involve expensive multimodal processing
-        # BUT: Only boost if not an error response (don't reward failures)
-        if request.image is not None or request.video is not None:
-            # Detect error responses
-            answer_lower = result.answer.lower() if result.answer else ""
-            is_error = any(phrase in answer_lower for phrase in [
-                "sorry", "cannot see", "not visible", "unable to",
-                "can't see", "image you intended", "please upload"
-            ])
-
-            # Only boost for successful vision analysis
-            if not is_error and result.confidence > 0.5:
-                score += 0.3
-
-        return min(score, 1.0)
 
     async def get_statistics(self) -> Dict[str, Any]:
         """Bridge statistics for the health monitor — FLAT scalars only (the probe

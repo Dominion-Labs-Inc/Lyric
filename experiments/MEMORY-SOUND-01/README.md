@@ -10,7 +10,8 @@ The memory agent can be asked by the sound itself whether it was heard before:
   heard agreeing.
 - A different recording recalls nothing.
 - A song heard untaught, then taught, names the earlier hearing: the earlier recording is now said to `play` it.
-- The injector brings the same sound's memories into what is being thought, each saying it is this sound heard before.
+- The memory agent hands the same sound's memories to what is being thought, each saying how much of this sound agreed
+  (`recall_for(heard=...)`, `heard_match`).
 - A person's hearing is recalled for that person, never for another person, nor for the substrate's own.
 - **What is heard and seen within a pursuit is part of its one memory.** A recording heard and a picture seen
   under a pursuit's intent are that pursuit's memory, not memories of their own. The memory keeps the trace
@@ -29,8 +30,8 @@ The memory agent can be asked by the sound itself whether it was heard before:
   other strategy.
 - **The coordinator** asks memory by the sound before a hearing is remembered (`_heard_before`). A song lesson names
   the earlier hearings it recalled (`_name_what_was_heard_before`).
-- **`MemoryInjector.inject_memories(heard=...)`** injects the same sound's memories first, whatever the policy decides
-  about the words.
+- **`MemoryAgent.recall_for(heard=...)`** hands over the same sound's memories first, whatever it decides about the
+  words (a separate injector and its policy did, until 2026-10-23).
 
 **The cut** is the one measured for songs (SONGS-01): at least 10 agreeing landmarks, and at least 0.1 of those heard
 while the remembered sound would have been sounding. Over 100 taught GTZAN clips and 300 others, true matches were at

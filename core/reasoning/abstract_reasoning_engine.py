@@ -2212,10 +2212,9 @@ class AbstractReasoningEngine:
         # QUALITY IS MEASURED OVER DERIVED CONCLUSIONS ONLY.
         #
         # Averaging model proposals in here is what carried a model's opinion
-        # of itself all the way into the memory store: `overall_confidence`
-        # drives is_novel, actionable, consequence_level, created_new_knowledge,
-        # impact_assessment, requires_human_review and the stored memory's own
-        # importance_score. A proposal has no confidence to contribute, and
+        # of itself all the way into the memory store: `overall_confidence` is
+        # the stored memory's confidence and its importance_score. A proposal
+        # has no confidence to contribute, and
         # counting it as 0.0 would be just as wrong in the other direction --
         # it would drag down conclusions that WERE derived. So proposals are
         # excluded from the average rather than scored into it.
@@ -2320,33 +2319,18 @@ class AbstractReasoningEngine:
     
     async def _store_in_memory(self, result: ReasoningResult):
         """
-        Store reasoning result in memory with rich upstream metadata.
-
-        Generates MemoryWorthinessMetadata at creation time for intelligent filtering.
+        Hand a reasoning result to the memory agent: what was concluded, how, and
+        what it rested on. Whether it is worth keeping, and why, is the memory
+        agent's (`MemoryAgent.store_memory`); this engine wrote its own account of
+        why it should be stored, with its own complexity, novelty and impact, until
+        2026-10-23.
         """
 
         try:
             if not self.memory:
                 return
 
-            from datetime import datetime
             from core.memory.utils.interfaces import MemoryType
-            from core.memory.utils.memory_worthiness import (
-                MemoryWorthinessMetadata,
-                CognitionMetadata,
-                NoveltyMetadata,
-                CriticalityMetadata,
-                QueryMetadata,
-                OutcomeMetadata,
-                TemporalMetadata,
-                JustificationMetadata,
-                DecisionType,
-                ConsequenceLevel,
-                PatternType,
-                QueryType,
-                ReusabilityLevel,
-                DomainImportance
-            )
 
             # Aggregate reasoning_steps from all conclusions (chain of thought)
             all_reasoning_steps = []
@@ -2359,142 +2343,18 @@ class AbstractReasoningEngine:
             if result.conclusions:
                 content_summary += f": {result.conclusions[0].statement}"
 
-            # ========== UPSTREAM METADATA GENERATION ==========
-
-            # 1. Cognition Metadata - Measure actual cognitive effort
-            cognition = CognitionMetadata(
-                reasoning_steps=len(all_reasoning_steps),
-                reasoning_depth=self._calculate_reasoning_depth(result),
-                execution_time_ms=result.reasoning_time * 1000,  # Convert to ms
-                inference_count=result.total_inferences,
-                complexity_score=self._calculate_complexity_score(result),
-                required_backtracking=len(result.intermediate_results) > len(all_reasoning_steps),
-                used_multiple_strategies=len(set(rt for rt in result.context.reasoning_types)) > 1,
-                uncertainty_resolved=result.overall_confidence > 0.7
-            )
-
-            # 2. Novelty Metadata - Is this new reasoning?
-            is_cross_domain = len(set([result.context.domain])) > 1  # Placeholder
-            novelty = NoveltyMetadata(
-                is_novel=result.overall_confidence > 0.8 and len(all_reasoning_steps) >= 3,
-                contradicts_existing=False,  # Would require memory lookup
-                synthesis_of_domains=[result.context.domain],
-                pattern_type=PatternType.EMERGENT if len(all_reasoning_steps) >= 5 else PatternType.ROUTINE,
-                first_occurrence=False,  # Would require memory lookup
-                connects_disparate_knowledge=is_cross_domain
-            )
-
-            # 3. Criticality Metadata - How important is this?
-            criticality = CriticalityMetadata(
-                decision_type=DecisionType.TACTICAL if result.context.problem_type in ["deductive", "inductive"] else DecisionType.OPERATIONAL,
-                domain_importance=DomainImportance.HIGH if result.context.domain in ["security", "safety", "governance"] else DomainImportance.MEDIUM,
-                reusability=ReusabilityLevel.HIGH if len(all_reasoning_steps) >= 4 else ReusabilityLevel.MEDIUM,
-                consequence_level=ConsequenceLevel.HIGH if result.overall_confidence > 0.85 else ConsequenceLevel.MEDIUM,
-                likely_reference_count=max(3, len(all_reasoning_steps)),  # Heuristic
-                time_sensitivity=result.context.domain in ["security", "threat_detection"]
-            )
-
-            # 4. Query Metadata - What type of reasoning was this?
-            query = QueryMetadata(
-                query_type=QueryType.COMPLEX_REASONING if len(all_reasoning_steps) >= 3 else QueryType.ANALYSIS,
-                requires_synthesis=len(result.context.premises) > 2,
-                multi_step=len(all_reasoning_steps) > 1,
-                involves_uncertainty=result.overall_confidence < 0.9,
-                ambiguous_input=False,
-                context_dependent=True
-            )
-
-            # 5. Outcome Metadata - What was produced?
-            outcome = OutcomeMetadata(
-                conclusion_confidence=result.overall_confidence,
-                hypothesis_supported=None,
-                actionable=result.overall_confidence > 0.7,
-                created_new_knowledge=len(all_reasoning_steps) >= 4,
-                action_type="abstract_reasoning",
-                action_summary=f"{result.context.problem_type} reasoning in {result.context.domain}",
-                affected_components=["abstract_reasoning_engine"],
-                validated_against_sources=result.logical_consistency > 0.9,
-                requires_human_review=result.overall_confidence < 0.6
-            )
-
-            # 6. Temporal Metadata - When and why?
-            temporal = TemporalMetadata(
-                created_at=datetime.now().isoformat(),
-                session_id=getattr(self, 'session_id', 'default_session'),
-                trigger_event="reasoning_request",
-                sequence_number=getattr(self, '_reasoning_sequence', 0)
-            )
-            self._reasoning_sequence = getattr(self, '_reasoning_sequence', 0) + 1
-
-            # 7. Justification Metadata - Why store this?
-            store_reasons = []
-            if len(all_reasoning_steps) >= 5:
-                store_reasons.append("deep_reasoning")
-            if cognition.reasoning_depth >= 3:
-                store_reasons.append("multi_level_inference")
-            if result.overall_confidence > 0.85:
-                store_reasons.append("high_confidence_conclusion")
-            if criticality.domain_importance == DomainImportance.HIGH:
-                store_reasons.append("critical_domain")
-
-            justification = JustificationMetadata(
-                store_reason=store_reasons if store_reasons else ["moderate_complexity"],
-                decision_summary=f"Abstract reasoning with {len(all_reasoning_steps)} steps and {result.overall_confidence:.2f} confidence",
-                alternatives_considered=["skip_storage"],
-                rejected_because=["cognitive_effort_significant"] if len(all_reasoning_steps) >= 3 else []
-            )
-
-            # Create comprehensive metadata
-            worthiness_metadata = MemoryWorthinessMetadata(
-                cognition=cognition,
-                novelty=novelty,
-                criticality=criticality,
-                query=query,
-                outcome=outcome,
-                temporal=temporal,
-                justification=justification,
-                source_system="abstract_reasoning_engine",
-                domain=result.context.domain
-            )
-
-            # ========== STORE WITH METADATA ==========
-
-            # Rich metadata with justification and outcome
+            # What happened, as it happened: the memory agent judges it.
             thinking_state = {
                 "result_id": result.result_id,
                 "reasoning_time": result.reasoning_time,
                 "total_inferences": result.total_inferences,
                 "confidence_distribution": result.confidence_distribution,
-                "worthiness_metadata": worthiness_metadata.to_dict(),  # Include full metadata
-                # RICH METADATA: Justification for storing this memory
-                "justification": {
-                    "store_reason": [
-                        "multi_level_inference",
-                        "abstract_reasoning",
-                        "strategic_decision" if result.overall_confidence > 0.8 else "tactical_decision",
-                        f"{len(result.conclusions)}_conclusions_reached"
-                    ],
-                    "decision_summary": f"Abstract reasoning in {result.context.domain} domain with {len(result.context.premises)} premises yielding {len(result.conclusions)} conclusions",
-                    "alternatives_considered": [
-                        rt.value for rt in [ReasoningType.DEDUCTIVE, ReasoningType.INDUCTIVE, ReasoningType.ABDUCTIVE]
-                        if rt not in result.context.reasoning_types
-                    ][:3],
-                    "rejected_because": [
-                        "insufficient_premises_for_deduction",
-                        "not_suitable_for_induction",
-                        "abductive_reasoning_not_required"
-                    ][:len([rt for rt in [ReasoningType.DEDUCTIVE, ReasoningType.INDUCTIVE, ReasoningType.ABDUCTIVE] if rt not in result.context.reasoning_types][:3])],
-                    "complexity_assessment": "very_high" if result.total_inferences > 10 else "high" if result.total_inferences > 5 else "medium",
-                    "novelty_assessment": "novel" if result.overall_confidence > 0.85 and len(result.conclusions) > 2 else "incremental"
-                },
                 # RICH METADATA: Outcome of this reasoning operation
                 "outcome": {
                     "action_type": "reasoning_conclusion",
                     "action_summary": f"Reached {len(result.conclusions)} conclusions via {', '.join([rt.value for rt in result.context.reasoning_types])} reasoning",
                     "affected_components": ["reasoning_engine", result.context.domain, "knowledge_base"],
-                    "created_new_knowledge": result.overall_confidence > 0.75 and len(result.conclusions) > 0,
                     "confidence": result.overall_confidence,
-                    "impact_assessment": "critical" if result.overall_confidence > 0.9 else "significant" if result.overall_confidence > 0.7 else "moderate",
                     "verification_status": "unverified",
                     "success_criteria": {
                         "min_confidence": result.context.confidence_threshold,
@@ -2560,35 +2420,11 @@ class AbstractReasoningEngine:
             )
 
             if success:
-                logger.debug(f"Reasoning result stored to memory: {memory_id} (worthiness: {worthiness_metadata.justification.store_reason})")
+                logger.debug(f"Reasoning result stored to memory: {memory_id}")
 
         except Exception as e:
             logger.error(f"Error storing in memory: {e}")
 
-    def _calculate_reasoning_depth(self, result: ReasoningResult) -> int:
-        """Calculate depth of nested reasoning (levels of inference)"""
-        # Heuristic: number of intermediate results indicates depth
-        return min(len(result.intermediate_results) + 1, 5)
-
-    def _calculate_complexity_score(self, result: ReasoningResult) -> float:
-        """Calculate complexity score (0.0-1.0) based on reasoning characteristics"""
-        score = 0.0
-
-        # Factor 1: Number of reasoning steps (up to 0.4)
-        steps = sum(len(c.reasoning_steps) for c in result.conclusions if c.reasoning_steps)
-        score += min(steps / 10.0, 0.4)
-
-        # Factor 2: Number of premises (up to 0.2)
-        score += min(len(result.context.premises) / 10.0, 0.2)
-
-        # Factor 3: Multiple reasoning types (up to 0.2)
-        if len(set(rt for rt in result.context.reasoning_types)) > 1:
-            score += 0.2
-
-        # Factor 4: Inference count (up to 0.2)
-        score += min(result.total_inferences / 20.0, 0.2)
-
-        return min(score, 1.0)
     
     # Public API methods
     

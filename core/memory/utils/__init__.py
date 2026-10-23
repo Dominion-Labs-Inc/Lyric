@@ -1,11 +1,10 @@
 """
 Memory Utilities
 ===============
-Embedding service, memory injection, and interfaces.
+Embedding service and interfaces.
 """
 
 from .embedding_service import get_embedding_service
-from .memory_injector import get_memory_injector
 from .interfaces import (
     # Enums
     MemoryType,
@@ -32,7 +31,6 @@ from .interfaces import (
 __all__ = [
     # Services
     'get_embedding_service',
-    'get_memory_injector',
 
     # Enums
     'MemoryType',

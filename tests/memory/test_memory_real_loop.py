@@ -43,7 +43,7 @@ async def run() -> int:
     from core.memory import Origin
     from core.memory import get_memory_agent
     from core.reasoning.neural_bridge import get_neural_bridge, ReasoningRequest
-    from core.memory.utils.memory_injection_policy import get_memory_injection_policy
+    from core.agents.memory_agent import MemoryAgent
 
     results: list[tuple[bool, str]] = []
 
@@ -82,10 +82,10 @@ async def run() -> int:
           f"id={mem_id}")
 
     # ---- 2. RETRIEVE (wait until embedded/searchable) ----------------------
-    # Above the injection COMPLEXITY_FLOOR (0.35) by construction — the unique
+    # Above the memory agent's RECALL_COMPLEXITY (0.35) by construction — the unique
     # nouns keep it ranking to THIS memory, the hint words (why/how/root cause/
     # investigate) and clauses carry the complexity score over the floor — so a
-    # 0-injection here is a real failure, not the policy correctly declining.
+    # 0-injection here is a real failure, not the memory agent correctly declining.
     probe_q = (f"why does the {tok} orbital telemetry buffer keep overflowing, "
                f"and how does the {tok} downlink scheduler starve the ring "
                f"allocator, and what is the root cause I should investigate to fix it")
@@ -102,14 +102,14 @@ async def run() -> int:
     check("stored memory is retrievable by paraphrase", found is not None,
           f"similarity={sim:.3f} after {i * 0.5:.1f}s")
 
-    # ---- 3. POLICY warrants injection for an above-floor query -------------
-    # The cognition assertion is only meaningful if the policy admits this query;
-    # a below-floor query correctly gets no memory. Assert the gate is open here.
-    plan = get_memory_injection_policy().decide(query=probe_q)
-    warranted = bool(getattr(plan, "enabled", False))
-    complexity = getattr(plan, "complexity", None)
-    check("injection policy warrants this query (>= floor)", warranted,
-          f"complexity={complexity} reasons={getattr(plan, 'reason_codes', None)}")
+    # ---- 3. THE MEMORY AGENT recalls for an above-floor query --------------
+    # The cognition assertion is only meaningful if the memory agent recalls for
+    # this query, as complex as the reasoning authority scores it; a below-floor
+    # query correctly gets no memory. Assert the gate is open here.
+    complexity = bridge.complexity_of(probe_q)
+    warranted = MemoryAgent.calls_for_recall(probe_q, complexity)
+    check("the memory agent recalls for this query (>= floor)", warranted,
+          f"complexity={complexity}")
 
     # ---- 4. REACHES COGNITION via the real reason() loop -------------------
     # Injection prepends recalled claims into request.context before any model
@@ -124,11 +124,10 @@ async def run() -> int:
     # ---- 5. AND a routine query is correctly DECLINED (the other half) ------
     # A trivial request must not drag memory into cognition. This is the skip
     # behaviour the retired `test_query_skip.py` only printed; asserted here.
-    skip_plan = get_memory_injection_policy().decide(query="list files")
+    skip_complexity = bridge.complexity_of("list files")
     check("routine query is declined (no injection below floor)",
-          not bool(getattr(skip_plan, "enabled", True)),
-          f"complexity={getattr(skip_plan, 'complexity', None)} "
-          f"reasons={getattr(skip_plan, 'reason_codes', None)}")
+          not MemoryAgent.calls_for_recall("list files", skip_complexity),
+          f"complexity={skip_complexity}")
 
     await _cleanup(agent, mem_id)
 

@@ -7262,15 +7262,8 @@ class AutonomousCoordinator:
             self.memory = None
 
         # === MEMORY QUERY AGENTS ===
-        # Specialized agents for querying and summarizing memory (PostgreSQL store).
-        # Canonical MemoryInjector, injected by main.py after construction. The
-        # coordinator must not build its own — one mechanism, one owner.
-        self.memory_injector = None
-
-        # mysql_memory_agent removed: it was labelled "PRIMARY" but was never
-        # assigned anywhere, and MySQL is retired (PostgreSQL is the store). Its
-        # only consumer, get_intelligent_memory_context(), now goes through the
-        # policy + MemoryInjector path.
+        # What a request is handed of memory is the memory agent's (`MemoryAgent.recall_for`); no injector of its
+        # own here, nor in main.py.
         logger.info("Memory query agents will be initialized during startup")
 
         # === ENHANCED REASONING SYSTEM ===
@@ -9695,6 +9688,7 @@ class AutonomousCoordinator:
         """
         Autonomously generate goals based on curiosity and exploration targets
         """
+        from core.reasoning.neural_bridge import get_neural_bridge
         if max_goals is None:
             max_goals = self.coordinator_config.max_goals_curiosity
 
@@ -9719,7 +9713,8 @@ class AutonomousCoordinator:
                 curiosity_value = (await self.intrinsic_motivation.calculate_curiosity_reward({
                     "information_gain": target.uncertainty_score,
                     "uncertainty_reduction": target.uncertainty_score,
-                    "question_complexity": 0.7,
+                    # How complex the target is, as the reasoning authority scores what arrives; a fixed 0.7 before.
+                    "question_complexity": get_neural_bridge().complexity_of(str(target.description or "")),
                     "answer_depth": 0.0,
                 })).reward_value
 
@@ -9754,7 +9749,7 @@ class AutonomousCoordinator:
                     curiosity_reward = await self.intrinsic_motivation.calculate_curiosity_reward({
                         "information_gain": 0.3,
                         "uncertainty_reduction": target.uncertainty_score,
-                        "question_complexity": 0.7,
+                        "question_complexity": get_neural_bridge().complexity_of(str(target.description or "")),
                         "answer_depth": 0.0  # Haven't explored yet
                     })
                     
@@ -9940,109 +9935,6 @@ class AutonomousCoordinator:
             logger.error(f"Error searching memories: {e}")
             return []
 
-    async def get_intelligent_memory_context(
-        self,
-        query: str,
-        context_type: str = 'general',
-        domain: Optional[str] = None,
-        thinking_mode: str = 'auto',
-        user_id: Optional[str] = None,
-        conversation_id: Optional[str] = None
-    ) -> Optional[str]:
-        """Retrieve memory context for LLM injection, if policy says it is wanted.
-
-        POLICY / MECHANISM SPLIT. This used to import
-        `core.memory.intelligent_memory_injector` — a module that never existed —
-        and expected `InjectionDecision.SKIP` and `get_relevant_memory_types()`.
-        The import was caught by `except ModuleNotFoundError: return None`, so
-        for its whole life this returned "no memories" instead of failing.
-
-        The real mechanism (`MemoryInjector`) exists and is constructed in
-        main.py. What was missing was the POLICY layer, which now lives in
-        `memory_injection_policy.py`:
-
-            policy.decide(...)  -> "should I, and which kinds?"
-            injector.inject_memories(...) -> "retrieve, format, place"
-
-        The old path also required `mysql_memory_agent`, which is permanently
-        None — MySQL is retired, PostgreSQL is the store. That dependency is
-        gone rather than resurrected.
-
-        Returns the formatted context, or None when policy declined (an honest
-        decision, logged with its reason codes) or retrieval found nothing.
-        """
-        # ── STAGE 1: POLICY. Failure here must not look like "no memories".
-        try:
-            from core.memory.utils.memory_injection_policy import get_memory_injection_policy
-            plan = get_memory_injection_policy().decide(
-                query=query,
-                context_type=context_type,
-                domain=domain,
-                thinking_mode=thinking_mode,
-            )
-        except Exception as e:
-            logger.error(
-                "Memory injection POLICY failed (%s) — proceeding without memory. "
-                "This is a policy fault, not an empty memory store.", e
-            )
-            return None
-
-        if not plan.enabled:
-            logger.debug(
-                "Memory injection declined for context_type=%s: %s",
-                context_type, ", ".join(plan.reason_codes) or "no reason given"
-            )
-            return None
-
-        # ── STAGE 2: MECHANISM. Independent failure boundary: a broken injector
-        # must not be reported as a policy skip, and vice versa.
-        try:
-            injector = getattr(self, 'memory_injector', None)
-            if injector is None:
-                from core.memory.utils.memory_injector import get_memory_injector
-                injector = get_memory_injector()
-
-            from core.memory.utils.memory_injector import InjectionConfig, InjectionMode
-            config = InjectionConfig(
-                mode=InjectionMode.USER_CONTEXT,
-                max_memories=plan.max_memories,
-                min_relevance_score=plan.min_relevance,
-            )
-            # Pass the PLAN: this caller already consulted the policy, and the
-            # injector must not re-decide with less context than we had.
-            injected = await injector.inject_memories(
-                query=plan.query, config=config, plan=plan, actor=user_id
-            )
-        except Exception as e:
-            logger.error(
-                "Memory INJECTOR failed for an ENABLED plan (%s): %s. Policy wanted "
-                "memory (%s) and did not get it — this is not a skip.",
-                plan.memory_types, e, ", ".join(plan.reason_codes)
-            )
-            return None
-
-        # THE FIELD IS `formatted_text`. This read `formatted_context` and then
-        # `content`, neither of which exists on InjectedMemories, so `text` was
-        # None on EVERY call -- the method then logged "retrieval returned
-        # nothing" and returned None while retrieval had in fact succeeded.
-        # Verified: memory was searched, rows were found, and the result was
-        # discarded because of a name.
-        text = getattr(injected, 'formatted_text', None)
-        if not text:
-            logger.debug(
-                "Memory injection enabled (%s) but retrieval returned nothing",
-                ", ".join(plan.reason_codes)
-            )
-            return None
-
-        logger.info(
-            "🧠 Memory context injected: types=%s max=%d domain=%s (%s)",
-            list(plan.memory_types), plan.max_memories, plan.domain,
-            ", ".join(plan.reason_codes)
-        )
-        return text
-
-
     @property
     def model_available(self) -> bool:
         """Retained for compatibility; the substrate holds no model. It reasons
@@ -10163,18 +10055,17 @@ class AutonomousCoordinator:
                   " I did not record what led me to it."
         standing = ("" if metadata.get("verified")
                     else " I have not verified this.")
-        # AN UNCHECKED ANSWER IS NOT KNOWLEDGE, AND THE TYPE HAS TO SAY SO.
-        # The bridge owns this judgement -- it is the one that knows which kind
-        # of thinking settled the question -- so this asks it rather than
-        # hardcoding SEMANTIC, which is what filed every unverified answer
-        # alongside solver-checked ones.
-        from core.reasoning.neural_bridge import _memory_type_for
+        # AN UNCHECKED ANSWER IS NOT KNOWLEDGE, AND THE TYPE HAS TO SAY SO: what
+        # kind of memory a conclusion is kept as is the memory agent's
+        # (`MemoryAgent.memory_type_of`), never a hardcoded SEMANTIC, which filed
+        # every unverified answer alongside solver-checked ones.
+        from core.agents.memory_agent import MemoryAgent
         await self.memory.store_memory(
             origin=origin,
             content=(f"I was asked: {question} I answered: {conclusion}."
                      f"{because}{standing}"),
-            memory_type=_memory_type_for(metadata.get("kind"),
-                                         verified=bool(metadata.get("verified"))),
+            memory_type=MemoryAgent.memory_type_of(metadata.get("kind"),
+                                                   verified=bool(metadata.get("verified"))),
             importance_score=(float(getattr(result, "confidence", 0.0) or 0.0)
                               if metadata.get("verified") else 0.3),
             source_context={

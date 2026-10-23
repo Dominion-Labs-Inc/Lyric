@@ -715,36 +715,12 @@ class SecurityTrainingPipeline:
                 "false_negatives": session.false_negatives,
                 "accuracy": session.accuracy,
                 "duration_sec": (session.end_time - session.start_time).total_seconds() if session.end_time else 0,
-                # RICH METADATA: Justification
-                "justification": {
-                    "store_reason": [
-                        "security_training_session",
-                        "adversarial_testing",
-                        session.phase.value,
-                        f"{session.accuracy:.1f}pct_accuracy"
-                    ],
-                    "decision_summary": f"Security training session in {session.phase.value} phase with {session.accuracy:.1f}% accuracy ({session.correct_detections}/{session.examples_processed} correct)",
-                    "alternatives_considered": [
-                        "manual_security_review",
-                        "external_penetration_testing",
-                        "static_rule_based_detection"
-                    ],
-                    "rejected_because": [
-                        "automated_training_more_comprehensive",
-                        "continuous_improvement_needed",
-                        "adaptive_defense_required"
-                    ],
-                    "complexity_assessment": "high" if session.examples_processed > 100 else "medium" if session.examples_processed > 20 else "low",
-                    "novelty_assessment": "novel" if session.accuracy > 90 else "incremental" if session.accuracy > 70 else "routine"
-                },
                 # RICH METADATA: Outcome
                 "outcome": {
                     "action_type": "security_training_session",
                     "action_summary": f"Processed {session.examples_processed} examples with {session.accuracy:.1f}% accuracy ({session.false_positives} FP, {session.false_negatives} FN)",
                     "affected_components": ["security_system", "threat_detection", "defense_mechanisms"],
-                    "created_new_knowledge": session.accuracy > 80,
                     "confidence": session.accuracy / 100.0,
-                    "impact_assessment": "significant" if session.accuracy > 85 else "moderate" if session.accuracy > 70 else "minimal",
                     "verification_status": "verified" if session.accuracy > 80 else "needs_improvement",
                     "success_criteria": {
                         "min_accuracy_met": session.accuracy >= 70,
@@ -814,36 +790,12 @@ class SecurityTrainingPipeline:
                 "recall": model.recall,
                 "f1_score": model.f1_score,
                 "training_examples_count": len(training_examples),
-                # RICH METADATA: Justification
-                "justification": {
-                    "store_reason": [
-                        "security_model_training",
-                        "threat_detection_model",
-                        f"{len(model.attack_types)}_attack_types",
-                        f"{model.accuracy:.1f}pct_accuracy"
-                    ],
-                    "decision_summary": f"Trained {model.model_type} security model for {len(model.attack_types)} attack types with {model.accuracy:.1f}% accuracy",
-                    "alternatives_considered": [
-                        "rule_based_detection",
-                        "signature_based_detection",
-                        "behavior_analysis_only"
-                    ],
-                    "rejected_because": [
-                        "ml_based_more_adaptive",
-                        "pattern_learning_catches_novel_attacks",
-                        "better_generalization"
-                    ],
-                    "complexity_assessment": "high" if len(training_examples) > 100 else "medium",
-                    "novelty_assessment": "novel" if model.accuracy > 90 else "incremental"
-                },
                 # RICH METADATA: Outcome
                 "outcome": {
                     "action_type": "security_model_training",
                     "action_summary": f"Security model {model.model_id} trained on {len(training_examples)} examples achieving {model.accuracy:.1f}% accuracy (F1: {model.f1_score:.2f})",
                     "affected_components": ["security_system", "threat_detection"] + [at.value for at in model.attack_types],
-                    "created_new_knowledge": model.accuracy > 80,
                     "confidence": model.f1_score / 100.0,
-                    "impact_assessment": "significant" if model.accuracy > 85 else "moderate",
                     "verification_status": "verified" if model.accuracy > 80 else "needs_improvement",
                     "success_criteria": {
                         "min_accuracy_met": model.accuracy >= 70,

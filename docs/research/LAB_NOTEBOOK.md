@@ -16,6 +16,65 @@ Conventions:
 
 ---
 
+## 2026-10-23 (38) — Complexity of what arrives is the reasoning authority's; memory injection and every keep decision are the memory agent's
+
+**Objective (the owner's).** Two owners: the reasoning authority scores how complex messages, tasks and projects are
+as they arrive; the memory agent owns memory injection and decides what is kept and why, from everything it is handed.
+No producer writes its own "why store this". Projects are LyricOS's (users create them; Lyric creates them for users
+when it operates from LyricOS): Lyric's core has no project function, so no project arrival point.
+
+**Found** (read in the code, not the notes):
+- `core/memory/utils/memory_injector.py` (630 lines) and `memory_injection_policy.py` (257), beside the memory agent:
+  they called its `retrieve` and `search_memories`, gated recall on their own word-count score of the request
+  (`assess_complexity`: length, hint words, clauses), and shaped what was found into a prompt ("Format memories for
+  LLM injection"). Used by the reasoning authority (`NeuralSymbolicBridge._reason_impl`), MEMORY-SOUND-01, `main.py`
+  and the health monitor; the coordinator's `get_intelligent_memory_context` was called by nothing.
+- Complexity was judged in six places: the injection policy; the memory agent's episode score; the reasoning
+  authority's own trace (`_calculate_complexity_score`, deciding whether to keep it and its importance, and
+  `_memory_type_for` its memory type); the abstract reasoning engine and hypothesis testing (each a full
+  `MemoryWorthinessMetadata` with its own complexity, novelty, criticality and a justification, "why store this",
+  which `store_memory` took in place of its own judgement: its "DEPRECATED path"); and the coordinator's curiosity
+  reward, a fixed 0.7. The security training pipeline and the cross-domain reasoner wrote justifications and impact
+  assessments nothing read.
+
+**Built:**
+1. `NeuralSymbolicBridge.complexity_of(text)`, beside `reasoning_difficulty`: the measure unchanged. Scored as a task
+   arrives (`QueueAuthority.add_task`, on its provenance, once) and as a request reaches `reason` (on
+   `task_metadata`, once). The curiosity reward's question complexity is it.
+2. `MemoryAgent.recall_for` and `calls_for_recall`: what the injector did, and the decision whether a request calls
+   for memory (a sound or a picture; words asking for memory; or the reasoning authority's score over 0.35). The
+   reasoning authority asks the memory agent directly; each memory reaches the kinds of thinking as one claim. The
+   injector, its policy, the coordinator's uncalled method, `main.py`'s construction and status and the health probe
+   are deleted.
+3. `MemoryAgent.take_in_reasoning` and `memory_type_of`: whether the reasoning authority's trace is kept, its
+   importance, tags, type and content are the memory agent's. `store_memory` always makes its own worthiness
+   judgement; the abstract reasoning engine, hypothesis testing, the security training pipeline and the cross-domain
+   reasoner hand over what happened and no longer write why it should be stored.
+
+**Measured** (lyric_dev):
+- The deleted policy (from HEAD) against `calls_for_recall` with `complexity_of`, on the 35 cases of
+  `tests/memory/test_query_analysis.py`: the same answer on all 35. That test fails 15 of them either way: its
+  expectations are the keyword gate deleted 2026-08-14, which the policy never met. Left as found (the owner's call).
+- The trace kept, the reasoning authority's rule (copied from HEAD) against `take_in_reasoning`, over 15,360 cases
+  (steps, premises, confidence, kind, verified, mode, a picture, an answer or an apology): the same on all, 7,520 kept,
+  every argument it is enqueued with equal.
+- `tests/memory/test_memory_real_loop.py` 5/5 (a stored memory reaches `reason`'s premises through the memory agent;
+  a routine query is declined), run after each stage. `tests/test_arrival_complexity.py` (new) 2 passed;
+  `test_experience_pool.py` 9 passed (its stand-in memory agent takes `take_in_reasoning`; one look-up test failed
+  the same way on HEAD, its stand-in reading had no `senses` since 2026-10-20, fixed); `test_abductive_reasoning.py`,
+  `test_memory_worthiness_semantics.py`, `test_queue_authority_scheduler.py` pass.
+
+**Open.**
+- The measure is still the word count it was. The reasoning authority measures how hard its kinds of thinking are
+  from its own runs (`reasoning_difficulty`); whether what arrives is scored that way is the owner's decision.
+- 28 call sites in 13 files still pass their own importance into memory writes (9 in the coordinator), and the
+  coordinator's `reason_about` writes a second memory of a reasoning the reasoning authority already handed over.
+- `experience_evaluator` passes information gain as the question's complexity where none is given.
+- The behaviour arbiter does not yet read the score (how hard to try, how long to persist).
+- MEMORY-SOUND-01 cannot run here: `test_data/music/genres/...` (GTZAN) is not on this machine.
+
+---
+
 ## 2026-10-23 (37) — Where the words split asked of the chart, not tried: a page looked up reads in a third of the time, every sentence as before
 
 **Objective.** RESEARCH-WRITE-01 and TEACH-AND-DO-01 stopped at their research step, the reader at full CPU over the

@@ -108,7 +108,6 @@ async def main() -> int:
     from core.perception import hearing as H
     from core.memory.media_store import get_media_store
     from core.memory import get_memory_agent
-    from core.memory.utils.memory_injector import get_memory_injector, InjectionConfig
     from core.domain.evidence_producers import _term_like
     room_heard = excerpt(HEARD, "heard_in_the_room.mp3")
     room_theirs = excerpt(THEIRS, "theirs_in_the_room.mp3")
@@ -227,13 +226,13 @@ async def main() -> int:
 
         # ── G. INJECTED ─────────────────────────────────────────────────────
         print("\n== G. The same sound's memories are injected into what is thought ==")
-        injected = await get_memory_injector().inject_memories(
-            query="", config=InjectionConfig(max_memories=5, min_importance_score=0.0),
-            actor=None, heard=probe)
-        text = injected.formatted_text or ""
+        # The memory agent hands them over (`recall_for`), each with how much of the sound agreed (`heard_match`);
+        # an injector beside it did, as a prompt saying "(heard before: the same sound ...)", until 2026-10-23.
+        handed = await agent.recall_for("", actor=None, heard=probe, limit=5, min_importance=0.0)
+        matched = {m["memory_id"]: m.get("heard_match") for m in handed}
         check("they are injected, saying they are this sound heard before",
-              {first_id, second_id} <= set(injected.memory_ids)
-              and "(heard before: the same sound" in text, text[:200])
+              {first_id, second_id} <= set(matched) and all(matched[i] for i in (first_id, second_id)),
+              str(matched)[:200])
 
         # ── H. WHOSE ────────────────────────────────────────────────────────
         print("\n== H. A person's hearing is recalled only for that person ==")

@@ -322,6 +322,15 @@ class QueueAuthority:
             if self.queue.qsize() >= self.config['max_queue_size']:
                 logger.warning("queue at capacity; refusing %s", task.id)
                 return False
+            # WHAT ARRIVES IS SCORED AS IT ARRIVES: how complex the job is, the reasoning authority's score
+            # (`NeuralSymbolicBridge.complexity_of`), kept on it for whatever reads it; once, a job queued again
+            # keeping the score it came with.
+            if "complexity" not in (task.provenance or {}):
+                if self._reasoning is None:
+                    from core.reasoning.neural_bridge import get_neural_bridge
+                    self._reasoning = get_neural_bridge()
+                task.provenance = {**(task.provenance or {}),
+                                   "complexity": self._reasoning.complexity_of(str(task.description or ""))}
             tp = self._priority_to_task_priority(priority)
             queued = QueuedTask(task=task, priority=tp, added_at=datetime.now(),
                                 status=TaskStatus.BLOCKED if held_for_person else TaskStatus.PENDING)

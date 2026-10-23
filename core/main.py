@@ -224,7 +224,6 @@ class LyricSystem:
         # Additional core systems
         self.quantum_reasoning = None
         self.proof_engine = None
-        self.memory_injector = None
         self.logical_integration = None
         self.backup_scheduler = None
         self.testing_tools = None
@@ -1034,19 +1033,6 @@ class LyricSystem:
             logger.error(f"Proof engine initialization failed: {e}")
             self.stats['services_failed'] += 1
 
-        # Memory Injector
-        try:
-            from core.memory.utils.memory_injector import get_memory_injector
-
-            logger.info("Initializing memory injector...")
-            self.memory_injector = get_memory_injector()
-            logger.info("✓ Memory injector initialized")
-            self.stats['services_initialized'] += 1
-
-        except Exception as e:
-            logger.error(f"Memory injector initialization failed: {e}")
-            self.stats['services_failed'] += 1
-
         # NOTE (2026-09-01): the LogicalIntegrationSystem construction/wiring
         # was removed — it was a dead, redundant wrapper over the Z3 proof engine
         # (already live as self.proof_engine). The live logical kernel,
@@ -1119,14 +1105,6 @@ class LyricSystem:
             )
 
             if self.autonomous_coordinator:
-                # Wire up the CANONICAL memory injector. main.py constructs it
-                # (line ~1178); without this the coordinator would fetch its own
-                # via get_memory_injector(), giving two owners of one mechanism.
-                # One injector, injected — not two, discovered independently.
-                if getattr(self, 'memory_injector', None):
-                    self.autonomous_coordinator.memory_injector = self.memory_injector
-                    logger.info("✓ Autonomous coordinator connected to memory injector")
-
                 # Universal Domain Master — the Postgres-backed authority for
                 # what domains exist and for cross-domain reasoning.
                 #
@@ -1642,9 +1620,6 @@ class LyricSystem:
 
             if self.proof_engine:
                 status['subsystems']['proof_engine'] = await self.proof_engine.get_statistics()
-
-            if self.memory_injector:
-                status['subsystems']['memory_injector'] = await self.memory_injector.get_statistics()
 
             if self.backup_scheduler:
                 status['subsystems']['backup_scheduler'] = await self.backup_scheduler.get_statistics()

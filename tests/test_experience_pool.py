@@ -77,6 +77,11 @@ class _Handed:
     def enqueue_memory(self, *args, **kwargs):
         self.memories.append(kwargs)
 
+    def take_in_reasoning(self, **reasoned):
+        """What the reasoning authority hands over of a reasoning; whether it is kept is the memory agent's."""
+        if reasoned.get("answer"):
+            self.memories.append(reasoned)
+
 
 def _conversation(handed):
     """A person's conversation whose hand-overs are kept here, not sent."""
@@ -128,11 +133,12 @@ def test_a_look_up_is_handed_over_with_each_part_where_it_came_from(monkeypatch)
             return answers[name]
 
     def read_text(text, *_args, **_kwargs):
-        # The one reader, as it reads a page's definition: a kind said of the phrase.
+        # The one reader, as it reads a page's definition: a kind said of the phrase, its words naming one thing
+        # each (no packed senses, `Reading.senses`).
         readings = []
         if text.startswith("A peristaltic pump is"):
             readings = [SimpleNamespace(meaning=Meaning("tell", (MeaningFact(
-                "isa", "peristaltic pump", "positive displacement pump"),)))]
+                "isa", "peristaltic pump", "positive displacement pump"),)), senses=())]
         return [SimpleNamespace(text=text, readings=readings)]
 
     taken = []

@@ -1078,32 +1078,17 @@ class HypothesisTestingSystem:
 
     async def _store_experiment_in_memory(self, experiment: Experiment):
         """
-        Store experiment result in memory with rich upstream metadata.
-
-        Generates MemoryWorthinessMetadata at creation time for intelligent filtering.
+        Hand an experiment's result to the memory agent: what was tested, how, and
+        what came of it. Whether it is worth keeping, and why, is the memory
+        agent's (`MemoryAgent.store_memory`); this wrote its own account of why it
+        should be stored, with its own complexity, novelty and impact, until
+        2026-10-23.
         """
         try:
             if not self.memory_agent:
                 return
 
-            from datetime import datetime
             from core.memory.utils.interfaces import MemoryType
-            from core.memory.utils.memory_worthiness import (
-                MemoryWorthinessMetadata,
-                CognitionMetadata,
-                NoveltyMetadata,
-                CriticalityMetadata,
-                QueryMetadata,
-                OutcomeMetadata,
-                TemporalMetadata,
-                JustificationMetadata,
-                DecisionType,
-                ConsequenceLevel,
-                PatternType,
-                QueryType,
-                ReusabilityLevel,
-                DomainImportance
-            )
 
             # Get associated hypothesis for context
             hypothesis = self.hypotheses.get(experiment.hypothesis_id)
@@ -1124,108 +1109,7 @@ class HypothesisTestingSystem:
             if hypothesis:
                 content_summary += f" testing '{hypothesis.claim}'"
 
-            # ========== UPSTREAM METADATA GENERATION ==========
-
-            # 1. Cognition Metadata - Measure experimental effort
-            procedure_steps = len(reasoning_trace)
-            cognition = CognitionMetadata(
-                reasoning_steps=procedure_steps,
-                reasoning_depth=1,  # Experiments are typically single-level
-                execution_time_ms=experiment.execution_time * 1000 if experiment.execution_time else 0.0,
-                inference_count=procedure_steps,
-                complexity_score=self._calculate_experiment_complexity(experiment, hypothesis),
-                required_backtracking=experiment.status == ExperimentStatus.FAILED,
-                used_multiple_strategies=False,  # Experiments use single methodology
-                uncertainty_resolved=experiment.outcome_supports_hypothesis is not None
-            )
-
-            # 2. Novelty Metadata - Is this new knowledge?
-            novelty = NoveltyMetadata(
-                is_novel=experiment.outcome_supports_hypothesis is not None,  # Completed experiments create knowledge
-                contradicts_existing=experiment.outcome_supports_hypothesis == False if experiment.outcome_supports_hypothesis is not None else False,
-                synthesis_of_domains=[hypothesis.domain] if hypothesis else [],
-                pattern_type=PatternType.EMERGENT if experiment.outcome_supports_hypothesis else PatternType.ROUTINE,
-                first_occurrence=True,  # Each experiment is unique
-                connects_disparate_knowledge=False
-            )
-
-            # 3. Criticality Metadata - How important is this experiment?
-            is_critical_domain = hypothesis and hypothesis.domain in ["security", "safety", "governance"]
-            criticality = CriticalityMetadata(
-                decision_type=DecisionType.TACTICAL,  # Experiments are tactical validation
-                domain_importance=DomainImportance.HIGH if is_critical_domain else DomainImportance.MEDIUM,
-                reusability=ReusabilityLevel.HIGH,  # Experiment results are highly reusable
-                consequence_level=ConsequenceLevel.HIGH if experiment.outcome_supports_hypothesis is False else ConsequenceLevel.MEDIUM,
-                likely_reference_count=5,  # Experiments are frequently referenced
-                time_sensitivity=is_critical_domain
-            )
-
-            # 4. Query Metadata - What type of investigation?
-            query = QueryMetadata(
-                query_type=QueryType.ANALYSIS,  # Experiments are analytical
-                requires_synthesis=False,
-                multi_step=procedure_steps > 1,
-                involves_uncertainty=experiment.outcome_supports_hypothesis is None,
-                ambiguous_input=False,
-                context_dependent=True
-            )
-
-            # 5. Outcome Metadata - What was produced?
-            outcome = OutcomeMetadata(
-                conclusion_confidence=hypothesis.confidence if hypothesis else 0.5,
-                hypothesis_supported=experiment.outcome_supports_hypothesis,
-                actionable=experiment.outcome_supports_hypothesis is not None,
-                created_new_knowledge=experiment.status == ExperimentStatus.COMPLETED,
-                action_type="hypothesis_testing",
-                action_summary=f"Tested hypothesis: {hypothesis.claim if hypothesis else 'unknown'}",
-                affected_components=["hypothesis_testing"],
-                validated_against_sources=experiment.status == ExperimentStatus.COMPLETED,
-                requires_human_review=experiment.outcome_supports_hypothesis is None or experiment.status == ExperimentStatus.FAILED
-            )
-
-            # 6. Temporal Metadata - When and why?
-            temporal = TemporalMetadata(
-                created_at=experiment.completed_at.isoformat() if experiment.completed_at else datetime.now().isoformat(),
-                session_id=getattr(self, 'session_id', 'default_session'),
-                trigger_event="hypothesis_experiment",
-                sequence_number=getattr(self, '_experiment_sequence', 0)
-            )
-            self._experiment_sequence = getattr(self, '_experiment_sequence', 0) + 1
-
-            # 7. Justification Metadata - Why store this?
-            store_reasons = []
-            if experiment.status == ExperimentStatus.COMPLETED:
-                store_reasons.append("experiment_completed")
-            if experiment.outcome_supports_hypothesis is False:
-                store_reasons.append("hypothesis_disproved")  # Negative results are important!
-            if procedure_steps >= 3:
-                store_reasons.append("multi_step_procedure")
-            if is_critical_domain:
-                store_reasons.append("critical_domain")
-
-            justification = JustificationMetadata(
-                store_reason=store_reasons if store_reasons else ["experiment_pending"],
-                decision_summary=f"Hypothesis experiment with {procedure_steps} steps, status: {experiment.status.value}",
-                alternatives_considered=["skip_storage"] if experiment.status == ExperimentStatus.PENDING else [],
-                rejected_because=[] if store_reasons else ["experiment_incomplete"]
-            )
-
-            # Create comprehensive metadata
-            worthiness_metadata = MemoryWorthinessMetadata(
-                cognition=cognition,
-                novelty=novelty,
-                criticality=criticality,
-                query=query,
-                outcome=outcome,
-                temporal=temporal,
-                justification=justification,
-                source_system="hypothesis_testing",
-                domain=hypothesis.domain if hypothesis else "general"
-            )
-
-            # ========== STORE WITH METADATA ==========
-
-            # Rich metadata with justification and outcome
+            # What happened, as it happened: the memory agent judges it.
             thinking_state = {
                 "experiment_id": experiment.experiment_id,
                 "hypothesis_id": experiment.hypothesis_id,
@@ -1233,37 +1117,12 @@ class HypothesisTestingSystem:
                 "execution_time": experiment.execution_time,
                 "started_at": experiment.started_at.isoformat() if experiment.started_at else None,
                 "completed_at": experiment.completed_at.isoformat() if experiment.completed_at else None,
-                "worthiness_metadata": worthiness_metadata.to_dict(),  # Include full metadata
-                # RICH METADATA: Justification for storing this memory
-                "justification": {
-                    "store_reason": [
-                        "hypothesis_testing",
-                        "scientific_method",
-                        "empirical_validation",
-                        "supports_hypothesis" if experiment.outcome_supports_hypothesis else "refutes_hypothesis"
-                    ],
-                    "decision_summary": f"Hypothesis test '{experiment.name}' {('confirmed' if experiment.outcome_supports_hypothesis else 'refuted')} the hypothesis: {hypothesis.claim if hypothesis else 'N/A'}",
-                    "alternatives_considered": [
-                        "observational_study",
-                        "theoretical_proof",
-                        "simulation_only"
-                    ],
-                    "rejected_because": [
-                        "requires_empirical_evidence",
-                        "hypothesis_needs_experimental_validation",
-                        "real_world_testing_necessary"
-                    ],
-                    "complexity_assessment": "high" if len(reasoning_trace) > 10 else "medium",
-                    "novelty_assessment": "novel" if experiment.outcome_supports_hypothesis and (hypothesis.confidence if hypothesis else 0.5) > 0.8 else "incremental"
-                },
                 # RICH METADATA: Outcome of this experiment
                 "outcome": {
                     "action_type": "hypothesis_test",
                     "action_summary": f"Experiment '{experiment.name}' {('validated' if experiment.outcome_supports_hypothesis else 'invalidated')} hypothesis with {len(reasoning_trace)} steps",
                     "affected_components": ["hypothesis_system", "knowledge_base", (hypothesis.domain if hypothesis else "general")],
-                    "created_new_knowledge": experiment.outcome_supports_hypothesis or experiment.status.value == "completed",
                     "confidence": hypothesis.confidence if hypothesis else 0.5,
-                    "impact_assessment": "significant" if experiment.outcome_supports_hypothesis else "moderate",
                     "verification_status": "verified" if experiment.status.value == "completed" else "partial",
                     "success_criteria": {
                         "experiment_completed": experiment.status.value == "completed",
@@ -1324,33 +1183,11 @@ class HypothesisTestingSystem:
             )
 
             if success:
-                logger.debug(f"Hypothesis experiment stored to memory: {memory_id} (worthiness: {worthiness_metadata.justification.store_reason})")
+                logger.debug(f"Hypothesis experiment stored to memory: {memory_id}")
 
         except Exception as e:
             logger.error(f"Error storing experiment in memory: {e}")
 
-    def _calculate_experiment_complexity(self, experiment: Experiment, hypothesis: Optional[Hypothesis]) -> float:
-        """Calculate complexity score (0.0-1.0) for hypothesis experiment"""
-        score = 0.0
-
-        # Factor 1: Procedure complexity (up to 0.4)
-        if experiment.procedure:
-            procedure_steps = len(experiment.procedure) if isinstance(experiment.procedure, list) else 1
-            score += min(procedure_steps / 5.0, 0.4)
-
-        # Factor 2: Hypothesis confidence (up to 0.2, inverted - lower confidence = more complex)
-        if hypothesis:
-            score += min((1.0 - hypothesis.confidence) * 0.4, 0.2)
-
-        # Factor 3: Experiment status (0.2 for completed/failed)
-        if experiment.status in [ExperimentStatus.COMPLETED, ExperimentStatus.FAILED]:
-            score += 0.2
-
-        # Factor 4: Results complexity (up to 0.2)
-        if experiment.results and isinstance(experiment.results, dict):
-            score += min(len(experiment.results) / 10.0, 0.2)
-
-        return min(score, 1.0)
     
     async def _save_evidence(self, evidence: Evidence):
         """Save evidence to PostgreSQL database"""

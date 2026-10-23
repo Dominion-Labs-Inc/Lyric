@@ -1533,7 +1533,6 @@ class HealthMonitor:
         'memory': {
             'embedding_service':   ('core.memory.utils.embedding_service', 'get_embedding_service', 'get_metrics'),
             'memory_filter':       ('core.memory.utils.memory_filter', 'get_memory_filter', 'get_metrics'),
-            'memory_injector':     ('core.memory.utils.memory_injector', 'get_memory_injector', 'get_statistics'),
         },
         'tools': {
             'testing_tools':       ('core.tools.testing_validation_tools', 'get_testing_tools', 'get_statistics'),

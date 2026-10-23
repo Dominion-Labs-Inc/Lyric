@@ -16,17 +16,21 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-# Relevance has ONE authority: MemoryInjectionPolicy.decide(). These tests
-# previously called MemoryInjector._should_search_memories(), a second gate
-# that was removed when the three competing answers were consolidated (see
-# tests/test_memory_injection_authority.py). They assert the same behaviour
-# against the surviving authority rather than resurrecting the duplicate.
-from core.memory.utils.memory_injection_policy import get_memory_injection_policy
+# Whether a request calls for memory is the MEMORY AGENT'S decision (`MemoryAgent.calls_for_recall`), told how
+# complex the request is by the reasoning authority, which scores what arrives
+# (`NeuralSymbolicBridge.complexity_of`). Both came out of the memory injection policy (2026-10-23); these assert
+# the behaviour it had.
+from core.agents.memory_agent import MemoryAgent
+from core.reasoning.neural_bridge import get_neural_bridge
+
+
+def recalled(query: str) -> bool:
+    """Whether the memory agent recalls for this request, as the reasoning authority scores it."""
+    return MemoryAgent.calls_for_recall(query, get_neural_bridge().complexity_of(query))
 
 
 def test_hard_reject_queries():
     """Test queries that should NEVER trigger memory search"""
-    injector = get_memory_injection_policy()
 
     test_cases = [
         # Very short queries
@@ -57,7 +61,7 @@ def test_hard_reject_queries():
     failed = 0
 
     for query, expected, description in test_cases:
-        result = injector.decide(query).enabled
+        result = recalled(query)
         status = "✓" if result == expected else "✗"
 
         if result == expected:
@@ -73,7 +77,6 @@ def test_hard_reject_queries():
 
 def test_hard_accept_queries():
     """Test queries that should ALWAYS trigger memory search"""
-    injector = get_memory_injection_policy()
 
     test_cases = [
         # Past references
@@ -107,7 +110,7 @@ def test_hard_accept_queries():
     failed = 0
 
     for query, expected, description in test_cases:
-        result = injector.decide(query).enabled
+        result = recalled(query)
         status = "✓" if result == expected else "✗"
 
         if result == expected:
@@ -123,7 +126,6 @@ def test_hard_accept_queries():
 
 def test_soft_threshold_queries():
     """Test queries evaluated by heuristic thresholds"""
-    injector = get_memory_injection_policy()
 
     test_cases = [
         # Long queries (> 60 chars)
@@ -151,7 +153,7 @@ def test_soft_threshold_queries():
     failed = 0
 
     for query, expected, description in test_cases:
-        result = injector.decide(query).enabled
+        result = recalled(query)
         status = "✓" if result == expected else "✗"
 
         if result == expected:
@@ -167,7 +169,6 @@ def test_soft_threshold_queries():
 
 def test_edge_cases():
     """Test edge cases and boundary conditions"""
-    injector = get_memory_injection_policy()
 
     test_cases = [
         # Empty/None queries
@@ -191,7 +192,7 @@ def test_edge_cases():
     failed = 0
 
     for query, expected, description in test_cases:
-        result = injector.decide(query).enabled
+        result = recalled(query)
         status = "✓" if result == expected else "✗"
 
         if result == expected:
