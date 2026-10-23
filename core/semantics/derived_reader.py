@@ -730,13 +730,17 @@ class Pattern:
     def surface(self) -> str:
         return "".join(_text(e) + (" " if e.space_after else "") for e in self.form).rstrip()
 
-    @property
+    @functools.cached_property
     def key(self) -> str:
         """The construction's identity: exactly these pieces and slots with exactly this meaning.
 
         Memory is asked for it by this key before a construction is stored, and it is what makes teaching the same
         pair twice one construction, not two -- the identity is structural, never a resemblance a vector index
-        judged."""
+        judged.
+
+        Made once for each construction: the chart is asked by it of every span a covering reaches, and made afresh
+        each time, a construction's key was made 1,507,624 times reading one paragraph of prose (lyric_dev,
+        2026-10-23)."""
         body = "\x1f".join(self.words) + "\x1e" + self.meaning.canonical()
         return hashlib.sha256(body.encode("utf-8")).hexdigest()[:32]
 
@@ -791,7 +795,7 @@ class Lexical:
     def surface(self) -> str:
         return surface_of(self.form)
 
-    @property
+    @functools.cached_property
     def key(self) -> str:
         return _key("lexical", "\x1f".join(self.words), self.value)
 
@@ -826,7 +830,7 @@ class Link:
 
     kind = "link"
 
-    @property
+    @functools.cached_property
     def key(self) -> str:
         return _key("link", self.pattern, self.slot, self.lexical)
 
@@ -928,7 +932,7 @@ class Phrase:
     def canonical(self) -> str:
         return _phrase_canonical(self.anchor, self.facts)
 
-    @property
+    @functools.cached_property
     def key(self) -> str:
         return _key("phrase", "\x1f".join(self.words), self.canonical())
 
@@ -3716,28 +3720,75 @@ def _chunkings(form: Tuple[FormElement, ...], words: Tuple[str, ...],
     """Every way a construction's form covers `words` exactly: each piece matches its word (as `same` compares
     them, or as `shaped` finds the word there written for it in another shape) or, where `missing` allows it, is
     absent; each slot takes one or more words. Yields each slot's span (start, end) in `words`, in slot order."""
-    at_least = [0] * (len(form) + 1)
-    for i in range(len(form) - 1, -1, -1):
-        element = form[i]
-        at_least[i] = at_least[i + 1] + (0 if isinstance(element, Piece) and missing(element) else 1)
+    for spans, _ in _coverings(form, words, same, missing, shaped):
+        yield spans
 
-    def walk(i: int, at: int, spans: Tuple[Tuple[int, int], ...]):
+
+def _coverings(form: Tuple[FormElement, ...], words: Tuple[str, ...],
+               same: Callable[[str, str], bool] = str.__eq__,
+               missing: Callable[[Piece], bool] = lambda piece: False,
+               shaped: Optional[Callable[[int, str], bool]] = None,
+               fill: Optional[Callable[[int, int, int], Sequence]] = None
+               ) -> Iterator[Tuple[Tuple[Tuple[int, int], ...], Tuple[Sequence, ...]]]:
+    """Every way a construction's form covers `words` exactly (`_chunkings`), each slot's span with what stands in
+    it there: `fill(k, start, end)`, what may stand in the k-th slot over `words[start:end]`. A covering with a slot
+    nothing may stand in is never made. Without `fill`, every covering, with nothing for its slots.
+
+    WHERE THE WORDS SPLIT BETWEEN A FORM'S SLOTS IS ASKED OF THE CHART, NOT TRIED. Every split was made, and each
+    thrown away at its first slot nothing stands in: reading "Some organisms also perform anoxygenic photosynthesis,
+    which does not produce oxygen. ..." (Wikipedia's Photosynthesis, as a page looked up is read) made 1,560,913
+    coverings of its runs of words, 786 with something standing in every slot, and half its 24 s went to making them
+    (lyric_dev, 2026-10-23). A slot's span is asked of the chart as the covering reaches it, and only where the rest
+    of the form can still cover the rest of the words (`row`), so the chart is asked of the same spans, in the same
+    order, as when every covering was made and each slot asked in turn: the coverings kept, and what is read, are
+    the same."""
+    n = len(words)
+    rows: Dict[int, List[bool]] = {}
+
+    def matches(element: Piece, at: int) -> bool:
+        return same(words[at], element.text) or (shaped is not None and shaped(at, element.text))
+
+    def row(i: int) -> List[bool]:
+        """Where `form[i:]` may begin and still cover the rest of the words exactly."""
+        if i not in rows:
+            out = [False] * (n + 1)
+            if i == len(form):
+                out[n] = True
+            else:
+                element, after = form[i], row(i + 1)
+                if isinstance(element, Slot):
+                    ahead = False
+                    for at in range(n - 1, -1, -1):
+                        ahead = ahead or after[at + 1]
+                        out[at] = ahead
+                else:
+                    skips = missing(element)
+                    for at in range(n + 1):
+                        out[at] = (at < n and after[at + 1] and matches(element, at)) or (skips and after[at])
+            rows[i] = out
+        return rows[i]
+
+    def walk(i: int, at: int, spans: Tuple[Tuple[int, int], ...], options: Tuple[Sequence, ...]):
         if i == len(form):
-            if at == len(words):
-                yield spans
+            if at == n:
+                yield spans, options
             return
         element = form[i]
         if isinstance(element, Slot):
-            # Leave a word for each later piece that cannot be missing, and for each later slot.
-            for end in range(at + 1, len(words) - at_least[i + 1] + 1):
-                yield from walk(i + 1, end, spans + ((at, end),))
+            after = row(i + 1)
+            for end in range(at + 1, n + 1):
+                if not after[end]:
+                    continue
+                standing = fill(len(spans), at, end) if fill is not None else ()
+                if fill is None or standing:
+                    yield from walk(i + 1, end, spans + ((at, end),), options + (standing,))
             return
-        if at < len(words) and (same(words[at], element.text) or (shaped is not None and shaped(at, element.text))):
-            yield from walk(i + 1, at + 1, spans)
-        if missing(element):
-            yield from walk(i + 1, at, spans)
+        if at < n and matches(element, at) and row(i + 1)[at + 1]:
+            yield from walk(i + 1, at + 1, spans, options)
+        if missing(element) and row(i + 1)[at]:
+            yield from walk(i + 1, at, spans, options)
 
-    yield from walk(0, 0, ())
+    yield from walk(0, 0, (), ())
 
 
 def _written_shapes(view: "PatternInventory", words: Sequence[str], following: str = "", *,
@@ -4283,12 +4334,27 @@ class _Chart:
 
     def __init__(self, packing: bool = False):
         self.packing = packing
-        self.stand_ins: Dict[Tuple, str] = {}
-        self.phrases: Dict[Tuple, List[_Filling]] = {}
+        self.stand_ins: Dict[int, str] = {}
+        self.phrases: Dict[int, List[_Filling]] = {}
         self.slots: Dict[Tuple, List[_Filling]] = {}
-        self.adjuncts: Dict[Tuple, List[Tuple[Adjunct, _Filling]]] = {}
-        self.tails: Dict[Tuple, List[Tuple[Tuple[Adjunct, _Filling], ...]]] = {}
+        self.adjuncts: Dict[int, List[Tuple[Adjunct, _Filling]]] = {}
+        self.tails: Dict[int, List[Tuple[Tuple[Adjunct, _Filling], ...]]] = {}
         self.reading: set = set()
+        self._runs: Dict[Tuple, int] = {}
+        self._pieces: Optional[Tuple[Piece, ...]] = None
+        self._at: Dict[Tuple[int, int], int] = {}
+
+    def span(self, pieces: Tuple[Piece, ...], start: int, end: int) -> int:
+        """The run of words `pieces[start:end]` as this chart keeps what reads it: one number for each run `_span`
+        tells apart, found once for each place in the pieces being read. A run's pieces were looked up afresh at
+        each place a covering reached, as long as the run is: 1,969,634 times reading one paragraph of prose
+        (lyric_dev, 2026-10-23)."""
+        if pieces is not self._pieces:
+            self._pieces, self._at = pieces, {}
+        run = self._at.get((start, end))
+        if run is None:
+            run = self._at[(start, end)] = self._runs.setdefault(_span(pieces, start, end), len(self._runs))
+        return run
 
 
 def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: str, pieces: Tuple[Piece, ...],
@@ -4296,7 +4362,7 @@ def _slot_fillings(view: PatternInventory, frame: Union[Pattern, Phrase], slot: 
     """Everything that may stand in one slot for `pieces[start:end]`: the lexical fillers `_fillers` finds, and the
     phrases read over those pieces (`_phrase_fillings`) that fill this slot through a held link or, with `extend`, a
     proposed link to a phrase of the slot's kind. Read once per chart."""
-    span = _span(pieces, start, end)
+    span = chart.span(pieces, start, end)
     kept = (frame.key, slot, span)
     if kept in chart.slots:
         return chart.slots[kept]
@@ -4368,7 +4434,7 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
     phrase's are, and each of its slots filled as that slot of the frame it was found in is (`_slot_fillings`), so
     "in the ?slot1" takes what "The ?slot0 in the ?slot1 is ?slot2." takes there. The same words saying the same
     through several pairs of frames are read once, as they suppose least. Read once per chart."""
-    key = _span(pieces, start, end)
+    key = chart.span(pieces, start, end)
     if key in chart.adjuncts:
         return chart.adjuncts[key]
     chart.adjuncts[key] = []
@@ -4384,30 +4450,26 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
         frame = view.get(adjunct.frame)
         slots = [e.name for e in adjunct.form if isinstance(e, Slot)]
         anchors = sum(1 for e in adjunct.form if isinstance(e, Piece) and not _is_mark(e.text))
-        for spans in _chunkings(adjunct.form, words, same, missing, shaped):
+
+        def fill(k: int, a: int, b: int) -> List[_Filling]:
+            return _slot_fillings(view, frame, slots[k], pieces, start + a, start + b, chart,  # type: ignore[arg-type]
+                                  extend=True, loose=loose)
+        for spans, options in _coverings(adjunct.form, words, same, missing, shaped, fill):
             said = _said_for(view, adjunct.form, words, spans, same)
-            options = []
-            for slot, (a, b) in zip(slots, spans):
-                fitting = _slot_fillings(view, frame, slot, pieces, start + a, start + b, chart,  # type: ignore[arg-type]
-                                         extend=True, loose=loose)
-                if not fitting:
-                    break
-                options.append(fitting)
-            else:
-                for combo in itertools.product(*options):
-                    here, held = _new_here(combo)
-                    if not _anchored(here, anchors + held):
-                        continue
-                    composed = _composed(adjunct.facts, ADJOINED, dict(zip(slots, combo)))
-                    if composed is None:
-                        continue
-                    links, proposed, packed, heads = _side_by_side(combo)
-                    filling = _Filling(ADJOINED, composed[1], tuple(x for c in combo for x in c.constructions),
-                                       links, proposed, tuple(x for c in combo for x in c.new),
-                                       apart=sum(c.apart for c in combo),
-                                       said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads)
-                    kept = (adjunct.happening, adjunct.of_happening, _phrase_canonical(ADJOINED, filling.facts))
-                    found.setdefault(kept, []).append((adjunct, filling))
+            for combo in itertools.product(*options):
+                here, held = _new_here(combo)
+                if not _anchored(here, anchors + held):
+                    continue
+                composed = _composed(adjunct.facts, ADJOINED, dict(zip(slots, combo)))
+                if composed is None:
+                    continue
+                links, proposed, packed, heads = _side_by_side(combo)
+                filling = _Filling(ADJOINED, composed[1], tuple(x for c in combo for x in c.constructions),
+                                   links, proposed, tuple(x for c in combo for x in c.new),
+                                   apart=sum(c.apart for c in combo),
+                                   said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads)
+                kept = (adjunct.happening, adjunct.of_happening, _phrase_canonical(ADJOINED, filling.facts))
+                found.setdefault(kept, []).append((adjunct, filling))
     chart.adjuncts[key] = [read for alike in found.values() for read in _least_claimed(alike, view)]
     return chart.adjuncts[key]
 
@@ -4518,7 +4580,7 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
     """Every phrase that reads `pieces[start:end]`, read once and kept in `chart` for every slot that could take it:
     a phrase with no slots whose form is those words, or one whose slots hold fillers of their own, phrases
     included, so phrases nest."""
-    key = _span(pieces, start, end)
+    key = chart.span(pieces, start, end)
     if key in chart.phrases:
         return chart.phrases[key]
     chart.phrases[key] = []              # read once; a phrase reading itself finds nothing
@@ -4562,38 +4624,35 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
         if not view.counts(phrase) or (phrase.slots and not view.may_read(phrase.key, have, loose)):
             continue
         anchors = sum(1 for e in phrase.form if isinstance(e, Piece) and not _is_mark(e.text))
-        for spans in _chunkings(phrase.form, words, same, missing, shaped):
+        slots = phrase.slots
+
+        def fill(k: int, a: int, b: int) -> List[_Filling]:
+            return _slot_fillings(view, phrase, slots[k], pieces, start + a, start + b, chart,
+                                  extend=extend, loose=loose)
+        for spans, options in _coverings(phrase.form, words, same, missing, shaped, fill):
             # A PHRASE'S WORD READ THROUGH ANOTHER SAID IN ITS PLACE is supposed, as a frame's is: "chased the ?slot0"
             # read "chased a cat" for nothing, "a" and "the" being said in each other's place where meanings do not
             # tell them apart, and tied with "The ?slot0 chased a ?slot1.", taught for it.
             said = _said_for(view, phrase.form, words, spans, same)
-            if not phrase.slots:
+            if not slots:
                 out.append(_Filling(phrase.anchor, phrase.facts, (phrase,), said_for=said))
                 break
-            options = []
-            for slot, (a, b) in zip(phrase.slots, spans):
-                fitting = _slot_fillings(view, phrase, slot, pieces, start + a, start + b, chart,
-                                         extend=extend, loose=loose)
-                if not fitting:
-                    break
-                options.append(fitting)
-            else:
-                for combo in itertools.product(*options):
-                    here, held = _new_here(combo)
-                    if not _anchored(here, anchors + held):
-                        continue
-                    composed = _composed(phrase.facts, phrase.anchor, dict(zip(phrase.slots, combo)))
-                    if composed is None:
-                        continue
-                    anchor, facts = composed
-                    links, proposed, packed, heads = _side_by_side(combo)
-                    first = combo[0] if isinstance(phrase.form[0], Slot) else None
-                    out.append(_Filling(anchor, facts, (phrase,) + tuple(x for c in combo for x in c.constructions),
-                                        links, proposed, tuple(x for c in combo for x in c.new),
-                                        apart=sum(c.apart for c in combo),
-                                        said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads,
-                                        head=first.anchor if first is not None and _stand_in(first.constructions[0])
-                                        else ""))
+            for combo in itertools.product(*options):
+                here, held = _new_here(combo)
+                if not _anchored(here, anchors + held):
+                    continue
+                composed = _composed(phrase.facts, phrase.anchor, dict(zip(slots, combo)))
+                if composed is None:
+                    continue
+                anchor, facts = composed
+                links, proposed, packed, heads = _side_by_side(combo)
+                first = combo[0] if isinstance(phrase.form[0], Slot) else None
+                out.append(_Filling(anchor, facts, (phrase,) + tuple(x for c in combo for x in c.constructions),
+                                    links, proposed, tuple(x for c in combo for x in c.new),
+                                    apart=sum(c.apart for c in combo),
+                                    said_for=said + sum(c.said_for for c in combo), senses=packed, heads=heads,
+                                    head=first.anchor if first is not None and _stand_in(first.constructions[0])
+                                    else ""))
     # THESE WORDS, READ THROUGH EACH PHRASE, AS THEY SUPPOSE LEAST. What a reading supposes is the sum of what its
     # parts suppose, and what a phrase reading them adds depends only on which phrase each part is -- so a reading of
     # these words through one phrase that supposes more than another through the same phrase can never be part of a
@@ -4738,40 +4797,37 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
         """The readings of these words through one frame, and with each run of adjuncts after them (`tails`)."""
         form = pattern.form
         anchors = sum(1 for e in form if isinstance(e, Piece) and not _is_mark(e.text))
-        for spans in _chunkings(form, words, same, missing, shaped):
+        slots = pattern.slots
+
+        def fill(k: int, start: int, end: int) -> List[_Filling]:
+            return _slot_fillings(view, pattern, slots[k], pieces, start, end, chart, extend=extend, loose=loose)
+        for spans, options in _coverings(form, words, same, missing, shaped, fill):
             said_for = _said_for(view, form, words, spans, same)
-            options = []
-            for slot, (start, end) in zip(pattern.slots, spans):
-                fitting = _slot_fillings(view, pattern, slot, pieces, start, end, chart, extend=extend, loose=loose)
-                if not fitting:
-                    break
-                options.append(fitting)
-            else:
-                for combo in itertools.product(*options):
-                    here, held = _new_here(combo)
-                    if not _anchored(here, anchors + held):
+            for combo in itertools.product(*options):
+                here, held = _new_here(combo)
+                if not _anchored(here, anchors + held):
+                    continue
+                new = tuple(x for c in combo for x in c.new)
+                meaning = _composed_meaning(pattern.meaning, dict(zip(slots, combo)))
+                if meaning is None or not _new_stands(meaning, new, words[0] if words else ""):
+                    continue
+                for tail in tails:
+                    whole = _with_tail(pattern, meaning, tail) if tail else meaning
+                    if whole is None:
                         continue
-                    new = tuple(x for c in combo for x in c.new)
-                    meaning = _composed_meaning(pattern.meaning, dict(zip(pattern.slots, combo)))
-                    if meaning is None or not _new_stands(meaning, new, words[0] if words else ""):
-                        continue
-                    for tail in tails:
-                        whole = _with_tail(pattern, meaning, tail) if tail else meaning
-                        if whole is None:
-                            continue
-                        constructions = (pattern,) + tuple(x for c in combo for x in c.constructions) + tuple(
-                            x for adjunct, said in tail for x in (adjunct.phrase,) + said.constructions)
-                        held, offered, packed, heads = _side_by_side(tuple(combo) + tuple(
-                            replace(said, proposed=said.proposed + (link(pattern, pattern.slots[-1], adjunct.phrase),))
-                            for adjunct, said in tail))
-                        sized = sum(c.apart for c in combo) + sum(s.apart for _, s in tail)
-                        reading = view.reading(
-                            constructions, held, whole, proposed=offered,
-                            new=new + tuple(x for _, said in tail for x in said.new), loose=loose,
-                            said_for=said_for + sum(c.said_for for c in combo) + sum(s.said_for for _, s in tail)
-                            + _unsaid(view, constructions, held + offered, whole),
-                            sized=sized)
-                        out.append(_costed(reading, packed, heads, sized, view) if packed else reading)
+                    constructions = (pattern,) + tuple(x for c in combo for x in c.constructions) + tuple(
+                        x for adjunct, said in tail for x in (adjunct.phrase,) + said.constructions)
+                    held, offered, packed, heads = _side_by_side(tuple(combo) + tuple(
+                        replace(said, proposed=said.proposed + (link(pattern, slots[-1], adjunct.phrase),))
+                        for adjunct, said in tail))
+                    sized = sum(c.apart for c in combo) + sum(s.apart for _, s in tail)
+                    reading = view.reading(
+                        constructions, held, whole, proposed=offered,
+                        new=new + tuple(x for _, said in tail for x in said.new), loose=loose,
+                        said_for=said_for + sum(c.said_for for c in combo) + sum(s.said_for for _, s in tail)
+                        + _unsaid(view, constructions, held + offered, whole),
+                        sized=sized)
+                    out.append(_costed(reading, packed, heads, sized, view) if packed else reading)
 
     shaped, stood = _written_shapes(view, words, loose=loose)
     have = frozenset(words) | stood
@@ -4801,7 +4857,7 @@ def _tails(view: PatternInventory, pieces: Tuple[Piece, ...], start: int, end: i
            loose: bool) -> List[Tuple[Tuple[Adjunct, _Filling], ...]]:
     """Every way `pieces[start:end]` reads as adjuncts said of a happening, one after another: "into the box in the
     morning"."""
-    key = _span(pieces, start, end)
+    key = chart.span(pieces, start, end)
     if key in chart.tails:
         return chart.tails[key]
     chart.tails[key] = []

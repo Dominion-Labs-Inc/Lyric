@@ -1,11 +1,33 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-22)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-23)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32) and 2026-10-22 (34), (35), (36) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-22)
+## 0. Where it stands (2026-10-23)
+
+**DONE 2026-10-23: WHERE THE WORDS SPLIT IS ASKED OF THE CHART, NOT TRIED** (lab notebook (37), `experiments/SPLITS-01`).
+The reader made every way each form could split each run of words between its slots and threw each away at its first
+slot nothing stands in: a paragraph of Wikipedia's Photosynthesis lead made 1,560,913 such coverings, 786 used, half
+its time. Now `derived_reader._coverings` asks the chart for a slot's span as the covering reaches it (same spans,
+same order: the same readings); the chart keeps each run of words by a number (`_Chart.span`); a construction's key
+is made once; the grammar makes a combination's pieces only once its chart keeps it (`grammar.Sign.binding`).
+- **Same readings, measured on lyric_dev:** SPLITS-01 `20261023T121713Z` 6/6: page 5/5, prose 523/523, lessons
+  3,054/3,054 (and read strictly 3,054/3,054), nothing written; seconds page 25 against 72, prose 349 against 1,127,
+  lessons 53 against 70. The grammar's whole chart, cell by cell, 3,582/3,582 the same (scratchpad check). Tests:
+  `test_derived_reading.py`, `test_grammar.py` 137 passed.
+- **RESEARCH-WRITE-01 gets past its research step** (`20261023T124829Z`, 8/15): it read the whole Photosynthesis
+  article (792 blocks; its first sentence, "Photosynthesis [ note 1 ] is a system of ...", reads to no kind) in
+  9 min 50 s, found nothing saying what photosynthesis is, and closed the goal as abandoned.
+- **Still open, in this order:** (1) **main**: SPLITS-01 `--prose-only` on `lyric_db` (refused to this session by
+  the permission check; the owner's to run or allow):
+  `cd ~/"Dominion Labs/Lyric" && POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/SPLITS-01/experiment.py --prose-only`;
+  (2) **structures still multiply**: one paragraph of that article took 302 s of the 564, 404,340 combinations
+  built (phrases 203,806, frames 126,126, adjuncts 64,009), nearly all thrown away by `_phrase_fillings`' cut to the
+  readings that suppose least; what a reading supposes adds up over its parts, so the least can be found best first
+  from the parts (the structural half of the packed chart, (25)); (3) a page is read whole inside the event loop by
+  the research step (`_research_phrase`, protected), and Wikipedia's citation marks stay in its sentences.
 
 **DONE 2026-10-22: THE PLANNING ENGINE IS DISSOLVED** into the authorities that own its parts (lab notebook (36)):
 temporal reasoning plans a state goal (`plan_state_goal`); the drive records each route on the pursuit's intent and
@@ -13,9 +35,9 @@ plans again inside the one pursuit (`_plan_route`, `_worth_planning_again`); goa
 `IntentAuthority.ranked_own_goals`); a goal in words is decomposed by `execution_plan_adapter.plan_described_goal`
 and walked by `_pursue_described_goal`. `planning_engine.py` is gone; `unified.goals`/`unified.plans` are written by
 nothing.
-- **A goal in words stalls in the reader** at its research step (the page looked up is read at full CPU,
-  `derived_reader._slot_fillings` / `grammar.chart`): RESEARCH-WRITE-01 and TEACH-AND-DO-01 cannot finish until the
-  reader's search is fixed (the packed chart).
+- **A goal in words stalled in the reader** at its research step (the page looked up read at full CPU,
+  `derived_reader._slot_fillings` / `grammar.chart`). Since 2026-10-23 the step ends (above); what it understands of
+  the page is what fails now.
 - **Two things on the main store wait for the owner's decision** (my runs, on `lyric_db` by mistake): TASK-GATE-01's
   probe `halt` and `resume` rows (`unified.emergency_halts` ids 2 and 3) stand after main's integrity halt of
   2026-10-14, so main would boot unhalted until they are dealt with; and PLANNING-01 taught `MOVE_FILE` into main's

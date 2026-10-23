@@ -215,6 +215,9 @@ class Sign:
     entry: str = ""
     #: Whether the word's entry lets it compose across what it takes (`Entry.crossing`).
     crossing: bool = False
+    #: Of a combination not yet kept, what its two parts' variables are bound to: its pieces are its parts' pieces
+    #: so bound, made only once the chart keeps it (`Grammar.chart`).
+    binding: Optional[Dict[int, Term]] = None
 
 
 #: Variables are numbered from here, so no variable is ever a word's place in its sentence.
@@ -950,8 +953,8 @@ class Grammar:
         lc, rc = left.cat, right.cat
 
         def made(cat: Cat, s: Dict[int, Term], rule: str, head: int) -> None:
-            out.append(Sign(_apply(cat, s), _substitute(left.pieces + right.pieces, s), left.score + right.score,
-                            left.start, right.end, rule, (left, right), head))
+            out.append(Sign(_apply(cat, s), (), left.score + right.score, left.start, right.end, rule, (left, right),
+                            head, binding=s))
         # A stretch joined by "and" waits for what it is joined to, and nothing else takes it.
         joining = isinstance(rc, Fn) and rc.slash == "&"
         if isinstance(lc, Fn) and lc.slash == "&":
@@ -1205,6 +1208,14 @@ class Grammar:
             cell = cells[(sign.start, sign.end)]
             held = cell.get(k)
             if held is None or sign.score > held.score + 1e-9:
+                if sign.binding is not None:
+                    # WHAT A COMBINATION MEANS IS MADE ONLY FOR ONE KEPT: its parts' pieces, all of them, with the
+                    # variables bound. Made for every combination, most of them never kept, it was the half of a
+                    # paragraph's grammar it took (34 million pieces bound reading Wikipedia's Photosynthesis lead,
+                    # lyric_dev, 2026-10-23).
+                    left, right = sign.kids
+                    sign.pieces = _substitute(left.pieces + right.pieces, sign.binding)
+                    sign.binding = None
                 cell[k] = sign
                 return True
             return False

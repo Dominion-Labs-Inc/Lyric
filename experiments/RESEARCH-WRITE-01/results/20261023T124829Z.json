@@ -1,0 +1,144 @@
+{
+  "experiment": "RESEARCH-WRITE-01",
+  "claim": "Given a goal in words and no tool, the live substrate researches the topic, writes what it learned to a file, and verifies the file before calling the goal done.",
+  "hypothesis": "If the pursuit decomposes the goal, the knowledge loop does the research, the creation step makes the declared artefact, and completion re-reads the world, then the file exists with researched content and completion is claimed only after reading it back.",
+  "started_at": "2026-10-23T12:48:29.820177+00:00",
+  "duration_seconds": 1844.246,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "93f007c1ab823b63695cb85f0a848d9ec4f70e26",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 4,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 8,
+    "failed": 7,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the registry names the LIVE substrate",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-23T12:49:15.795352+00:00"
+    },
+    {
+      "label": "the substrate took the goal on",
+      "passed": true,
+      "detail": "goal_id=681822f7-1c2e-4d03-bbf0-2386619c07d0",
+      "at": "2026-10-23T12:49:19.969837+00:00"
+    },
+    {
+      "label": "the goal IS its intent, how much it matters on its shape",
+      "passed": true,
+      "detail": "intent=fa60cf1d1f5a4350aa671b279036115d priority=high",
+      "at": "2026-10-23T12:49:19.974231+00:00"
+    },
+    {
+      "label": "the goal was queued as work, for the one dispatcher",
+      "passed": true,
+      "detail": "status=pending",
+      "at": "2026-10-23T12:49:19.974243+00:00"
+    },
+    {
+      "label": "the live loop ran it to an ending",
+      "passed": true,
+      "detail": "status=failed",
+      "at": "2026-10-23T13:09:02.292411+00:00"
+    },
+    {
+      "label": "and decomposed it into steps, recorded on the goal's intent",
+      "passed": true,
+      "detail": "4 step(s): ['research', 'analysis', 'execution', 'validation']",
+      "at": "2026-10-23T13:09:02.310268+00:00"
+    },
+    {
+      "label": "every step of the plan was reached and ran",
+      "passed": false,
+      "detail": "1/4 step(s) run; 0 succeeded",
+      "at": "2026-10-23T13:09:02.310279+00:00"
+    },
+    {
+      "label": "it can answer about the topic from what it holds",
+      "passed": false,
+      "detail": "False",
+      "at": "2026-10-23T13:19:14.049630+00:00"
+    },
+    {
+      "label": "researching moved the knowledge stores (or it already knew)",
+      "passed": true,
+      "detail": "concepts 3389->3389, beliefs 316192->316192",
+      "at": "2026-10-23T13:19:14.049639+00:00"
+    },
+    {
+      "label": "the file it was asked for exists",
+      "passed": false,
+      "detail": "/var/folders/0y/66ltqc9s0xs5h7yhj_vv5ct80000gn/T/researchwrite_rce5q4zt/findings.md",
+      "at": "2026-10-23T13:19:14.049667+00:00"
+    },
+    {
+      "label": "it is not empty",
+      "passed": false,
+      "detail": "0 byte(s)",
+      "at": "2026-10-23T13:19:14.049674+00:00"
+    },
+    {
+      "label": "and its CONTENTS are about the topic it researched",
+      "passed": false,
+      "detail": "nothing was written",
+      "at": "2026-10-23T13:19:14.049676+00:00"
+    },
+    {
+      "label": "the substrate READ BACK the file it wrote",
+      "passed": false,
+      "detail": "no reading of the artefact is on record",
+      "at": "2026-10-23T13:19:14.049682+00:00"
+    },
+    {
+      "label": "and the act it performed left experience behind",
+      "passed": false,
+      "detail": "demonstrations 88 -> 88",
+      "at": "2026-10-23T13:19:14.050976+00:00"
+    },
+    {
+      "label": "the goal's intent is concluded, not left `active`",
+      "passed": true,
+      "detail": "status=abandoned",
+      "at": "2026-10-23T13:19:14.051796+00:00"
+    }
+  ],
+  "notes": []
+}

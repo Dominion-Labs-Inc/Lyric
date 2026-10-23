@@ -50,3 +50,11 @@ is driven by hand.
   stopped and their goals cancelled; no record was written. The rest of a goal in words (the write-up, the
   CARRY_OUT account, the read-back, the closed intent) is measured where its research is answered from what is held:
   TEACH-AND-DO-01.
+- 2026-10-23 (`20261023T124829Z`, `lyric_dev`, the reader of SPLITS-01): 8/15. The research step ends. The search's
+  top hit arrives with the whole of Wikipedia's Photosynthesis article (90,289 characters, 792 blocks), whose first
+  sentence ("Photosynthesis [ note 1 ] is a system of biological processes ...") reads to no kind, so every block is
+  read: the event loop was held from 08:59:08 to 09:08:58 (9 min 50 s; the article alone, read the same way outside
+  the substrate, 564 s, one paragraph 302 s of it). Nothing was found that says what photosynthesis is, so nothing
+  was learned, the file was never written, and the goal's intent was closed as abandoned (G passes). What fails now
+  is what the reader understands of the page, and that a page is read whole inside the event loop; no longer that it
+  never ends.

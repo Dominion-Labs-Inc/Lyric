@@ -16,6 +16,85 @@ Conventions:
 
 ---
 
+## 2026-10-23 (37) — Where the words split asked of the chart, not tried: a page looked up reads in a third of the time, every sentence as before
+
+**Objective.** RESEARCH-WRITE-01 and TEACH-AND-DO-01 stopped at their research step, the reader at full CPU over the
+page looked up (2026-10-22 (36), error 7: `_slot_fillings`, `_phrase_fillings`, `grammar.chart` → `_combine`). The
+10-20 fix (25) packed each word's senses; the 10-22 fix (34) grouped an adjunct's senses by cost. Neither touched what
+was left: where the stall now was.
+
+**Found** (lyric_dev, read only; `reader_profile.py` and `reader_chunks.py` in the session scratchpad: each block of a
+page read as `Conversation._research_phrase` reads it, `read_text(clean)`, timed, the frame reader and the grammar apart,
+products and coverings counted by caller). Wikipedia's Photosynthesis lead: 5 paragraphs, 6 to 24 s each, 68 s in all.
+No paragraph stalls on lyric_dev; a page of many paragraphs is minutes, a goal's research step read at full CPU. The
+second paragraph ("Some organisms also perform anoxygenic photosynthesis, ...", 24 s):
+- products built 1,280 combinations: no reading multiplied out;
+- `_chunkings` made 1,560,913 coverings (phrases 1,310,933, frames 227,433, adjuncts 22,547), 786 with something
+  standing in every slot (phrases 313, adjuncts 473, frames none); the walk that made them took 62,534,221 calls;
+- under the profiler: `walk` 43 s of 85, `_slot_fillings` 1,603,536 calls, `_span` 2,239,667, a construction's
+  `key` made 1,555,430 times, the grammar 14 s (`_substitute` binding every piece of every combination, 34 million
+  terms walked).
+A covering was made whole and thrown away at its first slot nothing stands in: the reader tried every split of every
+run of words by every form, and asked the chart only afterwards.
+
+**Built** (`core/semantics/derived_reader.py`, `core/semantics/grammar.py`), each keeping what is read:
+1. `_coverings`: a slot's span asked of the chart as the covering reaches it, and only where the rest of the form can
+   still cover the rest of the words (`row`, where each part of the form may begin). The spans asked are the same, in
+   the same order, as when every covering was made and each slot asked in turn: the coverings kept, and what is read
+   through them, are the same. `_phrase_fillings`, `_adjunct_fillings` and `_analyses`' frames read through it;
+   `_chunkings` is its walk without a chart.
+2. `_Chart.span`: each run of words a number, found once for each place in the pieces being read. A run's pieces were
+   built and hashed afresh at each place a covering reached, as long as the run.
+3. `Pattern.key`, `Lexical.key`, `Link.key`, `Phrase.key` made once (`functools.cached_property`; equality, hash and
+   repr are the fields' and unchanged).
+4. `grammar.Sign.binding`: a combination's pieces made only once the chart keeps it (`Grammar.chart.keep`). Only
+   `chart` takes `_combine`'s signs, and it keeps one of each category for each stretch.
+
+After 1 alone, the paragraph's profile 43 s (89), the walk 137,473 calls; after all four 30 s, the grammar 8 s (15).
+
+**Error found on the way (a harness's, not the reader's):** the first comparison read "Photosynthesis is a system of
+..." to different readings both ways, in an utterance the grammar read ("When needing to use this stored energy, ...").
+The grammar hears a lowercase word it read as a name as one from then on (`GrammarView.read`, `Lexicon.heard`), so
+the second read of a sentence starts from another grammar. Each way now starts from what had been heard before the
+sentence.
+
+**Measured.**
+- SPLITS-01, coverings alone (stopped at 175 of 528, superseded, no record): 175 of 175 the same.
+- Grammar, every combination's pieces made against only the kept ones' (`grammar_same.py` in the scratchpad, every
+  cell of the chart, its categories, pieces, scores, rules and heads, and the meaning read, from the same variable
+  count and names heard): 3,582 of 3,582 the same (the page's five paragraphs read whole, every prose sentence and
+  question, every lesson); chart and read 1,020 s against 3,013 s.
+- SPLITS-01 (`20261023T121713Z`, lyric_dev, all four against all four undone, `as_before`), 6/6: the page 5 of 5
+  the same, 25.4 s against 72.3 s; prose 523 of 523, 348.7 s against 1,126.7 s (the slowest 26.0 s, 95.1 s before);
+  lessons 3,054 of 3,054 and 3,054 read strictly the same, 52.7 s against 70.4 s; read as taught 2,913 (PACKED-01's
+  sandbox count); nothing written.
+- RESEARCH-WRITE-01 (`20261023T124829Z`, lyric_dev), 8/15: **the research step ends.** The top hit is the whole
+  Photosynthesis article (90,289 characters, 792 blocks); its first sentence ("Photosynthesis [ note 1 ] is a system
+  of ...") reads to no kind, so every block is read, the event loop held 08:59:08 to 09:08:58. Nothing found says what
+  photosynthesis is: nothing learned, no file written, the goal closed as abandoned. The same article read outside
+  the substrate: 564 s, six blocks over 10 s, one 302 s.
+- `tests/test_derived_reading.py`, `tests/test_grammar.py`: 137 passed.
+
+**Open.**
+- **Structures still multiply.** The 302 s block ("Plants that use the C 4 carbon fixation process ...", 259 words)
+  built 404,340 combinations: phrases 203,806 (one product 28,381), frames 126,126 (one 50,196), adjuncts 64,009.
+  A phrase keeps only its readings that suppose least (`_phrase_fillings`), so nearly all are built to be thrown
+  away. What a reading supposes adds up over its parts (whether anything is unheld aside, an OR), so the least can be
+  found from the parts, best first, with only the readings that tie for it built and checked (`_anchored`,
+  `_composed`). That is the structural half of the packed chart (2026-10-20 (25), "then the frame products
+  themselves").
+- **A page is read whole inside the event loop.** Fast or slow, the research step reads every block of a long page
+  synchronously (`Conversation._research_phrase`, protected). And Wikipedia's citation marks stay in its sentences:
+  only parentheses are taken out.
+- **Main.** The permission check refused a read-only timing run on `lyric_db` from this session. Main holds many
+  more senses and constructions, and its long sentences (UNDERSTANDS-PROSE-02 text 44's third, 410.7 s on 10-22;
+  text 50's, 297.6 s) are where the stall was. SPLITS-01 `--prose-only` on main reads them both ways.
+- **18 construction memories on lyric_dev do not read back as what they claim** (11 on main): warned at every warm
+  since 10-21 at least, left out by design (`MemoryAgent.taught_patterns`); the same 18 after the keys were made
+  once.
+
+---
+
 ## 2026-10-22 (36) — The planning engine dissolved into the authorities that own its parts: one record of a pursuit, one pursuer, one dispatcher
 
 **Objective.** The leftover active goals came from a second copy of what other authorities already own.
