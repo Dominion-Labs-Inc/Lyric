@@ -4965,41 +4965,25 @@ class MemoryAgent(IMemoryConsolidation):
             origin=origin,
         )
 
-    #: Words with which a request asks for what was remembered: it is recalled for, however simple it is.
-    RECALL_ASKED = ("remember", "recall", "previously", "last time", "before", "earlier",
-                    "you said", "we discussed", "history", "past")
-    #: Below this complexity (the reasoning authority's, `NeuralSymbolicBridge.complexity_of`) a request is routine
-    #: enough that what is remembered is noise to it.
-    RECALL_COMPLEXITY = 0.35
-
-    @classmethod
-    def calls_for_recall(cls, query: Optional[str], complexity: Optional[float]) -> bool:
-        """Whether a request's words call for what is remembered: one that asks for it does, and otherwise one as
-        complex as `RECALL_COMPLEXITY`, by the reasoning authority's score of it (`complexity`)."""
-        words = (query or "").strip().lower()
-        return bool(words) and (any(k in words for k in cls.RECALL_ASKED)
-                                or (complexity is not None and complexity >= cls.RECALL_COMPLEXITY))
-
-    async def recall_for(self, query: Optional[str], *, complexity: Optional[float] = None,
-                         actor: Optional[str] = None, heard: Optional[Any] = None,
+    async def recall_for(self, query: Optional[str], *, actor: Optional[str] = None, heard: Optional[Any] = None,
                          seen: Optional[Dict[str, Any]] = None, limit: int = 3,
                          min_similarity: float = 0.6, min_importance: float = 0.5) -> List[Dict[str, Any]]:
         """What memory hands a request: the memories of the sound being heard and the picture being seen first,
         recalled by them, then those its words find, each with the claim it makes (`claim`), visible to `actor`.
 
-        WHETHER A REQUEST CALLS FOR MEMORY IS THE MEMORY AGENT'S, from what it is told of the request: a sound or a
-        picture always does, a request that asks for what was remembered does, and otherwise one as complex as
-        `RECALL_COMPLEXITY`, by the reasoning authority's score (`complexity`). The memory agent never scores a
-        request itself. A separate injector and its policy decided this, scored the request themselves and shaped
-        what they found into a prompt (`memory_injector`, `memory_injection_policy`, deleted 2026-10-23).
+        EVERY REQUEST IS RECALLED FOR, AND WHAT MEMORY HOLDS OF IT DECIDES WHAT IS HANDED OVER: a memory naming
+        something the request names (`require_named_match`), as like it as `min_similarity`, of importance now
+        (`decayed_importance`), knowledge and not an event or taught language (`include_events=False`). A
+        conversation's recall has always run for every turn (`live_recall`). Recall here was gated by how complex
+        the request was (2026-10-23, the reasoning authority's score), and that score falls as Lyric learns: every
+        word taught made a request less complex, so the more Lyric was taught the less it would remember. Before
+        that the memory injector and its policy gated it on a word count.
 
-        Memories of no importance now are not recalled, however like the request (`decayed_importance`); a memory
-        not yet written is found among those waiting (`_pending_memories`) by the words it shares."""
+        A memory not yet written is found among those waiting (`_pending_memories`) by the words it shares."""
         from core.memory.utils.interfaces import decayed_importance
         words = (query or "").lower()
-        by_words = self.calls_for_recall(query, complexity)
+        by_words = bool(words.strip())
         if not by_words and heard is None and seen is None:
-            logger.debug("no memory recalled: the request is routine (complexity %s)", complexity)
             return []
         try:
             results = []

@@ -2,7 +2,7 @@
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37), (38), (39) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37) to (40) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-23)
@@ -14,8 +14,9 @@ how complex a task or a request is as it arrives (`NeuralSymbolicBridge.complexi
 always judges worthiness itself, no producer writes why it should be stored). Behaviour unchanged, measured: 35/35
 recall decisions, 15,360/15,360 trace decisions. Since (lab notebook (39)): the score is measured, the thinking a request
 asks for (`kinds_of_thinking_for` at `reasoning_difficulty`) and what of it is unknown, scored in `reason` from the one
-read; tasks are not scored at the queue's door. Open: 28 producer importance sites; the arbiter does not read the
-score yet.
+read; tasks are not scored at the queue's door. Recall (40): for every request, what memory holds of it deciding; how a word
+is used, its forms and the taught sentences are taught language, held out of recall. Open: 28 producer importance
+sites; the arbiter does not read the score yet.
 
 **DONE 2026-10-23: WHERE THE WORDS SPLIT IS ASKED OF THE CHART, NOT TRIED** (lab notebook (37), `experiments/SPLITS-01`).
 The reader made every way each form could split each run of words between its slots and threw each away at its first

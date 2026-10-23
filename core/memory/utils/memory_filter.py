@@ -134,6 +134,18 @@ class MemoryFilter:
         # knowledge, "Elena 's story has been revealed to be a fake" would answer
         # a question about Elena.
         "analysed_sentence": "taught language",
+        # AND SO ARE HOW EACH WORD IS USED (`MemoryAgent.WORD_CLASS_TAG`: "'seven' is used as an adjective."), ITS
+        # FORMS AND THE COMPANY IT KEEPS (`WORD_FORMS_TAG`, `WORD_GROUP_TAG`), HOW IT IS SAID (`PRONUNCIATION_TAG`), and
+        # the sentences taught with their meanings and their happenings' arguments (`TAUGHT_SENTENCE_TAG`,
+        # `ARGUED_TAG`): examples of English, not things Lyric knows. Recalled as knowledge, they were 53 of the 59
+        # memories handed to reasoning for the prose questions of UNDERSTANDS-PROSE-01 and -02 ("Is seven odd?" given
+        # "'seven' is used as an adjective.", lyric_dev, 2026-10-23).
+        "word_class": "taught language",
+        "word_forms": "taught language",
+        "word_group": "taught language",
+        "pronunciation": "taught language",
+        "taught_sentence": "taught language",
+        "argued_sentence": "taught language",
     }
 
     #: What came through these doors is TAUGHT, and kept because it was taught.

@@ -16,6 +16,42 @@ Conventions:
 
 ---
 
+## 2026-10-23 (40) — Recall for every request, what memory holds deciding; how a word is used is taught language
+
+**Objective (the owner's question).** Recall was gated by the reasoning authority's complexity score (39), and "what
+happens if it learns more and we teach it more?": the score's unknown part falls with every word taught, so the more
+Lyric was taught the less it would remember.
+
+**Found** (lyric_dev; `recall_ungated.py` in the session scratchpad: `recall_for` for every prose question with no
+gate). Of the 59 memories handed over, 53 were notes of how a word is used ("Is seven odd?" given "'seven' is used as
+an adjective.", "Is key a function?" given "'key' is used as a noun."). `retrieve(include_events=False)` holds back
+what the memory filter exempts as events or taught language (`EXEMPT_EVENT_TAGS`), and the word-class tag was not
+among them: 75,839 such memories on lyric_dev, beside the 317,719 taught constructions held out. Neither were word
+forms, word groups, pronunciations, nor the sentences taught with their meanings or their arguments.
+
+**Built.**
+- `MemoryAgent.recall_for` recalls for every request: what memory holds of it decides what is handed over (a memory
+  naming something the request names, alike by 0.6, of importance now, knowledge). A conversation's recall
+  (`live_recall`) has always run every turn. `calls_for_recall`, `RECALL_COMPLEXITY` and `RECALL_ASKED` are gone;
+  the complexity score stays the reasoning authority's, for the curiosity a target arouses and, next, effort.
+- `EXEMPT_EVENT_TAGS`: `word_class`, `word_forms`, `word_group`, `pronunciation`, `taught_sentence`,
+  `argued_sentence` are taught language. Taught facts (`admitted_proposition`) are knowledge and recalled. Hearing
+  lessons (a spoken word, a voice, a song, a thing shown) are recalled by the sound or the picture, as before.
+
+**Measured** (the same questions, no gate, taught language held out): PROSE-01 4 of 37 handed a memory, each a whale
+question given "A baleen whale is a whale." (a taught fact); PROSE-02's half fixed against 0 of 231 (nothing held of
+those texts on lyric_dev); of six routine requests only "thanks" ("A welcome follows thanks."). Recall costs every
+reasoning request 0.3 to 0.5 s (median; at most about 1 s), most of it the query's embedding, on the CPU.
+
+**Tests.** `test_memory_real_loop.py` 5/5 (the stored memory handed to its query; "hello" handed nothing).
+`test_memory_worthiness_semantics.py`: `test_taught_knowledge_is_still_recalled` kept its point (the origin exemption,
+asked at storing, holds nothing back from recall) with taught facts as the taught knowledge; it had used the
+word-class tag as its example. `tests/memory/test_query_analysis.py` deleted: it tested only the gate's yes or no,
+and failed 15 to 17 of its 35 cases on the expectations of the keyword gate of 2026-08. 42 passed with
+`test_arrival_complexity.py` and `test_experience_pool.py`.
+
+---
+
 ## 2026-10-23 (39) — How complex what arrives is, measured: the thinking it asks for and what of it is unknown
 
 **Objective.** The reasoning authority's score of what arrives (38) was the word count it took over from the memory

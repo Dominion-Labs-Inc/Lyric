@@ -1176,8 +1176,9 @@ class NeuralSymbolicBridge:
 
         `reading`: its meaning, where it was read already (`reason` passes the question as heard); otherwise each
         sentence by its best reading, from `utterances` where it was read to them already, read here where not. Scored as a request reaches `reason` (on its `task_metadata`)
-        and wherever a description is weighed (the curiosity a target arouses); read by the memory agent deciding
-        whether a request calls for memory (`MemoryAgent.recall_for`).
+        and wherever a description is weighed (the curiosity a target arouses). Not whether to recall: what memory
+        holds of a request decides that (`MemoryAgent.recall_for`), and a score that falls as Lyric learns would
+        have it remember less the more it was taught.
 
         Scored by its length, a list of words like "why" and "how" and its clauses before (2026-10-23), a measure the
         memory injection policy had kept; nothing of it was measured."""
@@ -1939,8 +1940,8 @@ class NeuralSymbolicBridge:
             else:
                 logger.debug("Skipping memory injection (memories already in conversation)")
         else:
-            # Standalone call (chat, one-shot reasoning): THE MEMORY AGENT IS ASKED, and decides what it hands over
-            # (`MemoryAgent.recall_for`), told how complex the request is as it arrived here (`complexity_of`).
+            # Standalone call (chat, one-shot reasoning): THE MEMORY AGENT IS ASKED, and what it holds of the request
+            # decides what it hands over (`MemoryAgent.recall_for`).
             # Each memory reaches the eleven kinds of thinking as one claim, one premise: handed over as one
             # prompt-shaped blob, causal reasoning read "you have access to the following relevant context from
             # memory: ... causes ..." as a derived causal link at confidence 1.00.
@@ -1950,8 +1951,7 @@ class NeuralSymbolicBridge:
                     search_query = f"{request.query} [multimodal vision image analysis]"
                     logger.debug("Enhanced search query for multimodal memory injection")
                 recalled = (await self.memory_agent.recall_for(
-                    search_query, complexity=request.task_metadata.get("complexity"),
-                    actor=request.task_metadata.get("actor"), limit=3, min_similarity=0.6)
+                    search_query, actor=request.task_metadata.get("actor"), limit=3, min_similarity=0.6)
                     if self.memory_agent is not None else [])
                 claims = [str(m.get("claim") or m.get("content") or "").strip() for m in recalled]
                 claims = [claim for claim in claims if claim]

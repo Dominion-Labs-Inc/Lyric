@@ -43,7 +43,6 @@ async def run() -> int:
     from core.memory import Origin
     from core.memory import get_memory_agent
     from core.reasoning.neural_bridge import get_neural_bridge, ReasoningRequest
-    from core.agents.memory_agent import MemoryAgent
 
     results: list[tuple[bool, str]] = []
 
@@ -53,8 +52,8 @@ async def run() -> int:
 
     agent = await get_memory_agent()
     await agent.initialize()
-    # What was taught of English, in view: complexity is measured by reading what
-    # arrives, and with nothing taught in view every word is one never met.
+    # What was taught of English, in view, as a running Lyric has it: the reader
+    # reads the query `reason` is asked.
     await agent.warm_word_classes()
     bridge = get_neural_bridge()
     if hasattr(bridge, "initialize"):
@@ -85,11 +84,8 @@ async def run() -> int:
           f"id={mem_id}")
 
     # ---- 2. RETRIEVE (wait until embedded/searchable) ----------------------
-    # Above the memory agent's RECALL_COMPLEXITY (0.35) by construction — the unique
-    # nouns keep it ranking to THIS memory, and its per-run token is a word no
-    # taught construction holds, which carries the measured complexity over the
-    # floor — so a 0-injection here is a real failure, not the memory agent
-    # correctly declining.
+    # The unique nouns keep it ranking to THIS memory, so a 0-injection here is a
+    # real failure.
     probe_q = (f"why does the {tok} orbital telemetry buffer keep overflowing, "
                f"and how does the {tok} downlink scheduler starve the ring "
                f"allocator, and what is the root cause I should investigate to fix it")
@@ -106,14 +102,12 @@ async def run() -> int:
     check("stored memory is retrievable by paraphrase", found is not None,
           f"similarity={sim:.3f} after {i * 0.5:.1f}s")
 
-    # ---- 3. THE MEMORY AGENT recalls for an above-floor query --------------
-    # The cognition assertion is only meaningful if the memory agent recalls for
-    # this query, as complex as the reasoning authority scores it; a below-floor
-    # query correctly gets no memory. Assert the gate is open here.
-    complexity = bridge.complexity_of(probe_q)
-    warranted = MemoryAgent.calls_for_recall(probe_q, complexity)
-    check("the memory agent recalls for this query (>= floor)", warranted,
-          f"complexity={complexity}")
+    # ---- 3. THE MEMORY AGENT hands this query its memory -------------------
+    # What memory holds of a request decides what it hands over: the stored
+    # conclusion names what the query names.
+    handed = await agent.recall_for(probe_q, limit=3)
+    check("the memory agent hands this query its memory", any(m["memory_id"] == mem_id for m in handed),
+          f"handed={[m['memory_id'] for m in handed]}")
 
     # ---- 4. REACHES COGNITION via the real reason() loop -------------------
     # Injection prepends recalled claims into request.context before any model
@@ -125,17 +119,12 @@ async def run() -> int:
     check("memory reached cognition (injected into reason() context)", reached,
           f"context items={len(ctx)}; first={str(ctx[0])[:80] if ctx else '—'}")
 
-    # ---- 5. AND a routine query is correctly DECLINED (the other half) ------
-    # A trivial request must not drag memory into cognition. This is the skip
-    # behaviour the retired `test_query_skip.py` only printed; asserted here.
-    # Routine to Lyric: every word of it held, read, asking no thinking harder
-    # than the easiest kind. ("list files" was the example while complexity was
-    # a word count; measured, a word of it no taught construction holds makes it
-    # a request memory may help with.)
-    skip_complexity = bridge.complexity_of("hello")
-    check("routine query is declined (no injection below floor)",
-          not MemoryAgent.calls_for_recall("hello", skip_complexity),
-          f"complexity={skip_complexity}")
+    # ---- 5. AND a request memory holds nothing of is handed nothing ---------
+    # How a word is used ("'hello' is used as a noun.") is taught language, not
+    # knowledge: it is not handed over, so "hello" gets nothing.
+    nothing = await agent.recall_for("hello", limit=3)
+    check("a request memory holds nothing of is handed nothing", not nothing,
+          f"handed={[str(m.get('claim') or m.get('content'))[:60] for m in nothing]}")
 
     await _cleanup(agent, mem_id)
 

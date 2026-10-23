@@ -159,8 +159,13 @@ def test_what_was_taught_is_kept_because_it_was_taught(f):
 
 def test_taught_knowledge_is_still_recalled(f):
     """The origin is asked at storing only. Recall holds back what exemption_for
-    names with tags alone, and taught knowledge is not an event record."""
-    assert f.exemption_for(tags=["language", "word_class"]) is None
+    names with tags alone, and taught knowledge is not an event record: a fact
+    taught (`MemoryAgent.TAUGHT_PROPOSITION_TAG`) is recalled as knowledge. How a
+    word is used is taught language, held out like the other taught language
+    ("'seven' is used as an adjective." was handed to "Is seven odd?", 2026-10-23)."""
+    from core.agents.memory_agent import MemoryAgent
+    assert f.exemption_for(tags=["language", MemoryAgent.TAUGHT_PROPOSITION_TAG]) is None
+    assert f.exemption_for(tags=["language", MemoryAgent.WORD_CLASS_TAG]) is not None
 
 
 def test_analysed_sentences_are_taught_language():

@@ -3,11 +3,9 @@
 The score is the larger of two measured parts (`NeuralSymbolicBridge.complexity_of`): the thinking it asks for, by the
 kinds of thinking its meaning asks for and how hard each has been (`reasoning_difficulty`), between the easiest kind
 and the hardest; and what of it is unknown, the share of its words no taught construction holds or of its sentences
-nothing reads. Whether a request calls for what is remembered is the memory agent's, from that score
-(`MemoryAgent.calls_for_recall`): it never scores a request itself. No store.
+nothing reads. No store.
 """
 
-from core.agents.memory_agent import MemoryAgent
 from core.reasoning.neural_bridge import NeuralSymbolicBridge
 from core.semantics.derived_reader import Lexical, Meaning, MeaningFact, PatternInventory
 from core.semantics.sentence_machine import Piece
@@ -38,10 +36,3 @@ def test_what_of_it_is_unknown_is_complexity():
     assert bridge.complexity_of("whatever this says", inventory=PatternInventory()) == 1.0, "nothing of it read"
     assert bridge.complexity_of("", inventory=view) == 0.0
 
-
-def test_the_memory_agent_recalls_by_the_reasoning_authoritys_score():
-    assert MemoryAgent.calls_for_recall("why does the backup fail on Fridays", 0.5)
-    assert not MemoryAgent.calls_for_recall("list files", 0.0)
-    assert MemoryAgent.calls_for_recall("what did we discuss last time", 0.0), "a request asking for memory is recalled for"
-    assert not MemoryAgent.calls_for_recall("list files", None), "with no score, only a request asking for memory"
-    assert not MemoryAgent.calls_for_recall("   ", 1.0)
