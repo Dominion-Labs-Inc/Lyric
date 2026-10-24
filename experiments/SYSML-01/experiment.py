@@ -184,8 +184,8 @@ async def main() -> int:
             and not any(d.get("unread") for d in read.values()), str(rows))
         EV.metric("facts_from_rows", sum(d["facts_from_rows"] for d in read.values()))
         EV.metric("values_from_rows", sum(d["values"] for d in read.values()))
-        EV.metric("prose_lines_read", sum(d["lines"] for d in read.values()))
-        EV.metric("facts_from_prose_lines", sum(d["facts_from_lines"] for d in read.values()),
+        EV.metric("prose_passages_read", sum(d["passages"] for d in read.values()))
+        EV.metric("facts_from_prose_passages", sum(d["facts_from_passages"] for d in read.values()),
                   note="no memory is up in this run, so the reader has no taught English to read them with")
 
         say("\nB  parts typed and nested")

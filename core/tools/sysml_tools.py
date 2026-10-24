@@ -189,12 +189,12 @@ class SystemReading:
 
 
 async def read_system(paths: Sequence[str]) -> SystemReading:
-    """Read every document and gather what they say: each line by the one reader, each table row by row. A
-    workbook's and a CSV's pages are their rows run together, so their rows are read as rows and never again as
-    sentences (`document_reader.lines_of`)."""
+    """Read every document and gather what they say: its passages in order as one text by the one reader, each
+    table row by row. A workbook's and a CSV's pages are their rows run together, so their rows are read as rows and
+    never again as sentences (`document_reader.passages_of`)."""
     from core.perception.reading import read_document
     from core.semantics.derived_reader import live_view
-    from core.semantics.document_reader import lines_of, lines_stated, tables_stated
+    from core.semantics.document_reader import passages_of, passages_stated, tables_stated
     view = live_view()
     out = SystemReading()
     for path in paths:
@@ -205,16 +205,16 @@ async def read_system(paths: Sequence[str]) -> SystemReading:
             out.documents.append({"document": name, "path": str(path), "error": str(error)})
             continue
         form = read["kind"] if read["kind"] != "text" else (Path(path).suffix.lower().lstrip(".") or "text")
-        lines = lines_of(read["pages"], form)
-        from_lines = await lines_stated(lines, view)
+        passages = passages_of(read["pages"], form, view)
+        from_passages = await passages_stated(passages, document=read["sha256"])
         tables = tables_stated(read.get("tables") or [])
-        for fact in from_lines + tables.facts:
+        for fact in from_passages + tables.facts:
             out.fact(fact, name)
         for value in tables.values:
             out.value(value["subject"], value["heading"], value["value"], (name, value["at"]))
         out.documents.append({
             "document": name, "path": str(path), "kind": form, "sha256": read["sha256"],
-            "lines": len(lines), "facts_from_lines": len(from_lines),
+            "passages": len(passages), "facts_from_passages": len(from_passages),
             "tables": len(read.get("tables") or []), "rows": tables.rows,
             "facts_from_rows": len(tables.facts), "values": len(tables.values), "unread": tables.unread})
     return out

@@ -991,31 +991,27 @@ class QueueAuthority:
         is computed from reasoning/task/severity/difficulty via `timeout_for`. The
         one place concurrent execution is bounded — no private pools."""
         semaphore = self._bg_semaphore if background else self._semaphore
-        job_timeout = timeout if timeout is not None else self.timeout_for(
+        # A WORK JOB RUNS UNTIL IT ENDS, and is stopped only when someone stops it (`cancel`). Its time budget cut
+        # nothing short: a page read holds the loop, so the timer fired only once the reading was done, and threw
+        # the finished look-up away and ran it again (lyric_dev, 2026-10-24: read for 12.5 minutes, "timed out after
+        # 150s"). Background jobs keep theirs.
+        job_timeout = None if not background else (timeout if timeout is not None else self.timeout_for(
             reasoning_type=reasoning_type, task_type=task_type,
-            severity=severity, difficulty=difficulty)
+            severity=severity, difficulty=difficulty))
         # A WORK JOB IS HELD BY WHAT RUNS IT, from the moment it waits for a
         # slot, so `cancel` can stop it wherever it is.
         if not background and asyncio.current_task() is not None:
             self._running_jobs[job_id] = asyncio.current_task()
         try:
             return await self._execute_held(job_id, func, args, kwargs, semaphore, job_timeout)
-        except asyncio.TimeoutError:
-            # The authority set the time and ended the job, so its record says it
-            # failed and why, and whoever waits on it is told. Left alone, the
-            # record said "in progress" for good: no one was told, and the next
-            # boot ran it again.
-            if not background:
-                await self.mark_failed(job_id, f"timed out after {job_timeout:.0f}s")
-            raise
         finally:
             if not background:
                 self._running_jobs.pop(job_id, None)
 
     async def _execute_held(self, job_id: str, func: Callable[..., Awaitable[Any]],
                             args: tuple, kwargs: Dict[str, Any], semaphore: asyncio.Semaphore,
-                            job_timeout: float) -> Any:
-        """`execute`'s run: under the semaphore, within the job's timeout."""
+                            job_timeout: Optional[float]) -> Any:
+        """`execute`'s run: under the semaphore, within the job's timeout, where it has one."""
         wait_start = time.time()
         async with semaphore:
             wait = time.time() - wait_start

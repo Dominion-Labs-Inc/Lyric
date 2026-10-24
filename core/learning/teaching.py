@@ -269,7 +269,7 @@ class Report:
         ]
 
 
-def told_events(meaning: Any, sentence: str, described: bool = False) -> Dict[str, str]:
+def told_events(meaning: Any, sentence: str, described: bool = False, within: str = "") -> Dict[str, str]:
     """`{unknown: name}` for each happening a told meaning tells of: an unknown that is one of a kind
     (`instance_of(?v0, eat)`) and that the meaning says something was done by or done to. Its name is its kind and
     the telling it came from (`eat_` and eight hex digits of the sentence and its meaning), so the same sentence taught
@@ -277,14 +277,16 @@ def told_events(meaning: Any, sentence: str, described: bool = False) -> Dict[st
     so is every thing told of by a description, an unknown of a kind the telling says something of ("The company
     hired three engineers.": the engineers, `engineer_` and its digits, of whom three were hired). Unnamed, what was
     said of them was not held, and "Did the company hire engineers?" found nothing (UNDERSTANDS-PROSE-01,
-    2026-10-18). Each one's kind is `told_kinds`'."""
+    2026-10-18). Each one's kind is `told_kinds`'. `within`: what the sentence was told in where that is not a
+    conversation alone, a document, whose name joins the digits: "The dog barked." in two stories is two barkings."""
     import hashlib
     from core.semantics.derived_reader import SITUATION_VARIABLES
     named: Dict[str, str] = {}
     for unknown, kind in sorted(told_kinds(meaning, described).items()):
         if unknown in SITUATION_VARIABLES or unknown in meaning.asked:
             continue
-        digest = hashlib.sha1(f"{sentence}|{meaning.canonical()}|{unknown}".encode("utf-8")).hexdigest()[:8]
+        told = f"{sentence}|{meaning.canonical()}|{unknown}"
+        digest = hashlib.sha1((f"{within}|{told}" if within else told).encode("utf-8")).hexdigest()[:8]
         named[unknown] = f"{kind}_{digest}"
     return named
 

@@ -185,6 +185,10 @@ class LessonSource:
     `situation` that names what it points at. A lesson of English sets `examples`: its sentences show how English
     says things and state nothing about the world, so only how they are said is learned (`TaughtRecord.example`).
     A record may say otherwise for itself.
+
+    A record may be a `fact` alone, `[subject, relation, object]`, as WordNet's kinds of doing are taught ("stroll
+    isa walk"): no frame taught says a doing's kind as a fact ("To stroll is to walk." says it as a rule over each
+    doing, which is not held), and "To look up is to research." does not read.
     """
 
     path: str
@@ -203,6 +207,12 @@ class LessonSource:
     def records(self) -> Iterator[TaughtRecord]:
         from core.semantics.derived_reader import Meaning
         for record in self._lesson.get("records", ()):
+            if "fact" in record:
+                subject, relation, obj = record["fact"]
+                yield TaughtRecord(subject=subject, relation=relation, obj=obj,
+                                   quality=float(record.get("quality", self.quality)),
+                                   example=bool(record.get("example", self.examples)))
+                continue
             yield TaughtRecord(
                 subject="", relation="", obj="",
                 quality=float(record.get("quality", self.quality)),

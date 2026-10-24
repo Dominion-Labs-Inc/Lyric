@@ -16,6 +16,62 @@ Conventions:
 
 ---
 
+## 2026-10-24 (44) — A document read as one text: passages, not printed lines, heard in order as a telling is
+
+**Objective.** Reading is the first of four steps reshaping how Lyric reads and understands (1 a text as one
+discourse; 2 the grammar as the reader, partial readings kept; 3 a richer meaning; 4 generalising from what is read).
+This is step 1, changing what exists and adding no module.
+
+**Read first (the code, not the notes).** A document went `perception` -> `_understand_words` ->
+`document_reader.lines_of` (each PRINTED line) -> `lines_stated` -> `derived_reader.heard_stated` per line with no
+context -> `_stated_in`, which keeps only facts with no unknowns. Three defects follow, each from the code:
+- a PDF's line is a visual line, so every sentence the page wrapped was read as two pieces, neither of which reads;
+- each line was read alone: no "it", no "the X" pointing back, no thing told of carried to the next line;
+- a happening is an unknown (`instance_of(?v0, bark)`, `done_by(?v0, dog)`); the conversation names them
+  (`teaching.told_events`), the document path did not, and dropped every fact about them. A story is happenings.
+Measured before (UNDERSTANDS-PROSE-02, 2026-10-22, lyric_db, through the conversation, the better path): sentences
+understood 23/49, questions right 11/50, wrong 4/50.
+
+**Changed.**
+- `document_reader.passages_of` (was `lines_of`): a printed line goes on into the next where the page broke it
+  (`_goes_on`: a word split by a hyphen, the next line going on in lower case, or the next line's first word too
+  long to have fit, against the width its neighbours run to, ties going on since type is not set a letter wide);
+  a word split by the page is rejoined where memory holds it ("collec-tive" -> "collective", "self-propelled"
+  kept); ligatures are their letters. A Word paragraph is a passage; json/log/yaml lines stay one each.
+- `document_reader.passages_stated` (was `lines_stated`): the passages read in order by one `Conversation` of the
+  document's own (`TaskSource.SYSTEM`, not remembered), through the new `Conversation.stated`.
+- `Conversation`: `teach`'s per-utterance loop is `_told_each` (one thread: "it", "the X", "there", composed
+  readings noted), shared by `teach` (takes each in) and `stated` (takes none in; a text's "I" and "you" are its
+  writer and reader, left unnamed). `_telling` split into `_told` (binds and names, needs no person) and
+  `_telling_of` (the `Telling`, which a person's alone may be). `within` names a document's happenings as its own:
+  `told_events(..., within=)`, so "The dog barked." in two stories is two barkings. Conversation names unchanged.
+- Callers: the coordinator's `_understand_words` (document known by its sha256), `sysml_tools.read_system`
+  (`passages`, `facts_from_passages`; SYSML-01's metric names follow).
+
+**Verified.**
+- Two real papers (research_papers/2301.12345.pdf, 2303.01234.pdf), files only: wrapped sentences whole again;
+  headings, author lines and display equations stay their own passages; 638 -> 588 passages on the first after the
+  tie rule ("...security of" / "AI models." had been cut one letter short).
+- A five-line hard-wrapped story on lyric_dev (memory and the language view warmed, no substrate started): read a
+  line at a time it stated **nothing**; read as one text, **26 facts**, "the dog" and "the ball" one dog and one
+  ball across sentences, nothing written to the store (pg_stat before and after).
+- tests/test_relation_types_and_algebra.py `named_in_a_conversation`: 2 passed. `read_system` with no memory up:
+  2 passages, 0 facts, no error.
+
+**Errors found, with causes (not fixed here).**
+- "One morning the dog ran to the park." reads (composed) to garbage: the grammar takes the bare time phrase as a
+  condition and says the park was done by the morning. "In the morning ..." reads right. The grammar's, step 2.
+- "Tom had a small dog. It chased a red ball." gives the chasing to Tom: a pronoun agrees in number only
+  (`grammar.pronoun_number`), and "it" may point to a person. Agreement in person needs memory to say who is one;
+  the one test (`GraphKnowledge.is_person`) asks for "person" among a name's kinds, and lyric_dev holds 12,406
+  relations and no taxonomy above "mammal", so it cannot be checked there.
+- "found" composed as the kind `found`, not `find`; prepositions the grammar has no link for come out `word_across`.
+- A "the X" first met is bound to the world's one X where the world holds exactly one (`_one_in_world`): a second
+  story's first "the dog" can be the first story's dog. As in conversation.
+
+**Next.** Lyric restarted on this code (the owner restarts), then a document through the real door; the pronoun's
+person agreement; then step 2.
+
 ## 2026-10-23 (43) — Workers: Lyric processes that take queued work, and the self hears what they do
 
 **Objective.** The one queue (42) runs work in as many processes as are running; nothing ran a second process for

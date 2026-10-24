@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""What a document states: its lines, read by the substrate's one reader, and its tables, row by row.
+"""What a document states: its passages, read in order as one text by the substrate's one reader, and its tables,
+row by row.
 
 Reading (`core.perception.reading`) measures a file: its pages, and its tables as rows under their headings. What
 they SAY is told here, by one owner, for every caller: the substrate taking in a document it met (the coordinator's
 `_understand_words`), and a tool that works from documents it is given (`generate_sysml_model`).
 
-A LINE IS READ AS A SENTENCE IS. Each goes to the one reader (`derived_reader.heard_stated`), which reads only the
-English the substrate has been taught. With no memory up in the process nothing is taught, so nothing is stated:
-that is the true answer, not an empty document.
+A TEXT IS READ AS A TELLING IS HEARD. Its passages (`passages_of`), what its writer wrote as one run and never a
+printed line, are read in order by a conversation of the text's own (`Conversation.stated`), through the one reader
+(`derived_reader`), which reads only the English the substrate has been taught. With no memory up in the process
+nothing is taught, so nothing is stated: that is the true answer, not an empty document.
 
 A ROW IS ONE THING, AND ITS HEADINGS SAY WHAT EACH CELL IS TO IT (`relation_types.classify_heading`):
 - the row is about the thing in its name column: the column headed as a name, else the first;
@@ -19,17 +21,19 @@ A ROW IS ONE THING, AND ITS HEADINGS SAY WHAT EACH CELL IS TO IT (`relation_type
 - a cell under any other heading is a VALUE the table states (a part number, a length), kept with its heading.
   It is never made a link: nothing tells the substrate what a "Part number" is to a console.
 
-Every fact and value says where it was read (`at`): the line, or the table and row.
+Every fact and value says where it was read (`at`): the passage, or the table and row.
 """
 from __future__ import annotations
 
 import asyncio
+import re
+import unicodedata
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from core.semantics.relation_types import SemanticRelation, classify_heading
 
-#: Where a line stands, by what a document's pages are: a PDF's pages hold lines, a Word file's "pages" are its
+#: Where a passage stands, by what a document's pages are: a PDF's pages hold lines, a Word file's "pages" are its
 #: paragraphs (`reading.read_document`), and a text is one page of lines.
 _PAGE_WORD = {"pdf": "page", "docx": "paragraph"}
 
@@ -37,42 +41,117 @@ _PAGE_WORD = {"pdf": "page", "docx": "paragraph"}
 #: never as sentences too, or each row would be read twice and once as a run-on of every cell.
 _ROWS_ONLY = frozenset({"xlsx", "csv"})
 
+#: Formats each of whose lines is an entry of its own, a record or a key and its value: their lines are never joined.
+_LINE_BY_LINE = frozenset({"json", "log", "yaml", "yml"})
 
-def lines_of(pages: Sequence[str], kind: Optional[str] = None) -> List[Tuple[str, str]]:
-    """A document's lines, each with where it stands: `(line, at)`. None for a document whose pages are its rows."""
+#: The Latin ligatures a PDF's text is often written in ("ﬁ", "ﬂ"): one character standing for two or three letters.
+_LIGATURES = re.compile("[ﬀ-ﬆ]")
+
+_LETTERS_AT_END = re.compile(r"[^\W\d_]+$")
+_LETTERS_AT_START = re.compile(r"^[^\W\d_]+")
+
+
+def passages_of(pages: Sequence[str], kind: Optional[str] = None, view=None) -> List[Tuple[str, str]]:
+    """A document's passages, each with where it stands: `(passage, at)`. None for a document whose pages are its rows.
+
+    A PASSAGE IS WHAT ITS WRITER WROTE AS ONE RUN, NOT A PRINTED LINE. A page breaks a sentence wherever its line is
+    full; a writer ends a run with a blank line, a heading, an item, a paragraph's last line. Read a printed line at a
+    time, every sentence the page broke was two pieces, neither of which read ("Collectives of actively-moving
+    particles can spontaneously separate into dilute and dense" and "phases"). So a printed line goes on into the
+    next where the page broke it (`_goes_on`), and a passage's sentences are found where the reader finds them, where
+    what it was taught ends (`derived_reader.read_text`). A Word file's paragraphs are passages already; a format
+    whose every line is an entry of its own keeps each line.
+
+    A word the page split with a hyphen is one word where the substrate holds it ("collec-" and "tive" are
+    "collective"), and stays two joined by their hyphen where it does not ("self-" and "propelled"): `view`, what the
+    substrate was taught, says which. A ligature is the letters it stands for. Both are the writing, not the
+    language."""
     if kind in _ROWS_ONLY:
         return []
     out: List[Tuple[str, str]] = []
     word = _PAGE_WORD.get(kind or "")
     for page_number, page in enumerate(pages, 1):
-        for line_number, line in enumerate(str(page).splitlines(), 1):
+        lines = [" ".join(_LIGATURES.sub(lambda m: unicodedata.normalize("NFKC", m.group()), line).split())
+                 for line in str(page).splitlines()]
+        run: List[int] = []
+        for at, line in enumerate(lines):
+            if not line:
+                continue
+            run.append(at)
+            following = lines[at + 1] if at + 1 < len(lines) else ""
+            if following and (kind == "docx" or (kind not in _LINE_BY_LINE
+                                                 and _goes_on(line, following, lines[at - 1] if at else ""))):
+                continue
+            first, last = run[0] + 1, run[-1] + 1
+            lines_said = f"line {first}" if first == last else f"lines {first} to {last}"
             if word is None:
-                at = f"line {line_number}"
+                where = lines_said
             elif kind == "docx":
-                at = f"paragraph {page_number}"
+                where = f"paragraph {page_number}"
             else:
-                at = f"{word} {page_number}, line {line_number}"
-            out.append((line, at))
+                where = f"{word} {page_number}, {lines_said}"
+            out.append((_joined([lines[k] for k in run], view), where))
+            run = []
     return out
 
 
-async def lines_stated(lines: Sequence[Tuple[str, str]], view) -> List[Dict[str, Any]]:
-    """Each fact the lines state between named things, as the one reader reads them, kept with the line it was read
-    from (`said`) and where that line stands (`at`).
+def _split_word(line: str, following: str) -> bool:
+    """Whether a printed line ends in a word the page split with a hyphen, the rest of it beginning the next."""
+    return line[-1:] == "-" and line[-2:-1].isalpha() and following[:1].isalpha()
+
+
+def _goes_on(line: str, following: str, before: str) -> bool:
+    """Whether the page broke a printed line, not its writer, so the next line goes on with what it says: a word split
+    across them, the next going on in lower case, or the next line's first word too long to have fit on this one in
+    the width the lines about it run to. A line stopping short of that width was ended there: a heading, an item, a
+    paragraph's last line. Measured against its neighbours, since one page holds more than one width: an abstract
+    across the page, two columns below it. Measured in letters, which a page's type does not set at one width each,
+    so a line as long as the width with the word is taken to be full: "...the comprehension and security of" stopped
+    one letter short of the line before it, and "AI models." was cut from its sentence."""
+    if _split_word(line, following) or following[:1].islower():
+        return True
+    return len(line) + 1 + len(following.split(" ", 1)[0]) >= max(len(before), len(following))
+
+
+def _joined(lines: Sequence[str], view) -> str:
+    """Printed lines as the one run they were written as: a word the page split is put back together (`passages_of`),
+    and the rest joined by a space."""
+    text = lines[0]
+    for line in lines[1:]:
+        if not _split_word(text, line):
+            text = f"{text} {line}"
+            continue
+        head, tail = _LETTERS_AT_END.search(text[:-1]), _LETTERS_AT_START.match(line)
+        whole = (head.group() if head else "") + (tail.group() if tail else "")
+        one_word = view is not None and (view.knows(whole) or bool(view.names_of_shape(whole)))
+        text = (text[:-1] if one_word else text) + line
+    return text
+
+
+async def passages_stated(passages: Sequence[Tuple[str, str]], *, document: str) -> List[Dict[str, Any]]:
+    """Each fact the passages state between named things, read in order as ONE text, kept with the sentence it was
+    read from (`said`) and where its passage stands (`at`).
+
+    A TEXT IS READ AS A LISTENER FOLLOWS ONE, by a conversation of its own (`Conversation.stated`): "the dog" is the
+    dog it told of before, "it" and "they" what it last spoke of, and each happening it tells of is named, as this
+    text's and no other's (`document`, what the text is known by). Read a line at a time with nothing before each,
+    every happening was an unknown, a fact about an unknown has nothing to name it, and a story stated almost nothing.
 
     THE SUBSTRATE READS WHILE IT THINKS. The reader runs in its loop, about 2 ms a word measured, so a long document
-    yields between lines: a question asked while it reads is not held behind the last page."""
-    from core.semantics.derived_reader import heard_stated
+    yields between passages: a question asked while it reads is not held behind the last page."""
+    from core.agents.autonomous.shared_types import TaskSource
+    from core.semantics.conversation import Conversation
+    reading = Conversation(session=f"reading:{document}", source=TaskSource.SYSTEM, remembers=False,
+                           within=document)
     found: List[Dict[str, Any]] = []
-    for line, at in lines:
-        line = " ".join(str(line).split())
-        if not line:
+    for passage, at in passages:
+        if not passage.strip():
             continue
         await asyncio.sleep(0)
-        for fact in await heard_stated(line, view):
+        for fact, said in await reading.stated(passage):
             found.append({"subject": str(fact.subject), "relation": str(fact.relation),
                           "object": str(fact.obj), "positive": bool(fact.positive),
-                          "said": line[:300], "at": at})
+                          "said": said[:300], "at": at})
     return found
 
 
@@ -170,4 +249,4 @@ def _table_stated(table: Dict[str, Any], out: TablesRead) -> None:
                         fact(subject, kind, each)
 
 
-__all__ = ["lines_of", "lines_stated", "tables_stated", "TablesRead", "port_term"]
+__all__ = ["passages_of", "passages_stated", "tables_stated", "TablesRead", "port_term"]

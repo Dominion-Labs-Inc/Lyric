@@ -9105,11 +9105,11 @@ class AutonomousCoordinator:
 
     async def _understand_words(self, content: Dict[str, Any]) -> None:
         """What the words met say, as the substrate's one reader reads them: the
-        lines of a page read, and the words heard in a recording, each read as
-        a sentence typed or said is (`derived_reader.stated`), and the rows of a
-        document's tables, each read under its headings. Each fact stated
-        between named things is kept with the line or row it was read from and
-        where that stands, under `stated` (`document_reader`). Words said TO the
+        passages of a document and the words heard in a recording, read in
+        order as one text, as a telling is heard (`document_reader.passages_stated`),
+        and the rows of a document's tables, each read under its headings. Each
+        fact stated between named things is kept with the sentence or row it
+        was read from and where that stands, under `stated`. Words said TO the
         substrate (`said_to_it`) are not read here: they went to the front door,
         where what a person tells it is read.
 
@@ -9118,16 +9118,16 @@ class AutonomousCoordinator:
         are not kept a second time."""
         if "stated" in content:
             return
-        from core.semantics.document_reader import lines_of, lines_stated, tables_stated
-        lines = lines_of(content.get("text") or [],
-                         (content.get("properties") or {}).get("has_format"))
-        if content.get("heard_text") and not content.get("said_to_it"):
-            lines.append((str(content["heard_text"]), "heard"))
-        tables = content.pop("tables", None) or []
-        if not lines and not tables:
-            return
         from core.semantics.derived_reader import live_view
-        found = await lines_stated(lines, live_view())
+        from core.semantics.document_reader import passages_of, passages_stated, tables_stated
+        passages = passages_of(content.get("text") or [],
+                               (content.get("properties") or {}).get("has_format"), live_view())
+        if content.get("heard_text") and not content.get("said_to_it"):
+            passages.append((str(content["heard_text"]), "heard"))
+        tables = content.pop("tables", None) or []
+        if not passages and not tables:
+            return
+        found = await passages_stated(passages, document=str(content.get("sha256") or content.get("subject") or ""))
         found.extend(tables_stated(tables).facts)
         content["stated"] = found
 
@@ -16028,6 +16028,14 @@ class AutonomousCoordinator:
                     task, answered, completed=bool(answered.get("success", True)))
                 return {**answered, "pursuit_memory_id": pursuit_memory}
 
+        # WHAT WAS ASKED DECIDES THE WORK (`Conversation.finding_out`): a request to find something out is research
+        # into what it names, and carries the question it asks, never only the person's words for the research step
+        # to take apart again.
+        if kind == "job":
+            asked = await conv.finding_out(conv._meaning(message))
+            if asked is not None:
+                task.type = TaskType.RESEARCH
+                task.metadata["asked"] = asked.to_dict()
         accepted = await self.task_queue.add_task(task, priority=pri)
         if not accepted:
             # The work was never taken on, so its pursuit ends here, saying why.
@@ -16464,6 +16472,7 @@ class AutonomousCoordinator:
         """
         conv = self.conversation(session, actor_identity=actor_identity,
                                  context=context, organization=organization)
+        conv._looking_up = lambda question: self._look_up_as_work(conv, question)
         try:
             understanding = await conv.understand(message)
         except Exception as error:
@@ -16475,8 +16484,10 @@ class AutonomousCoordinator:
         # `known`, so `answers` (a reasoned or direct verdict) counts as having
         # answered -- otherwise a question the substrate PROVED would be dropped
         # to the work path as though nothing were held.
+        # A LOOK-UP UNDER WAY IS AN ANSWER TO SAY: what is not held yet, and that it is being found out. Counted as
+        # nothing, the question fell through to the work path and was queued a second time, as a job.
         if not (understanding.known or understanding.remembered
-                or understanding.acquired or understanding.answers):
+                or understanding.acquired or understanding.answers or understanding.looking_up):
             return None
 
         try:
@@ -19393,6 +19404,18 @@ The substrate must realign with its constitutional responsibilities immediately.
                                             or "the artefact could not be written"),
         }
 
+    async def _look_up_as_work(self, conv: "Conversation", question: str) -> bool:
+        """A person's question queued to be answered with what is looked up for it: a RESEARCH task, answered through
+        the knowledge loop (`_answer_via_knowledge_loop`) by whichever instance takes it (one queue: while a worker
+        is alive the Lyric it works for leaves it the work), and said to them when it ends (`_speak_of_ended_work`,
+        `told_taken_on`). Whether it was queued."""
+        task = Task(id=f"look_up_{uuid.uuid4().hex[:12]}", type=TaskType.RESEARCH, description=question,
+                    priority=Priority.HIGH, source=TaskSource.API, actor=conv._actor, created_by="look_up",
+                    metadata={"origin": "look_up", "conversation_id": conv._session, "told_taken_on": True,
+                              **({"context": conv._context} if conv._context else {}),
+                              **({"organization": conv._organization} if conv._organization else {})})
+        return await self.task_queue.add_task(task, priority=Priority.HIGH)
+
     async def _answer_via_knowledge_loop(self, task: Task) -> Optional[Dict[str, Any]]:
         """Answer a QUESTION / knowledge request through the substrate's ONE
         knowledge loop (`understand`) — not a bare web search, and not gated on
@@ -19430,6 +19453,12 @@ The substrate must realign with its constitutional responsibilities immediately.
         # what this step is for; that outranks how the sentence reads.
         if (getattr(task, "provenance", None) or {}).get("artefact"):
             return None
+        # WHAT THE PERSON ASKED, AS READ (`Conversation.finding_out`): their sentence, understood as the question it
+        # asks, is what the loop answers.
+        asked = (task.metadata or {}).get("asked")
+        if asked:
+            from core.semantics.derived_reader import Meaning
+            return await self._answered_by_knowledge_loop(task, desc, as_meaning=Meaning.from_dict(asked))
         declared_research = getattr(getattr(task, "type", None), "name", "") == "RESEARCH"
         is_knowledge = declared_research or Conversation.is_question(desc) or bool(
             re.search(
@@ -19451,7 +19480,13 @@ The substrate must realign with its constitutional responsibilities immediately.
             "", desc, flags=re.IGNORECASE).strip() or desc)
         query = (f"what is {topic}?" if declared_subject
                  else (desc if Conversation.is_question(desc) else f"what is {topic}?"))
+        return await self._answered_by_knowledge_loop(task, query)
 
+    async def _answered_by_knowledge_loop(self, task: Task, query: str,
+                                          as_meaning: Optional[Any] = None) -> Optional[Dict[str, Any]]:
+        """`query` asked of the knowledge loop for `task`, in a conversation of the task's own, its owner's, and
+        understood as `as_meaning` where given (`Conversation.understand_as`): what the loop answered or learned, the
+        honest end where it looked up and found nothing, None where it neither held nor found anything."""
         try:
             # WHOSE LEARNING THIS IS, said rather than defaulted. A knowledge
             # task the substrate set itself (AUTONOMOUS/SYSTEM) is its own work,
@@ -19468,7 +19503,8 @@ The substrate must realign with its constitutional responsibilities immediately.
                 session=f"knowledge:{task.id}",
                 actor_identity=None if _is_sub(_owner) else _owner,
                 source=getattr(task, "source", None) or TaskSource.AUTONOMOUS)
-            understanding = await conversation.understand(query)
+            understanding = (await conversation.understand_as(query, as_meaning) if as_meaning is not None
+                             else await conversation.understand(query))
         except Exception as error:
             logger.warning(f"knowledge loop failed for {task.id}: {error}")
             return None
@@ -19478,6 +19514,12 @@ The substrate must realign with its constitutional responsibilities immediately.
         # or learned something new. Nothing answered and nothing learned is a
         # genuine gap -- declined here, reported honestly upstream, never faked.
         if not understanding.answered and not learned:
+            if understanding.acquired:
+                # LOOKED UP AND FOUND NOTHING IS ITS OWN END, said as the reply says it. Declined, it ended "no
+                # substrate handler for a RESEARCH task", which no one could act on.
+                return {"success": False, "model_free": True, "verification_state": "failed", "operated": True,
+                        "task_id": task.id, "task_type": task.type.name, "method": "conversation.understand",
+                        "error": understanding.reply, "answer": understanding.reply}
             return None
 
         return {
@@ -20061,6 +20103,9 @@ class Understanding:
     #: "The domestic dog is inside the dog house.".
     named: Dict[str, str] = field(default_factory=dict)
     framed: FrozenSet[str] = frozenset()
+    #: WHAT IS BEING LOOKED UP FOR THIS QUESTION, as work (`Conversation._looking_up`): the phrase not held yet. What
+    #: it finds is said to the person when the work ends.
+    looking_up: Optional[str] = None
     #: WHAT EACH PARTICULAR THING THE REPLY MAY NAME IS (`trel_1`, a trel), so
     #: it is said as the known thing it is, "the trel" (`derived_reader.as_known`,
     #: docs/TEACHING.md §12d). Gathered in `understand()`, with the store, as
@@ -20744,9 +20789,13 @@ class Conversation:
 
     def __init__(self, db=None, identity=None, session="default",
                  actor_identity=None, source: Optional[TaskSource] = None,
-                 remembers: bool = True):
+                 remembers: bool = True, within: str = ""):
         self._db = db
         self._identity = identity
+        #: WHAT IT IS TOLD IN, where that is not this conversation alone: a document read (`stated`), which each
+        #: happening and each thing it tells of is named as told in (`teaching.told_events`), so "The dog barked." in
+        #: two stories is two barkings, and the same story read again names the same one. Empty for talk.
+        self._within = str(within or "")
         #: WHETHER THIS THREAD IS REMEMBERED. A conversation remembers every
         #: turn (`_hand_over`) and takes in what it is told (`teach`). One held
         #: with `remembers=False` remembers no turn, and holds what it is told
@@ -20783,6 +20832,13 @@ class Conversation:
         #: BehaviorArbiter's current directive). None when standalone -- the
         #: reply is then exactly what it was, never a guessed mood.
         self._disposition = None
+        #: HOW A LOOK-UP IS MADE AS WORK, when the front door gives one (`AutonomousCoordinator._look_up_as_work`):
+        #: `await _looking_up(question)` queues the question to be answered with what is looked up, and says whether
+        #: it was queued. None: looked up here, in this turn, as before.
+        self._looking_up = None
+        #: What a sentence was read to ask, where that is not what it reads as (`understand_as`): a request to find
+        #: something out, as the question it asks.
+        self._taken_as: Dict[str, Any] = {}
         #: Recall persists across turns, so a wave that lands after one answer
         #: is already in hand for the next question -- which is usually about
         #: the same thing.
@@ -20945,8 +21001,60 @@ class Conversation:
     def _meaning(self, text: str):
         """What `text` means: the meaning of its last utterance, when every
         utterance read and the listener can tell which meaning the last one was
-        meant to have. None otherwise."""
+        meant to have. None otherwise. A sentence understood as what it asks
+        (`understand_as`) means that."""
+        taken = self._taken_as.get(str(text))
+        if taken is not None:
+            return taken
         return _meaning_of(self._read(text), self._heard(text))
+
+    async def understand_as(self, sentence: str, meaning) -> "Understanding":
+        """`sentence` understood as `meaning`, what it was read to ask: "Research photosynthesis." as the question it
+        asks (`finding_out`), its words still the person's, so what it names is resolved, looked up where nothing is
+        held of it, and answered as the question would be."""
+        self._taken_as[str(sentence)] = meaning
+        try:
+            return await self.understand(sentence)
+        finally:
+            self._taken_as.pop(str(sentence), None)
+
+    #: The doing the substrate's knowledge loop does (`AutonomousCoordinator._answer_via_knowledge_loop`). A doing
+    #: asked of it is that work where it is this doing or, as held, a kind of it: `look up` isa `research` isa `find
+    #: out` (`data/lessons/kinds_of_finding_out.json`).
+    FINDING_OUT = "find out"
+
+    async def finding_out(self, meaning) -> Optional[Any]:
+        """The question a request to find something out asks, as a meaning: "Look up the history of Rome." asks what
+        the history of Rome is, `equals(?v1, ?q)` with all the request says of the history of Rome, as "What is the
+        history of Rome?" reads. None where the meaning asks for no finding out: it is no request, its doing is no
+        kind of finding out as held, or it is about nothing it names.
+
+        WHAT WAS ASKED DECIDES THE WORK. The front door read the request, kept only that something was asked, and
+        queued the words; the research step found what was asked again from them, cut "research" off "Research
+        photosynthesis." and asked itself "what is photosynthesis.?", which read as nothing (lyric_dev, 2026-10-24)."""
+        from core.semantics.derived_reader import SITUATION_VARIABLES, Meaning, MeaningFact
+        if meaning is None or meaning.act != "request":
+            return None
+        held = _Held(self, {})
+        for doing in [f.subject for f in meaning.facts if f.relation == "done_by" and f.obj == "?listener"]:
+            kinds = [f.obj for f in meaning.facts if f.relation == "instance_of" and f.subject == doing]
+            finds_out = False
+            for kind in kinds:
+                if held.plain(kind) == self.FINDING_OUT or self.FINDING_OUT in {
+                        held.plain(k) for k in await held.objects(kind, "isa")}:
+                    finds_out = True
+                    break
+            if not finds_out:
+                continue
+            # WHAT IT IS ABOUT: what the doing is done to, or what it is about ("Find out about photosynthesis.").
+            about = ([f.obj for f in meaning.facts if f.subject == doing and f.relation == "done_to"
+                      and f.obj not in SITUATION_VARIABLES]
+                     or [f.obj for f in meaning.facts if f.subject == doing and f.relation == "word_about"])
+            if not about:
+                continue
+            said = tuple(f for f in meaning.facts if doing not in (f.subject, f.obj))
+            return Meaning("ask", said + (MeaningFact("equals", about[0], "?q"),), ("?q",))
+        return None
 
     async def _known_of(self, meaning, *, telling: bool = False) -> Dict[str, str]:
         """Which thing each "the X" of a meaning is (docs/TEACHING.md §12d;
@@ -22442,7 +22550,6 @@ class Conversation:
         # it could reason over nothing it was told: a paragraph read to it, then asked about, was answered out of
         # what it held before (UNDERSTANDS-PROSE-01, 2026-10-14).
         from core.memory import get_memory_agent
-        from core.semantics.derived_reader import meant
 
         await self._listen(sentence)
         utterances = self._read(sentence)
@@ -22465,19 +22572,39 @@ class Conversation:
             return [Acquired(sentence, detail=detail)]
 
         agent = await get_memory_agent()
-        situation = dict(self._situation(sentence))
         acquired: List[Acquired] = []
+        async for utterance, told, notes in self._told_each(sentence, dict(self._situation(sentence))):
+            acquired.extend(notes)
+            if told is None:
+                continue
+            telling = self._telling_of(utterance.text, told)
+            taken = await agent.take_in_telling(telling)
+            acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
+                            for kind, it, decision in taken)
+        return acquired
+
+    async def _told_each(self, sentence: str, situation: Dict[str, str]):
+        """Each utterance of `sentence` heard as a telling, in order: `(utterance, told, notes)`, `told` what `_told`
+        makes of it, None where it tells nothing that can be held, and `notes` what of it cannot be. Taken in by
+        nobody here: what is told goes to memory (`teach`), what a text states to what it is held as (`stated`).
+
+        ONE TEXT, ONE THREAD: each utterance is heard after the ones before it. Its "it" or "they" points back to what
+        was last spoken of, an utterance before it included ("My dog is not a cat, he is a dog."); its "the X" is the X
+        told of before (`_known_of`); its "there" the last place named. An utterance that does not read tells nothing
+        and leaves all of that as it was. `situation` is updated as it goes."""
+        from core.semantics.derived_reader import Meaning, meant, place_spoken_of
+        await self._listen(sentence)
         heard = self._heard(sentence)
-        for utterance in utterances:
-            # WHAT ITS "IT" OR "THEY" POINTS BACK TO is what was last spoken of, an utterance before it in this
-            # turn's included: "My dog is not a cat, he is a dog."
+        for utterance in self._read(sentence):
+            if not utterance.understood:
+                continue
             situation.pop("?previous", None)
             previous = self._previous_for(utterance.text)
             if previous:
                 situation["?previous"] = previous
             chosen = meant(utterance.readings, heard=heard)
             if chosen is None:
-                acquired.append(Acquired(utterance.text, detail=_which_meant(utterance.readings)))
+                yield utterance, None, [Acquired(utterance.text, detail=_which_meant(utterance.readings))]
                 continue
             if chosen.meaning.act != "tell":
                 continue
@@ -22487,15 +22614,28 @@ class Conversation:
                 # colour). Held, it is still not taken in whole, so no answer closes the world on what it names:
                 # "Is chlorophyll green?" was answered No (UNDERSTANDS-PROSE-01, 2026-10-17).
                 self._not_taken_in.append(utterance.text)
-            telling, notes = await self._telling(utterance.text, chosen, situation)
-            acquired.extend(notes)
-            if telling is None:
-                continue
-            self._spoke_of(telling.facts, situation)
-            taken = await agent.take_in_telling(telling)
-            acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
-                            for kind, it, decision in taken)
-        return acquired
+            told, notes = await self._told(utterance.text, chosen, situation)
+            if told is not None:
+                self._spoke_of(told[0], situation)
+                place = place_spoken_of(Meaning(chosen.meaning.act, told[0])) if told[0] else None
+                if place:
+                    self._last_place = situation["?there"] = place
+            yield utterance, told, notes
+
+    async def stated(self, text: str) -> List[Tuple[Any, str]]:
+        """What a written text states between named things, heard as this conversation hears a telling and taken in
+        by nobody: each fact, with the sentence it was read from. Its sentences are one thread (`_told_each`), and a
+        conversation that is given a text a passage at a time hears every passage after the ones before it.
+
+        WRITTEN, NOT SAID TO LYRIC. A text's "I" is its writer and its "you" its reader, and nothing here names
+        either, so nothing it says of them is held as said of the one this conversation is with or of Lyric."""
+        situation = {variable: value for variable, value in self._situation(text).items()
+                     if variable not in ("?speaker", "?listener")}
+        out: List[Tuple[Any, str]] = []
+        async for utterance, told, _ in self._told_each(text, situation):
+            if told is not None:
+                out.extend((fact, utterance.text) for fact in told[0])
+        return out
 
     async def _tell_again(self, sentence: str, *, confirmed: bool) -> List[Tuple[str, Any, Any]]:
         """A sentence this person said before, told again as their verdict on it
@@ -22519,11 +22659,27 @@ class Conversation:
 
     async def _telling(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
         """One utterance told, as memory takes it in (`Telling`), and what of it
-        cannot be held, said (`Acquired` notes). `situation` is updated with what
-        a later "it" points back to. `confirmed` False tells each fact the other
-        way: "That's wrong." of what was just said (`_take_feedback`). None where
-        nothing in it can be held."""
+        cannot be held, said (`Acquired` notes). `confirmed` False tells each
+        fact the other way: "That's wrong." of what was just said
+        (`_take_feedback`). None where nothing in it can be held."""
+        told, notes = await self._told(said, chosen, situation, confirmed=confirmed)
+        return (None if told is None else self._telling_of(said, told)), notes
+
+    def _telling_of(self, said: str, told) -> Any:
+        """What `_told` made of an utterance, as memory takes it in from the
+        person who told it (`Telling`)."""
         from core.memory.utils.interfaces import Telling
+        facts, rules, theirs, names = told
+        return Telling(sentence=said, origin=self._origin("conversation"), facts=facts, rules=rules,
+                       speaker=self._session, theirs=theirs, names=names)
+
+    async def _told(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
+        """What one utterance tells as so, `(facts, rules, theirs, names)` as a
+        `Telling` holds them, with the situation and its known things bound and
+        each happening and thing told of named; and what of it cannot be held,
+        said (`Acquired` notes). None where nothing in it can be held. Whose it
+        is, and where it goes, are the caller's: a person's telling (`_telling`),
+        or what a text states (`stated`)."""
         from core.semantics.derived_reader import Lexical, MeaningFact, is_variable, live_view
         meaning = chosen.meaning
         notes: List[Acquired] = []
@@ -22579,7 +22735,8 @@ class Conversation:
             # zip the two.
             told_of = Meaning(meaning.act, tuple(dict.fromkeys(meaning.bound({}, known))), meaning.asked)
             events = {unknown: normalize_term(name)
-                      for unknown, name in told_events(told_of, said, described=True).items()}
+                      for unknown, name in told_events(told_of, said, described=True,
+                                                       within=self._within).items()}
             kinds_told = told_kinds(told_of, described=True)
             for unknown, name in events.items():
                 kind = kinds_told[unknown]
@@ -22605,8 +22762,7 @@ class Conversation:
                 facts.append(fact)
         if not facts and not rules:
             return None, notes
-        return Telling(sentence=said, origin=self._origin("conversation"), facts=tuple(facts), rules=tuple(rules),
-                       speaker=self._session, theirs=theirs, names=names), notes
+        return (tuple(facts), tuple(rules), theirs, names), notes
 
     def _origin(self, through: str) -> Origin:
         """Where what this person gives the conversation comes from: them, in the
@@ -23274,7 +23430,7 @@ class Conversation:
             subject = informative[0].lower()
         recall.refine(*informative, about=subject)
 
-        target, learned = None, None
+        target, learned, looking = None, None, None
         if asked and look_up:
             # DID NOT KNOW IS NOT AN ANSWER. Find out, in this turn -- but for
             # ONE thing, the longest phrase it could not place. Researching
@@ -23287,7 +23443,14 @@ class Conversation:
                          for part in relation.replace("_", " ").split()}
             target = next((c for c in candidates
                            if not any(same_stem(c.phrase, a) for a in accounted)), None)
-            if target is not None:
+            if target is not None and self._looking_up is not None:
+                # LOOKED UP AS WORK, NOT IN THIS TURN. Reading what is found takes minutes, and in the turn it held
+                # the Lyric people talk to: nothing else was answered until it ended (lyric_dev, 2026-10-24). The
+                # question is queued to be answered with what is found, by whichever instance takes the work, and
+                # the reply says it is being looked up; the answer is said when it is found.
+                if await self._looking_up(sentence):
+                    looking = target.phrase
+            elif target is not None:
                 learned = await self.look_up(target.phrase)
                 if learned is not None:
                     acquired.append(learned)
@@ -23347,7 +23510,7 @@ class Conversation:
             acquired=acquired, asked=asked,
             remembered=harvest.texts(_RECALLED), recall=harvest,
             disposition=self._read_disposition(),
-            named=dict(self._named), framed=frozenset(self._framed))
+            named=dict(self._named), framed=frozenset(self._framed), looking_up=looking)
         # NUMBER FOR EVERY WORD THE REPLY MIGHT USE, in one pass, before the
         # sentence is built. Gathered here because it needs the store and `say()`
         # is a pure function over what was already found.
@@ -23392,7 +23555,8 @@ class Conversation:
         await self._hand_over_turn(understanding, {
             "placed": [[r.phrase, r.how] for r in understanding.known],
             "unplaced": [r.phrase for r in understanding.unknown],
-            "looked_up": target.phrase if target is not None else None,
+            "looked_up": target.phrase if target is not None and looking is None else None,
+            "looking_up": looking,
             "answered_by": sorted(
                 {"reasoned" if a.conclusion else "held" for a in answers}
                 | ({"researched"} if learned is not None and learned.stored else set())),
@@ -23729,6 +23893,11 @@ class Conversation:
                 else:
                     asking.append(f"I don't hold {item.label} yet, and looking it up "
                                   f"found nothing.")
+
+        # A LOOK-UP UNDER WAY IS SAID AS ONE: what is not held yet, and that it is being looked up. What it finds
+        # is said when it is found.
+        if understanding.looking_up:
+            asking.append(f"I don't hold {understanding.looking_up} yet; I'm looking it up.")
 
         # A TELLING IS ANSWERED WITH WHAT BECAME OF IT: what was noted, what was
         # not and why, and the opposite on record if memory holds it. Reciting
