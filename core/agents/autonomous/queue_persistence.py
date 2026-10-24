@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS unified.queue_instances (
     started_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+ALTER TABLE unified.queue_instances ADD COLUMN IF NOT EXISTS role TEXT;
 """
 
 
@@ -297,12 +298,22 @@ class QueuePersistence:
         s.value for s in WAITING_STATUSES))
 
     async def heartbeat(self) -> None:
-        """Say this instance is alive, so the jobs it owns are not taken over."""
+        """Say this instance is alive, so the jobs it owns are not taken over, and whether it is a worker."""
+        from .autonomous_coordinator import is_worker
         await self.ensure_schema()
         await self.db().execute_query(
-            "INSERT INTO unified.queue_instances (instance_id) VALUES ($1)"
-            " ON CONFLICT (instance_id) DO UPDATE SET heartbeat_at = NOW()",
-            (self.instance_id,), commit=True)
+            "INSERT INTO unified.queue_instances (instance_id, role) VALUES ($1, $2)"
+            " ON CONFLICT (instance_id) DO UPDATE SET heartbeat_at = NOW(), role = EXCLUDED.role",
+            (self.instance_id, "worker" if is_worker() else "lyric"), commit=True)
+
+    async def workers_alive(self, lease_s: float) -> int:
+        """How many workers are alive: a heartbeat within `lease_s`."""
+        await self.ensure_schema()
+        row = await self.db().execute_query(
+            "SELECT count(*) AS n FROM unified.queue_instances"
+            " WHERE role = 'worker' AND heartbeat_at >= NOW() - make_interval(secs => $1)",
+            (float(lease_s),), fetch_one=True)
+        return int(row["n"]) if row else 0
 
     async def release(self) -> None:
         """This instance is stopping: remove its heartbeat, so the work it still

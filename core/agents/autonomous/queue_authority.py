@@ -407,7 +407,14 @@ class QueueAuthority:
         (`claim_waiting`), so the work of one Lyric runs in as many processes as
         are running, each with its own event loop. Before (until 2026-10-23) an
         instance ran only what it had queued itself, and another took it over
-        only once it had stopped."""
+        only once it had stopped.
+
+        WHILE A WORKER IS ALIVE, THE LYRIC IT WORKS FOR DRAWS NO WORK (`_leaves_work_to_workers`): drawing its own
+        backlog first, with sixty slots, it started every job it queued itself, and a worker took work only once all
+        sixty were busy; a page read for a job held the Lyric people talk to. With no worker alive it runs its work
+        itself, as before."""
+        if await self._leaves_work_to_workers():
+            return None
         while True:
             queued = await self._draw_own(timeout, skip_actors)
             if queued is None:
@@ -503,6 +510,20 @@ class QueueAuthority:
         self.metrics['tasks_taken_from_others'] = self.metrics.get('tasks_taken_from_others', 0) + 1
         logger.info("took %s, queued by another instance", task.id)
         return queued
+
+    async def _leaves_work_to_workers(self) -> bool:
+        """Whether this instance leaves queued work to its workers: it is not one, and one is alive. A store error
+        keeps the non-fatal contract: logged, counted, and the work is drawn here."""
+        from .autonomous_coordinator import is_worker
+        p = self._persistence_or_none()
+        if p is None or self._restoring or is_worker():
+            return False
+        try:
+            return await p.workers_alive(self._lease_s()) > 0
+        except Exception as e:
+            self._persist_metrics["errors"] += 1
+            logger.error("whether a worker is alive could not be read: %s", e)
+            return False
 
     def _lease_s(self) -> float:
         """How long an instance may go without a heartbeat before the work it owns may be claimed."""
