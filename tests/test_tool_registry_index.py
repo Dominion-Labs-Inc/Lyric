@@ -77,3 +77,39 @@ async def test_actual_tool_execution():
         assert result.execution_time is not None and result.execution_time >= 0.0
     finally:
         test_file.unlink()
+
+
+@pytest.mark.asyncio
+async def test_lyric_decides_which_tool_does_what_a_person_asked():
+    """What a person asked, as read, decides the tool: a doing asked of Lyric, the tool whose own description says it
+    does it, given what was asked where its parameter's name says what that is (a path, a page's address). Where no
+    tool both does it and is supplied what it requires, none is chosen. ("Read <a file>." was understood and its job
+    failed with no tool run: TEACH-AND-DO-01 2026-09-28; lyric_dev, 2026-10-24.)"""
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator as AC
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    class Deciding:
+        _tools_for_request = AC._tools_for_request
+        _arguments = staticmethod(AC._arguments)
+        _doings_meant = staticmethod(AC._doings_meant)
+
+        async def _tools_by_doing(self):
+            return {"read_file": ("read", ("file_path",), ("file_path", "start_line")),
+                    "web_fetch": ("fetch", ("url",), ("url", "timeout")),
+                    "delete_file": ("delete", ("file_path",), ("file_path",))}
+
+    class Asked:
+        def __init__(self, *facts):
+            self.metadata = {"requested": Meaning("request", facts).to_dict()}
+
+    path = "/notes/story.txt"
+    reading = (F("instance_of", "?v0", "read"), F("done_by", "?v0", "?listener"))
+    assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", path))) == \
+        [{"tool": "read_file", "args": {"file_path": path}}]
+    assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", "https://example.com/a"))) == [], \
+        "no tool that reads takes a page's address"
+    assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", "?v1"),
+                                                     F("instance_of", "?v1", "book"))) == [], \
+        "nothing says which file"
+    assert AC._arguments([path, "https://example.com/a"], ("url",), ("url", "timeout")) == \
+        {"url": "https://example.com/a"}

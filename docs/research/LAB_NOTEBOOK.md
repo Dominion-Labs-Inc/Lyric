@@ -16,6 +16,42 @@ Conventions:
 
 ---
 
+## 2026-10-24 (46) — Lyric decides which of its tools does what a person asked; a document handed to it through the real door is read
+
+**Objective.** (45) found a person's "Read <a file>." understood and its job failed in seconds, no tool run. It is not
+a regression: TEACH-AND-DO-01 (2026-09-28) observed the same plain-words failure; choosing a tool from a person's
+words was the model's, in the general-purpose executor dissolved into the coordinator on 2026-09-04 (d16bbca8), and
+the old regex capability discovery that ranked tools for the model was archived on 2026-10-04 with nothing calling it.
+What has picked tools since is research (the knowledge loop picks web_search), tools a task declares, and Lyric's
+own goals. The owner: Lyric reads the message and decides whether tools are needed, as an LLM does.
+
+**Changed** (the coordinator; no module added).
+- The front door keeps what a job asks, as read (`metadata["requested"]`, the meaning), beside what a request to find
+  something out asks (`asked`).
+- `_execute_operation`: a task that declares no tools and carries a request is given the tools Lyric decides
+  (`_tools_for_request`), and runs on the declared-tools path as any plan does (the constitution, the capabilities
+  faculty, appraisal, `_read_what_was_opened`).
+- `_tools_by_doing`: each tool by what it says it does, its own description's first sentence read by the one reader
+  as an order ("Read the contents of a file.": a reading), with its parameters; read once per process while what was
+  taught is unchanged (130 of 251 read so on lyric_dev, 54 s).
+- `_tools_for_request`: for each doing asked of Lyric, a tool whose doing is it or one memory holds it a kind of,
+  given what was asked where its parameter's name says what that is (`_arguments`: a path to a `…path` parameter, a
+  page's address to `url`); none where a doing has no tool both doing it and supplied. No regex reads the person's
+  words.
+
+**Verified.** lyric_dev, offline: "Read <path>." and "Please read the file <path>." -> read_file(file_path); "Read
+https://…" -> none (no reading tool takes an address); "Read the book." -> none. tests/test_tool_registry_index.py 4
+passed (1 new). Through the real door (one Lyric on lyric_dev in a Tet world of the run's own, as HANDOVER-01 makes
+one): "Read <story>." -> "I'm on it … may I run read_file on <story>?" (the capability is the world's, not yet
+unlocked for this person, so supervised); "Yes." -> "Going on with"; job completed in 5 s, completion belief 0.975;
+"Did you finish?" -> "Yes. Finished … I read story.txt. It says: Tom had a small dog. It chased a red ball across the
+grass. Tom followed the dog and he found the ball under a bench." A first run left the job held for the go-ahead my
+script never gave (cancelled by its id afterwards).
+
+**Seen, not fixed.** "What are you doing?" while the job was held said its one question three times (the question
+the ack said, and the same waiting twice more). "Read https://…" decides nothing yet: the tool that gets a page
+says "Fetch …", and nothing held says reading a page is fetching it.
+
 ## 2026-10-24 (45) — The two open defects closed (a bare time phrase; a pronoun's person); a path read as one thing; through the real door, a person's request to read a file has no route to Lyric's tools
 
 **Objective.** Close what (44) left open before testing through the door: "One morning the dog ran to the park." read

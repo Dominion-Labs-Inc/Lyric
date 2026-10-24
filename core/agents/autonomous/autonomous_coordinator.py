@@ -16032,10 +16032,15 @@ class AutonomousCoordinator:
         # into what it names, and carries the question it asks, never only the person's words for the research step
         # to take apart again.
         if kind == "job":
-            asked = await conv.finding_out(conv._meaning(message))
+            requested = conv._meaning(message)
+            asked = await conv.finding_out(requested)
             if asked is not None:
                 task.type = TaskType.RESEARCH
                 task.metadata["asked"] = asked.to_dict()
+            elif requested is not None:
+                # WHAT WAS ASKED TO BE DONE, AS READ: what Lyric decides which of its tools does by
+                # (`_tools_for_request`), as it decides what a request to find something out asks.
+                task.metadata["requested"] = requested.to_dict()
         accepted = await self.task_queue.add_task(task, priority=pri)
         if not accepted:
             # The work was never taken on, so its pursuit ends here, saying why.
@@ -19151,7 +19156,22 @@ The substrate must realign with its constitutional responsibilities immediately.
 
         Declines (None) only when the task is neither — leaving the honest gap.
         Nothing here consults a model; success is never faked.
+
+        A PERSON'S REQUEST DECLARES NO TOOL: Lyric decides which of its tools does
+        what was asked, as it read it (`_tools_for_request`), and that is the work
+        declared. Without it, "Read <a file>." was understood, made a job, and
+        failed in seconds with no tool run (TEACH-AND-DO-01 2026-09-28; lyric_dev,
+        2026-10-24): choosing a tool from a person's words was the model's, and
+        went when the model did.
         """
+        if not self._declared_plan(task):
+            decided = await self._tools_for_request(task)
+            if decided:
+                if task.metadata is None:
+                    task.metadata = {}
+                task.metadata.setdefault("parameters", {})["tool_plan"] = decided
+                logger.info("🛠 Task %s: Lyric decided its tools: %s", task.id,
+                            ", ".join(f"{step['tool']}({', '.join(step['args'])})" for step in decided))
         result = await self._execute_declared_tools(task)
         if result is None:
             result = await self._produce_declared_artefact(task)
@@ -19321,6 +19341,113 @@ The substrate must realign with its constitutional responsibilities immediately.
         if plan is None and params.get("tool"):
             plan = [{"tool": params["tool"], "args": params.get("args", {})}]
         return list(plan or [])
+
+    async def _tools_for_request(self, task: Task) -> List[Dict[str, Any]]:
+        """WHICH TOOLS DO WHAT A PERSON ASKED, decided from what they asked as Lyric read it (`metadata["requested"]`,
+        kept by the front door): for each doing asked of Lyric (done by `?listener`), in the order asked, the tool
+        whose own description says it does that doing, or a doing memory holds it a kind of (`_tools_by_doing`), and
+        whose every required parameter what was asked supplies (`_arguments`). Empty where a doing asked has no such
+        tool: then no tool is run, and the work is not done in part.
+
+        "Read /notes/story.txt.": a reading, done to that path; `read_file` says "Read the contents of a file." and
+        takes a `file_path`, which the path is."""
+        requested = (task.metadata or {}).get("requested")
+        if not requested:
+            return []
+        from core.semantics.derived_reader import Meaning, is_variable
+        try:
+            meaning = Meaning.from_dict(requested)
+        except (KeyError, TypeError, ValueError):
+            return []
+        facts = meaning.facts
+        offered = await self._tools_by_doing()
+        plan: List[Dict[str, Any]] = []
+        for doing in dict.fromkeys(f.subject for f in facts if f.relation == "done_by" and f.obj == "?listener"):
+            kind = next((f.obj for f in facts if f.relation == "instance_of" and f.subject == doing
+                         and not is_variable(f.obj)), None)
+            if kind is None:
+                return []
+            things = [f.obj for f in facts if f.subject == doing and f.relation not in ("instance_of", "done_by")
+                      and not is_variable(f.obj)]
+            meant = self._doings_meant(kind)
+            fitting = []
+            for name, (does, required, params) in offered.items():
+                if does not in meant and kind not in self._doings_meant(does):
+                    continue
+                args = self._arguments(things, required, params)
+                if args is not None:
+                    fitting.append((-len(args), len(params), name, args))
+            if not fitting:
+                return []
+            _, _, name, args = min(fitting)
+            plan.append({"tool": name, "args": args})
+        return plan
+
+    @staticmethod
+    def _doings_meant(kind: str) -> Set[str]:
+        """A doing and the doings memory holds it a kind of (`grammar_words.Knowledge.kinds`, as a verb)."""
+        from core.agents import memory_agent as _memory
+        agent = _memory._memory_agent
+        held = agent.grammar_view().words.kinds(kind, "VERB") if agent is not None else []
+        return {kind} | {str(k).replace(" ", "_") for k in held} | set(held)
+
+    @staticmethod
+    def _arguments(things: Sequence[str], required: Sequence[str], params: Sequence[str]) -> Optional[Dict[str, str]]:
+        """What a tool is given from what was asked, or None where a parameter it requires is not supplied: each thing
+        where a file or a page is (`sentence_machine._ADDRESS`), a page by its scheme (`url`), a file by its path
+        (`path`), to the parameter whose name says that ("file_path", "url"), required ones first."""
+        from core.semantics.sentence_machine import _ADDRESS
+        args: Dict[str, str] = {}
+        for thing in things:
+            if not _ADDRESS.fullmatch(str(thing)):
+                continue
+            what = "url" if "://" in str(thing) else "path"
+            to = next((p for p in list(required) + list(params)
+                       if p not in args and what in p.lower().split("_")), None)
+            if to is not None:
+                args[to] = str(thing)
+        return args if all(p in args for p in required) else None
+
+    async def _tools_by_doing(self) -> Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]]:
+        """Each of Lyric's tools by what it says it does, `{name: (doing, required parameters, parameters)}`: the first
+        sentence of its own description read by the one reader as an order ("Read the contents of a file.": a
+        reading), as a person's request is read. A tool whose description does not read as one says nothing here
+        yet, and is chosen for nothing. Read once while what was taught is unchanged."""
+        from core.semantics.derived_reader import heard, is_variable, live_view, read_text
+        taught = len(live_view())
+        held = getattr(self, "_tool_doings", None)
+        if held is not None and held[0] == taught:
+            return held[1]
+        registry = self.tool_registry
+        if registry is None:
+            from core.tools import get_tool_registry
+            registry = self.tool_registry = get_tool_registry()
+        out: Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]] = {}
+        for name in sorted(set(registry.tools) | set(registry.tool_factories)):
+            await asyncio.sleep(0)
+            tool = registry.get_tool(name)
+            said = re.split(r"(?<=[.!?])\s+", str(getattr(tool, "description", "") or "").strip(), maxsplit=1)[0]
+            if not said:
+                continue
+            utterances = read_text(said if said[-1] in ".!?" else said + ".")
+            if not utterances or not utterances[0].readings:
+                continue
+            chosen = await heard(utterances[0].readings)
+            if chosen is None or chosen.meaning.act != "request":
+                continue
+            facts = chosen.meaning.facts
+            doing = next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
+                          and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
+                                  for g in facts)), None)
+            if doing is None:
+                continue
+            parameters = list(getattr(tool, "parameters", None) or ())
+            out[name] = (doing, tuple(p.name for p in parameters if getattr(p, "required", True)),
+                         tuple(p.name for p in parameters))
+        logger.info("Lyric's tools read for what they do: %d of %d say so", len(out),
+                    len(set(registry.tools) | set(registry.tool_factories)))
+        self._tool_doings = (taught, out)
+        return out
 
     async def _produce_declared_artefact(self, task: Task) -> Optional[Dict[str, Any]]:
         """Make — or check — the thing this step was planned to produce.
