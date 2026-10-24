@@ -11622,7 +11622,8 @@ class AutonomousCoordinator:
                     capped = frozenset(
                         a for a, n in self._inflight_by_actor.items()
                         if not is_substrate_actor(a) and n >= self._per_actor_max)
-                    # This substrate pulls its own next work from the backlog it owns.
+                    # Its own backlog first; with nothing of its own ready, the next job
+                    # another instance queued and has not started (one queue, many instances).
                     if launched:
                         queue_timeout = 0
                     else:

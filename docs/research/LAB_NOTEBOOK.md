@@ -16,6 +16,44 @@ Conventions:
 
 ---
 
+## 2026-10-23 (42) — One queue for every running Lyric: an instance with room takes what another queued
+
+**Objective (the owner's direction).** Lyric should run different agents and tasks in parallel, through the task
+queue built for it, so a question it is looking up does not stop everything else. Read in the code first: the queue's
+"parallel" jobs are coroutines on one event loop (`asyncio.Semaphore(max_parallel)`): they interleave while one waits
+on the network or the store, and a page being read, which never waits, holds all of them (RESEARCH-WRITE-01: 9 min
+50 s). Many instances already share one queue table, with leases, heartbeats and atomic claims (INSTANCES-01, 09-26),
+but each ran only the work it had queued itself, and another took it over only once it had stopped.
+
+**Built** (`QueueAuthority.get_next_task`, `QueuePersistence`).
+- Starting a job claims it (`claim_start`): it starts if it is this instance's own, or still waiting
+  (`WAITING_STATUSES`: planned, pending, awaiting verification; not one held for its person) and held by no other
+  living instance. A copy another instance took is let go of (`tasks_taken_elsewhere`); its status is read from the
+  store (`result_for`), as for any job not held here.
+- With nothing of its own ready, an instance with room takes the highest-priority waiting job in the table,
+  whichever instance queued it, in one statement (`claim_waiting`, `FOR UPDATE SKIP LOCKED`), skipping the people at
+  their cap (`tasks_taken_from_others`).
+- `upsert` writes only where no other living instance holds the job (the rule `claim_new` had), so a stale copy
+  cannot overwrite a running job's row; one refused is counted (`held_elsewhere`) and logged.
+- A task carries nothing that cannot cross: its per-task callbacks (`completion_callbacks`) are registered by no
+  one; callbacks by type are registered on every coordinator at boot.
+
+**Measured** (INSTANCES-01, lyric_dev, `20261024T001439Z`): 20/20, E new: an instance with room takes a job a
+living instance queued and has not started; the one that queued it does not start it, and its stale copy does not
+overwrite the row; an instance starts its own; a capped person's job is not taken; two instances racing for one
+waiting job, exactly one gets it; two queue authorities, the one with nothing of its own draws it, the other lets it
+go, and its result is read where it was queued. Two runs before failed on the check, not the code: E's guard counted
+D's own job as the table's, and the cap check took D's other person's job, which is right. D re-owns the live table's
+restorable rows, as it always has (three BLOCKED jobs of stopped instances, owned again by a stopped probe instance).
+`test_queue_authority_scheduler.py` passed.
+
+**Not yet.** Nothing runs a second process to take the work: a worker is a Lyric started beside the running one that
+does not attach to the world nor open the senses (`LYRIC_ATTACH=later`, as a handover's new instance starts). Every
+instance also runs the self's own scheduled work (maintenance, motivation, goals from its own outcomes), and nothing
+yet decides which instance runs those. A handover would leave workers on the old code.
+
+---
+
 ## 2026-10-23 (41) — How important a memory is, the memory agent decides; one memory of one reasoning
 
 **Objective (the owner's order, "memory agent then coordinator").** Every producer chose its own importance, a number

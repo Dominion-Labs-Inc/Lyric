@@ -30,7 +30,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from .shared_types import (
     Task, TaskType, TaskStatus, Priority, TaskSource,
 )
-from .queue_authority import ACTIVE_STATUSES
+from .queue_authority import ACTIVE_STATUSES, WAITING_STATUSES
 
 logger = logging.getLogger(__name__)
 
@@ -157,26 +157,20 @@ class QueuePersistence:
     async def upsert(self, *, task: Task, status: str, priority: int,
                      result: Optional[Dict[str, Any]] = None,
                      error: Optional[str] = None,
-                     queued_meta: Optional[Dict[str, Any]] = None) -> None:
-        """Write/replace one work job's durable row. Raises on failure — the
-        caller (the authority) wraps this so a DB error is logged with the task
-        id, counted, and non-fatal to the live queue."""
-        await self.ensure_schema()
-        payload = {"task": task_to_jsonable(task), "queued": queued_meta or {}}
-        await self.db().execute_query(
-            "INSERT INTO unified.task_queue"
-            " (task_id, status, priority, payload, result, error, owner, updated_at)"
-            " VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())"
-            " ON CONFLICT (task_id) DO UPDATE SET"
-            "   status = EXCLUDED.status, priority = EXCLUDED.priority,"
-            "   payload = EXCLUDED.payload, result = EXCLUDED.result,"
-            "   error = EXCLUDED.error, owner = EXCLUDED.owner, updated_at = NOW()",
-            (task.id, status, int(priority),
-             json.dumps(payload, default=str),
-             json.dumps(result, default=str) if result is not None else None,
-             error, self.instance_id),
-            commit=True,
-        )
+                     queued_meta: Optional[Dict[str, Any]] = None,
+                     lease_s: float) -> bool:
+        """Write/replace one work job's durable row, unless another LIVING
+        instance holds it as owed work (`claim_new`'s rule). Returns whether it
+        was written. Raises on failure — the caller (the authority) wraps this so
+        a DB error is logged with the task id, counted, and non-fatal to the live
+        queue.
+
+        A COPY THAT IS NO LONGER THIS INSTANCE'S WRITES NOTHING. Any instance
+        with room takes a waiting job (`claim_waiting`), so the instance that
+        queued it can hold a copy of a job another one is running; written
+        unconditionally, that copy overwrote the running job's row."""
+        return await self._write(task=task, status=status, priority=priority, result=result,
+                                 error=error, queued_meta=queued_meta, lease_s=lease_s)
 
     async def claim_new(self, *, task: Task, status: str, priority: int,
                         result: Optional[Dict[str, Any]] = None,
@@ -192,11 +186,40 @@ class QueuePersistence:
         owner, is this instance's own, or belongs to an instance whose heartbeat
         is older than `lease_s` — the same rule `claim_restorable` uses for
         taking over a stopped instance's work."""
+        return await self._write(task=task, status=status, priority=priority, result=result,
+                                 error=error, queued_meta=queued_meta, lease_s=lease_s)
+
+    async def claim_start(self, *, task: Task, priority: int,
+                          queued_meta: Optional[Dict[str, Any]] = None,
+                          lease_s: float) -> bool:
+        """Start a job here: its row becomes IN_PROGRESS and this instance's, if
+        it is this instance's own, or still waiting (`WAITING_STATUSES`) and held
+        by no other living instance, or if there is no row. False when another
+        instance took it first (nothing is changed): the job is not started here."""
+        return await self._write(task=task, status=TaskStatus.IN_PROGRESS.value,
+                                 priority=priority, queued_meta=queued_meta, lease_s=lease_s,
+                                 only_waiting=True)
+
+    async def _write(self, *, task: Task, status: str, priority: int,
+                     result: Optional[Dict[str, Any]] = None, error: Optional[str] = None,
+                     queued_meta: Optional[Dict[str, Any]] = None, lease_s: float,
+                     only_waiting: bool = False) -> bool:
+        """One job's row written for this instance, in one statement, where no
+        other living instance holds it: the row is finished history, has no
+        owner, is this instance's own, or its owner's heartbeat is older than
+        `lease_s`. `only_waiting`: and only while the job is still waiting, unless it is this instance's own."""
         await self.ensure_schema()
         payload = {"task": task_to_jsonable(task), "queued": queued_meta or {}}
         owed = self.RESTORABLE_STATUSES
         owed_ph = ", ".join(f"${i + 8}" for i in range(len(owed)))
         lease = f"${len(owed) + 8}"
+        waiting = self.WAITING_STATUSES
+        waiting_ph = ", ".join(f"${i + len(owed) + 9}" for i in range(len(waiting)))
+        holder = ("(t.status NOT IN ({owed}) OR t.owner IS NULL OR t.owner = EXCLUDED.owner"
+                  " OR NOT EXISTS (SELECT 1 FROM unified.queue_instances i"
+                  "                WHERE i.instance_id = t.owner"
+                  "                  AND i.heartbeat_at >= NOW() - make_interval(secs => {lease})))"
+                  ).format(owed=owed_ph, lease=lease)
         rows = await self.db().execute_query(
             "INSERT INTO unified.task_queue AS t"
             " (task_id, status, priority, payload, result, error, owner, updated_at)"
@@ -205,19 +228,44 @@ class QueuePersistence:
             "   status = EXCLUDED.status, priority = EXCLUDED.priority,"
             "   payload = EXCLUDED.payload, result = EXCLUDED.result,"
             "   error = EXCLUDED.error, owner = EXCLUDED.owner, updated_at = NOW()"
-            f" WHERE t.status NOT IN ({owed_ph})"
-            "    OR t.owner IS NULL OR t.owner = EXCLUDED.owner"
-            "    OR NOT EXISTS (SELECT 1 FROM unified.queue_instances i"
-            "                   WHERE i.instance_id = t.owner"
-            f"                    AND i.heartbeat_at >= NOW() - make_interval(secs => {lease}))"
-            " RETURNING task_id",
+            f" WHERE {holder}"
+            + (f" AND (t.status IN ({waiting_ph}) OR t.owner = EXCLUDED.owner)" if only_waiting else "")
+            + " RETURNING task_id",
             (task.id, status, int(priority),
              json.dumps(payload, default=str),
              json.dumps(result, default=str) if result is not None else None,
-             error, self.instance_id, *owed, float(lease_s)),
+             error, self.instance_id, *owed, float(lease_s),
+             *(waiting if only_waiting else ())),
             fetch_all=True,
         )
         return bool(rows)
+
+    async def claim_waiting(self, *, skip_actors: Tuple[str, ...] = ()) -> Optional[Dict[str, Any]]:
+        """TAKE THE NEXT WAITING JOB, WHICHEVER INSTANCE QUEUED IT: the
+        highest-priority job still waiting (`WAITING_STATUSES`) that this
+        instance does not hold, whose actor is not one of `skip_actors`, made
+        IN_PROGRESS and this instance's in one statement (`FOR UPDATE SKIP
+        LOCKED`: two instances never take the same job). None when there is
+        none. Many instances run one queue: each pulls its own work first, and
+        one with room takes what another has queued and not started, so a page
+        being read in one instance holds up nothing queued in another."""
+        await self.ensure_schema()
+        waiting = self.WAITING_STATUSES
+        waiting_ph = ", ".join(f"${i + 3}" for i in range(len(waiting)))
+        rows = await self.db().execute_query(
+            "UPDATE unified.task_queue t SET status = $1, owner = $2, updated_at = NOW()"
+            " WHERE t.task_id = ("
+            "   SELECT q.task_id FROM unified.task_queue q"
+            f"   WHERE q.status IN ({waiting_ph})"
+            "     AND q.owner IS DISTINCT FROM $2"
+            f"     AND COALESCE(q.payload->'task'->>'actor', '') <> ALL(${len(waiting) + 3}::text[])"
+            "   ORDER BY q.priority DESC, q.created_at"
+            "   FOR UPDATE SKIP LOCKED LIMIT 1)"
+            " RETURNING t.task_id, t.status, t.priority, t.payload",
+            (TaskStatus.IN_PROGRESS.value, self.instance_id, *waiting, list(skip_actors)),
+            fetch_all=True,
+        ) or []
+        return self._decode(rows[0]) if rows else None
 
     async def update_status(self, task_id: str, status: str, *,
                             result: Optional[Dict[str, Any]] = None,
@@ -242,6 +290,11 @@ class QueuePersistence:
     #: the authority's ACTIVE_STATUSES, not declared again here.
     RESTORABLE_STATUSES: Tuple[str, ...] = tuple(sorted(
         s.value for s in ACTIVE_STATUSES))
+
+    #: The owed states a job waits in to be drawn (the authority's): not yet
+    #: started, and not held for its person (BLOCKED, drawn only once they say).
+    WAITING_STATUSES: Tuple[str, ...] = tuple(sorted(
+        s.value for s in WAITING_STATUSES))
 
     async def heartbeat(self) -> None:
         """Say this instance is alive, so the jobs it owns are not taken over."""

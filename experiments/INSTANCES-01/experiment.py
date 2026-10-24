@@ -19,6 +19,12 @@ Each is exercised here with two instances' worth of separate objects against the
                      both count; the stale instance's refresh drops it
   D  queue:          a living instance's job is not claimed; a stopped one's is; two
                      instances racing for one ownerless job -> exactly one gets it
+  E  one queue:      an instance with room takes a job a living instance queued and has
+                     not started; the one that queued it does not run it, and its stale
+                     copy does not overwrite the row; a capped person's job is not taken;
+                     two instances racing for one waiting job -> exactly one gets it; two
+                     queue authorities: the one with nothing of its own draws it, and its
+                     result is read where it was queued (added 2026-10-23)
 
 Everything written is removed by id.
 
@@ -164,7 +170,7 @@ async def main() -> int:
         job = Task(id=f"instances_job_{N}", type=TaskType.ANALYSIS, description="instances probe job")
         written["tasks"].append(job.id)
         await qa.heartbeat()
-        await qa.upsert(task=job, status="in_progress", priority=2)
+        await qa.upsert(task=job, status="in_progress", priority=2, lease_s=120.0)
         await qb.heartbeat()
         claimed = await qb.claim_restorable(120.0)
         check("a living instance's running job is not claimed by another",
@@ -175,12 +181,83 @@ async def main() -> int:
               [c["task"].id for c in claimed] == [job.id], f"B claimed {[c['task'].id for c in claimed]}")
         loose = Task(id=f"instances_loose_{N}", type=TaskType.ANALYSIS, description="ownerless probe job")
         written["tasks"].append(loose.id)
-        await qa.upsert(task=loose, status="pending", priority=2)       # owner A, which is stopped
+        await qa.upsert(task=loose, status="pending", priority=2, lease_s=120.0)  # owner A, which is stopped
         await qc.heartbeat()
         got_b, got_c = await asyncio.gather(qb.claim_restorable(120.0), qc.claim_restorable(120.0))
         takers = [n for n, got in (("B", got_b), ("C", got_c)) if loose.id in [c["task"].id for c in got]]
         check("two instances racing for one job: exactly one gets it", len(takers) == 1,
               f"taken by {takers}")
+
+        print("\n== E. One queue: an instance with room takes what another queued ==")
+        # `claim_waiting` takes the highest-priority waiting job in the whole table, so E runs only
+        # when the live table holds no waiting work of its own.
+        others = await d.execute_query(
+            "SELECT count(*) AS n FROM unified.task_queue WHERE status = ANY($1::text[])"
+            " AND NOT task_id = ANY($2::text[])",
+            (list(QueuePersistence.WAITING_STATUSES), written["tasks"]), fetch_one=True)
+        if int(others["n"]):
+            check("the live table holds no waiting work for E to take", False, f"{others['n']} waiting")
+        else:
+            qd, qe, qf = (QueuePersistence(instance_id=f"instances_{x}_{N}") for x in "def")
+            written["instances"] += [qd.instance_id, qe.instance_id, qf.instance_id]
+            for q in (qd, qe, qf):
+                await q.heartbeat()
+            waiting = Task(id=f"instances_waiting_{N}", type=TaskType.ANALYSIS, description="waiting probe job")
+            written["tasks"].append(waiting.id)
+            await qd.claim_new(task=waiting, status="pending", priority=1000, lease_s=120.0)
+            taken = await qe.claim_waiting()
+            check("an instance with room takes a job a living instance queued and has not started",
+                  taken is not None and taken["task"].id == waiting.id,
+                  f"E took {taken['task'].id if taken else None}")
+            started = await qd.claim_start(task=waiting, priority=1000, lease_s=120.0)
+            check("the instance that queued it does not start it", not started, f"started={started}")
+            stale = await qd.upsert(task=waiting, status="pending", priority=1000, lease_s=120.0)
+            row = await d.execute_query("SELECT status, owner FROM unified.task_queue WHERE task_id = $1",
+                                        (waiting.id,), fetch_one=True)
+            check("its stale copy does not overwrite the running job's row",
+                  not stale and row["owner"] == qe.instance_id and row["status"] == "in_progress",
+                  f"written={stale} row={dict(row)}")
+            own = Task(id=f"instances_own_{N}", type=TaskType.ANALYSIS, description="own probe job")
+            written["tasks"].append(own.id)
+            await qd.claim_new(task=own, status="pending", priority=1000, lease_s=120.0)
+            check("an instance starts its own waiting job",
+                  await qd.claim_start(task=own, priority=1000, lease_s=120.0))
+            theirs = Task(id=f"instances_theirs_{N}", type=TaskType.ANALYSIS, description="a person's probe job",
+                          actor=f"instances_person_{N}")
+            written["tasks"].append(theirs.id)
+            await qd.claim_new(task=theirs, status="pending", priority=1000, lease_s=120.0)
+            skipped = await qe.claim_waiting(skip_actors=(theirs.actor,))
+            check("a job of a person at their cap is not taken",
+                  skipped is None or skipped["task"].id != theirs.id,
+                  f"took {skipped['task'].id if skipped else None}")
+            got_e, got_f = await asyncio.gather(qe.claim_waiting(), qf.claim_waiting())
+            takers = [n for n, got in (("E", got_e), ("F", got_f)) if got and got["task"].id == theirs.id]
+            check("two instances racing for one waiting job: exactly one gets it", len(takers) == 1,
+                  f"taken by {takers}")
+
+            from core.agents.autonomous.queue_authority import QueueAuthority
+            from core.agents.autonomous.shared_types import Priority
+            first, second = QueueAuthority(), QueueAuthority()
+            first._persistence = QueuePersistence(instance_id=f"instances_g_{N}")
+            second._persistence = QueuePersistence(instance_id=f"instances_h_{N}")
+            written["instances"] += [first._persistence.instance_id, second._persistence.instance_id]
+            for authority in (first, second):
+                await authority.heartbeat()
+            work = Task(id=f"instances_work_{N}", type=TaskType.ANALYSIS, description="work probe job")
+            written["tasks"].append(work.id)
+            await first.add_task(work, Priority.HIGH)
+            drawn = await second.get_next_task(timeout=0)
+            check("a queue authority with nothing of its own draws the job another queued",
+                  drawn is not None and drawn.task.id == work.id,
+                  f"drew {drawn.task.id if drawn else None}")
+            again = await first.get_next_task(timeout=0)
+            check("the authority that queued it lets it go and draws nothing",
+                  again is None and work.id not in first.tasks_by_id,
+                  f"drew {again.task.id if again else None}; still held: {work.id in first.tasks_by_id}")
+            await second.mark_completed(work.id, {"done": True})
+            read = await first.result_for(work.id, actor=work.actor)
+            check("its result is read from the store where it was queued",
+                  read.get("status") == "completed" and read.get("result") == {"done": True}, f"{read}")
     finally:
         for bid in written["beliefs"]:
             await d.execute_query("DELETE FROM unified.beliefs WHERE belief_id = $1", (bid,))

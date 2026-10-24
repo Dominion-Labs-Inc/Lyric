@@ -1,5 +1,23 @@
 # INSTANCES-01 — many instances of the model, one store: no instance undoes another
 
+**Finding (2026-10-23): 20/20 — one queue.** An instance ran only the work it had queued itself; another took it
+over only once it had stopped, so every job ran in the event loop of the process that queued it, and a page being
+read there held up all of them. Now (`QueueAuthority.get_next_task`):
+- starting a job claims it (`QueuePersistence.claim_start`): it starts only if it is this instance's own, or still
+  waiting and held by no other living instance; a copy another instance took is let go of, and its status is read
+  from the store;
+- with nothing of its own ready, an instance with room takes the highest-priority waiting job in the table,
+  whichever instance queued it, in one statement (`claim_waiting`, `FOR UPDATE SKIP LOCKED`), skipping a person at
+  their cap;
+- a copy that is no longer this instance's writes nothing (`upsert` has `claim_new`'s owner rule).
+
+**E** checks each, and two real queue authorities: the one with nothing of its own draws the job the other
+queued, the other lets it go, and the result is read where it was queued (`20261024T001439Z`, lyric_dev). E runs
+only when the live table holds no waiting work but its own: `claim_waiting` takes the highest-priority waiting job
+in the whole table. D's first claim, as before, re-owns the live table's restorable rows (three BLOCKED jobs of
+stopped instances on lyric_dev, owned again by a stopped probe instance: restorable as before).
+
+
 **Finding (2026-09-26): 11/11.** Once the main model is taught, it runs as many instances. Every
 instance holds its own in-memory copies — beliefs, strategy arms, known unknowns, queued work — and they all
 write the one store. Four of those writes were **last-writer-wins**, measured in the code before this fix:

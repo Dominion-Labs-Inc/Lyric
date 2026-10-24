@@ -73,6 +73,11 @@ ACTIVE_STATUSES = frozenset({
     TaskStatus.PLANNED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS,
     TaskStatus.AWAITING_VERIFICATION, TaskStatus.BLOCKED,
 })
+#: The owed states a job waits in to be drawn: not started, and not held for
+#: its person (BLOCKED waits for them to say go ahead).
+WAITING_STATUSES = frozenset({
+    TaskStatus.PLANNED, TaskStatus.PENDING, TaskStatus.AWAITING_VERIFICATION,
+})
 
 
 class TaskPriority(Enum):
@@ -393,7 +398,28 @@ class QueueAuthority:
         their cap concurrently. The substrate's own actor is never in this set (its
         autonomous work is bounded only by the global ceiling, not the per-user cap).
         When every ready job belongs to a capped actor, returns None — those jobs
-        stay queued, in priority order, for a later cycle."""
+        stay queued, in priority order, for a later cycle.
+
+        MANY INSTANCES, ONE QUEUE. Starting a job claims it (`claim_start`): a
+        job another instance took while it waited here is let go of, and the
+        next is drawn. When nothing of its own is ready, an instance with room
+        takes the next job waiting in the table, whichever instance queued it
+        (`claim_waiting`), so the work of one Lyric runs in as many processes as
+        are running, each with its own event loop. Before (until 2026-10-23) an
+        instance ran only what it had queued itself, and another took it over
+        only once it had stopped."""
+        while True:
+            queued = await self._draw_own(timeout, skip_actors)
+            if queued is None:
+                return await self._take_waiting_elsewhere(skip_actors)
+            if await self._start_here(queued):
+                return queued
+            timeout = 0     # taken by another instance meanwhile: the next one, if ready
+
+    async def _draw_own(self, timeout: Optional[float], skip_actors: "Optional[frozenset]"
+                        ) -> Optional[QueuedTask]:
+        """The highest-priority job of this instance's own backlog whose actor is
+        not capped, marked started; None when none is ready."""
         first = await self._take_first(timeout)
         if first is None:
             return None
@@ -401,7 +427,6 @@ class QueueAuthority:
             # fast path: the one job popped is the one returned
             queued = first[2]
             self._mark_started(queued)
-            await self._persist_queued(queued)
             return queued
 
         # actor-aware: take what is ready (priority order), pick the first job whose
@@ -426,8 +451,62 @@ class QueueAuthority:
             return None
         queued = items[chosen_idx][2]
         self._mark_started(queued)
-        await self._persist_queued(queued)
         return queued
+
+    async def _start_here(self, queued: QueuedTask) -> bool:
+        """Claim a drawn job for this instance (`QueuePersistence.claim_start`).
+        False when another instance took it first: this copy is let go of, so
+        the job's status is read from the store (`result_for`). A store error
+        keeps the non-fatal contract: logged, counted, and started here."""
+        p = self._persistence_or_none()
+        if p is None or self._restoring:
+            return True
+        try:
+            started = await p.claim_start(task=queued.task, priority=queued.priority.value,
+                                          queued_meta=self._queued_meta(queued),
+                                          lease_s=self._lease_s())
+        except Exception as e:
+            self._persist_metrics["errors"] += 1
+            logger.error("queue persist failed starting %s: %s", queued.task.id, e)
+            return True
+        if started:
+            self._persist_metrics["writes"] += 1
+            return True
+        async with self.lock:
+            if self.tasks_by_id.get(queued.task.id) is queued:
+                del self.tasks_by_id[queued.task.id]
+        self.metrics['tasks_taken_elsewhere'] = self.metrics.get('tasks_taken_elsewhere', 0) + 1
+        logger.info("%s was taken by another instance while it waited here", queued.task.id)
+        return False
+
+    async def _take_waiting_elsewhere(self, skip_actors: "Optional[frozenset]") -> Optional[QueuedTask]:
+        """The next job waiting in the table that another instance queued, taken
+        for this one (`QueuePersistence.claim_waiting`) and held here as started;
+        None when there is none, or no durable store."""
+        p = self._persistence_or_none()
+        if p is None or self._restoring:
+            return None
+        try:
+            row = await p.claim_waiting(skip_actors=tuple(skip_actors or ()))
+        except Exception as e:
+            self._persist_metrics["errors"] += 1
+            logger.error("taking a waiting job from the table failed: %s", e)
+            return None
+        if row is None:
+            return None
+        task = row["task"]
+        queued = QueuedTask(task=task, priority=self._priority_to_task_priority(task.priority),
+                            added_at=datetime.now(), status=TaskStatus.IN_PROGRESS)
+        self._mark_started(queued)
+        async with self.lock:
+            self.tasks_by_id[task.id] = queued
+        self.metrics['tasks_taken_from_others'] = self.metrics.get('tasks_taken_from_others', 0) + 1
+        logger.info("took %s, queued by another instance", task.id)
+        return queued
+
+    def _lease_s(self) -> float:
+        """How long an instance may go without a heartbeat before the work it owns may be claimed."""
+        return float(self.config.get('instance_lease_s', self.INSTANCE_LEASE_S))
 
     @staticmethod
     def _mark_started(queued: QueuedTask) -> None:
@@ -705,15 +784,23 @@ class QueueAuthority:
         if p is None or self._restoring:
             return
         try:
-            await p.upsert(
+            written = await p.upsert(
                 task=queued.task,
                 status=queued.status.value,
                 priority=queued.priority.value,
                 result=queued.task.result,
                 error=queued.error_message,
                 queued_meta=self._queued_meta(queued),
+                lease_s=self._lease_s(),
             )
-            self._persist_metrics["writes"] += 1
+            if written:
+                self._persist_metrics["writes"] += 1
+            else:
+                # Another living instance holds it (it took the job while it
+                # waited here): its row is that instance's to write.
+                self._persist_metrics["held_elsewhere"] = self._persist_metrics.get("held_elsewhere", 0) + 1
+                logger.warning("%s (%s) not written: another instance holds it",
+                               queued.task.id, queued.status.value)
         except Exception as e:
             self._persist_metrics["errors"] += 1
             logger.error("queue persist failed for %s (%s): %s",
@@ -740,7 +827,7 @@ class QueueAuthority:
                 result=queued.task.result,
                 error=queued.error_message,
                 queued_meta=self._queued_meta(queued),
-                lease_s=float(self.config.get('instance_lease_s', self.INSTANCE_LEASE_S)),
+                lease_s=self._lease_s(),
             )
         except Exception as e:
             self._persist_metrics["errors"] += 1
@@ -774,8 +861,7 @@ class QueueAuthority:
         restored = restarted = 0
         try:
             await p.heartbeat()     # alive before claiming, so no one claims ours
-            rows = await p.claim_restorable(
-                float(self.config.get('instance_lease_s', self.INSTANCE_LEASE_S)))
+            rows = await p.claim_restorable(self._lease_s())
             for r in rows:
                 task = r["task"]
                 held = self.tasks_by_id.get(task.id)
