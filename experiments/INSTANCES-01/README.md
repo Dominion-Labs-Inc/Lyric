@@ -11,6 +11,13 @@ read there held up all of them. Now (`QueueAuthority.get_next_task`):
   their cap;
 - a copy that is no longer this instance's writes nothing (`upsert` has `claim_new`'s owner rule).
 
+**F (2026-10-23): 22/22 — workers.** A worker's word reaches the Lyric it works for through the store
+(`SELF_CHANNEL`), and a message a worker owes a person is said by the Lyric their front end listens to, kept in
+their conversation (`20261024T004818Z`). Its first run failed on a race the run found: a front end that starts
+listening takes what already waits for its person (`on_message`), took the worker's message first, and the
+message was then not kept in the conversation; it is kept now whoever delivered it, and F lets that first delivery
+finish before the worker speaks. 0 of 30 early deliveries in a probe of F as run.
+
 **E** checks each, and two real queue authorities: the one with nothing of its own draws the job the other
 queued, the other lets it go, and the result is read where it was queued (`20261024T001439Z`, lyric_dev). E runs
 only when the live table holds no waiting work but its own: `claim_waiting` takes the highest-priority waiting job

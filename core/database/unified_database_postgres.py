@@ -790,6 +790,23 @@ class LyricUnifiedDatabasePostgres:
                 await conn.execute("SET search_path TO public")
 
     @asynccontextmanager
+    async def listen(self, channel: str, heard, *, store: Optional[str] = None):
+        """Hear what any instance of the model says on `channel` (`pg_notify`) while the block runs: `heard(text)`
+        is called with each, on this process's loop. Its connection is its own, as an advisory lock's is: a
+        listening session is held for the whole block, and held on a pooled connection it would sit on one of them."""
+        pool = self._pool_for(store)
+        conn = await asyncpg.connect(
+            host=self.host, port=self.port, user=self.user, password=self.password,
+            database=pool.database, server_settings={'application_name': f"lyric_{os.getpid()}_listen"})
+        def received(_connection, _pid, _channel, text):
+            heard(text)
+        try:
+            await conn.add_listener(channel, received)
+            yield
+        finally:
+            await conn.close()
+
+    @asynccontextmanager
     async def advisory_lock(self, key: str, *, store: Optional[str] = None):
         """Hold a named lock, across every instance of the model, while the block runs.
 

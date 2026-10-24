@@ -1,0 +1,186 @@
+{
+  "experiment": "INSTANCES-01",
+  "claim": "Several instances of the model share one store without undoing each other: every instance's evidence, outcomes and attempts count, a resolution is final, and a queued job is run by exactly one instance.",
+  "hypothesis": "A lost belief update, a lost strategy outcome, a reopened unknown, a claimed living instance's job, or a job claimed twice would each show here.",
+  "started_at": "2026-10-24T00:46:33.392812+00:00",
+  "duration_seconds": 2.767,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "59770d3a17d55bd02bc7d325017d824ccec7603b",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 9,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 22,
+    "passed": 22,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "both instances' evidence is in the stored belief",
+      "passed": true,
+      "detail": "evidence=['instance A', 'instance B'] update_count=2",
+      "at": "2026-10-24T00:46:35.964100+00:00"
+    },
+    {
+      "label": "the stored posterior is A's update with B's evidence applied on top",
+      "passed": true,
+      "detail": "stored=0.993940 expected=0.993940",
+      "at": "2026-10-24T00:46:35.964116+00:00"
+    },
+    {
+      "label": "the stored arm holds all five outcomes",
+      "passed": true,
+      "detail": "[{'strategy_id': 'control_instances_probe_eligua', 'trials': 5, 'successes': 5}]",
+      "at": "2026-10-24T00:46:35.982858+00:00"
+    },
+    {
+      "label": "and the second instance's copy took the store's totals back",
+      "passed": true,
+      "detail": "B sees 5",
+      "at": "2026-10-24T00:46:35.982871+00:00"
+    },
+    {
+      "label": "a stale instance cannot reopen a resolved unknown",
+      "passed": true,
+      "detail": "{'knowledge_state': 'known_known', 'resolved_at': datetime.datetime(2026, 10, 23, 20, 46, 35, 987500), 'resolution_attempts': 0}",
+      "at": "2026-10-24T00:46:35.999152+00:00"
+    },
+    {
+      "label": "and its refresh drops it from its open set",
+      "passed": true,
+      "detail": "{'open': 375, 'added': 375, 'dropped': 1}",
+      "at": "2026-10-24T00:46:36.001672+00:00"
+    },
+    {
+      "label": "attempts from both instances count",
+      "passed": true,
+      "detail": "stored attempts=2",
+      "at": "2026-10-24T00:46:36.003624+00:00"
+    },
+    {
+      "label": "a living instance's running job is not claimed by another",
+      "passed": true,
+      "detail": "B claimed ['user_f75d580af78a', 'user_3e76b99aac27', 'user_e5f537e2a778']",
+      "at": "2026-10-24T00:46:36.010677+00:00"
+    },
+    {
+      "label": "once its instance has stopped, the job is claimed",
+      "passed": true,
+      "detail": "B claimed ['instances_job_eligua']",
+      "at": "2026-10-24T00:46:36.011662+00:00"
+    },
+    {
+      "label": "two instances racing for one job: exactly one gets it",
+      "passed": true,
+      "detail": "taken by ['B']",
+      "at": "2026-10-24T00:46:36.014846+00:00"
+    },
+    {
+      "label": "an instance with room takes a job a living instance queued and has not started",
+      "passed": true,
+      "detail": "E took instances_waiting_eligua",
+      "at": "2026-10-24T00:46:36.021028+00:00"
+    },
+    {
+      "label": "the instance that queued it does not start it",
+      "passed": true,
+      "detail": "started=False",
+      "at": "2026-10-24T00:46:36.021490+00:00"
+    },
+    {
+      "label": "its stale copy does not overwrite the running job's row",
+      "passed": true,
+      "detail": "written=False row={'status': 'in_progress', 'owner': 'instances_e_eligua'}",
+      "at": "2026-10-24T00:46:36.022149+00:00"
+    },
+    {
+      "label": "an instance starts its own waiting job",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-24T00:46:36.022852+00:00"
+    },
+    {
+      "label": "a job of a person at their cap is not taken",
+      "passed": true,
+      "detail": "took instances_loose_eligua",
+      "at": "2026-10-24T00:46:36.023538+00:00"
+    },
+    {
+      "label": "two instances racing for one waiting job: exactly one gets it",
+      "passed": true,
+      "detail": "taken by ['E']",
+      "at": "2026-10-24T00:46:36.024164+00:00"
+    },
+    {
+      "label": "a queue authority with nothing of its own draws the job another queued",
+      "passed": true,
+      "detail": "drew instances_work_eligua",
+      "at": "2026-10-24T00:46:36.027679+00:00"
+    },
+    {
+      "label": "the authority that queued it lets it go and draws nothing",
+      "passed": true,
+      "detail": "drew None; still held: False",
+      "at": "2026-10-24T00:46:36.028464+00:00"
+    },
+    {
+      "label": "its result is read from the store where it was queued",
+      "passed": true,
+      "detail": "{'task_id': 'instances_work_eligua', 'status': 'completed', 'result': {'done': True}}",
+      "at": "2026-10-24T00:46:36.029203+00:00"
+    },
+    {
+      "label": "a worker's word reaches the Lyric it works for through the store",
+      "passed": true,
+      "detail": "heard ['event:competence_changed']",
+      "at": "2026-10-24T00:46:36.041232+00:00"
+    },
+    {
+      "label": "a message a worker owes is said by the Lyric the person's front end listens to",
+      "passed": true,
+      "detail": "undelivered before=True said=[('noted', 'The probe job eligua is done.'), {'message_id': 'msg_ed6ef20717eb4f58', 'actor': 'instances_person_eligua', 'text': 'The probe job eligua is done.', 'why': 'work ended', 'about': 'probe', 'session': None, 'created_at': '2026-10-24T00:46:36.042063+00:00', 'due_at': '2026-10-24T00:46:36.041254+00:00', 'delivered_at': None, 'delivered_by': None}] delivered_by=push",
+      "at": "2026-10-24T00:46:36.145380+00:00"
+    },
+    {
+      "label": "everything this run wrote is removed",
+      "passed": true,
+      "detail": "left=0",
+      "at": "2026-10-24T00:46:36.159438+00:00"
+    }
+  ],
+  "notes": []
+}

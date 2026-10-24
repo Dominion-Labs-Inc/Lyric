@@ -16,6 +16,56 @@ Conventions:
 
 ---
 
+## 2026-10-23 (43) — Workers: Lyric processes that take queued work, and the self hears what they do
+
+**Objective.** The one queue (42) runs work in as many processes as are running; nothing ran a second process for
+it. The owner chose what a worker runs: queued work only. The self's scheduled work, the world and the senses stay
+with the Lyric it works for, so there is still one self and the sweeps are not multiplied by the workers.
+
+**Read first.** A second Lyric on the same store collides on nothing: each instance's door takes a free port and
+writes its own record, each has its own pid file (`LYRIC_INSTANCE_ID`), and a handover already starts one beside the
+running one, out of the world (`LYRIC_ATTACH=later`). The appraisal is the world's (one row, each update folded in
+under a lock), and beliefs, strategy arms, unknowns and competence are the store's (INSTANCES-01), so what a worker
+learns and feels is the one self's. The event spine is in one process: the self's own reactions, what is worth
+pursuing next (`pursue_frontier`) and the drives that read competence (`motivation_refresh`), fire only where the
+event happens, and neither reads its event. A message owed to a person is pushed only to the front ends listening
+in the process that owes it.
+
+**Built.**
+- `is_worker()` (`LYRIC_ROLE=worker`), `./lyric worker [how many]` (logs `logs/instance_<id>.log`; `./lyric-stop`
+  stops them with the rest). A worker is not in the world and opens no senses; `main.py` starts no health monitoring,
+  concept embedding, backups or system-control loop in it; `start_coordination` arms no messages, attends to no
+  expectations and schedules no tiers in it; its door says `role: worker` and refuses `/attach`.
+- `emit` in a worker skips `SELF_REACTIONS` and tells the self (`_tell_the_self`: `pg_notify` on `SELF_CHANNEL`,
+  "event:<type>"); the Lyric it works for listens (`_hear_workers`, a session of its own:
+  `LyricUnifiedDatabasePostgres.listen`, beside `advisory_lock`) and wakes the self's reactions registered for that
+  event (`_pursuit_due`, `_motivation_due`, the same registrations `emit` uses).
+- `speak_to` in a worker owes the message in the outbox and tells the self ("said:<id>"); the self keeps it in the
+  person's conversation and says it at its time (`_say_what_a_worker_owes`), unless a front end took it first.
+- `scripts/handover.py` step 6: each worker running other code than the new instance's is started again on its
+  code, the new worker first, then the old one stopped.
+
+**Found.** INSTANCES-01 F's first run failed: a front end that starts listening takes what already waits for its
+person (`on_message` → `_deliver_waiting`), and took the worker's message before the self was told; the self then
+saw it delivered and did not keep it in the person's conversation. It is kept whoever delivered it; armed only if
+not. Probe of F as run, 30 times: 0 early deliveries (the race is the order of the listener's first query against
+the worker's write).
+
+**Measured** (lyric_dev). INSTANCES-01 22/22 (`20261024T004818Z`, F new: a worker's word reaches the self through
+the store; a worker's message is said by the Lyric the person's front end listens to, and kept in their
+conversation). `test_self_event_dispatch.py` 10 passed (new: a worker leaves the self's reactions and tells the
+self, a main runs them and tells no one; the self wakes the reactions registered for what a worker names, and
+nothing for an event it does not know; a worker's message is told to the self, never armed in the worker; one a
+front end took first is kept, not said again). With `test_queue_authority_scheduler.py`, `test_memory_writers.py`:
+20 passed.
+
+**Not run, on the owner's word as any boot is:** a Lyric and a worker booted together (HANDOVER-01 boots two
+whole Lyrics). That is the check that a page read in a worker leaves the conversation answering. Next: the look-up
+as queued work ("I'm looking into it", answered when found) with the arbiter's effort (learned odds against
+complexity).
+
+---
+
 ## 2026-10-23 (42) — One queue for every running Lyric: an instance with room takes what another queued
 
 **Objective (the owner's direction).** Lyric should run different agents and tasks in parallel, through the task

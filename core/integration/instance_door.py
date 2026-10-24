@@ -5,7 +5,8 @@ Local only (127.0.0.1, on a port the system picks) and keyed: each instance make
 with its address, to runtime/instances/<instance>.json, which only its owner can read. Every request carries the key.
 
     GET  /health   what it is: its instance, process, environment and release, the code it started with, whether it
-                   has started, whether it takes turns from the world, and whose conversations it holds
+                   has started, whether it is a worker, whether it takes turns from the world, and whose
+                   conversations it holds
     POST /check    questions it answers from what it holds, each asked in a conversation that remembers nothing
     POST /attach   take turns from the world, and open the senses
     POST /detach   let go of the world, and close the senses
@@ -113,11 +114,12 @@ class InstanceDoor:
 
     async def _health(self, request):
         from aiohttp import web
+        from core.agents.autonomous.autonomous_coordinator import is_worker
         inhabitant = self._inhabitant()
         quiet = float(request.query.get("quiet", QUIET))
         return web.json_response({
             "instance": self.instance, "pid": os.getpid(), "door": self.address, "started_at": self.started_at,
-            **self._environment(), "ready": self.ready,
+            **self._environment(), "ready": self.ready, "role": "worker" if is_worker() else "lyric",
             "in_world": bool(inhabitant is not None and inhabitant.taking),
             "holds": inhabitant.holds(quiet) if inhabitant is not None else {},
             "passing_to": (inhabitant._passing or {}).get("to") if inhabitant is not None else None})
@@ -142,6 +144,10 @@ class InstanceDoor:
 
     async def _attach(self, request):
         from aiohttp import web
+        from core.agents.autonomous.autonomous_coordinator import is_worker
+        if is_worker():
+            return web.json_response({"refused": "this Lyric is a worker: it takes queued work, never turns"},
+                                     status=409)
         inhabitant = self._inhabitant()
         if inhabitant is None:
             return web.json_response({"refused": "this Lyric is not in a world (TET_WORLD_ADDRESS)"}, status=409)

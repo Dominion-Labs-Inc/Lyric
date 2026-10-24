@@ -1156,7 +1156,9 @@ class LyricSystem:
                 # here. Only when a world is named; a Lyric with none is simply not in one.
                 # A new release taking over from a running one (scripts/handover.py) starts
                 # with LYRIC_ATTACH=later and attaches when the running one lets go.
-                if os.environ.get("TET_WORLD_ADDRESS"):
+                # A WORKER is not in the world (`is_worker`): it takes queued work only.
+                from core.agents.autonomous.autonomous_coordinator import is_worker
+                if os.environ.get("TET_WORLD_ADDRESS") and not is_worker():
                     from core.integration.world_inhabitant import WorldInhabitant
                     self.world_inhabitant = WorldInhabitant(self.autonomous_coordinator)
                     if os.environ.get("LYRIC_ATTACH", "start") != "later":
@@ -1309,12 +1311,20 @@ class LyricSystem:
             return
 
         logger.info("Starting Lyric services...")
+        from core.agents.autonomous.autonomous_coordinator import is_worker
 
         try:
             # Start autonomous coordinator
             if self.autonomous_coordinator:
                 await self.autonomous_coordinator.start_coordination()
                 logger.info("✓ Autonomous coordinator started")
+
+            # A WORKER takes queued work and learns from it (`is_worker`); what watches, embeds and backs up the
+            # store, the Lyric it works for does, once.
+            if is_worker():
+                self.running = True
+                logger.info("✓ Started as a worker: queued work only")
+                return
 
             # Start the health monitoring loop. There is no in-process watchdog:
             # process supervision belongs to the container the substrate runs in.
@@ -1380,7 +1390,8 @@ class LyricSystem:
         # only starts its services -- an experiment or a test opens no
         # microphone and no camera. A new release taking over (LYRIC_ATTACH=later)
         # opens them when it attaches: two Lyrics never listen at once.
-        if os.environ.get("LYRIC_ATTACH", "start") != "later":
+        from core.agents.autonomous.autonomous_coordinator import is_worker
+        if os.environ.get("LYRIC_ATTACH", "start") != "later" and not is_worker():
             await self.open_senses()
         # ITS DOOR, for a handover to a new release without going down: opened with the
         # running substrate, as the senses are, never by a boot that only starts its services.
@@ -1395,7 +1406,9 @@ class LyricSystem:
         # security status and control when it is running; the substrate runs this
         # loop ONLY as a fallback, when no guardian is present, so a bare substrate
         # is still observable. `_guardian_present` checks a fresh heartbeat.
-        self._system_control_task = asyncio.create_task(self._system_control_loop())
+        # A worker is not what the dashboard watches or controls: the Lyric it works for is.
+        if not is_worker():
+            self._system_control_task = asyncio.create_task(self._system_control_loop())
 
         try:
             heartbeat_interval = 60  # Log heartbeat every 60 seconds

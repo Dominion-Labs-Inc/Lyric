@@ -343,6 +343,23 @@ class EnvironmentEncountered:
 _EVENT_PAYLOADS: Dict["SelfEventType", type] = {}
 
 
+#: WHAT A WORKER IS. Many instances of the model run one queue (`QueueAuthority.get_next_task`); a worker
+#: (`LYRIC_ROLE=worker`, started by `./lyric worker`) is one that takes queued work and learns from what it does,
+#: and nothing else: not in the world, no senses, none of the self's scheduled work (maintenance, motivation, what
+#: it owes to say, what it expects), none of the self's own reactions. Those stay with the Lyric it works for.
+def is_worker() -> bool:
+    return os.environ.get("LYRIC_ROLE", "") == "worker"
+
+
+#: Where a worker tells the Lyric it works for what the self must hear of (`pg_notify` on the runtime store):
+#: "event:<type>", a self-event that wakes one of the self's reactions, and "said:<message id>", a message it owes
+#: a person, delivered by the instance their front ends listen to.
+SELF_CHANNEL = "lyric_self"
+#: The self's own reactions, never run in a worker: what is worth pursuing next, and the drives that read
+#: competence. Neither reads its event: each marks the self's state changed, so a worker sends only the event's type.
+SELF_REACTIONS = frozenset({"pursue_frontier", "motivation_refresh"})
+
+
 @dataclass
 class SelfEvent:
     """One thing that happened to the substrate.
@@ -6917,6 +6934,9 @@ class AutonomousCoordinator:
         # the driver of intrinsic pursuit — selection fires when the self's state
         # actually changes, and is quiet when nothing warrants pursuit.
         self._pursuit_dirty: bool = False
+        #: Whether this instance is a worker (`is_worker`), and the self's hearing of its workers when it is not.
+        self.worker: bool = is_worker()
+        self._hearing_workers: Optional[asyncio.Task] = None
         self._pursuit_selection_task: Optional[asyncio.Task] = None
 
         # AFFECT — the reference reaction. A task outcome is a fitness-relevant
@@ -7759,21 +7779,24 @@ class AutonomousCoordinator:
                 logger.info("♻️  restored %d queued task(s) from durable store "
                             "(%d interrupted -> restarted)",
                             restored["restored"], restored["restarted"])
-            # What it owes to be said at a later moment is armed again, so a
-            # message due after a restart is still said at its time.
-            await self._rearm_messages()
-            # What it expects of the world: every reading is attended to, a
-            # departure is its own event, and what was still awaited before the
-            # restart is armed again.
-            await self._attend_to_expectations()
-            # Cadence ownership goes live with the substrate: hand the timed
-            # tiers to the queue authority's scheduler here, the one entry point
-            # every start path funnels through. Idempotent (guarded), so calling
-            # start_coordination more than once cannot double-schedule.
-            self._register_idle_subsystems()
+            if not self.worker:
+                # What it owes to be said at a later moment is armed again, so a
+                # message due after a restart is still said at its time.
+                await self._rearm_messages()
+                # What it expects of the world: every reading is attended to, a
+                # departure is its own event, and what was still awaited before the
+                # restart is armed again.
+                await self._attend_to_expectations()
+                # Cadence ownership goes live with the substrate: hand the timed
+                # tiers to the queue authority's scheduler here, the one entry point
+                # every start path funnels through. Idempotent (guarded), so calling
+                # start_coordination more than once cannot double-schedule.
+                self._register_idle_subsystems()
+                # What its workers tell it (`SELF_CHANNEL`).
+                self._hearing_workers = asyncio.create_task(self._hear_workers())
             self.coordination_task = asyncio.create_task(self._coordination_cycle())
             self._start_reactive_worker()
-            logger.info("🚀 Autonomous coordination cycle started")
+            logger.info("🚀 Autonomous coordination cycle started%s", " (a worker)" if self.worker else "")
         elif self.coordination_task is not None:
             logger.info("Coordination cycle already running")
         else:
@@ -8040,7 +8063,11 @@ class AutonomousCoordinator:
         reactions = self._reactions.get(event.type, ())
         over_depth = self._emit_depth >= self._max_emit_depth
         woke = False
+        self_reacts = False
         for r in reactions:
+            if self.worker and r["name"] in SELF_REACTIONS:
+                self_reacts = True          # the self's: the Lyric this worker works for reacts
+                continue
             if r["mode"] == "sync" and not over_depth:
                 self._emit_depth += 1
                 try:
@@ -8056,6 +8083,62 @@ class AutonomousCoordinator:
                 woke = True
         if woke:
             self._work_ready.set()
+        if self_reacts:
+            await self._tell_the_self(f"event:{event.type.value}")
+
+    async def _tell_the_self(self, said: str) -> None:
+        """A worker tells the Lyric it works for what it must hear (`SELF_CHANNEL`). A failure is reported, not
+        swallowed: what the self did not hear, it cannot react to."""
+        from core.database import get_database_manager
+        try:
+            await get_database_manager().execute_query("SELECT pg_notify($1, $2)", (SELF_CHANNEL, said),
+                                                       store="runtime")
+        except Exception as error:
+            logger.error("a worker could not tell the self %r: %s", said, error)
+
+    def _heard_from_a_worker(self, said: str) -> None:
+        """What a worker told the self: a self-event, which wakes the self's reactions registered for it (the same
+        registrations `emit` uses), or a message it owes a person, delivered from here."""
+        kind, _, what = str(said).partition(":")
+        if kind == "event":
+            try:
+                event_type = SelfEventType(what)
+            except ValueError:
+                logger.error("a worker told the self of an event it does not know: %r", said)
+                return
+            wakes = {"pursue_frontier": self._pursuit_due, "motivation_refresh": self._motivation_due}
+            for r in self._reactions.get(event_type, ()):
+                if r["name"] in wakes:
+                    wakes[r["name"]]()
+        elif kind == "said":
+            asyncio.ensure_future(self._say_what_a_worker_owes(what))
+        else:
+            logger.error("a worker told the self something it does not read: %r", said)
+
+    async def _say_what_a_worker_owes(self, message_id: str) -> None:
+        """A message a worker owes a person: kept in their conversation here, and said at its time. Kept even when
+        it was said already: a front end that started listening takes what waits for its person (`on_message`),
+        and may have taken this one first."""
+        message = await self.outbox.get(message_id)
+        if message is None:
+            return
+        conv = self.conversation(message["session"] or f"{message['actor']}:said",
+                                 actor_identity=message["actor"])
+        await conv.note_said(message["text"], why=message.get("why") or "", about=message.get("about"))
+        if not message.get("delivered_at"):
+            self._arm(message)
+
+    async def _hear_workers(self) -> None:
+        """The self hears its workers (`SELF_CHANNEL`) while it runs."""
+        from core.database import get_database_manager
+        try:
+            async with get_database_manager().listen(SELF_CHANNEL, self._heard_from_a_worker, store="runtime"):
+                while self.active and not self._stopping:
+                    await asyncio.sleep(1)
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            logger.error("the self cannot hear its workers: %s", error)
 
     def _start_reactive_worker(self) -> None:
         """Start the reactive drain worker if it is not already running."""
@@ -8232,6 +8315,10 @@ class AutonomousCoordinator:
         during the overlap; a refresh is idempotent (it recomputes from live
         state), so the two co-existing is safe.
         """
+        self._motivation_due()
+
+    def _motivation_due(self) -> None:
+        """A competence moved, here or in a worker: refresh the drives that read it (coalesced)."""
         self._motivation_dirty = True
         self._react("_motivation_refresh_task", self._coalesced_motivation_refresh)
 
@@ -8437,6 +8524,10 @@ class AutonomousCoordinator:
         which wakes the next selection, so the loop is self-sustaining through
         events and quiet when nothing changes. Coalesced single-flight: a burst of
         events collapses to one selection; the last event is always reflected."""
+        self._pursuit_due()
+
+    def _pursuit_due(self) -> None:
+        """The self's state changed, here or in a worker: select the next pursuit (coalesced)."""
         self._pursuit_dirty = True
         self._react("_pursuit_selection_task", self._coalesced_pursue)
 
@@ -16243,6 +16334,10 @@ class AutonomousCoordinator:
         message = await self.outbox.put(actor, text, why=why, about=about,
                                         session=session or self._last_session_of.get(actor),
                                         due_at=due)
+        if self.worker:
+            # No front end listens to a worker: the Lyric it works for says it.
+            await self._tell_the_self(f"said:{message['message_id']}")
+            return message
         conv = self.conversation(message["session"] or f"{actor}:said",
                                  actor_identity=actor)
         await conv.note_said(text, why=why, about=about)
@@ -16812,6 +16907,14 @@ The substrate must realign with its constitutional responsibilities immediately.
             self._reactive_worker.cancel()
             try:
                 await self._reactive_worker
+            except asyncio.CancelledError:
+                pass
+
+        # Stop hearing its workers.
+        if self._hearing_workers:
+            self._hearing_workers.cancel()
+            try:
+                await self._hearing_workers
             except asyncio.CancelledError:
                 pass
 

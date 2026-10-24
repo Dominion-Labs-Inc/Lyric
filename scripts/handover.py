@@ -15,6 +15,8 @@
 4. DRAIN: the running one answers the people it holds, through the new one, until each has been quiet for
    --quiet seconds.
 5. STOP the running one, once no one's conversation is left in it.
+6. WORKERS (`./lyric worker`): each running other code than the new instance's is started again on its code, the
+   new worker first and then the old one stopped, so queued work never waits for a worker.
 
 Nothing is lost in between: a turn the world handed to an instance that let go of it is handed to the next
 (Tet's WorldRuntime, WORLD-HANDOVER-01). Each step is written to runtime/handovers.jsonl as it happens. Going back
@@ -109,12 +111,53 @@ def start(args, old: dict) -> tuple:
         env.update(LYRIC_ENVIRONMENT=args.environment, LYRIC_RELEASE=str(args.release))
     if not env.get("TET_WORLD_ADDRESS"):
         raise HandoverError("no world is named (TET_WORLD_ADDRESS), so there is nothing to take turns from")
+    process, log = launch(instance, env)
+    say("started", instance=instance, pid=process.pid, release=args.release or "none", log=str(log))
+    return instance, process, log
+
+
+def launch(instance: str, env: dict) -> tuple:
+    """A Lyric process, its output in logs/instance_<instance>.log."""
     log = ROOT / "logs" / f"instance_{instance}.log"
     log.parent.mkdir(exist_ok=True)
     process = subprocess.Popen([sys.executable, "-u", str(ROOT / "core" / "main.py")], cwd=ROOT, env=env,
                                stdout=log.open("w"), stderr=subprocess.STDOUT, start_new_session=True)
-    say("started", instance=instance, pid=process.pid, release=args.release or "none", log=str(log))
-    return instance, process, log
+    return process, log
+
+
+def workers() -> list:
+    """The workers running now (`LYRIC_ROLE=worker`), as their doors say."""
+    found = []
+    for record in running_instances().values():
+        if not alive(record["pid"]):
+            continue
+        try:
+            health = ask(record, "/health")
+        except (urllib.error.URLError, OSError):
+            continue
+        if health.get("role") == "worker":
+            found.append({**record, **health})
+    return found
+
+
+def renew_workers(args, new: dict) -> None:
+    """Each worker running other code than the new instance's, started again on its code: the new worker first,
+    then the old one stopped (it lets go of the work it holds, which another instance takes)."""
+    code = (new.get("code") or {}).get("sha256")
+    for n, old in enumerate(workers(), 1):
+        if (old.get("code") or {}).get("sha256") == code:
+            continue
+        instance = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-worker-{n}"
+        env = dict(os.environ, LYRIC_ROLE="worker", LYRIC_INSTANCE_ID=instance, PYTHONUNBUFFERED="1")
+        env.pop("LYRIC_ATTACH", None)
+        if new.get("database"):
+            env["POSTGRES_DATABASE"] = new["database"]
+        if args.release:
+            env.update(LYRIC_ENVIRONMENT=args.environment, LYRIC_RELEASE=str(args.release))
+        process, log = launch(instance, env)
+        until_ready(instance, process, log)
+        say("worker renewed", instance=instance, pid=process.pid, replaces=old["instance"])
+        stop(old, f"renewed on the code of {new['instance']}")
 
 
 def until_ready(instance: str, process, log: Path) -> dict:
@@ -204,6 +247,7 @@ def main() -> int:
             stop(old, f"handed over to {instance}")
     if "LYRIC_INSTANCES_DIR" not in os.environ:
         (ROOT / "runtime" / "lyric_main.pid").write_text(str(new["pid"]))
+    renew_workers(args, new)
     say("done", serving=instance, release=new.get("release"), code=(new.get("code") or {}).get("sha256"))
     return 0
 

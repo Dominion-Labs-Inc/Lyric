@@ -2,7 +2,7 @@
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37) to (42) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37) to (43) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-23)
@@ -21,9 +21,11 @@ agent decides it by what a memory is (`importance_of`, at the values the produce
 `store_memory` and `enqueue_memory` refuse one; one memory of one reasoning (`reason_about`'s second is gone). The
 structure view had been handed the grammar's word classes since 10-21 (a method defined twice), fixed, not re-measured
 on the treebanks. One queue (42): an instance with room takes waiting work another queued (`claim_waiting`), each
-start claimed (`claim_start`), INSTANCES-01 20/20; no worker process runs yet. Open: workers (a Lyric beside the
-running one, not in the world); which instance runs the self's scheduled work; the arbiter's effort for a question
-(learned odds against complexity; "I'm looking into it", answered when found, chosen 2026-10-23).
+start claimed (`claim_start`). Workers (43): `./lyric worker [n]` (`LYRIC_ROLE=worker`) take queued work and learn
+from it; the world, the senses, the self's scheduled work and its own reactions stay with the Lyric it works for,
+which hears them through the store (`SELF_CHANNEL`) and says what they owe people; INSTANCES-01 22/22; not yet booted
+together (a run on the owner's word). Open: the look-up as queued work with the arbiter's effort (learned odds
+against complexity; "I'm looking into it", answered when found, chosen 2026-10-23).
 
 **DONE 2026-10-23: WHERE THE WORDS SPLIT IS ASKED OF THE CHART, NOT TRIED** (lab notebook (37), `experiments/SPLITS-01`).
 The reader made every way each form could split each run of words between its slots and threw each away at its first

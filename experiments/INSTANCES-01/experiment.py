@@ -25,6 +25,8 @@ Each is exercised here with two instances' worth of separate objects against the
                      two instances racing for one waiting job -> exactly one gets it; two
                      queue authorities: the one with nothing of its own draws it, and its
                      result is read where it was queued (added 2026-10-23)
+  F  workers:        a worker's word reaches the Lyric it works for through the store (`SELF_CHANNEL`), and a
+                     message a worker owes a person is said by the Lyric their front end listens to (2026-10-23)
 
 Everything written is removed by id.
 
@@ -66,7 +68,7 @@ async def main() -> int:
                                                      KnowledgeState, evidence_step, probability_of)
     d = get_database_manager()
     await d.initialize()
-    written = {"beliefs": [], "strategies": [], "unknowns": [], "tasks": [], "instances": []}
+    written = {"beliefs": [], "strategies": [], "unknowns": [], "tasks": [], "instances": [], "messages": []}
     try:
         print("\n== A. Beliefs: two instances update one belief ==")
         mem = await d.execute_query("SELECT memory_id FROM memory_hot.memory_hot LIMIT 1", (),
@@ -258,6 +260,54 @@ async def main() -> int:
             read = await first.result_for(work.id, actor=work.actor)
             check("its result is read from the store where it was queued",
                   read.get("status") == "completed" and read.get("result") == {"done": True}, f"{read}")
+
+        print("\n== F. Workers: the self hears what a worker tells it ==")
+        from collections import deque
+        from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator, SELF_CHANNEL
+        from core.agents.autonomous.outbox import get_outbox
+
+        def bare(worker):
+            c = AutonomousCoordinator.__new__(AutonomousCoordinator)
+            c._reactions, c._reactive_queue, c._work_ready = {}, deque(), asyncio.Event()
+            c._emit_depth, c._max_emit_depth, c.active, c._stopping = 0, 8, True, False
+            c.worker, c._listeners, c._last_session_of, c.outbox = worker, {}, {}, get_outbox()
+            return c
+        worker, lyric = bare(True), bare(False)
+        heard = []
+
+        async def until(condition):
+            for _ in range(50):
+                if condition():
+                    return True
+                await asyncio.sleep(0.1)
+            return condition()
+        async with d.listen(SELF_CHANNEL, heard.append, store="runtime"):
+            await worker._tell_the_self(f"event:competence_changed")
+            got = await until(lambda: heard)
+        check("a worker's word reaches the Lyric it works for through the store",
+              got and heard == ["event:competence_changed"], f"heard {heard}")
+
+        person = f"instances_person_{N}"
+        said_to = []
+        lyric.on_message(person, said_to.append)
+        # A front end that starts listening is handed what already waits for its person (`on_message`): let that
+        # finish first, so what is checked is the worker's message reaching it through the self.
+        await asyncio.sleep(0.5)
+
+        class Conversation:
+            async def note_said(self, text, **kept):
+                said_to.append(("noted", text))
+        lyric.conversation = lambda session, actor_identity=None: Conversation()
+        owed = await worker.speak_to(person, f"The probe job {N} is done.", why="work ended", about="probe")
+        written["messages"].append(owed["message_id"])
+        undelivered = (await get_outbox().get(owed["message_id"])).get("delivered_at") is None
+        lyric._heard_from_a_worker(f"said:{owed['message_id']}")
+        got = await until(lambda: any(isinstance(m, dict) for m in said_to))
+        delivered = await get_outbox().get(owed["message_id"])
+        check("a message a worker owes is said by the Lyric the person's front end listens to",
+              undelivered and got and delivered.get("delivered_by") == "push"
+              and ("noted", f"The probe job {N} is done.") in said_to,
+              f"undelivered before={undelivered} said={said_to} delivered_by={delivered.get('delivered_by')}")
     finally:
         for bid in written["beliefs"]:
             await d.execute_query("DELETE FROM unified.beliefs WHERE belief_id = $1", (bid,))
@@ -269,12 +319,15 @@ async def main() -> int:
             await d.execute_query("DELETE FROM unified.task_queue WHERE task_id = $1", (tid,))
         for iid in written["instances"]:
             await d.execute_query("DELETE FROM unified.queue_instances WHERE instance_id = $1", (iid,))
+        for mid in written["messages"]:
+            await d.execute_query("DELETE FROM unified.outbox WHERE message_id = $1", (mid,))
         left = await d.execute_query(
             "SELECT (SELECT count(*) FROM unified.beliefs WHERE belief_id = ANY($1::text[])) + "
             "(SELECT count(*) FROM unified.known_unknowns WHERE unknown_id = ANY($2::text[])) + "
             "(SELECT count(*) FROM unified.task_queue WHERE task_id = ANY($3::text[])) + "
-            "(SELECT count(*) FROM unified.queue_instances WHERE instance_id = ANY($4::text[])) AS n",
-            (written["beliefs"], written["unknowns"], written["tasks"], written["instances"]),
+            "(SELECT count(*) FROM unified.queue_instances WHERE instance_id = ANY($4::text[])) + "
+            "(SELECT count(*) FROM unified.outbox WHERE message_id = ANY($5::text[])) AS n",
+            (written["beliefs"], written["unknowns"], written["tasks"], written["instances"], written["messages"]),
             fetch_one=True)
         check("everything this run wrote is removed", int(left["n"]) == 0, f"left={left['n']}")
 

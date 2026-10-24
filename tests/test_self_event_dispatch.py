@@ -12,7 +12,7 @@ from collections import deque
 import pytest
 
 from core.agents.autonomous.autonomous_coordinator import (
-    AutonomousCoordinator, SelfEvent, SelfEventType, TaskCompleted,
+    AutonomousCoordinator, CompetenceChanged, SelfEvent, SelfEventType, TaskCompleted,
 )
 
 
@@ -26,6 +26,7 @@ def _bare_coord() -> AutonomousCoordinator:
     c._emit_depth = 0
     c._max_emit_depth = 8
     c.active = True
+    c.worker = False
     return c
 
 
@@ -143,3 +144,101 @@ async def test_depth_guard_demotes_sync_to_deferred():
 if __name__ == "__main__":
     import sys
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def _competence() -> SelfEvent:
+    return SelfEvent(SelfEventType.COMPETENCE_CHANGED, CompetenceChanged(
+        domain_id="d", learned=True, cause="test"))
+
+
+@pytest.mark.asyncio
+async def test_a_worker_leaves_the_selfs_reactions_to_the_lyric_it_works_for():
+    """A worker learns from what it does, and tells the self of a change to what is worth pursuing; the self
+    reacts to it (`SELF_REACTIONS`), never the worker."""
+    async def handler(e):
+        pass
+
+    for worker, queued, told in ((True, ["operator_induction"], ["event:competence_changed"]),
+                                 (False, ["operator_induction", "pursue_frontier"], [])):
+        c = _bare_coord()
+        c.worker = worker
+        heard = []
+
+        async def tell(said, heard=heard):
+            heard.append(said)
+        c._tell_the_self = tell
+        c.on(SelfEventType.COMPETENCE_CHANGED, handler, name="operator_induction", mode="deferred", priority=50)
+        c.on(SelfEventType.COMPETENCE_CHANGED, handler, name="pursue_frontier", mode="deferred", priority=10)
+        await c.emit(_competence())
+        assert [r["name"] for r, _ in c._reactive_queue] == queued, (worker, list(c._reactive_queue))
+        assert heard == told, (worker, heard)
+
+
+def test_the_self_wakes_its_reactions_on_what_a_worker_tells_it():
+    """Each self reaction registered for the event a worker names is woken, from the same registrations
+    `emit` uses; an event the self does not know wakes nothing."""
+    async def handler(e):
+        pass
+
+    c = _bare_coord()
+    woke = []
+    c._pursuit_due = lambda: woke.append("pursuit")
+    c._motivation_due = lambda: woke.append("motivation")
+    c.on(SelfEventType.COMPETENCE_CHANGED, handler, name="motivation_refresh", mode="deferred", priority=20)
+    c.on(SelfEventType.COMPETENCE_CHANGED, handler, name="pursue_frontier", mode="deferred", priority=10)
+    c.on(SelfEventType.OUTCOME_OBSERVED, handler, name="pursue_frontier", mode="deferred", priority=10)
+    c.on(SelfEventType.OUTCOME_OBSERVED, handler, name="operator_induction", mode="deferred", priority=50)
+    c._heard_from_a_worker("event:competence_changed")
+    assert woke == ["motivation", "pursuit"], woke
+    c._heard_from_a_worker("event:outcome_observed")
+    assert woke == ["motivation", "pursuit", "pursuit"], woke
+    c._heard_from_a_worker("event:no_such_event")
+    c._heard_from_a_worker("nonsense")
+    assert woke == ["motivation", "pursuit", "pursuit"], woke
+
+
+@pytest.mark.asyncio
+async def test_what_a_worker_owes_a_person_is_said_by_the_lyric_it_works_for():
+    """No front end listens to a worker: the message is owed in the outbox, and the self is told to say it."""
+    class Outbox:
+        async def put(self, actor, text, **kept):
+            return {"message_id": "m1", "actor": actor, "text": text, "session": None, **kept}
+
+    c = _bare_coord()
+    c.worker = True
+    c.outbox = Outbox()
+    c._last_session_of = {}
+    heard = []
+
+    async def tell(said):
+        heard.append(said)
+    c._tell_the_self = tell
+    c._arm = lambda message: heard.append("armed here")
+    message = await AutonomousCoordinator.speak_to(c, "alice", "It is done.", why="work ended", about="t1")
+    assert message["message_id"] == "m1"
+    assert heard == ["said:m1"], heard
+
+
+@pytest.mark.asyncio
+async def test_a_workers_message_a_front_end_took_first_is_kept_and_not_said_again():
+    """A front end that starts listening takes what waits for its person (`on_message`), and may take a worker's
+    message before the self is told of it: the message is still kept in the person's conversation, and not said
+    a second time."""
+    for delivered, armed in ((None, ["m1"]), ("2026-10-23T00:00:00+00:00", [])):
+        class Outbox:
+            async def get(self, message_id):
+                return {"message_id": message_id, "actor": "alice", "text": "It is done.", "why": "work ended",
+                        "about": "t1", "session": None, "delivered_at": delivered}
+
+        noted, said = [], []
+
+        class Conversation:
+            async def note_said(self, text, **kept):
+                noted.append(text)
+        c = _bare_coord()
+        c.outbox = Outbox()
+        c.conversation = lambda session, actor_identity=None: Conversation()
+        c._arm = lambda message: said.append(message["message_id"])
+        await c._say_what_a_worker_owes("m1")
+        assert noted == ["It is done."], (delivered, noted)
+        assert said == armed, (delivered, said)
