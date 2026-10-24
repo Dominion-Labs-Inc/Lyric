@@ -72,6 +72,7 @@ not read right senses aside (`_missed.json`).
 | `20261021T004110Z` | 854 / 845 | 19.5% | 39.7% | 49.7% | 80.9% | 1,395 (80.9%) / 101 (63.4%) / 153 (49.0%) |
 | `20261021T012601Z` | 854 / 845 | 20.1% | 39.8% | 49.9% | 80.8% | 1,385 (80.3%) / 79 (68.4%) / 178 (43.3%) |
 | `20261021T025251Z` | 857 / 852 | 20.0% | 39.3% | 49.4% | 80.6% | 1,409 (79.9%) / 76 (65.8%) / 176 (42.6%) |
+| `20261024T181237Z` | 860 / 856 | 20.5% | 41.0% | 52.1% | 81.8% | 1,414 (80.3%) / 81 (70.4%) / 173 (43.9%) |
 
 From `20261021T012601Z` the words are read as main reads them (`grammar_words.HeldWords`: the treebank's sentences as
 main holds them, analysed, with no features; the forms each word is written in; WordNet's links as taught), not from
@@ -79,7 +80,10 @@ the treebank's features directly. From `20261021T025251Z` the PMB's meanings say
 workaholic." as `isa(tom, workaholic)` (a role is the kind said), as the lessons do (`pmb_meanings`); the composer
 measured on the same (PMB-01 `20261021T025534Z`, lessons and gold): 15.7%, 32.9%, 39.7%, F1 78.7%. The lessons, learned
 from, read right whole 47.7% (52.6% senses aside), from 31.8%: the meaning language's conventions said (lab notebook
-2026-10-21 (32)).
+2026-10-21 (32)). At `20261024T181237Z` a thing said of a doing with no preposition is read as a preposition's thing is
+("One morning the dog ran to the park.": `during`), as often as the treebank says its word so (`obl:unmarked`); against
+the run before it on the same code otherwise (`20261021T173701Z`: 359 right senses aside, F1 81.3%), 362 and 81.8%
+(lab notebook 2026-10-24 (45)).
 
 The composer, same dev set, PMB-01: learned from the lessons and gold 16.1% / 33.6% / 40.6%, F1 79.3%; with the
 silver sentences too (22 times the data) 16.7% / 36.4% / 44.0%, F1 82.3%. Learned from the gold sentences alone (no

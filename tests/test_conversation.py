@@ -346,6 +346,32 @@ def test_it_and_they_point_back_to_what_was_spoken_of_as_many_as_they_say():
     assert talk._previous_for("It is in Paris.") == "eiffel_tower", "what names nothing leaves it as it was"
 
 
+def test_a_pronoun_agrees_in_person_and_reaches_past_the_last_utterance():
+    """"It" never points back to one memory holds a person, "he" never to one it holds is none, and of what one
+    utterance spoke of, one held to be what the pronoun says comes before one held nothing of (memory stands in here:
+    who it holds a person). What an utterance names before its pronoun is nearest, and what was spoken of before the
+    last utterance is still there to point back to. After "Tom had a small dog.", "It chased a red ball." was Tom
+    chasing, and "he" after it could point only to the ball (lyric_dev, 2026-10-24)."""
+    from core.agents.autonomous.autonomous_coordinator import Conversation
+    from core.semantics.derived_reader import Meaning
+    from core.semantics.derived_reader import MeaningFact as F
+
+    talk = Conversation()
+    held = {"dog_1": False, "ball_1": False}
+    talk._is_person = held.get
+    talk._spoke_of([F("owns", "tom", "dog_1"), F("instance_of", "dog_1", "dog")], {})
+    assert talk._previous_for("It chased a red ball.") == "dog_1", "Tom spoken of first, nothing held of him"
+    assert talk._previous_for("He laughed.") == "tom", "the dog is held no person"
+    talk._spoke_of([F("instance_of", "chase_1", "chase"), F("done_by", "chase_1", "dog_1"),
+                    F("done_to", "chase_1", "ball_1"), F("instance_of", "ball_1", "ball")], {})
+    assert talk._previous_for("He found the ball.") == "tom", "Tom, spoken of before the last utterance"
+    followed = Meaning("tell", (F("instance_of", "?v0", "follow"), F("done_by", "?v0", "bill"),
+                                F("done_to", "?v0", "dog_1")))
+    said = "Bill followed the dog and he found it."
+    assert talk._previous_for(said, talk._named_before_its_pronoun(said, followed)) == "bill", \
+        "named before the pronoun in its own utterance"
+
+
 def test_research_that_does_not_name_the_phrase_is_refused():
     """A search engine always returns its best row. Taking it unchecked stored
     an article on animal sexual behaviour as the meaning of `spots unusual

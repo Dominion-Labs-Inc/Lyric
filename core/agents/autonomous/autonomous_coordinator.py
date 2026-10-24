@@ -20851,10 +20851,11 @@ class Conversation:
         #: The last place a turn named outright, what a later "there" points
         #: back to (`place_spoken_of`).
         self._last_place = ""
-        #: What was last spoken of, what a later "it" or "they" points back to:
-        #: each thing, the one it was about first, and whether it is many
-        #: (`spoken_of`).
-        self._spoken_of: Tuple[Tuple[str, Optional[bool]], ...] = ()
+        #: What was spoken of, what a later "it" or "they" points back to: for
+        #: each utterance, the nearest first, each thing it spoke of, the one it
+        #: was about first, and whether it is many (`spoken_of`); as many
+        #: utterances back as hold `_TALKED_OF` things.
+        self._spoken_of: Tuple[Tuple[Tuple[str, Optional[bool]], ...], ...] = ()
         #: EVERY TURN, IN ORDER. The conversation is a thing that can be asked
         #: about -- "what did I just ask", "what were we talking about" -- and
         #: until this existed there was no owner for those questions, so they
@@ -21157,23 +21158,93 @@ class Conversation:
             situation["?there"] = self._last_place
         return situation
 
-    def _previous_for(self, said: str) -> Optional[str]:
-        """What the "it" or "they" of `said` points back to: of the things last
-        spoken of (`spoken_of`), the first that is as many as its pronoun says.
+    def _previous_for(self, said: str, here: Sequence[Tuple[str, Optional[bool]]] = ()) -> Optional[str]:
+        """What the "it" or "they" of `said` points back to: of the things
+        spoken of (`spoken_of`), the nearest that is as many as its pronoun says.
         "Two of them work in Berlin." after "The company hired three engineers
-        in May." is the engineers, not the company that hired them."""
+        in May." is the engineers, not the company that hired them. `here`: what
+        `said` itself names before its pronoun ("Tom followed the dog and he
+        found the ball.": Tom), nearer than anything said before it.
+
+        AND A PERSON WHERE ITS PRONOUN SAYS ONE, a thing where it says a thing:
+        "it" never points back to one memory holds a person, "he" and "she" never
+        to one memory holds is none (`_is_person`), and of what one utterance
+        spoke of, one memory holds to be what the pronoun says comes before one
+        it holds nothing of. After "Tom had a small dog.", "It chased a red
+        ball." was Tom chasing, Tom spoken of first and nothing held of what he
+        is (lyric_dev, 2026-10-24). An utterance nearer still comes first: what
+        is spoken of last is what a pronoun is most often about.
+
+        NOT ONLY THE LAST UTTERANCE: with what came before it forgotten, "he"
+        after "It chased a red ball." could point only to the ball or the grass."""
+        from core.semantics.grammar import pronoun_number, pronoun_person
+        pronoun = next((w for w in re.findall(r"[A-Za-z]+", said or "") if pronoun_number(w) is not None), None)
+        many = pronoun_number(pronoun) if pronoun else None
+        person = pronoun_person(pronoun) if pronoun else None
+        for level in ((tuple(here),) if here else ()) + self._spoken_of:
+            agreeing = [thing for thing, plural in level if many is None or plural is None or plural is many]
+            if not agreeing:
+                continue
+            if person is None:
+                return agreeing[0]
+            held = [self._is_person(thing) for thing in agreeing]
+            found = next((thing for thing, is_one in zip(agreeing, held) if is_one is person),
+                         next((thing for thing, is_one in zip(agreeing, held) if is_one is None), None))
+            if found is not None:
+                return found
+        return None
+
+    @staticmethod
+    def _named_before_its_pronoun(said: str, meaning) -> Tuple[Tuple[str, Optional[bool]], ...]:
+        """What an utterance names outright before its pronoun, as `spoken_of` gives it: "Tom followed the dog and
+        he found the ball." names Tom before "he". What a reading has not found yet (an unknown) is not among it."""
+        from core.semantics.derived_reader import spoken_of
         from core.semantics.grammar import pronoun_number
-        many = next((n for n in map(pronoun_number, re.findall(r"[A-Za-z]+", said or ""))
-                     if n is not None), None)
-        return next((thing for thing, plural in self._spoken_of
-                     if many is None or plural is None or plural is many), None)
+        words = [w.lower() for w in re.findall(r"[A-Za-z]+", said or "")]
+        at = next((k for k, w in enumerate(words) if pronoun_number(w) is not None), None)
+        if not at or meaning is None:
+            return ()
+        before = set(words[:at])
+        return tuple((thing, many) for thing, many in spoken_of(meaning.facts)
+                     if all(part in before for part in thing.lower().replace("_", " ").split()))
+
+    def _is_person(self, thing: str) -> Optional[bool]:
+        """Whether a thing spoken of is a person, as memory holds it
+        (`grammar_words.Knowledge.is_person`): a particular told of here by its
+        kind (`dog_6bb49475`, a dog), anything else as the one thing called so
+        ("Tom": as what memory holds him one of, never as the word "tom" names a
+        kind). None where memory holds nothing of it, or is not up."""
+        from core.agents import memory_agent as _memory
+        agent = _memory._memory_agent
+        if agent is None:
+            return None
+        words = agent.grammar_view().words
+        if thing in self._particulars:
+            return words.is_person(self._particulars[thing][0])
+        return words.is_person(thing, particular=True)
 
     def _spoke_of(self, facts: Iterable[Any], situation: Mapping[str, str]) -> None:
         """What a later "it" or "they" points back to, from what was just said
         with its things named; what names nothing leaves it as it was."""
         from core.semantics.derived_reader import spoken_of
         besides = {situation[v] for v in ("?speaker", "?listener", "?now", "?here", "?shown") if v in situation}
-        self._spoken_of = spoken_of(facts, besides) or self._spoken_of
+        said = spoken_of(facts, besides)
+        if not said:
+            return
+        # A THING SPOKEN OF AGAIN IS AS NEAR AS THE LAST TIME IT WAS SPOKEN OF; what came before is kept as far back
+        # as holds `_TALKED_OF` things.
+        named = {thing for thing, _ in said}
+        levels, held = [said], len(said)
+        for level in self._spoken_of:
+            level = tuple(x for x in level if x[0] not in named)
+            if not level:
+                continue
+            if held + len(level) > _TALKED_OF:
+                break
+            named |= {thing for thing, _ in level}
+            levels.append(level)
+            held += len(level)
+        self._spoken_of = tuple(levels)
 
     async def _services(self):
         if self._db is None:
@@ -22598,16 +22669,17 @@ class Conversation:
         for utterance in self._read(sentence):
             if not utterance.understood:
                 continue
-            situation.pop("?previous", None)
-            previous = self._previous_for(utterance.text)
-            if previous:
-                situation["?previous"] = previous
             chosen = meant(utterance.readings, heard=heard)
             if chosen is None:
                 yield utterance, None, [Acquired(utterance.text, detail=_which_meant(utterance.readings))]
                 continue
             if chosen.meaning.act != "tell":
                 continue
+            situation.pop("?previous", None)
+            previous = self._previous_for(utterance.text,
+                                          self._named_before_its_pronoun(utterance.text, chosen.meaning))
+            if previous:
+                situation["?previous"] = previous
             if getattr(chosen, "composed", False):
                 # A READING COMPOSED IS NOT ALL THE SENTENCE SAID: no taught frame read it, and what the composer made
                 # of how its words go together can miss some of it ("the green pigment" taken as a degree, not a

@@ -42,6 +42,7 @@ from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Seque
 
 from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
 from core.semantics.relation_types import worded
+from core.semantics.sentence_machine import _ADDRESS
 
 #: The grammar of English as taught: its grammar words, the categories of each kind of word, the default links.
 ENGLISH = Path(__file__).resolve().parents[2] / "data" / "grammar" / "english.json"
@@ -268,8 +269,10 @@ class Words:
         """What memory holds the word's thing to be a kind of, nearest first."""
         return []
 
-    def is_person(self, name: str) -> bool:
-        return False
+    def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
+        """Whether the thing is a person: True, False where memory holds what it is and a person is not among it, None
+        where it holds nothing of it (`grammar_words.Knowledge.is_person`)."""
+        return None
 
     def is_time(self, term: str) -> Optional[str]:
         """Whether the term is a time, and which: a point in time (`point`: a year, a day, an hour of the clock) or
@@ -299,6 +302,11 @@ class Words:
     def noun_alone(self, word: str) -> Mapping[str, float]:
         """How often the noun is said with nothing before it saying which ("water", "farmers": `bare`) and with a
         word that does ("the", "my": `determined`)."""
+        return {}
+
+    def bare_modifier(self, word: str) -> Mapping[str, float]:
+        """How often the word, heading a thing said of a doing with no preposition before it, tells of the doing ("One
+        morning the dog ran.", "We met last week.": `modifier`), and how often it is used as a noun otherwise."""
         return {}
 
     def said_together(self, verb: str, word: str) -> Tuple[float, float]:
@@ -396,6 +404,14 @@ class Lexicon:
             for t in self.templates.get("NUMERAL", ()):
                 if t.get("use") == "NUMERAL:alone":
                     out.append((i + 1, Entry(t["cat"], (), "NUMERAL", word.replace(" ", ""), 0.0, "formula")))
+            return out
+        if _ADDRESS.fullmatch(word):
+            # WHERE A FILE OR A PAGE IS ("/notes/story.txt", "https://example.com/a") is one thing, named as written
+            # (`sentence_machine.form_of` keeps it one piece). Read as a word, it was a kind, written in lower case,
+            # and "Read /notes/story.txt." told of a doing it named, done by someone called Read.
+            for t in self.templates.get("NAME", ()):
+                out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NAME", word, 0.0,
+                                         t.get("label", ""))))
             return out
         marking = [e for e in closed if e["use"] == "case:part"]
         if marking and i > 0 and self._is_number(tokens[i - 1]) and not any(
@@ -1125,6 +1141,31 @@ class Grammar:
         return Sign(_apply(lc, s), _substitute(left.pieces + pieces, s) + _substitute(extra, s),
                     left.score + right.score, left.start, right.end, "&", (left, right), left.head)
 
+    def _said_of_a_doing(self, sign: Sign) -> List[Sign]:
+        """A THING SAID OF A DOING WITH NO PREPOSITION BEFORE IT tells of the doing as a preposition's thing does ("One
+        morning the dog ran to the park.", "We met last week."), after it or opening the sentence, as often as the
+        word naming the thing is said so: its kind's word ("that morning": morning), else the word heading it ("Monday").
+        Only a word ever said so, or held a time. What it says of the doing is learned as a preposition's link is,
+        under no word (`spell_out`). With no way to read it, "One morning the dog ran to the park." was read as a
+        morning the dog ran to, and the park done by it."""
+        c = sign.cat
+        at = next((p[-1] for p in sign.pieces if p[0] == "kind" and p[1] == c.ref), sign.head)
+        if not 0 <= at < len(self._tokens):
+            return []
+        word = self._tokens[at]
+        said = self.lexicon.words.bare_modifier(word)
+        if not said.get("modifier") and not self.lexicon.words.is_time(word):
+            return []
+        cost = estimate(said, self.lexicon.words.like(word, "bare"), ("modifier", "otherwise"))["modifier"]
+        e, z, f = self._new(), self._new(), self._new()
+        s = Atom("S", f, e)
+        vp = Fn(s, "\\", Atom("NP", None, z))
+        told = sign.pieces + (("prep", e, c.ref, "", "-", sign.start),)
+        return [Sign(Fn(vp, "\\", vp), told, sign.score + cost, sign.start, sign.end, "NP=>adjunct", (sign,),
+                     sign.head),
+                Sign(Fn(s, "/", s), told, sign.score + cost, sign.start, sign.end, "NP=>opening", (sign,),
+                     sign.head)]
+
     def _unary(self, sign: Sign) -> List[Sign]:
         """What a stretch read one way may also be read as, as often as it is said so: a kind said bare is a thing
         ("Farmers rebelled"); a doing is a thing ("Forming a cabinet is difficult"), as often as its word says a
@@ -1140,8 +1181,13 @@ class Grammar:
             word = self._tokens[sign.head]
             cost = estimate(self.lexicon.words.noun_alone(word), self.lexicon.words.like(word, "alone"),
                             ("bare", "determined"))["bare"]
-            out.append(Sign(Atom("NP", None, c.ref), sign.pieces + (("bare", c.ref, sign.head),),
-                            sign.score + cost, sign.start, sign.end, "N=>NP", (sign,), sign.head))
+            bare = Sign(Atom("NP", None, c.ref), sign.pieces + (("bare", c.ref, sign.head),),
+                        sign.score + cost, sign.start, sign.end, "N=>NP", (sign,), sign.head)
+            out.append(bare)
+            # A thing said bare may tell of a doing too ("Last year the company hired three engineers.").
+            out.extend(self._said_of_a_doing(bare))
+        if isinstance(c, Atom) and c.base == "NP":
+            out.extend(self._said_of_a_doing(sign))
         if _verb_phrase(c) and c.res.feat == "adj" and sign.end - sign.start > 1:
             # A quality said with what it is compared to or of, after a thing, is the thing's ("a natural number
             # greater than 1", "a man proud of his son"), as often as an adjective's phrase is said after a thing:
@@ -1834,7 +1880,12 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             if head is not None:
                 got, how = lexicon.link("prep_of", (head[2], word, time), None)
             if how != "own":
-                got, how = lexicon.link("prep", (word, kind, time), worded(word) if word.replace(" ", "").isalpha() else None)
+                # A TIME SAID OF A DOING WITH NO PREPOSITION (`NP=>adjunct`, no word) says when it was, as the
+                # PMB's meanings say a happening's time (`during`), where memory holds it a time; else only what
+                # taught sentences said such a thing is to its doing ("a lot", "that way").
+                default = (worded(word) if word.replace(" ", "").isalpha()
+                           else "during" if not word and time != "-" else None)
+                got, how = lexicon.link("prep", (word, kind, time), default)
             decided.append(("prep", f"{word}:{kind}:{time}", how,
                             add(got, a, b, positive=not (owner is not None and owner in denied), at=at)))
         elif what == "holder":
@@ -2051,6 +2102,17 @@ def pronoun_number(word: str) -> Optional[bool]:
     if word in ("they", "them", "their", "theirs", "themselves", "these", "those"):
         return True
     if word in ("it", "its", "itself", "he", "him", "his", "himself", "she", "her", "hers", "herself"):
+        return False
+    return None
+
+
+def pronoun_person(word: str) -> Optional[bool]:
+    """Whether a pronoun points back to a person (True: "he", "she"), to what is no person (False: "it"), or does not
+    say (None: "they", or no pronoun)."""
+    word = word.lower()
+    if word in ("he", "him", "his", "himself", "she", "her", "hers", "herself"):
+        return True
+    if word in ("it", "its", "itself"):
         return False
     return None
 

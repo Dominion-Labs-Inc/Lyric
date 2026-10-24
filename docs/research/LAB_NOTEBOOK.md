@@ -16,6 +16,59 @@ Conventions:
 
 ---
 
+## 2026-10-24 (45) — The two open defects closed (a bare time phrase; a pronoun's person); a path read as one thing; through the real door, a person's request to read a file has no route to Lyric's tools
+
+**Objective.** Close what (44) left open before testing through the door: "One morning the dog ran to the park." read
+to garbage, and "It chased a red ball." after "Tom had a small dog." gave the chasing to Tom. Then restart Lyric and
+hand it the document as a person does.
+
+**1. A thing said of a doing with no preposition** (`grammar.Grammar._said_of_a_doing`, `NP=>adjunct` /
+`NP=>opening`). The grammar had no reading for it, and found one: "a morning the dog ran to", the park done by it. Now
+an NP may modify a doing as a preposition's thing does, after it or opening the sentence, weighed as often as the
+treebank says its word so: UD's `obl:unmarked` (`obl:tmod`, `obl:npmod` before), counted by `HeldWords.bare` and asked
+by `Words.bare_modifier` ("morning" 19 of 38 noun uses in EWT train, "week" 48 of 92, "lot" 24 of 93). Only a word
+ever said so, or held a time. The word asked of is the thing's kind's word ("that morning": morning), and the reading
+is offered to the NP that `N=>NP` makes too: the chart applies no unary rule to a unary's result, and "One morning",
+an NP only through `N=>NP`, never had the reading. Its link is a `prep` piece under no word: learned as a
+preposition's is, `during` by default where memory holds it a time (`spell_out`), none otherwise ("a lot" gets no
+`during`). With main's evidence (GRAMMAR-01's files, no store): "One morning the dog ran to the park.", "Last year the
+company hired three engineers.", "Tom read the book that morning.", "Every day the children walk to school.", "She
+arrived Monday." all `during`; "We met last week." still reads the week as met. GRAMMAR-01 `20261024T181237Z`: right
+senses aside 359 -> 362 of 884, F1 81.3% -> 81.8%, strict 181 unchanged. lyric_dev holds a slice of the treebank with
+no bare "morning", so there it still misreads: the evidence, not the rule.
+
+**2. A pronoun agrees in person, and reaches past the last utterance** (`Conversation._previous_for`, `_is_person`,
+`_named_before_its_pronoun`, `_spoke_of`; `grammar.pronoun_person`; `Knowledge.is_person` three-way). "it" never
+points to one memory holds a person, "he"/"she" never to one it holds is none; of one utterance's things, one held to
+agree before one held nothing of; nearer utterances first. `is_person` answers True, False (memory holds what it is,
+and no person among it) or None (nothing held); a name is judged as a particular, by what it is held an instance of
+("Bill", not the beak). With main's knowledge: dog False, teacher True, Mary True, Paris False, Tom None, Bill (name)
+None. `_spoken_of` keeps as many utterances back as hold `_TALKED_OF` things: with only the last, after "It chased a red
+ball." the "he" of the next sentence could point only to the ball. A name before the pronoun in its own utterance is
+nearest ("Tom followed the dog and he found the ball."). The story on lyric_dev: "It chased" the dog, "he found" Tom.
+
+**3. Where a file or a page is, one thing** (`sentence_machine._ADDRESS`, `_spans`; the grammar's NAME entry for it).
+Testing the door found it: every request naming a path ("Read /…/story.txt.") was not understood, the path eleven
+pieces. A path from the root, home, here or above, or an address with its scheme, begun where a word begins and with
+no space, is one piece, a name as written (it was lower-cased as a kind). "1/2", "km/h", "x / y", "d/dx" split as before.
+"Read <path>.", "Please read <path>.", "Read https://…" are now requests to read that thing.
+
+**Verified.** tests: grammar 19 (2 new: the treebank's bare things counted; a time with no preposition says when),
+derived reading 122, written mathematics 56, conversation's pronoun tests 2 (1 new). The story on lyric_dev: 26 facts,
+pronouns right, nothing written.
+
+**Through the real door** (scratchpad run, as HANDOVER-01 makes a world: one Lyric, core/main.py, on lyric_dev, in a
+Tet world of the run's own, microphone and camera off). person_a: "Read <path to the story>." -> "I'm on it" (job
+user_7318806e5ec4). The job failed in 6 s, twice: "no substrate handler for a ANALYSIS task yet; the substrate declined
+all model-free paths". "Did you finish?" -> "No. I couldn't do ...". The file was never opened.
+
+**Cause, from the code.** A person's job is an ANALYSIS task with no declared tool. `_execute_task_paths` tries a
+grounded operator (needs a planner's `learned_rule_id`), a state goal (none), a described goal (`provenance
+["described_goal"]`, set only by `set_goal`, Lyric's own goals, and its decomposer is keyword lists:
+research/analyse/create), declared tools (none) and the knowledge loop (questions and research only). So no request a
+person makes reaches Lyric's tools unless it is a question or research; reading a file is one case of it. Not fixed
+here: it is how Lyric acts on what a person asks, the owner's decision.
+
 ## 2026-10-24 (44) — A document read as one text: passages, not printed lines, heard in order as a telling is
 
 **Objective.** Reading is the first of four steps reshaping how Lyric reads and understands (1 a text as one

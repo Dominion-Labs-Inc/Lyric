@@ -212,10 +212,18 @@ _MATH_NAMES = frozenset({"sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "ar
                          "ceil", "ceiling", "max", "min", "gcd", "lcm", "sgn", "pi", "π", "∞", "mod", "lim"})
 
 
+#: Where a file or a page is, as computers write one: a path from the root, home, here or above (`/`, `~/`, `./`,
+#: `../`) or an address with its scheme (`https://`), with no space in it; a mark that ends what was said after it is
+#: what was said's (`/notes/story.txt.`).
+_ADDRESS = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*://|~/|\.{1,2}/|/)\S*[^\s.,;:!?)\]}\"'”’]")
+
+
 def _spans(text: str) -> List[Tuple[int, int]]:
     """Where each piece of `text` begins and ends: a run of letters and digits, joined through an apostrophe, a
     full stop or a hyphen between two of them, or any other character that is not a space; a number written in
-    groups of three (`1,000,000`) is one piece, and so is a two-character sign (`<=`)."""
+    groups of three (`1,000,000`) is one piece, and so is a two-character sign (`<=`), and so is where a file or a
+    page is (`_ADDRESS`), begun where a word begins: written apart, "Read /notes/story.txt." was eleven pieces and
+    read as nothing."""
     spans: List[Tuple[int, int]] = []
     i, n = 0, len(text)
     while i < n:
@@ -224,6 +232,11 @@ def _spans(text: str) -> List[Tuple[int, int]]:
             i += 1
             continue
         start = i
+        address = _ADDRESS.match(text, i) if (i == 0 or text[i - 1].isspace() or text[i - 1] in "([{\"'“‘") else None
+        if address:
+            i = address.end()
+            spans.append((start, i))
+            continue
         joined = (ch in _APOSTROPHES and i > 0 and text[i - 1].isalnum()
                   and i + 1 < n and text[i + 1].isalnum())
         if ch.isalnum() or joined:

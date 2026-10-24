@@ -189,6 +189,43 @@ def test_a_treebanks_uses_are_signed_as_the_grammars_entries_name_them():
     assert words.noun_alone("dog") == {"determined": 1.0}
 
 
+def test_a_treebanks_things_said_of_a_doing_with_no_preposition_are_counted():
+    """A noun heading a thing said of a doing with no preposition before it (UD's `obl:unmarked`) is counted so, and
+    every other use of a noun otherwise: what the grammar weighs reading "that morning" as when a doing was by."""
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.structure import Analysed
+    held = [Analysed(("The", "dog", "barked", "that", "morning", "."),
+                     ("DETERMINER", "NOUN", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"), (2, 3, 0, 5, 3, 3),
+                     ("det", "nsubj", "root", "det", "obl:unmarked", "punct"))]
+    words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
+    assert words.bare_modifier("morning") == {"modifier": 1.0}
+    assert words.bare_modifier("dog") == {"otherwise": 1.0}
+
+
+def test_a_time_said_with_no_preposition_says_when_a_doing_was():
+    """"That morning the dog barked." and "The dog barked that morning.": the morning is when the barking was
+    (`during`, as the PMB's meanings say a happening's time), opening the sentence or after its doing. With no way
+    to read it, "One morning the dog ran to the park." was read as a morning the dog ran to (lyric_dev,
+    2026-10-24)."""
+
+    class Timed(Held):
+        def uses(self, word: str) -> Mapping[str, float]:
+            return {"NOUN": 10.0} if word.lower() == "morning" else super().uses(word)
+
+        def bare_modifier(self, word: str) -> Mapping[str, float]:
+            return {"modifier": 5.0, "otherwise": 5.0} if word.lower() == "morning" else {}
+
+        def is_time(self, term: str) -> Optional[str]:
+            return "stretch" if str(term).lower() == "morning" else None
+
+    timed = gm.Grammar(gm.Lexicon(Timed()))
+    for said in ("That morning the dog barked.", "The dog barked that morning."):
+        meaning = read(timed, said)
+        assert meaning is not None and "during(?v0, " in meaning and "instance_of(?v0, bark)" in meaning, \
+            (said, meaning)
+        assert "if " not in meaning, (said, meaning)
+
+
 def test_a_sentence_taught_again_corrected_is_taken_back_from_what_was_learned():
     """`GrammarView.drop` takes back what a taught sentence's reading counted, so the corrected one is learned
     alone."""

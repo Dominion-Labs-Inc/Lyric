@@ -28,6 +28,10 @@ INFLECTED = {"NOUN": ("s", "i", "a", "en", "ae"), "VERB": ("s", "d", "ing", "n",
 #: Classes a treebank gives to marks, not words.
 MARKS = ("PUNCTUATION", "SYMBOL", "OTHER")
 
+#: How a treebank marks a thing said of a doing with no preposition before it: UD's `obl:unmarked`, which its earlier
+#: releases split into `obl:tmod` (a time) and `obl:npmod`.
+_BARE_OF_A_DOING = frozenset({"obl:unmarked", "obl:tmod", "obl:npmod"})
+
 
 class Knowledge:
     """What memory holds of things, as the grammar asks it. Every answer is plain where nothing is held."""
@@ -37,8 +41,11 @@ class Knowledge:
         and what that is a kind of."""
         return []
 
-    def is_person(self, name: str) -> bool:
-        return False
+    def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
+        """Whether the thing is a person: True; False where memory holds what it is and a person is not among it;
+        None where memory holds nothing of what it is. `particular`: one thing called by this name ("Bill"), judged
+        by what it is held one of, never by the kinds a word written the same names ("bill", a beak)."""
+        return None
 
     def is_time(self, term: str) -> Optional[str]:
         return None
@@ -122,8 +129,17 @@ class GraphKnowledge(Knowledge):
                 self._kinds[key] = [_plain(k) for k in self._up([key[0]])]
         return self._kinds[key]
 
-    def is_person(self, name: str) -> bool:
-        return "person" in self.kinds(name, "NOUN")
+    def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
+        if particular:
+            held = list(self._instance.get(_concept(name), ()))
+            kinds = [_plain(k) for k in held + self._up(held)]
+        else:
+            kinds = [_plain(_concept(name))] + self.kinds(name, "NOUN")
+            if len(kinds) == 1:
+                return None
+        if not kinds:
+            return None
+        return "person" in kinds
 
     def is_time(self, term: str) -> Optional[str]:
         from core.semantics.literals import classify_literal
@@ -194,6 +210,9 @@ class HeldWords(Words):
         self.verb_frames: Dict[str, Counter] = defaultdict(Counter)
         self.shapes: Dict[str, Counter] = defaultdict(Counter)
         self.alone: Dict[str, Counter] = defaultdict(Counter)
+        #: Each noun and name: how often it heads a thing said of a doing with no preposition (`modifier`: "One
+        #: morning the dog ran."), and how often it is used otherwise.
+        self.bare: Dict[str, Counter] = defaultdict(Counter)
         self.plurals: Dict[str, Counter] = defaultdict(Counter)
         self.relatives: Counter = Counter()
         self.written: Dict[str, Counter] = defaultdict(Counter)
@@ -214,7 +233,7 @@ class HeldWords(Words):
             self.sentences += 1
         self.alike: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         for what, table in (("uses", self.form_uses), ("forms", self.forms), ("shapes", self.shapes),
-                            ("alone", self.alone)):
+                            ("alone", self.alone), ("bare", self.bare)):
             for form, counts in table.items():
                 for ending in {form[-3:], form[-2:]}:
                     self.alike[(what, ending)].update(counts)
@@ -336,6 +355,10 @@ class HeldWords(Words):
                     self.particles[(self._name(words[i], "VERB"), words[i + 1].lower())][together] += 1
                 if form.endswith("ing") or self._form_of(words, classes, heads, relations, under, i) == "participle":
                     self.shapes[form][_shape_of(relations[i])] += 1
+            if classes[i] in ("NOUN", "NAME") and not relations[i].startswith("compound"):
+                # A THING SAID OF A DOING WITH NO PREPOSITION ("One morning the dog ran."): the treebank's
+                # `obl:unmarked`, `obl:tmod` and `obl:npmod` in its earlier releases.
+                self.bare[form]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
             if classes[i] == "NOUN" and not relations[i].startswith("compound"):
                 determined = any(relations[k] in ("det", "det:poss", "nmod:poss") for k in under[i])
                 self.alone[form]["determined" if determined else "bare"] += 1
@@ -543,6 +566,9 @@ class HeldWords(Words):
     def noun_alone(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.alone.get(word.lower(), {}).items()}
 
+    def bare_modifier(self, word: str) -> Mapping[str, float]:
+        return {k: float(n) for k, n in self.bare.get(word.lower(), {}).items()}
+
     def bare_relatives(self) -> Tuple[float, float]:
         return float(self.relatives[False]), float(self.relatives[True])
 
@@ -583,8 +609,8 @@ class HeldWords(Words):
     def kinds(self, name: str, cls: str) -> List[str]:
         return self.knowledge.kinds(name, cls)
 
-    def is_person(self, name: str) -> bool:
-        return self.knowledge.is_person(name)
+    def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
+        return self.knowledge.is_person(name, particular)
 
     def is_time(self, term: str) -> Optional[str]:
         return self.knowledge.is_time(term)
