@@ -445,16 +445,26 @@ class WordNetSource:
     def provenance(self):
         return _provenance("wordnet", "wordnet_3.0")
 
-    def _word_classes(self) -> Dict[str, str]:
-        """`word -> CLASS` for every single alpha word with a CLEAR dominant class.
+    def _word_classes(self) -> Dict[str, Tuple[str, ...]]:
+        """`word -> its CLASSES`: every class WordNet holds each word of letters in, and each verb of several such
+        words, the one its senses are tagged in most (falling back to how many senses carry it when nothing is
+        tagged) first.
 
-        A lemma is scored per part of speech by tagged-corpus frequency (falling
-        back to how many senses carry it when nothing is tagged). The class with
-        the most weight wins; a tie -- a word as much a noun as a verb -- is
-        SKIPPED, so an ambiguous word is settled by reading rather than stamped
-        here. That abstention is deliberate and load-bearing: measured against
-        the 315 words bulk teaching had wrongly marked ADJECTIVE, WordNet has no
-        clear class for 310 of them.
+        A WORD IS EVERY KIND OF WORD IT IS. This settled each word to the one class tagged most, and taught only
+        that: "research" was a noun alone (52 tagged uses to the verb's 1), so "Research photosynthesis." read as
+        nothing, as "Book a flight.", "List the files." and "Order a pizza." did, and "Contact Dana." told that Dana
+        is a contact; "plan" was a verb alone, and "Make a plan." told that a plan is an "a". Of WordNet's 77,503
+        single words, 7,048 are of more than one class, and each kept one (lyric_dev, 2026-10-24). A class held is
+        evidence that a sentence may use the word so, never that it does: the grammar weighs each by how the word
+        is used (`grammar.Lexicon._evidence`), and the copula's complement is a quality only where it stands bare
+        (`relation_types.complement_class`).
+
+        AND A VERB OF SEVERAL WORDS IS A VERB: "look up", "find out", "sign up". Nothing else teaches one: a verb's
+        words are said in its forms and its kinds ("Tom strolled.", "To stroll is to walk."), and neither says a
+        verb of several words; the words of several held are nouns', said with their facts ("credit card"). So
+        English's grammar, which reads a verb and the word after it as one verb memory holds together
+        (`grammar.Lexicon._together`), held none of WordNet's 2,829, and "Look up photosynthesis." read as nothing
+        (lyric_dev, 2026-10-24).
 
         Worked out once for the source: WordNet reads each tagged count from its files, and a pass asks for the
         classes more than once.
@@ -471,19 +481,18 @@ class WordNetSource:
                 continue
             for lemma in synset.lemmas():
                 word = lemma.name().replace("_", " ").strip().lower()
-                if " " in word or not word.isalpha():
+                parts = word.split()
+                if not parts or not all(part.isalpha() for part in parts):
+                    continue
+                if len(parts) > 1 and word_class != "VERB":
                     continue
                 # 0.01: a sense carrying no tagged occurrences still counts a little.
                 weight[word][word_class] += lemma.count() + 0.01
 
-        settled: Dict[str, str] = {}
-        for word, by_class in weight.items():
-            ranked = sorted(by_class.items(), key=lambda kv: kv[1], reverse=True)
-            if len(ranked) > 1 and ranked[0][1] == ranked[1][1]:
-                continue
-            settled[word] = ranked[0][0]
-        self.__dict__["_classes"] = settled
-        return settled
+        held = {word: tuple(c for c, _ in sorted(by_class.items(), key=lambda kv: kv[1], reverse=True))
+                for word, by_class in weight.items()}
+        self.__dict__["_classes"] = held
+        return held
 
     def _plurals(self) -> Dict[str, Tuple[str, ...]]:
         """`word -> its plurals` that no change of its ending makes, as WordNet lists them (`noun.exc`): "mice" for
@@ -1516,8 +1525,8 @@ class WordNetSource:
 
         `records()` states a class only for the words in a fact, so a verb, an adjective or an adverb that never
         appears in one was never stated at all. This is the source saying everything it knows about its own
-        vocabulary."""
-        return iter(self._word_classes().items())
+        vocabulary: each word in every class it holds it in."""
+        return ((word, word_class) for word, held in self._word_classes().items() for word_class in held)
 
     def records(self, *, examples_only: bool = False) -> Iterator[TaughtRecord]:
         """Every record WordNet teaches (`_records`), or of `senses` only those each is in."""
@@ -1592,7 +1601,8 @@ class WordNetSource:
             seen.add(key)
             written = ((child, subject_word), (parent, obj_word))
             senses = ((subject, subject_word), (obj, obj_word))
-            stated = tuple((word.lower(), classes[word.lower()]) for _, word in written if word.lower() in classes)
+            stated = tuple((word.lower(), word_class) for _, word in written
+                           for word_class in classes.get(word.lower(), ()))
             if not said:
                 return TaughtRecord(subject=child, relation=relation, obj=parent, quality=self.quality,
                                     word_classes=stated)
@@ -1858,6 +1868,26 @@ class WordNetUsageSource:
 
     def usage(self) -> Iterator[Tuple[str, str, int, Tuple[str, ...]]]:
         return WordNetSource(parts=self.parts).usage()
+
+
+@dataclass
+class WordNetClassesSource:
+    """Every class WordNet holds each word in (`WordNetSource.word_classes`), and nothing else, for a store that holds
+    the words: one taught each word the one class it was tagged in most, and "research" was no verb
+    (`WordNetSource._word_classes`). A class taught already is not taught again (`learn_word_classes`)."""
+
+    name: str = "wordnet"
+    quality: float = 0.9
+    curated: bool = True
+
+    def provenance(self):
+        return _provenance("wordnet", "wordnet_3.0")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def word_classes(self) -> Iterator[Tuple[str, str]]:
+        return WordNetSource().word_classes()
 
 
 # ── Treebanks ───────────────────────────────────────────────────────────────

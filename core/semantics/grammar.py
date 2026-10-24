@@ -324,6 +324,11 @@ class Words:
         verb takes ("wants to swim")."""
         return 0.0, 0.0
 
+    def orders(self) -> Tuple[float, float]:
+        """How often a sentence that tells is an order, a doing asked of the listener with its doer unsaid ("Read the
+        links."), and how often it says its doing's doer ("The dog barked."), every sentence together."""
+        return 0.0, 0.0
+
     def bare_relatives(self) -> Tuple[float, float]:
         """How often a clause telling of a thing before it is said without "that", "who" or "which", and with."""
         return 0.0, 0.0
@@ -1262,14 +1267,26 @@ class Grammar:
                              reverse=True)
             return Reading(tokens, None, None, "the grammar reads no whole", tuple((s, e) for _, s, e in covered[:3]))
         # A sentence is read as one wherever the grammar reads it so; as a phrase alone ("What a feast!") only
-        # where it does not.
-        best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score, _rank(s.cat)))
+        # where it does not; as an order as often as what is said is one (`_said_so`).
+        best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
         reading = Reading(tokens, best, None)
         try:
             reading.meaning = self._spell_out(best, tokens, reading)
         except ValueError as error:
             reading.why = str(error)
         return reading
+
+    def _said_so(self, cat: Cat) -> float:
+        """How often what is said is said as a reading of this category says it, as a logarithm: an order
+        (`_ordered`), or a sentence saying its doer, as often as the sentences memory holds analysed are each
+        (`Words.orders`), with one more spread over the two.
+
+        AN ORDER IS SAID SELDOM. Read by its words alone, "Water boils." was an order to water the boils, and "Smoke
+        rises." one to smoke the rises: words used as nouns and as verbs read either way about as surely. Of the
+        English Web Treebank's first 200 sentences held, 7 are orders and 150 tell or ask of a doer (lyric_dev,
+        2026-10-24). Before orders were ranked as sentences (`_rank`), every telling came before every order."""
+        ordered, told = self.lexicon.words.orders()
+        return math.log(((ordered if _ordered(cat) else told) + 1.0) / (ordered + told + 2.0))
 
     # ── the meaning ──
     def _spell_out(self, sign: Sign, tokens: Sequence[str], reading: Reading) -> Optional[Meaning]:
@@ -1287,7 +1304,11 @@ class Grammar:
         whole = [s for s in cells.get((0, len(tokens)), {}).values() if _whole(s.cat) is not None]
         if not whole:
             return False
-        best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score, _rank(s.cat)))
+        # Read as its meaning says it was said: a request as an order where the grammar reads it as one, anything
+        # else as no order ("Water boils." is taught a telling, and is not learned from as an order to water boils).
+        ordered = meaning.act == "request"
+        fitting = [s for s in whole if _ordered(s.cat) == ordered]
+        best = max(fitting or whole, key=lambda s: (_rank(s.cat) == 2, s.score, _rank(s.cat)))
         term_of: Dict[int, str] = {}
         for t, ws in words.items():
             for w in ws:
@@ -1457,9 +1478,21 @@ def _whole(cat: Cat) -> Optional[str]:
     return None
 
 
+def _ordered(cat: Cat) -> bool:
+    """Whether a reading of the whole is an order: a doing asked of the listener ("Close the door.", `S[b]\\NP`), or
+    said to someone named ("Come here, Rex.", `S[imp]`)."""
+    return _whole(cat) == "order" or (isinstance(cat, Atom) and cat.base == "S" and cat.feat == "imp")
+
+
 def _rank(cat: Cat) -> int:
-    """Of two readings as sure, a sentence before a thing said alone."""
-    if isinstance(cat, Atom) and cat.base == "S":
+    """Of two readings as sure, a sentence before a thing said alone.
+
+    AN ORDER IS A SENTENCE: a doing asked of the listener, its doer unsaid ("Look up photosynthesis.", `S[b]\\NP`,
+    `_whole`). Ranked with what is said alone, any reading as a telling came first however its words are used:
+    "up" taken as a verb, "Look up photosynthesis." told of someone named Look upping photosynthesis, and "Contact
+    Dana." was the phrase "Contact Dana", a contact (lyric_dev, 2026-10-24). Between a telling and an order, how
+    the words are used decides."""
+    if (isinstance(cat, Atom) and cat.base == "S") or _whole(cat) == "order":
         return 2
     return 1 if isinstance(cat, Fn) else 0
 

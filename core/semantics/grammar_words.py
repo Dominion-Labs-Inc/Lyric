@@ -198,6 +198,8 @@ class HeldWords(Words):
         self.relatives: Counter = Counter()
         self.written: Dict[str, Counter] = defaultdict(Counter)
         self.purposes: Counter = Counter()
+        #: Sentences that tell: an order (True: its doing's doer unsaid, "Read the links.") or one saying its doer.
+        self.ordered: Counter = Counter()
         self.particles: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         #: Where an adjective is said of a thing, after it or before it, by whether words follow the adjective in
         #: its phrase ("greater than 1"): `(followed, after)`.
@@ -290,6 +292,16 @@ class HeldWords(Words):
             if h:
                 under[h - 1].append(i)
         asks = words[-1] == "?"
+        roots = [i for i, h in enumerate(heads) if not h]
+        if len(roots) == 1 and not asks:
+            # AN ORDER is a doing whose doer is unsaid and nothing helps it ("Read the links.", not "Done." nor "Is
+            # it?"); a sentence whose doing says who does it is none. What is neither (a heading, a name) is not
+            # counted.
+            said = {relations[k].split(":")[0] for k in under[roots[0]]}
+            if said & {"nsubj", "csubj", "expl"}:
+                self.ordered[False] += 1
+            elif classes[roots[0]] == "VERB" and not said & {"aux", "cop"}:
+                self.ordered[True] += 1
         for i in range(n):
             if words[i] == "-" and 0 < i < n - 1 and words[i - 1].isalpha() and words[i + 1].isalpha():
                 # WORDS JOINED BY A HYPHEN are one word, used as the one of them the rest of the sentence hangs on is;
@@ -544,6 +556,9 @@ class HeldWords(Words):
 
     def to_purposes(self) -> Tuple[float, float]:
         return float(self.purposes[True]), float(self.purposes[False])
+
+    def orders(self) -> Tuple[float, float]:
+        return float(self.ordered[True]), float(self.ordered[False])
 
     def adjectives_after(self, followed: bool = False) -> Tuple[float, float]:
         return (float(self.adjective_places[(followed, True)]), float(self.adjective_places[(followed, False)]))

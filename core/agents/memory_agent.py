@@ -6871,6 +6871,11 @@ class MemoryAgent(IMemoryConsolidation):
             if not classes or any(word_class in (c, "NOUN" if c == "NAME" else c) and n > 0
                                   for c, n in classes.items()):
                 return value.replace("_", " ")
+        # WORDS HELD TOGETHER AS A WORD OF THE CLASS: a verb of several words is taught as one ("'look up' is used
+        # as a verb.", `WordNetSource._word_classes`), and no fact says it in words of its own.
+        together = " ".join(w.lower() for w in words)
+        if len(words) > 1 and self.word_classes(together).get(word_class, 0) > 0:
+            return together
         return None
 
     def _hold_taught(self, view, item) -> None:

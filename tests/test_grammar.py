@@ -229,3 +229,49 @@ def test_memory_reads_with_the_grammar_built_from_what_it_holds():
     assert view.words.is_person("president")
     assert view.compose_sentence("Tom chased a cat.") == view.compose_sentence("Tom chased a cat.")
     assert agent.grammar_view() is view
+
+
+class Ordering(Held):
+    """The words above, with "fish" and "swim" both nouns and verbs, and sentences held that are orders as often as
+    `ordered` says."""
+
+    def __init__(self, ordered: float, told: float):
+        self.ordered, self.told = ordered, told
+
+    def uses(self, word: str) -> Mapping[str, float]:
+        if word.lower() in ("fish", "swim"):
+            return {"NOUN": 10.0, "VERB": 10.0}
+        return super().uses(word)
+
+    def frames(self, name: str) -> Mapping[str, float]:
+        return {"fish": {"transitive": 9.0}, "swim": {"intransitive": 9.0}}.get(name, super().frames(name))
+
+    def orders(self):
+        return self.ordered, self.told
+
+
+def test_an_order_is_a_sentence_and_said_as_often_as_orders_are():
+    """An order (`S[b]\\NP`) ranks as a sentence, not as a phrase said alone; between an order and a telling, as
+    often as what is said is each. "Fish swim." reads either way by its words: as seldom as orders are, it tells
+    of fish swimming; were orders said as often as tellings are now, it would ask the listener to fish."""
+    assert gm._rank(gm.parse_category("S[b]\\NP")) == 2 and gm._rank(gm.parse_category("NP")) == 0
+    seldom = gm.Grammar(gm.Lexicon(Ordering(ordered=7.0, told=150.0)))
+    often = gm.Grammar(gm.Lexicon(Ordering(ordered=150.0, told=7.0)))
+    assert read(seldom, "Fish swim.") == "tell: done_by(?v0, fish) & instance_of(?v0, swim)"
+    assert read(often, "Fish swim.").startswith("request:"), read(often, "Fish swim.")
+
+
+def test_a_treebanks_orders_are_counted_from_who_does_the_doing():
+    """A sentence whose doing has no doer said and nothing helping it is an order; one that says its doer is not;
+    a question, and a heading with no doing, are neither."""
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.structure import Analysed
+    held = [
+        Analysed(("Read", "the", "links", "."), ("VERB", "DETERMINER", "NOUN", "PUNCTUATION"), (0, 3, 1, 1),
+                 ("root", "det", "obj", "punct")),
+        Analysed(("Tom", "barked", "."), ("NAME", "VERB", "PUNCTUATION"), (2, 0, 2), ("nsubj", "root", "punct")),
+        Analysed(("Who", "barked", "?"), ("PRONOUN", "VERB", "PUNCTUATION"), (2, 0, 2), ("nsubj", "root", "punct")),
+        Analysed(("UPDATE", ":"), ("NOUN", "PUNCTUATION"), (0, 1), ("root", "punct")),
+    ]
+    words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
+    assert words.orders() == (1.0, 1.0)

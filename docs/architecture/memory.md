@@ -67,6 +67,12 @@ any other, so it is a memory, and a wipe takes the vocabulary with it.
   been observed to have, with net evidence. **Membership, not identity:** a word
   is not one part of speech, and asking "what class IS this" either picks one
   and is wrong half the time or, on even evidence, answers nothing.
+- **WordNet states every class it holds a word in** (`WordNetSource._word_classes`, 2026-10-24), and each verb
+  of several words ("'look up' is used as a verb."); it had taught each word only the class it was tagged in most,
+  so "research", "book", "order" and "list" were no verbs and requests made of them read as nothing. A store taught
+  before is taught the rest by `scripts/teach.py --source wordnet-classes`. **`_held_name(words, word_class)`**,
+  which English's grammar asks whether memory holds a verb and the word after it together, finds such a verb by
+  its class when no word of a fact says it.
 - **`WORD_CLASS_WARM_LIMIT = 400000`** (2617) — raised from 20,000, which was
   sized for a store holding 199 words. With a reference vocabulary the old cap
   cut it off mid-alphabet and every word past the cut read as unknown, which is

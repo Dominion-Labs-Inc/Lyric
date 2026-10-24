@@ -30,13 +30,16 @@ So this starts the substrate and teaches it while it is running:
     returns while the drain queue is full has measured its own inserts and
     nothing else.
 
-  --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | listening | treebank | propbank | composition
+  --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | wordnet-classes | listening | treebank | propbank
+             | composition
              | pmb | word-groups | wikidata | closed-classes | lesson
              wordnet-examples: WordNet's examples of English and none of its facts, for a store WordNet was taught
              to before they were said: its nouns' plurals ("Hawks are raptors."), its verbs' forms ("Tom strolled.")
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
              wordnet-usage: how often WordNet's words were met naming each sense (SemCor), and nothing else, for a
              store that holds the words
+             wordnet-classes: every class WordNet holds each word in ("research" a noun and a verb), and nothing
+             else, for a store taught each word only the one class it was tagged in most
              listening: what the listener's evidence is worth, counted on the English lessons (data/lessons), whose
              meanings say which reading was meant; nothing else is taught
              treebank: how the words of a sentence go together, from sentences analysed by hand (the English Web
@@ -97,7 +100,7 @@ def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
                                                 CompositionSource, ConceptNetSource, ListeningSource,
                                                 PMBSource, PropBankSource, TreebankSource, WikidataSource,
-                                                WordNetExamplesSource,
+                                                WordNetClassesSource, WordNetExamplesSource,
                                                 WordGroupsSource, WordNetSource, WordNetUsageSource)
     if args.source == "conceptnet":
         relations = ConceptNetSource.RELATION_SETS.get(args.relations)
@@ -112,6 +115,8 @@ def build_source(args):
         return WordNetExamplesSource(parts=tuple(args.part or ()))
     if args.source == "wordnet-usage":
         return WordNetUsageSource(parts=tuple(args.part or ()))
+    if args.source == "wordnet-classes":
+        return WordNetClassesSource()
     if args.source == "listening":
         return ListeningSource()
     if args.source == "treebank":
@@ -246,8 +251,8 @@ def write_session(args, report, before, after, extra) -> Path:
 async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
-                        choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "listening",
-                                 "treebank", "propbank", "composition", "pmb", "word-groups", "wikidata",
+                        choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "wordnet-classes",
+                                 "listening", "treebank", "propbank", "composition", "pmb", "word-groups", "wikidata",
                                  "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
