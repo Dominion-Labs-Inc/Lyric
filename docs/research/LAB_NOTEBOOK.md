@@ -16,6 +16,35 @@ Conventions:
 
 ---
 
+## 2026-10-25 (48) — What the grammar learns is kept: a start no longer learns English again
+
+**The defect, from the code.** Memory kept each of the 9,882 sentences taught with their meanings (the lessons', the
+PMB's) and nothing the grammar learned from them: `GrammarView` counted each sentence's links in the process
+(`Lexicon.learned`) and memory's note says why ("Nothing is reduced to rules when it is kept"). Every start read and
+counted all of them again: 226 s on lyric_dev, until (47) on a person's first turn. And every path that changes how
+Lyric reads is called from the teaching script alone (`learn_patterns`, `learn_structure`, `learn_taught_sentences`,
+`learn_usage`, `learn_listening`): what it reads in use teaches it nothing of English. The owner: "A human doesn't go
+to sleep and wake up and have to be taught language every single time"; "humans read books and we get better with
+language over time just by reading." This entry is the first half: what is learned stays learned.
+
+**Changed.**
+- What a sentence taught the grammar is kept with the sentence's own memory (`metadata.grammar_learned`: the rules it
+  was learned under, `grammar.RULES`, a digest of grammar.py, grammar_words.py and english.json; and its counts), by
+  `MemoryAgent.keep_grammar_learning`, after `ready_to_read` learns.
+- A warm hands each taught sentence to the grammar with what it taught (`_composition_memories` ->
+  `GrammarView.hold(taught, learned)`): taken as learned, not read again. Only a sentence never learned from, or learned
+  under rules since changed, is read.
+- `GrammarView.unkept`: what was learned since memory last kept it, given once.
+
+**Verified** (lyric_dev, two processes, as two starts): the first learned 9,882 in 226 s and kept 9,882 in 21 s; the
+second held 9,882 from memory, learned 0 (0 s), its grammar the same table for table (time 167, be 1,160, verb 6,284,
+role 9,102, adv 736, prep 2,799, prep_of 2,632, quality 1,990, holder 369, poss 1,255, clause 136) and "One morning
+the dog ran to the park." read the same (`during(run, morning)`, done by the dog, to the park). tests/test_grammar.py
+21 (1 new).
+
+**Next.** The second half: reading makes it better. A sentence Lyric reads in use and is sure of, how each of its words
+was used, kept and counted as the treebank's are; measured on held-out prose before and after it reads.
+
 ## 2026-10-24 (47) — The three that kept coming back, fixed through the door: a time a lesson taught, a page read, a question said once; the sandbox taught what main was; Lyric ready to read before its first turn
 
 **Objective.** (46) left "One morning ..." unread on lyric_dev, "Read https://…" deciding nothing, and a held job's

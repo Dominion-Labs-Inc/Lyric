@@ -19402,11 +19402,14 @@ The substrate must realign with its constitutional responsibilities immediately.
         started = time.monotonic()
         agent = await get_memory_agent()
         await agent.warm_word_classes()
-        learned = await agent.grammar_view().learn_waiting_in_turn()
+        view = agent.grammar_view()
+        learned = await view.learn_waiting_in_turn()
+        kept = await agent.keep_grammar_learning()
         tools = len(await self._tools_by_doing())
-        logger.info("📖 Ready to read: the grammar learned from %d sentences, %d tools read for what they do (%.0fs)",
-                    learned, tools, time.monotonic() - started)
-        return {"sentences_learned": learned, "tools_read": tools}
+        logger.info("📖 Ready to read: the grammar holds what %d sentences taught it, %d learned now and %d kept with "
+                    "their sentences; %d tools read for what they do (%.0fs)",
+                    view.learned_from, learned, kept, tools, time.monotonic() - started)
+        return {"sentences_held": view.learned_from, "sentences_learned": learned, "kept": kept, "tools_read": tools}
 
     async def _tools_for_request(self, task: Task) -> List[Dict[str, Any]]:
         """WHICH TOOLS DO WHAT A PERSON ASKED, decided from what they asked as Lyric read it (`metadata["requested"]`,

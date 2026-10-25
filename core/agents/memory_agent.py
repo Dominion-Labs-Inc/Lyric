@@ -176,6 +176,9 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_view = None
         self._grammar_links: List[Tuple[str, str, str]] = []
         self._grammar_taught: List[Any] = []
+        #: Each taught sentence's memory, and what the grammar learned from it under today's rules (None: not learned
+        #: from yet, or under other rules), by the sentence's key (`_composition_memories`, `keep_grammar_learning`).
+        self._grammar_learned: Dict[str, Tuple[str, Optional[List[Any]]]] = {}
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
         #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
         #: things memory holds at all when they were counted: what each thing's associative strength is measured
@@ -6805,8 +6808,10 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.composition import CompositionView, TaughtSentence
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
+        from core.semantics.grammar import RULES
         view = CompositionView(arguments if len(arguments) else None, lay_out=self.lay_out)
         held: List[Any] = []
+        self._grammar_learned = {}
         for row in await self._rows_tagged(self.TAUGHT_SENTENCE_TAG):
             await give_way()
             taught = (row.metadata or {}).get("taught")
@@ -6814,6 +6819,11 @@ class MemoryAgent(IMemoryConsolidation):
                 item = TaughtSentence.from_dict(taught)
                 view.hold(item)
                 held.append(item)
+                # WHAT THE GRAMMAR LEARNED FROM IT, kept with it (`keep_grammar_learning`), where its rules are those
+                # it was learned under.
+                kept = (row.metadata or {}).get("grammar_learned") or {}
+                self._grammar_learned[item.key()] = (row.memory_id,
+                                                     kept.get("counted") if kept.get("rules") == RULES else None)
         return view, held
 
     async def _grammar_knowledge(self) -> List[Tuple[str, str, str]]:
@@ -6849,9 +6859,31 @@ class MemoryAgent(IMemoryConsolidation):
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms))
             for taught in self._grammar_taught:
-                view.hold(taught)
+                view.hold(taught, self._grammar_learned.get(taught.key(), (None, None))[1])
             self._grammar_view = view
         return self._grammar_view
+
+    async def keep_grammar_learning(self) -> int:
+        """WHAT THE GRAMMAR LEARNED FROM EACH SENTENCE IS KEPT WITH THE SENTENCE, under the rules it was learned by
+        (`grammar.RULES`), so a start adds it up and reads again only a sentence learned under other rules, or not yet
+        learned from (`grammar_view`). Kept nowhere, it was learned again from all 9,882 sentences at every start,
+        four minutes, a person's first turn waiting on it (2026-10-24). Returns how many were kept."""
+        from core.semantics.grammar import RULES
+        from core.utils.give_way import GiveWay
+        if self._grammar_view is None:
+            return 0
+        give_way, kept = GiveWay(), 0
+        for key, counted in self._grammar_view.unkept().items():
+            memory_id = self._grammar_learned.get(key, (None, None))[0]
+            if memory_id is None:
+                continue        # taught since the warm: kept once a warm knows its memory
+            if await self.update_memory(memory_id, {
+                    "metadata": {"grammar_learned": {"rules": RULES, "counted": [list(c) for c in counted]}},
+                    "metadata.merge": True}):
+                self._grammar_learned[key] = (memory_id, [list(c) for c in counted])
+                kept += 1
+            await give_way()
+        return kept
 
     def _net_word_classes(self, word: str) -> Dict[str, float]:
         """The kinds of word memory holds a word as, with net evidence for them, for the grammar. Named as the

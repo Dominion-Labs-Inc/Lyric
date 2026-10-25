@@ -329,3 +329,28 @@ def test_what_a_happening_was_during_is_learned_a_time():
                             F("done_by", "?v1", "cat"), F("during", "?v0", "?v1")))
     g.learn(gm.tokens_of("The dog barked when the cat ran.", g.lexicon.words), when, {})
     assert g.lexicon.time_of("run") is None
+
+
+def test_what_a_sentence_taught_is_kept_and_not_learned_again():
+    """What the grammar learned from a sentence is given once to be kept with it (`GrammarView.unkept`), and a grammar
+    holding the sentence with what it taught (`hold(taught, learned)`) has learned the same, reading nothing again:
+    a start no longer learns from every taught sentence anew."""
+    from core.semantics.composition import TaughtSentence
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    taught = TaughtSentence("The dog barked in the morning.",
+                            Meaning("tell", (F("instance_of", "?v0", "bark"), F("during", "?v0", "?v1"),
+                                             F("instance_of", "?v1", "morning"))))
+    first = gm.GrammarView(Held())
+    first.hold(taught)
+    assert first.learn_waiting() == 1
+    kept = first.unkept()
+    assert list(kept) == [taught.key()] and first.unkept() == {}, "each is given once"
+    stored = [[table, list(key), list(link) if isinstance(link, tuple) else link] for table, key, link in kept[taught.key()]]
+    second = gm.GrammarView(Held())
+    second.hold(taught, stored)
+    assert second.learn_waiting() == 0, "nothing is read again"
+    assert second.learned_from == 1
+    learned = lambda view: {t: {k: dict(c) for k, c in tab.items()} for t, tab in view.grammar.lexicon.learned.items()
+                            if tab}
+    assert learned(second) == learned(first)
+    assert second.grammar.lexicon.time_of("morning") == "point"

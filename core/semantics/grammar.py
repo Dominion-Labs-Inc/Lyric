@@ -2229,6 +2229,26 @@ def align_by_names(tokens: Sequence[str], meaning: Meaning, lexicon: "Lexicon") 
     return dict(out)
 
 
+def _rules_written() -> str:
+    """The grammar's rules as written: this module, how it counts how words are used (`grammar_words`), and the
+    grammar's own words (`data/grammar/english.json`). What a sentence taught it is kept under them, and learned again
+    once they change."""
+    import hashlib
+    digest = hashlib.sha256()
+    for path in (Path(__file__), Path(__file__).with_name("grammar_words.py"), ENGLISH):
+        digest.update(path.read_bytes())
+    return digest.hexdigest()[:16]
+
+
+#: The rules what each sentence taught was learned under (`GrammarView.hold`, `MemoryAgent.keep_grammar_learning`).
+RULES = _rules_written()
+
+
+def _tupled(value: Any) -> Any:
+    """A key or a link as the grammar counts it, from how it was kept (lists for its tuples)."""
+    return tuple(_tupled(v) for v in value) if isinstance(value, (list, tuple)) else value
+
+
 class GrammarView:
     """The grammar memory reads with (`MemoryAgent.grammar_view`): its words (`Words`, what memory holds of them),
     and what it learned from the sentences memory holds with their taught meanings (`hold`: the lessons', the
@@ -2240,6 +2260,8 @@ class GrammarView:
         self._waiting: List[Any] = []
         self._waiting_keys: Set[str] = set()
         self._counted: Dict[str, List[Tuple[str, Tuple, str]]] = {}
+        #: What was learned from each sentence read since memory last kept it (`unkept`).
+        self._unkept: Dict[str, List[Tuple[str, Tuple, str]]] = {}
         self.learned_from = 0
         self.read_whole = 0
 
@@ -2250,19 +2272,35 @@ class GrammarView:
     def words(self) -> Words:
         return self.grammar.lexicon.words
 
-    def hold(self, taught: Any) -> None:
+    def hold(self, taught: Any, learned: Optional[Sequence[Any]] = None) -> None:
         """Hold one sentence taught with its meaning (`composition.TaughtSentence`), learned from when next read; one
-        held already is not held again."""
+        held already is not held again. `learned`: what it taught these rules before (`RULES`), as memory kept it with
+        the sentence (`unkept`): taken as learned, and the sentence is not read again."""
         key = taught.key()
-        if key not in self._counted and key not in self._waiting_keys:
-            self._waiting.append(taught)
-            self._waiting_keys.add(key)
+        if key in self._counted or key in self._waiting_keys:
+            return
+        if learned is not None:
+            counted = [(str(table), _tupled(was), _tupled(link)) for table, was, link in learned]
+            for table, was, link in counted:
+                self.grammar.lexicon.learned[table][was][link] += 1
+            self._counted[key] = counted
+            self.learned_from += 1
+            return
+        self._waiting.append(taught)
+        self._waiting_keys.add(key)
+
+    def unkept(self) -> Dict[str, List[Tuple[str, Tuple, str]]]:
+        """What was learned from each sentence read since this was last asked, by the sentence's key, for memory to
+        keep with the sentence; each is given once."""
+        unkept, self._unkept = self._unkept, {}
+        return unkept
 
     def drop(self, taught: Any) -> None:
         """Take back what one sentence taught (corrected since)."""
         key = taught.key()
         self._waiting = [t for t in self._waiting if t.key() != key]
         self._waiting_keys.discard(key)
+        self._unkept.pop(key, None)
         counted = self._counted.pop(key, None)
         if counted:
             self.grammar.unlearn(counted)
@@ -2297,6 +2335,7 @@ class GrammarView:
         counted: List[Tuple[str, Tuple, str]] = []
         self.read_whole += self.grammar.learn(tokens, taught.meaning, aligned, counted)
         self._counted[taught.key()] = counted
+        self._unkept[taught.key()] = counted
         self.learned_from += 1
 
     def read(self, sentence: str) -> Reading:
