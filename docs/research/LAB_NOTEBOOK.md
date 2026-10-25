@@ -16,6 +16,59 @@ Conventions:
 
 ---
 
+## 2026-10-25 (49) — Reading teaches words, kept; measured on held-out English, it does not yet make Lyric read better
+
+**Built** (the second half of (48)). Where Lyric reads in use, reading teaches (`grammar.reading_teaches`, a flag of the
+turn): a document handed to it (`_understand_words`, as the person it came from shares what Lyric learns,
+`shares_learning(person, "tasks")`), what a look-up read (`classification`), a person's turn (`handle_user_request`).
+A sentence read whole there is counted as the treebank's sentences are: how its reading used each word
+(`Lexicon.uses_in`: each word's use, each verb's form and frame), as much as the reading was sure (`Reading.sure`, the
+posterior over the whole readings), once per sentence (`GrammarView._learn_from_reading`, `HeldWords.hear_read`). A
+word met only in reading is a word of the kind it was read as from then on. Memory keeps what was read
+(`keep_grammar_learning`: one memory, `read_english`) and a warm counts it again (`hold_read`): a start forgets none
+of it. A kept language record is not read again as a claim (`_LANGUAGE_RECORDS`; each was parsed on every warm, which
+made the treebank's teaching take 4.7 h).
+
+**Measured** (READ-LEARN-01 `20261025T151307Z`, files only): the grammar as memory builds it, scored on the PMB's dev
+split (884 sentences), then reading the PMB's silver text alone, never its meanings:
+
+| Read | New words known | Dev right whole | Facts F1 |
+|---|---|---|---|
+| 0 | | 362 (40.9%) | 81.8% |
+| 2,000 | 769 | 364 | 81.7% |
+| 5,000 | 1,707 | 364 | 81.5% |
+| 10,000 | 3,112 | 364 | 81.5% |
+
+FAIL 1/2: words are learned and kept, the dev split is read no better, and its facts slightly less right. Counting
+how its own readings used each word, Lyric counts its own mistakes. A second run outside the repository also learned
+from each sentence read whole as if taught the meaning Lyric read it as: after 2,000, exactly the same (364, 81.7%).
+A reader that strengthens the meanings it already chooses keeps choosing them.
+
+**Why.** 860 of the 884 are read whole before any reading; what is missed is what sentences read whole mean. Of
+GRAMMAR-01's 300 kept misses, 66 differ only in a pronoun Lyric takes to point back (the PMB writes an unknown); the
+rest are which link a phrase makes ("taught at Harvard" as Harvard taught; "Where are the Pribilof Islands?" as
+`equals`; "Boston, Massachusetts" as a group; a question's tag; an "if"). The part of speech a word is decides none
+of them. And the grammar decides a preposition's link by the verb, the word and whether its object is a time
+(`spell_out`, a `prep` piece), never by what else the object is: nothing Lyric reads of a thing can change how a
+sentence about it is read.
+
+**Errors found, with causes.**
+- The first run stalled 32 minutes: it handed each silver document to the grammar as one sentence (one is 352 words).
+  Lyric reads a text utterance by utterance (`read_text` cuts where an utterance can end); the experiment now cuts
+  after the marks most of whose uses end a treebank sentence.
+- The grammar stopped on a sentence with "infinity": `_number` read a word with Python's `float`, which takes "nan",
+  "inf", "infinity" and "1_000" as numbers, so "My nan baked a cake." stopped it too (int of NaN). A numeral is now
+  written in digits; one too large to hold is said as written. `pmb_meanings` held a copy of the same function; it uses
+  the grammar's.
+
+**Verified.** tests/test_grammar.py 23 (2 new: reading teaches only where it may and once; a word Python reads as a
+number), tests/test_pmb_meanings.py 8.
+
+**Next.** For reading to make Lyric read better, a phrase's link has to be decided by what the things it joins are (a
+place, a person, an institution, a time), with the kinds of things each verb's places and each preposition's object
+hold learned, from the taught sentences and from what is read. Then what Lyric reads of things (Harvard is a
+university) changes how it reads sentences about them.
+
 ## 2026-10-25 (48) — What the grammar learns is kept: a start no longer learns English again
 
 **The defect, from the code.** Memory kept each of the 9,882 sentences taught with their meanings (the lessons', the

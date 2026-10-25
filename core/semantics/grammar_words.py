@@ -569,6 +569,26 @@ class HeldWords(Words):
     def bare_modifier(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.bare.get(word.lower(), {}).items()}
 
+    def hear_read(self, uses: Iterable[Tuple[str, str]], verbs: Iterable[Tuple[str, str, str, str]],
+                  weight: float) -> None:
+        """How a sentence Lyric read used its words, counted beside the treebank's uses, as much as the reading was
+        sure (`GrammarView._learn_from_reading`): each word's use, and words written alike (`like`); each verb's form
+        and frame. A word met only in reading is a word of the kind it was read as from then on."""
+        if weight <= 0:
+            return
+        touched = set()
+        for form, use in uses:
+            self.form_uses[form][use] += weight
+            for ending in {form[-3:], form[-2:]}:
+                self.alike[("uses", ending)][use] += weight
+            touched.add(form)
+        for form, name, verb_form, frame in verbs:
+            self.forms[form][verb_form] += weight
+            self.verb_frames[name][frame] += weight
+            self.alike[("frames", "")][frame] += weight
+        if touched:
+            self._uses = {w: u for w, u in self._uses.items() if w.lower() not in touched}
+
     def bare_relatives(self) -> Tuple[float, float]:
         return float(self.relatives[False]), float(self.relatives[True])
 

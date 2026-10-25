@@ -32,6 +32,9 @@ the words is exact over the chart (dynamic programming). A sentence the grammar 
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
+import hashlib
 import json
 import math
 import re
@@ -308,6 +311,11 @@ class Words:
         """How often the word, heading a thing said of a doing with no preposition before it, tells of the doing ("One
         morning the dog ran.", "We met last week.": `modifier`), and how often it is used as a noun otherwise."""
         return {}
+
+    def hear_read(self, uses: Iterable[Tuple[str, str]], verbs: Iterable[Tuple[str, str, str, str]],
+                  weight: float) -> None:
+        """How a sentence read used its words (`Lexicon.uses_in`), counted as much as `weight`
+        (`GrammarView._learn_from_reading`). Words that count nothing learn nothing from it."""
 
     def said_together(self, verb: str, word: str) -> Tuple[float, float]:
         """How often the verb is said with the word after it as one verb ("take in"), and how often with that word
@@ -783,6 +791,40 @@ class Lexicon:
         name = " ".join(w.lower() for w in words)
         return Entry("NP.@", (), "NAME", name, score, "name")
 
+    # ── what was read ──
+    def uses_in(self, sign: Sign, tokens: Sequence[str]) -> Tuple[List[Tuple[str, str]],
+                                                                  List[Tuple[str, str, str, str]]]:
+        """How a reading used each of its words, named as the treebank's uses are counted (`HeldWords.use_of`): a word
+        of a kind as its kind ("NOUN") or one of the kind's ways ("ADJECTIVE:degree"), a grammar word as its way
+        ("be:np"); and each verb, its form and its frame (`(word, verb, form, frame)`). A name of several words is no
+        word's use."""
+        uses: List[Tuple[str, str]] = []
+        verbs: List[Tuple[str, str, str, str]] = []
+        stack = [sign]
+        while stack:
+            s = stack.pop()
+            if s.rule != "lex":
+                stack.extend(s.kids)
+                continue
+            if s.end - s.start != 1:
+                continue
+            said = next((p for p in s.pieces if p[0] == "word"), None)
+            if said is None:
+                continue
+            low, cls = str(tokens[s.start]).lower(), said[2]
+            if cls == "VERB" and ":" in s.entry:
+                form, frame = s.entry.split(":", 1)
+                uses.append((low, "VERB"))
+                verbs.append((low, str(said[1]), form, frame))
+            elif cls == "GRAMMAR":
+                use = next((e["use"] for e in self.closed.get(low, []) if e.get("label", e["use"]) == s.entry), None)
+                if use:
+                    uses.append((low, use))
+            else:
+                uses.append((low, next((t.get("use", cls) for t in self.templates.get(cls, ())
+                                        if (t.get("label", "") or cls) == s.entry), cls)))
+        return uses, verbs
+
     # ── what was learned ──
     def time_of(self, term: Any) -> Optional[str]:
         """Whether a term is a time, and which: as memory holds it (`Words.is_time`: a point or a stretch), else a point
@@ -863,11 +905,18 @@ def _formula(word: str) -> bool:
 
 
 def _number(word: str) -> Optional[str]:
+    """The number a numeral written in digits says ("3,000": 3000; "2.5"), or None. Python's `float` also reads the
+    words "nan", "inf" and "infinity" as numbers, and "1_000": English writes no number so, and "My nan baked a cake."
+    stopped the grammar (READ-LEARN-01, 2026-10-25). A numeral too large to hold ("1e999") is said as written."""
     text = word.replace(",", "")
+    if "_" in text or not any(ch.isdigit() for ch in text):
+        return None
     try:
         value = float(text)
     except ValueError:
         return None
+    if not math.isfinite(value):
+        return text
     return str(int(value)) if value == int(value) else str(value)
 
 
@@ -915,6 +964,9 @@ class Reading:
     #: "own" (the word's own uses), "kind" (what memory holds it a kind of), "rule" (the grammar's link); the fact
     #: it made, or None).
     decided: List[Tuple[str, str, str, Optional[MeaningFact]]] = field(default_factory=list)
+    #: How sure the reading of the whole is: its share of every reading of the whole the grammar made, each as surely
+    #: as it reads its words (`Grammar.read`).
+    sure: float = 0.0
 
 
 #: The categories a whole sentence may be read as, and what the speaker wants by each.
@@ -1328,6 +1380,9 @@ class Grammar:
         # where it does not; as an order as often as what is said is one (`_said_so`).
         best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
         reading = Reading(tokens, best, None)
+        # HOW SURE: the reading's share of every reading of the whole, by how surely each reads its words.
+        top = max(s.score for s in whole)
+        reading.sure = math.exp(best.score - top) / sum(math.exp(s.score - top) for s in whole)
         try:
             reading.meaning = self._spell_out(best, tokens, reading)
         except ValueError as error:
@@ -2249,6 +2304,22 @@ def _tupled(value: Any) -> Any:
     return tuple(_tupled(v) for v in value) if isinstance(value, (list, tuple)) else value
 
 
+#: WHETHER WHAT IS READ NOW TEACHES LYRIC'S ENGLISH (`reading_teaches`): set where Lyric knows whose text it reads and
+#: that it may learn from it (a page it looked up, a document a person who shares their learning gave it). Unset,
+#: reading teaches nothing: a claim read as it is kept, a tool's description.
+_TEACHES: "contextvars.ContextVar[bool]" = contextvars.ContextVar("reading_teaches", default=False)
+
+
+@contextlib.contextmanager
+def reading_teaches(teaches: bool = True):
+    """What is read inside this teaches Lyric's English (`GrammarView.read`), as a book teaches a reader."""
+    token = _TEACHES.set(bool(teaches))
+    try:
+        yield
+    finally:
+        _TEACHES.reset(token)
+
+
 class GrammarView:
     """The grammar memory reads with (`MemoryAgent.grammar_view`): its words (`Words`, what memory holds of them),
     and what it learned from the sentences memory holds with their taught meanings (`hold`: the lessons', the
@@ -2262,6 +2333,11 @@ class GrammarView:
         self._counted: Dict[str, List[Tuple[str, Tuple, str]]] = {}
         #: What was learned from each sentence read since memory last kept it (`unkept`).
         self._unkept: Dict[str, List[Tuple[str, Tuple, str]]] = {}
+        #: Each sentence read that taught how its words are used (`read`, `hold_read`), by its digest: a sentence read
+        #: again teaches nothing more.
+        self._read: Set[str] = set()
+        #: What sentences read taught since memory last kept it (`unkept_read`).
+        self._unkept_read: List[Dict[str, Any]] = []
         self.learned_from = 0
         self.read_whole = 0
 
@@ -2342,12 +2418,44 @@ class GrammarView:
         """A sentence read by the grammar (`Reading`), after learning from what is waiting. A word written lowercase
         read as a name ("the function sorted") is heard as one from then on."""
         self.learn_waiting()
-        reading = self.grammar.read(tokens_of(sentence, self.words))
+        tokens = tokens_of(sentence, self.words)
+        reading = self.grammar.read(tokens)
         if reading.meaning is not None and reading.sign is not None:
-            for p in reading.sign.pieces:
-                if p[0] == "named":
-                    self.grammar.lexicon.heard[p[1]] += 1
+            named = [str(p[1]) for p in reading.sign.pieces if p[0] == "named"]
+            for name in named:
+                self.grammar.lexicon.heard[name] += 1
+            if _TEACHES.get():
+                self._learn_from_reading(sentence, tokens, reading, named)
         return reading
+
+    def _learn_from_reading(self, sentence: str, tokens: Sequence[str], reading: Reading, named: List[str]) -> None:
+        """READING TEACHES, as a book teaches its reader (`reading_teaches`): how the sentence's reading used each of its
+        words (`Lexicon.uses_in`) is counted beside the treebank's, as much as the reading was sure (`Reading.sure`),
+        so a word met is known from then on and how words are used is learned from what is read. A sentence read again
+        teaches nothing more. Kept for memory to keep (`unkept_read`)."""
+        key = hashlib.sha256(sentence.strip().encode("utf-8")).hexdigest()[:24]
+        if key in self._read:
+            return
+        uses, verbs = self.grammar.lexicon.uses_in(reading.sign, tokens)
+        record = {"key": key, "uses": [list(u) for u in uses], "verbs": [list(v) for v in verbs],
+                  "named": named, "sure": round(reading.sure, 4)}
+        self.hold_read(record)
+        self._unkept_read.append(record)
+
+    def hold_read(self, record: Mapping[str, Any]) -> None:
+        """What one sentence read taught (`_learn_from_reading`), counted: as it is read, or as memory kept it."""
+        if record["key"] in self._read:
+            return
+        self._read.add(record["key"])
+        self.words.hear_read([tuple(u) for u in record.get("uses", ())], [tuple(v) for v in record.get("verbs", ())],
+                             float(record.get("sure", 0.0)))
+        for name in record.get("named", ()):
+            self.grammar.lexicon.heard[name] += 1
+
+    def unkept_read(self) -> List[Dict[str, Any]]:
+        """What sentences read taught since this was last asked, for memory to keep; each is given once."""
+        unkept, self._unkept_read = self._unkept_read, []
+        return unkept
 
     def compose_sentence(self, sentence: str) -> Optional[Meaning]:
         """What a sentence means, read by the grammar; None where the grammar reads no whole or the meaning language

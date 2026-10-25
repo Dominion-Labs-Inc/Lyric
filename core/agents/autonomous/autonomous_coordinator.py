@@ -8986,7 +8986,7 @@ class AutonomousCoordinator:
                 # work can tell whether what it holds is still what is there.
                 self.reading.record(str(t.path))
             # WHAT THE WORDS MET SAY, read by the substrate's one reader.
-            await self._understand_words(content)
+            await self._understand_words(content, origin)
         # WITHIN WHICH PURSUIT: the one given, or the one this act is done under.
         within = within or await self._acting_pursuit_memory()
         domains = {id(t): t.domain or self._DOMAIN_OF.get(modality, "perception")
@@ -9106,7 +9106,7 @@ class AutonomousCoordinator:
         """What was already sensed of a thing, as the senses would hand it."""
         return sensed
 
-    async def _understand_words(self, content: Dict[str, Any]) -> None:
+    async def _understand_words(self, content: Dict[str, Any], origin: Optional[Origin] = None) -> None:
         """What the words met say, as the substrate's one reader reads them: the
         passages of a document and the words heard in a recording, read in
         order as one text, as a telling is heard (`document_reader.passages_stated`),
@@ -9130,9 +9130,22 @@ class AutonomousCoordinator:
         tables = content.pop("tables", None) or []
         if not passages and not tables:
             return
-        found = await passages_stated(passages, document=str(content.get("sha256") or content.get("subject") or ""))
+        # READING TEACHES LYRIC'S ENGLISH, as a book teaches its reader: what it reads for itself always, a person's
+        # document where they share what their work teaches (`_reading_teaches`). What it taught is kept.
+        from core.semantics.grammar import reading_teaches
+        with reading_teaches(await self._reading_teaches(origin.person if origin is not None else None)):
+            found = await passages_stated(passages,
+                                          document=str(content.get("sha256") or content.get("subject") or ""))
         found.extend(tables_stated(tables).facts)
         content["stated"] = found
+        await memory_agent().keep_grammar_learning()
+
+    @staticmethod
+    async def _reading_teaches(person: Optional[str]) -> bool:
+        """Whether what Lyric reads for `person` may teach its English: what it reads for itself does (None), a
+        person's text where they share what their tasks teach (`shares_learning`, the switch they set)."""
+        from core.learning.unified_learning_system import get_learning_authority
+        return await get_learning_authority().shares_learning(person, "tasks")
 
     def _door_origin(self, path: str, door: str, actor_identity: Optional[str]):
         """What kind of thing a file is, and where the perceiving comes from.
@@ -15805,8 +15818,13 @@ class AutonomousCoordinator:
         actor = self._requester(message, source=source, metadata=metadata)[2]
         if (metadata or {}).get("notices") and not str(message or "").strip():
             return self._as_said(await self._with_what_waits({"success": True, "answer": ""}, actor, by="asked"))
-        reply = await self._take_turn(message, source=source, priority=priority,
-                                      metadata=metadata, heard=heard)
+        # WHAT A PERSON SAYS TEACHES LYRIC'S ENGLISH where they share what their tasks teach (`_reading_teaches`), as
+        # talking with people teaches anyone's; what it taught is kept once the turn is answered.
+        from core.semantics.grammar import reading_teaches
+        with reading_teaches(await self._reading_teaches(actor)):
+            reply = await self._take_turn(message, source=source, priority=priority,
+                                          metadata=metadata, heard=heard)
+        await memory_agent().keep_grammar_learning()
         return self._as_said(await self._with_what_waits(reply, actor, by="reply"))
 
     @staticmethod
@@ -23177,6 +23195,7 @@ class Conversation:
         from core.domain.concept_ingestion import EvidenceSourceType
         from core.semantics.cognitive_ingress import admissible, normalize_term
         from core.semantics.derived_reader import is_variable, meant, read_text
+        from core.semantics.grammar import reading_teaches
         from core.tools import get_tool_registry
 
         registry = get_tool_registry()
@@ -23193,6 +23212,7 @@ class Conversation:
         pages_read = 0
 
         async def researched(acquired: Acquired, outcome: str) -> Acquired:
+            await memory_agent().keep_grammar_learning()
             await self._hand_over(origin, "research", parts, {
                 "outcome": outcome, "sources": len(hits), "pages_read": pages_read,
                 "admitted": bool(acquired.stored)})
@@ -23253,7 +23273,9 @@ class Conversation:
                 clean = _re.sub(r"[ \t]+([,.;:!?])", r"\1", clean).strip()
                 if not clean:
                     continue
-                utterances = read_text(clean)
+                # WHAT LYRIC READS FOR ITSELF TEACHES ITS ENGLISH (`grammar.reading_teaches`), a page as a book does.
+                with reading_teaches():
+                    utterances = read_text(clean)
                 lead = lead or (utterances[0].text if utterances else clean)
                 for utterance in utterances:
                     for reading in utterance.readings:

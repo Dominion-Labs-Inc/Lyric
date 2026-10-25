@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple
 
 from core.semantics.derived_reader import Meaning, MeaningFact
+from core.semantics.grammar import _number
 from core.semantics.relation_types import worded
 
 #: A concept line's sense: `movie.n.01`.
@@ -170,14 +171,6 @@ def _date(said: Mapping[str, str]) -> Optional[str]:
     if month and day and not (year or clock) and month.isdigit() and day.isdigit():
         return f"--{int(month):02d}-{int(day):02d}"
     return None
-
-
-def _number(text: str) -> Optional[str]:
-    try:
-        value = float(text)
-    except ValueError:
-        return None
-    return str(int(value)) if value == int(value) else str(value)
 
 
 def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> Said:

@@ -179,6 +179,8 @@ class MemoryAgent(IMemoryConsolidation):
         #: Each taught sentence's memory, and what the grammar learned from it under today's rules (None: not learned
         #: from yet, or under other rules), by the sentence's key (`_composition_memories`, `keep_grammar_learning`).
         self._grammar_learned: Dict[str, Tuple[str, Optional[List[Any]]]] = {}
+        #: What reading taught of how words are used, each sentence's, as memory keeps it (`READ_ENGLISH_TAG`).
+        self._read_english: List[Dict[str, Any]] = []
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
         #: How many things memory holds connected to each thing a listener has asked about (`_fans`), with how many
         #: things memory holds at all when they were counted: what each thing's associative strength is measured
@@ -481,6 +483,10 @@ class MemoryAgent(IMemoryConsolidation):
         "answer:",
     )
 
+    #: What a memory of English is kept under (`source_context`): how a sentence was analysed, taught with its meaning,
+    #: argued, grouped or formed, and how a reading used its words (`keep_grammar_learning`).
+    _LANGUAGE_RECORDS = ("analysed", "taught", "argued", "word_group", "word_forms", "read_english")
+
     async def _readable_claim(self, content, source_context):
         """The substrate-readable CLAIM a memory asserts, its shape, and its
         facts -- or ``(None, None, ())``.
@@ -508,6 +514,11 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.claim_shape import shape_of
         from core.semantics.derived_reader import Meaning, MeaningFact, heard, read_text
 
+        if isinstance(source_context, dict) and any(field in source_context for field in self._LANGUAGE_RECORDS):
+            # HOW ENGLISH WAS TAUGHT OR READ IS NO CLAIM ABOUT THE WORLD: a sentence analysed, taught with its meaning,
+            # its arguments annotated, how a reading used its words. Read as a claim each time one was kept, the
+            # treebank's 12,544 took 4.7 hours to teach, every sentence read whole by the grammar (2026-10-24).
+            return None, None, ()
         candidate = ""
         if isinstance(source_context, dict):
             candidate = str(source_context.get("conclusion") or "").strip()
@@ -2925,6 +2936,9 @@ class MemoryAgent(IMemoryConsolidation):
         structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
+        # AND WHAT READING TAUGHT OF HOW WORDS ARE USED (`keep_grammar_learning`).
+        self._read_english = [record for row in await self._rows_tagged(self.READ_ENGLISH_TAG)
+                              for record in ((row.metadata or {}).get("read_english") or ())]
         # AND WHAT THINGS ARE, as English's grammar asks it of the words it reads (`grammar_view`).
         grammar_links = await self._grammar_knowledge()
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
@@ -6860,8 +6874,13 @@ class MemoryAgent(IMemoryConsolidation):
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms))
             for taught in self._grammar_taught:
                 view.hold(taught, self._grammar_learned.get(taught.key(), (None, None))[1])
+            for record in self._read_english:
+                view.hold_read(record)
             self._grammar_view = view
         return self._grammar_view
+
+    #: What reading taught of English is kept under (`keep_grammar_learning`).
+    READ_ENGLISH_TAG = "read_english"
 
     async def keep_grammar_learning(self) -> int:
         """WHAT THE GRAMMAR LEARNED FROM EACH SENTENCE IS KEPT WITH THE SENTENCE, under the rules it was learned by
@@ -6873,6 +6892,19 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is None:
             return 0
         give_way, kept = GiveWay(), 0
+        # WHAT READING TAUGHT, one memory for what was read since the last keeping: how each sentence used its words
+        # (`GrammarView._learn_from_reading`), taken back at every warm (`grammar_view`). Lyric's own English, learned.
+        read = self._grammar_view.unkept_read()
+        if read:
+            from core.memory.utils.interfaces import Origin
+            stored, _ = await self.store_memory(
+                content=f"How {len(read)} sentence(s) read used their words", memory_type=MemoryType.SEMANTIC,
+                confidence_score=0.9, tags=["language", self.READ_ENGLISH_TAG], source_context={"read_english": read},
+                origin=Origin.own("reading"))
+            if not stored:
+                raise RuntimeError("what reading taught was not kept: the memory was declined")
+            self._read_english.extend(read)
+            kept += len(read)
         for key, counted in self._grammar_view.unkept().items():
             memory_id = self._grammar_learned.get(key, (None, None))[0]
             if memory_id is None:

@@ -138,6 +138,15 @@ def test_a_number_of_them_is_that_many_of_them(grammar):
     assert doer != "2" and {("has_count", doer, "2"), ("part_of", doer, "?previous")} <= facts, facts
 
 
+def test_a_word_python_reads_as_a_number_is_no_number(grammar):
+    """"nan", "inf" and "infinity" are words, though Python's `float` reads them as numbers: a sentence with one is
+    read, never stopped (READ-LEARN-01, 2026-10-25)."""
+    assert [gm._number(w) for w in ("nan", "Infinity", "inf", "1_000")] == [None] * 4
+    assert [gm._number(w) for w in ("3,000", "2.5", "1e999")] == ["3000", "2.5", "1e999"]
+    for sentence in ("My nan baked a cake.", "The list goes on to infinity."):
+        grammar.read(gm.tokens_of(sentence, grammar.lexicon.words))
+
+
 def test_what_is_said_of_a_kind(grammar):
     assert read(grammar, "Whales are mammals.") == "tell: isa(whale, mammal)"
     assert read(grammar, "Birds can fly.") == "tell: capable_of(bird, fly)"
@@ -354,3 +363,33 @@ def test_what_a_sentence_taught_is_kept_and_not_learned_again():
                             if tab}
     assert learned(second) == learned(first)
     assert second.grammar.lexicon.time_of("morning") == "point"
+
+
+def test_reading_teaches_how_words_are_used_only_where_it_may_and_once():
+    """A sentence read inside `reading_teaches` adds how its reading used each word to the counts the grammar reads
+    with (`HeldWords.hear_read`), as much as the reading was sure; outside it, and read a second time, it teaches
+    nothing. What it taught, given to memory once (`unkept_read`) and held again (`hold_read`), counts the same."""
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.structure import Analysed
+    held = [Analysed(("The", "dog", "barked", "."), ("DETERMINER", "NOUN", "VERB", "PUNCTUATION"), (2, 3, 0, 3),
+                     ("det", "nsubj", "root", "punct")),
+            Analysed(("The", "cat", "slept", "."), ("DETERMINER", "NOUN", "VERB", "PUNCTUATION"), (2, 3, 0, 3),
+                     ("det", "nsubj", "root", "punct"))]
+
+    def view():
+        return gm.GrammarView(HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower())))
+    reader = view()
+    before = dict(reader.words.uses("dog"))
+    reader.read("The dog barked.")
+    assert reader.unkept_read() == [] and dict(reader.words.uses("dog")) == before, "reading outside teaches nothing"
+    with gm.reading_teaches():
+        reader.read("The dog barked.")
+        taught = dict(reader.words.uses("dog"))
+        reader.read("The dog barked.")
+    assert taught.get("NOUN", 0) > before.get("NOUN", 0), (before, taught)
+    assert dict(reader.words.uses("dog")) == taught, "a sentence read again teaches nothing more"
+    records = reader.unkept_read()
+    assert len(records) == 1 and reader.unkept_read() == []
+    again = view()
+    again.hold_read(records[0])
+    assert dict(again.words.uses("dog")) == taught
