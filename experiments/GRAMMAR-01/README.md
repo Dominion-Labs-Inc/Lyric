@@ -73,6 +73,12 @@ not read right senses aside (`_missed.json`).
 | `20261021T012601Z` | 854 / 845 | 20.1% | 39.8% | 49.9% | 80.8% | 1,385 (80.3%) / 79 (68.4%) / 178 (43.3%) |
 | `20261021T025251Z` | 857 / 852 | 20.0% | 39.3% | 49.4% | 80.6% | 1,409 (79.9%) / 76 (65.8%) / 176 (42.6%) |
 | `20261024T181237Z` | 860 / 856 | 20.5% | 41.0% | 52.1% | 81.8% | 1,414 (80.3%) / 81 (70.4%) / 173 (43.9%) |
+| `20261025T173519Z` | 860 / 856 | 20.8% | 41.4% | 52.7% | 81.9% | 1,344 (82.9%) / 148 (56.8%) / 173 (43.9%) |
+
+From `20261025T173519Z` a preposition's link is decided by what its thing is where no sentence taught it of the very
+doing or thing it is said of (`Lexicon.selected`, `prep_to`: "Vance worked with Hooper." with a person, "Tom taught at
+Harvard." where; lab notebook 2026-10-25 (50)): 7 links right that were wrong, 1 wrong that was right ("The chicken is
+pecking at Tom.": "at" a name memory holds nothing of read as where).
 
 From `20261021T012601Z` the words are read as main reads them (`grammar_words.HeldWords`: the treebank's sentences as
 main holds them, analysed, with no features; the forms each word is written in; WordNet's links as taught), not from

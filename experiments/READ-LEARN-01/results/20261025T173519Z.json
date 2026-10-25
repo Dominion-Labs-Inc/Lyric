@@ -1,0 +1,145 @@
+{
+  "experiment": "READ-LEARN-01",
+  "claim": "Lyric's English gets better by reading: how a sentence it reads and is sure of used its words is counted beside the treebank's, and held-out English is read better after reading",
+  "hypothesis": "with nothing but reading raw English between them, more of the PMB's held-out dev meanings are read right whole after reading than before (senses aside), and the facts read are no less right (F1)",
+  "started_at": "2026-10-25T17:35:19.663348+00:00",
+  "duration_seconds": 4024.253,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "14a77c5810e618d586622381d3912ff60be7a791",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 10,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 2,
+    "passed": 0,
+    "failed": 2,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "PMB dev sentences scored",
+      "value": 884,
+      "unit": "sentences",
+      "note": ""
+    },
+    {
+      "name": "before reading: dev read whole / right whole (senses aside) / facts F1",
+      "value": [
+        860,
+        366,
+        0.8194
+      ],
+      "unit": "",
+      "note": "precision 0.8293, recall 0.8099"
+    },
+    {
+      "name": "after reading 2,000: sentences that taught (read whole), new words known, kinds of named things taken in",
+      "value": [
+        1761,
+        769,
+        225
+      ],
+      "unit": "",
+      "note": "679s reading"
+    },
+    {
+      "name": "after reading 2,000: dev read whole / right whole (senses aside) / facts F1",
+      "value": [
+        860,
+        369,
+        0.8188
+      ],
+      "unit": "",
+      "note": "precision 0.8292, recall 0.8086"
+    },
+    {
+      "name": "after reading 5,000: sentences that taught (read whole), new words known, kinds of named things taken in",
+      "value": [
+        4403,
+        1711,
+        532
+      ],
+      "unit": "",
+      "note": "1890s reading"
+    },
+    {
+      "name": "after reading 5,000: dev read whole / right whole (senses aside) / facts F1",
+      "value": [
+        860,
+        358,
+        0.8147
+      ],
+      "unit": "",
+      "note": "precision 0.8222, recall 0.8073"
+    },
+    {
+      "name": "after reading 10,000: sentences that taught (read whole), new words known, kinds of named things taken in",
+      "value": [
+        8880,
+        3118,
+        1059
+      ],
+      "unit": "",
+      "note": "3784s reading"
+    },
+    {
+      "name": "after reading 10,000: dev read whole / right whole (senses aside) / facts F1",
+      "value": [
+        860,
+        357,
+        0.8143
+      ],
+      "unit": "",
+      "note": "precision 0.8225, recall 0.8062"
+    }
+  ],
+  "checks": [
+    {
+      "label": "more held-out meanings read right whole after reading than before (senses aside)",
+      "passed": false,
+      "detail": "366 -> 357",
+      "at": "2026-10-25T18:42:23.899161+00:00"
+    },
+    {
+      "label": "the facts read are no less right after reading (F1)",
+      "passed": false,
+      "detail": "0.8194 -> 0.8143",
+      "at": "2026-10-25T18:42:23.899194+00:00"
+    }
+  ],
+  "notes": [
+    "the dev split is held out: no dev sentence is read, and scoring reads with `grammar.read`, which teaches nothing; only `GrammarView.read` inside `reading_teaches` does"
+  ]
+}

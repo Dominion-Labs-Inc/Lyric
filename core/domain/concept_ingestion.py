@@ -1320,7 +1320,7 @@ class ConceptIngestionService:
                 source_concept_id=identity.concept_id, relation=str(relation)[:128],
                 target_concept_id=target, target_surface=str(surface),
                 evidence_id=envelope.evidence_id, extractor=candidate.extractor,
-                polarity=polarity)
+                polarity=polarity, source_name=identity.name)
             quality: Optional[float] = None
             if len(edge) > 3 and edge[3] is not None:
                 try:

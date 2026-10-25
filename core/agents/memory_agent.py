@@ -3501,14 +3501,21 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def link_concepts(self, *, source_concept_id: str, relation: str,
                             target_concept_id: Optional[str], target_surface: str,
-                            evidence_id: str, extractor: str, polarity: str) -> None:
+                            evidence_id: str, extractor: str, polarity: str,
+                            source_name: Optional[str] = None) -> None:
         """A link from one concept to another, or to a surface not yet learned
         (`target_concept_id` None until `attach_waiting_links` finds it).
 
         ONE SPELLING OF A RELATION: written as the ingress writes it, with spaces
         ("has property"), whichever producer named it ("has_property"), so the
         same relation is never two rows apart by how it was spelled. Readers take
-        either (`concept_graph_reasoning._typed_edge`)."""
+        either (`concept_graph_reasoning._typed_edge`).
+
+        WHAT A THING IS, KNOWN AT ONCE: a kind taken in of the concept named
+        `source_name` ("Harvard is a university.", told, read in a document,
+        taught) is what English's grammar asks of it from then on (`grammar_view`,
+        `Words.hear_kind`), not from the next warm: the grammar decides what a
+        phrase says by what its things are (`grammar.Lexicon.selected`)."""
         relation = " ".join(str(relation).replace("_", " ").split())
         await self._memory_db().execute_query(
             """INSERT INTO unified.concept_relations
@@ -3523,6 +3530,11 @@ class MemoryAgent(IMemoryConsolidation):
              evidence_id, extractor, polarity),
             commit=True,
         )
+        kind = {"isa": "isa", "is a": "isa", "instance of": "instance_of"}.get(relation)
+        if kind and polarity == "positive" and source_name:
+            self._grammar_links.append((str(source_name), kind, str(target_surface)))
+            if self._grammar_view is not None:
+                self._grammar_view.words.hear_kind(str(source_name), kind, str(target_surface))
 
     async def attach_waiting_links(self, *, target_concept_id: str,
                                    target_surface: str) -> Any:

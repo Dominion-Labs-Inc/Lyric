@@ -317,6 +317,10 @@ class Words:
         """How a sentence read used its words (`Lexicon.uses_in`), counted as much as `weight`
         (`GrammarView._learn_from_reading`). Words that count nothing learn nothing from it."""
 
+    def hear_kind(self, subject: str, relation: str, kind: str) -> None:
+        """What memory has just taken in a thing to be (`isa`, `instance_of`: "Harvard is a university."), as
+        `kinds` answers from then on (`MemoryAgent.link_concepts`). Words that hold no kinds learn nothing from it."""
+
     def said_together(self, verb: str, word: str) -> Tuple[float, float]:
         """How often the verb is said with the word after it as one verb ("take in"), and how often with that word
         after it otherwise ("sleep in the car")."""
@@ -858,6 +862,18 @@ class Lexicon:
         for kind in self.words.kinds(name, cls):
             held = self.learned[table].get((kind,) + rest)
             if held:
+                return _weighed(held, default), "kind"
+        return default, "rule"
+
+    def selected(self, table: str, key: Tuple, what: Sequence[str], default: Optional[str]) \
+            -> Tuple[Optional[str], str]:
+        """WHAT A LINK SAYS, BY WHAT THE THING IT JOINS IS: "with" a person is with whom it was done ("Vance worked
+        with Hooper."), "with" a tool what it was done with; "in" a country where. The link `table` holds for `key`
+        and the nearest of `what` (`_what_is`) two taught sentences said something of, weighed against `default`
+        (what is said of the word whatever its thing is); `default` where nothing is said of any."""
+        for kind in what:
+            held = self.learned[table].get(tuple(key) + (kind,))
+            if held and sum(held.values()) >= 2:
                 return _weighed(held, default), "kind"
         return default, "rule"
 
@@ -1450,6 +1466,7 @@ class Grammar:
         timed = {p[1] for p in pieces if p[0] == "past"}
         graded = {p[1] for p in pieces if p[0] in ("degree", "degree_asked")}
         kinds_of = {p[1]: p for p in pieces if p[0] in ("kind", "event")}
+        things = {p[1]: p for p in pieces if p[0] == "kind"}
         learned = self.lexicon.learned
 
         def count(table: str, key: Tuple, link: str) -> None:
@@ -1525,6 +1542,8 @@ class Grammar:
                 time = self.lexicon.time_of(b) or (
                     self.lexicon.time_of(kinds_of[b][2]) if b in kinds_of else None) or "-"
                 count("prep", (word, kind, time), got[0] if got else "")
+                for what in _what_is(b, things, pieces, self.lexicon.words):
+                    count("prep_to", (word, kind, what), got[0] if got else "")
                 head = kinds_of.get(a)
                 if head is not None:
                     count("prep_of", (head[2], word, time), got[0] if got else "")
@@ -1956,16 +1975,22 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             kind = "event" if a in events else "thing"
             time = lexicon.time_of(b) or (lexicon.time_of(kinds[b][2]) if b in kinds else None) or "-"
             head = events.get(a) or kinds.get(a)
-            got, how = (None, "rule")
+            # A TIME SAID OF A DOING WITH NO PREPOSITION (`NP=>adjunct`, no word) says when it was, as the PMB's
+            # meanings say a happening's time (`during`), where memory holds it a time; else only what taught
+            # sentences said such a thing is to its doing ("a lot", "that way").
+            default = (worded(word) if word.replace(" ", "").isalpha()
+                       else "during" if not word and time != "-" else None)
+            said, how_said = lexicon.link("prep", (word, kind, time), default)
+            got, how = lexicon.selected("prep_to", (word, kind), _what_is(b, kinds, pieces, words), said)
+            if how != "kind":
+                how = how_said
             if head is not None:
-                got, how = lexicon.link("prep_of", (head[2], word, time), None)
-            if how != "own":
-                # A TIME SAID OF A DOING WITH NO PREPOSITION (`NP=>adjunct`, no word) says when it was, as the
-                # PMB's meanings say a happening's time (`during`), where memory holds it a time; else only what
-                # taught sentences said such a thing is to its doing ("a lot", "that way").
-                default = (worded(word) if word.replace(" ", "").isalpha()
-                           else "during" if not word and time != "-" else None)
-                got, how = lexicon.link("prep", (word, kind, time), default)
+                # What sentences said of this very doing or thing with the word ("arrived in": where to) decides
+                # before what is said of the word with what its thing is: weighed against that, one sentence tied
+                # and lost, and "landed on my windowsill" was where the robin landed, not where to.
+                own, how_own = lexicon.link("prep_of", (head[2], word, time), None)
+                if how_own == "own":
+                    got, how = own, "own"
             decided.append(("prep", f"{word}:{kind}:{time}", how,
                             add(got, a, b, positive=not (owner is not None and owner in denied), at=at)))
         elif what == "holder":
@@ -2165,6 +2190,31 @@ def _be_key(pieces: Sequence[Piece], be: Piece, given: Set[Term], asked: Sequenc
         "kind" if any(q[0] in ("indefinite", "bare", "every") and q[1] == x for q in pieces) else "thing"))
     complement = "given" if y in given else "name" if isinstance(y, str) else "asked" if y in asked else "kind"
     return subject, complement
+
+
+#: What a name memory holds nothing of is, as what a link is learned for: one thing called by its name ("Vance worked
+#: with Hooper.").
+NAMED = "(a name)"
+
+
+def _what_is(t: Term, kinds: Mapping[Term, Piece], pieces: Sequence[Piece], words: Words) -> List[str]:
+    """WHAT A THING SAID IS, nearest first, as what a link is learned and decided for (`Lexicon.selected`): the kind
+    it is said to be and what memory holds that a kind of ("the election": an election, a vote, a group action, an
+    event); a name's kinds as memory holds them, then that it is a name; the speaker, the listener and a pronoun of a
+    person ("him") a person."""
+    if t in kinds:
+        kind = str(kinds[t][2])
+        return [kind] + words.kinds(kind, "NOUN")
+    pronoun = next((q[2] for q in pieces if q[0] == "pron" and q[1] == t), None)
+    if pronoun is not None:
+        return ["person"] if _pronoun_kind(pronoun) == "person" else []
+    if not isinstance(t, str):
+        return []
+    if t in ("?speaker", "?listener"):
+        return ["person"]
+    if t.startswith("?") or _number(t) is not None:
+        return []
+    return words.kinds(t, "NOUN") + [NAMED]
 
 
 def _pronoun_kind(word: str) -> str:

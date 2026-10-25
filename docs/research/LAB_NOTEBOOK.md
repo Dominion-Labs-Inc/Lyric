@@ -16,6 +16,60 @@ Conventions:
 
 ---
 
+## 2026-10-25 (50) — What a thing is decides what a phrase says; a kind memory takes in is known at once; reading's kinds are mostly misreadings
+
+**Built.**
+- **A preposition's link by what its thing is** (`grammar.Lexicon.selected`, `_what_is`, table `prep_to`). Learned:
+  each taught preposition counted for every kind its thing is, nearest first (a kind said and what memory holds it a
+  kind of; a name's kinds, then `(a name)`; the speaker, the listener and "him" a person). Decided: what sentences
+  said of the very doing or thing with the word first (`prep_of`, "arrived in"), then the nearest kind two taught
+  sentences said something of, then the word alone. Weighed against the kind, one sentence about the verb tied and
+  lost: "landed on my windowsill" was where the robin landed, not where to (scratch: fixed 10, broke 6); put first, the
+  kind broke "arrived in California", "worked for Eurofins" (fixed 11, broke 23).
+- **A kind memory takes in is known at once.** `MemoryAgent.link_concepts`, memory's one writer of links, given the
+  concept's name (`concept_ingestion`), hands an `isa` or `instance of` link to the grammar's words (`Words.hear_kind`,
+  `GraphKnowledge.add`) and to what a warm builds it from: the grammar asked memory what things are only at a warm.
+
+**Measured.** GRAMMAR-01 `20261025T173519Z`: senses aside 362 → 366 (41.4%), strict 181 → 184, F1 81.8% → 81.9%; 7
+links right that were wrong ("Tom taught at Harvard.", "Vance worked with Hooper.", "I don't want to argue with you."),
+1 wrong that was right ("The chicken is pecking at Tom.": "at" a name memory holds nothing of, where).
+
+**Through the real door** (lyric_dev, one person, one conversation): "Cal worked with Plim." held `work_1ea6cc0b done
+by plim` (a co-worker); "Plim is a hammer." held `plim isa hammer` in the world; "Dee worked with Plim." held
+`work_bb78fe24 done with plim` (a tool), a second later, no start between. "Did Cal work?" "Yes. It was cal who
+worked."
+
+**Reading's kinds: READ-LEARN-01, four runs, every one FAIL.** Taken in as the experiment's stand-in for memory (each
+`isa` a sentence read whole tells), after 10,000 sentences: a name's kind as `isa` 366 → 357 (`20261025T173519Z`): held
+a kind of something and an instance of nothing, "Tom" became a noun to the grammar (`GraphKnowledge.capitalized`), and
+"We trusted Tom." told of trusting a tom. As `instance_of`, as memory holds a particular, 366 → 369, F1 81.9% → 81.8%
+(`20261025T192738Z`); "The chicken is pecking at Tom." reads right, Tom a nurse by what was read. Counting a word's
+uses only where the treebank holds nothing of it (its reading is its counts counted again) did worse, 362
+(`20261025T201431Z`), and is not kept. Of the 531 kinds 5,000 sentences gave, most are misreadings: the grammar's "the
+river Thames" reading fires on compounds and misparses ("The oil spill polluted the bay.": a spill an oil; "saw Mary
+and John kissing": Mary a saw). lyric_dev holds one from a look-up since 2026-10-21, `balancer isa into`.
+
+**Errors found, with causes.**
+- `Conversation.stated` was changed to hand a named thing's kind on as `instance_of`; through the door a document's
+  facts were held as before (`kim_lorrel isa nurse`): a text is read by composing, and a composed reading carries no
+  constructions, so no word was known a name. Reverted; and a person's document is held as theirs
+  (`scoped_concept_relations`), never reaching the grammar.
+- During the door check I put the working tree's changes aside (`git stash`) to run the old code's tests; the Lyric
+  that check started could have loaded the old code. Its result was discarded and the check run again.
+- Two tests of tests/test_conversation.py fail, on this commit's parent as well (a checkout of it, run apart):
+  `test_a_telling_read_by_composing_is_not_taken_in_whole`, and `test_a_name_with_nothing_behind_it_is_not_an_answer`
+  after any other test of the file (lyric_dev holds `balancer isa into`, so "balancer" is known).
+- "Did Zed work?" answered "I remember: Zed is a hammer. I hold work but nothing said about it yet. A zed is a
+  hammer.": one fact said twice, and nothing held said of a working it holds two of. The first run's two yes-or-no
+  questions waited past the door's 15 s, after a start that learned again; two runs after it answered each in 1 to 4 s.
+
+**Verified.** tests/test_grammar.py 25 (2 new: a preposition by what its thing is; a kind known at once),
+tests/test_pmb_meanings.py 8.
+
+**Next.** Only what a sentence says a thing is ("is", between commas) taken in as what it is, a name's as an
+instance: the grammar's names and what said each fact carried to where a text Lyric reads for itself is taken in.
+Compounds ("oil spill") read as one kind of thing. The answer to a yes-or-no question about a thing used, not done by.
+
 ## 2026-10-25 (49) — Reading teaches words, kept; measured on held-out English, it does not yet make Lyric read better
 
 **Built** (the second half of (48)). Where Lyric reads in use, reading teaches (`grammar.reading_teaches`, a flag of the

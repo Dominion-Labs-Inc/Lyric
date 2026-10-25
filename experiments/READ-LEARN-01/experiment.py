@@ -3,14 +3,18 @@
 
 Claim. Reading teaches: how a sentence Lyric reads and is sure of used its words is counted beside the treebank's
 (`grammar.GrammarView._learn_from_reading`, inside `grammar.reading_teaches`), so a word met in reading is known from
-then on and how words are used is learned from what is read. With nothing but reading between them, the grammar reads
-held-out English better after reading than before.
+then on and how words are used is learned from what is read; and what a sentence read says a named thing is ("Tom is
+a teacher.") memory takes in, and the grammar knows it at once (`MemoryAgent.link_concepts`, `Words.hear_kind`), so a
+phrase about it reads by what it is (`grammar.Lexicon.selected`). With nothing but reading between them, the grammar
+reads held-out English better after reading than before.
 
 Measured as GRAMMAR-01 measures (files only, no store): the grammar built as memory builds it (the English Web
 Treebank's sentences, WordNet's links, learned from the lessons and the PMB's gold training sentences), scored on the
 PMB's dev split (held out); then it reads raw English it was never taught, the PMB's silver documents' sentences (their
 text alone, never their meanings, none of them a dev sentence), and is scored again on the same dev split after each
-stretch of reading. Scoring teaches nothing: only what is read inside `reading_teaches` does. A document is read
+stretch of reading. Scoring teaches nothing: only what is read inside `reading_teaches` does. Standing in for memory,
+the experiment gives the grammar's words each kind a sentence read whole tells of a named thing, as memory's one
+writer of links does on main. A document is read
 sentence by sentence, as Lyric reads one (`derived_reader.read_text` cuts a text where an utterance can end): it is cut
 after each mark the treebank's sentences end on (`sentence_ends`).
 
@@ -73,6 +77,24 @@ def sentences_of(text: str, ends: frozenset) -> list:
     if current.strip():
         out.append(current.strip())
     return out
+
+
+def told_kinds(reading, words) -> list:
+    """What a sentence read whole tells a thing is ("Whales are mammals.": `isa(whale, mammal)`), each given to the
+    grammar's words as memory gives a kind it takes in (`Words.hear_kind`); a named thing's kind as memory holds a
+    particular's, `instance_of` ("Tom is a teacher."; on main a text read by composing knows no names yet)."""
+    from core.semantics.derived_reader import is_variable
+    told = []
+    if reading.meaning is None or reading.sign is None:
+        return told
+    names = {str(p[1]) for p in reading.sign.pieces if (p[0] == "word" and p[2] == "NAME") or p[0] == "named"}
+    for f in reading.meaning.facts:
+        if f.relation in ("isa", "instance_of") and f.positive and not (f.condition or f.unasserted or f.alternative) \
+                and not is_variable(f.subject) and not is_variable(f.obj):
+            relation = "instance_of" if f.relation == "isa" and str(f.subject) in names else f.relation
+            words.hear_kind(f.subject, relation, f.obj)
+            told.append((f.subject, relation, f.obj))
+    return told
 
 
 def main() -> int:
@@ -164,7 +186,7 @@ def main() -> int:
     raws = sorted((pmb / "data" / "en" / "silver").rglob("en.raw"))
     random.Random(SEED).shuffle(raws)
     known_before = set(words.form_uses)
-    after, read, taught, total = {}, 0, 0, 0.0
+    after, read, taught, total, kinds = {}, 0, 0, 0.0, 0
     waiting: list = []
     with gm.reading_teaches():
         for stretch in stretches:
@@ -178,14 +200,15 @@ def main() -> int:
                     continue
                 read += 1
                 before_count = len(view._read)
-                view.read(waiting.pop(0))
+                reading = view.read(waiting.pop(0))
                 taught += len(view._read) - before_count
+                kinds += len(told_kinds(reading, view.words))
             total += time.perf_counter() - t0
             new_words = len(set(words.form_uses) - known_before)
-            EV.metric(f"after reading {read:,}: sentences that taught (read whole), new words known",
-                      [taught, new_words], note=f"{total:.0f}s reading")
+            EV.metric(f"after reading {read:,}: sentences that taught (read whole), new words known, kinds of "
+                      f"named things taken in", [taught, new_words, kinds], note=f"{total:.0f}s reading")
             say(f"read {read:,} sentences ({taught:,} read whole, teaching how their words are used; {new_words:,} "
-                f"words known now that were not), {total:.0f}s")
+                f"words known now that were not; {kinds:,} kinds of named things taken in), {total:.0f}s")
             after[read] = score(f"after reading {read:,}")
     last = after[max(after)]
     EV.check("more held-out meanings read right whole after reading than before (senses aside)",

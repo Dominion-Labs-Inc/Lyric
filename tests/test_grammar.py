@@ -393,3 +393,52 @@ def test_reading_teaches_how_words_are_used_only_where_it_may_and_once():
     again = view()
     again.hold_read(records[0])
     assert dict(again.words.uses("dog")) == taught
+
+
+def test_what_a_preposition_says_is_decided_by_what_its_thing_is():
+    """"from" a place is where a doing came from, "from" a feeling what caused it: learned of what the taught things
+    are (`prep_to`, each kind its thing is), and decided by what a new one is for a verb no sentence taught with
+    "from" (`Lexicon.selected`): "The cat sleeps from the park." and "... from fear." (READ-LEARN-01, 2026-10-25)."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    kinds = {"park": ["place", "location"], "garden": ["place", "location"], "fear": ["feeling", "state"],
+             "hunger": ["feeling", "state"]}
+
+    class Kinds(Held):
+        def uses(self, word: str) -> Mapping[str, float]:
+            return {"NOUN": 10.0} if word.lower() in kinds else super().uses(word)
+
+        def name(self, word: str, cls: str) -> str:
+            return word.lower() if word.lower() in kinds else super().name(word, cls)
+
+        def kinds(self, name: str, cls: str):
+            return kinds.get(name, [])
+    g = gm.Grammar(gm.Lexicon(Kinds()))
+
+    def teach(sentence: str, link: F, what: str, given: bool) -> None:
+        meaning = Meaning("tell", (F("instance_of", "?v0", "bark"), F("done_by", "?v0", "?v1"),
+                                   F("instance_of", "?v1", "dog", given=True), F("precedes", "?v0", "?now"), link,
+                                   F("instance_of", "?v2", what, given=given)))
+        tokens = gm.tokens_of(sentence, g.lexicon.words)
+        assert g.learn(tokens, meaning, gm.align_by_names(tokens, meaning, g.lexicon))
+    for _ in range(2):
+        teach("The dog barked from the garden.", F("moves_from", "?v0", "?v2"), "garden", True)
+        teach("The dog barked from hunger.", F("causes", "?v2", "?v0"), "hunger", False)
+    assert read(g, "The cat sleeps from the park.") == ("tell: done_by(?v0, ?v1) & given instance_of(?v1, cat) & "
+                                                        "given instance_of(?v2, park) & instance_of(?v0, sleep) & "
+                                                        "moves_from(?v0, ?v2)")
+    assert read(g, "The cat sleeps from fear.") == ("tell: causes(?v0, ?v1) & done_by(?v1, ?v2) & given "
+                                                    "instance_of(?v2, cat) & instance_of(?v0, fear) & "
+                                                    "instance_of(?v1, sleep)")
+
+
+def test_a_kind_memory_takes_in_is_known_at_once():
+    """What memory has just taken a thing to be ("Harvard is a university.") is what the grammar's words hold it to
+    be from then on (`Words.hear_kind`, from `MemoryAgent.link_concepts`), not from the next warm."""
+    from core.semantics.grammar_words import GraphKnowledge, HeldWords
+    knowledge = GraphKnowledge()
+    knowledge.add("university", "isa", "institution")
+    words = HeldWords((), gm.closed_uses(), lambda word, cls: word.lower(), knowledge)
+    assert words.kinds("harvard", "NOUN") == []
+    words.hear_kind("Harvard", "instance_of", "university")
+    assert words.kinds("harvard", "NOUN") == ["university", "institution"]
+    assert gm.Words().hear_kind("Harvard", "instance_of", "university") is None

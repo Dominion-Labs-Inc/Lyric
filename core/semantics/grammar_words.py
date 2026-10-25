@@ -63,6 +63,9 @@ class Knowledge:
         """The kinds of word memory holds the word as, for a word no sentence held used."""
         return {}
 
+    def add(self, subject: str, relation: str, obj: str) -> None:
+        """A link memory has just taken in (`isa`, `instance_of`, `defined_with`); held where links are held."""
+
 
 def _concept(name: str) -> str:
     return str(name).strip().lower().replace(" ", "_")
@@ -588,6 +591,9 @@ class HeldWords(Words):
             self.alike[("frames", "")][frame] += weight
         if touched:
             self._uses = {w: u for w, u in self._uses.items() if w.lower() not in touched}
+
+    def hear_kind(self, subject: str, relation: str, kind: str) -> None:
+        self.knowledge.add(subject, relation, kind)
 
     def bare_relatives(self) -> Tuple[float, float]:
         return float(self.relatives[False]), float(self.relatives[True])
