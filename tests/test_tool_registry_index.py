@@ -82,13 +82,27 @@ async def test_actual_tool_execution():
 @pytest.mark.asyncio
 async def test_lyric_decides_which_tool_does_what_a_person_asked():
     """What a person asked, as read, decides the tool: a doing asked of Lyric, the tool whose own description says it
-    does it, given what was asked where its parameter's name says what that is (a path, a page's address). Where no
-    tool both does it and is supplied what it requires, none is chosen. ("Read <a file>." was understood and its job
-    failed with no tool run: TEACH-AND-DO-01 2026-09-28; lyric_dev, 2026-10-24.)"""
+    does it, given what was asked where its parameter's name says what that is (a path, a page's address). Reading is
+    Lyric's own sense, and a page reaches it through the tool its reading takes pages in with. Where no tool both does
+    it and is supplied what it requires, none is chosen. ("Read <a file>." was understood and its job failed with no
+    tool run: TEACH-AND-DO-01 2026-09-28; lyric_dev, 2026-10-24.)"""
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator as AC
     from core.semantics.derived_reader import Meaning, MeaningFact as F
 
+    class Parameter:
+        def __init__(self, name, required):
+            self.name, self.required = name, required
+
+    class Fetcher:
+        parameters = [Parameter("url", True), Parameter("extract", False)]
+
+    class Registry:
+        def get_tool(self, name):
+            return Fetcher() if name == "web_fetch" else None
+
     class Deciding:
+        tool_registry = Registry()
+        _DOOR_OF = AC._DOOR_OF
         _tools_for_request = AC._tools_for_request
         _arguments = staticmethod(AC._arguments)
         _doings_meant = staticmethod(AC._doings_meant)
@@ -106,8 +120,11 @@ async def test_lyric_decides_which_tool_does_what_a_person_asked():
     reading = (F("instance_of", "?v0", "read"), F("done_by", "?v0", "?listener"))
     assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", path))) == \
         [{"tool": "read_file", "args": {"file_path": path}}]
-    assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", "https://example.com/a"))) == [], \
-        "no tool that reads takes a page's address"
+    assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", "https://example.com/a"))) == \
+        [{"tool": "web_fetch", "args": {"url": "https://example.com/a"}}], "a page, read by Lyric's own reading"
+    deleting = (F("instance_of", "?v0", "delete"), F("done_by", "?v0", "?listener"))
+    assert await Deciding()._tools_for_request(Asked(*deleting, F("done_to", "?v0", "https://example.com/a"))) == [], \
+        "no tool deletes a page, and deleting is no sense of Lyric's"
     assert await Deciding()._tools_for_request(Asked(*reading, F("done_to", "?v0", "?v1"),
                                                      F("instance_of", "?v1", "book"))) == [], \
         "nothing says which file"

@@ -312,3 +312,20 @@ def test_a_treebanks_orders_are_counted_from_who_does_the_doing():
     ]
     words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
     assert words.orders() == (1.0, 1.0)
+
+
+def test_what_a_happening_was_during_is_learned_a_time():
+    """A sentence taught with its meaning says what its happening was during, and that is a time
+    (`Lexicon.time_of`): learned from the lessons where memory holds nothing of what a morning is. A happening
+    another was during ("The dog barked when the cat ran.") is no time: counted as one, `run` was."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    g = gm.Grammar(gm.Lexicon(Held()))
+    assert g.lexicon.time_of("morning") is None
+    barked = Meaning("tell", (F("instance_of", "?v0", "bark"), F("during", "?v0", "?v1"),
+                              F("instance_of", "?v1", "morning")))
+    g.learn(gm.tokens_of("The dog barked in the morning.", g.lexicon.words), barked, {})
+    assert g.lexicon.time_of("morning") == "point"
+    when = Meaning("tell", (F("instance_of", "?v0", "bark"), F("instance_of", "?v1", "run"),
+                            F("done_by", "?v1", "cat"), F("during", "?v0", "?v1")))
+    g.learn(gm.tokens_of("The dog barked when the cat ran.", g.lexicon.words), when, {})
+    assert g.lexicon.time_of("run") is None

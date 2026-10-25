@@ -784,6 +784,18 @@ class Lexicon:
         return Entry("NP.@", (), "NAME", name, score, "name")
 
     # ── what was learned ──
+    def time_of(self, term: Any) -> Optional[str]:
+        """Whether a term is a time, and which: as memory holds it (`Words.is_time`: a point or a stretch), else a point
+        where sentences taught with their meanings said a happening was during one of it (`Grammar.learn`, the `time`
+        table): "The dog barked in the morning." taught that a morning is when things happen, where memory holds
+        nothing of what a morning is, and "One morning the dog ran to the park." could not be read without it."""
+        if not isinstance(term, str):
+            return None
+        held = self.words.is_time(term)
+        if held:
+            return held
+        return "point" if self.learned["time"].get((term.lower(),)) else None
+
     def link(self, table: str, key: Tuple, default: Optional[str]) -> Tuple[Optional[str], str]:
         """The link `table` holds for `key`, most often said, and where it came from: "own" (said of this word),
         "kind" (said of what memory holds it a kind of), or "rule" (the grammar's link, nothing being said of either).
@@ -1154,7 +1166,7 @@ class Grammar:
             return []
         word = self._tokens[at]
         said = self.lexicon.words.bare_modifier(word)
-        if not said.get("modifier") and not self.lexicon.words.is_time(word):
+        if not said.get("modifier") and not self.lexicon.time_of(word):
             return []
         cost = estimate(said, self.lexicon.words.like(word, "bare"), ("modifier", "otherwise"))["modifier"]
         e, z, f = self._new(), self._new(), self._new()
@@ -1346,6 +1358,20 @@ class Grammar:
         or "is" holds, the link the meaning says between the two words' terms. Returns whether it was read; each
         count made is added to `counted` (table, key, link), so it can be taken back (`unlearn`)."""
         tokens = tuple(tokens)
+        # WHAT A HAPPENING WAS DURING IS A TIME (`Lexicon.time_of`), from the meaning alone, read or not: "The dog
+        # barked yesterday.", "The cat ran at night.", "Tom walked in the morning." (a morning, by its kind). Not a
+        # happening another was during ("The dog barked when the cat ran."): a running is no kind of time, and counted
+        # as one, `run` and `bark` were times.
+        kinds_said = {f.subject: f.obj for f in meaning.facts if f.relation == "instance_of"}
+        happenings = {f.subject for f in meaning.facts
+                      if f.relation in ("done_by", "done_to", "during", "precedes", "follows")}
+        for f in meaning.facts:
+            if f.relation == "during" and f.positive and f.obj not in happenings:
+                name = f.obj if not is_variable(f.obj) else kinds_said.get(f.obj)
+                if name and not is_variable(name):
+                    self.lexicon.learned["time"][(str(name).lower(),)]["during"] += 1
+                    if counted is not None:
+                        counted.append(("time", (str(name).lower(),), "during"))
         cells = self.chart(tokens)
         whole = [s for s in cells.get((0, len(tokens)), {}).values() if _whole(s.cat) is not None]
         if not whole:
@@ -1441,8 +1467,8 @@ class Grammar:
                 if got is None:
                     continue
                 kind = "event" if a in kinds_of and kinds_of[a][0] == "event" else "thing"
-                time = (self.lexicon.words.is_time(b) if isinstance(b, str) else None) or (
-                    self.lexicon.words.is_time(kinds_of[b][2]) if b in kinds_of else None) or "-"
+                time = self.lexicon.time_of(b) or (
+                    self.lexicon.time_of(kinds_of[b][2]) if b in kinds_of else None) or "-"
                 count("prep", (word, kind, time), got[0] if got else "")
                 head = kinds_of.get(a)
                 if head is not None:
@@ -1873,8 +1899,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             _, a, b, word = p[:4]
             owner = p[4] if len(p) > 5 else None
             kind = "event" if a in events else "thing"
-            time = (words.is_time(b) if isinstance(b, str) else None) or (
-                words.is_time(kinds[b][2]) if b in kinds else None) or "-"
+            time = lexicon.time_of(b) or (lexicon.time_of(kinds[b][2]) if b in kinds else None) or "-"
             head = events.get(a) or kinds.get(a)
             got, how = (None, "rule")
             if head is not None:
@@ -2246,16 +2271,33 @@ class GrammarView:
         """Learn from every sentence held since last read. Returns how many."""
         waiting, self._waiting, self._waiting_keys = self._waiting, [], set()
         for taught in waiting:
-            tokens = tokens_of(taught.sentence, self.words)
-            if not tokens:
-                continue
-            aligned = (align_by_anchors(tokens, taught.sentence, taught.anchors) if taught.anchors else
-                       align_by_names(tokens, taught.meaning, self.grammar.lexicon))
-            counted: List[Tuple[str, Tuple, str]] = []
-            self.read_whole += self.grammar.learn(tokens, taught.meaning, aligned, counted)
-            self._counted[taught.key()] = counted
-            self.learned_from += 1
+            self._learn_one(taught)
         return len(waiting)
+
+    async def learn_waiting_in_turn(self) -> int:
+        """`learn_waiting`, giving way after each sentence (`GiveWay`), so a process that learns its grammar while it
+        starts stays live: every sentence memory holds with its meaning, minutes of work. One read meanwhile learns
+        what is still waiting at once (`learn_waiting`), and nothing is learned twice. Returns how many."""
+        from core.utils.give_way import GiveWay
+        give_way, learned = GiveWay(), 0
+        while self._waiting:
+            taught = self._waiting.pop(0)
+            self._waiting_keys.discard(taught.key())
+            self._learn_one(taught)
+            learned += 1
+            await give_way()
+        return learned
+
+    def _learn_one(self, taught: Any) -> None:
+        tokens = tokens_of(taught.sentence, self.words)
+        if not tokens:
+            return
+        aligned = (align_by_anchors(tokens, taught.sentence, taught.anchors) if taught.anchors else
+                   align_by_names(tokens, taught.meaning, self.grammar.lexicon))
+        counted: List[Tuple[str, Tuple, str]] = []
+        self.read_whole += self.grammar.learn(tokens, taught.meaning, aligned, counted)
+        self._counted[taught.key()] = counted
+        self.learned_from += 1
 
     def read(self, sentence: str) -> Reading:
         """A sentence read by the grammar (`Reading`), after learning from what is waiting. A word written lowercase

@@ -242,3 +242,32 @@ async def test_a_workers_message_a_front_end_took_first_is_kept_and_not_said_aga
         await c._say_what_a_worker_owes("m1")
         assert noted == ["It is done."], (delivered, noted)
         assert said == armed, (delivered, said)
+
+
+@pytest.mark.asyncio
+async def test_what_a_reply_already_says_is_not_said_again():
+    """Every message waiting for a person is delivered with their next reply, and said once: one the reply already
+    says is not added to it, and one owed twice is said once. Asked "What are you doing?" while a job waited for
+    their go-ahead, the reply put the job's question, and the same question, waiting, was added after it
+    (2026-10-24)."""
+    question = 'For "Read /notes/story.txt.": may I run read_file on /notes/story.txt?'
+
+    class Outbox:
+        def __init__(self, texts):
+            self.waiting_texts, self.delivered = texts, []
+
+        async def waiting(self, actor):
+            return [{"message_id": f"m{k}", "text": t, "why": "confirm", "about": "j1", "due_at": None}
+                    for k, t in enumerate(self.waiting_texts)]
+
+        async def mark_delivered(self, message_id, by):
+            self.delivered.append(message_id)
+            return True
+
+    c = _bare_coord()
+    c.outbox = Outbox([question])
+    out = await AutonomousCoordinator._with_what_waits(c, {"answer": question}, "alice", by="reply")
+    assert out["answer"] == question and c.outbox.delivered == ["m0"], out
+    c.outbox = Outbox(["It is done.", "It is done."])
+    out = await AutonomousCoordinator._with_what_waits(c, {"answer": "Yes."}, "alice", by="reply")
+    assert out["answer"] == "Yes.\n\nIt is done." and c.outbox.delivered == ["m0", "m1"], out

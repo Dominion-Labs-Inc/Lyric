@@ -16,6 +16,53 @@ Conventions:
 
 ---
 
+## 2026-10-24 (47) — The three that kept coming back, fixed through the door: a time a lesson taught, a page read, a question said once; the sandbox taught what main was; Lyric ready to read before its first turn
+
+**Objective.** (46) left "One morning ..." unread on lyric_dev, "Read https://…" deciding nothing, and a held job's
+question said three times. Fix them, and show it through the real door.
+
+**What kept them coming back.** lyric_dev held samples of what the grammar learns from: 100 taught sentences (main:
+3,054 lessons and 6,830 PMB gold) and about 200 of the treebank's (main: 12,544). Every fix resting on what was taught
+looked broken there. Taught it what main was (scripts/teach.py, lyric_dev named): composition 16:42, pmb 16:58
+(6,780 remembered), treebank 21:58 (12,013 remembered, 3,653 word forms, 16,824 s: each analysed sentence is read
+whole by the grammar as it is stored, `_readable_claim`, about 1.5 s each). I did not watch it for four hours; it was
+running, not stuck (a stack dump showed `_readable_claim` -> the grammar's chart).
+
+**Changed.**
+- A time is learned from the lessons (`Lexicon.time_of`; `Grammar.learn` counts the `time` table from the meaning
+  alone): what a taught happening was `during` is a time ("The dog barked in the morning.": a morning), never a
+  happening another was during ("... when the cat ran.": counted as one, `run` and `bark` were times). Memory's
+  taxonomy first (`Words.is_time`), the lessons where it holds nothing. Used by the learning, the reading and the
+  bare-time rule alike, so a link's key is one.
+- A page is read by Lyric's own reading: `PAGES_READ_WITH` (web_fetch), the one tool a look-up's pages and a
+  person's "Read <a page>." are taken in with; a reading doing with no tool for a page takes it so
+  (`_tools_for_request`); what a task fetched is read as a document is (`_read_what_was_opened` -> `_page_read` ->
+  `PerceptionFaculty._document_content` -> the `read` door); its outcome is `read:<url>` (`_outcome_of`), confirmed by
+  fetching it again and knowing it as the same text by its shared runs of words (`_saw_reobserve`,
+  `reading.agreement`). Before it, the page was fetched, read, and failed as never confirmed (belief 0.15).
+- What a reply already says is not said again, and a message owed twice is said once (`_with_what_waits`). Of the
+  "three times", two were jobs a stopped run had left held for the same test person (cancelled by id).
+- READY TO READ BEFORE ANYONE IS READ TO (`AutonomousCoordinator.ready_to_read`, called in `main.py` before Lyric enters
+  its world): memory warmed, the grammar learned from every taught sentence giving way as it goes
+  (`GrammarView.learn_waiting_in_turn`), the tools read for what they do. With the sandbox taught, a person's first
+  turn after a start waited 2.5 min while the grammar learned on it, and the world gave up after 15 s with no reply.
+  Now the start takes 253 s longer (9,882 sentences, 181 of 251 tools reading as saying what they do) and the first
+  turn is answered at once.
+
+**Verified.** Through the real door (a Lyric on lyric_dev in a Tet world of the run's own; a person of the run's own,
+so no earlier run's job is theirs):
+- "Read <story>." -> "may I run read_file …?" said once -> "Yes." -> completed 6 s later -> "I read story.txt. It says:
+  Tom had a small dog. One morning the dog ran to the park. It chased a red ball across the grass."
+- "Read https://example.com/." -> web_fetch decided, no question (not a supervised capability), completed 5 s later
+  -> "I read example.com. It says: This domain is for use in documentation examples without needing permission. This
+  is not a service; avoid relying on it for testing and monitoring purposes."
+GRAMMAR-01 `20261024T203346Z` (with learned times, before the happening fix): 362 right senses aside, F1 81.8%, as
+before. Tests: grammar 20 (1 new), tool registry 4, self events 11 (1 new), relation types 27, pronouns 2.
+
+**Seen, not fixed.** The grammar takes about 5 s on a long treebank sentence (timed on 60: 328 s with the bare-time
+rule, 295 s without, so the rule costs about 11%): a long document is read slowly, and storing a sentence reads it
+whole (`_readable_claim`). That is the next thing to make fast.
+
 ## 2026-10-24 (46) — Lyric decides which of its tools does what a person asked; a document handed to it through the real door is read
 
 **Objective.** (45) found a person's "Read <a file>." understood and its job failed in seconds, no tool run. It is not

@@ -1158,6 +1158,9 @@ class LyricSystem:
                 # with LYRIC_ATTACH=later and attaches when the running one lets go.
                 # A WORKER is not in the world (`is_worker`): it takes queued work only.
                 from core.agents.autonomous.autonomous_coordinator import is_worker
+                # READY TO READ FIRST: what it reads with is learned before anyone's turn or work reaches it
+                # (`ready_to_read`); learned on the first turn, it held that turn for minutes.
+                await self.autonomous_coordinator.ready_to_read()
                 if os.environ.get("TET_WORLD_ADDRESS") and not is_worker():
                     from core.integration.world_inhabitant import WorldInhabitant
                     self.world_inhabitant = WorldInhabitant(self.autonomous_coordinator)

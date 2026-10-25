@@ -2210,6 +2210,9 @@ def _outcome_of(tool: str, args: Dict[str, Any]) -> Optional[str]:
         return f"effect:{os.path.normpath(str(args[target_arg]))}"
     if tool == "read_file" and args.get("file_path"):
         return f"read:{args['file_path']}"
+    if tool == PAGES_READ_WITH and args.get("url"):
+        # A page fetched is a reading too: what was read should be what the page holds (`_saw_reobserve`).
+        return f"read:{args['url']}"
     action, _ = classify_action(tool, args)
     if action is ActionClass.INVESTIGATE:
         return None
@@ -14110,6 +14113,28 @@ class AutonomousCoordinator:
             saw.append(Evidence(r.get("outcome") or f"read:{path}", matches,
                                 self._EV_EFFECT if matches else self._EV_AGAINST,
                                 path, "filesystem_read", f"saw:reading:{path}", "saw"))
+        # A PAGE READ IS CONFIRMED AS A FILE IS, BY READING IT AGAIN: fetched afresh, it is the text read before where
+        # enough of its runs of words are shared, as reading knows a text met again (`reading.agreement`). A page
+        # changes between two looks more than a file does, so its text, not every byte, is compared. With no such
+        # look, "Read <a page>." fetched and read the page and failed as never confirmed (lyric_dev, 2026-10-24).
+        from core.perception.reading import READ_MIN_SHARE, READ_MIN_SHARED, agreement, shingles
+        for r in (result.get("tools_run") or []):
+            if not isinstance(r, dict) or r.get("tool") != PAGES_READ_WITH or not r.get("success"):
+                continue
+            body = r.get("output") if isinstance(r.get("output"), dict) else {}
+            url, text = body.get("url"), body.get("text")
+            if not url or not isinstance(text, str) or not text.strip() or url in seen:
+                continue
+            seen.add(url)
+            from core.tools import get_tool_registry
+            again = await (self.tool_registry or get_tool_registry()).execute_tool(
+                PAGES_READ_WITH, {"url": url, "extract": "text"})
+            fresh = (getattr(again, "output", None) or {}).get("text") if getattr(again, "success", False) else None
+            shared, share, _ = agreement(shingles([fresh]), shingles([text])) if fresh else (0, 0.0, False)
+            matches = shared >= READ_MIN_SHARED and share >= READ_MIN_SHARE
+            saw.append(Evidence(r.get("outcome") or f"read:{url}", matches,
+                                self._EV_EFFECT if matches else self._EV_AGAINST,
+                                url, "page_read", f"saw:reading:{url}", "saw"))
         # A CHECK IS CONFIRMED BY RUNNING IT AGAIN. A test run's success is a fact
         # about the code it ran against, and the work may have changed that code
         # since. So the latest check is run again against a disposable copy of the
@@ -16307,8 +16332,15 @@ class AutonomousCoordinator:
         if not said:
             return reply
         answer = str(reply.get("answer") or "")
+        # WHAT THE REPLY ALREADY SAYS IS NOT SAID AGAIN, and one thing owed twice is said once: asked "What are you
+        # doing?" while a job waited for their go-ahead, the reply put the job's question, and the same question,
+        # waiting for them, was added after it (2026-10-24).
+        added = [text for text in dict.fromkeys(m["text"] for m in said) if text not in answer]
+        if not added:
+            return {**reply, "messages": [{k: m[k] for k in ("message_id", "text", "why", "about", "due_at")}
+                                          for m in said]}
         return {**reply, "answer": (answer + "\n\n" if answer else "")
-                + "\n".join(m["text"] for m in said),
+                + "\n".join(added),
                 "messages": [{k: m[k] for k in ("message_id", "text", "why", "about", "due_at")}
                              for m in said]}
 
@@ -19003,20 +19035,37 @@ The substrate must realign with its constitutional responsibilities immediately.
         (`generate_sysml_model`) names them in `opened`, and each is read."""
         if not isinstance(output, dict):
             return
+        if output.get("url") and isinstance(output.get("text"), str) and output["text"].strip():
+            # A PAGE A TASK FETCHED IS READ AS A DOCUMENT IS: its text, as the page's blocks lay it out, through the
+            # same reading (`_page_read`). Fetched, its words reached the plan and nothing read them.
+            await self._read_opened(task, str(output["url"]), sensed=self._page_read(output))
         paths = [str(p) for p in output.get("opened") or []]
         if output.get("file_path") and "content" in output:
             paths.insert(0, str(output["file_path"]))
         for path in dict.fromkeys(paths):
             await self._read_opened(task, path)
 
-    async def _read_opened(self, task: Task, path: str) -> None:
-        """One file a task opened, read as `_read_what_was_opened` says."""
-        if "reading" not in self.vision.senses_of(path):
+    def _page_read(self, page: Dict[str, Any]) -> Tuple[str, Dict[str, Any]]:
+        """A fetched page as reading takes in a document (`PerceptionFaculty._document_content`): its text one page,
+        known by its words' digest and the runs of words it is known again by, named by its title."""
+        import hashlib
+        from pathlib import Path
+        from core.perception.reading import shingles, trace_bytes
+        text = str(page.get("text") or "")
+        opened = {"kind": "text", "named": None, "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                  "pages": [text], "lossy": False, "tables": [], "trace": trace_bytes(shingles([text]))}
+        label = str(page.get("title") or page.get("url") or "page")
+        return "document", self.vision._document_content(opened, Path(label), label)
+
+    async def _read_opened(self, task: Task, path: str, sensed: Optional[tuple] = None) -> None:
+        """One file a task opened, or a page it fetched (`sensed`, what reading took in of it), read as
+        `_read_what_was_opened` says."""
+        if sensed is None and "reading" not in self.vision.senses_of(path):
             return
         from .shared_types import is_substrate_actor
         actor = getattr(task, "actor", None)
         try:
-            read = await self.read(path, actor_identity=None if is_substrate_actor(actor) else actor,
+            read = await self.read(path, actor_identity=None if is_substrate_actor(actor) else actor, sensed=sensed,
                                    within=(getattr(task, "provenance", None) or {}).get("pursuit_memory_id"))
             # WHAT IT READ, KEPT WITH THE TASK, so how the task ended can say what
             # the file said, not only that it was opened.
@@ -19342,6 +19391,23 @@ The substrate must realign with its constitutional responsibilities immediately.
             plan = [{"tool": params["tool"], "args": params.get("args", {})}]
         return list(plan or [])
 
+    async def ready_to_read(self) -> Dict[str, int]:
+        """READY TO READ BEFORE ANYONE IS READ TO: memory's view of what was taught warmed, English's grammar learned
+        from every sentence memory holds with its meaning (`GrammarView.learn_waiting_in_turn`), and Lyric's tools
+        read for what they say they do (`_tools_by_doing`). Each is built where it is first needed otherwise, and the
+        first need was a person's turn: after a start, their first message waited two and a half minutes while the
+        grammar learned, and the world gave up on it after fifteen seconds (lyric_dev, 2026-10-24). Gives way as it
+        goes. Returns what was learned and read."""
+        from core.agents.memory_agent import get_memory_agent
+        started = time.monotonic()
+        agent = await get_memory_agent()
+        await agent.warm_word_classes()
+        learned = await agent.grammar_view().learn_waiting_in_turn()
+        tools = len(await self._tools_by_doing())
+        logger.info("📖 Ready to read: the grammar learned from %d sentences, %d tools read for what they do (%.0fs)",
+                    learned, tools, time.monotonic() - started)
+        return {"sentences_learned": learned, "tools_read": tools}
+
     async def _tools_for_request(self, task: Task) -> List[Dict[str, Any]]:
         """WHICH TOOLS DO WHAT A PERSON ASKED, decided from what they asked as Lyric read it (`metadata["requested"]`,
         kept by the front door): for each doing asked of Lyric (done by `?listener`), in the order asked, the tool
@@ -19377,6 +19443,20 @@ The substrate must realign with its constitutional responsibilities immediately.
                 args = self._arguments(things, required, params)
                 if args is not None:
                     fitting.append((-len(args), len(params), name, args))
+            if not fitting and self._DOOR_OF["reading"] in meant:
+                # READING IS LYRIC'S OWN SENSE (`_DOORS`), and a page reaches it through the tool its reading takes
+                # pages in with (`PAGES_READ_WITH`), what was fetched read as a document is (`_read_what_was_opened`).
+                # The tool says it fetches, and nothing held says reading a page is fetching it: "Read <a page>."
+                # decided nothing.
+                from core.tools import get_tool_registry
+                fetcher = (self.tool_registry or get_tool_registry()).get_tool(PAGES_READ_WITH)
+                if fetcher is not None:
+                    parameters = list(getattr(fetcher, "parameters", None) or ())
+                    args = self._arguments([t for t in things if "://" in str(t)],
+                                           [p.name for p in parameters if getattr(p, "required", True)],
+                                           [p.name for p in parameters])
+                    if args:
+                        fitting.append((-len(args), len(parameters), PAGES_READ_WITH, args))
             if not fitting:
                 return []
             _, _, name, args = min(fitting)
@@ -20014,6 +20094,11 @@ _CONVERSATION_TURN_MEMORY = 560
 #: How many of the things last talked of a listener weighs a word against: the last few turns' worth, not
 #: everything the conversation ever named.
 _TALKED_OF = 24
+
+#: The tool Lyric's reading takes a page in with, its text then read as a document's is: a look-up's pages
+#: (`Conversation._research_phrase`) and a page a person asks it to read (`_tools_for_request`). One, so what reads
+#: a page is one thing.
+PAGES_READ_WITH = "web_fetch"
 
 #: How far back a verdict may reach for the claim it is about. Feedback follows
 #: the thing it judges closely; a small window keeps "no, that's wrong" attached
@@ -23202,10 +23287,10 @@ class Conversation:
             if (fact is None and index > 0 and hit.get("url")
                     and pages_read < self._PAGES_READ):
                 pages_read += 1
-                parts.append(Part("read", {"tool": "web_fetch", "url": hit["url"]}, "substrate"))
+                parts.append(Part("read", {"tool": PAGES_READ_WITH, "url": hit["url"]}, "substrate"))
                 try:
                     page = await registry.execute_tool(
-                        "web_fetch", {"url": hit["url"], "extract": "text"})
+                        PAGES_READ_WITH, {"url": hit["url"], "extract": "text"})
                 except Exception as error:
                     logger.info("look-up could not read %s: %s", hit["url"], error)
                     page = None
