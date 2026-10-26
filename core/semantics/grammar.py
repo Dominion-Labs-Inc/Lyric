@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
-from core.semantics.relation_types import worded
+from core.semantics.relation_types import is_worded, worded
 from core.semantics.sentence_machine import _ADDRESS
 
 #: The grammar of English as taught: its grammar words, the categories of each kind of word, the default links.
@@ -1403,10 +1403,17 @@ class Lexicon:
 
 
 def _weighed(held: Counter, default: Optional[Any]) -> Optional[Any]:
-    """What sentences said, the grammar's own link counted once beside them; the rule where they tie with it."""
+    """What sentences said, the grammar's own link counted once beside them; the rule where they tie with it.
+
+    A LINK HELD AS ITS WORD IS NO RULE (`relation_types.worded`: "with" as `word_with`, where nothing known says which
+    link it makes) and counts as no saying: it commits to no kind, and where memory knows the kind, the kind is said.
+    Counted as one, one sentence teaching "with a pin" a `done_with` tied with it and lost, and "Roy painted the
+    medal with paint." was `word_with` (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26)."""
     counts = Counter(held)
-    if default is not None:
+    if default is not None and not is_worded(default):
         counts[default] += 1
+    if not counts:
+        return default
     best = max(counts.values())
     if default is not None and counts[default] == best:
         return default
@@ -3163,6 +3170,8 @@ class GrammarView:
         #: The sentences derived by hand held (`hold_derived`), by their keys, and the rules learning is kept under
         #: with them (`rules`).
         self._derived: Set[str] = set()
+        #: The words recorded whole held (`hold_word`), by their records' keys.
+        self._words: Set[str] = set()
         #: Each document's sentences derived by hand, its taught sentence's places learned from them (`Grammar.learn`).
         self._derived_by_document: Dict[str, List[Derived]] = defaultdict(list)
         self._rules: Optional[str] = None
@@ -3182,9 +3191,50 @@ class GrammarView:
         by hand it holds, which decide which reading of a taught sentence is learned from (`hold_derived`). Learning
         kept under other rules is learned again (`hold`, `MemoryAgent.keep_grammar_learning`)."""
         if self._rules is None:
-            self._rules = RULES if not self._derived else hashlib.sha256(
-                (RULES + "".join(sorted(self._derived))).encode("utf-8")).hexdigest()[:16]
+            self._rules = RULES if not (self._derived or self._words) else hashlib.sha256(
+                (RULES + "".join(sorted(self._derived)) + "".join(sorted(self._words))).encode("utf-8")).hexdigest()[:16]
         return self._rules
+
+    def hold_word(self, word: Any) -> None:
+        """A WORD RECORDED WHOLE (`teaching_sources.WordRecord`), what English's grammar takes of it: how often its
+        verb is used in each frame (the words' `verb_frames`, as an analysed sentence counts them), and what each of
+        its verb's places says (`role`, as a taught meaning teaches them). Its forms, classes and names memory holds
+        (`MemoryAgent._learn_word_record`). Held again, nothing is counted twice; held otherwise, `drop_word` first."""
+        key = word.key()
+        if key in self._words:
+            return
+        self._words.add(key)
+        self._count_word(word, 1)
+        self._rules = None
+
+    def drop_word(self, word: Any) -> None:
+        """A word recorded whole, taken back."""
+        key = word.key()
+        if key not in self._words:
+            return
+        self._words.discard(key)
+        self._count_word(word, -1)
+        self._rules = None
+
+    def _count_word(self, word: Any, times: int) -> None:
+        words, lexicon = self.grammar.lexicon.words, self.grammar.lexicon
+        for cache in ("_uses", "_names"):
+            if isinstance(getattr(words, cache, None), dict):
+                getattr(words, cache).clear()
+        if not any(s.word_class == "VERB" for s in word.senses):
+            return
+        name = words.name(word.word, "VERB")
+        frames = getattr(words, "verb_frames", None)
+        if frames is not None:
+            for frame, n in word.frames().items():
+                frames[name][frame] += times * n
+                if frames[name][frame] <= 0:
+                    del frames[name][frame]
+        for (slot, link), n in word.links().items():
+            held = lexicon.learned["role"][(name, slot)]
+            held[link] += times * n
+            if held[link] <= 0:
+                del held[link]
 
     def hold_derived(self, derived: Derived) -> None:
         """Hold one sentence derived by hand (`Derived`): what it says each word takes beside the words around it is

@@ -183,6 +183,8 @@ class MemoryAgent(IMemoryConsolidation):
         #: What each word names, as the sentences recorded whole name it ((word, class) -> names, counted): "medal"
         #: as a noun names `award decoration` (`name_of`).
         self._record_names: Dict[Tuple[str, str], Counter] = {}
+        #: The words held recorded whole (`teaching_sources.WordRecord`), for English's grammar (`grammar_view`).
+        self._grammar_words: List[Any] = []
         #: Each taught sentence's memory, what the grammar learned from it, and the rules it was learned under
         #: (`GrammarView.rules`; None: not learned from yet), by the sentence's key (`_composition_memories`,
         #: `keep_grammar_learning`).
@@ -494,7 +496,7 @@ class MemoryAgent(IMemoryConsolidation):
     #: What a memory of English is kept under (`source_context`): how a sentence was analysed, taught with its meaning,
     #: argued, grouped, formed or derived, and how a reading used its words (`keep_grammar_learning`).
     _LANGUAGE_RECORDS = ("analysed", "taught", "argued", "word_group", "word_forms", "read_english", "derived",
-                         "record")
+                         "record", "word_record")
 
     async def _readable_claim(self, content, source_context):
         """The substrate-readable CLAIM a memory asserts, its shape, and its
@@ -2946,8 +2948,13 @@ class MemoryAgent(IMemoryConsolidation):
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
+        # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
+        self._record_names, self._grammar_words = {}, []
+        for row, word in await self._word_record_memories():
+            await give_way()
+            self._learn_word_record(word, index, forms)
+            self._grammar_words.append(word)
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
-        self._record_names = {}
         for row, record in await self._record_memories():
             await give_way()
             self._learn_record_words(record, index)
@@ -6955,6 +6962,67 @@ class MemoryAgent(IMemoryConsolidation):
         self._hold_derived(record.derived())
         self._hold_taught(view, record.taught())
 
+    WORD_RECORD_TAG = "word_record"
+
+    async def _word_record_memories(self) -> List[Tuple[Any, Any]]:
+        """The words held recorded whole (`teaching_sources.WordRecord`), each with its memory's row."""
+        from core.learning.teaching_sources import WordRecord
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        held: List[Tuple[Any, Any]] = []
+        for row in await self._rows_tagged(self.WORD_RECORD_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("word_record")
+            if data:
+                held.append((row, WordRecord.from_dict(data)))
+        return held
+
+    async def remember_word_records(self, records, progress: Optional[Callable[[int, int], None]] = None
+                                    ) -> Dict[str, Any]:
+        """Remember words recorded whole (`teaching_sources.WordRecord`: every form, every sense, how a verb is used),
+        ONE MEMORY EACH, and hand each layer to the part of reading that learns from it: its forms to the forms held,
+        its classes and names to the word classes and names memory holds, its frames and its places to English's
+        grammar. One held already is not held again; one recorded otherwise corrects it. A record that does not hold
+        together (`WordRecord.problems`) is refused, never held. Returns as `remember_records`."""
+        records = list(records)
+        refused = [(r.word, r.problems()) for r in records if r.problems()]
+        whole = [r for r in records if not r.problems()]
+        held = await self._remember_whole(
+            whole, view=lambda: None, tag=self.WORD_RECORD_TAG, field="word_record", progress=progress,
+            content=lambda item: item.said(), add=lambda _, item: self._hold_word_record(item),
+            drop=lambda _, item: self._drop_word_record(item))
+        held["refused"] = refused
+        return held
+
+    def _learn_word_record(self, word, index: Dict[str, Dict[str, int]], forms) -> None:
+        """What a word recorded whole says of it, into memory's views: each form a form of the word (`forms`), the
+        classes each form is used as (`index`, the word classes memory holds), what the word names as each class
+        (`_record_names`)."""
+        for item in word.forms_held():
+            forms.hold(item)
+        for written, classes in word.classes().items():
+            bucket = index.setdefault(written, {})
+            for cls, n in classes.items():
+                bucket[cls] = bucket.get(cls, 0) + n
+        for cls, name in word.names().items():
+            for f in word.forms:
+                if f.word_class == cls:
+                    self._record_names.setdefault((f.form.lower(), cls), Counter())[name] += 1
+
+    def _hold_word_record(self, word) -> None:
+        """A word recorded whole, each layer handed to the part of reading that learns from it."""
+        self._learn_word_record(word, self._word_class_index, self.word_forms())
+        self._grammar_words.append(word)
+        if self._grammar_view is not None:
+            self._grammar_view.hold_word(word)
+
+    def _drop_word_record(self, word) -> None:
+        """A word recorded whole, taken back from English's grammar (recorded otherwise since)."""
+        key = word.key()
+        self._grammar_words = [w for w in self._grammar_words if w.key() != key]
+        if self._grammar_view is not None:
+            self._grammar_view.drop_word(word)
+
     def _learn_record_words(self, record, index: Dict[str, Dict[str, int]]) -> None:
         """What a sentence recorded whole says of its words: the class each is used as, written so and as its base,
         into the word classes memory holds (`index`: the conversation asks it whether a word is known, "I don't know
@@ -7027,6 +7095,8 @@ class MemoryAgent(IMemoryConsolidation):
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms),
                                structure=self._structure_view)
+            for word in self._grammar_words:
+                view.hold_word(word)
             for derived in self._grammar_derived:
                 view.hold_derived(derived)
             for taught in self._grammar_taught:
@@ -7305,6 +7375,9 @@ class MemoryAgent(IMemoryConsolidation):
         if field == "record":
             from core.learning.teaching_sources import SentenceRecord
             return SentenceRecord.from_dict(data)
+        if field == "word_record":
+            from core.learning.teaching_sources import WordRecord
+            return WordRecord.from_dict(data)
         from core.semantics.composition import TaughtSentence
         return TaughtSentence.from_dict(data)
 

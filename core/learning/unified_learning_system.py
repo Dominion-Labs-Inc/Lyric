@@ -4212,6 +4212,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                       subject_kind="derived_sentence", provenance=provenance, quality=quality,
                                       progress=progress)
 
+    async def learn_word_records(self, records, *, provenance: Any = None, quality: float,
+                                 progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Words recorded whole (`teaching_sources.WordRecord`: every form, every sense, how a verb is used): each held
+        by memory as one memory (`MemoryAgent.remember_word_records`), each layer learned by the part of reading that
+        learns from it. Taught before the sentences they are in.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(records, what="words recorded whole", remember="remember_word_records",
+                                      subject_kind="word_record", provenance=provenance, quality=quality,
+                                      progress=progress)
+
     async def learn_records(self, records, *, provenance: Any = None, quality: float,
                             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """Sentences recorded whole (`teaching_sources.SentenceRecord`: every layer of each sentence by word

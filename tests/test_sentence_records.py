@@ -84,3 +84,75 @@ def test_a_reading_by_the_grammar_holds_what_each_word_named():
     read = grammar.read(gm.tokens_of("The dog chased a cat.", grammar.lexicon.words))
     said = {(" ".join(c.words), c.value) for c in _said_by_words(read)}
     assert said == {("dog", "dog"), ("chased", "chase"), ("cat", "cat")}
+
+
+# ── a word recorded whole ─────────────────────────────────────────────────────────────────────────────────────────
+
+def _word(**changed):
+    from core.learning.teaching_sources import WordForm, WordPlace, WordRecord, WordSense, WordUse
+    fields = dict(
+        word="paint",
+        forms=(WordForm("paint", "VERB", "VerbForm=Inf"), WordForm("painted", "VERB", "Tense=Past|VerbForm=Fin", 2),
+               WordForm("paints", "VERB", "Number=Sing|Person=3|Tense=Pres|VerbForm=Fin", 1),
+               WordForm("paint", "NOUN", "Number=Sing")),
+        senses=(WordSense("paint.v.01", "VERB", "paint", "make a painting", (("create.v.03", "act create"),), 17,
+                          (), ("intransitive", "transitive")),
+                WordSense("paint.v.02", "VERB", "coat paint", "apply paint to", (("coat.v.01", "to coat"),), 13, (),
+                          ("transitive",)),
+                WordSense("paint.n.01", "NOUN", "coating paint", "a substance used as a coating",
+                          (("coating.n.01", "coating"),), 7)),
+        uses=(WordUse("paint.01", "put paint on a surface",
+                      (WordPlace("ARG0", "agent, painter", "PAG", (), "subject", "done_by"),
+                       WordPlace("ARG1", "surface", "GOL", (), "object", "done_to"),
+                       WordPlace("ARG2", "explicit mention of paint", "PPT"))),))
+    fields.update(changed)
+    return WordRecord(**fields)
+
+
+def test_a_word_record_is_whole_and_reads_back_the_same():
+    from core.learning.teaching_sources import WordRecord
+    word = _word()
+    assert word.problems() == []
+    assert WordRecord.from_dict(json.loads(json.dumps(word.to_dict()))) == word
+    assert word.names() == {"NOUN": "coating paint", "VERB": "paint"}, "each class by its most used sense"
+    assert word.frames() == {"intransitive": 17, "transitive": 30}
+    assert word.links() == {("subject", "done_by"): 1, ("object", "done_to"): 1}, "no link guessed for ARG2"
+
+
+def test_a_word_record_that_does_not_hold_together_is_said_wrong():
+    from core.learning.teaching_sources import WordForm
+    assert any("which no sense of the word is" in p
+               for p in _word(forms=_word().forms + (WordForm("painty", "ADJECTIVE"),)).problems())
+    assert any("not among its forms" in p for p in _word(forms=_word().forms[1:]).problems())
+
+
+def test_a_wordnet_frame_is_named_as_the_grammar_names_frames():
+    from core.learning.teaching_sources import _frame_named
+    assert _frame_named("Somebody %s something") == "transitive"
+    assert _frame_named("Somebody %s") == "intransitive"
+    assert _frame_named("Somebody %s somebody something") == "ditransitive"
+    assert _frame_named("Somebody %s that CLAUSE") == "that"
+
+
+def test_memory_learns_a_words_forms_classes_and_names_and_the_grammar_its_frames_and_places():
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.word_forms import HeldForms
+    agent, index, forms = MemoryAgent(), {}, HeldForms()
+    word = _word()
+    agent._learn_word_record(word, index, forms)
+    assert forms.bases_of("painted") == ["paint"] and index["paints"] == {"VERB": 1}
+    assert agent.name_of("paint", "VERB") == "paint" and agent.name_of("paint", "NOUN") == "coating paint"
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
+    view.hold_word(word)
+    assert dict(view.words.frames("paint")) == {"intransitive": 17.0, "transitive": 30.0}
+    assert view.grammar.lexicon.learned["role"][("paint", "subject")] == {"done_by": 1}
+    view.drop_word(word)
+    assert not view.words.frames("paint") and not view.grammar.lexicon.learned["role"][("paint", "subject")]
+
+
+def test_a_link_held_as_its_word_gives_way_to_one_taught_saying():
+    from collections import Counter
+    assert gm._weighed(Counter({"done_with": 1}), "word_with") == "done_with"
+    assert gm._weighed(Counter(), "word_with") == "word_with"
+    assert gm._weighed(Counter({"has_purpose": 1}), "done_by") == "done_by", "a rule of the grammar's ties and stands"

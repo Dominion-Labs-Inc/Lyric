@@ -16,6 +16,38 @@ Conventions:
 
 ---
 
+## 2026-10-26 (57) — Words before sentences: one word recorded whole teaches every part of reading the word (TRAIN-FORMAT-02)
+
+**The owner, on (56):** language learning should not touch beliefs or domains (facts do); and teach WORDS and their
+meanings, one word first, fully, before more: a sentence cannot teach a word it does not hold ("Roy painted the
+medal." was read with "painted" a word nobody knew). The plan to wire language into domains and beliefs was dropped.
+
+**The format** (`teaching_sources.WordRecord`, `WordForm`, `WordSense`, `WordUse`, `WordPlace`; `word_record_of`, by
+conversion, never by hand): every form as UD English EWT and GUM wrote it (class, features, count); every WordNet sense
+(class, Lyric's name for it, definition, kinds, tagged count, examples, frames); each PropBank sense of the verb with
+its places, kept apart from WordNet's (no source joins them). The one convention: WordNet's frame as the grammar's;
+ARG0 the subject `done_by`, ARG1 the object `done_to` where its examples say it bare; nothing else guessed.
+
+**Taught** (`teach.py --source records`, words before sentences; `learn_word_records`; `remember_word_records`: one
+memory, tag `word_record`) into lyric_dev2; each layer to its reader (`MemoryAgent._learn_word_record`: forms, word
+classes, names; `GrammarView.hold_word`: verb frames, places).
+
+**Faults found, each fixed in general:** WordNet's frames, read from strings where the verb stands for `%s`, were all
+"intransitive"; a PropBank sense put with the most used WordNet sense paired the wrong two; the teaching report
+counted taught statements as "words" (renamed; the words and sentences recorded counted); a link held as its word
+(`word_with`) counted as one saying, so one taught "with" tied with it and lost (`grammar._weighed`: it counts as
+none, as `relation_types.worded` defines it). My mistake: the unapproved 100-sentence set had replaced
+TRAIN-FORMAT-01's records file, so its check ran on 100 records with one taught (120 failed); the file was put back,
+that run's records deleted, the set moved out of the repository (not taught, not committed).
+
+**Verified** (`experiments/TRAIN-FORMAT-02`): every store, reader and reading check (21); never taught, read right:
+past, present (not past), -ing (now), passive, the verb alone, "with paint" (`done_with`, the noun `coating paint`);
+through the front door 7 of 7 right, none wrong. TRAIN-FORMAT-01 on the same store: every check, 5 of 5. GRAMMAR-01
+383, taught_fit 420, unchanged. Tests: `tests/test_sentence_records.py` 11 passed; grammar 31.
+
+**Held but read by nothing yet:** each sense's definition, kinds and examples; PropBank's who and function of each
+place; which sense a sentence means.
+
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 
 **Objective (the owner's).** Lyric learns English from about ten sources, each written its own way, each part of

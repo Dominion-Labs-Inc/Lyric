@@ -2599,8 +2599,8 @@ class SentenceRecord:
 
 @dataclass
 class RecordSource:
-    """Sentences recorded whole (`SentenceRecord`), one a line of a JSON Lines file: every layer of each, as every
-    part of reading learns from it. `split` "train" teaches the records taught; the held-out ones are only measured
+    """Words and sentences recorded whole (`WordRecord`, `SentenceRecord`), one a line of a JSON Lines file: every
+    layer of each, as every part of reading learns from it. `split` "train" teaches the records taught; the held-out ones are only measured
     by."""
 
     path: str
@@ -2617,12 +2617,26 @@ class RecordSource:
         return iter(())
 
     def sentence_records(self) -> Iterator[SentenceRecord]:
+        """The sentences recorded whole of the file's split."""
+        for data in self._lines():
+            if "word" not in data:
+                record = SentenceRecord.from_dict(data)
+                if record.split == self.split:
+                    yield record
+
+    def word_records(self) -> Iterator["WordRecord"]:
+        """The words recorded whole of the file's split (a line holding `word`), taught before any sentence."""
+        for data in self._lines():
+            if "word" in data:
+                record = WordRecord.from_dict(data)
+                if record.split == self.split:
+                    yield record
+
+    def _lines(self) -> Iterator[Dict[str, Any]]:
         with open(self.path, encoding="utf-8") as handle:
             for line in handle:
                 if line.strip():
-                    record = SentenceRecord.from_dict(json.loads(line))
-                    if record.split == self.split:
-                        yield record
+                    yield json.loads(line)
 
 
 #: A word's class by the part of speech the PMB gives it (Penn's), as Lyric's classes go; a form of "be", and of
@@ -2831,6 +2845,329 @@ def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRe
                           tuple(facts), terms, tree, tuple(names), tuple(taught.meaning.asked),
                           "PMB 4.0.0 gold derivation, 5.1.0 gold meaning (both checked by hand)",
                           "PMB annotations ODC-BY 1.0; attribute the PMB, Abzianidze et al. 2017", split)
+
+
+# ── ONE WORD, EVERYTHING READING ASKS OF IT: the record Lyric is taught a word from ───────────────────────────────
+
+@dataclass(frozen=True)
+class WordForm:
+    """One way a recorded word is written (`WordRecord`): the form, as which class, what form it is (a treebank's
+    features: "Tense=Past", "Number=Plur"), and how often a treebank wrote it so."""
+
+    form: str
+    word_class: str
+    features: str = ""
+    count: int = 0
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"form": self.form, "class": self.word_class, "features": self.features, "count": self.count}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WordForm":
+        return cls(str(data["form"]), str(data["class"]), str(data.get("features") or ""), int(data.get("count") or 0))
+
+
+@dataclass(frozen=True)
+class WordPlace:
+    """One place a sense of a verb has (PropBank's): its argument, who fills it, its function tag, the prepositions
+    its examples say it with; and, where the place is the grammar's, which (`slot`: subject, object) and what Lyric's
+    meaning language says of it (`link`: done_by, done_to). A place no rule puts as the grammar's keeps both empty,
+    never guessed."""
+
+    arg: str
+    who: str
+    function: str = ""
+    prepositions: Tuple[str, ...] = ()
+    slot: str = ""
+    link: str = ""
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"arg": self.arg, "who": self.who, "function": self.function, "prepositions": list(self.prepositions),
+                "slot": self.slot, "link": self.link}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WordPlace":
+        return cls(str(data["arg"]), str(data.get("who") or ""), str(data.get("function") or ""),
+                   tuple(data.get("prepositions") or ()), str(data.get("slot") or ""), str(data.get("link") or ""))
+
+
+@dataclass(frozen=True)
+class WordSense:
+    """One meaning of a recorded word: its WordNet sense, as which class, the name Lyric gives the thing it means
+    (`concept`, `WordNetSource._sense_names`), what it means (WordNet's definition), what it is a kind of (each
+    WordNet sense and Lyric's name for it), how often it is used so (WordNet's tagged count), WordNet's examples, the
+    frames its verb is used in (the grammar's names: transitive, intransitive, ...)."""
+
+    id: str
+    word_class: str
+    concept: str
+    means: str
+    kind_of: Tuple[Tuple[str, str], ...] = ()
+    used: int = 0
+    examples: Tuple[str, ...] = ()
+    frames: Tuple[str, ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
+                "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
+                "frames": list(self.frames)}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WordSense":
+        return cls(str(data["id"]), str(data["class"]), str(data.get("concept") or ""), str(data.get("means") or ""),
+                   tuple((str(k[0]), str(k[1])) for k in data.get("kind_of") or ()), int(data.get("used") or 0),
+                   tuple(data.get("examples") or ()), tuple(data.get("frames") or ()))
+
+
+@dataclass(frozen=True)
+class WordUse:
+    """One sense a verb is used in as PropBank annotates it (`paint.01`, "put paint on a surface"), with its places.
+    Kept apart from the WordNet senses: no source says which WordNet sense a PropBank sense is."""
+
+    id: str
+    means: str
+    places: Tuple[WordPlace, ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "means": self.means, "places": [p.to_dict() for p in self.places]}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WordUse":
+        return cls(str(data["id"]), str(data.get("means") or ""),
+                   tuple(WordPlace.from_dict(p) for p in data.get("places") or ()))
+
+
+#: The classes a word record's senses and forms may be of.
+_OPEN_CLASSES = frozenset({"NOUN", "VERB", "ADJECTIVE", "ADVERB"})
+
+
+@dataclass(frozen=True)
+class WordRecord:
+    """ONE WORD AS LYRIC IS TAUGHT IT: every way it is written (`forms`), every meaning it has (`senses`: what each
+    means, what it is a kind of, how often it is used so, and for a verb how it is used and who fills each of its
+    places), where each came from. Taught before any sentence it is in: a sentence teaches how known words go
+    together, never a word it does not hold ("Roy painted the medal." was misread where only "fasten" had been taught,
+    TRAIN-FORMAT-01, 2026-10-26). Every part of reading learns from it (`forms_held`, `classes`, `names`, `frames`,
+    `links`); checked whole before memory takes it (`problems`)."""
+
+    word: str
+    forms: Tuple[WordForm, ...]
+    senses: Tuple[WordSense, ...]
+    uses: Tuple[WordUse, ...] = ()
+    source: str = ""
+    licence: str = ""
+    split: str = "train"
+
+    def key(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True).encode("utf-8")).hexdigest()[:32]
+
+    def identity(self) -> Optional[Tuple[str, str]]:
+        """What it is a record of: one word. Recorded again otherwise, it corrects the memory holding the first."""
+        return ("word", self.word)
+
+    def claim(self) -> str:
+        """The belief it stands on: that the word is as recorded."""
+        return f'the word "{self.word}" as recorded ({self.key()[:8]})'
+
+    def said(self) -> str:
+        """The word and its meanings: memory keeps a record, never reads it as a claim."""
+        return f'the word "{self.word}": ' + "; ".join(f"{s.word_class.lower()} {s.concept}: {s.means}"
+                                                     for s in self.senses)[:900]
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"word": self.word, "source": self.source, "licence": self.licence, "split": self.split,
+                "forms": [f.to_dict() for f in self.forms], "senses": [s.to_dict() for s in self.senses],
+                "uses": [u.to_dict() for u in self.uses]}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
+        return cls(str(data["word"]), tuple(WordForm.from_dict(f) for f in data.get("forms") or ()),
+                   tuple(WordSense.from_dict(s) for s in data.get("senses") or ()),
+                   tuple(WordUse.from_dict(u) for u in data.get("uses") or ()), str(data.get("source") or ""),
+                   str(data.get("licence") or ""), str(data.get("split") or "train"))
+
+    def problems(self) -> List[str]:
+        """What is wrong with the record, each said: an empty list where it is whole."""
+        out: List[str] = []
+        if not self.word or self.word != self.word.strip() or self.word.lower() != self.word:
+            out.append(f"the word {self.word!r} is not written in lowercase, alone")
+        if not self.senses:
+            out.append("no sense")
+        if not self.forms:
+            out.append("no form")
+        classes = {s.word_class for s in self.senses}
+        for f in self.forms:
+            if f.word_class not in _OPEN_CLASSES:
+                out.append(f"form {f.form!r} of class {f.word_class!r}")
+            elif f.word_class not in classes:
+                out.append(f"form {f.form!r} as a {f.word_class.lower()}, which no sense of the word is")
+        for c in classes:
+            if not any(f.word_class == c and f.form == self.word for f in self.forms):
+                out.append(f"the word itself is not among its forms as a {c.lower()}")
+        for s in self.senses:
+            if s.word_class not in _OPEN_CLASSES:
+                out.append(f"sense {s.id} of class {s.word_class!r}")
+            if not s.concept or not s.means:
+                out.append(f"sense {s.id} lacks its name or what it means")
+        if self.uses and "VERB" not in classes:
+            out.append("uses of a verb, but no sense of the word is a verb")
+        for u in self.uses:
+            for p in u.places:
+                if bool(p.slot) != bool(p.link):
+                    out.append(f"use {u.id} {p.arg}: a slot without a link or a link without a slot")
+        if len({s.id for s in self.senses}) != len(self.senses):
+            out.append("a sense held twice")
+        return out
+
+    # ── each layer, as the part of reading that learns from it takes it ──
+    def forms_held(self) -> List[Any]:
+        """Its forms, as the forms memory holds words written in (`word_forms.WordForms`), a class each."""
+        from core.semantics.word_forms import WordForms
+        by_class: Dict[str, List[Tuple[str, str, int]]] = {}
+        for f in self.forms:
+            by_class.setdefault(f.word_class, []).append((f.form.lower(), f.features, max(1, f.count)))
+        return [WordForms(self.word, cls, tuple(forms), f"word:{self.word}") for cls, forms in by_class.items()]
+
+    def classes(self) -> Dict[str, Dict[str, int]]:
+        """Each way it is written, and the classes it is used as so, how often (one at least)."""
+        out: Dict[str, Dict[str, int]] = {}
+        for f in self.forms:
+            bucket = out.setdefault(f.form.lower(), {})
+            bucket[f.word_class] = bucket.get(f.word_class, 0) + max(1, f.count)
+        return out
+
+    def names(self) -> Dict[str, str]:
+        """What it names as each class: the thing its most used sense of the class means."""
+        out: Dict[str, str] = {}
+        for c in sorted({s.word_class for s in self.senses}):
+            senses = [s for s in self.senses if s.word_class == c]
+            out[c] = max(senses, key=lambda s: (s.used, -senses.index(s))).concept
+        return out
+
+    def frames(self) -> Dict[str, int]:
+        """How often its verb is used in each frame, its senses' uses each counting (one at least)."""
+        out: Dict[str, int] = {}
+        for s in self.senses:
+            for frame in s.frames:
+                out[frame] = out.get(frame, 0) + max(1, s.used)
+        return out
+
+    def links(self) -> Dict[Tuple[str, str], int]:
+        """What each of its verb's places the grammar's says, how often: (slot, link) -> how many of its uses say
+        it."""
+        out: Dict[Tuple[str, str], int] = {}
+        for u in self.uses:
+            for p in u.places:
+                if p.slot and p.link:
+                    out[(p.slot, p.link)] = out.get((p.slot, p.link), 0) + 1
+        return out
+
+
+#: A WordNet frame as the grammar names verbs' frames: "Somebody %s something" a verb taking a thing.
+def _frame_named(frame: str) -> Optional[str]:
+    text = " ".join(frame.replace("%s", "----s").split())
+    if " that CLAUSE" in text:
+        return "that"
+    if "to INFINITIVE" in text:
+        return "to"
+    if "VERB-ing" in text:
+        return "ing"
+    after = text.split("----s", 1)[1].strip() if "----s" in text else ""
+    things = [w for w in after.split() if w in ("somebody", "something")]
+    if not after:
+        return "intransitive"
+    if len(things) >= 2 and after.split()[0] in ("somebody", "something") and after.split()[1] in ("somebody",
+                                                                                                     "something"):
+        return "ditransitive"
+    if after.split()[0] in ("somebody", "something"):
+        return "transitive"
+    return "intransitive"
+
+
+_WORDNET_CLASS = {"n": "NOUN", "v": "VERB", "a": "ADJECTIVE", "s": "ADJECTIVE", "r": "ADVERB"}
+
+
+def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: str = "train",
+                   _cache: Dict[str, Any] = {}) -> WordRecord:
+    """A word recorded whole (`WordRecord`) from what was made by hand of it, never written here: its forms as UD's
+    English treebanks wrote them (each form a word was written in, its features, how often; `word_forms`), its senses
+    as WordNet 3.0 gives them (definition, kinds, tagged count, examples, frames), Lyric's name for each
+    (`WordNetSource._sense_names`), and for a verb the places of its PropBank senses. THE ONE PLACE WHERE THESE
+    SOURCES' WAYS ARE PUT AS LYRIC'S: a WordNet frame as the grammar's frame; PropBank's ARG0 the subject the doing is
+    done by, its ARG1 the object it is done to, where its examples say them so; every other place kept as written,
+    with no link. PropBank's senses are kept apart from WordNet's (`uses`): no source says which is which."""
+    import xml.etree.ElementTree as ET
+    from nltk.corpus import wordnet as wn
+    from nltk.corpus.reader.wordnet import VERB_FRAME_STRINGS
+    from pathlib import Path
+    if "names" not in _cache:
+        _cache["names"] = WordNetSource()._sense_names()
+    names = _cache["names"]
+    if "forms" not in _cache:
+        held: Dict[Tuple[str, str], Dict[Tuple[str, str], int]] = {}
+        for treebank in treebanks:
+            for item in TreebankSource.of(treebank).word_forms():
+                bucket = held.setdefault((item.base, item.word_class), {})
+                for form, features, n in item.forms:
+                    bucket[(form, features)] = bucket.get((form, features), 0) + n
+        _cache["forms"] = held
+    synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas())]
+    senses: List[WordSense] = []
+    for s in synsets:
+        cls = _WORDNET_CLASS[s.pos()]
+        lemma = next(l for l in s.lemmas() if l.name().lower() == word)
+        frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
+                                                  if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
+        senses.append(WordSense(s.name(), cls, names.get(s) or "", s.definition(),
+                                tuple((h.name(), names.get(h) or "") for h in s.hypernyms()), lemma.count(),
+                                tuple(s.examples()), frames))
+    # PropBank's senses of the verb, each with its places.
+    frame_file = Path(SYNTAX_DATA) / "propbank-frames" / "frames" / f"{word}.xml"
+    uses: List[WordUse] = []
+    if any(s.word_class == "VERB" for s in senses) and frame_file.exists():
+        for roleset in ET.parse(frame_file).iter("roleset"):
+            if not str(roleset.get("id", "")).startswith(word + "."):
+                continue
+            said: Dict[str, List[str]] = {}
+            for example in roleset.iter("example"):
+                for arg in example.iter("arg"):
+                    first = (arg.text or "").strip().split(" ")[0].lower()
+                    said.setdefault(str(arg.get("type") or ""), []).append(first)
+            places = []
+            for role in roleset.iter("role"):
+                arg = "ARG" + str(role.get("n")).upper()
+                firsts = said.get(arg, [])
+                prepositions = tuple(sorted({f for f in firsts if f in _PREPOSITIONS_WRITTEN}))
+                bare = bool(firsts) and not prepositions
+                slot, link = ("subject", "done_by") if arg == "ARG0" else \
+                    ("object", "done_to") if arg == "ARG1" and bare else ("", "")
+                places.append(WordPlace(arg, str(role.get("descr") or ""), str(role.get("f") or ""), prepositions,
+                                        slot, link))
+            uses.append(WordUse(str(roleset.get("id")), str(roleset.get("name") or ""), tuple(places)))
+    by_class = {s.word_class for s in senses}
+    forms: List[WordForm] = []
+    for cls in sorted(by_class):
+        written = _cache["forms"].get((word, cls), {})
+        base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
+        if not any(form == word for form, _ in written):
+            forms.append(WordForm(word, cls, base_features, 0))
+        for (form, features), n in sorted(written.items(), key=lambda x: (-x[1], x[0])):
+            forms.append(WordForm(form, cls, features, n))
+    return WordRecord(word, tuple(forms), tuple(senses), tuple(uses),
+                      "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
+                      "PropBank frames (places)",
+                      "WordNet licence (Princeton); UD EWT CC BY-SA 4.0, GUM CC BY-NC-SA 4.0; PropBank CC BY-SA 4.0",
+                      split)
+
+
+#: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").
+_PREPOSITIONS_WRITTEN = frozenset({"about", "above", "across", "after", "against", "along", "among", "around", "as",
+                                   "at", "before", "behind", "below", "beneath", "beside", "between", "beyond", "by",
+                                   "despite", "down", "during", "for", "from", "in", "inside", "into", "like", "near",
+                                   "of", "off", "on", "onto", "out", "outside", "over", "past", "since", "through",
+                                   "throughout", "to", "toward", "towards", "under", "until", "up", "upon", "with",
+                                   "within", "without"})
 
 
 #: Where the word groups counted from WikiText-103 are kept on disk (data is not in the repository;

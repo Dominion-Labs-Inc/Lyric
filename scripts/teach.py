@@ -184,9 +184,14 @@ async def snapshot(db):
         "beliefs": await _count(db, "SELECT COUNT(*) n FROM unified.beliefs"),
         "domains": await _count(db, "SELECT COUNT(*) n FROM unified.domains"),
         "memberships": await _count(db, "SELECT COUNT(*) n FROM unified.concept_domains"),
-        "words": await _count(
+        # Taught statements (`admitted_proposition`): counted as "words" until 2026-10-26, which they are not.
+        "statements": await _count(
             db, "SELECT COUNT(*) n FROM memory_hot.memory_hot "
                 "WHERE tags @> '[\"admitted_proposition\"]'::jsonb"),
+        "words recorded": await _count(
+            db, "SELECT COUNT(*) n FROM memory_hot.memory_hot WHERE tags @> '[\"word_record\"]'::jsonb"),
+        "sentences recorded": await _count(
+            db, "SELECT COUNT(*) n FROM memory_hot.memory_hot WHERE tags @> '[\"sentence_record\"]'::jsonb"),
     }
 
 
