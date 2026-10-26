@@ -948,3 +948,22 @@ async def test_what_a_speaker_told_points_at_a_thing_from_their_own_context():
     assert decision.standing == "theirs", decision
     assert (kicking, "done by", kicker, True) in told, told
     assert not any(subject == kicking for subject, *_ in not_told), not_told
+
+
+@pytest.mark.asyncio
+async def test_a_fact_a_telling_binds_twice_is_held_once(talk, monkeypatch):
+    """Two things told of that are one once bound ("it", and the thing it stands for found known) say one fact twice;
+    the telling holds it once, and what it holds is a meaning (`Conversation._told`). Held twice, the meaning made of
+    it refused it and stopped the conversation (UNDERSTANDS-PROSE-02, 2026-10-26)."""
+    from types import SimpleNamespace
+    meaning = Meaning("tell", (MeaningFact_("located_in", "?previous", "asia"),
+                               MeaningFact_("located_in", "?v1", "asia"),
+                               MeaningFact_("instance_of", "?v1", "region", given=True)))
+
+    async def known(meaning, telling=False):
+        return {"?v1": "south_asia"}
+    monkeypatch.setattr(talk, "_known_of", known)
+    told, _ = await talk._told("It lies in Asia.", SimpleNamespace(meaning=meaning, constructions=()),
+                               {"?previous": "south_asia"})
+    assert [f for f in told[0] if f.relation == "located_in"] == [MeaningFact_("located_in", "south_asia", "asia")]
+    assert Meaning("tell", told[0]).facts == told[0]

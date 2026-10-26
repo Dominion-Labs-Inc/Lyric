@@ -1111,6 +1111,10 @@ class PatternInventory:
         #: with a phrase there, and each phrase under the kinds it states.
         self._frames_keeping: Dict[Tuple[str, FrozenSet[Tuple[Tuple[str, bool], int]]], List[Tuple[str, str]]] = {}
         self._phrases_stating: Dict[FrozenSet[Tuple[Tuple[str, bool], int]], List[str]] = {}
+        #: The sets of kinds those keep and state, counted (`kinds_kept`, `kinds_stated_of_a_thing`), with how many sets
+        #: were held when they were gathered.
+        self._kept_by_act: Dict[str, Tuple[int, Dict[FrozenSet[Tuple[Tuple[str, bool], int]], Counter]]] = {}
+        self._stated_of_a_thing: Optional[Tuple[int, Dict[FrozenSet[Tuple[Tuple[str, bool], int]], Counter]]] = None
         #: The adjuncts the held frames show (`Adjunct`), under the first word of each, case aside; and what finds them
         #: as frames arrive (`_note_adjuncts`): each frame under its act and its pieces as written, and under each way
         #: of leaving out a run of its pieces that follows a slot.
@@ -1918,6 +1922,30 @@ class PatternInventory:
         """The frames of this act, each with a slot, that state these kinds of fact with a phrase in that slot: all
         their own, or all but those of the slot a phrase standing for a thing describes (`_composed`)."""
         return tuple((self._by_key[k], slot) for k, slot in self._frames_keeping.get((act, frozenset(kinds.items())), ()))
+
+    def kinds_kept(self, act: str) -> Dict[FrozenSet[Tuple[Tuple[str, bool], int]], Counter]:
+        """Every set of kinds of fact some frame of this act states with a phrase in a slot (`frames_keeping`), each
+        counted; gathered again only once frames keep a set not kept before."""
+        cached = self._kept_by_act.get(act)
+        if cached is None or cached[0] != len(self._frames_keeping):
+            cached = (len(self._frames_keeping), {kept: Counter(dict(kept)) for held, kept in self._frames_keeping
+                                                  if held == act})
+            self._kept_by_act[act] = cached
+        return cached[1]
+
+    def kinds_stated_of_a_thing(self) -> Dict[FrozenSet[Tuple[Tuple[str, bool], int]], Counter]:
+        """Every set of kinds of fact a phrase states that says a kind of thing (an `instance_of`), less that one
+        (`_phrases_holding_phrases`), each counted; gathered again only once phrases state a set not stated before."""
+        if self._stated_of_a_thing is None or self._stated_of_a_thing[0] != len(self._phrases_stating):
+            one = Counter({("instance_of", True): 1})
+            rests: Dict[FrozenSet[Tuple[Tuple[str, bool], int]], Counter] = {}
+            for stated in self._phrases_stating:
+                counted = Counter(dict(stated))
+                if counted[("instance_of", True)] >= 1:
+                    rest = counted - one
+                    rests[frozenset(rest.items())] = rest
+            self._stated_of_a_thing = (len(self._phrases_stating), rests)
+        return self._stated_of_a_thing[1]
 
     def phrases_stating(self, kinds: Counter, within: Optional[AbstractSet[str]] = None) -> Tuple[Phrase, ...]:
         """The phrases stating exactly these kinds of fact; `within`, of those only the ones every concept they name
@@ -6420,8 +6448,7 @@ def _compositions(view: PatternInventory, meaning: Meaning, *, nested: bool = Fa
     kinds = list(wanted.items())
     # A phrase says part of this meaning only where the meaning names all it names (`phrases_stating`).
     within = frozenset(t for f in meaning.facts for t in f.terms() if not is_variable(t))
-    for counts in itertools.product(*(range(n + 1) for _, n in kinds)):
-        kept = Counter({kind: n for (kind, _), n in zip(kinds, counts) if n})
+    for kept in _held_within(view.kinds_kept(meaning.act), wanted, [k for k, _ in kinds]):
         chains = (_phrases_holding_phrases(view, wanted - kept, within) if nested
                   else [(p, None, None) for p in view.phrases_stating(wanted - kept, within) if view.counts(p)])
         if not chains:
@@ -6466,9 +6493,10 @@ def _phrases_holding_phrases(view: PatternInventory, kinds: Counter,
     seen: Set[str] = set()
     kind = ("instance_of", True)
     counted = list(kinds.items())
-    for counts in itertools.product(*(range(n + 1) for _, n in counted)):
-        outer = Counter({k: n for (k, _), n in zip(counted, counts) if n})
-        outer[kind] += 1
+    # Each phrase states a kind of thing (one `instance_of` more) and some of these kinds (`_held_within`).
+    one = Counter({kind: 1})
+    for rest in _held_within(view.kinds_stated_of_a_thing(), kinds, [k for k, _ in counted]):
+        outer = rest + one
         for phrase in view.phrases_stating(outer, within):
             if phrase.key in seen or not view.counts(phrase):
                 continue
@@ -6510,6 +6538,33 @@ def _kinds_named(phrase: "Phrase") -> FrozenSet[str]:
     """The kinds a phrase names a thing of its own as ("compiled them", a compiling)."""
     return frozenset(f.obj for f in phrase.facts if f.relation == "instance_of" and f.positive
                      and f.subject == phrase.anchor and not is_variable(f.obj))
+
+
+def _held_within(held: Mapping[FrozenSet[Tuple[Tuple[str, bool], int]], Counter], wanted: Counter,
+                 order: Sequence[Tuple[str, bool]]) -> List[Counter]:
+    """THE SETS OF KINDS OF FACT HELD (`held`) THAT ARE PART OF WHAT IS WANTED, in the order counting through every part
+    of it comes to them (each kind of `order` from none to all, the first slowest), by whichever is fewer: its parts or
+    the sets held. Saying a meaning counted through every part of its kinds, held or not: a meaning of 30 facts of ten
+    kinds has millions of parts, and counted twice, one inside the other, more than ever finished (UNDERSTANDS-PROSE-02
+    on main, 2026-10-26: "In mountainous areas, heavy precipitation is possible where ..." read as asking, its "I do not
+    know" said for over half an hour). Only a part some frame or phrase states is ever used, and those are gone
+    through, the same ones in the same order."""
+    parts = 1
+    for k in order:
+        parts *= wanted[k] + 1
+        if parts > len(held):
+            break
+    if parts <= len(held):
+        out = []
+        for counts in itertools.product(*(range(wanted[k] + 1) for k in order)):
+            part = Counter({k: n for k, n in zip(order, counts) if n})
+            if frozenset(part.items()) in held:
+                out.append(part)
+        return out
+    found = [(tuple(part.get(k, 0) for k in order), part) for part in held.values()
+             if all(n <= wanted.get(k, 0) for k, n in part.items())]
+    found.sort(key=lambda each: each[0])
+    return [part for _, part in found]
 
 
 def _fact_kinds(facts: Iterable[MeaningFact]) -> Counter:

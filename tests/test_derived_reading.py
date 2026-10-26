@@ -2313,3 +2313,25 @@ def test_a_held_word_saying_more_says_what_its_own_shape_says():
     view._group_changes = {did: {("s", ""), ("es", "")}, before: {("", "e"), ("ed", "")}}
     assert view.said_in_shape("breathes", "breathe") == [did]
     assert view.said_in_shape("breathes", "pause rest") == []
+
+
+def test_saying_goes_through_only_the_parts_of_a_meaning_memory_holds():
+    """`derived_reader._held_within`: the sets of kinds of fact held that are part of what is wanted, in the order
+    counting through every part comes to them, by whichever is fewer. Counting through every part of a long meaning's
+    kinds never finished (UNDERSTANDS-PROSE-02 on main, 2026-10-26)."""
+    import itertools
+    from collections import Counter
+    from core.semantics.derived_reader import _held_within
+    a, b, c = ("done_by", True), ("done_to", True), ("instance_of", True)
+    held = {frozenset(k.items()): k for k in (Counter({a: 1}), Counter({c: 2}), Counter({a: 1, c: 1}), Counter({b: 3}),
+                                             Counter())}
+    wanted, order = Counter({a: 1, c: 2}), [a, c]
+    every = [Counter({k: n for k, n in zip(order, counts) if n})
+             for counts in itertools.product(*(range(wanted[k] + 1) for k in order))]
+    assert _held_within(held, wanted, order) == [p for p in every if frozenset(p.items()) in held]
+    kinds = [(f"r{i}", True) for i in range(10)]
+    big, parts = Counter({k: 3 for k in kinds}), {}
+    for k in (Counter({kinds[3]: 2}), Counter({kinds[0]: 1, kinds[9]: 3}), Counter({kinds[0]: 1}), Counter({b: 1})):
+        parts[frozenset(k.items())] = k
+    assert _held_within(parts, big, kinds) == [Counter({kinds[3]: 2}), Counter({kinds[0]: 1}),
+                                               Counter({kinds[0]: 1, kinds[9]: 3})], "4^10 parts, three held"

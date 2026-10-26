@@ -23067,7 +23067,10 @@ class Conversation:
                 facts.append(fact)
         if not facts and not rules:
             return None, notes
-        return (tuple(facts), tuple(rules), theirs, names), notes
+        # A FACT BOUND TWICE IS HELD ONCE, as `told_of` holds it: two things told of that are one once bound ("it" and
+        # the thing it stands for) say the same fact twice, and a meaning made of them refused it ("Topographically,
+        # it is dominated by the Indian subcontinent and is bounded by ...", UNDERSTANDS-PROSE-02, 2026-10-26).
+        return (tuple(dict.fromkeys(facts)), tuple(rules), theirs, names), notes
 
     def _origin(self, through: str) -> Origin:
         """Where what this person gives the conversation comes from: them, in the
