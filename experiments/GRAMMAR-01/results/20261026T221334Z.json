@@ -1,0 +1,196 @@
+{
+  "experiment": "GRAMMAR-01",
+  "claim": "what a sentence means is read by English's grammar: each word's category and meaning, combined by general rules, what words hold learned from sentences taught with meanings",
+  "hypothesis": "more of the PMB's held-out dev meanings are read right whole than the composer composed (PMB-01 20261020T210127Z, learned from the lessons and the PMB's gold training sentences: 33.6% senses aside, 16.1% strict, 40.6% with the one spoken of before unnamed)",
+  "started_at": "2026-10-26T22:13:34.590175+00:00",
+  "duration_seconds": 321.838,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "07bee53a60e6b68c2d4dfe35d08932340a0a73a3",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "dotenv:.env.postgres",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 28,
+    "database_verified": null,
+    "database_verified_reason": "not verified"
+  },
+  "summary": {
+    "checks": 4,
+    "passed": 4,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences derived by hand held",
+      "value": 8679,
+      "unit": "sentences",
+      "note": "PMB 4.0.0 gold, release 5.1.0's dev and test documents held out"
+    },
+    {
+      "name": "taught sentences read whole (learned from)",
+      "value": 9612,
+      "unit": "sentences",
+      "note": "of 9,834: 3,054 lessons, 6,830 PMB gold training"
+    },
+    {
+      "name": "PMB dev sentences said whole",
+      "value": 884,
+      "unit": "sentences",
+      "note": "of 1,194 listed"
+    },
+    {
+      "name": "dev sentences read whole by the grammar",
+      "value": 865,
+      "unit": "sentences",
+      "note": "of 884"
+    },
+    {
+      "name": "dev sentences given a meaning",
+      "value": 860,
+      "unit": "sentences",
+      "note": "of 884"
+    },
+    {
+      "name": "strict: whole meaning right",
+      "value": 0.2262,
+      "unit": "fraction",
+      "note": "200/884"
+    },
+    {
+      "name": "strict: facts precision / recall / F1",
+      "value": [
+        0.4848,
+        0.4734,
+        0.479
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "senses aside: whole meaning right",
+      "value": 0.4333,
+      "unit": "fraction",
+      "note": "383/884"
+    },
+    {
+      "name": "senses aside: facts precision / recall / F1",
+      "value": [
+        0.8356,
+        0.8161,
+        0.8258
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "senses aside, the one spoken of before unnamed: whole meaning right",
+      "value": 0.5475,
+      "unit": "fraction",
+      "note": "484/884"
+    },
+    {
+      "name": "senses aside, the one spoken of before unnamed: facts precision / recall / F1",
+      "value": [
+        0.8356,
+        0.8161,
+        0.8258
+      ],
+      "unit": "fraction",
+      "note": ""
+    },
+    {
+      "name": "links decided by own: made / held by the meaning",
+      "value": [
+        1395,
+        1140
+      ],
+      "unit": "links",
+      "note": "81.7% held"
+    },
+    {
+      "name": "links decided by kind: made / held by the meaning",
+      "value": [
+        169,
+        94
+      ],
+      "unit": "links",
+      "note": "55.6% held"
+    },
+    {
+      "name": "links decided by rule: made / held by the meaning",
+      "value": [
+        164,
+        69
+      ],
+      "unit": "links",
+      "note": "42.1% held"
+    },
+    {
+      "name": "missed, by why",
+      "value": {
+        "read, meaning wrong": 477,
+        "not read whole": 19,
+        "read, no meaning: a number is neither a kind nor a quality: nothing ": 3,
+        "read, no meaning: the meaning language has no words yet for why": 1,
+        "read, no meaning: a group has one count: how many there are is one n": 1
+      },
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the PMB is on disk",
+      "passed": true,
+      "detail": "/Users/stefan/Dominion Labs/Lyric/test_data/semantics/pmb/pmb-5.1.0",
+      "at": "2026-10-26T22:13:34.590225+00:00"
+    },
+    {
+      "label": "more dev meanings right whole, senses aside, than the composer (PMB-01 20261020T210127Z, 33.6%)",
+      "passed": true,
+      "detail": "43.3%",
+      "at": "2026-10-26T22:18:53.587475+00:00"
+    },
+    {
+      "label": "more dev meanings right whole, strict, than the composer (16.1%)",
+      "passed": true,
+      "detail": "22.6%",
+      "at": "2026-10-26T22:18:53.587491+00:00"
+    },
+    {
+      "label": "more dev meanings right whole, senses aside, than each word's category chosen out of context (20261025T173519Z, 366/884, 41.4%)",
+      "passed": true,
+      "detail": "43.3%",
+      "at": "2026-10-26T22:18:53.587493+00:00"
+    }
+  ],
+  "notes": []
+}

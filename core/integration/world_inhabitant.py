@@ -6,8 +6,6 @@ it. Everything the world hands over has passed the gate and carries the gate-ver
 person who sent it, which is the actor everything of theirs is kept under.
 
     message           one conversational turn -> the front door (`handle_user_request`)
-    reward_allowance  a person's reward allowance -> the appraisal authority
-    operating_mode    how Lyric operates for a person -> the capability faculty
     shared_learning   whether each kind of a person's or an organization's work goes into shared learning -> the
                       learning authority
     hearing           what a person's device hears while Listening is on, and their wake phrase to set it up ->
@@ -87,9 +85,8 @@ class WorldInhabitant:
         #: During a handover, the instance that still holds some people's conversations: where their turns
         #: are passed, with the door's key ({"to", "key", "people"}). None otherwise.
         self._passing: Optional[Dict[str, Any]] = None
-        self._takes = {"message": self._message, "reward_allowance": self._reward_allowance,
-                       "operating_mode": self._operating_mode, "shared_learning": self._shared_learning,
-                       "hearing": self._hearing, "device": self._device}
+        self._takes = {"message": self._message, "shared_learning": self._shared_learning, "hearing": self._hearing,
+                       "device": self._device}
 
     def attach(self, world_address: Optional[str] = None, key=None) -> None:
         """Start taking what the world holds for Lyric. Called from Lyric's running loop: each thing
@@ -187,35 +184,6 @@ class WorldInhabitant:
         reply = await self._coordinator.handle_user_request(
             text, source="api", metadata={"actor_identity": identity, "conversation_id": f"world:{identity}"})
         return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
-
-    async def _reward_allowance(self, identity: str, payload: str) -> Dict[str, Any]:
-        """A person's reward allowance, for the appraisal authority: nothing in the payload asks what
-        it is, a whole number sets it. A refusal is the authority's own, said back to the person."""
-        from core.agents.autonomous.appraisal import get_appraisal_system
-        appraisal = get_appraisal_system()
-        asked = str(payload or "").strip()
-        if not asked:
-            return await appraisal.reward_allowance(identity)
-        try:
-            if not asked.isdigit():
-                raise ValueError("a reward allowance is a whole number")
-            return await appraisal.set_reward_allowance(identity, int(asked))
-        except ValueError as refused:
-            return {**await appraisal.reward_allowance(identity), "refused": str(refused)}
-
-    async def _operating_mode(self, identity: str, payload: str) -> Dict[str, Any]:
-        """How Lyric operates for a person, for the capability faculty: nothing in the payload asks what it is, a
-        mode (observe, assist or delegate) sets it. What the person's offering or role allows them to choose is the
-        world's to decide before it hands one over; a refusal is the faculty's own, said back."""
-        from core.capabilities import get_capabilities
-        capabilities = get_capabilities()
-        asked = str(payload or "").strip()
-        if not asked:
-            return {"settings": await capabilities.settings_for(identity)}
-        try:
-            return {"settings": await capabilities.set_operating_mode(identity, asked)}
-        except ValueError as refused:
-            return {"settings": await capabilities.settings_for(identity), "refused": str(refused)}
 
     async def _shared_learning(self, identity: str, payload: str) -> Dict[str, Any]:
         """Whether what Lyric learns from this person's work goes into shared learning (Context and privacy), for

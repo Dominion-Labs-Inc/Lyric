@@ -3,7 +3,7 @@
 
 A faculty of the substrate, beside reasoning, learning, the constitution and the
 senses. It reads, and moves no belief. The one thing it holds is each person's
-operating mode, as the world hands it over (`set_operating_mode`).
+operating mode (`set_operating_mode`).
 
 WHAT A CAPABILITY IS. A method the memory agent lifted from the first task of
 its shape that worked, widened by the tasks after it (the learning authority's methods lifted from tasks,
