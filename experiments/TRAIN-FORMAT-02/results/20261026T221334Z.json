@@ -1,0 +1,180 @@
+{
+  "experiment": "TRAIN-FORMAT-02",
+  "claim": "a word recorded whole, every form, every sense and how its verb is used, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, sentences never taught that use it are read right, and what they said is answered through the front door",
+  "hypothesis": "every check holds",
+  "started_at": "2026-10-26T22:13:34.458991+00:00",
+  "duration_seconds": 0.451,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "07bee53a60e6b68c2d4dfe35d08932340a0a73a3",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev2",
+        "model": "lyric_dev2",
+        "user_context": "lyric_dev2",
+        "learning": "lyric_dev2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 14,
+    "database_verified": "lyric_dev2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 21,
+    "passed": 21,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is on lyric_dev2",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-26T22:13:34.459003+00:00"
+    },
+    {
+      "label": "the store is the one it says",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-26T22:13:34.882528+00:00"
+    },
+    {
+      "label": "every word record is whole: its forms of its senses' classes, the word itself among them, every sense named and said what it means, every place of the grammar's with what it says",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-26T22:13:34.882814+00:00"
+    },
+    {
+      "label": "each word record written and read back is the same record",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-26T22:13:34.882949+00:00"
+    },
+    {
+      "label": "memory holds each taught word as one memory, the record as taught",
+      "passed": true,
+      "detail": "1 held",
+      "at": "2026-10-26T22:13:34.884905+00:00"
+    },
+    {
+      "label": "memory reads none of them as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-26T22:13:34.884911+00:00"
+    },
+    {
+      "label": "memory holds each word's senses, what each means and what it is a kind of",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-26T22:13:34.884914+00:00"
+    },
+    {
+      "label": "each form is held a form of its word (\"painted\", \"paints\", \"painting\" of paint)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T22:13:34.884931+00:00"
+    },
+    {
+      "label": "memory knows each form's class (\"paint\" a verb and a noun, \"painted\" a verb)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T22:13:34.884938+00:00"
+    },
+    {
+      "label": "the word names, as each class, what its most used sense of the class means (the verb `paint`, the noun `coating paint`)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T22:13:34.884961+00:00"
+    },
+    {
+      "label": "English's grammar holds each word",
+      "passed": true,
+      "detail": "1",
+      "at": "2026-10-26T22:13:34.886272+00:00"
+    },
+    {
+      "label": "the grammar knows what each sense is a kind of (`coating paint` a coating, the verb `paint` an act of creating), as it asks deciding a link",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T22:13:34.886292+00:00"
+    },
+    {
+      "label": "the grammar reads each form of 'paint' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"paints\": {\"third\": 1.0}, \"paint\": {\"base\": 1.0}, \"painting\": {\"ing\": 1.0}, \"painted\": {\"participle\": 3.0, \"past\": 1.0}}",
+      "at": "2026-10-26T22:13:34.886325+00:00"
+    },
+    {
+      "label": "the grammar holds the frames 'paint' is used in (intransitive, transitive)",
+      "passed": true,
+      "detail": "{\"intransitive\": 17.0, \"transitive\": 42.0}",
+      "at": "2026-10-26T22:13:34.886332+00:00"
+    },
+    {
+      "label": "the grammar holds what each place of 'paint' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 3}, \"object\": {\"done_to\": 1}}",
+      "at": "2026-10-26T22:13:34.886340+00:00"
+    },
+    {
+      "label": "'Roy painted the medal.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_by(?e, roy) & done_to(?e, ?x) & instance_of(?x, award decoration)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-10-26T22:13:34.895348+00:00"
+    },
+    {
+      "label": "'Roy paints the medal.' is read: instance_of(?e, paint) & done_by(?e, roy) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint)",
+      "at": "2026-10-26T22:13:34.896565+00:00"
+    },
+    {
+      "label": "'Roy is painting the medal.' is read: instance_of(?e, paint) & during(?e, ?now) & done_by(?e, roy) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, award decoration) & instance_of(?v0, paint)",
+      "at": "2026-10-26T22:13:34.899414+00:00"
+    },
+    {
+      "label": "'The medal was painted.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_to(?e, ?x) & instance_of(?x, award decoration)",
+      "passed": true,
+      "detail": "tell: done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-10-26T22:13:34.902084+00:00"
+    },
+    {
+      "label": "'Roy painted.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_by(?e, roy)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-10-26T22:13:34.903032+00:00"
+    },
+    {
+      "label": "'Roy painted the medal with paint.' is read: instance_of(?e, paint) & done_with(?e, ?y) & instance_of(?y, coating paint)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & instance_of(?v2, coating paint) & precedes(?v0, ?now)",
+      "at": "2026-10-26T22:13:34.909675+00:00"
+    }
+  ],
+  "notes": []
+}

@@ -3196,9 +3196,10 @@ class GrammarView:
         return self._rules
 
     def hold_word(self, word: Any) -> None:
-        """A WORD RECORDED WHOLE (`teaching_sources.WordRecord`), what English's grammar takes of it: how often its
-        verb is used in each frame (the words' `verb_frames`, as an analysed sentence counts them), and what each of
-        its verb's places says (`role`, as a taught meaning teaches them). Its forms, classes and names memory holds
+        """A WORD RECORDED WHOLE (`teaching_sources.WordRecord`), what English's grammar takes of it: what each of its
+        senses is a kind of (the words' knowledge, `GraphKnowledge.add`), how often its verb is used in each frame
+        (the words' `verb_frames`, as an analysed sentence counts them), and what each of its verb's places says
+        (`role`, as a taught meaning teaches them). Its forms, classes and names memory holds
         (`MemoryAgent._learn_word_record`). Held again, nothing is counted twice; held otherwise, `drop_word` first."""
         key = word.key()
         if key in self._words:
@@ -3221,6 +3222,15 @@ class GrammarView:
         for cache in ("_uses", "_names"):
             if isinstance(getattr(words, cache, None), dict):
                 getattr(words, cache).clear()
+        # WHAT EACH OF ITS SENSES IS A KIND OF, as the grammar asks what a thing is deciding a link by it
+        # (`Lexicon.inherited`, `selected`): "coating paint" a coating, the verb `paint` an act of creating. Asked of
+        # memory's concepts alone, a word taught only as a word was a kind of nothing.
+        knowledge = getattr(words, "knowledge", None)
+        if knowledge is not None and hasattr(knowledge, "discard"):
+            for sense in word.senses:
+                for _, kind in sense.kind_of:
+                    if kind:
+                        (knowledge.add if times > 0 else knowledge.discard)(sense.concept, "isa", kind)
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")

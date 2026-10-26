@@ -134,6 +134,12 @@ async def store_checks() -> int:
     view = agent.grammar_view()
     held_words = view.grammar.lexicon.words
     EV.check("English's grammar holds each word", all(w.key() in view._words for w in words), f"{len(view._words)}")
+    unkinded = [(s.concept, s.word_class, [k for _, k in s.kind_of], held_kinds)
+                for w in words for s in w.senses
+                for held_kinds in [view.grammar.lexicon.words.kinds(s.concept, s.word_class)]
+                if not all(k in held_kinds for _, k in s.kind_of if k)]
+    EV.check("the grammar knows what each sense is a kind of (`coating paint` a coating, the verb `paint` an act "
+             "of creating), as it asks deciding a link", not unkinded, str(unkinded)[:300])
     for w in words:
         if not any(s.word_class == "VERB" for s in w.senses):
             continue

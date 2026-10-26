@@ -103,6 +103,15 @@ class GraphKnowledge(Knowledge):
             table[_concept(subject)].append(_concept(obj))
             self._kinds = {}
 
+    def discard(self, subject: str, relation: str, obj: str) -> None:
+        """A link taken back (a word recorded otherwise since): once, as it was added once."""
+        relation = relation.replace(" ", "_")
+        table = {"isa": self._isa, "instance_of": self._instance, "defined_with": self._defined}.get(relation)
+        held = table.get(_concept(subject)) if table is not None else None
+        if held and _concept(obj) in held:
+            held.remove(_concept(obj))
+            self._kinds = {}
+
     def __len__(self) -> int:
         return sum(len(v) for v in self._isa.values()) + sum(len(v) for v in self._instance.values())
 
@@ -183,8 +192,12 @@ class HeldWords(Words):
     and what memory holds of things (`knowledge`)."""
 
     def __init__(self, analysed: Iterable, closed: Mapping[str, Set[str]], name_of: Callable[[str, str], str],
-                 knowledge: Optional[Knowledge] = None, forms: Optional[Any] = None):
+                 knowledge: Optional[Knowledge] = None, forms: Optional[Any] = None,
+                 recorded: Optional[Callable[[str, str], Optional[str]]] = None):
         self.closed = {w: set(u) for w, u in closed.items()}
+        #: What a word recorded whole, or a sentence recorded whole, names a word as a class (`MemoryAgent.recorded_name`):
+        #: before any other name (`_name`).
+        self.recorded = recorded
         self.name_of = name_of
         #: The forms memory holds words written as (`word_forms.HeldForms`: `forms_of(word)` gives base, class,
         #: features, how often): "came" the past of `come`, "whales" the plural of `whale`.
@@ -203,7 +216,10 @@ class HeldWords(Words):
                     k += 1
                 if k and form[k:]:
                     self.changes[item.word_class][(form[k:], item.base[k:])] += n
-        self.knowledge = knowledge or Knowledge()
+        # Knowledge holding nothing yet is still the knowledge to hold in: `knowledge or Knowledge()` took an empty
+        # `GraphKnowledge` (it has a length) for none, and in a store that held no concepts every kind taken in after
+        # went nowhere (lyric_dev2, 2026-10-26).
+        self.knowledge = knowledge if knowledge is not None else Knowledge()
         self.form_uses: Dict[str, Counter] = defaultdict(Counter)
         #: Each use, how often in a sentence that asks (True) and in one that tells (False), every word together.
         self.asked: Dict[str, Counter] = defaultdict(Counter)
@@ -250,6 +266,12 @@ class HeldWords(Words):
         for a word, `MemoryAgent.name_of`, give a sense another word names, and "air" was `line airline`); for a word
         no form or held word gives, as memory names it."""
         key = (word.lower(), cls)
+        if key not in self._names and self.recorded is not None:
+            # AS A RECORD NAMES IT, where one does: "medal" as the record's meaning names it, `award decoration`. A
+            # word memory held as the class was named by itself first, whatever the record said.
+            named = self.recorded(word, cls) or self.recorded(self.lexeme(word, cls), cls)
+            if named:
+                self._names[key] = named
         if key not in self._names:
             base = self.lexeme(word, cls)
             held = base != word.lower() or bool(self.knowledge.classes(base).get(cls))

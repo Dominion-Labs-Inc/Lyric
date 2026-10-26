@@ -7093,8 +7093,8 @@ class MemoryAgent(IMemoryConsolidation):
             for subject, relation, target in self._grammar_links:
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
-            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms),
-                               structure=self._structure_view)
+            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms,
+                                         recorded=self.recorded_name), structure=self._structure_view)
             for word in self._grammar_words:
                 view.hold_word(word)
             for derived in self._grammar_derived:
@@ -7216,6 +7216,14 @@ class MemoryAgent(IMemoryConsolidation):
         read = self.structure_view().read(words)
         return lay(read.words, read.classes, read.heads, read.relations, self.name_of, self.known_name)
 
+    def recorded_name(self, word: str, word_class: str) -> Optional[str]:
+        """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None
+        where none does. Asked before any other name (`name_of`, the grammar's `HeldWords._name`)."""
+        folded = str(word).casefold()
+        recorded = self._record_names.get((folded, word_class)) or (
+            self._record_names.get((folded, "NAME")) if word_class == "NOUN" else None)
+        return recorded.most_common(1)[0][0] if recorded else None
+
     def name_of(self, word: str, word_class: str) -> str:
         """The thing a word names, as memory names it: the word itself, or the held word it is a shape of, where
         memory holds that word as this class; a verb's shape first ("hired" read as a verb is `hire`, as the frames
@@ -7228,11 +7236,9 @@ class MemoryAgent(IMemoryConsolidation):
         `help`, not `aid`."""
         from core.semantics.structure import _HELD_AS
         folded = word.casefold()
-        # AS A SENTENCE RECORDED WHOLE NAMES IT, where one does: the record's meaning names what the word says.
-        recorded = self._record_names.get((folded, word_class)) or (
-            self._record_names.get((folded, "NAME")) if word_class == "NOUN" else None)
+        recorded = self.recorded_name(word, word_class)
         if recorded:
-            return recorded.most_common(1)[0][0]
+            return recorded
         view = self.pattern_inventory()
         shapes = [n for n in view.names_of_shape(folded) if n != folded]
         written_as = [folded] + shapes

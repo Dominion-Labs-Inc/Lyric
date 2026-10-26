@@ -45,8 +45,14 @@ past, present (not past), -ing (now), passive, the verb alone, "with paint" (`do
 through the front door 7 of 7 right, none wrong. TRAIN-FORMAT-01 on the same store: every check, 5 of 5. GRAMMAR-01
 383, taught_fit 420, unchanged. Tests: `tests/test_sentence_records.py` 11 passed; grammar 31.
 
-**Held but read by nothing yet:** each sense's definition, kinds and examples; PropBank's who and function of each
-place; which sense a sentence means.
+**Then each sense's kinds, read by the grammar** (`GrammarView.hold_word` -> the words' knowledge, asked deciding a
+link by what a thing is). Found doing it, general: `HeldWords` took an empty `GraphKnowledge` for none (`knowledge or
+Knowledge()`), so a store with no concepts held no kind ever taken in; once fixed, a word memory holds as a class was
+named by itself before its record's name (`HeldWords._name` asks `MemoryAgent.recorded_name` first). Every check
+again, 7 of 7; TRAIN-FORMAT-01 5 of 5; GRAMMAR-01 383, taught_fit 420.
+
+**Held but read by nothing yet:** each sense's definition and examples; PropBank's who and function of each place;
+which sense a sentence means.
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 

@@ -58,7 +58,14 @@ treebank: the noun's plural "paints".
   painted by Roy.", "Who painted the medal?" Roy, "Was the medal painted?" Yes; told "Roy paints.", "Does Roy paint?"
   Yes, "Who paints?" Roy. TRAIN-FORMAT-01's sentence on the same store: every check, 5 of 5. GRAMMAR-01 383 (F1
   82.6%) and taught_fit 420, as before the change.
-- **Held, read by no part of reading yet:** what each sense means (its definition) and what it is a kind of, its
-  examples, each PropBank place's who and function, the senses beyond the most used of each class (which sense a
-  sentence means is not decided from them).
+- **What each sense is a kind of, read by the grammar** (`GrammarView.hold_word` into the words' knowledge, which
+  the grammar asks deciding a link by what a thing is): `coating paint` a coating and a coloring material, the verb
+  `paint` an act of creating, `coat paint` a coating, `rouge` makeup; taken back with the record. Two faults found
+  doing it, each general: an empty `GraphKnowledge` was taken for none (`knowledge or Knowledge()`, it has a length),
+  so in a store holding no concepts every kind taken in went nowhere; and, once it held, a word memory holds as a
+  class was named by itself before what a record names it (`HeldWords._name` now asks `MemoryAgent.recorded_name`
+  first). Every check again (the kinds' among them), 7 of 7; TRAIN-FORMAT-01 every check, 5 of 5; GRAMMAR-01 383,
+  taught_fit 420.
+- **Held, read by no part of reading yet:** what each sense means (its definition), its examples, each PropBank
+  place's who and function, the senses beyond the most used of each class (which sense a sentence means).
 
