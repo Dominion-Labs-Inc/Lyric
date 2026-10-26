@@ -4195,6 +4195,18 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                       subject_kind="word_forms", provenance=provenance, quality=quality,
                                       progress=progress)
 
+    async def learn_derived(self, derived, *, provenance: Any = None, quality: float,
+                            progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """What each word takes beside the words around it, from sentences derived by hand in a categorial grammar
+        (the PMB's CCG derivations checked by hand): `derived` is an iterable of `grammar.Derived`. Each is held by
+        memory whole (`MemoryAgent.remember_derived`), its standing a belief on that memory, and English's grammar
+        chooses each word's category by them (`Lexicon.hear_derived`).
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(derived, what="sentences derived by hand", remember="remember_derived",
+                                      subject_kind="derived_sentence", provenance=provenance, quality=quality,
+                                      progress=progress)
+
     #: How many things taught a review asks itself about, by default.
     REVIEW_SAMPLE = 200
     #: How many facts a review looks at for each question it means to ask, at most.

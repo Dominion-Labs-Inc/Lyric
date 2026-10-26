@@ -3,12 +3,27 @@
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
 2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
-to 2026-10-26 (51) in `docs/research/LAB_NOTEBOOK.md`.
+to 2026-10-26 (52) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-26)
 
-**START HERE: THE FIX THE OWNER AGREED (2026-10-26), steps 1 and 2 first.** Why the grammar reads badly was found
+**START HERE: STEPS 1 AND 2 OF THE AGREED FIX ARE DONE (2026-10-26 (52)); STEP 3 IS NEXT.** Lyric's memory takes
+the PMB's checked derivations (`grammar.Derived`, `PMBDerivationSource`, `teach.py --source pmb-derivations`,
+`MemoryAgent.remember_derived`), and each word's category is chosen beside the words around it (`Lexicon.hear_derived`,
+`_in_context`, `_frame_evidence`). Measured: GRAMMAR-01 senses aside 366 -> 382 (43.2%), strict 184 -> 203, unnamed
+466 -> 482, F1 81.9 -> 82.4; taught read back 414 -> 424; in the chosen readings the derivation's way for 90.3% of dev
+words and its frame for 93.7% of verbs. A sentence still fails mostly on links (step 3), words of several (step 4)
+and categories with no meaning (step 5). lyric_dev holds the first 100 derivations (small batches, clean); main holds
+none: teaching main all 8,679 is the owner's run to start:
+`PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 scripts/teach.py --source pmb-derivations`
+(about an hour and a half: the start relearns the taught sentences under the changed grammar, about 5 minutes;
+each derivation is kept in about 0.6 s; the grammar learns once more before the review, `ready_to_read`; lyric_dev's
+`--small 100` took 11 minutes, its log clean). Found, not fixed:
+`profile_performance` runs every `store_memory` under `tracemalloc`, so a memory read as a claim is read through the
+grammar several times slower.
+
+**THE FIX THE OWNER AGREED (2026-10-26).** Why the grammar reads badly was found
 (lab notebook (51), `experiments/GRAMMAR-01/diagnostics/README.md`), and how to fix it agreed. Do not rewrite the
 grammar again (it is the fourth way Lyric has read English; another rewrite is not wanted): it keeps its rules
 (`data/grammar/english.json`, `Grammar._combine`, `_unary`), its meanings (`spell_out`) and memory. What changes is

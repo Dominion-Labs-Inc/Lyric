@@ -2268,6 +2268,57 @@ class PMBSource:
             yield TaughtSentence(document.text, said.meaning, f"pmb/{doc_id}", tuple(anchors))
 
 
+#: Where the PMB's release 4.0.0 is kept on disk beside 5.1.0 (data is not in the repository): its documents' CCG
+#: derivations, checked by hand in its gold part (`<doc>/en.parse.tags`).
+PMB_DERIVATIONS_DATA = os.path.join(os.path.dirname(PMB_DATA), "pmb-4.0.0")
+
+
+@dataclass
+class PMBDerivationSource:
+    """English sentences of the Parallel Meaning Bank as they were derived by hand in a categorial grammar (release
+    4.0.0, gold: 10,715 documents checked by hand; University of Groningen, annotations ODC-BY 1.0, attribute the PMB,
+    Abzianidze et al. 2017, in any public use): each word with the category it has in its sentence, its part of
+    speech, lemma, WordNet sense and VerbNet roles (`pmb_meanings.read_derivations`, `grammar.Derived`). It teaches
+    what each word takes beside the words around it, which English's grammar chooses a word's category by
+    (`Lexicon.hear_derived`); it states nothing else. Release 5.1.0's dev and test documents (`held_out`) are held
+    out to measure by (`experiments/GRAMMAR-01`) and never taught: 1,041 of 5.1.0's 1,194 dev documents are among
+    4.0.0's gold."""
+
+    data: str = PMB_DERIVATIONS_DATA
+    held_out: str = PMB_DATA
+    part: str = "gold"
+    name: str = "parallel_meaning_bank_derivations_gold"
+    quality: float = 0.95
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    def provenance(self):
+        return _provenance(self.name, f"pmb_4.0.0_en_{self.part}_derivations")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def derived(self) -> Iterator[Any]:
+        """Each sentence derived by hand of every document of the part that release 5.1.0 does not hold out, in
+        order (`pmb/p00/d0004`)."""
+        from pathlib import Path
+        from core.semantics import pmb_meanings
+        root = Path(self.data) / "data" / "en" / self.part
+        splits = Path(self.held_out) / "split" / "en"
+        listed = [splits / "dev" / "standard.sbn", splits / "test" / "standard.sbn", splits / "test" / "long.sbn"]
+        missing = [str(p) for p in [root] + listed if not p.exists()]
+        if missing:
+            raise FileNotFoundError(
+                f"{', '.join(missing)} not there; fetch the PMB first (https://pmb.let.rug.nl/releases/pmb-4.0.0.zip "
+                f"and pmb-5.1.0.zip, extracted under {os.path.dirname(self.data)}). A teaching pass does not reach "
+                f"the network.")
+        held_out = {doc for path in listed for doc in pmb_meanings.split_ids(path)}
+        for folder in sorted(root.glob("p*/d*")):
+            if f"{folder.parent.name}/{folder.name}" in held_out:
+                continue
+            yield from pmb_meanings.read_derivations(folder)
+
+
 #: Where the word groups counted from WikiText-103 are kept on disk (data is not in the repository;
 #: `experiments/GROUPS-01` writes them): `groups_<n>.tsv`, a word and its group a line, a file for each count of groups.
 WORD_GROUPS_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

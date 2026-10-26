@@ -370,6 +370,232 @@ class Entry:
     crossing: bool = False
 
 
+# ── sentences derived by hand ─────────────────────────────────────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class Derived:
+    """One sentence as it was derived by hand in a categorial grammar (a CCG derivation checked by hand: the Parallel
+    Meaning Bank's gold): each word with the category it has in this sentence, written as the bank writes it
+    ("(s:dcl\\np)/np"), its part of speech (Penn's), its lemma, its WordNet sense ("" for none), its VerbNet roles, the
+    bank's semantic tag, and where it is in `text`; how the words were combined (`tree`: a word is its place, a
+    combination `(rule, category, ...what it combines)`, a category a rule names written as a string); and where it
+    was met (`said_in`, the document; `part`, which of its sentences). A word of several is one word, its parts
+    joined by "~" ("Burt~Lancaster"). What a word takes beside the words around it is learned from these
+    (`Lexicon.hear_derived`)."""
+
+    text: str
+    words: Tuple[str, ...]
+    categories: Tuple[str, ...]
+    tags: Tuple[str, ...]
+    lemmas: Tuple[str, ...]
+    senses: Tuple[str, ...]
+    roles: Tuple[Tuple[str, ...], ...]
+    semantics: Tuple[str, ...]
+    spans: Tuple[Tuple[int, int], ...]
+    tree: Any = ()
+    said_in: str = ""
+    part: int = 1
+
+    def __post_init__(self):
+        n = len(self.words)
+        if not n or any(len(x) != n for x in (self.categories, self.tags, self.lemmas, self.senses, self.roles,
+                                              self.semantics, self.spans)):
+            raise ValueError("a derived sentence gives every word a category, a part of speech, a lemma, a sense, "
+                             "its roles, a semantic tag and its place")
+
+    def key(self) -> str:
+        """The derivation's identity: this sentence of its document, derived so."""
+        return hashlib.sha256("\x1e".join(
+            [self.said_in, str(self.part), "\x1f".join(self.words), "\x1f".join(self.categories)]).encode("utf-8")
+        ).hexdigest()[:32]
+
+    def identity(self) -> Optional[Tuple[str, int]]:
+        """What the derivation is of: a sentence of a document. One derived again otherwise corrects the memory of
+        the first (`MemoryAgent._remember_whole`)."""
+        return (self.said_in, self.part) if self.said_in else None
+
+    def claim(self) -> str:
+        """The belief this derivation stands on: that the sentence goes together so."""
+        return f'the derivation of "{self.text}" ({self.key()[:8]})'
+
+    def said(self) -> str:
+        """The derivation, said plainly: each word and its category."""
+        return f'"{self.text}": ' + "; ".join(f'"{w}" {c}' for w, c in zip(self.words, self.categories))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"text": self.text, "words": list(self.words), "categories": list(self.categories),
+                "tags": list(self.tags), "lemmas": list(self.lemmas), "senses": list(self.senses),
+                "roles": [list(r) for r in self.roles], "semantics": list(self.semantics),
+                "spans": [list(s) for s in self.spans], "tree": self.tree, "said_in": self.said_in,
+                "part": self.part}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "Derived":
+        return cls(str(data["text"]), tuple(data["words"]), tuple(data["categories"]), tuple(data["tags"]),
+                   tuple(data["lemmas"]), tuple(data["senses"]), tuple(tuple(r) for r in data["roles"]),
+                   tuple(data["semantics"]), tuple((int(a), int(b)) for a, b in data["spans"]),
+                   _tupled(data.get("tree") or ()), str(data.get("said_in") or ""), int(data.get("part") or 1))
+
+
+#: Where a sentence opens and closes, as the word beside its first and last words.
+SENTENCE_START, SENTENCE_END = "<s>", "</s>"
+#: The kind of word each of Penn's parts of speech names, as a derivation's words are tagged.
+_TAGGED = {"NN": "NOUN", "NNS": "NOUN", "NNP": "NAME", "NNPS": "NAME", "JJ": "ADJECTIVE", "JJR": "ADJECTIVE",
+           "JJS": "ADJECTIVE", "RB": "ADVERB", "RBR": "ADVERB", "RBS": "ADVERB", "CD": "NUMERAL",
+           "IN": "PREPOSITION", "TO": "PREPOSITION", "VB": "VERB", "VBD": "VERB", "VBG": "VERB", "VBN": "VERB",
+           "VBP": "VERB", "VBZ": "VERB"}
+#: A derivation's atoms as the grammar writes them: `s:dcl` is `S[dcl]`; a word's particle (`pr`) is `PR`.
+_BANK = re.compile(r"\(|\)|/|\\|[a-z]+(?::[a-z]+)?")
+
+
+def bank_category(text: str) -> Cat:
+    """A category as the Parallel Meaning Bank writes it (`(s:dcl\\np)/np`, `n/pp`), as the grammar's: atoms as
+    `parse_category` makes them, a feature where the bank writes one."""
+    tokens = _BANK.findall(text)
+    if "".join(tokens) != re.sub(r"\s+", "", text):
+        raise ValueError(f"not a category: {text!r}")
+    at = 0
+
+    def primary() -> Cat:
+        nonlocal at
+        token = tokens[at]
+        at += 1
+        if token == "(":
+            inner = category()
+            at += 1
+            return inner
+        base, _, feat = token.partition(":")
+        return Atom(base if base == "conj" else base.upper(), feat or None, None)
+
+    def category() -> Cat:
+        nonlocal at
+        left = primary()
+        while at < len(tokens) and tokens[at] in ("/", "\\"):
+            slash = tokens[at]
+            at += 1
+            left = Fn(left, slash, primary())
+        return left
+    return category()
+
+
+def _alike(said: Cat, cat: Optional[Cat]) -> bool:
+    """Whether a category a derivation gives (`said`) is one the grammar writes (`cat`): of one shape, each atom the
+    same, a feature the derivation leaves unsaid ("s") or the grammar leaves open (`S[F]`) matching any."""
+    if cat is None:
+        return False
+    if isinstance(said, Atom):
+        if not isinstance(cat, Atom) or said.base != cat.base:
+            return False
+        feat = cat.feat
+        return said.feat is None or not (isinstance(feat, str) and feat[:1].islower()) or said.feat == feat
+    return isinstance(cat, Fn) and said.slash == cat.slash and _alike(said.res, cat.res) and _alike(said.arg, cat.arg)
+
+
+def _atoms(cat: Cat) -> List[Atom]:
+    return [cat] if isinstance(cat, Atom) else _atoms(cat.res) + _atoms(cat.arg)
+
+
+def _without_taken(cat: Cat) -> Cat:
+    """A category a derivation gives a word taking a phrase of a preposition (`PP`) or a particle (`PR`), as the
+    grammar says it: taking neither, the preposition read as telling of what it joins and the particle read with the
+    verb. "(s\\np)/pp" is `S\\NP` ("relies on"), "n/pp" `N` ("my uncle"), "np/(n/pp)" `NP/N` ("my")."""
+    if isinstance(cat, Atom):
+        return cat
+    if cat.slash == "/" and isinstance(cat.arg, Atom) and cat.arg.base in ("PP", "PR") and cat.arg.feat is None:
+        return _without_taken(cat.res)
+    return Fn(_without_taken(cat.res), cat.slash, _without_taken(cat.arg))
+
+
+def _said_of_a_thing(cat: Cat) -> Cat:
+    """A preposition's phrase a form of "be" takes, as the grammar says it: what is said of a thing (`S[pp]\\NP`)."""
+    if isinstance(cat, Atom):
+        return Fn(Atom("S", "pp", None), "\\", Atom("NP", None, None)) if cat.base == "PP" and cat.feat is None \
+            else cat
+    return Fn(_said_of_a_thing(cat.res), cat.slash, _said_of_a_thing(cat.arg))
+
+
+def _clause_taken(cat: Cat) -> Optional[Cat]:
+    """A clause a word takes said with no "that" before it ("I think Tom is drunk": `(s:dcl\\np)/s:dcl`), as the
+    grammar writes a clause a verb takes (`S[em]`); None where the word takes no such clause."""
+    if isinstance(cat, Fn) and cat.slash == "/" and isinstance(cat.arg, Atom) and (cat.arg.base, cat.arg.feat) == (
+            "S", "dcl"):
+        return Fn(cat.res, "/", Atom("S", "em", None))
+    return None
+
+
+def _share(scores: Mapping[str, float]) -> Dict[str, float]:
+    """Logarithms of weights, as the logarithm of each one's share of them all."""
+    if not scores:
+        return {}
+    top = max(scores.values())
+    whole = top + math.log(sum(math.exp(v - top) for v in scores.values()))
+    return {k: v - whole for k, v in scores.items()}
+
+
+def _there(cat: Cat) -> Cat:
+    """The bank's "there" of "there is" (`np:thr`), as the grammar writes it (`THERE`)."""
+    if isinstance(cat, Atom):
+        return Atom("THERE", None, None) if (cat.base, cat.feat) == ("NP", "thr") else cat
+    return Fn(_there(cat.res), cat.slash, _there(cat.arg))
+
+
+def _raised_thing(cat: Cat) -> Optional[Cat]:
+    """A thing as the grammar writes a word standing for one where it waits on its doing ("nobody":
+    `S/(S\\NP)`, `(S\\NP)\\((S\\NP)/NP)`): the thing (`NP`) it is; None for any other."""
+    if isinstance(cat, Fn) and isinstance(cat.arg, Fn) and cat.slash != cat.arg.slash \
+            and _same_shape(cat.res, cat.arg.res) and isinstance(cat.arg.arg, Atom) and cat.arg.arg.base == "NP":
+        return Atom("NP", None, None)
+    return None
+
+
+def _marked(cat: Cat, preposition: str) -> Cat:
+    """A category taking a preposition's phrase, the phrase named by its preposition (`NP/PP` as `NP/PP[of]`)."""
+    if isinstance(cat, Atom):
+        return Atom("PP", preposition, None) if cat.base == "PP" and cat.feat is None else cat
+    return Fn(_marked(cat.res, preposition), cat.slash, _marked(cat.arg, preposition))
+
+
+def _beside(tokens: Sequence[str], k: int) -> str:
+    """The word at k as a word beside another is counted (`Lexicon.hear_derived`): written in lowercase, or where
+    the sentence opens or closes."""
+    if k < 0:
+        return SENTENCE_START
+    return str(tokens[k]).lower() if k < len(tokens) else SENTENCE_END
+
+
+def _taking_a_pp(derived: Derived) -> Dict[int, Tuple[str, Optional[int]]]:
+    """For each word of a derivation heading a preposition's phrase (`pp/np`), what takes the phrase: its category,
+    and its word where one word takes it (None where words combined take it)."""
+    out: Dict[int, Tuple[str, Optional[int]]] = {}
+
+    def category(node: Any) -> str:
+        return derived.categories[node] if isinstance(node, int) else node[1]
+
+    def head(node: Any) -> Optional[int]:
+        while not isinstance(node, int):
+            kids = [k for k in node[2:] if not isinstance(k, str)]
+            if not kids:
+                return None
+            node = next((k for k in kids if category(k).startswith("pp/") or category(k) == "pp"), kids[0])
+        return node if derived.categories[node].startswith("pp/") else None
+
+    def walk(node: Any) -> None:
+        if isinstance(node, int) or not node:
+            return
+        kids = [k for k in node[2:] if not isinstance(k, str)]
+        if len(kids) == 2:
+            for one, other in ((kids[0], kids[1]), (kids[1], kids[0])):
+                # A mark said beside the phrase (`rp`, `lp`) takes nothing.
+                if category(one) == "pp" and any(ch.isalpha() for ch in category(other)):
+                    word = head(one)
+                    if word is not None:
+                        out[word] = (category(other), other if isinstance(other, int) else None)
+        for kid in kids:
+            walk(kid)
+    walk(derived.tree)
+    return out
+
+
 class Lexicon:
     """The words: English's grammar words and the categories of each kind of word (`data/grammar/english.json`),
     each word's kinds and uses as held for it (`Words`), and what is learned from sentences taught with their
@@ -396,6 +622,13 @@ class Lexicon:
         self.heard: Counter = Counter()
         #: Learned from sentences taught with their meanings: (key) -> the links said there, counted.
         self.learned: Dict[str, Dict[Tuple, Counter]] = defaultdict(lambda: defaultdict(Counter))
+        #: Learned from sentences derived by hand (`hear_derived`), each word's way as the grammar names its ways:
+        #: `uses` (the word -> its ways; "" every word's), `after` (the word before it -> the ways of the word after),
+        #: `before` (the word after it -> the ways of the word before), `frames` (a verb -> its frames; "" every
+        #: verb's), `frames before` (the word after a verb -> the verb's frames).
+        self.derived: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+        self._categories: Dict[str, Cat] = {}
+        self._taking_pps: Optional[List[Cat]] = None
 
     # ── what each word may be ──
     def entries(self, tokens: Sequence[str], i: int) -> List[Tuple[int, Entry]]:
@@ -455,7 +688,7 @@ class Lexicon:
             name = self.words.name(word, cls) if cls != "NAME" else word.lower()
             if cls == "VERB":
                 for form, r in self._forms(word, name).items():
-                    for frame, q in self._frame_evidence(name).items():
+                    for frame, q in self._frame_evidence(name, _beside(tokens, i + 1)).items():
                         for t in self.verb_templates.get(form, {}).get(frame, ()):
                             out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name,
                                                      p + r + q, f"{form}:{frame}")))
@@ -486,7 +719,64 @@ class Lexicon:
                                              t.get("label", ""))))
         return out
 
-    def _evidence(self, tokens: Sequence[str], i: int) -> Dict[str, float]:
+    def _evidence(self, tokens: Sequence[str], i: int, beside: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+        """Each way the word may be read, as a grammar word's use or a kind of word, with the logarithm of how often
+        it is used so beside the words around it (`_held_evidence`, `_in_context`). `beside`: the words before and
+        after it, where they are not its neighbours in `tokens`."""
+        return self._in_context(self._held_evidence(tokens, i), tokens, i, beside)
+
+    def _in_context(self, ways: Mapping[str, float], tokens: Sequence[str], i: int,
+                    beside: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
+        """A WORD'S WAYS BESIDE THE WORDS AROUND IT, as the sentences derived by hand say (`hear_derived`). Weighed by
+        how the treebank uses a word out of context, the grammar chose a word's category wrongly one time in five
+        (2026-10-26 (51)): "fight" is used as a noun more than as a verb, and after "are" it is a verb.
+
+        How often the derivations use this very word each way, with one use more spread as `ways` weighs it (how the
+        treebank uses the word, `_held_evidence`): a word the derivations never hold is weighed as before. Then, for
+        each word beside it, how much more often a word beside that one is used each way than words are at all, with
+        one use more spread as words are used at all: after "the" a noun, before "to" a verb, before "." a doing that
+        takes nothing; a word beside it the derivations never hold says nothing. The ways are those `ways` holds and
+        those the derivations use the word in where the grammar reads a word so (`_takes_way`).
+
+        On the PMB's held-out dev sentences derived by hand, the way so chosen for each word is the derivation's
+        92.7% of the time, out of context 78.3%. Each way's share of the word's ways is what is given (`_share`): a
+        neighbour's weight is how much more often, not how often, and summed as they were over a reading's words, the
+        surer a word's neighbours the more the reading was worth beside one reading a name of several words as one."""
+        every = self.derived["uses"].get("")
+        if not every:
+            return dict(ways)
+        word = tokens[i]
+        own = self.derived["uses"].get(word.lower(), {})
+        names = list(ways) + [u for u in own if u not in ways and self._takes_way(word, u)]
+        n = sum(own.get(u, 0) for u in names)
+        out = {u: math.log((own.get(u, 0) + (math.exp(ways[u]) if u in ways else 0.0)) / (n + 1.0)) for u in names}
+        if beside is None:
+            beside = (_beside(tokens, i - 1), _beside(tokens, i + 1))
+        prior = estimate(every, {}, names)
+        for table, near in (("after", beside[0]), ("before", beside[1])):
+            held = self.derived[table].get(near)
+            if not held:
+                continue
+            m = sum(held.get(u, 0) for u in names)
+            for u in names:
+                out[u] += math.log((held.get(u, 0) + math.exp(prior[u])) / (m + 1.0)) - prior[u]
+        return _share(out)
+
+    def _takes_way(self, word: str, way: str) -> bool:
+        """Whether the grammar reads the word in this way: one of its own entries' uses; else, where it is not read
+        only as its own, a kind of word's way, a name only written capitalised or heard as one."""
+        low = word.lower()
+        closed = self.closed.get(low, [])
+        if any(e["use"] == way for e in closed):
+            return True
+        if any(e.get("only") for e in closed):
+            return False
+        cls = way.split(":")[0]
+        if cls == "NAME" and not word[:1].isupper() and low not in self.heard:
+            return False
+        return way == "VERB" or (cls in self.templates and way in self._uses_of_class(cls))
+
+    def _held_evidence(self, tokens: Sequence[str], i: int) -> Dict[str, float]:
         """Each way the word may be read, as a grammar word's use or a kind of word, with the logarithm of how often
         it is used so (`estimate`). A word the grammar reads only as its own ("not", "where") is no other kind of
         word; a word with no ways of its own is read only as kinds of word ("every" is not read until the grammar
@@ -594,9 +884,175 @@ class Lexicon:
             spelled = {"past", "participle"}
         return estimate(held, self.words.like(word, "forms"), spelled | set(held))
 
-    def _frame_evidence(self, name: str) -> Dict[str, float]:
+    def _frame_evidence(self, name: str, after: Optional[str] = None) -> Dict[str, float]:
+        """Each frame of the verb, with the logarithm of how often it is used so: as the treebank uses it, and, as
+        `_in_context` weighs a word's ways, as the sentences derived by hand use it and a verb before the word after
+        it (`after`): before "the" a verb takes a thing, before "." nothing. On the PMB's held-out dev sentences, the
+        frame so chosen for each verb is the derivation's 90.5% of the time, by the treebank alone 65.4%."""
         frames = list(self.verb_templates.get("frames", {}).keys())
-        return estimate(self.words.frames(name), self.words.like(name, "frames"), frames)
+        held = estimate(self.words.frames(name), self.words.like(name, "frames"), frames)
+        every = self.derived["frames"].get("")
+        if not every:
+            return held
+        own = self.derived["frames"].get(name, {})
+        n = sum(own.get(f, 0) for f in frames)
+        out = {f: math.log((own.get(f, 0) + math.exp(held[f])) / (n + 1.0)) for f in frames}
+        near = self.derived["frames before"].get(after) if after is not None else None
+        if near:
+            prior = estimate(every, {}, frames)
+            m = sum(near.get(f, 0) for f in frames)
+            for f in frames:
+                out[f] += math.log((near.get(f, 0) + math.exp(prior[f])) / (m + 1.0)) - prior[f]
+        return _share(out)
+
+    # ── what sentences derived by hand say ──
+    def hear_derived(self, derived: Derived, times: int = 1) -> None:
+        """WHAT A SENTENCE DERIVED BY HAND SAYS EACH WORD TAKES, BESIDE THE WORDS AROUND IT, counted (`_in_context`,
+        `_frame_evidence`): each word's way as the grammar names it (`uses_derived`), with the word before it and the
+        word after it; each verb's frame, with the word after it. A word of several and a category the grammar has
+        no meaning for are not counted. `times` -1 takes a sentence's counts back (derived otherwise since)."""
+        def count(table: str, key: str, what: str) -> None:
+            held = self.derived[table][key]
+            held[what] += times
+            if held[what] <= 0:
+                del held[what]
+        words = [w.lower() for w in derived.words]
+        for k, got in enumerate(self.uses_derived(derived)):
+            if got is None:
+                continue
+            use, frame = got
+            way = self._way(use)
+            before = words[k - 1].rsplit("~", 1)[-1] if k else SENTENCE_START
+            after = words[k + 1].split("~", 1)[0] if k + 1 < len(words) else SENTENCE_END
+            count("uses", words[k], way)
+            count("uses", "", way)
+            count("after", before, way)
+            count("before", after, way)
+            if use == "VERB" and frame:
+                lemma = derived.lemmas[k].lower()
+                count("frames", lemma, frame)
+                count("frames", "", frame)
+                count("frames before", after, frame)
+
+    def _way(self, use: str) -> str:
+        """A use as `_held_evidence` weighs it: a kind of word's use no way of the kind's has ("ADJECTIVE:before", read
+        by a rule) as the kind."""
+        cls = use.split(":")[0]
+        return cls if cls in self.templates and use not in self._uses_of_class(cls) else use
+
+    def uses_derived(self, derived: Derived) -> List[Optional[Tuple[str, str]]]:
+        """Each word of a derivation, named as the grammar names its ways (`_held_evidence`, `HeldWords.use_of` for a
+        treebank's): the use of the grammar's entry whose category the derivation gives the word, and for a verb its
+        frame (`(use, frame)`, "" for none); None for a mark, a word of several, and a category the grammar has no
+        meaning for. The derivation says some things otherwise than the grammar does, and they are put as the grammar
+        says them (`_without_taken`, `_said_of_a_thing`, `_there`, `_raised_thing`): a phrase of a preposition a word
+        takes is read as telling of what takes it; a particle as the verb's; "nobody" a thing."""
+        takers = _taking_a_pp(derived)
+        return [self._use_derived(derived, k, takers.get(k)) for k in range(len(derived.words))]
+
+    def _category(self, text: str) -> Cat:
+        if text not in self._categories:
+            self._categories[text] = parse_category(text)
+        return self._categories[text]
+
+    def _use_derived(self, derived: Derived, k: int, taker: Optional[Tuple[str, Optional[int]]]
+                     ) -> Optional[Tuple[str, str]]:
+        word, text = derived.words[k], derived.categories[k]
+        if "~" in word or not any(ch.isalnum() for ch in word) or not any(ch.isalpha() for ch in text):
+            return None
+        try:
+            said = _there(bank_category(text))
+        except (ValueError, IndexError):
+            return None
+        if isinstance(said, Atom) and said.base == "PR":
+            # A verb's particle ("picked it up"), as the treebank's `compound:prt` is counted.
+            return "PARTICLE", ""
+        low = word.lower()
+        closed = self.closed.get(low, [])
+        if isinstance(said, Fn) and said.slash == "/" and isinstance(said.res, Atom) and said.res.base == "PP" \
+                and said.res.feat is None and isinstance(said.arg, Atom) and said.arg.base == "NP":
+            return self._preposition_derived(derived, low, closed, taker)
+        ways = [said]
+        if any(a.base in ("PP", "PR") for a in _atoms(said)):
+            ways += [_said_of_a_thing(said), _without_taken(said)]
+        ways += [c for c in (_clause_taken(w) for w in ways) if c is not None]
+        for way in ways:
+            for e in closed:
+                cat = self._category(e["cat"])
+                if _alike(way, cat) or _alike(way, _raised_thing(cat)):
+                    return e["use"], ""
+        kind = _TAGGED.get(derived.tags[k])
+        got = self._use_of_kind(kind, ways) if kind else None
+        if got is None and kind != "PREPOSITION":
+            # Where the part of speech says one kind of word and the category another ("broken" an adjective,
+            # "lives" a verb), the category decides.
+            for other in ("NOUN", "ADJECTIVE", "VERB", "ADVERB"):
+                if other != kind:
+                    got = self._use_of_kind(other, ways)
+                    if got is not None:
+                        break
+        return got
+
+    def _use_of_kind(self, cls: str, ways: Sequence[Cat]) -> Optional[Tuple[str, str]]:
+        """The use of a kind of word's entry, or a reading the grammar's rules make of one (`Grammar._unary`; a noun
+        before a noun, `_together`), whose category is one of `ways`."""
+        for way in ways:
+            if cls == "VERB":
+                for form, frames in self.verb_templates.items():
+                    if form == "frames":
+                        continue
+                    for frame, templates in frames.items():
+                        if any(_alike(way, self._category(t["cat"])) for t in templates):
+                            return "VERB", frame
+                continue
+            for t in self.templates.get(cls, ()):
+                if _alike(way, self._category(t["cat"])):
+                    return t.get("use", cls), ""
+            made = {"ADJECTIVE": (("N/N", "ADJECTIVE:before"), ("N\\N", "ADJECTIVE")),
+                    "NOUN": (("N", "NOUN"), ("N/N", "NOUN:compound")), "NAME": (("N", "NAME"),),
+                    "NUMERAL": (("N", "NUMERAL:alone"),)}.get(cls, ())
+            for cat, use in made:
+                if _alike(way, self._category(cat)):
+                    return use, ""
+        return None
+
+    def _preposition_derived(self, derived: Derived, low: str, closed: Sequence[Mapping[str, Any]],
+                             taker: Optional[Tuple[str, Optional[int]]]) -> Tuple[str, str]:
+        """A preposition heading a phrase a word takes (`pp/np`), named by what takes it: where the grammar has a
+        word take the phrase by this very preposition ("Two of them": `PP[of]`; "killed by a hornet": `PP[by]`), the
+        preposition's entry making it; else the preposition read as telling of what takes the phrase, a thing
+        ("my uncle in Paris"), a quality ("proud of"), what is said of a thing ("is in the garden"), or a doing."""
+        if taker is None:
+            return "PREPOSITION", ""
+        took = bank_category(taker[0])
+        own = [e for e in closed if isinstance(self._category(e["cat"]), Fn)
+               and isinstance(self._category(e["cat"]).res, Atom) and self._category(e["cat"]).res.base == "PP"
+               and self._category(e["cat"]).res.feat == low]
+        if own:
+            mine = _marked(took, low)
+            if any(_alike(mine, cat) for cat in self._taking_pp()):
+                return own[0]["use"], ""
+        rest = _without_taken(took)
+        if isinstance(rest, Atom) and rest.base in ("N", "NP"):
+            return "PREPOSITION:thing", ""
+        if isinstance(rest, Fn) and isinstance(rest.res, Atom) and (rest.res.base, rest.res.feat) == ("S", "adj"):
+            return "PREPOSITION:quality", ""
+        if taker[1] is not None and any(_alike(_said_of_a_thing(took), self._category(e["cat"]))
+                                        for e in self.closed.get(derived.words[taker[1]].lower(), [])):
+            return "PREPOSITION:said", ""
+        return "PREPOSITION", ""
+
+    def _taking_pp(self) -> List[Cat]:
+        """Every category the grammar gives a word that takes a preposition's phrase by its preposition
+        (`NP/PP[of]`, `(S[pss]\\NP)/PP[by]`)."""
+        if self._taking_pps is None:
+            written = [e["cat"] for es in self.closed.values() for e in es]
+            written += [t["cat"] for ts in self.templates.values() for t in ts]
+            written += [t["cat"] for form, frames in self.verb_templates.items() if form != "frames"
+                        for ts in frames.values() for t in ts]
+            self._taking_pps = [c for c in (self._category(w) for w in written) if isinstance(c, Fn)
+                                and isinstance(c.arg, Atom) and c.arg.base == "PP" and c.arg.feat]
+        return self._taking_pps
 
     def _together(self, tokens: Sequence[str], i: int) -> List[Tuple[int, Entry]]:
         out: List[Tuple[int, Entry]] = []
@@ -647,7 +1103,7 @@ class Lexicon:
             # No name: a name joined by a hyphen is capitalised throughout ("Coca-Cola", a name of several words), and
             # "Python-based" is used as words joined by a hyphen are.
             joined = f"{tokens[i]}-{tokens[i + 2]}".lower()
-            for cls, p in self._evidence([joined], 0).items():
+            for cls, p in self._evidence([joined], 0, (_beside(tokens, i - 1), _beside(tokens, i + 3))).items():
                 name = self.words.name(joined, cls) if cls != "NAME" else joined.lower()
                 for t in self.templates.get(cls, ()) if cls != "VERB" else ():
                     out.append((i + 3, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
@@ -667,7 +1123,7 @@ class Lexicon:
                 particle = estimate({"one": one, "apart": apart},
                                     {"one": math.exp(alone), "apart": 1.0 - math.exp(alone)}, ("one", "apart"))["one"]
                 for form, r in self._forms(tokens[i], name).items():
-                    for frame, q in self._frame_evidence(together).items():
+                    for frame, q in self._frame_evidence(together, _beside(tokens, i + 2)).items():
                         for t in self.verb_templates.get(form, {}).get(frame, ()):
                             out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "VERB",
                                                      together, verb + r + q + particle, f"{form}:{frame}:particle")))
@@ -2388,6 +2844,10 @@ class GrammarView:
         self._read: Set[str] = set()
         #: What sentences read taught since memory last kept it (`unkept_read`).
         self._unkept_read: List[Dict[str, Any]] = []
+        #: The sentences derived by hand held (`hold_derived`), by their keys, and the rules learning is kept under
+        #: with them (`rules`).
+        self._derived: Set[str] = set()
+        self._rules: Optional[str] = None
         self.learned_from = 0
         self.read_whole = 0
 
@@ -2397,6 +2857,36 @@ class GrammarView:
     @property
     def words(self) -> Words:
         return self.grammar.lexicon.words
+
+    @property
+    def rules(self) -> str:
+        """What a sentence taught is learned under: the grammar's rules as written (`RULES`) and the sentences derived
+        by hand it holds, which decide which reading of a taught sentence is learned from (`hold_derived`). Learning
+        kept under other rules is learned again (`hold`, `MemoryAgent.keep_grammar_learning`)."""
+        if self._rules is None:
+            self._rules = RULES if not self._derived else hashlib.sha256(
+                (RULES + "".join(sorted(self._derived))).encode("utf-8")).hexdigest()[:16]
+        return self._rules
+
+    def hold_derived(self, derived: Derived) -> None:
+        """Hold one sentence derived by hand (`Derived`): what it says each word takes beside the words around it is
+        counted at once (`Lexicon.hear_derived`); one held already is not counted again. Held before the sentences
+        taught with their meanings are learned from, since it decides which of a taught sentence's readings is."""
+        key = derived.key()
+        if key in self._derived:
+            return
+        self._derived.add(key)
+        self._rules = None
+        self.grammar.lexicon.hear_derived(derived)
+
+    def drop_derived(self, derived: Derived) -> None:
+        """Take back what one sentence derived by hand said (derived otherwise since)."""
+        key = derived.key()
+        if key not in self._derived:
+            return
+        self._derived.discard(key)
+        self._rules = None
+        self.grammar.lexicon.hear_derived(derived, times=-1)
 
     def hold(self, taught: Any, learned: Optional[Sequence[Any]] = None) -> None:
         """Hold one sentence taught with its meaning (`composition.TaughtSentence`), learned from when next read; one

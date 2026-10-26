@@ -34,7 +34,7 @@ from pathlib import Path
 from typing import Callable, Dict, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple
 
 from core.semantics.derived_reader import Meaning, MeaningFact
-from core.semantics.grammar import _number
+from core.semantics.grammar import Derived, _number
 from core.semantics.relation_types import worded
 
 #: A concept line's sense: `movie.n.01`.
@@ -147,6 +147,174 @@ def split_ids(path: Path) -> List[str]:
     """The document ids a split file lists (`split/en/train/gold.sbn`: an id line, the text, the meaning)."""
     lines = [line.strip() for line in path.read_text(encoding="utf-8").splitlines()]
     return [line for line in lines if re.match(r"^p\d+/d\d+$", line)]
+
+
+#: A quoted word of a derivation, its quotes escaped within ("'n\\'t'").
+_QUOTED = re.compile(r"'((?:[^'\\]|\\.)*)'")
+_NAME = re.compile(r"[a-z][a-z0-9_]*")
+_INTEGER = re.compile(r"-?\d+")
+
+
+def read_derivations(folder: Path, language: str = "en") -> List[Derived]:
+    """Each sentence of a document as it was derived by hand in a categorial grammar (the bank's release 4.0.0:
+    `<language>.parse.tags`, one `ccg(N, ...)` term for each sentence, its words `t(Category, 'word', [from:, to:,
+    pos:, lemma:, sem:, wordnet:, verbnet:])` under the rules that combined them: `fa`, `ba`, `fc`, `bxc`, `conj`,
+    `lx`, ...), as `grammar.Derived`; none where the document has no derivation. Each word's place is in its own
+    sentence's text."""
+    path = folder / f"{language}.parse.tags"
+    if not path.exists():
+        return []
+    raw = (folder / f"{language}.raw").read_text(encoding="utf-8") if (folder / f"{language}.raw").exists() else ""
+    text = path.read_text(encoding="utf-8")
+    out: List[Derived] = []
+    at = 0
+    while True:
+        found = text.find("ccg(", at)
+        if found < 0:
+            break
+        reader = _Terms(text, found + 4)
+        part = reader.integer()
+        reader.expect(",")
+        words: List[Tuple[str, str, Mapping[str, object]]] = []
+        tree = reader.node(words)
+        reader.expect(")")
+        at = reader.at
+        if not words:
+            continue
+        start, end = int(words[0][2]["from"]), int(words[-1][2]["to"])
+        out.append(Derived(
+            raw[start:end] if raw else " ".join(w.replace("~", " ") for w, _, _ in words),
+            tuple(w for w, _, _ in words), tuple(c for _, c, _ in words),
+            tuple(str(f.get("pos", "")) for _, _, f in words), tuple(str(f.get("lemma", "")) for _, _, f in words),
+            tuple("" if f.get("wordnet") in (None, "O") else str(f["wordnet"]) for _, _, f in words),
+            tuple(tuple(str(r) for r in (f.get("verbnet") or ())) for _, _, f in words),
+            tuple(str(f.get("sem", "")) for _, _, f in words),
+            tuple((int(f["from"]) - start, int(f["to"]) - start) for _, _, f in words),
+            tree, f"pmb/{folder.parent.name}/{folder.name}", part))
+    return out
+
+
+class _Terms:
+    """Reads a derivation's Prolog terms from `at`: a word `t(Category, 'word', [key:value, ...])`, a rule
+    `name(Category, ...)` over words, rules and the categories a rule names (`lx(np, n, ...)`)."""
+
+    def __init__(self, text: str, at: int):
+        self.text, self.at = text, at
+
+    def _space(self) -> None:
+        while self.at < len(self.text) and self.text[self.at] in " \t\r\n":
+            self.at += 1
+
+    def expect(self, mark: str) -> None:
+        self._space()
+        if self.text[self.at] != mark:
+            raise ValueError(f"a derivation wants {mark!r} at {self.at}: {self.text[self.at:self.at + 40]!r}")
+        self.at += 1
+
+    def integer(self) -> int:
+        self._space()
+        m = _INTEGER.match(self.text, self.at)
+        self.at = m.end()
+        return int(m.group())
+
+    def quoted(self) -> str:
+        self._space()
+        m = _QUOTED.match(self.text, self.at)
+        self.at = m.end()
+        return re.sub(r"\\(.)", r"\1", m.group(1))
+
+    def category(self) -> str:
+        """A category, read to the comma or bracket that closes it at its own depth; a mark's own category is the
+        mark (`t(,, ',', ...)`)."""
+        self._space()
+        if self.text[self.at] in ",.;:" and self.text[self.at + 1] == ",":
+            self.at += 1
+            return self.text[self.at - 1]
+        depth, start = 0, self.at
+        while True:
+            ch = self.text[self.at]
+            if ch == "(":
+                depth += 1
+            elif ch == ")":
+                if depth == 0:
+                    break
+                depth -= 1
+            elif ch == "," and depth == 0:
+                break
+            self.at += 1
+        return self.text[start:self.at].strip()
+
+    def value(self) -> object:
+        self._space()
+        if self.text[self.at] == "'":
+            return self.quoted()
+        if self.text[self.at] == "[":
+            self.at += 1
+            items: List[object] = []
+            self._space()
+            if self.text[self.at] == "]":
+                self.at += 1
+                return items
+            while True:
+                items.append(self.value())
+                self._space()
+                if self.text[self.at] == ",":
+                    self.at += 1
+                    continue
+                self.expect("]")
+                return items
+        return self.integer()
+
+    def features(self) -> Dict[str, object]:
+        self.expect("[")
+        out: Dict[str, object] = {}
+        self._space()
+        if self.text[self.at] == "]":
+            self.at += 1
+            return out
+        while True:
+            self._space()
+            m = _NAME.match(self.text, self.at)
+            self.at = m.end()
+            self.expect(":")
+            out[m.group()] = self.value()
+            self._space()
+            if self.text[self.at] == ",":
+                self.at += 1
+                continue
+            self.expect("]")
+            return out
+
+    def node(self, words: List[Tuple[str, str, Mapping[str, object]]]) -> object:
+        """A word (its place among `words`, which it is added to) or a rule `(name, category, ...)`."""
+        self._space()
+        m = _NAME.match(self.text, self.at)
+        if m is None or self.text[m.end():m.end() + 1] != "(":
+            raise ValueError(f"no derivation at {self.at}: {self.text[self.at:self.at + 40]!r}")
+        name = m.group()
+        self.at = m.end() + 1
+        if name == "t":
+            category = self.category()
+            self.expect(",")
+            word = self.quoted()
+            self.expect(",")
+            features = self.features()
+            self.expect(")")
+            words.append((word, category, features))
+            return len(words) - 1
+        parts: List[object] = [name, self.category()]
+        while True:
+            self._space()
+            if self.text[self.at] == ")":
+                self.at += 1
+                return tuple(parts)
+            self.expect(",")
+            self._space()
+            m = _NAME.match(self.text, self.at)
+            if m is not None and self.text[m.end():m.end() + 1] == "(":
+                parts.append(self.node(words))
+            else:
+                parts.append(self.category())
 
 
 class Said(NamedTuple):

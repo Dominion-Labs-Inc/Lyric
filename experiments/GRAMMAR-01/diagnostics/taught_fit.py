@@ -33,6 +33,9 @@ t0 = time.perf_counter()
 words = file_words(treebank, gm.closed_uses())
 ends = rl.sentence_ends(treebank)
 view = gm.GrammarView(words)
+from core.learning.teaching_sources import PMBDerivationSource
+for item in PMBDerivationSource().derived():
+    view.hold_derived(item)
 lessons = [TaughtSentence(s, m, "lessons") for s, m in ListeningSource(tuple(
     str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
 for taught in lessons + list(PMBSource.of("gold", str(pmb)).taught_sentences()):

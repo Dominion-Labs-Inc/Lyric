@@ -46,10 +46,14 @@ UNDERSTANDS-PROSE-01 read, kept beside the record.
 |---|---|
 | Learned from the lessons and the PMB's gold training sentences | more dev meanings right whole, senses aside, than the composer learned from the same (PMB-01 `20261020T210127Z`: 33.6%) |
 | | more right, strict, than the composer (16.1%) |
+| Each word's category chosen beside the words around it, from the PMB's checked derivations (from `20261026T043416Z`) | more dev meanings right whole, senses aside, than each word's category chosen out of context (`20261025T173519Z`: 366/884, 41.4%) |
 
 Words come from files, standing in for memory (`words.py`): how often each word is used each way, each verb's forms
 and frames, from UD English EWT's training part; names, kinds, what an adjective is of, times and names of words
-together, from WordNet. On main the same questions go to memory.
+together, from WordNet. From `20261026T043416Z` what each word takes beside the words around it comes from the PMB's
+gold CCG derivations (release 4.0.0, `teaching_sources.PMBDerivationSource`: 8,679 sentences, release 5.1.0's dev and
+test documents never held), held before the taught sentences are learned from, as main holds them
+(`GrammarView.hold_derived`). On main the same questions go to memory.
 
 **Run** (from the Lyric folder; about two minutes):
 
@@ -58,7 +62,8 @@ PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py
 ```
 
 with `test_data/syntax/UD_English-EWT` (`--data DIR`; the counts read from it kept beside it,
-`grammar_words_held.pkl`), the PMB release 5.1.0 in `test_data/semantics/pmb/pmb-5.1.0` (`--pmb DIR`; never pushed),
+`grammar_words_held.pkl`), the PMB release 5.1.0 in `test_data/semantics/pmb/pmb-5.1.0` (`--pmb DIR`; never pushed)
+and release 4.0.0's English gold extracted in `test_data/semantics/pmb/pmb-4.0.0` (never pushed),
 the lessons in `data/lessons/`, and WordNet for `nltk`. The Parallel Meaning Bank: University of Groningen,
 annotations ODC-BY 1.0; attribute it (Abzianidze et al. 2017) in any public use of it or of what is built from it.
 
@@ -74,6 +79,17 @@ not read right senses aside (`_missed.json`).
 | `20261021T025251Z` | 857 / 852 | 20.0% | 39.3% | 49.4% | 80.6% | 1,409 (79.9%) / 76 (65.8%) / 176 (42.6%) |
 | `20261024T181237Z` | 860 / 856 | 20.5% | 41.0% | 52.1% | 81.8% | 1,414 (80.3%) / 81 (70.4%) / 173 (43.9%) |
 | `20261025T173519Z` | 860 / 856 | 20.8% | 41.4% | 52.7% | 81.9% | 1,344 (82.9%) / 148 (56.8%) / 173 (43.9%) |
+| `20261026T043416Z` | 865 / 860 | 23.1% | 42.8% | 54.1% | 82.4% | 1,400 (81.4%) / 162 (57.4%) / 162 (42.6%) |
+| `20261026T044408Z` | 865 / 860 | 23.0% | 43.2% | 54.5% | 82.4% | 1,396 (81.7%) / 163 (57.1%) / 162 (43.2%) |
+
+From `20261026T043416Z` each word's category is chosen beside the words around it, as the PMB's checked CCG derivations
+say (`Lexicon.hear_derived`, `_in_context`, `_frame_evidence`; lab notebook 2026-10-26 (52)): each derivation word
+named by the grammar's own entries, its way weighed by the derivations' uses of it (a word they never hold as before)
+and by the word before and after it; a verb's frame by the word after it. `20261026T044408Z`: each word's evidence its
+share of the word's ways, and a clause taken with no "that" named as the grammar's clause. Of the dev words, the
+reading now uses the derivation's way for 90.3% (each word's evidence alone 92.7%, out of context 78.3%), its frame
+for 93.7% of verbs; the derivation's category, compared strictly, 66.7% from 64.0%. The grammar reads back 424 of
+1,000 taught sentences, from 414 (`diagnostics/taught_fit.py`).
 
 From `20261025T173519Z` a preposition's link is decided by what its thing is where no sentence taught it of the very
 doing or thing it is said of (`Lexicon.selected`, `prep_to`: "Vance worked with Hooper." with a person, "Tom taught at

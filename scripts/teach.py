@@ -99,7 +99,8 @@ DUMP = ROOT / "data" / "bulk" / "conceptnet-assertions-5.7.0.csv.gz"
 def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
                                                 CompositionSource, ConceptNetSource, ListeningSource,
-                                                PMBSource, PropBankSource, TreebankSource, WikidataSource,
+                                                PMBDerivationSource, PMBSource, PropBankSource, TreebankSource,
+                                                WikidataSource,
                                                 WordNetClassesSource, WordNetExamplesSource,
                                                 WordGroupsSource, WordNetSource, WordNetUsageSource)
     if args.source == "conceptnet":
@@ -127,6 +128,9 @@ def build_source(args):
         return CompositionSource()
     if args.source == "pmb":
         return PMBSource.of(args.pmb)
+    if args.source == "pmb-derivations":
+        # The PMB's gold CCG derivations (release 4.0.0), release 5.1.0's dev and test documents held out.
+        return PMBDerivationSource()
     if args.source == "word-groups":
         return WordGroupsSource()
     if args.source == "closed-classes":
@@ -252,8 +256,8 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "wordnet-classes",
-                                 "listening", "treebank", "propbank", "composition", "pmb", "word-groups", "wikidata",
-                                 "closed-classes", "lesson"))
+                                 "listening", "treebank", "propbank", "composition", "pmb", "pmb-derivations",
+                                 "word-groups", "wikidata", "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)
@@ -356,6 +360,12 @@ async def main() -> int:
         # are already durable. Warm the view so a reader in this process sees
         # what this session just taught.
         await coordinator.memory.warm_word_classes()
+        # AND READY TO READ AGAIN, as a start makes it (`ready_to_read`): a warm builds English's grammar anew, and
+        # what was taught may change what it learns from every taught sentence (sentences derived by hand do:
+        # `GrammarView.rules`). Left to the first read, that was the review's first memory kept, read as a claim
+        # under the profiler's allocation tracing with nothing else let run: 50 derivations taught to lyric_dev, the
+        # review sat 21 minutes on learning that takes 3 (2026-10-26).
+        await coordinator.ready_to_read()
     # WHAT WAS LEARNED, REVIEWED BY THE SUBSTRATE ITSELF: it asks itself about what it holds in the domain and
     # answers, and how it does moves its competence there (`review_learned`). Its count is the pass's own outcome.
     print("reviewing what was learned…", flush=True)

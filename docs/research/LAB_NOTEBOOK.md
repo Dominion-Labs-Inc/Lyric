@@ -16,6 +16,96 @@ Conventions:
 
 ---
 
+## 2026-10-26 (52) — The checked derivations taught as memory, and each word's category chosen beside the words around it (the agreed fix, steps 1 and 2)
+
+**Objective.** Steps 1 and 2 of the fix agreed in (51): the PMB's checked CCG derivations taught into memory as the
+treebank's analysed sentences are, and a word's category chosen by what they say it takes beside the words around it,
+in place of its treebank use counts out of context. The grammar's rules, meanings and memory unchanged.
+
+**Hypothesis.** Choosing each word's category in context lifts GRAMMAR-01's dev split (senses aside, 366/884) and the
+grammar's reading of its own taught sentences (414/1,000): about 17% of taught sentences failed on a word misread or
+the right reading built and another chosen (51).
+
+**Built.**
+- `grammar.Derived`: one sentence derived by hand, kept whole (each word's category as the bank writes it, part of
+  speech, lemma, WordNet sense, VerbNet roles, semantic tag, place in its sentence; how the words were combined; the
+  document and which of its sentences). `pmb_meanings.read_derivations` reads a document's `en.parse.tags`: all
+  10,715 gold documents, 10,813 sentences, 70,307 words, in 2.8 s, each given back the same from memory's form.
+- Taught as the treebank's analysed sentences are: `teaching_sources.PMBDerivationSource` (4.0.0 gold; release 5.1.0's
+  dev and test documents never taught: 8,679 sentences, 56,981 words) -> `TeachingPass` -> `learn_derived` ->
+  `MemoryAgent.remember_derived`, one memory each (`derived_sentence`), its standing a belief. A warm reads them back
+  (`_derived_memories`) and the grammar holds them before it learns from the taught sentences (`grammar_view`,
+  `GrammarView.hold_derived`; one derived again otherwise corrects its memory and is taken back, `drop_derived`).
+  `scripts/teach.py --source pmb-derivations`.
+- Each derivation word named by the grammar's own entries (`Lexicon.uses_derived`): the use of the entry whose
+  category the derivation gives it, what the bank says otherwise put as the grammar says it: a preposition's phrase a
+  word takes read as telling of what takes it ("gave milk to the cat": `gave` transitive, `to` a preposition of the
+  giving; "of" after a relational noun, a preposition of a thing; "by" after a passive and "of" after a numeral the
+  grammar's own `PP[by]`, `PP[of]`), "my" before a relational noun a determiner, "nobody" a thing, "there" of
+  "there is", a clause taken with no "that" the grammar's clause, a particle the verb's. 97.3% of single words named;
+  the rest are categories the grammar has no meaning for (step 5); words of several are not counted (step 4).
+- Counted (`Lexicon.hear_derived`): each word's way, with the word before and after it; each verb's frame, with the
+  word after it. A word's evidence (`_in_context`): the derivations' uses of it with one use more spread as the
+  treebank weighs it (a word they never hold is weighed as before), times, for each word beside it, how much more often
+  a word beside that one is used each way than words are at all (one use more spread as words are used at all), as
+  each way's share of the word's ways. A verb's frame the same (`_frame_evidence`).
+- What a taught sentence taught is kept under the rules and the derivations held (`GrammarView.rules`), so a start
+  learns again what was learned without them; `keep_grammar_learning` keeps it under them.
+
+**Measured** (files only; `./venv_lyric/bin/python3`):
+- Before the chart, each PMB dev word's way chosen by its evidence alone, against the derivation's: out of context
+  (now) 78.3%; the derivations' counts 82.5%; with the words beside it 92.7% (4,968 words). A verb's frame: 65.4%,
+  83.6%, 90.5% (739 verbs).
+- GRAMMAR-01 (`20261025T173519Z` -> `20261026T044408Z`): senses aside 366 -> 382 (41.4% -> 43.2%), strict 184 -> 203,
+  unnamed 466 -> 482, facts F1 81.9% -> 82.4%, read whole 860 -> 865. `20261026T043416Z` (evidence not yet shares, a
+  clause with no "that" unnamed): 378, 204, 478, 82.4%.
+- Taught sentences read back (`diagnostics/taught_fit.py train/gold`): 414 -> 424 of 1,000.
+- In the chosen readings: the derivation's way for 90.3% of dev words (86.9% where the evidence chose it too, 3.4%
+  where the chart corrected it); of the 6.0% where the evidence chose right and the reading did not, most are words the
+  grammar reads as one ("No one", "What a", "used to", "let up"), sentences not read whole, and categories it has no
+  meaning for ("Let us go", "What a feast!", "I think Tom is drunk."). The derivation's frame for 93.7% of verbs read as
+  verbs (657/701). The derivation's category compared strictly (`diagnostics/categories.py`): 64.0% -> 66.7%, offered
+  and another chosen 822 -> 726 (a name `N` there, `NP` here and the like still count as different).
+
+**Verdict.** Confirmed, small at the sentence: each word's category is now mostly the derivation's (90% of words, 94%
+of verbs' frames), and a sentence is right only when every word and every link is; the misses left are mostly links
+named otherwise (step 3), words of several (step 4) and categories with no meaning yet (step 5). Kept.
+
+**Errors found, with causes.**
+- Neighbours first made choosing worse (75.3%): the one use more was spread half evenly, so a way never met beside a
+  rare word had many times its share; spread as words are used at all, 92.8%.
+- My naming compared shapes written with brackets against ones without (every attributive adjective unnamed), named
+  "of" after a relational noun as a numeral's "of", and took a full stop beside a phrase as what takes it; each found
+  on the counts and fixed before anything was measured.
+- The evidence was first ratios, not shares (`20261026T043416Z`): summed over a reading's words, a word with sure
+  neighbours outweighed a name of several words read as one; "What is Freddie Mac?" scored 6.95. As shares, 4 more dev
+  sentences right. The bank itself derives "What is X?" as asking a doer 48 times and a thing 15: the reading follows it.
+- "I think Tom is drunk.": the bank's clause with no "that" (`(s:dcl\np)/s:dcl`, 19 times for "think") was unnamed,
+  so "think" was counted only in its other frames; named as the grammar's clause. The grammar still has no rule for
+  such a clause, and the sentence is read wrong either way.
+- Teaching lyric_dev 50 derivations (`teach.py --small 50`, clean log: 0 tracebacks, 0 errors), the review sat 21
+  minutes. Traced by its stack (`kill -USR1`): teach.py warms memory after teaching, a warm builds the grammar anew,
+  the derivations held change its rules, so it learns every taught sentence again (3 minutes, probed on the same store);
+  the first read was the review's memory kept, read as a claim inside `store_memory`, which `profile_performance` runs
+  under `tracemalloc` with the event loop blocked. Fixed where it arises: teach.py makes the substrate ready to read
+  again after its warm (`ready_to_read`), as a start does.
+- A log extraction of mine by timestamp let lines without one through from the whole log (99 old tracebacks); cut by
+  line number instead.
+
+**Found, not fixed.** `profile_performance` traces every allocation of every `store_memory`; a memory read as a claim
+is read through the grammar's chart so traced, several times slower, wherever memory is written. The 18 construction
+memories that cannot be read back are warned of at every warm, as before this session.
+
+**Verified.** `tests/test_grammar.py` 29 passed (4 new: a derivation read as the bank writes it; its words named as the
+grammar's entries name them; a category and a frame chosen by the words beside them, and taken back; memory hands its
+derivations to the grammar under the rules learning is kept by), `tests/test_pmb_meanings.py` 8, `tests/test_derived_reading.py`
+122. Through the real door on lyric_dev: `teach.py --source pmb-derivations --small 50` kept 50 derivations, 50
+beliefs, nothing else in memory changed (28 minutes, 21 of them the stall above); after the fix, `--small 100` kept
+the 50 new ones (50 held already), 50 beliefs, nothing else, the grammar learned again once after the warm (01:20:47)
+and the review took 7 s: 11 minutes in all, its log 0 tracebacks, 0 errors, the warnings those of every start. The
+pass keeps a derivation in about 0.6 s: all 8,679, about an hour and a half on a store as main is. Main holds none:
+teaching it is the owner's run.
+
 ## 2026-10-26 (51) — Why the grammar reads badly, found: it reads its taught sentences no better than unseen ones, and its choices come from word counts teaching never changes
 
 **Objective.** The cause, not more fixes: four changes to how Lyric reads English (the one reader, the structure reader

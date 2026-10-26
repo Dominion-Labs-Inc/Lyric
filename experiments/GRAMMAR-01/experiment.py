@@ -109,6 +109,16 @@ def main() -> int:
     grammar = view.grammar
     say(f"words ready ({words.sentences:,} analysed sentences), {time.perf_counter() - started:.0f}s")
 
+    # ── what each word takes beside the words around it, from the PMB's sentences derived by hand (4.0.0 gold, 5.1.0's
+    # dev and test held out), as memory holds them: held before the taught sentences are learned from ──
+    from core.learning.teaching_sources import PMBDerivationSource
+    derived = list(PMBDerivationSource().derived())
+    for item in derived:
+        view.hold_derived(item)
+    EV.metric("sentences derived by hand held", len(derived), unit="sentences",
+              note="PMB 4.0.0 gold, release 5.1.0's dev and test documents held out")
+    say(f"held {len(derived):,} sentences derived by hand, {time.perf_counter() - started:.0f}s")
+
     def tokens_of(sentence):
         return gm.tokens_of(sentence, words)
 
@@ -206,6 +216,8 @@ def main() -> int:
              out["senses aside"] > 0.336, f"{out['senses aside']:.1%}")
     EV.check("more dev meanings right whole, strict, than the composer (16.1%)", out["strict"] > 0.161,
              f"{out['strict']:.1%}")
+    EV.check("more dev meanings right whole, senses aside, than each word's category chosen out of context "
+             "(20261025T173519Z, 366/884, 41.4%)", out["senses aside"] > 366 / 884, f"{out['senses aside']:.1%}")
     # Of the links decided, by where the decision came from, how many the meaning holds (senses aside, grounded as
     # PMB-01 grounds facts): the word's own uses, what memory holds it a kind of, the grammar's rule.
     made, held = Counter(), Counter()

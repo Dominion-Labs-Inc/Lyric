@@ -176,9 +176,13 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_view = None
         self._grammar_links: List[Tuple[str, str, str]] = []
         self._grammar_taught: List[Any] = []
-        #: Each taught sentence's memory, and what the grammar learned from it under today's rules (None: not learned
-        #: from yet, or under other rules), by the sentence's key (`_composition_memories`, `keep_grammar_learning`).
-        self._grammar_learned: Dict[str, Tuple[str, Optional[List[Any]]]] = {}
+        #: The sentences memory holds as derived by hand in a categorial grammar (`remember_derived`), which the
+        #: grammar chooses each word's category by (`grammar.Derived`, `GrammarView.hold_derived`).
+        self._grammar_derived: List[Any] = []
+        #: Each taught sentence's memory, what the grammar learned from it, and the rules it was learned under
+        #: (`GrammarView.rules`; None: not learned from yet), by the sentence's key (`_composition_memories`,
+        #: `keep_grammar_learning`).
+        self._grammar_learned: Dict[str, Tuple[str, Optional[List[Any]], Optional[str]]] = {}
         #: What reading taught of how words are used, each sentence's, as memory keeps it (`READ_ENGLISH_TAG`).
         self._read_english: List[Dict[str, Any]] = []
         self._said_spread: Dict[Tuple[str, str], Dict[str, float]] = {}
@@ -484,8 +488,8 @@ class MemoryAgent(IMemoryConsolidation):
     )
 
     #: What a memory of English is kept under (`source_context`): how a sentence was analysed, taught with its meaning,
-    #: argued, grouped or formed, and how a reading used its words (`keep_grammar_learning`).
-    _LANGUAGE_RECORDS = ("analysed", "taught", "argued", "word_group", "word_forms", "read_english")
+    #: argued, grouped, formed or derived, and how a reading used its words (`keep_grammar_learning`).
+    _LANGUAGE_RECORDS = ("analysed", "taught", "argued", "word_group", "word_forms", "read_english", "derived")
 
     async def _readable_claim(self, content, source_context):
         """The substrate-readable CLAIM a memory asserts, its shape, and its
@@ -2936,6 +2940,7 @@ class MemoryAgent(IMemoryConsolidation):
         structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
+        derived = await self._derived_memories()
         # AND WHAT READING TAUGHT OF HOW WORDS ARE USED (`keep_grammar_learning`).
         self._read_english = [record for row in await self._rows_tagged(self.READ_ENGLISH_TAG)
                               for record in ((row.metadata or {}).get("read_english") or ())]
@@ -2961,6 +2966,7 @@ class MemoryAgent(IMemoryConsolidation):
         self._structure_view, self._word_groups, self._word_forms = structure, groups, forms
         self._argument_view, self._composition_view = arguments, composition
         self._grammar_links, self._grammar_taught, self._grammar_view = grammar_links, taught_sentences, None
+        self._grammar_derived = derived
         self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
@@ -6834,7 +6840,6 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.composition import CompositionView, TaughtSentence
         from core.utils.give_way import GiveWay
         give_way = GiveWay()
-        from core.semantics.grammar import RULES
         view = CompositionView(arguments if len(arguments) else None, lay_out=self.lay_out)
         held: List[Any] = []
         self._grammar_learned = {}
@@ -6845,12 +6850,56 @@ class MemoryAgent(IMemoryConsolidation):
                 item = TaughtSentence.from_dict(taught)
                 view.hold(item)
                 held.append(item)
-                # WHAT THE GRAMMAR LEARNED FROM IT, kept with it (`keep_grammar_learning`), where its rules are those
-                # it was learned under.
+                # WHAT THE GRAMMAR LEARNED FROM IT, kept with it (`keep_grammar_learning`), and the rules it was
+                # learned under: taken where they are the grammar's now (`grammar_view`).
                 kept = (row.metadata or {}).get("grammar_learned") or {}
-                self._grammar_learned[item.key()] = (row.memory_id,
-                                                     kept.get("counted") if kept.get("rules") == RULES else None)
+                self._grammar_learned[item.key()] = (row.memory_id, kept.get("counted"), kept.get("rules"))
         return view, held
+
+    # WHAT EACH WORD TAKES BESIDE THE WORDS AROUND IT. A sentence derived by hand in a categorial grammar (the PMB's
+    # checked CCG derivations, `grammar.Derived`: each word's category in its sentence, its part of speech, lemma,
+    # sense and roles, how the words were combined) is kept whole, one memory each; English's grammar counts what each
+    # says a word takes beside the words around it (`Lexicon.hear_derived`). Nothing is reduced to rules when it is
+    # kept.
+
+    DERIVED_TAG = "derived_sentence"
+
+    async def _derived_memories(self) -> List[Any]:
+        """The sentences held as derived by hand, as memory holds them, for English's grammar (`grammar_view`)."""
+        from core.semantics.grammar import Derived
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        held: List[Any] = []
+        for row in await self._rows_tagged(self.DERIVED_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("derived")
+            if data:
+                held.append(Derived.from_dict(data))
+        return held
+
+    async def remember_derived(self, derived, progress: Optional[Callable[[int, int], None]] = None
+                               ) -> Dict[str, Any]:
+        """Remember sentences as they were derived by hand (`grammar.Derived`), one memory each; one held already is
+        not held again, and one held otherwise from the same sentence of the same document is corrected
+        (`_correct_whole`). English's grammar chooses each word's category by them from now on. Returns `kept`,
+        `corrected` and counts, as `remember_argued`."""
+        return await self._remember_whole(
+            derived, view=lambda: None, tag=self.DERIVED_TAG, field="derived", progress=progress,
+            content=lambda item: item.said(), add=lambda _, item: self._hold_derived(item),
+            drop=lambda _, item: self._drop_derived(item))
+
+    def _hold_derived(self, item) -> None:
+        """A sentence held as derived by hand, handed to English's grammar."""
+        self._grammar_derived.append(item)
+        if self._grammar_view is not None:
+            self._grammar_view.hold_derived(item)
+
+    def _drop_derived(self, item) -> None:
+        """A sentence held as derived by hand, taken back from English's grammar (derived otherwise since)."""
+        key = item.key()
+        self._grammar_derived = [d for d in self._grammar_derived if d.key() != key]
+        if self._grammar_view is not None:
+            self._grammar_view.drop_derived(item)
 
     async def _grammar_knowledge(self) -> List[Tuple[str, str, str]]:
         """What memory holds of things that English's grammar asks of the words it reads (`grammar_words.Knowledge`):
@@ -6873,9 +6922,11 @@ class MemoryAgent(IMemoryConsolidation):
     def grammar_view(self):
         """English's grammar as memory reads with it (`grammar.GrammarView`): each word as memory holds it (how the
         sentences it holds analysed use it, how memory names it, what memory holds its thing to be:
-        `grammar_words.HeldWords`), learned from the sentences memory holds with their taught meanings. Synchronous;
-        built when first asked after a warm (reading the analysed sentences and learning from the taught ones takes a
-        while), plain before the first warm."""
+        `grammar_words.HeldWords`), what the sentences memory holds derived by hand say each word takes beside the
+        words around it, and learned from the sentences memory holds with their taught meanings, each with what the
+        grammar learned from it before where that was under the grammar's rules now (`GrammarView.rules`).
+        Synchronous; built when first asked after a warm (reading the analysed sentences and learning from the taught
+        ones takes a while), plain before the first warm."""
         if self._grammar_view is None:
             from core.semantics.grammar import GrammarView, closed_uses
             from core.semantics.grammar_words import GraphKnowledge, HeldWords
@@ -6884,8 +6935,11 @@ class MemoryAgent(IMemoryConsolidation):
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms))
+            for derived in self._grammar_derived:
+                view.hold_derived(derived)
             for taught in self._grammar_taught:
-                view.hold(taught, self._grammar_learned.get(taught.key(), (None, None))[1])
+                _, counted, rules = self._grammar_learned.get(taught.key(), (None, None, None))
+                view.hold(taught, counted if rules == view.rules else None)
             for record in self._read_english:
                 view.hold_read(record)
             self._grammar_view = view
@@ -6896,10 +6950,10 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def keep_grammar_learning(self) -> int:
         """WHAT THE GRAMMAR LEARNED FROM EACH SENTENCE IS KEPT WITH THE SENTENCE, under the rules it was learned by
-        (`grammar.RULES`), so a start adds it up and reads again only a sentence learned under other rules, or not yet
-        learned from (`grammar_view`). Kept nowhere, it was learned again from all 9,882 sentences at every start,
-        four minutes, a person's first turn waiting on it (2026-10-24). Returns how many were kept."""
-        from core.semantics.grammar import RULES
+        (`GrammarView.rules`: the grammar's as written and the sentences derived by hand it holds), so a start adds it
+        up and reads again only a sentence learned under other rules, or not yet learned from (`grammar_view`). Kept
+        nowhere, it was learned again from all 9,882 sentences at every start, four minutes, a person's first turn
+        waiting on it (2026-10-24). Returns how many were kept."""
         from core.utils.give_way import GiveWay
         if self._grammar_view is None:
             return 0
@@ -6917,14 +6971,15 @@ class MemoryAgent(IMemoryConsolidation):
                 raise RuntimeError("what reading taught was not kept: the memory was declined")
             self._read_english.extend(read)
             kept += len(read)
+        rules = self._grammar_view.rules
         for key, counted in self._grammar_view.unkept().items():
-            memory_id = self._grammar_learned.get(key, (None, None))[0]
+            memory_id = self._grammar_learned.get(key, (None, None, None))[0]
             if memory_id is None:
                 continue        # taught since the warm: kept once a warm knows its memory
             if await self.update_memory(memory_id, {
-                    "metadata": {"grammar_learned": {"rules": RULES, "counted": [list(c) for c in counted]}},
+                    "metadata": {"grammar_learned": {"rules": rules, "counted": [list(c) for c in counted]}},
                     "metadata.merge": True}):
-                self._grammar_learned[key] = (memory_id, [list(c) for c in counted])
+                self._grammar_learned[key] = (memory_id, [list(c) for c in counted], rules)
                 kept += 1
             await give_way()
         return kept
@@ -7147,6 +7202,9 @@ class MemoryAgent(IMemoryConsolidation):
         if field == "word_forms":
             from core.semantics.word_forms import WordForms
             return WordForms.from_dict(data)
+        if field == "derived":
+            from core.semantics.grammar import Derived
+            return Derived.from_dict(data)
         from core.semantics.composition import TaughtSentence
         return TaughtSentence.from_dict(data)
 

@@ -9,6 +9,11 @@ what is wrong, not whether a change helped; nothing in Lyric was changed for the
 | `every_reading.py train/gold 1000` | every reading the grammar can build of each (a chart keeping every distinct reading, not the surest of each category), whether one gives the taught meaning, why not; and the chosen reading checked word by word against the PMB 4.0.0 gold CCG derivation |
 | `categories.py dev/standard` | each held-out word: the gold category, the categories the grammar lists and derives (`Grammar._unary`) for it, the one its reading uses |
 
+From 2026-10-26 (52) `taught_fit.py` and `categories.py` hold the training derivations first, as GRAMMAR-01 and main do
+(`PMBDerivationSource`, `GrammarView.hold_derived`): taught sentences read back 414 -> 424 of 1,000; held-out words in
+the derivation's category, compared strictly, 3,230 -> 3,364 of 5,044 (64.0% -> 66.7%), offered and another chosen
+822 -> 726. `every_reading.py` was not run again.
+
 The gold derivations are the PMB's 4.0.0 release (`test_data/semantics/pmb/pmb-4.0.0.zip`, 2.8 GB, kept out of git;
 its English gold `en.parse.tags`, `en.raw` and `en.status` extracted to `pmb-4.0.0/data/en/gold`, 10,715 documents).
 Each word there carries its CCG category in that sentence, its part of speech, lemma, WordNet sense and VerbNet role.

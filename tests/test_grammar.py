@@ -1,7 +1,7 @@
 """Reading by English's grammar (`core/semantics/grammar.py`): each word's category and meaning, combined by general
 rules. The words here are held in the test (`Held`), as memory would hold them; nothing is learned, so every link is
 the grammar's own."""
-from typing import Dict, Mapping, Optional, Sequence
+from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 import pytest
 
@@ -442,3 +442,136 @@ def test_a_kind_memory_takes_in_is_known_at_once():
     words.hear_kind("Harvard", "instance_of", "university")
     assert words.kinds("harvard", "NOUN") == ["university", "institution"]
     assert gm.Words().hear_kind("Harvard", "instance_of", "university") is None
+
+
+def _derived(pairs: Sequence[Tuple[str, str]], tags: Sequence[str], tree=(), said_in: str = "") -> gm.Derived:
+    """A sentence derived by hand: its words with the categories the bank gives them, and their parts of speech."""
+    words = tuple(w for w, _ in pairs)
+    spans, at = [], 0
+    for w in words:
+        spans.append((at, at + len(w)))
+        at += len(w) + 1
+    n = len(words)
+    return gm.Derived(" ".join(words), words, tuple(c for _, c in pairs), tuple(tags), tuple(w.lower() for w in words),
+                      ("",) * n, ((),) * n, ("",) * n, tuple(spans), tree, said_in)
+
+
+def test_a_derivation_is_read_as_the_bank_writes_it(tmp_path):
+    """`pmb_meanings.read_derivations`: each sentence of a document's `en.parse.tags`, its words with their categories,
+    parts of speech, lemmas, senses and roles, where each is in its sentence, and how they were combined; kept whole
+    and given back the same (`Derived.to_dict`)."""
+    from core.semantics.pmb_meanings import read_derivations
+    folder = tmp_path / "p00" / "d0001"
+    folder.mkdir(parents=True)
+    (folder / "en.raw").write_text("Tom isn't here. Dogs bark.\n", encoding="utf-8")
+    (folder / "en.parse.tags").write_text(""":- op(601, xfx, (/)).
+ccg(1,
+ rp(s:dcl,
+  ba(s:dcl,
+   lx(np, n,
+    t(n, 'Tom', [from:0, to:3, pos:'NNP', lemma:'tom', sem:'PER', wordnet:'male.n.02'])),
+   fa(s:dcl\\np,
+    t((s:dcl\\np)/(s:adj\\np), 'is', [from:4, to:6, pos:'VBZ', lemma:'be', sem:'NOW', wordnet:'O']),
+    ba(s:adj\\np,
+     t(s:adj\\np, 'here', [from:10, to:14, pos:'RB', lemma:'here', sem:'REL', wordnet:'O']),
+     t((s\\np)\\(s\\np), 'n\\'t', [from:6, to:9, pos:'RB', lemma:'not', sem:'NOT', wordnet:'O'])))),
+  t(., '.', [from:14, to:15, pos:'.', lemma:'.', sem:'NIL', wordnet:'O']))).
+ccg(2,
+ ba(s:dcl,
+  lx(np, n,
+   t(n, 'Dogs', [from:16, to:20, pos:'NNS', lemma:'dog', sem:'CON', wordnet:'dog.n.01'])),
+  t(s:dcl\\np, 'bark', [from:21, to:25, pos:'VBP', lemma:'bark', sem:'ENS', wordnet:'bark.v.04', verbnet:['Agent']]))).
+""", encoding="utf-8")
+    first, second = read_derivations(folder)
+    assert first.words == ("Tom", "is", "here", "n't", ".") and first.text == "Tom isn't here."
+    assert first.categories[1] == "(s:dcl\\np)/(s:adj\\np)" and first.categories[4] == "."
+    assert first.tags[0] == "NNP" and first.senses == ("male.n.02", "", "", "", "")
+    assert first.said_in == "pmb/p00/d0001" and (first.part, second.part) == (1, 2)
+    assert first.tree[0] == "rp" and first.tree[2][2] == ("lx", "np", "n", 0)
+    assert second.text == "Dogs bark" and second.spans == ((0, 4), (5, 9)) and second.roles[1] == ("Agent",)
+    assert gm.Derived.from_dict(first.to_dict()) == first and first.key() != second.key()
+
+
+def test_a_derivations_words_are_named_as_the_grammars_entries_name_them():
+    """Each word of a derivation is named by the use of the grammar's entry whose category the derivation gives it
+    (`Lexicon.uses_derived`), what the bank says otherwise put as the grammar says it: a phrase of a preposition a
+    verb takes ("gave milk to the cat") read as telling of the giving, so "gave" takes the milk alone; "my" before a
+    relational noun ("my uncle") the grammar's determiner; a verb's frame from its category."""
+    lexicon = gm.Lexicon(Held())
+    gave = _derived([("Tom", "n"), ("gave", "((s:dcl\\np)/pp)/np"), ("milk", "n"), ("to", "pp/np"), ("the", "np/n"),
+                     ("cat", "n"), (".", ".")], ["NNP", "VBD", "NN", "TO", "DT", "NN", "."],
+                    ("rp", "s:dcl", ("ba", "s:dcl", ("lx", "np", "n", 0),
+                                     ("fa", "s:dcl\\np", ("fa", "(s:dcl\\np)/pp", 1, ("lx", "np", "n", 2)),
+                                      ("fa", "pp", 3, ("fa", "np", 4, 5)))), 6))
+    assert lexicon.uses_derived(gave) == [("NAME", ""), ("VERB", "transitive"), ("NOUN", ""), ("PREPOSITION", ""),
+                                          ("det", ""), ("NOUN", ""), None]
+    uncle = _derived([("my", "np/(n/pp)"), ("uncle", "n/pp"), ("barked", "s:dcl\\np"), ("up", "pr"),
+                      ("Burt~Lancaster", "n")], ["PRP$", "NN", "VBD", "RP", "NNP"])
+    assert lexicon.uses_derived(uncle) == [("det", ""), ("NOUN", ""), ("VERB", "intransitive"), ("PARTICLE", ""),
+                                           None]
+
+
+def test_a_words_category_is_chosen_beside_the_words_around_it():
+    """What the sentences derived by hand say a word takes beside the words around it decides its way
+    (`Lexicon._in_context`) and a verb's frame (`_frame_evidence`): a word used as a noun more than as a verb is a
+    verb after "will", a noun after "the"; a verb nothing is held of takes a thing before "the" and nothing before
+    "."; a word the
+    derivations never hold beside words they never hold is weighed as the treebank weighs it. A sentence derived
+    otherwise since is taken back (`GrammarView.drop_derived`)."""
+    class Fight(Held):
+        def uses(self, word):
+            return {"NOUN": 10.0, "VERB": 2.0} if word.lower() == "fight" else super().uses(word)
+
+        def name(self, word, cls):
+            return "fight" if word.lower() == "fight" else super().name(word, cls)
+
+    view = gm.GrammarView(Fight())
+    lexicon = view.grammar.lexicon
+    before = lexicon._evidence(("Dogs", "will", "fight", "."), 2)
+    assert before["NOUN"] > before["VERB"]
+    held = [_derived([("Tom", "n"), ("will", "(s:dcl\\np)/(s:b\\np)"), ("run", "s:b\\np"), (".", ".")],
+                     ["NNP", "MD", "VB", "."]),
+            _derived([("Rex", "n"), ("will", "(s:dcl\\np)/(s:b\\np)"), ("sleep", "s:b\\np"), (".", ".")],
+                     ["NNP", "MD", "VB", "."]),
+            _derived([("the", "np/n"), ("dog", "n"), ("chased", "(s:dcl\\np)/np"), ("the", "np/n"), ("cat", "n")],
+                     ["DT", "NN", "VBD", "DT", "NN"]),
+            _derived([("the", "np/n"), ("cat", "n"), ("ate", "s:dcl\\np"), (".", ".")], ["DT", "NN", "VBD", "."])]
+    for item in held:
+        view.hold_derived(item)
+        view.hold_derived(item)
+    assert lexicon.derived["uses"][""]["VERB"] == 4, "each sentence is counted once"
+    assert view.rules != gm.RULES
+    after_will = lexicon._evidence(("Dogs", "will", "fight", "."), 2)
+    assert after_will["VERB"] > after_will["NOUN"]
+    after_the = lexicon._evidence(("The", "fight", "ended", "."), 1)
+    assert after_the["NOUN"] > after_the["VERB"]
+    unheard = lexicon._evidence(("Zoe", "saw", "fight", "here"), 2)
+    assert unheard["NOUN"] > unheard["VERB"]
+    taking = lexicon._frame_evidence("push", "the")
+    assert taking["transitive"] > taking["intransitive"]
+    alone = lexicon._frame_evidence("push", ".")
+    assert alone["intransitive"] > alone["transitive"]
+    for item in held:
+        view.drop_derived(item)
+    assert not any(lexicon.derived["uses"].values()) and view.rules == gm.RULES
+
+
+def test_memory_hands_the_sentences_it_holds_derived_to_the_grammar():
+    """`MemoryAgent.grammar_view` holds what memory holds derived by hand before the taught sentences, and takes what
+    the grammar learned from a taught sentence before only where it was learned under the rules it holds now
+    (`GrammarView.rules`)."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.composition import TaughtSentence
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    from core.semantics.structure import StructureView
+    agent = MemoryAgent()
+    agent._structure_view = StructureView()
+    agent._grammar_derived = [_derived([("Tom", "n"), ("barked", "s:dcl\\np"), (".", ".")], ["NNP", "VBD", "."])]
+    taught = TaughtSentence("The dog barked.", Meaning("tell", (F("instance_of", "?v0", "bark"),
+                                                                 F("done_by", "?v0", "?v1"),
+                                                                 F("instance_of", "?v1", "dog", given=True))))
+    agent._grammar_taught = [taught]
+    agent._grammar_learned = {taught.key(): ("m1", [["verb", ["bark"], ""]], gm.RULES)}
+    view = agent.grammar_view()
+    assert view.grammar.lexicon.derived["uses"]["barked"] == {"VERB": 1}
+    assert view.learn_waiting() == 1, "learned under the rules before the derivations: learned again"
