@@ -16,6 +16,53 @@ Conventions:
 
 ---
 
+## 2026-10-26 (54) — Prose on main after steps 1 to 3: no better; a long sentence's saying that never finished, and a fact held twice, fixed
+
+**Objective.** The owner asked how good reading is for production (chat, look-ups), and for UNDERSTANDS-PROSE-02 run
+again. The half kept unseen is run once, after the fixes (2026-10-22, the owner's): steps 4 to 6 are still to come, so
+the half fixed against was run (25 texts, 222 sentences, 231 questions), against its run of 10-22 (`20261022T152323Z`:
+110 read, 21 right, 8 wrong).
+
+**Hypothesis.** What raised the PMB's dev split by 4.6 points (each word's category chosen beside the words around it,
+links from the sentences derived by hand) raises prose a little.
+
+**Result** (`20261026T145920Z`, lyric_db, code `bd00af85`): sentences understood 103/222 (46.4%, 95% 40.0% to 53.0%),
+questions right 18/231 (7.8%), wrong 5/231 (2.2%, 0.9% to 5.0%); nothing stopped; nothing written to the store. Within
+the intervals of 10-22's run. **Refuted:** the gain on the PMB's short checked sentences does not show on published
+prose, whose sentences run to 25 words and more; most of its misses are elsewhere (the questions read otherwise than
+their tellings, sentences unread, 10-22's analysis). For production: well short of the bars (90%, 80%, 2%); a wrong
+answer one question in fifty.
+
+**Errors found, with causes.**
+- Two sentences stopped the conversation: "a meaning states the same fact twice". `Conversation._told` returned the
+  facts a telling holds after binding them, and two that are one once bound ("it" and the thing it stands for) were
+  both kept; `told_of` was fixed for this on 10-22, the facts returned were not. Held once now; a test fails on the
+  code before.
+- "In mountainous areas, heavy precipitation is possible where upslope flow is maximized ..." sat 30 minutes on main,
+  read on lyric_dev in 109 s. No stack hook in the harness: a probe ran the text through the same harness on each
+  store with a thread printing the main thread's frames every 30 s (first to the harness's redirected stderr, which
+  swallowed them; then `sys.__stderr__`). On main it was saying "I do not know ..." for a reading of it as asking:
+  `derived_reader._compositions` counted through every part of the meaning's kinds of fact, and
+  `_phrases_holding_phrases` through every part of the rest inside each, held or not (a 30-fact meaning of ten kinds:
+  millions, nested). Now only the parts some frame or phrase holds are gone through, in the same order, by whichever
+  is fewer (`_held_within`, `PatternInventory.kinds_kept`, `kinds_stated_of_a_thing`): lyric_dev's view, the lessons'
+  1,500 meanings, the same 3,000 results both ways, 71.5 s against 115.2 s. A first check of it compared against the
+  committed module loaded beside the new one; its facts were another class and never equal, and the check said they
+  differed; the old enumeration was then copied into the check and run with the same classes. Any long question a
+  person asks would have hung the same way.
+- My mistake: a command meant to say "not stashing" ran `git stash`, putting the coordinator fix and its test aside
+  while the run used the tree; popped at once, the diff checked identical to a copy taken before; the running process
+  had loaded the coordinator before the fix, and nothing else had changed.
+- The first try was stopped by hand on the stalled sentence; kept as `20261026T134149Z_transcript.jsonl` and
+  `run_fit_stalled_20261026.log`.
+
+**Found, not fixed.** The reading of a telling as asking (the sentence above). Long sentences are slow: the longest read
+took 818 s (65 words; its chart alone 346 s, 353 s with the derivations held, 301,300 signs: the chart's cost, not the
+derivations'); a person's long message would wait minutes.
+
+**Verified.** `tests/test_derived_reading.py` 123 passed (1 new: only the parts held), `tests/test_conversation.py` 36
+passed (1 new: a fact bound twice held once; the 2 failing before this session fail as before).
+
 ## 2026-10-26 (53) — Step 3: a verb's places and a preposition's links learned from the sentence as derived, the link as its meaning says
 
 **Objective.** Step 3 of the agreed fix: links and roles from the derivations, in place of labelling the reading the

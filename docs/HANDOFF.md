@@ -12,7 +12,10 @@ The previous handoff (2026-10-01) is in git history.
 measured: links taken from the derivations' VerbNet roles were worse for prepositions (net -62 of 272), so a taught
 sentence whose derivation is held learns its verbs' places and prepositions' links from the derivation's structure,
 the link as its meaning says (`Grammar._learn_places_derived`): GRAMMAR-01 382 -> 385 (43.6%), F1 82.5%; taught read
-back 424. Main's next start learns again under it (no teaching run needed). Lyric's memory takes
+back 424. Main's next start learns again under it (no teaching run needed). UNDERSTANDS-PROSE-02's half fixed against on main after steps 1
+to 3 (`20261026T145920Z`, (54)): 103/222 read, 18/231 right, 5/231 wrong, the same as 10-22 within the intervals: the
+PMB's gain does not show on prose. Its first try found and fixed a fact held twice (`Conversation._told`) and a saying
+that never finished on a long meaning (`derived_reader._held_within`). The half kept unseen is still unrun. Lyric's memory takes
 the PMB's checked derivations (`grammar.Derived`, `PMBDerivationSource`, `teach.py --source pmb-derivations`,
 `MemoryAgent.remember_derived`), and each word's category is chosen beside the words around it (`Lexicon.hear_derived`,
 `_in_context`, `_frame_evidence`). Measured: GRAMMAR-01 senses aside 366 -> 382 (43.2%), strict 184 -> 203, unnamed

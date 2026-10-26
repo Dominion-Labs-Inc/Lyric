@@ -167,6 +167,17 @@ flourish?" "West africa."), wrong 7 to 4, nothing written. Still wrong there: "w
 defeat?" (still `done_by` twice: the link learned for "defeat"'s second place), "also called" read as `isa`, "test
 case" taken in WordNet's legal sense, "Movement." for what brings the rainy seasons.
 
+**The half fixed against on main after the reading fix's steps 1 to 3 (2026-10-26, `20261026T145920Z`, log
+`results/run.log`; lab notebook (54)):** 103/222 read (46.4%, 95% 40.0% to 53.0%), 18/231 right (7.8%), **5/231 wrong
+(2.2%, 95% 0.9% to 5.0%)**, nothing stopped, nothing written to the store; against `20261022T152323Z` (110, 21, 8) the
+same within the intervals: what raised the PMB's dev split (each word's category chosen beside the words around it,
+links from the sentences derived by hand) does not show on prose. Its first try that day was stopped by hand
+(`20261026T134149Z_transcript.jsonl`, log `run_fit_stalled_20261026.log`): two sentences stopped the conversation ("a
+meaning states the same fact twice", `Conversation._told`), and "In mountainous areas, heavy precipitation is possible
+where ..." , read as asking, sat over half an hour saying its "I do not know" (`derived_reader._compositions` counting
+through every part of the meaning's kinds); both fixed (`bd00af85`) before this run. The longest sentence read took 818 s
+(65 words; its chart alone 346 s, the same without the derivations).
+
 **Why so few are right** (the half fixed against, its transcript): of 231 questions, 78 had the sentence holding
 the answer read and the question read, and the two never met, the question read otherwise than its telling ("the
 hashlib module" as a quality, "What time did Delaere post?" with Delaere done to, "When was calculus formulated?" as
