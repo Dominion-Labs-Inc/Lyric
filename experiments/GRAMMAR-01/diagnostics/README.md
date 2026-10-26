@@ -7,6 +7,7 @@ what is wrong, not whether a change helped; nothing in Lyric was changed for the
 |---|---|
 | `taught_fit.py train/gold` | how many of its own taught sentences (PMB gold training, a seeded 1,000) the grammar reads back right |
 | `every_reading.py train/gold 1000` | every reading the grammar can build of each (a chart keeping every distinct reading, not the surest of each category), whether one gives the taught meaning, why not; and the chosen reading checked word by word against the PMB 4.0.0 gold CCG derivation |
+| `prose_joins.py [N] [--without-structure]` | of N (200) sentences of published prose analysed by hand and held out (UD English PUD), how many content words the chosen reading joins to the word the analysis joins them to |
 | `categories.py dev/standard` | each held-out word: the gold category, the categories the grammar lists and derives (`Grammar._unary`) for it, the one its reading uses |
 
 From 2026-10-26 (52) `taught_fit.py` and `categories.py` hold the training derivations first, as GRAMMAR-01 and main do
@@ -18,6 +19,12 @@ The gold derivations are the PMB's 4.0.0 release (`test_data/semantics/pmb/pmb-4
 its English gold `en.parse.tags`, `en.raw` and `en.status` extracted to `pmb-4.0.0/data/en/gold`, 10,715 documents).
 Each word there carries its CCG category in that sentence, its part of speech, lemma, WordNet sense and VerbNet role.
 The 5.1.0 release Lyric was taught from carries meanings only.
+
+**Prose joins (2026-10-26 (55)):** the readings chosen joined 54.9% of PUD's content words (200 sentences, 2,146
+words) as the analysis by hand does; Lyric's structure view, learned from EWT's training part and scored the same way,
+72.5%. Two readings joining the same words otherwise scored the same, and the chart kept the first it built (146 of
+221 joins in 20 sentences of UNDERSTANDS-PROSE-02's prose). With the structure view's joins weighed
+(`Grammar._joined`): 68.0%.
 
 ## What they found
 

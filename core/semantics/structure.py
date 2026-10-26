@@ -718,17 +718,9 @@ class StructureView:
         steps' beam likes best, and the tree the pairs alone like best (`_best_tree` over the pairs' chances, nothing
         of the beam's). Learned apart from the same sentences, the two err apart: where they agree, the reading is
         confirmed, and a sentence never taught can be kept as analysed so (`experiments/SELF-TEACH-01`)."""
-        self._work_out()
-        beam = self._beam(words, classes)
+        laid, beam, chances, weighed = self._weighed(words, classes)
         n = len(words)
-        best = beam[0][0]
-        shares = [math.exp(score - best) for score, *_ in beam]
-        held = np.zeros((n + 1, n + 1))
-        for (_, _, _, heads, _, _), share in zip(beam, shares):
-            for d in range(1, n + 1):
-                held[heads[d], d] += share / sum(shares)
-        laid, chances = self._pair_chances(words, classes)
-        heads = _best_tree(chances + np.log(held + UNHELD))
+        heads = _best_tree(weighed)
         _, _, _, beam_heads, _, beam_relation = beam[0]
         relations = tuple("root" if heads[d - 1] == 0 else beam_relation.get(d, "dep")
                           if heads[d - 1] == beam_heads[d] else self._pairs.relation(laid, heads[d - 1], d)
@@ -793,6 +785,29 @@ class StructureView:
             beam = sorted(grown, key=lambda kept: -kept[0])[:BEAM]
         return beam
 
+    def _weighed(self, words: Sequence[str], classes: Sequence[str]) -> Tuple[Tuple, List[Tuple], "np.ndarray",
+                                                                              "np.ndarray"]:
+        """The sentence laid out for its pairs, the steps' beam, the pairs' log chances and the dependencies weighed
+        by both (`[h, d]`, 0 the root): each pair's chance times the share of the beam's trees holding it."""
+        self._work_out()
+        beam = self._beam(words, classes)
+        n = len(words)
+        best = beam[0][0]
+        shares = [math.exp(score - best) for score, *_ in beam]
+        held = np.zeros((n + 1, n + 1))
+        for (_, _, _, heads, _, _), share in zip(beam, shares):
+            for d in range(1, n + 1):
+                held[heads[d], d] += share / sum(shares)
+        laid, chances = self._pair_chances(words, classes)
+        return laid, beam, chances, chances + np.log(held + UNHELD)
+
+    def joins(self, words: Sequence[str]) -> Tuple[Tuple[str, ...], "np.ndarray"]:
+        """How likely each word of these is the head of each other, as this view weighs them building its own tree
+        (`readings_apart`): the class each is used as, and the log likelihoods `[h, d]` (0 the root). The grammar's
+        chart chooses by them between readings it reads as surely (`Grammar._joined`)."""
+        classes = self.classes(words)
+        return classes, self._weighed(words, classes)[3]
+
     def read(self, words: Sequence[str]) -> Structure:
         """How these words go together: their classes, then their structure."""
         return self.structure(words, self.classes(words))
@@ -827,10 +842,14 @@ def held_classes(inventory: Any) -> Callable[[str], Dict[str, int]]:
 
 def words_of(pieces: Iterable[Any]) -> Tuple[str, ...]:
     """A sentence's pieces (`sentence_machine.form_of`) as the words a treebank writes: "doesn't" is "does" and
-    "n't" there, where the pieces are "doesn" and "'t"."""
+    "n't" there, where the pieces are "doesn" and "'t". A piece a word ends in written with a typographic apostrophe
+    is the same piece ("You’ll": "'ll"): read as written, "’ll" was a word nobody knew, and "You’ll need a permit"
+    a needing that was "’ll" (UNDERSTANDS-PROSE-02, main, 2026-10-26; 12 of 222 sentences are written so)."""
     words: List[str] = []
     for piece in pieces:
         text = getattr(piece, "text", piece)
+        if text[:1] == "’" and text[1:].isalpha() and words:
+            text = "'" + text[1:]
         if text in ("'t", "’t") and words and words[-1][-1:].lower() == "n":
             words[-1] = words[-1][:-1]
             text = "n't"

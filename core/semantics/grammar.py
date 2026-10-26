@@ -41,7 +41,7 @@ import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
 from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
 from core.semantics.relation_types import worded
@@ -222,6 +222,10 @@ class Sign:
     #: Of a combination not yet kept, what its two parts' variables are bound to: its pieces are its parts' pieces
     #: so bound, made only once the chart keeps it (`Grammar.chart`).
     binding: Optional[Dict[int, Term]] = None
+    #: The word the stretch is about, as the treebanks join words: its head, but what a word of the kinds that only
+    #: mark another takes ("the dog": dog; "in the park": park). Set as the chart weighs how its parts were joined
+    #: (`Grammar._joined`).
+    word: int = -1
 
 
 #: Variables are numbered from here, so no variable is ever a word's place in its sentence.
@@ -998,7 +1002,6 @@ class Lexicon:
                 count("frames", lemma, frame)
                 count("frames", "", frame)
                 count("frames before", after, frame)
-
     def _way(self, use: str) -> str:
         """A use as `_held_evidence` weighs it: a kind of word's use no way of the kind's has ("ADJECTIVE:before", read
         by a rule) as the kind."""
@@ -1512,6 +1515,18 @@ WHOLE = {"S[dcl]": "tell", "S[q]": "ask", "S[wq]": "ask", "S[imp]": "tell", "S":
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
 
+def _clausal(cat: Cat) -> bool:
+    """Whether a category is of a doing or a sentence: what it makes, taken all it takes, is a sentence (`S`)."""
+    while isinstance(cat, Fn):
+        cat = cat.res
+    return cat.base == "S"
+
+
+#: The kinds of word the treebanks join to the word they mark, not what they mark to them (`Grammar._joined`): "in"
+#: to "park" in "in the park", "the" to "dog", "is" to "teacher" in "is a teacher", "that" to the doing it opens.
+MARKING = frozenset({"PREPOSITION", "SUBORDINATOR", "DETERMINER", "AUXILIARY", "CONJUNCTION", "PARTICLE"})
+
+
 class Grammar:
     """Reads sentences by the grammar (`read`), and learns from sentences taught with their meanings (`learn`)."""
 
@@ -1519,6 +1534,12 @@ class Grammar:
         self.lexicon = lexicon
         self._fresh = FIRST_VARIABLE
         self._tokens: Tuple[str, ...] = ()
+        #: The sentences memory holds analysed, as the structure reader reads them (`structure.StructureView`): which
+        #: of two readings read as surely the chart keeps (`_joined`). None where none is held.
+        self.structure: Optional[Any] = None
+        self._weighed: Optional[Any] = None
+        self._marking: FrozenSet[int] = frozenset()
+        self._asking: FrozenSet[int] = frozenset()
 
     # ── the chart ──
     def _new(self) -> int:
@@ -1853,9 +1874,16 @@ class Grammar:
         """Every reading of every stretch the grammar allows, one of each category, the surest."""
         n = len(tokens)
         self._tokens = tuple(tokens)
+        self._weighed, self._marking, self._asking = None, frozenset(), frozenset()
+        if self.structure is not None and len(self.structure) and n:
+            classes, self._weighed = self.structure.joins(tuple(str(t) for t in tokens))
+            self._marking = frozenset(i for i, c in enumerate(classes) if c in MARKING)
+            self._asking = frozenset(i for i, c in enumerate(classes) if c in ("PRONOUN", "ADVERB"))
         cells: Dict[Tuple[int, int], Dict[str, Sign]] = defaultdict(dict)
 
         def keep(sign: Sign) -> bool:
+            if sign.word < 0:
+                self._joined(sign)
             k = _key(sign.cat)
             cell = cells[(sign.start, sign.end)]
             held = cell.get(k)
@@ -1900,6 +1928,52 @@ class Grammar:
                         for u in self._unary(sign):
                             keep(u)
         return cells
+
+    def _joined(self, sign: Sign) -> None:
+        """The word a stretch is about (`Sign.word`), and of two stretches combined, how likely the structure view
+        makes the one joined to the other (`_weighed`, as `StructureView.joins` weighs it for its own tree), added to
+        how surely it is read. Each stretch is weighed by the word it is about, as the treebanks the view learned from
+        join words: the phrase's head, but where that word only marks what it takes (a preposition, a determiner, an
+        auxiliary or "is", "that", "and": `_marking`), what it takes ("in the park": park, the park joined to what it
+        tells of, "in" to the park); a pronoun or an adverb taking a doing, the doing ("Who stabbed Tom?": stabbed);
+        and a modifier composed before what it tells of is joined with it ("can reproduce": reproduce).
+
+        WHICH WORD TAKES WHICH WAS DECIDED BY THE ORDER THE CHART BUILT. Counted by its words' readings alone, two
+        readings joining the same words otherwise scored the same, and the chart kept the first it built: of the joins
+        in the readings chosen of 20 sentences of published prose, 146 of 221 were so chosen over another joining them
+        otherwise ("pay the penalty within 30 days": the paying within 30 days, or the penalty). The readings chosen
+        joined 49.2% of the content words of 200 sentences of UD English PUD (news and Wikipedia, held out of all Lyric
+        learned) as the analysis by hand does, where the structure view, learned from EWT's training part, joins
+        72.5%. With its likelihoods added: 60.6% (52.2% where they only chose between readings read as surely, 58.9%
+        and 60.8% at half and twice the weight; lyric_dev, 2026-10-26). The PMB's checked derivations' own joins,
+        counted (8,679 short sentences), chose worse than the order built: 47.8%, and 40.8% added."""
+        kids = sign.kids
+        if not kids:
+            sign.word = sign.head
+            return
+        if len(kids) == 1:
+            sign.word = kids[0].word if kids[0].word >= 0 else kids[0].head
+            return
+        left, right = kids[0], kids[-1]
+        head, joined = (right, left) if right.head == sign.head and left.head != sign.head else (left, right)
+        if head.head in self._marking or (sign.rule in (">B", "<B", ">B2", "<Bx") and isinstance(head.cat, Fn)
+                                          and _same_shape(head.cat.res, head.cat.arg)) or (
+                head.head in self._asking and isinstance(head.cat, Fn) and _clausal(head.cat.arg)):
+            # A pronoun or an adverb taking a doing is joined to it, as the treebanks join them: "who" to "stabbed"
+            # in "Who stabbed Tom?", "nothing" to "saw". Joined the other way, the structure view rightly made the
+            # joins unlikely, and "who" was read a thing and not what is asked (GRAMMAR-01 dev, 2026-10-26).
+            head, joined = joined, head
+        at = head.word if head.word >= 0 else head.head
+        sign.word = at
+        of = joined.word if joined.word >= 0 else joined.head
+        weighed, tokens = self._weighed, self._tokens
+        if weighed is None or not (0 <= at < len(tokens) and 0 <= of < len(tokens)) or at == of \
+                or not any(ch.isalnum() for ch in str(tokens[of])) or of in self._marking:
+            # A word that only marks another is joined as the grammar joins it: "did" takes its doer first in "Where
+            # did Gandhi study?", the treebanks join it to "study", and the join the structure view made unlikely
+            # (-6.2) decided the question was what Gandhi studied (GRAMMAR-01 dev, 2026-10-26).
+            return
+        sign.score += float(weighed[at + 1, of + 1])
 
     # ── reading a sentence ──
     def read(self, tokens: Sequence[str]) -> Reading:
@@ -3073,8 +3147,9 @@ class GrammarView:
     PMB's), each learned from when next read; a sentence taught again corrected is taken back (`drop`) and learned
     from as corrected."""
 
-    def __init__(self, words: Words, grammar: Optional[Mapping[str, Any]] = None):
+    def __init__(self, words: Words, grammar: Optional[Mapping[str, Any]] = None, structure: Optional[Any] = None):
         self.grammar = Grammar(Lexicon(words, grammar))
+        self.grammar.structure = structure
         self._waiting: List[Any] = []
         self._waiting_keys: Set[str] = set()
         self._counted: Dict[str, List[Tuple[str, Tuple, str]]] = {}

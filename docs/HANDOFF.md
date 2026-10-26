@@ -8,7 +8,20 @@ The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-26)
 
-**START HERE: STEPS 1 TO 3 OF THE AGREED FIX ARE DONE (2026-10-26 (52), (53)); STEP 4 IS NEXT.** Step 3, as
+**THE BAR IS 95% AND NOTHING IS DONE BEFORE IT IS MET (the owner, 2026-10-26).** Steps landed are "landed,
+measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
+sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
+
+**LATEST (lab notebook (55)): WHICH WORD TAKES WHICH, WEIGHED BY THE STRUCTURE VIEW.** The chart scored two readings
+joining the same words otherwise the same and kept the first it built (146 of 221 joins in 20 prose sentences).
+Now each combination adds the structure view's log likelihood of its join (`Grammar._joined`, `StructureView.joins`;
+memory hands its structure view to the grammar, `MemoryAgent.grammar_view`): published prose held out (UD English
+PUD, 200 sentences, `experiments/GRAMMAR-01/diagnostics/prose_joins.py`) joined right 54.9% -> 68.0% (the structure
+view alone 72.5%); GRAMMAR-01 dev 385 -> 383 (F1 82.5 -> 82.6), taught 424 -> 420, within noise, kept although the
+agreed rule asks both PMB measures to rise. The PMB's own joins were tried and measured worse; removed. "’ll" read as
+"'ll" (`structure.words_of`). Next: UNDERSTANDS-PROSE-02's half fixed against on main with this, then what it shows.
+
+**STEPS 1 TO 3 OF THE AGREED FIX ARE LANDED (2026-10-26 (52), (53)); STEP 4 IS NEXT.** Step 3, as
 measured: links taken from the derivations' VerbNet roles were worse for prepositions (net -62 of 272), so a taught
 sentence whose derivation is held learns its verbs' places and prepositions' links from the derivation's structure,
 the link as its meaning says (`Grammar._learn_places_derived`): GRAMMAR-01 382 -> 385 (43.6%), F1 82.5%; taught read

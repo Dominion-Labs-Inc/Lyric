@@ -26,7 +26,7 @@ from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
 from core.semantics.composition import TaughtSentence
 from core.semantics.derived_reader import is_variable
-from words import file_words
+from words import file_structure, file_words
 
 SPLIT = sys.argv[1]
 pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
@@ -34,7 +34,7 @@ treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.c
 t0 = time.perf_counter()
 words = file_words(treebank, gm.closed_uses())
 ends = rl.sentence_ends(treebank)
-view = gm.GrammarView(words)
+view = gm.GrammarView(words, structure=file_structure(treebank))
 lessons = [TaughtSentence(s, m, "lessons") for s, m in ListeningSource(tuple(
     str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
 for taught in lessons + list(PMBSource.of("gold", str(pmb)).taught_sentences()):

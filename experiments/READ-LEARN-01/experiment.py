@@ -105,7 +105,7 @@ def main() -> int:
     from core.semantics import pmb_meanings as pm
     from core.semantics.composition import TaughtSentence
     from core.semantics.derived_reader import is_variable
-    from words import file_words
+    from words import file_structure, file_words
     stretches = [int(n) for n in (argument("--read") or "2000,5000,10000").split(",")]
     pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
     EV = RunRecord("READ-LEARN-01",
@@ -118,7 +118,7 @@ def main() -> int:
     treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu"
     words = file_words(treebank, gm.closed_uses())
     ends = sentence_ends(treebank)
-    view = gm.GrammarView(words)
+    view = gm.GrammarView(words, structure=file_structure(treebank))
     lessons = [TaughtSentence(s, m, "lessons") for s, m in ListeningSource(tuple(
         str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
     gold = list(PMBSource.of("gold", str(pmb)).taught_sentences())

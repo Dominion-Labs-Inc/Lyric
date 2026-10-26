@@ -614,3 +614,37 @@ def test_a_verbs_places_are_learned_from_the_sentence_as_derived():
     alone.hold(taught)
     alone.learn_waiting()
     assert sorted(c for c in alone._counted[taught.key()] if c[0] == "role") == sorted(roles)
+
+
+def test_which_word_takes_which_is_decided_by_how_the_structure_view_joins_them():
+    """Two readings of the same words read as surely ("in the park" of the chasing, or of the cat) are chosen between
+    by how likely the structure view makes each join (`Grammar._joined`, `StructureView.joins`), each phrase by the
+    word it is about as the treebanks join them ("in the park": park); with none held, as the chart built them."""
+    import math
+
+    import numpy as np
+
+    class Joins:
+        """A structure view that joins "park" to one word, and less likely to any other."""
+
+        def __init__(self, head: str):
+            self.head = head
+
+        def __len__(self) -> int:
+            return 1
+
+        def joins(self, words):
+            n = len(words)
+            classes = tuple("PREPOSITION" if w.lower() in PREPOSITIONS else "DETERMINER" if w.lower() == "the"
+                            else "NOUN" for w in words)
+            weighed = np.full((n + 1, n + 1), math.log(0.5))
+            park = words.index("park")
+            for h in range(n):
+                weighed[h + 1, park + 1] = 0.0 if words[h] == self.head else math.log(0.01)
+            return classes, weighed
+    said = "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & given instance_of(?v2, cat) " \
+           "& given instance_of(?v3, park) & instance_of(?v0, chase) & precedes(?v0, ?now) & "
+    for head, where in ((None, "word_in(?v0, ?v3)"), ("chased", "word_in(?v0, ?v3)"), ("cat", "word_in(?v2, ?v3)")):
+        g = gm.Grammar(gm.Lexicon(Held()))
+        g.structure = Joins(head) if head else None
+        assert read(g, "The dog chased the cat in the park.") == said + where, head

@@ -24,6 +24,17 @@ UD = {"NOUN": "NOUN", "PROPN": "NAME", "VERB": "VERB", "ADJ": "ADJECTIVE", "ADV"
       "ADP": "PREPOSITION", "AUX": "VERB"}
 
 
+def file_structure(ewt: Path):
+    """The structure view as memory holds it (`structure.StructureView`), from the treebank at `ewt`: which of two
+    readings the grammar reads as surely it keeps (`Grammar._joined`)."""
+    from core.learning.teaching_sources import read_conllu
+    from core.semantics.structure import StructureView
+    view = StructureView()
+    for analysed in read_conllu(str(ewt), "ewt"):
+        view.add(analysed)
+    return view
+
+
 def file_words(ewt: Path, closed):
     """The words as GRAMMAR-01 holds them (`HeldWords`), from the treebank at `ewt` and WordNet."""
     from nltk.corpus import wordnet as wn

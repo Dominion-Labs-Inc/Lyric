@@ -25,7 +25,7 @@ from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
 from core.semantics.composition import TaughtSentence
 from core.semantics.derived_reader import is_variable
-from words import file_words
+from words import file_structure, file_words
 
 SPLIT = sys.argv[1]
 pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
@@ -33,7 +33,7 @@ treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.c
 t0 = time.perf_counter()
 words = file_words(treebank, gm.closed_uses())
 ends = rl.sentence_ends(treebank)
-view = gm.GrammarView(words)
+view = gm.GrammarView(words, structure=file_structure(treebank))
 from core.learning.teaching_sources import PMBDerivationSource
 for item in PMBDerivationSource().derived():
     view.hold_derived(item)

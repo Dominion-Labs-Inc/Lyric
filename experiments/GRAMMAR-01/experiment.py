@@ -92,7 +92,7 @@ def main() -> int:
     from core.semantics import grammar as gm
     from core.semantics import pmb_meanings as pm
     from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
-    from words import file_words
+    from words import file_structure, file_words
     data = Path(argument("--data") or ROOT / "test_data" / "syntax")
     pmb = Path(argument("--pmb") or ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0")
     EV = RunRecord("GRAMMAR-01",
@@ -105,7 +105,10 @@ def main() -> int:
     started = time.perf_counter()
     EV.check("the PMB is on disk", (pmb / "split" / "en" / "dev" / "standard.sbn").exists(), str(pmb))
     words = file_words(data / "UD_English-EWT" / "en_ewt-ud-train.conllu", gm.closed_uses())
-    view = gm.GrammarView(words)
+    # The structure view decides which word takes which where the words' readings do not (`Grammar._joined`);
+    # `--without-structure` reads as before it did.
+    view = gm.GrammarView(words, structure=None if "--without-structure" in sys.argv else
+                          file_structure(data / "UD_English-EWT" / "en_ewt-ud-train.conllu"))
     grammar = view.grammar
     say(f"words ready ({words.sentences:,} analysed sentences), {time.perf_counter() - started:.0f}s")
 
@@ -265,8 +268,9 @@ def main() -> int:
     results.mkdir(exist_ok=True)
     stamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
     (results / f"{stamp}_prose.json").write_text(json.dumps(prose, indent=1))
-    random.Random(7).shuffle(missed)
-    (results / f"{stamp}_missed.json").write_text(json.dumps(missed[:300], indent=1))
+    # Every sentence missed, as met: two runs are compared sentence by sentence (a sample of 300 drawn from each
+    # was a different 300).
+    (results / f"{stamp}_missed.json").write_text(json.dumps(missed, indent=1))
     say(f"\n  run record: {EV.write()}  ({time.perf_counter() - started:.0f}s)")
     return 0 if EV.failed == 0 else 1
 

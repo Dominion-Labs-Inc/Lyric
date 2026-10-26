@@ -6934,7 +6934,8 @@ class MemoryAgent(IMemoryConsolidation):
             for subject, relation, target in self._grammar_links:
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
-            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms))
+            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms),
+                               structure=self._structure_view)
             for derived in self._grammar_derived:
                 view.hold_derived(derived)
             for taught in self._grammar_taught:

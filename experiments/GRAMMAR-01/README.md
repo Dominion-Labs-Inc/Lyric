@@ -82,6 +82,8 @@ not read right senses aside (`_missed.json`).
 | `20261026T043416Z` | 865 / 860 | 23.1% | 42.8% | 54.1% | 82.4% | 1,400 (81.4%) / 162 (57.4%) / 162 (42.6%) |
 | `20261026T044408Z` | 865 / 860 | 23.0% | 43.2% | 54.5% | 82.4% | 1,396 (81.7%) / 163 (57.1%) / 162 (43.2%) |
 | `20261026T125030Z` | 865 / 860 | 23.0% | 43.6% | 55.0% | 82.5% | 1,391 (82.1%) / 164 (57.3%) / 167 (41.9%) |
+| `20261026T182351Z` (`--without-structure`) | 865 / 860 | 23.0% | 43.6% | 55.0% | 82.5% | 1,392 (82.0%) / 164 (57.3%) / 165 (42.4%) |
+| `20261026T184453Z` | 865 / 860 | 22.6% | 43.3% | 54.8% | 82.6% | 1,395 (81.7%) / 169 (55.6%) / 164 (42.1%) |
 
 From `20261026T043416Z` each word's category is chosen beside the words around it, as the PMB's checked CCG derivations
 say (`Lexicon.hear_derived`, `_in_context`, `_frame_evidence`; lab notebook 2026-10-26 (52)): each derivation word
@@ -93,6 +95,16 @@ for 93.7% of verbs; the derivation's category, compared strictly, 66.7% from 64.
 1,000 taught sentences, from 414 (`diagnostics/taught_fit.py`). From `20261026T125030Z` a taught sentence whose derivation is held
 learns its verbs' places and its prepositions' links from the derivation's structure, each link as its meaning says
 (`Grammar._learn_places_derived`; lab notebook 2026-10-26 (53)).
+
+From `20261026T184453Z` which word takes which is weighed by the structure view's joins (`Grammar._joined`,
+`StructureView.joins`; lab notebook 2026-10-26 (55)): each combination adds the view's log likelihood that its one
+word is joined to the other, each stretch by the word it is about as the treebanks join words, for words that do not
+only mark another. Before, two readings joining the same words otherwise scored the same, and the chart kept the first
+it built. On published prose held out (UD English PUD, 200 sentences, `diagnostics/prose_joins.py`) the readings join
+68.0% of content words as the analysis by hand does, from 54.9%; here dev moves within noise (43.6% -> 43.3%, F1 82.5%
+-> 82.6%), the PMB's five-word sentences having little to join otherwise. `--without-structure` reads as before. The
+PMB derivations' own joins, counted, were tried first and measured worse on prose (lab notebook (55)); every sentence
+missed is saved (`<stamp>_missed.json`), as met.
 
 From `20261025T173519Z` a preposition's link is decided by what its thing is where no sentence taught it of the very
 doing or thing it is said of (`Lexicon.selected`, `prep_to`: "Vance worked with Hooper." with a person, "Tom taught at
