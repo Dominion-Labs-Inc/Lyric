@@ -1,0 +1,11 @@
+[
+ {"name": "pmb/p24/d3535", "kind": "taught record",
+  "text": ["Roy fastened the medal with a pin."],
+  "questions": [
+   {"q": "Did Roy fasten the medal?", "answer": "yes"},
+   {"q": "Who fastened the medal?", "answer": ["Roy"]},
+   {"q": "What did Roy fasten?", "answer": ["medal"]},
+   {"q": "What did Roy fasten the medal with?", "answer": ["pin"]},
+   {"q": "Did Roy fasten the medal with a pin?", "answer": "yes"}
+  ]}
+]

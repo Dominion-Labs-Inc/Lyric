@@ -235,6 +235,7 @@ class Report:
     word_forms: Dict[str, int] = field(default_factory=dict)
     #: The same for the sentences it gave as derived by hand in a categorial grammar (`learn_derived`).
     derived: Dict[str, int] = field(default_factory=dict)
+    sentence_records: Dict[str, int] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
@@ -268,6 +269,7 @@ class Report:
             f"word groups       : {self.word_groups or 'none given'}",
             f"word forms        : {self.word_forms or 'none given'}",
             f"derived by hand   : {self.derived or 'none given'}",
+            f"recorded whole    : {self.sentence_records or 'none given'}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -549,7 +551,8 @@ class TeachingPass:
                 ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),
                 ("word_groups", learning.learn_word_groups, "word groups", "word_groups"),
                 ("word_forms", learning.learn_word_forms, "word forms", "word_forms"),
-                ("derived", learning.learn_derived, "sentences derived by hand", "derived")):
+                ("derived", learning.learn_derived, "sentences derived by hand", "derived"),
+                ("sentence_records", learning.learn_records, "sentences recorded whole", "sentence_records")):
             if not hasattr(self.source, method):
                 continue
             items = await asyncio.to_thread(list, getattr(self.source, method)())

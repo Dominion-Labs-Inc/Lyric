@@ -99,7 +99,7 @@ DUMP = ROOT / "data" / "bulk" / "conceptnet-assertions-5.7.0.csv.gz"
 def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
                                                 CompositionSource, ConceptNetSource, ListeningSource,
-                                                PMBDerivationSource, PMBSource, PropBankSource, TreebankSource,
+                                                PMBDerivationSource, PMBSource, PropBankSource, RecordSource, TreebankSource,
                                                 WikidataSource,
                                                 WordNetClassesSource, WordNetExamplesSource,
                                                 WordGroupsSource, WordNetSource, WordNetUsageSource)
@@ -131,6 +131,9 @@ def build_source(args):
     if args.source == "pmb-derivations":
         # The PMB's gold CCG derivations (release 4.0.0), release 5.1.0's dev and test documents held out.
         return PMBDerivationSource()
+    if args.source == "records":
+        # Sentences recorded whole, every layer by word position (`SentenceRecord`), the file's taught ones.
+        return RecordSource(args.records)
     if args.source == "word-groups":
         return WordGroupsSource()
     if args.source == "closed-classes":
@@ -257,7 +260,7 @@ async def main() -> int:
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "wordnet-classes",
                                  "listening", "treebank", "propbank", "composition", "pmb", "pmb-derivations",
-                                 "word-groups", "wikidata", "closed-classes", "lesson"))
+                                 "records", "word-groups", "wikidata", "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)
@@ -268,6 +271,8 @@ async def main() -> int:
     parser.add_argument("--relations", default="grammar")
     parser.add_argument("--treebank", default=None, choices=("ewt", "gum", "lines", "partut", "atis", "eslspok"),
                         help="treebank: which of UD's English treebanks (default ewt)")
+    parser.add_argument("--records", default=None,
+                        help="records: a JSON Lines file of sentences recorded whole (`SentenceRecord`)")
     parser.add_argument("--pmb", default="gold", choices=("gold", "silver"),
                         help="pmb: which part of the PMB's training sentences (default gold)")
     parser.add_argument("--lesson", action="append", default=None,

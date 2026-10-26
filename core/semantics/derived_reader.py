@@ -5363,7 +5363,8 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
     agent = _memory._memory_agent
     if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
         return utterance
-    meaning = agent.grammar_view().compose_sentence(surface_of(utterance.pieces))
+    read = agent.grammar_view().read(surface_of(utterance.pieces))
+    meaning = read.meaning
     if meaning is None or all(f.given for f in meaning.facts):
         # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
         return utterance
@@ -5374,8 +5375,31 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
         # the company hire?" composed without the count or the engineers asked whether the company hired, and was
         # answered "Yes." once the hiring was held (2026-10-19).
         return utterance
-    return Utterance(utterance.pieces, (Reading((), (), meaning, composed=True),), utterance.partial,
-                     utterance.unknown)
+    return Utterance(utterance.pieces, (Reading(_said_by_words(read), (), meaning, composed=True),),
+                     utterance.partial, utterance.unknown)
+
+
+def _said_by_words(read: Any) -> Tuple["Lexical", ...]:
+    """WHAT EACH WORD OF A READING BY ENGLISH'S GRAMMAR NAMED: a thing, a doing, a quality, a name, a number, each
+    as the construction saying it (`Lexical`: the words, what they name), as a taught frame's reading holds its
+    fillers. Holding none, the conversation knew no word the speaker called anything by: told "Roy fastened the medal
+    with a pin." and asked what Roy fastened, it said the thing's own name, "Award decoration." (TRAIN-FORMAT-01,
+    lyric_dev2, 2026-10-26), and which words were names (`Conversation._told`)."""
+    sign = getattr(read, "sign", None)
+    if sign is None:
+        return ()
+    out: Dict[Tuple[Tuple[str, ...], str], Lexical] = {}
+    for p in sign.pieces:
+        if p[0] != "word" or p[2] not in ("NOUN", "NAME", "VERB", "ADJECTIVE", "ADVERB", "NUMERAL") or not p[1]:
+            continue
+        words = tuple(str(w) for w in read.words[p[3]:p[4]])
+        if not words or (words, str(p[1])) in out:
+            continue
+        try:
+            out[(words, str(p[1]))] = Lexical(tuple((w, True) for w in words), str(p[1]))
+        except ValueError:
+            continue
+    return tuple(out.values())
 
 
 #: Whether an utterance the frames read only by supposing more than any lesson read as taught ever supposed is read

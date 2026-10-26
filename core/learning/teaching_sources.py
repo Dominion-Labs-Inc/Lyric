@@ -2319,6 +2319,520 @@ class PMBDerivationSource:
             yield from pmb_meanings.read_derivations(folder)
 
 
+# ── ONE SENTENCE, EVERY LAYER: the record Lyric is taught from ─────────────────────────────────────────────────────
+
+@dataclass(frozen=True)
+class RecordWord:
+    """One word of a sentence recorded whole (`SentenceRecord`): where it is (`at`, and its characters in the text,
+    `start` to `end`), how it is written, its base form, its class (Lyric's names: NOUN, NAME, VERB, AUXILIARY,
+    PREPOSITION, ...), the source's part of speech (Penn's), what form it is (a treebank's features: "Tense=Past"),
+    its WordNet sense ("" for none), its category in a categorial grammar as the PMB writes it ("(s:dcl\\np)/np"), its
+    semantic tag (the PMB's), the word it is joined to (`head`, its position; -1 for the sentence's own word) and as
+    what (`relation`, a treebank's: nsubj, obj, det, case, obl, punct, ...), and its VerbNet roles."""
+
+    at: int
+    form: str
+    start: int
+    end: int
+    lemma: str
+    word_class: str
+    tag: str = ""
+    features: str = ""
+    sense: str = ""
+    category: str = ""
+    semtag: str = ""
+    head: int = -1
+    relation: str = ""
+    roles: Tuple[str, ...] = ()
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"at": self.at, "form": self.form, "start": self.start, "end": self.end, "lemma": self.lemma,
+                "class": self.word_class, "tag": self.tag, "features": self.features, "sense": self.sense,
+                "category": self.category, "semtag": self.semtag, "head": self.head, "relation": self.relation,
+                "roles": list(self.roles)}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RecordWord":
+        return cls(int(data["at"]), str(data["form"]), int(data["start"]), int(data["end"]), str(data["lemma"]),
+                   str(data["class"]), str(data.get("tag") or ""), str(data.get("features") or ""),
+                   str(data.get("sense") or ""), str(data.get("category") or ""), str(data.get("semtag") or ""),
+                   int(data.get("head", -1)), str(data.get("relation") or ""), tuple(data.get("roles") or ()))
+
+
+@dataclass(frozen=True)
+class RecordFact:
+    """One fact of a recorded sentence's meaning, in Lyric's meaning language (`derived_reader.MeaningFact`), and the
+    words that say it: its terms' words and the words saying the link ("with" for `done_with`, "the" for a thing
+    given, the verb and its auxiliaries for when)."""
+
+    relation: str
+    subject: str
+    obj: str
+    positive: bool = True
+    condition: bool = False
+    alternative: bool = False
+    unasserted: bool = False
+    given: bool = False
+    words: Tuple[int, ...] = ()
+
+    def fact(self):
+        from core.semantics.derived_reader import MeaningFact
+        return MeaningFact(self.relation, self.subject, self.obj, self.positive, self.condition, self.alternative,
+                           self.unasserted, self.given)
+
+    def to_dict(self) -> Dict[str, Any]:
+        data: Dict[str, Any] = {"relation": self.relation, "subject": self.subject, "object": self.obj,
+                                "words": list(self.words)}
+        for flag in ("condition", "alternative", "unasserted", "given"):
+            if getattr(self, flag):
+                data[flag] = True
+        if not self.positive:
+            data["positive"] = False
+        return data
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "RecordFact":
+        return cls(str(data["relation"]), str(data["subject"]), str(data["object"]), bool(data.get("positive", True)),
+                   bool(data.get("condition")), bool(data.get("alternative")), bool(data.get("unasserted")),
+                   bool(data.get("given")), tuple(int(k) for k in data.get("words") or ()))
+
+
+#: Terms of a meaning no word of the sentence need say: now, who speaks, who listens, the one spoken of before.
+_UNSAID_TERMS = frozenset({"?now", "?speaker", "?listener", "?previous", "?there"})
+
+
+@dataclass(frozen=True)
+class SentenceRecord:
+    """ONE SENTENCE AS LYRIC IS TAUGHT IT, EVERY LAYER BY WORD POSITION: its words (`RecordWord`: form, base, class,
+    form features, sense, category, semantic tag, the word it is joined to and as what, roles), how its words were
+    combined (`tree`, the PMB's derivation by word positions: `grammar.Derived.tree`), its names of several words
+    (`names`: first and last word, the name), and its meaning in Lyric's meaning language (`act`, `facts`, `asked`),
+    each term of it with the words saying it (`terms`: a pronoun's term with the words of what it stands for, "?speaker"
+    with "I"). Where it came from (`source`, `licence`), and whether it is taught or held out to measure by
+    (`split`).
+
+    Every part of reading learns from its layer of the same records (`analysed`, `derived`, `taught`, `forms`):
+    learned each from a source of its own, written each its own way, the layers were joined by conventions written by
+    hand (2026-10-26); here they are one sentence's, aligned once, checked (`problems`)."""
+
+    id: str
+    text: str
+    act: str
+    words: Tuple[RecordWord, ...]
+    facts: Tuple[RecordFact, ...]
+    terms: Tuple[Tuple[str, Tuple[int, ...]], ...]
+    tree: Any = ()
+    names: Tuple[Tuple[int, int, str], ...] = ()
+    asked: Tuple[str, ...] = ()
+    source: str = ""
+    licence: str = ""
+    split: str = "train"
+
+    # ── what it is ──
+    def document(self) -> Tuple[str, int]:
+        """The document and which of its sentences ("pmb/p24/d3535#1": pmb/p24/d3535, 1)."""
+        document, _, part = self.id.partition("#")
+        return document, int(part or 1)
+
+    def key(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True).encode("utf-8")).hexdigest()[:32]
+
+    def identity(self) -> Optional[Tuple[str, str]]:
+        """What it is a record of: one sentence of a document. Recorded again otherwise, it corrects the memory holding
+        the first (`MemoryAgent._remember_whole`)."""
+        return ("record", self.id)
+
+    def claim(self) -> str:
+        """The belief it stands on: that the sentence is as recorded, every layer."""
+        return f'"{self.text}" as recorded whole ({self.id}, {self.key()[:8]})'
+
+    def said(self) -> str:
+        """The sentence and its meaning: memory keeps a record, never reads it as a claim."""
+        return f'"{self.text}"\nrecorded whole: means {self.meaning().canonical()}'
+
+    def meaning(self):
+        from core.semantics.derived_reader import Meaning
+        return Meaning(self.act, tuple(f.fact() for f in self.facts), tuple(self.asked))
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"id": self.id, "source": self.source, "licence": self.licence, "split": self.split,
+                "text": self.text, "act": self.act, "words": [w.to_dict() for w in self.words],
+                "tree": self.tree, "names": [list(n) for n in self.names],
+                "facts": [f.to_dict() for f in self.facts], "asked": list(self.asked),
+                "terms": [[t, list(at)] for t, at in self.terms]}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "SentenceRecord":
+        from core.semantics.grammar import _tupled
+        return cls(str(data["id"]), str(data["text"]), str(data["act"]),
+                   tuple(RecordWord.from_dict(w) for w in data["words"]),
+                   tuple(RecordFact.from_dict(f) for f in data["facts"]),
+                   tuple((str(t), tuple(int(k) for k in at)) for t, at in data.get("terms") or ()),
+                   _tupled(data.get("tree") or ()),
+                   tuple((int(n[0]), int(n[1]), str(n[2])) for n in data.get("names") or ()),
+                   tuple(data.get("asked") or ()), str(data.get("source") or ""), str(data.get("licence") or ""),
+                   str(data.get("split") or "train"))
+
+    # ── checked ──
+    def problems(self) -> List[str]:
+        """What is wrong with the record, each said: an empty list where every layer is whole and aligned."""
+        from core.semantics.derived_reader import is_variable
+        out: List[str] = []
+        n = len(self.words)
+        if not n:
+            return ["no words"]
+        if self.act not in ("tell", "ask", "request"):
+            out.append(f"act {self.act!r} is none of tell, ask, request")
+        for k, w in enumerate(self.words):
+            if w.at != k:
+                out.append(f"word {k} says it is at {w.at}")
+            if self.text[w.start:w.end] != w.form:
+                out.append(f"word {k} {w.form!r} is not at {w.start}-{w.end} of the text "
+                           f"({self.text[w.start:w.end]!r})")
+            if not w.lemma or not w.word_class or not w.relation:
+                out.append(f"word {k} {w.form!r} lacks its base, class or relation")
+            if not w.category:
+                out.append(f"word {k} {w.form!r} has no category")
+            if not -1 <= w.head < n or w.head == k:
+                out.append(f"word {k} {w.form!r} is joined to {w.head}")
+        roots = [w.at for w in self.words if w.head == -1]
+        if len(roots) != 1:
+            out.append(f"{len(roots)} words are the sentence's own (one is)")
+        for w in self.words:
+            seen, at = set(), w.at
+            while at != -1 and at not in seen:
+                seen.add(at)
+                at = self.words[at].head
+            if at != -1:
+                out.append(f"word {w.at} {w.form!r} is joined round in a circle")
+                break
+        leaves: List[int] = []
+
+        def walk(node: Any) -> None:
+            if isinstance(node, int):
+                leaves.append(node)
+            elif node:
+                for kid in node[2:]:
+                    if not isinstance(kid, str):
+                        walk(kid)
+        walk(self.tree)
+        if sorted(leaves) != list(range(n)) and sorted(leaves) != sorted(self._derived_positions()):
+            out.append("the derivation does not combine every word once")
+        aligned = dict(self.terms)
+        for f in self.facts:
+            for term in (f.subject, f.obj):
+                if term in _UNSAID_TERMS or (not is_variable(term) and term.lower() in ("true", "false")):
+                    continue
+                if term not in aligned:
+                    out.append(f"{f.relation}({f.subject}, {f.obj}): no word says {term}")
+            if not f.words:
+                out.append(f"{f.relation}({f.subject}, {f.obj}): no word said to say it")
+            if any(not 0 <= k < n for k in f.words):
+                out.append(f"{f.relation}({f.subject}, {f.obj}): a word out of the sentence")
+        for t, at in self.terms:
+            if not at or any(not 0 <= k < n for k in at):
+                out.append(f"term {t} said by no word of the sentence")
+        for first, last, name in self.names:
+            if not 0 <= first < last < n:
+                out.append(f"name {name!r} spans {first}-{last}")
+        for t in self.asked:
+            if not any(t in (f.subject, f.obj) for f in self.facts):
+                out.append(f"{t} is asked but no fact holds it")
+        return out
+
+    def _derived_positions(self) -> List[int]:
+        """Each word's place as the derivation counts them: a name of several words is one."""
+        inside = {k for first, last, _ in self.names for k in range(first + 1, last + 1)}
+        return [k for k in range(len(self.words)) if k not in inside]
+
+    # ── each layer, as the part of reading that learns from it takes it ──
+    def analysed(self):
+        """The words, classes and what each is joined to, as the structure reader learns them (`structure.Analysed`:
+        heads from 1, 0 for the sentence's own)."""
+        from core.semantics.structure import Analysed
+        return Analysed(tuple(w.form for w in self.words), tuple(w.word_class for w in self.words),
+                        tuple(w.head + 1 for w in self.words), tuple(w.relation for w in self.words),
+                        said_in=self.id)
+
+    def derived(self):
+        """The derivation, as English's grammar learns each word's category beside the words around it
+        (`grammar.Derived`): a name of several words one word, its parts joined by "~", as the PMB writes it."""
+        from core.semantics.grammar import Derived
+        firsts = {first: (last, name) for first, last, name in self.names}
+        words, categories, tags, lemmas, senses, roles, semantics, spans = [], [], [], [], [], [], [], []
+        k = 0
+        while k < len(self.words):
+            last = firsts.get(k, (k, ""))[0]
+            part = self.words[k:last + 1]
+            heading = self.words[last]
+            words.append("~".join(w.form for w in part))
+            categories.append(heading.category)
+            tags.append(heading.tag)
+            lemmas.append("~".join(w.lemma for w in part))
+            senses.append(heading.sense)
+            roles.append(heading.roles)
+            semantics.append(heading.semtag)
+            spans.append((part[0].start, part[-1].end))
+            k = last + 1
+        document, part_of = self.document()
+        return Derived(self.text, tuple(words), tuple(categories), tuple(tags), tuple(lemmas), tuple(senses),
+                       tuple(roles), tuple(semantics), tuple(spans), self.tree, document, part_of)
+
+    def taught(self):
+        """The sentence and its meaning, each term at the characters of the words saying it, as English's grammar
+        learns what each link says (`composition.TaughtSentence`), said in the document its derivation is."""
+        from core.semantics.composition import TaughtSentence
+        anchors = []
+        for term, at in self.terms:
+            said = tuple((self.words[k].start, self.words[k].end, "head", ()) for k in at)
+            anchors.append((term, said))
+        return TaughtSentence(self.text, self.meaning(), self.document()[0], tuple(anchors))
+
+    def forms(self) -> List[Any]:
+        """Each word's form, as the forms memory holds words written in (`word_forms.WordForms`): its base, class
+        and features."""
+        from core.semantics.word_forms import WordForms
+        return [WordForms(w.lemma.lower(), w.word_class, ((w.form.lower(), w.features, 1),), f"{self.id}@{w.at}")
+                for w in self.words if w.word_class not in ("PUNCTUATION", "SYMBOL")]
+
+
+@dataclass
+class RecordSource:
+    """Sentences recorded whole (`SentenceRecord`), one a line of a JSON Lines file: every layer of each, as every
+    part of reading learns from it. `split` "train" teaches the records taught; the held-out ones are only measured
+    by."""
+
+    path: str
+    split: str = "train"
+    name: str = "sentence_records"
+    quality: float = 0.95
+    curated: bool = True
+    vocabulary_only: bool = True
+
+    def provenance(self):
+        return _provenance(self.name, os.path.basename(self.path))
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def sentence_records(self) -> Iterator[SentenceRecord]:
+        with open(self.path, encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    record = SentenceRecord.from_dict(json.loads(line))
+                    if record.split == self.split:
+                        yield record
+
+
+#: A word's class by the part of speech the PMB gives it (Penn's), as Lyric's classes go; a form of "be", and of
+#: "have" and "do" taking a doing, is an AUXILIARY, and a preposition taking a sentence a SUBORDINATOR
+#: (`record_of_pmb`).
+_PENN_CLASS = {"NN": "NOUN", "NNS": "NOUN", "NNP": "NAME", "NNPS": "NAME", "VB": "VERB", "VBD": "VERB",
+               "VBG": "VERB", "VBN": "VERB", "VBP": "VERB", "VBZ": "VERB", "MD": "AUXILIARY", "JJ": "ADJECTIVE",
+               "JJR": "ADJECTIVE", "JJS": "ADJECTIVE", "RB": "ADVERB", "RBR": "ADVERB", "RBS": "ADVERB",
+               "WRB": "ADVERB", "PRP": "PRONOUN", "PRP$": "PRONOUN", "WP": "PRONOUN", "WP$": "PRONOUN",
+               "EX": "PRONOUN", "DT": "DETERMINER", "PDT": "DETERMINER", "WDT": "DETERMINER", "IN": "PREPOSITION",
+               "TO": "PARTICLE", "RP": "PARTICLE", "POS": "PARTICLE", "CC": "CONJUNCTION", "CD": "NUMERAL",
+               "UH": "INTERJECTION", "SYM": "SYMBOL", "FW": "OTHER"}
+#: What form a word is, by its Penn tag, as a treebank writes it.
+_PENN_FEATURES = {"NN": "Number=Sing", "NNS": "Number=Plur", "NNP": "Number=Sing", "NNPS": "Number=Plur",
+                  "VB": "VerbForm=Inf", "VBD": "Mood=Ind|Tense=Past|VerbForm=Fin", "VBG": "VerbForm=Ger",
+                  "VBN": "Tense=Past|VerbForm=Part", "VBP": "Mood=Ind|Tense=Pres|VerbForm=Fin",
+                  "VBZ": "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin", "JJ": "Degree=Pos",
+                  "JJR": "Degree=Cmp", "JJS": "Degree=Sup", "RBR": "Degree=Cmp", "RBS": "Degree=Sup"}
+#: The classes a treebank joins to the word they mark, not what they mark to them ("in" to "park").
+_MARKING_CLASSES = frozenset({"PREPOSITION", "SUBORDINATOR", "DETERMINER", "AUXILIARY", "CONJUNCTION", "PARTICLE"})
+_TIME_RELATIONS = frozenset({"precedes", "follows", "during"})
+
+
+def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRecord:
+    """A PMB sentence recorded whole (`SentenceRecord`) from its checked derivation (release 4.0.0, `grammar.Derived`)
+    and its checked meaning (5.1.0, `composition.TaughtSentence`, as Lyric's meaning language says it). THE ONE PLACE
+    WHERE THE PMB'S WAYS ARE PUT AS LYRIC'S: a word's class from its part of speech; what it is joined to, as a
+    treebank joins words, from how the derivation combined it (a modifier and a word that only marks another,
+    "the", "with", "was", joined to what they take; punctuation to the sentence's own word); as what, from how; a
+    name of several words ("Burt~Lancaster") its words, one name; each term of the meaning at the words its lines
+    say it, the words the lines mark ("the", "with") apart; each fact with the words saying it."""
+    from core.semantics import grammar as gm
+    from core.semantics.derived_reader import is_variable
+    # Each derivation word as the text's words: a name of several its parts.
+    words: List[Dict[str, Any]] = []
+    names: List[Tuple[int, int, str]] = []
+    place: List[int] = []
+    for k, (word, (start, end)) in enumerate(zip(derived.words, derived.spans)):
+        parts = word.split("~")
+        lemmas = derived.lemmas[k].split("~") if derived.lemmas[k].count("~") == len(parts) - 1 else \
+            [p.lower() for p in parts]
+        first = len(words)
+        at = start
+        for p, part in enumerate(parts):
+            found = derived.text.find(part, at)
+            s = found if found >= 0 else at
+            words.append({"form": part, "start": s, "end": s + len(part), "lemma": lemmas[p] or part.lower(),
+                          "tag": derived.tags[k], "sense": derived.senses[k] if p == len(parts) - 1 else "",
+                          "category": derived.categories[k], "semtag": derived.semantics[k],
+                          "roles": tuple(derived.roles[k]) if p == len(parts) - 1 else ()})
+            at = s + len(part)
+        if len(parts) > 1:
+            names.append((first, len(words) - 1, " ".join(parts).lower()))
+        place.append(len(words) - 1)
+    n = len(words)
+
+    def category(text: str) -> Optional[Any]:
+        try:
+            return gm.bank_category(text)
+        except (ValueError, IndexError):
+            return None
+    for w in words:
+        cls = _PENN_CLASS.get(w["tag"])
+        if cls is None:
+            cls = "PUNCTUATION" if not any(ch.isalnum() for ch in w["form"]) else "OTHER"
+        cat = category(w["category"])
+        takes_doing = isinstance(cat, gm.Fn) and gm._clausal(cat.arg) and cat.slash == "/"
+        if w["lemma"] == "be" or (cls == "VERB" and w["lemma"] in ("have", "do") and takes_doing
+                                  and gm._same_shape(cat.res, cat.arg)):
+            cls = "AUXILIARY"
+        if cls == "PREPOSITION" and isinstance(cat, gm.Fn) and isinstance(cat.arg, gm.Atom) and cat.arg.base == "S":
+            cls = "SUBORDINATOR"
+        w["class"] = cls
+        w["features"] = _PENN_FEATURES.get(w["tag"], "")
+    # What each word is joined to, and how, from how the derivation combined them.
+    head: List[int] = [-1] * n
+    how: List[str] = [""] * n
+    marks: List[int] = []
+
+    def walk(node: Any) -> Tuple[int, Optional[Any]]:
+        if isinstance(node, int):
+            return place[node], category(derived.categories[node])
+        kids = [walk(k) for k in node[2:] if not isinstance(k, str)]
+        cat = category(node[1])
+        if len(kids) == 1:
+            return kids[0][0], cat
+        rule = node[0]
+        if rule in ("rp", "lp"):
+            keep, mark = (kids[0], kids[1]) if rule == "rp" else (kids[1], kids[0])
+            marks.append(mark[0])
+            return keep[0], cat
+        if rule == "conj":
+            joined, word = kids[1], kids[0]
+            head[word[0]], how[word[0]] = joined[0], "cc"
+            return joined[0], cat
+        f, a = (0, 1) if rule in ("fa", "fc", "fxc", "gfc") else (1, 0)
+        functor, argument = kids[f], kids[a]
+        fcat = functor[1]
+        nodes = [k for k in node[2:] if not isinstance(k, str)]
+        if isinstance(nodes[f], tuple) and nodes[f] and nodes[f][0] == "conj":
+            # Things joined by "and": the second joined to the first.
+            head[functor[0]], how[functor[0]] = argument[0], "conj"
+            return argument[0], cat
+        modifier = isinstance(fcat, gm.Fn) and gm._same_shape(fcat.res, fcat.arg)
+        if modifier or words[functor[0]]["class"] in _MARKING_CLASSES:
+            top, below = argument, functor
+            kind = "mod" if modifier else "mark"
+        else:
+            top, below = functor, argument
+            kind = "subj" if (rule == "ba" and isinstance(fcat, gm.Fn) and fcat.slash == "\\"
+                              and gm._clausal(fcat.res)) else "arg"
+        head[below[0]], how[below[0]] = top[0], kind
+        return top[0], cat
+    root, _ = walk(derived.tree)
+    for k in marks:
+        head[k], how[k] = root, "punct"
+    for first, last, _ in names:
+        for k in range(first, last):
+            head[k], how[k] = last, "flat"
+    # As what each is joined, as a treebank says it.
+    cased = {head[k] for k in range(n) if words[k]["class"] == "PREPOSITION"}
+    passive = {k for k in range(n) if words[k]["category"].startswith("s:pss") or ":pss" in words[k]["category"]
+               .split("/")[0].split("\\")[0]}
+    for k, w in enumerate(words):
+        cls, h, kind = w["class"], head[k], how[k]
+        hcls = words[h]["class"] if h >= 0 else ""
+        if h < 0:
+            rel = "root"
+        elif kind in ("punct", "cc", "conj", "flat"):
+            rel = kind
+        elif cls == "DETERMINER":
+            rel = "det"
+        elif cls == "PREPOSITION":
+            rel = "case"
+        elif cls == "SUBORDINATOR" or (cls == "PARTICLE" and w["tag"] == "TO"):
+            rel = "mark"
+        elif cls == "PARTICLE" and w["tag"] == "POS":
+            rel = "case"
+        elif cls == "PARTICLE":
+            rel = "compound:prt"
+        elif cls == "AUXILIARY":
+            rel = "cop" if hcls not in ("VERB",) and w["lemma"] == "be" else (
+                "aux:pass" if h in passive and w["lemma"] == "be" else "aux")
+        elif cls == "PRONOUN" and w["tag"] == "PRP$":
+            rel = "nmod:poss"
+        elif cls in ("NOUN", "NAME", "PRONOUN", "NUMERAL") and kind == "subj":
+            rel = "nsubj:pass" if h in passive else "nsubj"
+        elif cls in ("NOUN", "NAME", "PRONOUN") and hcls in ("VERB", "ADJECTIVE", "AUXILIARY"):
+            rel = "obl" if k in cased else "obj"
+        elif cls in ("NOUN", "NAME", "PRONOUN") and hcls in ("NOUN", "NAME", "PRONOUN", "NUMERAL"):
+            rel = "nmod" if k in cased else "compound"
+        elif cls == "NUMERAL":
+            rel = "nummod"
+        elif cls == "ADJECTIVE" and hcls in ("NOUN", "NAME", "PRONOUN"):
+            rel = "amod"
+        elif cls == "ADVERB":
+            rel = "advmod"
+        elif cls == "VERB" and kind == "subj":
+            rel = "csubj"
+        elif cls in ("VERB", "ADJECTIVE") and hcls in ("NOUN", "NAME", "PRONOUN"):
+            rel = "acl"
+        elif cls in ("VERB", "ADJECTIVE"):
+            rel = "xcomp" if kind == "arg" else "advcl"
+        else:
+            rel = "dep"
+        w["relation"] = rel
+    # Each term of the meaning at the words saying it, its marked words aside; each fact with its words.
+    term_words: Dict[str, List[int]] = {}
+    for term, anchors in taught.anchors:
+        for start, end, kind, marked in anchors:
+            inside = [k for k, w in enumerate(words) if start <= w["start"] and w["end"] <= end]
+            marked_low = {m.lower() for m in marked}
+            own = ([k for k in inside if words[k]["form"].lower() in marked_low] if kind == "marked" else
+                   [k for k in inside if words[k]["form"].lower() not in marked_low] or inside)
+            for k in own:
+                term_words.setdefault(term, [])
+                if k not in term_words[term]:
+                    term_words[term].append(k)
+    for f in taught.meaning.facts:
+        # A thing named by its kind's word: the kind's words say the thing (the PMB's lines name the kind).
+        if f.relation == "instance_of" and f.subject not in term_words and f.obj in term_words:
+            term_words[f.subject] = list(term_words[f.obj])
+    facts: List[RecordFact] = []
+    for f in taught.meaning.facts:
+        said: List[int] = []
+        for term in (f.subject, f.obj):
+            said.extend(term_words.get(term, ()))
+        ends = set(term_words.get(f.obj, ())) | set(term_words.get(f.subject, ()))
+        said.extend(k for k in range(n) if head[k] in ends and words[k]["class"] in ("PREPOSITION", "SUBORDINATOR")
+                    and f.relation != "instance_of")
+        if f.given:
+            said.extend(k for k in range(n) if head[k] in ends and words[k]["class"] == "DETERMINER")
+        if f.relation in _TIME_RELATIONS and f.obj == "?now":
+            said.extend(k for k in range(n) if head[k] in ends and words[k]["class"] == "AUXILIARY")
+        if not said and f.relation in ("has_property",) and f.obj in ("false",):
+            said.extend(k for k in range(n) if words[k]["lemma"] in ("not", "n't", "no", "never"))
+        facts.append(RecordFact(f.relation, f.subject, f.obj, f.positive, f.condition, f.alternative, f.unasserted,
+                                f.given, tuple(sorted(set(said)))))
+    record_words = tuple(RecordWord(k, w["form"], w["start"], w["end"], w["lemma"], w["class"], w["tag"],
+                                    w["features"], w["sense"], w["category"], w["semtag"], head[k], w["relation"],
+                                    w["roles"]) for k, w in enumerate(words))
+    terms = tuple((t, tuple(sorted(at))) for t, at in term_words.items()
+                  if any(t in (f.subject, f.obj) for f in taught.meaning.facts))
+    tree = derived.tree
+    return SentenceRecord(f"{derived.said_in}#{derived.part}", derived.text, taught.meaning.act, record_words,
+                          tuple(facts), terms, tree, tuple(names), tuple(taught.meaning.asked),
+                          "PMB 4.0.0 gold derivation, 5.1.0 gold meaning (both checked by hand)",
+                          "PMB annotations ODC-BY 1.0; attribute the PMB, Abzianidze et al. 2017", split)
+
+
 #: Where the word groups counted from WikiText-103 are kept on disk (data is not in the repository;
 #: `experiments/GROUPS-01` writes them): `groups_<n>.tsv`, a word and its group a line, a file for each count of groups.
 WORD_GROUPS_DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),

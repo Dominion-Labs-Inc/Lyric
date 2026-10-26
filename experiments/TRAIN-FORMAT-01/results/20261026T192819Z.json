@@ -1,0 +1,126 @@
+{
+  "experiment": "TRAIN-FORMAT-01",
+  "claim": "a sentence recorded whole, every layer by word position, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, it is read back as taught, and what it said is answered through the front door",
+  "hypothesis": "every check holds",
+  "started_at": "2026-10-26T19:28:19.636318+00:00",
+  "duration_seconds": 0.914,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "7deb1d0bf4772bde746740fc2fe4bbe8a5f41102",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev2",
+        "model": "lyric_dev2",
+        "user_context": "lyric_dev2",
+        "learning": "lyric_dev2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 8,
+    "database_verified": "lyric_dev2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 12,
+    "passed": 11,
+    "failed": 1,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is on lyric_dev2",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-26T19:28:19.636337+00:00"
+    },
+    {
+      "label": "the store is the one it says",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-26T19:28:20.527965+00:00"
+    },
+    {
+      "label": "every record is whole: every layer of every word, the derivation combining every word once, every term of the meaning said by a word of the sentence, every fact with the words saying it",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-26T19:28:20.528546+00:00"
+    },
+    {
+      "label": "each record written and read back is the same record",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-26T19:28:20.528781+00:00"
+    },
+    {
+      "label": "memory holds each taught record as one memory, the record as taught",
+      "passed": true,
+      "detail": "1 held",
+      "at": "2026-10-26T19:28:20.531662+00:00"
+    },
+    {
+      "label": "memory reads none of them as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-26T19:28:20.531673+00:00"
+    },
+    {
+      "label": "the structure reader holds each record's words, classes and what each is joined to",
+      "passed": true,
+      "detail": "1 analysed",
+      "at": "2026-10-26T19:28:20.531706+00:00"
+    },
+    {
+      "label": "each word's form is held a form of its base (\"fastened\" of fasten)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T19:28:20.531740+00:00"
+    },
+    {
+      "label": "English's grammar holds each record's derivation",
+      "passed": true,
+      "detail": "1",
+      "at": "2026-10-26T19:28:20.535409+00:00"
+    },
+    {
+      "label": "what each word takes beside the words around it is counted from the derivation",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-26T19:28:20.535422+00:00"
+    },
+    {
+      "label": "'Roy fastened the medal with a pin.' is read back as its taught meaning",
+      "passed": false,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, medal) & instance_of(?v0, fasten) & instance_of(?v2, pin) & precedes(?v0, ?now)",
+      "at": "2026-10-26T19:28:20.550176+00:00"
+    },
+    {
+      "label": "English's grammar learned from each record's meaning",
+      "passed": true,
+      "detail": "1 learned",
+      "at": "2026-10-26T19:28:20.550283+00:00"
+    }
+  ],
+  "notes": []
+}

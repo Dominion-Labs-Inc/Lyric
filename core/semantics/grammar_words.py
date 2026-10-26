@@ -510,6 +510,11 @@ class HeldWords(Words):
             if c not in held and self.lexeme(word, c) != w:
                 held[c] = 0.0
         if not counts:
+            if not held and self.closed.get(w):
+                # A WORD OF THE GRAMMAR'S OWN no sentence held is used as the grammar uses it, capitalised or not:
+                # "Who" opening "Who fastened the medal?" was a name, in a store taught one sentence that had no
+                # "who" (TRAIN-FORMAT-01, lyric_dev2, 2026-10-26).
+                return {c: 0.0 for c in self.closed[w]}
             if not held and word[:1].isupper():
                 # A capitalised word nothing holds is a name.
                 return {"NAME": 1.0}

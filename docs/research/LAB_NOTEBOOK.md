@@ -16,6 +16,53 @@ Conventions:
 
 ---
 
+## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
+
+**Objective (the owner's).** Lyric learns English from about ten sources, each written its own way, each part of
+reading from one, joined by conventions written by hand. Find exactly how the data must be structured for Lyric to
+learn, as a model is taught from one dataset format: in an instance of its own, one sentence first, finished and
+verified thoroughly, then 50 to 100.
+
+**The instance.** `lyric_dev2` (localhost:5433): `createdb`, lyric_dev's schema only (`pg_dump --schema-only`), 349
+tables, no rows. A start seeds 752 concepts and 1,140 relations of its own: "nothing taught" is that.
+
+**The format** (`teaching_sources.SentenceRecord`, `RecordWord`, `RecordFact`, `RecordSource`; JSON Lines): each word
+at its position with its characters, form, base, class, part of speech, form features, WordNet sense, category,
+semantic tag, head and relation (a treebank's), VerbNet roles; the derivation by word positions; names of several
+words; the act, the meaning's facts each with the words saying it (the preposition for its link, the determiner for a
+thing given), each term with the words saying it, what is asked; its source, licence, split. Checked whole
+(`problems`) before memory takes it; one that fails is refused and counted refused. Each part of reading is handed its
+layer (`analysed`, `derived`, `taught`, `forms`; the word classes and names, `MemoryAgent._learn_record_words`).
+
+**Built by conversion from the PMB's checked data, not by hand** (`record_of_pmb`, the one place the PMB's ways are
+put as Lyric's): "Roy fastened the medal with a pin." (`pmb/p24/d3535`): its structure as a treebank says it (nsubj,
+root, det, obj, case, det, obl, punct), its meaning the PMB's checked one, its derivation view the PMB's derivation.
+Found making it: the PMB's meaning and its alignment as Lyric held them number their unknowns apart, and the
+alignment points at a phrase's characters ("the medal with"), not its word.
+
+**Taught** (`teach.py --source records`, `learn_records`, `remember_records`: one memory, tag `sentence_record`, read
+by none as a claim; at each warm every layer to its reader). Each fault found was fixed in general:
+- the record held no belief to stand on (`claim()`): the pass stopped after the memory was kept;
+- a refused item was reported as none refused (`_learn_held` wrote `"refused": 0`);
+- read back, the medal was `medal`: what a word names was learned from no record (`name_of` now asks the records);
+- "Who fastened the medal?" was not read: a word of the grammar's own no sentence held, capitalised, was a name
+  (`HeldWords._uses_of`);
+- the conversation said it knew none of "fastened", "the", "medal": the word classes memory holds took nothing from a
+  record;
+- "What did Roy fasten?" was answered "Award decoration.", the thing's own name: a reading by the grammar held no
+  word the speaker called anything by (`derived_reader._said_by_words`, the open defect of `Conversation._told` and
+  `stated` since 10-21), and an answer's things are listed by their own names, never the speaker's words (the
+  conversation's protected module: staged until main's run ends).
+
+**Verified** (`experiments/TRAIN-FORMAT-01`, lyric_dev2): every store and reader check (15): one memory, the record
+as taught; the structure reader, the forms, the word classes, the names, the derivation, the counts, the meaning
+learned, "with" learned as `done_with`; read back exactly as taught. Through the front door: "Did Roy fasten the
+medal?" Yes; "Who fastened the medal?" Roy; "What did Roy fasten the medal with?" Pin; "Did Roy fasten the medal with
+a pin?" Yes; "What did Roy fasten?" Award decoration (fixed, staged). Tests: `tests/test_sentence_records.py` 6
+passed; grammar and derived reading 154 passed.
+
+**Held but read by nothing yet:** each word's WordNet sense and semantic tag, the verb's VerbNet roles.
+
 ## 2026-10-26 (55) — Which word takes which: the chart chose by the order it built; the structure view's joins now weigh it, prose joined 54.9% -> 68.0% right
 
 **Objective.** The owner, on (54): the bar is 95%, and nothing is called done before it is met; reading model-free is

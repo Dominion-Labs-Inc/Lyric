@@ -4146,8 +4146,13 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 await _ledger.record_many(get_database_manager(), updates)
         finally:
             _ledger.end_batch(batch)
+        # AN ITEM MEMORY REFUSED IS COUNTED REFUSED, and why said: a sentence recorded whole whose layers do not hold
+        # together (`MemoryAgent.remember_records`) was reported as nothing refused.
+        for item_id, why in held.get("refused") or ():
+            logger.warning("%s: %s refused: %s", what, item_id, "; ".join(why)[:500])
         return {"remembered": held["remembered"], "already": held["already"],
-                "corrected": held.get("corrected", 0), "refused": 0, "total": held["total"]}
+                "corrected": held.get("corrected", 0), "refused": len(held.get("refused") or ()),
+                "total": held["total"] + len(held.get("refused") or ())}
 
     async def learn_arguments(self, argued, *, provenance: Any = None, quality: float,
                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
@@ -4205,6 +4210,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         Returns counts: `remembered`, `already`, `refused`, `total`."""
         return await self._learn_held(derived, what="sentences derived by hand", remember="remember_derived",
                                       subject_kind="derived_sentence", provenance=provenance, quality=quality,
+                                      progress=progress)
+
+    async def learn_records(self, records, *, provenance: Any = None, quality: float,
+                            progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """Sentences recorded whole (`teaching_sources.SentenceRecord`: every layer of each sentence by word
+        position): each held by memory as one memory (`MemoryAgent.remember_records`), its standing a belief on that
+        memory, each layer learned by the part of reading that learns from it.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(records, what="sentences recorded whole", remember="remember_records",
+                                      subject_kind="sentence_record", provenance=provenance, quality=quality,
                                       progress=progress)
 
     #: How many things taught a review asks itself about, by default.
