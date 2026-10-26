@@ -8,7 +8,11 @@ The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-26)
 
-**START HERE: STEPS 1 AND 2 OF THE AGREED FIX ARE DONE (2026-10-26 (52)); STEP 3 IS NEXT.** Lyric's memory takes
+**START HERE: STEPS 1 TO 3 OF THE AGREED FIX ARE DONE (2026-10-26 (52), (53)); STEP 4 IS NEXT.** Step 3, as
+measured: links taken from the derivations' VerbNet roles were worse for prepositions (net -62 of 272), so a taught
+sentence whose derivation is held learns its verbs' places and prepositions' links from the derivation's structure,
+the link as its meaning says (`Grammar._learn_places_derived`): GRAMMAR-01 382 -> 385 (43.6%), F1 82.5%; taught read
+back 424. Main's next start learns again under it (no teaching run needed). Lyric's memory takes
 the PMB's checked derivations (`grammar.Derived`, `PMBDerivationSource`, `teach.py --source pmb-derivations`,
 `MemoryAgent.remember_derived`), and each word's category is chosen beside the words around it (`Lexicon.hear_derived`,
 `_in_context`, `_frame_evidence`). Measured: GRAMMAR-01 senses aside 366 -> 382 (43.2%), strict 184 -> 203, unnamed

@@ -444,15 +444,19 @@ def test_a_kind_memory_takes_in_is_known_at_once():
     assert gm.Words().hear_kind("Harvard", "instance_of", "university") is None
 
 
-def _derived(pairs: Sequence[Tuple[str, str]], tags: Sequence[str], tree=(), said_in: str = "") -> gm.Derived:
-    """A sentence derived by hand: its words with the categories the bank gives them, and their parts of speech."""
+def _derived(pairs: Sequence[Tuple[str, str]], tags: Sequence[str], tree=(), said_in: str = "",
+             text: str = "") -> gm.Derived:
+    """A sentence derived by hand: its words with the categories the bank gives them, and their parts of speech; its
+    text as written (its words with a space between them where none is given)."""
     words = tuple(w for w, _ in pairs)
+    text = text or " ".join(words)
     spans, at = [], 0
     for w in words:
-        spans.append((at, at + len(w)))
-        at += len(w) + 1
+        k = text.find(w, at)
+        spans.append((k, k + len(w)))
+        at = k + len(w)
     n = len(words)
-    return gm.Derived(" ".join(words), words, tuple(c for _, c in pairs), tuple(tags), tuple(w.lower() for w in words),
+    return gm.Derived(text, words, tuple(c for _, c in pairs), tuple(tags), tuple(w.lower() for w in words),
                       ("",) * n, ((),) * n, ("",) * n, tuple(spans), tree, said_in)
 
 
@@ -575,3 +579,38 @@ def test_memory_hands_the_sentences_it_holds_derived_to_the_grammar():
     view = agent.grammar_view()
     assert view.grammar.lexicon.derived["uses"]["barked"] == {"VERB": 1}
     assert view.learn_waiting() == 1, "learned under the rules before the derivations: learned again"
+
+
+def test_a_verbs_places_are_learned_from_the_sentence_as_derived():
+    """Where a taught sentence's derivation by hand is held (the same document), what fills each of a verb's places is
+    as the derivation says, the link as the meaning says (`Grammar._learn_places_derived`), and the reading's own
+    places for that verb are not counted again; learned without it, from the reading, as before."""
+    from core.semantics.composition import TaughtSentence
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    meaning = Meaning("tell", (F("instance_of", "?v0", "chase"), F("done_by", "?v0", "tom"),
+                               F("done_to", "?v0", "?v1"), F("instance_of", "?v1", "cat", given=True),
+                               F("precedes", "?v0", "?now")))
+    taught = TaughtSentence("Tom chased the cat.", meaning, "pmb/p00/d0001",
+                            (("?v0", ((4, 10, "head", ()),)), ("?v1", ((15, 18, "head", ()),)),
+                             ("tom", ((0, 3, "head", ()),))))
+    derived = _derived([("Tom", "n"), ("chased", "(s:dcl\\np)/np"), ("the", "np/n"), ("cat", "n"), (".", ".")],
+                       ["NNP", "VBD", "DT", "NN", "."],
+                       ("rp", "s:dcl", ("ba", "s:dcl", ("lx", "np", "n", 0), ("fa", "s:dcl\\np", 1, ("fa", "np", 2, 3))),
+                        4), "pmb/p00/d0001", "Tom chased the cat.")
+    view = gm.GrammarView(Held())
+    view.hold_derived(derived)
+    view.hold(taught)
+    view.learn_waiting()
+    roles = [c for c in view._counted[taught.key()] if c[0] == "role"]
+    assert sorted(roles) == [("role", ("chase", "object"), "done_to"), ("role", ("chase", "subject"), "done_by")]
+    tokens = gm.tokens_of(taught.sentence, view.words)
+    counted = []
+    placed = view.grammar._learn_places_derived(tokens, meaning, gm.align_by_anchors(tokens, taught.sentence,
+                                                                                    taught.anchors),
+                                                [derived], taught.sentence, counted)
+    assert placed == {1} and sorted(counted) == roles, "the derivation placed the verb's places"
+    view.grammar.unlearn(counted)
+    alone = gm.GrammarView(Held())
+    alone.hold(taught)
+    alone.learn_waiting()
+    assert sorted(c for c in alone._counted[taught.key()] if c[0] == "role") == sorted(roles)

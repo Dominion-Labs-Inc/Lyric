@@ -563,6 +563,71 @@ def _beside(tokens: Sequence[str], k: int) -> str:
     return str(tokens[k]).lower() if k < len(tokens) else SENTENCE_END
 
 
+def _taken_in(derived: Derived) -> Tuple[Dict[int, List[int]], Set[int]]:
+    """WHAT EACH WORD OF A DERIVATION TOOK, in the order it took it: for each word heading a function applied to what
+    it takes (`fa`, `ba`), the word heading each thing taken ("chased" took "cat", then "dog"; "in" took "park", then
+    the doing it tells of). A phrase is headed by its function's word, or, where the function only tells of what it
+    takes (a determiner, an adjective, an adverb, "is" before a doing: `X/X`, `NP/N`, as the grammar says them:
+    `_without_taken`), by what it takes; things joined by "and" by no word. And the words whose phrases were composed (`fc`, `bxc`, ...), whose places a count of what they took does not give."""
+    took: Dict[int, List[int]] = defaultdict(list)
+    composed: Set[int] = set()
+
+    def category(node: Any) -> str:
+        return derived.categories[node] if isinstance(node, int) else node[1]
+
+    def walk(node: Any) -> Optional[int]:
+        if isinstance(node, int):
+            return node
+        if not node:
+            return None
+        kids = [k for k in node[2:] if not isinstance(k, str)]
+        heads = [walk(k) for k in kids]
+        rule = node[0]
+        if len(kids) == 1:
+            return heads[0]
+        if rule == "rp":
+            return heads[0]
+        if rule == "lp":
+            return heads[1]
+        if rule == "conj" or any(isinstance(k, tuple) and k and k[0] == "conj" for k in kids):
+            # Things joined by "and" are no one word's: a place one fills is not counted.
+            return None
+        f, a = (0, 1) if rule in ("fa", "fc", "fxc", "gfc") else (1, 0)
+        try:
+            functor = _without_taken(bank_category(category(kids[f])))
+        except (ValueError, IndexError):
+            return heads[f]
+        if rule in ("fa", "ba"):
+            if heads[f] is not None and heads[a] is not None:
+                took[heads[f]].append(heads[a])
+        else:
+            composed.update(h for h in heads if h is not None)
+        if isinstance(functor, Fn) and (_same_shape(functor.res, functor.arg) or (
+                isinstance(functor.res, Atom) and functor.res.base == "NP" and isinstance(functor.arg, Atom)
+                and functor.arg.base == "N")):
+            return heads[a]
+        return heads[f]
+    walk(derived.tree)
+    return took, composed
+
+
+def _offsets(text: str, tokens: Sequence[str]) -> List[Optional[Tuple[int, int]]]:
+    """Where each of a sentence's words is in its text, in order; None for one not found."""
+    out: List[Optional[Tuple[int, int]]] = []
+    at = 0
+    for t in tokens:
+        w = str(t)
+        k = text.find(w, at)
+        if k < 0:
+            k = text.lower().find(w.lower(), at)
+        if k < 0:
+            out.append(None)
+            continue
+        out.append((k, k + len(w)))
+        at = k + len(w)
+    return out
+
+
 def _taking_a_pp(derived: Derived) -> Dict[int, Tuple[str, Optional[int]]]:
     """For each word of a derivation heading a preposition's phrase (`pp/np`), what takes the phrase: its category,
     and its word where one word takes it (None where words combined take it)."""
@@ -1879,11 +1944,18 @@ class Grammar:
 
     # ── learning from sentences taught with their meanings ──
     def learn(self, tokens: Sequence[str], meaning: Meaning, words: Mapping[str, Sequence[int]],
-              counted: Optional[List[Tuple[str, Tuple, str]]] = None) -> bool:
+              counted: Optional[List[Tuple[str, Tuple, str]]] = None, derived: Sequence[Derived] = (),
+              text: str = "") -> bool:
         """Learn from a sentence taught with its meaning, its terms aligned to its words (`words`: term -> the
         words saying it): read it by the grammar, and for each place a verb, a preposition, a possessive, an adverb
         or "is" holds, the link the meaning says between the two words' terms. Returns whether it was read; each
-        count made is added to `counted` (table, key, link), so it can be taken back (`unlearn`)."""
+        count made is added to `counted` (table, key, link), so it can be taken back (`unlearn`).
+
+        WHERE THE SENTENCE'S DERIVATION BY HAND IS HELD (`derived`, its `text`), a verb's places and a preposition's
+        links are learned from it, read or not (`_learn_places_derived`): which word fills which place, what each
+        preposition tells of and what it takes, as the derivation says, the link as the meaning says. Learned from
+        the reading the grammar's word counts preferred, they were labelled whatever that reading joined: "studying
+        English" read with English what the studying was done to, where the meaning says what it is about."""
         tokens = tuple(tokens)
         # WHAT A HAPPENING WAS DURING IS A TIME (`Lexicon.time_of`), from the meaning alone, read or not: "The dog
         # barked yesterday.", "The cat ran at night.", "Tom walked in the morning." (a morning, by its kind). Not a
@@ -1899,6 +1971,7 @@ class Grammar:
                     self.lexicon.learned["time"][(str(name).lower(),)]["during"] += 1
                     if counted is not None:
                         counted.append(("time", (str(name).lower(),), "during"))
+        placed = self._learn_places_derived(tokens, meaning, words, derived, text, counted) if derived else set()
         cells = self.chart(tokens)
         whole = [s for s in cells.get((0, len(tokens)), {}).values() if _whole(s.cat) is not None]
         if not whole:
@@ -1917,6 +1990,8 @@ class Grammar:
             between[(f.subject, f.obj)].append(f.relation)
         pieces = best.pieces
         word_of = _words_of_terms(pieces)
+        #: Where each word read ends: a preposition of several words ("away from") is placed where any of its words is.
+        ends = {p[3]: p[4] for p in pieces if p[0] == "word"}
         holders: Dict[Term, Term] = {p[3]: p[1] for p in pieces if p[0] == "quality"}
         holders.update({p[3]: p[1] for p in pieces if p[0] == "be"})
         timed = {p[1] for p in pieces if p[0] == "past"}
@@ -1978,6 +2053,11 @@ class Grammar:
                             if not r.startswith("~") and r != "same":
                                 count("verb", (lemma,), (one, other, r))
         for p in pieces:
+            if (p[0] == "role" and p[1] in kinds_of and kinds_of[p[1]][-1] in placed) or (
+                    p[0] == "prep" and p[1] not in holders
+                    and placed.intersection(range(p[-1], ends.get(p[-1], p[-1] + 1)))):
+                # This verb's places, this preposition's link: learned from the derivation (`_learn_places_derived`).
+                continue
             if p[0] == "role":
                 _, e, x, slot, *_ = p
                 got = said(e, x)
@@ -2044,6 +2124,167 @@ class Grammar:
                 count("adv", (name,), got[0] if got else "")
         return True
 
+
+    def _learn_places_derived(self, tokens: Sequence[str], meaning: Meaning, words: Mapping[str, Sequence[int]],
+                              derived: Sequence[Derived], text: str,
+                              counted: Optional[List[Tuple[str, Tuple, str]]]) -> Set[int]:
+        """A VERB'S PLACES AND A PREPOSITION'S LINKS, FROM THE SENTENCE AS IT WAS DERIVED BY HAND, each link as its
+        taught meaning says it: for each verb (named so, `Lexicon.uses_derived`), the word it took for each of its
+        places (`_taken_in`), the place as the grammar's entry for the verb's category names it (subject, object,
+        second, passive), counted as `learn` counts a reading's (`role`); for each preposition telling of a doing or a
+        thing, what it tells of and what it takes (`prep`, `prep_to`, `prep_of`). A verb whose phrase the derivation
+        composed, or one taking things joined by "and", is not counted. Returns the words, by their place among
+        `tokens`, whose places and links were counted: the reading learns the rest."""
+        lexicon, held_words = self.lexicon, self.lexicon.words
+        spans = _offsets(text, tokens)
+        term_of: Dict[int, str] = {}
+        for t, ws in words.items():
+            for w in ws:
+                term_of.setdefault(w, t)
+        held_terms = {t for f in meaning.facts for t in f.terms()}
+        kinds_said = {f.subject: f.obj for f in meaning.facts if f.relation == "instance_of"}
+        between: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+        for f in meaning.facts:
+            between[(f.subject, f.obj)].append(f.relation)
+
+        def count(table: str, key: Tuple, link: str) -> None:
+            lexicon.learned[table][key][link] += 1
+            if counted is not None:
+                counted.append((table, key, link))
+        placed: Set[int] = set()
+        for d in derived:
+            start = text.find(d.text)
+            if start < 0:
+                continue
+            named = lexicon.uses_derived(d)
+
+            def token(k: int) -> Optional[int]:
+                a, b = d.spans[k]
+                return next((i for i, sp in enumerate(spans) if sp and start + a <= sp[0] and sp[1] <= start + b),
+                            None)
+            took, composed = _taken_in(d)
+            taker = {w: h for h, ws in took.items() for w in ws}
+
+            def term(k: int) -> Optional[str]:
+                """The meaning's term the derivation's word says: by where it is, or a name the meaning holds as
+                written."""
+                a, b = d.spans[k]
+                for i, sp in enumerate(spans):
+                    if sp and start + a <= sp[0] and sp[1] <= start + b and i in term_of:
+                        return term_of[i]
+                name = d.words[k].replace("~", " ").lower()
+                return name if name in held_terms else None
+
+            def said(a: Optional[str], b: Optional[str]) -> Optional[str]:
+                if a is None or b is None:
+                    return None
+                if a == b:
+                    return "same"
+                got = between.get((a, b), []) + ["~" + r for r in between.get((b, a), [])]
+                return got[0] if got else ""
+
+            def name_of(k: int) -> str:
+                use = named[k][0] if named[k] else ""
+                cls = "VERB" if use == "VERB" else "NOUN" if use.startswith("NOUN") else ""
+                return held_words.name(d.words[k], cls) if cls else d.words[k].replace("~", " ").lower()
+
+            def what_is(k: int, t: Optional[str]) -> List[str]:
+                """As `_what_is` says it of a reading's term."""
+                use = named[k][0] if named[k] else ""
+                if use.startswith("NOUN"):
+                    name = name_of(k)
+                    return [name] + held_words.kinds(name, "NOUN")
+                if t in ("?speaker", "?listener"):
+                    return ["person"]
+                if use == "pron":
+                    return ["person"] if _pronoun_kind(d.words[k]) == "person" else []
+                if t is None or is_variable(t) or _number(t) is not None:
+                    return []
+                return held_words.kinds(t, "NOUN") + [NAMED]
+            for k, got in enumerate(named):
+                if not got:
+                    continue
+                use, frame = got
+                if use == "VERB" and k not in composed and token(k) is not None:
+                    if self._places_derived(d, k, frame, took.get(k, []), term, said, name_of, count):
+                        placed.add(token(k))
+                elif use in ("PREPOSITION", "PREPOSITION:thing"):
+                    what = took.get(k, [])
+                    if not what:
+                        continue
+                    # What it takes, then what it tells of; a phrase a word takes ("gave it to Mary", "my uncle in
+                    # Paris") tells of the word that took it.
+                    thing = what[0]
+                    head = what[1] if len(what) > 1 else taker.get(k)
+                    if head is None or not named[head]:
+                        continue
+                    link = said(term(head), term(thing))
+                    if link is None:
+                        continue
+                    kind = "event" if named[head][0] == "VERB" else "thing"
+                    t = term(thing)
+                    time = lexicon.time_of(t) or lexicon.time_of(
+                        kinds_said.get(t) if t is not None and is_variable(t) else name_of(thing)) or "-"
+                    word = d.words[k].lower()
+                    count("prep", (word, kind, time), link)
+                    for kind_of in what_is(thing, t):
+                        count("prep_to", (word, kind, kind_of), link)
+                    if named[head][0] == "VERB" or named[head][0].startswith("NOUN"):
+                        count("prep_of", (name_of(head), word, time), link)
+                    if token(k) is not None:
+                        placed.add(token(k))
+        return placed
+
+    def _places_derived(self, d: Derived, k: int, frame: str, took: Sequence[int], term, said, name_of, count) -> bool:
+        """A verb's places as the derivation fills them (`_learn_places_derived`): what it took, in order, beside
+        what its category takes, a preposition's phrase and a particle aside, each the place the grammar's entry for
+        its category names. Returns whether they were counted."""
+        lexicon = self.lexicon
+        try:
+            category = bank_category(d.categories[k])
+        except (ValueError, IndexError):
+            return False
+        taken: List[Cat] = []
+        c = category
+        while isinstance(c, Fn):
+            taken.append(c.arg)
+            c = c.res
+        if len(taken) != len(took):
+            return False
+        fillers = [w for a, w in zip(taken, took) if not (isinstance(a, Atom) and a.base in ("PP", "PR"))]
+        said_so = _without_taken(_there(category))
+        template = None
+        for way in [said_so] + [w for w in [_clause_taken(said_so)] if w is not None]:
+            template = next((t for form, frames in lexicon.verb_templates.items() if form != "frames"
+                             for fr, ts in frames.items() if fr == frame for t in ts
+                             if _alike(way, lexicon._category(t["cat"]))), None)
+            if template is not None:
+                break
+        if template is None:
+            return False
+        slots = {p[2]: p[3] for p in template.get("sem", ()) if p[0] == "role"}
+        refs: List[Optional[str]] = []
+        c = lexicon._category(template["cat"])
+        while isinstance(c, Fn):
+            arg = c.arg
+            while isinstance(arg, Fn):
+                arg = arg.res
+            refs.append(arg.ref)
+            c = c.res
+        if len(refs) != len(fillers):
+            return False
+        verb = name_of(k)
+        particle = next((w for a, w in zip(taken, took) if isinstance(a, Atom) and a.base == "PR"), None)
+        if particle is not None:
+            # A verb and its particle are one verb, named as memory knows them together ("stepped out": step out).
+            verb = lexicon.words.known_verb([verb, d.words[particle].lower()]) or verb
+        e = term(k)
+        for ref, filler in zip(refs, fillers):
+            slot = slots.get(ref)
+            link = said(e, term(filler))
+            if slot and link is not None:
+                count("role", (verb, slot), link)
+        return True
 
     def unlearn(self, counted: Iterable[Tuple[str, Tuple, str]]) -> None:
         """Take back counts `learn` made (a sentence taught again corrected)."""
@@ -2847,6 +3088,8 @@ class GrammarView:
         #: The sentences derived by hand held (`hold_derived`), by their keys, and the rules learning is kept under
         #: with them (`rules`).
         self._derived: Set[str] = set()
+        #: Each document's sentences derived by hand, its taught sentence's places learned from them (`Grammar.learn`).
+        self._derived_by_document: Dict[str, List[Derived]] = defaultdict(list)
         self._rules: Optional[str] = None
         self.learned_from = 0
         self.read_whole = 0
@@ -2876,6 +3119,7 @@ class GrammarView:
         if key in self._derived:
             return
         self._derived.add(key)
+        self._derived_by_document[derived.said_in].append(derived)
         self._rules = None
         self.grammar.lexicon.hear_derived(derived)
 
@@ -2885,6 +3129,8 @@ class GrammarView:
         if key not in self._derived:
             return
         self._derived.discard(key)
+        self._derived_by_document[derived.said_in] = [d for d in self._derived_by_document[derived.said_in]
+                                                      if d.key() != key]
         self._rules = None
         self.grammar.lexicon.hear_derived(derived, times=-1)
 
@@ -2949,7 +3195,9 @@ class GrammarView:
         aligned = (align_by_anchors(tokens, taught.sentence, taught.anchors) if taught.anchors else
                    align_by_names(tokens, taught.meaning, self.grammar.lexicon))
         counted: List[Tuple[str, Tuple, str]] = []
-        self.read_whole += self.grammar.learn(tokens, taught.meaning, aligned, counted)
+        derived = sorted(self._derived_by_document.get(taught.said_in, ()), key=lambda d: d.part) \
+            if taught.said_in else ()
+        self.read_whole += self.grammar.learn(tokens, taught.meaning, aligned, counted, derived, taught.sentence)
         self._counted[taught.key()] = counted
         self._unkept[taught.key()] = counted
         self.learned_from += 1

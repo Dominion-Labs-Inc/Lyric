@@ -16,6 +16,47 @@ Conventions:
 
 ---
 
+## 2026-10-26 (53) — Step 3: a verb's places and a preposition's links learned from the sentence as derived, the link as its meaning says
+
+**Objective.** Step 3 of the agreed fix: links and roles from the derivations, in place of labelling the reading the
+grammar's word counts preferred.
+
+**Measured first** (scratch, files only, GRAMMAR-01's dev readings): taking each link from the derivations' VerbNet
+roles, by the rules the PMB's meanings are said with (`pmb_meanings`: Agent `done_by`, Theme `done_to` or `done_by`
+with no doer, a preposition by `HAPPENING_ROLES`/`THING_ROLES`), most said per verb's place and per preposition:
+verbs' places 847 of 1,006 right now, +20 -7 (net +13); prepositions 183 of 272, +9 -71 (net -62); after a quality,
++0. A preposition's role turns on its thing ("in 1804" a time, "in" mostly a Location); and release 4.0.0's roles and
+5.1.0's meanings, which the dev split is scored by, disagree in places (passive subjects `done_by`, "quarrel with" a
+Co-Agent where the meaning says `done_with`). Not built as written.
+
+**Built instead** (the owner left the choice to me): where a taught sentence's derivation is held (the same document),
+which word fills each of a verb's places and what each preposition tells of and takes come from the derivation, the
+link from the taught meaning (`Grammar._learn_places_derived`, `_places_derived`; `GrammarView` hands each document's
+derivations to its taught sentence). `_taken_in`: what each word took, in order, by application (`fa`, `ba`); a
+phrase headed by its function's word, or by what it takes where the function only tells of it (a determiner, an
+adjective, "is" before a doing, as the grammar says them); things joined by "and" by no word; composed phrases not
+counted. A verb's places are those of the grammar's entry for its category (subject, object, second, passive), a
+particle verb named as memory knows it together; a preposition's thing and what it tells of, counted in `prep`,
+`prep_to`, `prep_of` as a reading's are. The reading's own places are skipped only for the verbs and prepositions the
+derivation placed; everything else is learned from the reading as before.
+
+**Result.** GRAMMAR-01 `20261026T125030Z`: senses aside 382 -> 385 (43.6%), unnamed 482 -> 486, strict 203 = 203,
+facts F1 82.4% -> 82.5%; links decided by the word's own uses held 81.7% -> 82.1%. Taught sentences read back 424 =
+424. Spot check of 400 taught sentences: the two ways agree on 340; where they differ the derivation's is mostly the
+right one ("gave me ... handkerchiefs" `done_to`, "the hotel at which we stayed" no object `located_in`). **Verdict:**
+rises, small; kept. What a sentence's links get wrong is mostly not how a place was labelled.
+
+**Errors found, with causes.** "My uncle lives ..." took "my" as the doer: the bank's "my" before a relational noun
+(`np/(n/pp)`) was no determiner to the head rule until put as the grammar says it; "Tom and Mary are honeymooning"
+gave the place to "Tom": things joined by "and" now head nothing. A sentence learned from its derivation first dropped
+all of its reading's places, and "There is one apple on the desk." lost its "on"; then a preposition the grammar reads
+as several words ("away from") was counted twice. A test passed without the derivation's path running (its derived
+text "Tom chased the cat ." was not the sentence's); it now asserts the derivation placed the verb.
+
+**Verified.** `tests/test_grammar.py` 30 passed (1 new: a verb's places learned from the sentence as derived, the
+reading's not counted again). Main needs no teaching run: it holds the derivations, and its next start learns the
+taught sentences again under the changed grammar (`ready_to_read`).
+
 ## 2026-10-26 (52) — The checked derivations taught as memory, and each word's category chosen beside the words around it (the agreed fix, steps 1 and 2)
 
 **Objective.** Steps 1 and 2 of the fix agreed in (51): the PMB's checked CCG derivations taught into memory as the

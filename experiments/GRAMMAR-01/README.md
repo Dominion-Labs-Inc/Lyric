@@ -81,6 +81,7 @@ not read right senses aside (`_missed.json`).
 | `20261025T173519Z` | 860 / 856 | 20.8% | 41.4% | 52.7% | 81.9% | 1,344 (82.9%) / 148 (56.8%) / 173 (43.9%) |
 | `20261026T043416Z` | 865 / 860 | 23.1% | 42.8% | 54.1% | 82.4% | 1,400 (81.4%) / 162 (57.4%) / 162 (42.6%) |
 | `20261026T044408Z` | 865 / 860 | 23.0% | 43.2% | 54.5% | 82.4% | 1,396 (81.7%) / 163 (57.1%) / 162 (43.2%) |
+| `20261026T125030Z` | 865 / 860 | 23.0% | 43.6% | 55.0% | 82.5% | 1,391 (82.1%) / 164 (57.3%) / 167 (41.9%) |
 
 From `20261026T043416Z` each word's category is chosen beside the words around it, as the PMB's checked CCG derivations
 say (`Lexicon.hear_derived`, `_in_context`, `_frame_evidence`; lab notebook 2026-10-26 (52)): each derivation word
@@ -89,7 +90,9 @@ and by the word before and after it; a verb's frame by the word after it. `20261
 share of the word's ways, and a clause taken with no "that" named as the grammar's clause. Of the dev words, the
 reading now uses the derivation's way for 90.3% (each word's evidence alone 92.7%, out of context 78.3%), its frame
 for 93.7% of verbs; the derivation's category, compared strictly, 66.7% from 64.0%. The grammar reads back 424 of
-1,000 taught sentences, from 414 (`diagnostics/taught_fit.py`).
+1,000 taught sentences, from 414 (`diagnostics/taught_fit.py`). From `20261026T125030Z` a taught sentence whose derivation is held
+learns its verbs' places and its prepositions' links from the derivation's structure, each link as its meaning says
+(`Grammar._learn_places_derived`; lab notebook 2026-10-26 (53)).
 
 From `20261025T173519Z` a preposition's link is decided by what its thing is where no sentence taught it of the very
 doing or thing it is said of (`Lexicon.selected`, `prep_to`: "Vance worked with Hooper." with a person, "Tom taught at
