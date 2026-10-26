@@ -103,8 +103,14 @@ derivations to the grammar under the rules learning is kept by), `tests/test_pmb
 beliefs, nothing else in memory changed (28 minutes, 21 of them the stall above); after the fix, `--small 100` kept
 the 50 new ones (50 held already), 50 beliefs, nothing else, the grammar learned again once after the warm (01:20:47)
 and the review took 7 s: 11 minutes in all, its log 0 tracebacks, 0 errors, the warnings those of every start. The
-pass keeps a derivation in about 0.6 s: all 8,679, about an hour and a half on a store as main is. Main holds none:
-teaching it is the owner's run.
+pass kept a derivation in about 0.6 s there. On main, the owner's run (`teach.py --source pmb-derivations`,
+07:52-08:12, `lyric_db`): 8,679 remembered, +8,679 beliefs, concepts, relations, words and domains unchanged; the start
+learned the 9,874 taught sentences again under the changed grammar (369 s) and, after the warm, under the derivations
+(285 s), each kept with its sentence; the pass 351 s, about 0.04 s a derivation (my estimate of an hour and a half took
+lyric_dev's 50-sentence passes, mostly fixed cost, as the rate); log 0 tracebacks, 0 errors. Its review asked nothing:
+main holds nothing learned in `general`. Main warns that 11 construction memories cannot be read back
+(`taught_patterns`: a memory's key not matching what it holds; its starts on 10-20 did not warn), before any
+derivation was taught: not from this change, not traced.
 
 ## 2026-10-26 (51) — Why the grammar reads badly, found: it reads its taught sentences no better than unseen ones, and its choices come from word counts teaching never changes
 

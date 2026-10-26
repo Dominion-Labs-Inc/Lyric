@@ -14,12 +14,12 @@ the PMB's checked derivations (`grammar.Derived`, `PMBDerivationSource`, `teach.
 `_in_context`, `_frame_evidence`). Measured: GRAMMAR-01 senses aside 366 -> 382 (43.2%), strict 184 -> 203, unnamed
 466 -> 482, F1 81.9 -> 82.4; taught read back 414 -> 424; in the chosen readings the derivation's way for 90.3% of dev
 words and its frame for 93.7% of verbs. A sentence still fails mostly on links (step 3), words of several (step 4)
-and categories with no meaning (step 5). lyric_dev holds the first 100 derivations (small batches, clean); main holds
-none: teaching main all 8,679 is the owner's run to start:
-`PYTHONPATH="$PWD" POSTGRES_PORT=5433 POSTGRES_USER=stefan LYRIC_NO_WATCHDOG=1 ./venv_lyric/bin/python3 scripts/teach.py --source pmb-derivations`
-(about an hour and a half: the start relearns the taught sentences under the changed grammar, about 5 minutes;
-each derivation is kept in about 0.6 s; the grammar learns once more before the review, `ready_to_read`; lyric_dev's
-`--small 100` took 11 minutes, its log clean). Found, not fixed:
+and categories with no meaning (step 5). MAIN HOLDS ALL 8,679 (taught 2026-10-26 08:01-08:08 by the owner,
+`teach.py --source pmb-derivations`, session `docs/teaching_sessions/20261026T121255Z_pmb-derivations.md`: 8,679
+remembered, +8,679 beliefs, nothing else changed; the grammar learned again under them and kept it, so a start reads
+it kept; log 0 tracebacks, 0 errors); lyric_dev holds the first 100. Main warns at every warm that 11 construction
+memories cannot be read back (`taught_patterns`: kept under an older definition of a construction; not from this
+change, not fixed). Found, not fixed:
 `profile_performance` runs every `store_memory` under `tracemalloc`, so a memory read as a claim is read through the
 grammar several times slower.
 
