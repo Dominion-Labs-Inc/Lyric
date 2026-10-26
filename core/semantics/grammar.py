@@ -697,7 +697,40 @@ class Lexicon:
         #: verb's), `frames before` (the word after a verb -> the verb's frames).
         self.derived: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         self._categories: Dict[str, Cat] = {}
+        #: WHICH SENSE OF A VERB A SENTENCE MEANS (`sense_of`): each verb's senses by the name its word is read under
+        #: (verb name -> sense -> how often used), and what each was seen used with (verb name -> sense -> (slot, the
+        #: thing) -> how often), from words and sentences recorded whole (`GrammarView.hold_word`, `hold_use`).
+        self.sense_used: Dict[str, Counter] = defaultdict(Counter)
+        self.sense_seen: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         self._taking_pps: Optional[List[Cat]] = None
+
+    def sense_of(self, name: str, fillers: Mapping[str, str]) -> str:
+        """THE SENSE OF A VERB A SENTENCE MEANS, by what fills its places (`fillers`: slot -> the thing's name): each
+        sense weighed by how often it is used, and, for each place filled, by how many of the things it was seen used
+        with there are of the most specific kind the filler shares with any of them ("the wall", a structure, as the
+        porch `coat paint` was seen done to; class-based, as Resnik 1993 weighs a verb's selection). The name the
+        word is read under where it has no senses apart, or nothing it was seen with is of any kind the filler is."""
+        used = self.sense_used.get(name)
+        if not used or len(used) < 2:
+            return name
+        senses = list(used)
+        total = sum(used.values())
+        score = {c: math.log((used[c] + 0.5) / (total + 0.5 * len(senses))) for c in senses}
+        for slot, filler in fillers.items():
+            if not filler:
+                continue
+            levels = [filler] + list(self.words.kinds(filler, "NOUN"))
+            seen = {c: [(f, n) for (sl, f), n in self.sense_seen.get(name, {}).get(c, {}).items() if sl == slot]
+                    for c in senses}
+            kinds_of = {f: {f} | set(self.words.kinds(f, "NOUN")) for c in senses for f, _ in seen[c]}
+            for level in levels:
+                counts = {c: sum(n for f, n in seen[c] if level in kinds_of[f]) for c in senses}
+                if any(counts.values()):
+                    every = sum(counts.values())
+                    for c in senses:
+                        score[c] += math.log((counts[c] + 0.5) / (every + 0.5 * len(senses)))
+                    break
+        return max(senses, key=lambda c: (score[c], used[c]))
 
     # ── what each word may be ──
     def entries(self, tokens: Sequence[str], i: int) -> List[Tuple[int, Entry]]:
@@ -2692,7 +2725,14 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         if e in alone_able:
             add("capable_of", able[e], p[2], positive=e not in denied, at=at)
             continue
-        add("instance_of", e, p[2], at=at)
+        filled = {q[3]: (kinds[q[2]][2] if q[2] in kinds else q[2] if isinstance(q[2], str) else "")
+                  for q in pieces if q[0] == "role" and q[1] == e and q[3] in ("subject", "object", "passive")}
+        if "passive" in filled:
+            filled["object"] = filled.pop("passive")
+        meant = lexicon.sense_of(p[2], filled)
+        if meant != p[2]:
+            decided.append(("sense", p[2], "seen", None))
+        add("instance_of", e, meant, at=at)
         if e in able:
             add("has_property", e, "allowed", at=at)
         if e in may:
@@ -3209,6 +3249,15 @@ class GrammarView:
         self._count_word(word, 1)
         self._rules = None
 
+    def hold_use(self, word: str, sense: str, slot: str, filler: str, times: int = 1) -> None:
+        """A SENSE OF A VERB SEEN USED, in a sentence recorded whole: the verb's word, the sense its meaning names, the
+        place (subject, object) and the thing in it ("fastened" `fasten`, the object `award decoration`)."""
+        lexicon = self.grammar.lexicon
+        name = lexicon.words.name(word, "VERB")
+        lexicon.sense_seen[name][sense][(slot, filler)] += times
+        if lexicon.sense_seen[name][sense][(slot, filler)] <= 0:
+            del lexicon.sense_seen[name][sense][(slot, filler)]
+
     def drop_word(self, word: Any) -> None:
         """A word recorded whole, taken back."""
         key = word.key()
@@ -3250,6 +3299,16 @@ class GrammarView:
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")
+        # EACH VERB SENSE, how often it is used and what it was seen used with (SemCor), each thing's kinds known.
+        for sense in word.senses:
+            if sense.word_class != "VERB":
+                continue
+            lexicon.sense_used[name][sense.concept] += times * (sense.used + 1)
+            for slot, _, kinds, n in getattr(sense, "seen_with", ()):
+                lexicon.sense_seen[name][sense.concept][(slot, kinds[0])] += times * n
+                if knowledge is not None and hasattr(knowledge, "discard"):
+                    for kind in kinds[1:]:
+                        (knowledge.add if times > 0 else knowledge.discard)(kinds[0], "isa", kind)
         frames = getattr(words, "verb_frames", None)
         if frames is not None:
             for frame, n in word.frames().items():

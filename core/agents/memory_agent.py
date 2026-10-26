@@ -185,6 +185,8 @@ class MemoryAgent(IMemoryConsolidation):
         self._record_names: Dict[Tuple[str, str], Counter] = {}
         #: The words held recorded whole (`teaching_sources.WordRecord`), for English's grammar (`grammar_view`).
         self._grammar_words: List[Any] = []
+        #: The sentences held recorded whole, for which sense each verb was used in (`grammar_view`, `hold_use`).
+        self._grammar_records: List[Any] = []
         #: Each taught sentence's memory, what the grammar learned from it, and the rules it was learned under
         #: (`GrammarView.rules`; None: not learned from yet), by the sentence's key (`_composition_memories`,
         #: `keep_grammar_learning`).
@@ -2949,7 +2951,7 @@ class MemoryAgent(IMemoryConsolidation):
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
         # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
-        self._record_names, self._grammar_words = {}, []
+        self._record_names, self._grammar_words, self._grammar_records = {}, [], []
         for row, word in await self._word_record_memories():
             await give_way()
             self._learn_word_record(word, index, forms)
@@ -2958,6 +2960,7 @@ class MemoryAgent(IMemoryConsolidation):
         for row, record in await self._record_memories():
             await give_way()
             self._learn_record_words(record, index)
+            self._grammar_records.append(record)
             structure.add(record.analysed())
             for item in record.forms():
                 forms.hold(item)
@@ -6956,6 +6959,10 @@ class MemoryAgent(IMemoryConsolidation):
     def _hold_record(self, view, record) -> None:
         """A sentence recorded whole, each layer handed to the part of reading that learns from it."""
         self._learn_record_words(record, self._word_class_index)
+        self._grammar_records.append(record)
+        if self._grammar_view is not None:
+            for use in record.verb_uses():
+                self._grammar_view.hold_use(*use)
         self.structure_view().add(record.analysed())
         for item in record.forms():
             self.word_forms().hold(item)
@@ -7097,6 +7104,9 @@ class MemoryAgent(IMemoryConsolidation):
                                          recorded=self.recorded_name), structure=self._structure_view)
             for word in self._grammar_words:
                 view.hold_word(word)
+            for record in self._grammar_records:
+                for use in record.verb_uses():
+                    view.hold_use(*use)
             for derived in self._grammar_derived:
                 view.hold_derived(derived)
             for taught in self._grammar_taught:

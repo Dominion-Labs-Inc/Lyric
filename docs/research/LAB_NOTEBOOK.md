@@ -68,7 +68,14 @@ argument it opens (`done_for` 283, `has_purpose` 199). Every word's uses counted
 "paint"'s). Taught with "paint": every check (27), 9 of 9; "Roy fastened the medal for Tom." `done_for` with a verb no
 record joined it to; "Who did Roy paint the box for?" Tom.
 
-**Held but read by nothing yet:** each sense's definition and examples; which sense a sentence means.
+**Then which sense a sentence means** (`Lexicon.sense_of`): each sense by how often it is used and by the most
+specific kind its filler shares with what the sense was seen used with (class-based, Resnik 1993). Seen with: SemCor
+(39 uses of "paint", 9 subjects and objects found by the structure reader) and every sentence recorded whole (each
+verb in the sense its meaning names, `SentenceRecord.verb_uses`: the sentence records' senses now read). "Roy painted
+the wall." `coat paint`, "Roy painted a picture." `represent paint`, as the hand-tagged data says; every check (37),
+9 of 9. Thin evidence; it grows with each record.
+
+**Held but read by nothing yet:** each sense's definition and examples.
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 

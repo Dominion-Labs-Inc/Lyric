@@ -85,8 +85,18 @@ treebank: the noun's plural "paints".
   first means a word picture, and every candidate is concrete. Built on them, the choice would fall back to the sense
   used most. The evidence that can tell them apart is sentences tagged with senses (SemCor, WordNet's own; the PMB's
   gold senses).
-- **Held, read by no part of reading yet:** what each sense means (its definition), its examples, which sense a
-  sentence means.
+- **Which sense a sentence means, chosen** (`Lexicon.sense_of`, in `spell_out`): each verb sense weighed by how
+  often it is used and, for each place filled, by how many things it was seen used with there are of the most
+  specific kind the filler shares with any of them (class-based selection, Resnik 1993). The evidence: SemCor
+  (downloaded through NLTK, 4.7 MB), WordNet's own sense-tagged text: 39 uses of the verb, the subject and object of
+  each found by the structure reader (9 found: a porch and a model `coat paint`, a painting, an area, a day, nothing
+  `represent paint`, a subject and a manner `paint`); and every sentence recorded whole, each verb in the sense its
+  meaning names with what fills its places (`SentenceRecord.verb_uses`, `GrammarView.hold_use`). "wall" and
+  "picture" recorded as words for the test (their kinds). Never taught, read as the hand-tagged data says: "Roy
+  painted the wall." `coat paint` (the wall a structure, as the porch); "Roy painted a picture." `represent paint`
+  (an artifact creation, as the painting: SemCor's annotators tagged "paint pictures" so). Every check (37), 9 of 9.
+  The evidence is thin (9 things seen with 3 senses): each word and sentence recorded adds to it.
+- **Held, read by no part of reading yet:** what each sense means (its definition), its examples.
 - **A word WordNet has none of: "for"** (the format now holds every word; `_CLOSED_CLASSES`). Its classes as UD's
   treebanks used it (a preposition 3,154 times, a subordinator 289, a conjunction 5); its uses named as the grammar's
   entries name them, counted as the grammar counts an analysed sentence (`HeldWords.use_of` over the treebanks'

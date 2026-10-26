@@ -2590,6 +2590,30 @@ class SentenceRecord:
             anchors.append((term, said))
         return TaughtSentence(self.text, self.meaning(), self.document()[0], tuple(anchors))
 
+    def verb_uses(self) -> List[Tuple[str, str, str, str]]:
+        """Each verb of the sentence in the sense its meaning names, with what is in its places, as English's grammar
+        learns which sense a sentence means (`GrammarView.hold_use`): (the verb's word, its sense, subject or object,
+        the thing: its kind's name, or its name) — ("fastened", `fasten`, object, `award decoration`)."""
+        from core.semantics.derived_reader import is_variable
+        words_of = {k: t for t, at in self.terms for k in at}
+        named: Dict[str, str] = {}
+        for f in self.facts:
+            if f.relation == "instance_of" and f.positive and not is_variable(f.obj):
+                named.setdefault(f.subject, f.obj)
+
+        def concept(k: int) -> str:
+            term = words_of.get(k, "")
+            return named.get(term, "" if is_variable(term) else term)
+        out = []
+        for w in self.words:
+            if w.word_class != "VERB" or not concept(w.at):
+                continue
+            for d in self.words:
+                slot = {"nsubj": "subject", "obj": "object", "nsubj:pass": "object"}.get(d.relation)
+                if d.head == w.at and slot and concept(d.at):
+                    out.append((w.form, concept(w.at), slot, concept(d.at)))
+        return out
+
     def forms(self) -> List[Any]:
         """Each word's form, as the forms memory holds words written in (`word_forms.WordForms`): its base, class
         and features."""
@@ -2920,12 +2944,17 @@ class WordSense:
     use: str = ""
     verbnet: str = ""
     places: Tuple[WordPlace, ...] = ()
+    #: WHAT THE SENSE WAS SEEN USED WITH, in sentences tagged with their senses (SemCor): (slot, the thing's WordNet
+    #: sense, Lyric's name for it and for everything it is a kind of, how often) — the verb `coat paint` with a house
+    #: as what it was done to. Which sense a sentence means is chosen by them (`Lexicon.sense_of`).
+    seen_with: Tuple[Tuple[str, str, Tuple[str, ...], int], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
                 "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
-                "places": [p.to_dict() for p in self.places]}
+                "places": [p.to_dict() for p in self.places],
+                "seen_with": [[slot, sense, list(kinds), n] for slot, sense, kinds, n in self.seen_with]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordSense":
@@ -2933,7 +2962,8 @@ class WordSense:
                    tuple((str(k[0]), str(k[1])) for k in data.get("kind_of") or ()), int(data.get("used") or 0),
                    tuple(data.get("examples") or ()), tuple(data.get("frames") or ()), str(data.get("roleset") or ""),
                    str(data.get("use") or ""), str(data.get("verbnet") or ""),
-                   tuple(WordPlace.from_dict(p) for p in data.get("places") or ()))
+                   tuple(WordPlace.from_dict(p) for p in data.get("places") or ()),
+                   tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()))
 
 
 @dataclass(frozen=True)
@@ -3184,6 +3214,51 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     return classes, {form: Counter(counted.form_uses.get(form, {})) for form in written}
 
 
+def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
+    """WHAT EACH VERB SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
+    sense by hand): for each tagged use of the word as a verb, the words the structure reader learned from UD
+    English EWT joins to it as its subject and its object (`StructureView`: `nsubj`, `obj`; a passive's subject its
+    object), each by the WordNet sense SemCor tagged it with. sense -> (slot, the thing's sense) -> how often."""
+    from nltk.corpus import semcor
+    from nltk.corpus.reader.wordnet import Lemma
+    from nltk.tree import Tree
+    if "semcor" not in cache:
+        sentences = []
+        for sent in semcor.tagged_sents(tag="sem"):
+            words: List[str] = []
+            tags: List[Optional[Any]] = []
+            for chunk in sent:
+                leaves = chunk.leaves() if isinstance(chunk, Tree) else (chunk if isinstance(chunk, list) else [chunk])
+                label = chunk.label() if isinstance(chunk, Tree) and isinstance(chunk.label(), Lemma) else None
+                for leaf in leaves:
+                    words.extend(str(leaf).split())
+                    tags.extend([label] * len(str(leaf).split()))
+            sentences.append((tuple(words), tuple(tags)))
+        cache["semcor"] = sentences
+    if "structure" not in cache:
+        from core.semantics.structure import StructureView
+        view = StructureView()
+        for analysed in TreebankSource.of("ewt").analysed():
+            view.add(analysed)
+        cache["structure"] = view
+    out: Dict[str, Counter] = {}
+    for words, tags in cache["semcor"]:
+        at = [k for k, t in enumerate(tags) if t is not None and t.name().lower() == word and t.synset().pos() == "v"]
+        if not at:
+            continue
+        read = cache["structure"].read(words)
+        for k in at:
+            sense = tags[k].synset().name()
+            for d, h in enumerate(read.heads):
+                if h - 1 != k or tags[d] is None or tags[d].synset().pos() != "n":
+                    continue
+                relation = read.relations[d]
+                slot = "subject" if relation == "nsubj" else "object" if relation in ("obj", "nsubj:pass") else ""
+                if slot:
+                    out.setdefault(sense, Counter())[(slot, tags[d].synset().name())] += 1
+    return out
+
+
 def _propbank_joins(cache: Dict[str, Any]) -> Dict[str, Counter]:
     """For each preposition, how often PropBank's arguments it opens are tagged each function, over every frame file:
     the numbered ones by their role's tag, the others by their own (`ARGM-PRP`: PRP)."""
@@ -3232,6 +3307,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     SOURCES' WAYS ARE PUT AS LYRIC'S: a WordNet frame as the grammar's frame; a place's link by its function tag and
     preposition (`_PLACE_LINKS`); what may fill it by VerbNet's restrictions (`_RESTRICTED_AS`) and by PropBank's
     description's word."""
+    import dataclasses
     import xml.etree.ElementTree as ET
     from nltk.corpus import wordnet as wn
     from nltk.corpus.reader.wordnet import VERB_FRAME_STRINGS
@@ -3358,6 +3434,13 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         cid = next((c for c in sorted(linked) if s.id in classes_of.get(c, ())), "")
         senses[k] = WordSense(s.id, s.word_class, s.concept, s.means, s.kind_of, s.used, s.examples, s.frames, rid,
                               means, cid, tuple(place_of(role, said, linked) for role, said in roles))
+    # WHAT EACH SENSE WAS SEEN USED WITH (SemCor).
+    seen = _semcor_seen(word, _cache)
+    for k, s in enumerate(senses):
+        if s.id in seen:
+            with_kinds = tuple((slot, filler, (named(wn.synset(filler)),) + tuple(n for _, n in kinds_of(
+                wn.synset(filler))), n) for (slot, filler), n in sorted(seen[s.id].items(), key=lambda x: (-x[1], x[0])))
+            senses[k] = dataclasses.replace(s, seen_with=with_kinds)
     taken = {s.roleset for s in senses if s.roleset}
     for rid, means, roles, linked in rolesets:
         if rid not in taken:
@@ -3397,6 +3480,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
                       tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
+                      "SemCor (what each verb sense was seen used with); "
                       "PropBank frames (senses of the verb, places; what a preposition opens); VerbNet 3.3 (which "
                       "PropBank sense is which WordNet sense, what may fill a place); UD English EWT and GUM (how "
                       "each form is used, as the grammar names its uses)",

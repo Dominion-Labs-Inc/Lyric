@@ -44,6 +44,12 @@ READ = [
     ("Roy painted the medal with paint.", ["instance_of(?e, paint)", "done_with(?e, ?y)",
                                           "instance_of(?y, coating paint)"]),
     ("Roy painted the medal for Tom.", ["instance_of(?e, paint)", "done_for(?e, tom)", "done_to(?e, ?x)"]),
+    # WHICH SENSE, by what fills its places, as the hand-tagged data says: WordNet's own example of `coat paint` is
+    # "We painted the rooms yellow", and SemCor's porch was coated; SemCor's annotators tagged "paint pictures" the
+    # sense "make a painting of" (`represent paint`).
+    ("Roy painted the wall.", ["instance_of(?e, coat paint)", "done_to(?e, ?x)", "instance_of(?x, wall)",
+                               "precedes(?e, ?now)"]),
+    ("Roy painted a picture.", ["instance_of(?e, represent paint)", "done_to(?e, ?x)", "instance_of(?x, picture)"]),
     # "for" with a verb no record joined it to: what the word itself says.
     ("Roy fastened the medal for Tom.", ["instance_of(?e, fasten)", "done_for(?e, tom)", "done_to(?e, ?x)"]),
 ]
