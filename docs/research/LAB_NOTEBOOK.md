@@ -16,6 +16,45 @@ Conventions:
 
 ---
 
+## 2026-10-26 (51) — Why the grammar reads badly, found: it reads its taught sentences no better than unseen ones, and its choices come from word counts teaching never changes
+
+**Objective.** The cause, not more fixes: four changes to how Lyric reads English (the one reader, the structure reader
+and composer, PMB-01's composer, the grammar) and days of fixes moved the held-out PMB dev from 362 to 366 right.
+Nothing in Lyric was changed; scripts and numbers in `experiments/GRAMMAR-01/diagnostics/` (README).
+
+**Found.**
+- **Taught = unseen.** Of 1,000 PMB gold training sentences it was taught, the grammar reads 414 right (41.4%), what
+  it reads of unseen ones. `Grammar.chart` keeps one reading per category per stretch, the surest by how often its
+  words are used each way (the treebank's counts); `Grammar.learn` labels the links of that reading whatever the taught
+  meaning says. Teaching changes link labels, never which reading is chosen; so more data did not help (eight times
+  the data, 0.2 points, 2026-10-20), nor reading (READ-LEARN-01).
+- **Every reading built** (a chart keeping each distinct one), the one spoken of before scored as an unknown: 565 of
+  the 1,000 right; 52 more built but not chosen; 82 the right things joined, a link named wrong; 217 no reading joins
+  them; 22 no whole reading; 62 too many to finish.
+- **Against the PMB's own gold CCG derivations** (release 4.0.0, downloaded: 10,715 English gold documents, each word
+  with its category in the sentence, sense and VerbNet role): of the 217, 86 a word read as another kind of word, 72
+  every word as the derivation reads it and the meaning said another way (links and roles), 30 a name or phrase of
+  several words split, 29 no derivation. Held-out words (5,044): 85.5% the same category or the same said another way,
+  10.6% offered but another chosen, 3.9% not offered (particles, a noun before a noun, "n't", "'s", "himself"), 6.3%
+  split otherwise.
+- **Why sentences fail:** errors per word multiply; about 85% of words right in five- to six-word sentences is about
+  40% of sentences, the 41% measured.
+- **Published:** Boxer (rule-based CCG, its parser trained on 40,000 hand-annotated sentences) 74.3 on PMB 2.1.0;
+  neural parsers 83.6 (2018), 89 to 92 on PMB5's standard test of five-word sentences, 5 to 44 on its long texts.
+- **History on the same dev split** (whole meanings right; unnamed; facts F1): the composer before PMB-01 16.5%, F1
+  64.6%; PMB-01 33.6%, 40.6%, 79.3%; the grammar 10-21 39.3%, 49.4%, 80.6%; now 41.4%, 52.7%, 81.9%. Real prose held
+  out (UNDERSTANDS-PROSE-02, 10-22): 48.7% of sentences, 9.4% of questions right.
+
+**Errors found, with causes.** Three diagnostic runs lost to my scripts (a shell eating backslashes, a split's file
+named wrong, a tuple's length changed): each cost a grammar build. Checked for undefined names before the run after.
+
+**The fix agreed** (the owner's yes, to begin in a new session): the grammar keeps its rules and meanings; its choices
+come from the PMB's checked derivations, taught into memory as analysed sentences as the treebank is: (1) teach them;
+(2) a word's category chosen by what they say that word takes beside these words; (3) links and roles from their
+roles; (4) words of several from their joined tokens; (5) the categories they use that the grammar has no meaning for,
+given meanings in `english.json`, the most used first; (6) a taught sentence learned from the reading that gives its
+meaning. Each measured on the same dev split, kept only where it rises. HANDOFF.md, section 0.
+
 ## 2026-10-25 (50) — What a thing is decides what a phrase says; a kind memory takes in is known at once; reading's kinds are mostly misreadings
 
 **Built.**

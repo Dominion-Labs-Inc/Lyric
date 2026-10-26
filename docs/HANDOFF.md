@@ -1,11 +1,95 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-23)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-26)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
-2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36) and 2026-10-23 (37) to (43) in `docs/research/LAB_NOTEBOOK.md`.
+2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
+to 2026-10-26 (51) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-23)
+## 0. Where it stands (2026-10-26)
+
+**START HERE: THE FIX THE OWNER AGREED (2026-10-26), steps 1 and 2 first.** Why the grammar reads badly was found
+(lab notebook (51), `experiments/GRAMMAR-01/diagnostics/README.md`), and how to fix it agreed. Do not rewrite the
+grammar again (it is the fourth way Lyric has read English; another rewrite is not wanted): it keeps its rules
+(`data/grammar/english.json`, `Grammar._combine`, `_unary`), its meanings (`spell_out`) and memory. What changes is
+where its choices come from.
+
+**The cause, measured.** The grammar reads back 41.4% of 1,000 sentences it was taught, what it reads of unseen ones:
+it does not learn from teaching how a sentence is put together. Three choices are made from the wrong evidence and
+teaching never corrects any of them:
+- *which kind of word each word is* (its category): from how often the word is used each way in the treebank, out of
+  context (`Lexicon._evidence`, `estimate`); the chart keeps the surest reading per category per stretch
+  (`Grammar.chart`), the rest are lost; costs about 10% (a word misread) + 6.6% (the right reading built, another
+  chosen) + 6.2% (too many readings to finish) of taught sentences;
+- *what each link says* (done by, done to, owned by, where): one most-said answer per word or verb (`Lexicon.link`,
+  `inherited`, `selected`; tables learned in `Grammar.learn` by labelling the links of the reading the grammar already
+  chose); about 13%;
+- *words of several* ("Burt Lancaster", "in love", "by no means"): nothing; about 3%.
+Errors per word multiply: about 85% of words right in sentences of five or six words is the 41% of sentences measured;
+95% of sentences needs about 99% of words. Published on this data: Boxer (rule-based CCG, parser trained on 40,000
+hand-annotated sentences) 74.3; neural parsers 89 to 92 on PMB5's five-word sentences, 5 to 44 on its long texts.
+
+**The teacher Lyric never had:** the PMB's release 4.0.0, downloaded 2026-10-25 to `test_data/semantics/pmb/`
+(`pmb-4.0.0.zip`, 2.8 GB, never pushed; English gold `en.parse.tags`, `en.raw`, `en.status` extracted to
+`pmb-4.0.0/data/en/gold`, 10,715 documents). Each document's `en.parse.tags` is its checked CCG derivation in Prolog
+terms: every word as `t(Category, 'word', [from:, to:, pos:, lemma:, sem:, wordnet:, verbnet:[Role...]])` under the
+combinators (`fa`, `ba`, `conj`, `lx`, ...). A word of several is one token joined by `~` ("Burt~Lancaster"). Parsing
+and normalising categories to the grammar's: `experiments/GRAMMAR-01/diagnostics/categories.py` (`LEAF`, `pmb_tree`,
+`canon_pmb`, `canon_lyric`, `offsets`). The release also has silver and bronze derivations (592,905 files in all).
+Dev (5.1.0's `split/en/dev/standard.sbn`) documents are in 4.0.0's gold for 1,041 of 1,194; never teach a dev or test
+document.
+
+**The fix, in order; each measured on GRAMMAR-01's dev split (884, senses aside, unnamed and facts F1) and on
+`diagnostics/taught_fit.py train/gold`, kept only where it rises:**
+1. **Teach the checked derivations into memory as analysed sentences**, as the treebank's are (`structure.Analysed`,
+   `TeachingPass`/`teaching_sources`, the memory agent's analysed memories feeding `HeldWords`): each word with its
+   category in its sentence, its role, its sense; a word of several as one. Teaching stays memory.
+2. **A word's category chosen in context**: what the derivations say this word takes beside these words (and words
+   like it, for a word they never hold), in place of its treebank use counts out of context, in `Lexicon.entries` /
+   `_evidence` and the chart's choice; keeping only the categories that are likely also ends "too many readings".
+3. **Links and roles from the derivations' roles** (VerbNet roles on verbs' places and prepositions), by the verb's or
+   word's sense and what fills the place, in place of one most-said answer per word.
+4. **Words of several** from the derivations' joined tokens.
+5. **Categories the derivations use that the grammar has no meaning for** (3.9% of held-out words: particles, a noun
+   before a noun, "n't", "'s", "himself", "Half", "around 20"): their meanings written into `english.json` once, the
+   most used first.
+6. **A taught sentence learned from the reading that gives its meaning** (`Grammar.learn` takes the surest reading
+   now), so a taught sentence reads back right.
+Then reading can teach: once readings are mostly right, what is read stops teaching Lyric its own mistakes.
+
+**Done 2026-10-24 to 2026-10-26 (all committed and pushed; lab notebook (44) to (51)):**
+- A document is read as one text, passages not printed lines (`document_reader.passages_of`, `passages_stated`).
+- A bare time ("One morning ..."), a pronoun's person, a path read as one thing; Lyric decides which of its tools a
+  person's words ask for (`_tools_for_request`); a page read by its own reading (`PAGES_READ_WITH`); a question said
+  once; Lyric ready to read before it enters its world (`ready_to_read`). lyric_dev taught what main's grammar learns
+  from (lessons, PMB gold, EWT).
+- What the grammar learns from a taught sentence is kept with it (`MemoryAgent.keep_grammar_learning`,
+  `grammar.RULES`): a start does not learn English again.
+- Reading teaches words, kept (`grammar.reading_teaches`, `GrammarView._learn_from_reading`, `read_english`). Measured
+  (READ-LEARN-01, four runs, all FAIL): about 3,100 new words per 10,000 sentences read; the held-out split moves a
+  few sentences either way. Learning from its own readings cannot teach it what it reads wrong.
+- A preposition's link by what its thing is (`Lexicon.selected`, `prep_to`): GRAMMAR-01 362 to 366. A kind memory
+  takes in is known to the grammar at once (`MemoryAgent.link_concepts` -> `Words.hear_kind`): through the real door,
+  "Plim is a hammer." turns "worked with Plim" from a co-worker to a tool a second later.
+- Python's `float` read "nan", "inf", "infinity" as numbers and stopped the grammar: fixed (`grammar._number`).
+
+**Open defects, found, not fixed:**
+- What reading takes in as what things are is mostly misreadings (the grammar's "the river Thames" reading firing on
+  compounds: "The oil spill" -> a spill is an oil); a text Lyric reads for itself writes them to the world; a name's
+  kind written `isa` makes the name a noun to the grammar (`GraphKnowledge.capitalized`). lyric_dev holds
+  `balancer isa into` from a look-up (2026-10-21), which fails `test_a_name_with_nothing_behind_it_is_not_an_answer`
+  run after any other test of `tests/test_conversation.py`; `test_a_telling_read_by_composing_is_not_taken_in_whole`
+  fails too. Both fail on the commit before this session's as well.
+- "Did Zed work?" answered "I remember: Zed is a hammer. I hold work but nothing said about it yet. A zed is a hammer."
+- Twice, after a start that learned English again, a yes-or-no question waited past the door's 15 s (no answer);
+  not seen again in two runs after.
+- `Conversation.stated` cannot know a composed reading's names (a composed reading carries no constructions).
+
+**Rules learned this session:** never `git stash` while a run uses the tree (a Lyric starting reads the stashed code);
+a diagnostic script checked for undefined names before a three-minute build (`python -m pyflakes`); measure before a
+proposal, and a proposal only once the cause is known (the owner's).
+
+## 0 (2026-10-23, as it stood then)
 
 **DONE 2026-10-23: TWO OWNERS FOR WHAT ARRIVES AND WHAT IS KEPT** (lab notebook (38)). The reasoning authority scores
 how complex a task or a request is as it arrives (`NeuralSymbolicBridge.complexity_of`; the queue's `add_task`,
