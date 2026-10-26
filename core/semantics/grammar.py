@@ -3241,7 +3241,16 @@ class GrammarView:
                 if frames[name][frame] <= 0:
                     del frames[name][frame]
         for (slot, link), n in word.links().items():
+            if slot == "by":
+                continue        # the grammar reads a doer after "by" by the subject's link (`spell_out`)
             held = lexicon.learned["role"][(name, slot)]
+            held[link] += times * n
+            if held[link] <= 0:
+                del held[link]
+        # WHAT A PREPOSITION AFTER THE VERB SAYS, as its places say it ("paint for someone": `done_for`), as a taught
+        # sentence teaches it of the very doing (`prep_of`).
+        for (preposition, link), n in word.prepositions().items():
+            held = lexicon.learned["prep_of"][(name, preposition, "-")]
             held[link] += times * n
             if held[link] <= 0:
                 del held[link]

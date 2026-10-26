@@ -2869,34 +2869,43 @@ class WordForm:
 
 @dataclass(frozen=True)
 class WordPlace:
-    """One place a sense of a verb has (PropBank's): its argument, who fills it, its function tag, the prepositions
-    its examples say it with; and, where the place is the grammar's, which (`slot`: subject, object) and what Lyric's
-    meaning language says of it (`link`: done_by, done_to). A place no rule puts as the grammar's keeps both empty,
-    never guessed."""
+    """One place a sense of a verb has (PropBank's): its argument, who fills it (PropBank's description) and the
+    thing that is (`fills`: the description's word as WordNet's sense of it, Lyric's name), its function tag, the
+    prepositions its examples say it with and whether they say it bare, what VerbNet says may fill it (`restricted`:
+    "+concrete" and the WordNet sense it is, Lyric's name), and where the grammar holds it (`slots`: subject, object,
+    "by" for a doer said after "by", "pp:with" for one said after "with") with what Lyric's meaning language says of it
+    there. A place where the function tag and the preposition do not agree gets no slot (`_PLACE_LINKS`)."""
 
     arg: str
     who: str
     function: str = ""
     prepositions: Tuple[str, ...] = ()
-    slot: str = ""
-    link: str = ""
+    bare: bool = False
+    slots: Tuple[Tuple[str, str], ...] = ()
+    fills: str = ""
+    restricted: Tuple[Tuple[str, str], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"arg": self.arg, "who": self.who, "function": self.function, "prepositions": list(self.prepositions),
-                "slot": self.slot, "link": self.link}
+                "bare": self.bare, "slots": [list(s) for s in self.slots], "fills": self.fills,
+                "restricted": [list(r) for r in self.restricted]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordPlace":
         return cls(str(data["arg"]), str(data.get("who") or ""), str(data.get("function") or ""),
-                   tuple(data.get("prepositions") or ()), str(data.get("slot") or ""), str(data.get("link") or ""))
+                   tuple(data.get("prepositions") or ()), bool(data.get("bare")),
+                   tuple((str(s[0]), str(s[1])) for s in data.get("slots") or ()), str(data.get("fills") or ""),
+                   tuple((str(r[0]), str(r[1])) for r in data.get("restricted") or ()))
 
 
 @dataclass(frozen=True)
 class WordSense:
     """One meaning of a recorded word: its WordNet sense, as which class, the name Lyric gives the thing it means
-    (`concept`, `WordNetSource._sense_names`), what it means (WordNet's definition), what it is a kind of (each
-    WordNet sense and Lyric's name for it), how often it is used so (WordNet's tagged count), WordNet's examples, the
-    frames its verb is used in (the grammar's names: transitive, intransitive, ...)."""
+    (`concept`, `WordNetSource._sense_names`), what it means (WordNet's definition), everything it is a kind of up
+    WordNet's chain, nearest first (each WordNet sense and Lyric's name for it), how often it is used so (WordNet's
+    tagged count), WordNet's examples, the frames its verb is used in (the grammar's names); and for a verb the
+    PropBank sense it is (`roleset`, `use`: what PropBank says it means), through VerbNet (`verbnet`: the class whose
+    member it is), with that sense's places."""
 
     id: str
     word_class: str
@@ -2906,23 +2915,30 @@ class WordSense:
     used: int = 0
     examples: Tuple[str, ...] = ()
     frames: Tuple[str, ...] = ()
+    roleset: str = ""
+    use: str = ""
+    verbnet: str = ""
+    places: Tuple[WordPlace, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
-                "frames": list(self.frames)}
+                "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
+                "places": [p.to_dict() for p in self.places]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordSense":
         return cls(str(data["id"]), str(data["class"]), str(data.get("concept") or ""), str(data.get("means") or ""),
                    tuple((str(k[0]), str(k[1])) for k in data.get("kind_of") or ()), int(data.get("used") or 0),
-                   tuple(data.get("examples") or ()), tuple(data.get("frames") or ()))
+                   tuple(data.get("examples") or ()), tuple(data.get("frames") or ()), str(data.get("roleset") or ""),
+                   str(data.get("use") or ""), str(data.get("verbnet") or ""),
+                   tuple(WordPlace.from_dict(p) for p in data.get("places") or ()))
 
 
 @dataclass(frozen=True)
 class WordUse:
-    """One sense a verb is used in as PropBank annotates it (`paint.01`, "put paint on a surface"), with its places.
-    Kept apart from the WordNet senses: no source says which WordNet sense a PropBank sense is."""
+    """A sense a verb is used in as PropBank annotates it that no VerbNet class joins to any WordNet sense of the word:
+    its places count for the verb, not for any one sense."""
 
     id: str
     means: str
@@ -2944,11 +2960,11 @@ _OPEN_CLASSES = frozenset({"NOUN", "VERB", "ADJECTIVE", "ADVERB"})
 @dataclass(frozen=True)
 class WordRecord:
     """ONE WORD AS LYRIC IS TAUGHT IT: every way it is written (`forms`), every meaning it has (`senses`: what each
-    means, what it is a kind of, how often it is used so, and for a verb how it is used and who fills each of its
+    means, everything it is a kind of, how often it is used so, and for a verb how it is used and who fills each of its
     places), where each came from. Taught before any sentence it is in: a sentence teaches how known words go
     together, never a word it does not hold ("Roy painted the medal." was misread where only "fasten" had been taught,
     TRAIN-FORMAT-01, 2026-10-26). Every part of reading learns from it (`forms_held`, `classes`, `names`, `frames`,
-    `links`); checked whole before memory takes it (`problems`)."""
+    `links`, `prepositions`, the senses' kinds and places); checked whole before memory takes it (`problems`)."""
 
     word: str
     forms: Tuple[WordForm, ...]
@@ -3010,12 +3026,16 @@ class WordRecord:
                 out.append(f"sense {s.id} of class {s.word_class!r}")
             if not s.concept or not s.means:
                 out.append(f"sense {s.id} lacks its name or what it means")
+            if (s.places or s.roleset) and s.word_class != "VERB":
+                out.append(f"sense {s.id} has a verb's places but is no verb")
+            if bool(s.roleset) != bool(s.places):
+                out.append(f"sense {s.id}: a PropBank sense without places, or places without one")
         if self.uses and "VERB" not in classes:
             out.append("uses of a verb, but no sense of the word is a verb")
-        for u in self.uses:
-            for p in u.places:
-                if bool(p.slot) != bool(p.link):
-                    out.append(f"use {u.id} {p.arg}: a slot without a link or a link without a slot")
+        for place in [p for s in self.senses for p in s.places] + [p for u in self.uses for p in u.places]:
+            for slot, link in place.slots:
+                if not slot or not link:
+                    out.append(f"{place.arg}: a slot without a link or a link without a slot")
         if len({s.id for s in self.senses}) != len(self.senses):
             out.append("a sense held twice")
         return out
@@ -3053,14 +3073,26 @@ class WordRecord:
                 out[frame] = out.get(frame, 0) + max(1, s.used)
         return out
 
+    def _places(self) -> List[WordPlace]:
+        return [p for s in self.senses for p in s.places] + [p for u in self.uses for p in u.places]
+
     def links(self) -> Dict[Tuple[str, str], int]:
-        """What each of its verb's places the grammar's says, how often: (slot, link) -> how many of its uses say
-        it."""
+        """What each of its verb's places the grammar holds as a place of the verb says (subject, object, "by"), how
+        often: (slot, link) -> how many of its senses' places say it."""
         out: Dict[Tuple[str, str], int] = {}
-        for u in self.uses:
-            for p in u.places:
-                if p.slot and p.link:
-                    out[(p.slot, p.link)] = out.get((p.slot, p.link), 0) + 1
+        for p in self._places():
+            for slot, link in p.slots:
+                if not slot.startswith("pp:"):
+                    out[(slot, link)] = out.get((slot, link), 0) + 1
+        return out
+
+    def prepositions(self) -> Dict[Tuple[str, str], int]:
+        """What a preposition after its verb says, as its places say it: (preposition, link) -> how many say it."""
+        out: Dict[Tuple[str, str], int] = {}
+        for p in self._places():
+            for slot, link in p.slots:
+                if slot.startswith("pp:"):
+                    out[(slot[3:], link)] = out.get((slot[3:], link), 0) + 1
         return out
 
 
@@ -3074,29 +3106,58 @@ def _frame_named(frame: str) -> Optional[str]:
     if "VERB-ing" in text:
         return "ing"
     after = text.split("----s", 1)[1].strip() if "----s" in text else ""
-    things = [w for w in after.split() if w in ("somebody", "something")]
     if not after:
         return "intransitive"
-    if len(things) >= 2 and after.split()[0] in ("somebody", "something") and after.split()[1] in ("somebody",
-                                                                                                     "something"):
+    words = after.split()
+    if len(words) >= 2 and words[0] in ("somebody", "something") and words[1] in ("somebody", "something"):
         return "ditransitive"
-    if after.split()[0] in ("somebody", "something"):
+    if words[0] in ("somebody", "something"):
         return "transitive"
     return "intransitive"
 
 
 _WORDNET_CLASS = {"n": "NOUN", "v": "VERB", "a": "ADJECTIVE", "s": "ADJECTIVE", "r": "ADVERB"}
 
+#: WHAT A VERB'S PLACE SAYS IN LYRIC'S MEANING LANGUAGE, by PropBank's function tag and the preposition its examples
+#: say it with, the one table: a place where the two do not agree gets no link (paint.02's "benefactive", tagged a
+#: goal, is said "in oils"). The doer (`PAG`) said bare is the subject, said after "by" the passive's doer; the thing
+#: done to (`PPT`) said bare, the object.
+_PLACE_LINKS = {
+    ("PAG", ""): ("subject", "done_by"), ("PAG", "by"): ("by", "done_by"),
+    ("PPT", ""): ("object", "done_to"),
+    **{("GOL", p): (f"pp:{p}", "moves_to") for p in ("to", "into", "onto", "toward", "towards")},
+    ("GOL", "for"): ("pp:for", "done_for"),
+    **{("SRC", p): (f"pp:{p}", "moves_from") for p in ("from", "off", "out")},
+    **{("DIR", p): (f"pp:{p}", "moves_to") for p in ("to", "into", "onto", "toward", "towards")},
+    ("DIR", "from"): ("pp:from", "moves_from"),
+    **{("LOC", p): (f"pp:{p}", "located_in") for p in ("in", "on", "at", "inside", "within")},
+    ("MNR", "with"): ("pp:with", "done_with"),
+    ("PRP", "for"): ("pp:for", "has_purpose"), ("PNC", "for"): ("pp:for", "has_purpose"),
+}
+
+#: What VerbNet's restrictions on what fills a place are, as WordNet's senses (Lyric names each, `_sense_names`):
+#: "+concrete" a physical entity, "+animate" a living thing.
+_RESTRICTED_AS = {"+concrete": "physical_entity.n.01", "+animate": "living_thing.n.01", "+human": "person.n.01",
+                  "+organization": "organization.n.01", "+abstract": "abstraction.n.06",
+                  "+body_part": "body_part.n.01", "+int_control": "living_thing.n.01",
+                  "+location": "location.n.01", "+place": "location.n.01", "+solid": "solid.n.01",
+                  "+comestible": "food.n.01", "+machine": "machine.n.01", "+vehicle": "vehicle.n.01",
+                  "+time": "time_period.n.01", "+communication": "communication.n.02",
+                  "+substance": "substance.n.01", "+garment": "garment.n.01", "+plant": "plant.n.02",
+                  "+animal": "animal.n.01", "+container": "container.n.01", "+refl": ""}
+
 
 def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: str = "train",
                    _cache: Dict[str, Any] = {}) -> WordRecord:
     """A word recorded whole (`WordRecord`) from what was made by hand of it, never written here: its forms as UD's
     English treebanks wrote them (each form a word was written in, its features, how often; `word_forms`), its senses
-    as WordNet 3.0 gives them (definition, kinds, tagged count, examples, frames), Lyric's name for each
-    (`WordNetSource._sense_names`), and for a verb the places of its PropBank senses. THE ONE PLACE WHERE THESE
-    SOURCES' WAYS ARE PUT AS LYRIC'S: a WordNet frame as the grammar's frame; PropBank's ARG0 the subject the doing is
-    done by, its ARG1 the object it is done to, where its examples say them so; every other place kept as written,
-    with no link. PropBank's senses are kept apart from WordNet's (`uses`): no source says which is which."""
+    as WordNet 3.0 gives them (definition, every kind up its chain, tagged count, examples, frames), Lyric's name for
+    each (`WordNetSource._sense_names`), and for a verb sense the PropBank sense it is and that sense's places, joined
+    through VerbNet (a PropBank sense's links to VerbNet classes, a VerbNet member's WordNet senses; each WordNet sense
+    takes, of the PropBank senses joined to it, the one joined to fewest WordNet senses). THE ONE PLACE WHERE THESE
+    SOURCES' WAYS ARE PUT AS LYRIC'S: a WordNet frame as the grammar's frame; a place's link by its function tag and
+    preposition (`_PLACE_LINKS`); what may fill it by VerbNet's restrictions (`_RESTRICTED_AS`) and by PropBank's
+    description's word."""
     import xml.etree.ElementTree as ET
     from nltk.corpus import wordnet as wn
     from nltk.corpus.reader.wordnet import VERB_FRAME_STRINGS
@@ -3112,6 +3173,28 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 for form, features, n in item.forms:
                     bucket[(form, features)] = bucket.get((form, features), 0) + n
         _cache["forms"] = held
+    if "verbnet" not in _cache:
+        from nltk.corpus import LazyCorpusLoader
+        from nltk.corpus.reader import VerbnetCorpusReader
+        _cache["verbnet"] = LazyCorpusLoader("verbnet3", VerbnetCorpusReader, r"(?!\.).*\.xml")
+    verbnet = _cache["verbnet"]
+
+    def named(synset: Any) -> str:
+        return names.get(synset) or synset.lemma_names()[0].replace("_", " ")
+
+    def kinds_of(synset: Any) -> Tuple[Tuple[str, str], ...]:
+        out, frontier, seen = [], [synset], {synset}
+        while frontier:
+            nxt = []
+            for s in frontier:
+                for h in s.hypernyms() + s.instance_hypernyms():
+                    if h not in seen:
+                        seen.add(h)
+                        out.append((h.name(), named(h)))
+                        nxt.append(h)
+            frontier = nxt
+        return tuple(out)
+
     synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas())]
     senses: List[WordSense] = []
     for s in synsets:
@@ -3119,12 +3202,33 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         lemma = next(l for l in s.lemmas() if l.name().lower() == word)
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
-        senses.append(WordSense(s.name(), cls, names.get(s) or "", s.definition(),
-                                tuple((h.name(), names.get(h) or "") for h in s.hypernyms()), lemma.count(),
+        senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds_of(s), lemma.count(),
                                 tuple(s.examples()), frames))
-    # PropBank's senses of the verb, each with its places.
+    # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
+    # the class's roles may be filled with.
+    classes_of: Dict[str, Set[str]] = {}
+    restrictions: Dict[Tuple[str, str], Tuple[str, ...]] = {}
+    try:
+        class_ids = verbnet.classids(word)
+    except Exception:
+        class_ids = []
+    for cid in class_ids:
+        vc = verbnet.vnclass(cid)
+        for member in vc.iter("MEMBER"):
+            if member.get("name") != word:
+                continue
+            for key in (member.get("wn") or "").split():
+                try:
+                    classes_of.setdefault(cid, set()).add(wn.lemma_from_key(key.lstrip("?") + "::").synset().name())
+                except Exception:
+                    continue
+        for role in vc.iter("THEMROLE"):
+            restrictions[(cid, str(role.get("type")).lower())] = tuple(
+                f"{r.get('Value')}{r.get('type')}" for r in role.iter("SELRESTR"))
+    # PROPBANK: each sense of the verb, its places, and the VerbNet classes it is linked to (by its places' links,
+    # the classes VerbNet says the word is a member of).
     frame_file = Path(SYNTAX_DATA) / "propbank-frames" / "frames" / f"{word}.xml"
-    uses: List[WordUse] = []
+    rolesets: List[Tuple[str, str, List[Tuple[Any, Dict[str, List[str]]]], Set[str]]] = []
     if any(s.word_class == "VERB" for s in senses) and frame_file.exists():
         for roleset in ET.parse(frame_file).iter("roleset"):
             if not str(roleset.get("id", "")).startswith(word + "."):
@@ -3132,19 +3236,58 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             said: Dict[str, List[str]] = {}
             for example in roleset.iter("example"):
                 for arg in example.iter("arg"):
-                    first = (arg.text or "").strip().split(" ")[0].lower()
-                    said.setdefault(str(arg.get("type") or ""), []).append(first)
-            places = []
-            for role in roleset.iter("role"):
-                arg = "ARG" + str(role.get("n")).upper()
-                firsts = said.get(arg, [])
-                prepositions = tuple(sorted({f for f in firsts if f in _PREPOSITIONS_WRITTEN}))
-                bare = bool(firsts) and not prepositions
-                slot, link = ("subject", "done_by") if arg == "ARG0" else \
-                    ("object", "done_to") if arg == "ARG1" and bare else ("", "")
-                places.append(WordPlace(arg, str(role.get("descr") or ""), str(role.get("f") or ""), prepositions,
-                                        slot, link))
-            uses.append(WordUse(str(roleset.get("id")), str(roleset.get("name") or ""), tuple(places)))
+                    said.setdefault(str(arg.get("type") or ""), []).append(
+                        (arg.text or "").strip().split(" ")[0].lower())
+            linked = {str(link.get("class")) for link in roleset.iter("rolelink")
+                      if link.get("resource") == "VerbNet" and str(link.get("class")) in classes_of}
+            rolesets.append((str(roleset.get("id")), str(roleset.get("name") or ""),
+                             [(role, said) for role in roleset.iter("role")], linked))
+
+    def place_of(role: Any, said: Dict[str, List[str]], linked: Set[str]) -> WordPlace:
+        arg = "ARG" + str(role.get("n")).upper()
+        function = str(role.get("f") or "").upper()
+        firsts = said.get(arg, [])
+        prepositions = tuple(sorted({f for f in firsts if f in _PREPOSITIONS_WRITTEN}))
+        bare = any(f and f not in _PREPOSITIONS_WRITTEN for f in firsts)
+        slots = []
+        if bare and (function, "") in _PLACE_LINKS and arg in ("ARG0", "ARG1"):
+            slots.append(_PLACE_LINKS[(function, "")])
+        for p in prepositions:
+            if (function, p) in _PLACE_LINKS:
+                slots.append(_PLACE_LINKS[(function, p)])
+        who = str(role.get("descr") or "")
+        head = who.split(",")[-1].strip().split(" ")[0] if who else ""
+        fills = ""
+        found = wn.synsets(head, "n") if head.isalpha() else []
+        if found:
+            fills = named(found[0])
+        restricted = []
+        for link in role.iter("rolelink"):
+            cid = str(link.get("class"))
+            if cid in linked and link.text:
+                for r in restrictions.get((cid, link.text.strip().lower()), ()):
+                    if _RESTRICTED_AS.get(r):
+                        restricted.append((r, named(wn.synset(_RESTRICTED_AS[r]))))
+        return WordPlace(arg, who, function, prepositions, bare, tuple(dict.fromkeys(slots)), fills,
+                         tuple(dict.fromkeys(restricted)))
+    joined: Dict[str, Set[str]] = {}
+    for rid, _, _, linked in rolesets:
+        joined[rid] = {sense for cid in linked for sense in classes_of.get(cid, ())}
+    uses: List[WordUse] = []
+    for k, s in enumerate(senses):
+        if s.word_class != "VERB":
+            continue
+        mine = [r for r in rolesets if s.id in joined[r[0]]]
+        if not mine:
+            continue
+        rid, means, roles, linked = min(mine, key=lambda r: (len(joined[r[0]]), rolesets.index(r)))
+        cid = next((c for c in sorted(linked) if s.id in classes_of.get(c, ())), "")
+        senses[k] = WordSense(s.id, s.word_class, s.concept, s.means, s.kind_of, s.used, s.examples, s.frames, rid,
+                              means, cid, tuple(place_of(role, said, linked) for role, said in roles))
+    taken = {s.roleset for s in senses if s.roleset}
+    for rid, means, roles, linked in rolesets:
+        if rid not in taken:
+            uses.append(WordUse(rid, means, tuple(place_of(role, said, linked) for role, said in roles)))
     by_class = {s.word_class for s in senses}
     forms: List[WordForm] = []
     for cls in sorted(by_class):
@@ -3156,9 +3299,10 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             forms.append(WordForm(form, cls, features, n))
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
-                      "PropBank frames (places)",
-                      "WordNet licence (Princeton); UD EWT CC BY-SA 4.0, GUM CC BY-NC-SA 4.0; PropBank CC BY-SA 4.0",
-                      split)
+                      "PropBank frames (senses of the verb, places); VerbNet 3.3 (which PropBank sense is which "
+                      "WordNet sense, what may fill a place)",
+                      "WordNet licence (Princeton); UD EWT CC BY-SA 4.0, GUM CC BY-NC-SA 4.0; PropBank CC BY-SA 4.0; "
+                      "VerbNet (University of Colorado)", split)
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").

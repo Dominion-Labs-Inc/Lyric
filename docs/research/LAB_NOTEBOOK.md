@@ -51,8 +51,18 @@ Knowledge()`), so a store with no concepts held no kind ever taken in; once fixe
 named by itself before its record's name (`HeldWords._name` asks `MemoryAgent.recorded_name` first). Every check
 again, 7 of 7; TRAIN-FORMAT-01 5 of 5; GRAMMAR-01 383, taught_fit 420.
 
-**Held but read by nothing yet:** each sense's definition and examples; PropBank's who and function of each place;
-which sense a sentence means.
+**Then PropBank's senses joined to WordNet's through VerbNet** (downloaded, VerbNet 3.3): one list of senses, each
+with its PropBank sense, VerbNet class and places; each place's link by its function tag and preposition where they
+agree (`_PLACE_LINKS`: "for" after "paint" `done_for`; PropBank's "benefactive" said "in oils" gets none); what may fill
+it (PropBank's description's word, VerbNet's restrictions); every kind up WordNet's chain. Re-taught, corrected in
+place: every check (23), 7 of 7. "Roy painted the medal for Tom." not tested: "for" was never taught to lyric_dev2;
+function words need records too, from the treebanks (WordNet has none).
+
+**Which sense a sentence means, not built:** the descriptions and restrictions cannot tell "painted the wall" from
+"painted a portrait" (WordNet holds no wall a surface; "portrait" first means a word picture; all are concrete). The
+evidence that can is sentences tagged with senses: SemCor, the PMB's gold senses.
+
+**Held but read by nothing yet:** each sense's definition and examples; which sense a sentence means.
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 

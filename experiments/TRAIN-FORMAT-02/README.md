@@ -66,6 +66,25 @@ treebank: the noun's plural "paints".
   class was named by itself before what a record names it (`HeldWords._name` now asks `MemoryAgent.recorded_name`
   first). Every check again (the kinds' among them), 7 of 7; TRAIN-FORMAT-01 every check, 5 of 5; GRAMMAR-01 383,
   taught_fit 420.
-- **Held, read by no part of reading yet:** what each sense means (its definition), its examples, each PropBank
-  place's who and function, the senses beyond the most used of each class (which sense a sentence means).
+- **PropBank's senses joined to WordNet's through VerbNet** (VerbNet 3.3 downloaded through NLTK, 4 MB): a
+  PropBank sense's links to VerbNet classes, each VerbNet member's WordNet senses; each WordNet sense takes the
+  PropBank sense joined to fewest WordNet senses. paint.v.01 "make a painting" is paint.02 "create pictures with
+  paint" (create-26.4-1-1), paint.v.02 "coat with paint" is paint.01 "put paint on a surface" (coloring-24), paint.v.03
+  is paint.03 "depict, describe" (characterize-29.2); paint.v.04 none. One list of senses: each with its places. Every
+  kind up WordNet's chain held (`coating paint`: coating, coloring material, artifact covering, material, artifact,
+  substance, ...). Each place's link by its function tag and preposition, only where they agree (`_PLACE_LINKS`):
+  "for" after "paint" is `done_for` (paint.02's "benefactive", tagged a goal, said "for" and "in": "in" disagrees,
+  no link); a doer after "by" `done_by`. What may fill each place held as PropBank's description's word (art, surface,
+  painter) and VerbNet's restrictions (+concrete a physical entity, +animate a living thing).
+- **Re-taught** (the record corrected in place, one memory): every check (23), 7 of 7, none wrong; "Roy painted the
+  medal for Tom." not tested: "for" was never taught to lyric_dev2 (the grammar's own "for" is only "a tool for
+  cutting"), and a preposition is a word to teach like any other. Function words need records too, and WordNet has
+  none: theirs come from the treebanks' uses.
+- **Which sense a sentence means: not built, and why.** PropBank's descriptions and VerbNet's restrictions cannot
+  tell "painted the wall" from "painted a portrait": WordNet holds no wall, fence or door a kind of surface, "portrait"
+  first means a word picture, and every candidate is concrete. Built on them, the choice would fall back to the sense
+  used most. The evidence that can tell them apart is sentences tagged with senses (SemCor, WordNet's own; the PMB's
+  gold senses).
+- **Held, read by no part of reading yet:** what each sense means (its definition), its examples, which sense a
+  sentence means.
 

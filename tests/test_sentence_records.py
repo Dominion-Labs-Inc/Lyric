@@ -101,10 +101,10 @@ def _word(**changed):
                           ("transitive",)),
                 WordSense("paint.n.01", "NOUN", "coating paint", "a substance used as a coating",
                           (("coating.n.01", "coating"),), 7)),
-        uses=(WordUse("paint.01", "put paint on a surface",
-                      (WordPlace("ARG0", "agent, painter", "PAG", (), "subject", "done_by"),
-                       WordPlace("ARG1", "surface", "GOL", (), "object", "done_to"),
-                       WordPlace("ARG2", "explicit mention of paint", "PPT"))),))
+        uses=(WordUse("paint.02", "create pictures with paint",
+                      (WordPlace("ARG0", "artist", "PAG", ("by",), True, (("subject", "done_by"), ("by", "done_by"))),
+                       WordPlace("ARG1", "art", "PPT", (), True, (("object", "done_to"),)),
+                       WordPlace("ARG2", "benefactive", "GOL", ("for", "in"), False, (("pp:for", "done_for"),)))),))
     fields.update(changed)
     return WordRecord(**fields)
 
@@ -116,7 +116,8 @@ def test_a_word_record_is_whole_and_reads_back_the_same():
     assert WordRecord.from_dict(json.loads(json.dumps(word.to_dict()))) == word
     assert word.names() == {"NOUN": "coating paint", "VERB": "paint"}, "each class by its most used sense"
     assert word.frames() == {"intransitive": 17, "transitive": 30}
-    assert word.links() == {("subject", "done_by"): 1, ("object", "done_to"): 1}, "no link guessed for ARG2"
+    assert word.links() == {("subject", "done_by"): 1, ("by", "done_by"): 1, ("object", "done_to"): 1}
+    assert word.prepositions() == {("for", "done_for"): 1}, "\"in\" disagrees with the goal it is tagged: no link"
 
 
 def test_a_word_record_that_does_not_hold_together_is_said_wrong():
@@ -124,6 +125,12 @@ def test_a_word_record_that_does_not_hold_together_is_said_wrong():
     assert any("which no sense of the word is" in p
                for p in _word(forms=_word().forms + (WordForm("painty", "ADJECTIVE"),)).problems())
     assert any("not among its forms" in p for p in _word(forms=_word().forms[1:]).problems())
+
+
+def test_a_verbs_place_is_linked_only_where_its_function_and_preposition_agree():
+    from core.learning.teaching_sources import _PLACE_LINKS
+    assert _PLACE_LINKS[("GOL", "for")] == ("pp:for", "done_for") and ("GOL", "in") not in _PLACE_LINKS
+    assert _PLACE_LINKS[("PAG", "by")] == ("by", "done_by") and _PLACE_LINKS[("PPT", "")] == ("object", "done_to")
 
 
 def test_a_wordnet_frame_is_named_as_the_grammar_names_frames():
@@ -147,6 +154,7 @@ def test_memory_learns_a_words_forms_classes_and_names_and_the_grammar_its_frame
     view.hold_word(word)
     assert dict(view.words.frames("paint")) == {"intransitive": 17.0, "transitive": 30.0}
     assert view.grammar.lexicon.learned["role"][("paint", "subject")] == {"done_by": 1}
+    assert view.grammar.lexicon.learned["prep_of"][("paint", "for", "-")] == {"done_for": 1}
     view.drop_word(word)
     assert not view.words.frames("paint") and not view.grammar.lexicon.learned["role"][("paint", "subject")]
 
