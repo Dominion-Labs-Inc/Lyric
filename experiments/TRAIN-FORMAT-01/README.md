@@ -69,3 +69,6 @@ Lyric's front door as UNDERSTANDS-PROSE-01's harness does.
   English's grammar held no word the speaker called anything by (`derived_reader._said_by_words`, fixed), and an
   answer's things are listed by their own names, never the speaker's words (the conversation's protected module:
   staged, applied once main's run ended).
+- **Third verification** (the conversation's fix applied; its first form looked the thing up as `award_decoration`,
+  the speaker's words held under `award decoration`): **every store check (15), read back as taught, 5 of 5 questions
+  right, none wrong**: "What did Roy fasten?" `Medal.`. The one record works as intended.

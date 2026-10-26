@@ -58,7 +58,9 @@ by none as a claim; at each warm every layer to its reader). Each fault found wa
 as taught; the structure reader, the forms, the word classes, the names, the derivation, the counts, the meaning
 learned, "with" learned as `done_with`; read back exactly as taught. Through the front door: "Did Roy fasten the
 medal?" Yes; "Who fastened the medal?" Roy; "What did Roy fasten the medal with?" Pin; "Did Roy fasten the medal with
-a pin?" Yes; "What did Roy fasten?" Award decoration (fixed, staged). Tests: `tests/test_sentence_records.py` 6
+a pin?" Yes; "What did Roy fasten?" Award decoration, then, the conversation's fix applied (listed in the speaker's
+words, looked up as written either way), `Medal.`: 5 of 5, none wrong. UNDERSTANDS-PROSE-02's half fixed against,
+started on main without the owner asking for it, was stopped at 275 of 453 to apply it (its transcript kept). Tests: `tests/test_sentence_records.py` 6
 passed; grammar and derived reading 154 passed.
 
 **Held but read by nothing yet:** each word's WordNet sense and semantic tag, the verb's VerbNet roles.

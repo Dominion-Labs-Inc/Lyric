@@ -24260,7 +24260,11 @@ class Conversation:
                     facts = [_said(answer.about, answer.relation, other, named=named, framed=framed, kinds=understanding.kinds)
                              for other in answer.others]
                     said = " ".join(f for f in facts if f)
-                    listed = ", ".join(str(o).replace("_", " ") for o in answer.others)
+                    # WHAT IT NAMES, IN THE SPEAKER'S WORDS for it where they named it (`named`): told "Roy fastened
+                    # the medal with a pin.", "What did Roy fasten?" was answered with the thing's own name, "Award
+                    # decoration." (TRAIN-FORMAT-01, lyric_dev2, 2026-10-26).
+                    listed = ", ".join(str(named.get(str(o), named.get(str(o).replace("_", " "), o))).replace("_", " ")
+                                       for o in answer.others)
                 else:
                     said, listed = "", Conversation._render_atom(answer.conclusion or "")
                 if answer.alternative:
