@@ -1,21 +1,84 @@
 [
- {"name": "painted", "kind": "taught word",
-  "text": ["Roy painted the box."],
+ {
+  "name": "painted",
+  "kind": "taught word",
+  "text": [
+   "Roy painted the box."
+  ],
   "questions": [
-   {"q": "Who painted the box?", "answer": ["Roy"]},
-   {"q": "What did Roy paint?", "answer": ["box"]},
-   {"q": "Did Roy paint the box?", "answer": "yes"}
-  ]},
- {"name": "was painted", "kind": "taught word",
-  "text": ["The medal was painted by Roy."],
+   {
+    "q": "Who painted the box?",
+    "answer": [
+     "Roy"
+    ]
+   },
+   {
+    "q": "What did Roy paint?",
+    "answer": [
+     "box"
+    ]
+   },
+   {
+    "q": "Did Roy paint the box?",
+    "answer": "yes"
+   }
+  ]
+ },
+ {
+  "name": "was painted",
+  "kind": "taught word",
+  "text": [
+   "The medal was painted by Roy."
+  ],
   "questions": [
-   {"q": "Who painted the medal?", "answer": ["Roy"]},
-   {"q": "Was the medal painted?", "answer": "yes"}
-  ]},
- {"name": "paints", "kind": "taught word",
-  "text": ["Roy paints."],
+   {
+    "q": "Who painted the medal?",
+    "answer": [
+     "Roy"
+    ]
+   },
+   {
+    "q": "Was the medal painted?",
+    "answer": "yes"
+   }
+  ]
+ },
+ {
+  "name": "paints",
+  "kind": "taught word",
+  "text": [
+   "Roy paints."
+  ],
   "questions": [
-   {"q": "Does Roy paint?", "answer": "yes"},
-   {"q": "Who paints?", "answer": ["Roy"]}
-  ]}
+   {
+    "q": "Does Roy paint?",
+    "answer": "yes"
+   },
+   {
+    "q": "Who paints?",
+    "answer": [
+     "Roy"
+    ]
+   }
+  ]
+ },
+ {
+  "name": "for",
+  "kind": "taught word",
+  "text": [
+   "Roy painted the box for Tom."
+  ],
+  "questions": [
+   {
+    "q": "Who did Roy paint the box for?",
+    "answer": [
+     "Tom"
+    ]
+   },
+   {
+    "q": "Did Roy paint the box for Tom?",
+    "answer": "yes"
+   }
+  ]
+ }
 ]

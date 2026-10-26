@@ -44,6 +44,8 @@ READ = [
     ("Roy painted the medal with paint.", ["instance_of(?e, paint)", "done_with(?e, ?y)",
                                           "instance_of(?y, coating paint)"]),
     ("Roy painted the medal for Tom.", ["instance_of(?e, paint)", "done_for(?e, tom)", "done_to(?e, ?x)"]),
+    # "for" with a verb no record joined it to: what the word itself says.
+    ("Roy fastened the medal for Tom.", ["instance_of(?e, fasten)", "done_for(?e, tom)", "done_to(?e, ?x)"]),
 ]
 #: Never in the sentences before: present, -ing and passive; and "paints" never past.
 NOT_READ = {"Roy paints the medal.": ["precedes(?e, ?now)"], "Roy is painting the medal.": ["precedes(?e, ?now)"]}
@@ -116,8 +118,12 @@ async def store_checks() -> int:
              sorted(w.key() for _, w in held) == sorted(w.key() for w in words), f"{len(held)} held")
     EV.check("memory reads none of them as a claim about the world",
              all(not (row.metadata or {}).get("facts") for row, _ in held))
-    EV.check("memory holds each word's senses, what each means and what it is a kind of",
-             all(any(s.means and s.kind_of for s in w.senses) for _, w in held))
+    # A word WordNet has (a noun, a verb, ...) is held with its senses; a word it has none of ("for") with its uses
+    # and what it says joining a doing to a thing (checked below).
+    EV.check("memory holds each word's senses, what each means and what it is a kind of; a word WordNet has none of, "
+             "its uses and what it says",
+             all(any(s.means and s.kind_of for s in w.senses) if w.senses else (w.used_as and w.joins)
+                 for _, w in held))
 
     # ── each part of reading ──
     forms = agent.word_forms()
@@ -128,6 +134,15 @@ async def store_checks() -> int:
                  if not agent.word_classes(f.form).get(f.word_class)]
     EV.check("memory knows each form's class (\"paint\" a verb and a noun, \"painted\" a verb)", not unclassed,
              str(unclassed))
+    lexicon = agent.grammar_view().grammar.lexicon
+    unused = [(form, use, n, dict(lexicon.words.form_uses.get(form, {}))) for w in words for form, use, n in w.used_as
+              if lexicon.words.form_uses.get(form, {}).get(use, 0) < n]
+    EV.check("the grammar holds how the treebanks used each form, as its entries name the uses (\"for\" a "
+             "preposition, a subordinator)", not unused, str(unused)[:300])
+    unjoined = [(w.word, link, n) for w in words for link, n in w.joins
+                if lexicon.learned["prep"].get((w.word, "event", "-"), {}).get(link, 0) < n]
+    EV.check("the grammar holds what each preposition says joining a doing to a thing (\"for\" done_for, "
+             "has_purpose)", not unjoined, str(unjoined))
     misnamed = [(w.word, cls, agent.name_of(w.word, cls), name) for w in words for cls, name in w.names().items()
                 if agent.name_of(w.word, cls) != name]
     EV.check("the word names, as each class, what its most used sense of the class means (the verb `paint`, the noun "

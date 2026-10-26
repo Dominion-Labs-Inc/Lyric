@@ -21,6 +21,7 @@ import json
 import logging
 import os
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
@@ -2953,8 +2954,11 @@ class WordUse:
                    tuple(WordPlace.from_dict(p) for p in data.get("places") or ()))
 
 
-#: The classes a word record's senses and forms may be of.
+#: The classes a word record's senses may be of (WordNet's), and the classes of the words WordNet has none of,
+#: recorded from how the treebanks use them ("for", "the", "is").
 _OPEN_CLASSES = frozenset({"NOUN", "VERB", "ADJECTIVE", "ADVERB"})
+_CLOSED_CLASSES = frozenset({"PREPOSITION", "SUBORDINATOR", "CONJUNCTION", "DETERMINER", "PRONOUN", "AUXILIARY",
+                             "PARTICLE", "NUMERAL", "INTERJECTION"})
 
 
 @dataclass(frozen=True)
@@ -2970,6 +2974,12 @@ class WordRecord:
     forms: Tuple[WordForm, ...]
     senses: Tuple[WordSense, ...]
     uses: Tuple[WordUse, ...] = ()
+    #: How the treebanks used each of its forms, named as the grammar's entries name their uses (`HeldWords.use_of`):
+    #: (form, use, how often) — "for" a PREPOSITION, a `sub`, a `mark:purpose`.
+    used_as: Tuple[Tuple[str, str, int], ...] = ()
+    #: What it says joining a doing to a thing, as PropBank's arguments it opens are tagged (`_PLACE_LINKS`): (link,
+    #: how often) — "for" `done_for`, `has_purpose`.
+    joins: Tuple[Tuple[str, int], ...] = ()
     source: str = ""
     licence: str = ""
     split: str = "train"
@@ -2994,13 +3004,16 @@ class WordRecord:
     def to_dict(self) -> Dict[str, Any]:
         return {"word": self.word, "source": self.source, "licence": self.licence, "split": self.split,
                 "forms": [f.to_dict() for f in self.forms], "senses": [s.to_dict() for s in self.senses],
-                "uses": [u.to_dict() for u in self.uses]}
+                "uses": [u.to_dict() for u in self.uses], "used_as": [list(u) for u in self.used_as],
+                "joins": [list(j) for j in self.joins]}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
         return cls(str(data["word"]), tuple(WordForm.from_dict(f) for f in data.get("forms") or ()),
                    tuple(WordSense.from_dict(s) for s in data.get("senses") or ()),
-                   tuple(WordUse.from_dict(u) for u in data.get("uses") or ()), str(data.get("source") or ""),
+                   tuple(WordUse.from_dict(u) for u in data.get("uses") or ()),
+                   tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_as") or ()),
+                   tuple((str(j[0]), int(j[1])) for j in data.get("joins") or ()), str(data.get("source") or ""),
                    str(data.get("licence") or ""), str(data.get("split") or "train"))
 
     def problems(self) -> List[str]:
@@ -3008,16 +3021,23 @@ class WordRecord:
         out: List[str] = []
         if not self.word or self.word != self.word.strip() or self.word.lower() != self.word:
             out.append(f"the word {self.word!r} is not written in lowercase, alone")
-        if not self.senses:
-            out.append("no sense")
         if not self.forms:
             out.append("no form")
+        if not self.senses and any(f.word_class in _OPEN_CLASSES for f in self.forms):
+            out.append("no sense")
         classes = {s.word_class for s in self.senses}
         for f in self.forms:
-            if f.word_class not in _OPEN_CLASSES:
+            if f.word_class not in _OPEN_CLASSES | _CLOSED_CLASSES:
                 out.append(f"form {f.form!r} of class {f.word_class!r}")
-            elif f.word_class not in classes:
+            elif f.word_class in _OPEN_CLASSES and f.word_class not in classes:
                 out.append(f"form {f.form!r} as a {f.word_class.lower()}, which no sense of the word is")
+        written = {f.form for f in self.forms}
+        for form, use, n in self.used_as:
+            if form not in written or n <= 0 or not use:
+                out.append(f"used as {use!r} written {form!r} {n} times, no form of the word or never")
+        for link, n in self.joins:
+            if not link or n <= 0:
+                out.append(f"joins as {link!r} {n} times")
         for c in classes:
             if not any(f.word_class == c and f.form == self.word for f in self.forms):
                 out.append(f"the word itself is not among its forms as a {c.lower()}")
@@ -3133,7 +3153,61 @@ _PLACE_LINKS = {
     **{("LOC", p): (f"pp:{p}", "located_in") for p in ("in", "on", "at", "inside", "within")},
     ("MNR", "with"): ("pp:with", "done_with"),
     ("PRP", "for"): ("pp:for", "has_purpose"), ("PNC", "for"): ("pp:for", "has_purpose"),
+    **{("TMP", p): (f"pp:{p}", "during") for p in ("during", "in", "on", "at")},
 }
+
+
+def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
+                   ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter]]:
+    """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
+    which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
+    analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word)."""
+    from core.semantics.grammar import closed_uses
+    from core.semantics.grammar_words import HeldWords
+    if "sentences" not in cache:
+        sentences, holding = [], {}
+        for treebank in treebanks:
+            for analysed in TreebankSource.of(treebank).analysed():
+                k = len(sentences)
+                sentences.append(analysed)
+                for w in {w.lower() for w in analysed.words}:
+                    holding.setdefault(w, []).append(k)
+        cache["sentences"], cache["holding"] = sentences, holding
+    ids = sorted({k for form in written for k in cache["holding"].get(form, ())})
+    held = [cache["sentences"][k] for k in ids]
+    classes: Dict[Tuple[str, str], int] = {}
+    for analysed in held:
+        for w, c in zip(analysed.words, analysed.classes):
+            if w.lower() in written:
+                classes[(w.lower(), c)] = classes.get((w.lower(), c), 0) + 1
+    counted = HeldWords(held, closed_uses(), lambda w, c: w.lower())
+    return classes, {form: Counter(counted.form_uses.get(form, {})) for form in written}
+
+
+def _propbank_joins(cache: Dict[str, Any]) -> Dict[str, Counter]:
+    """For each preposition, how often PropBank's arguments it opens are tagged each function, over every frame file:
+    the numbered ones by their role's tag, the others by their own (`ARGM-PRP`: PRP)."""
+    import xml.etree.ElementTree as ET
+    from pathlib import Path
+    if "propbank_joins" not in cache:
+        out: Dict[str, Counter] = {}
+        for path in sorted((Path(SYNTAX_DATA) / "propbank-frames" / "frames").glob("*.xml")):
+            try:
+                tree = ET.parse(path)
+            except ET.ParseError:
+                continue
+            for roleset in tree.iter("roleset"):
+                tags = {"ARG" + str(r.get("n")).upper(): str(r.get("f") or "").upper() for r in roleset.iter("role")}
+                for example in roleset.iter("example"):
+                    for arg in example.iter("arg"):
+                        kind = str(arg.get("type") or "")
+                        function = tags.get(kind, "") if kind.startswith("ARG") and not kind.startswith("ARGM") \
+                            else kind.split("-", 1)[1].upper() if kind.startswith("ARGM-") else ""
+                        first = (arg.text or "").strip().split(" ")[0].lower()
+                        if function and first in _PREPOSITIONS_WRITTEN:
+                            out.setdefault(first, Counter())[function] += 1
+        cache["propbank_joins"] = out
+    return cache["propbank_joins"]
 
 #: What VerbNet's restrictions on what fills a place are, as WordNet's senses (Lyric names each, `_sense_names`):
 #: "+concrete" a physical entity, "+animate" a living thing.
@@ -3289,18 +3363,43 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         if rid not in taken:
             uses.append(WordUse(rid, means, tuple(place_of(role, said, linked) for role, said in roles)))
     by_class = {s.word_class for s in senses}
+    inflected = {cls: _cache["forms"].get((word, cls), {}) for cls in by_class}
+    written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of}
+    classes, uses_of = _treebank_uses(word, written, treebanks, _cache)
     forms: List[WordForm] = []
     for cls in sorted(by_class):
-        written = _cache["forms"].get((word, cls), {})
         base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
-        if not any(form == word for form, _ in written):
-            forms.append(WordForm(word, cls, base_features, 0))
-        for (form, features), n in sorted(written.items(), key=lambda x: (-x[1], x[0])):
+        if not any(form == word for form, _ in inflected[cls]):
+            forms.append(WordForm(word, cls, base_features, classes.get((word, cls), 0)))
+        for (form, features), n in sorted(inflected[cls].items(), key=lambda x: (-x[1], x[0])):
             forms.append(WordForm(form, cls, features, n))
-    return WordRecord(word, tuple(forms), tuple(senses), tuple(uses),
+    # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator.
+    for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
+        if cls in _CLOSED_CLASSES and form == word:
+            forms.append(WordForm(form, cls, "", n))
+    kept = {f.word_class for f in forms}
+    as_class = {(f.form, f.word_class) for f in forms}
+    closed_forms = {f.form for f in forms if f.word_class in _CLOSED_CLASSES}
+
+    def ours(form: str, use: str) -> bool:
+        # A USE IS THIS WORD'S where its form is the word as that class: "painting" used as a noun is the noun
+        # "painting", not "paint"; a use named for no class ("sub", "mark:purpose") is a closed form's.
+        cls = use.split(":")[0]
+        return (form, cls) in as_class if cls in _OPEN_CLASSES | _CLOSED_CLASSES | {"NAME"} else form in closed_forms
+    used_as = tuple((form, use, n) for form in sorted(written) for use, n in uses_of.get(form, {}).most_common()
+                    if n > 0 and ours(form, use))
+    joins: Dict[str, int] = {}
+    if "PREPOSITION" in kept or "SUBORDINATOR" in kept:
+        for function, n in _propbank_joins(_cache).get(word, {}).items():
+            link = _PLACE_LINKS.get((function, word))
+            if link:
+                joins[link[1]] = joins.get(link[1], 0) + n
+    return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
+                      tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
-                      "PropBank frames (senses of the verb, places); VerbNet 3.3 (which PropBank sense is which "
-                      "WordNet sense, what may fill a place)",
+                      "PropBank frames (senses of the verb, places; what a preposition opens); VerbNet 3.3 (which "
+                      "PropBank sense is which WordNet sense, what may fill a place); UD English EWT and GUM (how "
+                      "each form is used, as the grammar names its uses)",
                       "WordNet licence (Princeton); UD EWT CC BY-SA 4.0, GUM CC BY-NC-SA 4.0; PropBank CC BY-SA 4.0; "
                       "VerbNet (University of Colorado)", split)
 

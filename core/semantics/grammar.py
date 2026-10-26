@@ -3197,9 +3197,10 @@ class GrammarView:
 
     def hold_word(self, word: Any) -> None:
         """A WORD RECORDED WHOLE (`teaching_sources.WordRecord`), what English's grammar takes of it: what each of its
-        senses is a kind of (the words' knowledge, `GraphKnowledge.add`), how often its verb is used in each frame
-        (the words' `verb_frames`, as an analysed sentence counts them), and what each of its verb's places says
-        (`role`, as a taught meaning teaches them). Its forms, classes and names memory holds
+        senses is a kind of (the words' knowledge, `GraphKnowledge.add`), how each form is used (`form_uses`), what
+        it says joining a doing to a thing (`prep`), how often its verb is used in each frame (the words'
+        `verb_frames`, as an analysed sentence counts them), and what each of its verb's places says (`role`,
+        `prep_of`, as a taught meaning teaches them). Its forms, classes and names memory holds
         (`MemoryAgent._learn_word_record`). Held again, nothing is counted twice; held otherwise, `drop_word` first."""
         key = word.key()
         if key in self._words:
@@ -3231,6 +3232,21 @@ class GrammarView:
                 for _, kind in sense.kind_of:
                     if kind:
                         (knowledge.add if times > 0 else knowledge.discard)(sense.concept, "isa", kind)
+        # HOW EACH FORM IS USED, as an analysed sentence counts it (`form_uses`): which of the grammar's entries a form
+        # is read with, how often ("for" a preposition 1,885 times, a `sub` 231).
+        uses = getattr(words, "form_uses", None)
+        if uses is not None:
+            for form, use, n in getattr(word, "used_as", ()):
+                uses[form][use] += times * n
+                if uses[form][use] <= 0:
+                    del uses[form][use]
+        # WHAT IT SAYS JOINING A DOING TO A THING, as a taught meaning teaches a preposition (`prep`): "for"
+        # `done_for`, `has_purpose`, weighed against each other by how often PropBank's arguments it opens are each.
+        for link, n in getattr(word, "joins", ()):
+            held = lexicon.learned["prep"][(word.word, "event", "-")]
+            held[link] += times * n
+            if held[link] <= 0:
+                del held[link]
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")

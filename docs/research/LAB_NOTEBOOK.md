@@ -62,6 +62,12 @@ function words need records too, from the treebanks (WordNet has none).
 "painted a portrait" (WordNet holds no wall a surface; "portrait" first means a word picture; all are concrete). The
 evidence that can is sentences tagged with senses: SemCor, the PMB's gold senses.
 
+**Then a word WordNet has none of, "for"** (owner: start with "for"): the format holds every word; its classes and
+uses as the treebanks used it, counted as the grammar counts analysed sentences; what it says over every PropBank
+argument it opens (`done_for` 283, `has_purpose` 199). Every word's uses counted so ("painting" as a noun is not
+"paint"'s). Taught with "paint": every check (27), 9 of 9; "Roy fastened the medal for Tom." `done_for` with a verb no
+record joined it to; "Who did Roy paint the box for?" Tom.
+
 **Held but read by nothing yet:** each sense's definition and examples; which sense a sentence means.
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)

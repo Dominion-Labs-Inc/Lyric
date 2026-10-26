@@ -87,4 +87,16 @@ treebank: the noun's plural "paints".
   gold senses).
 - **Held, read by no part of reading yet:** what each sense means (its definition), its examples, which sense a
   sentence means.
+- **A word WordNet has none of: "for"** (the format now holds every word; `_CLOSED_CLASSES`). Its classes as UD's
+  treebanks used it (a preposition 3,154 times, a subordinator 289, a conjunction 5); its uses named as the grammar's
+  entries name them, counted as the grammar counts an analysed sentence (`HeldWords.use_of` over the treebanks'
+  sentences holding it: a preposition of a doing 1,885, of a thing 980, of a quality 244, `sub` 231, `mark:purpose`
+  54, ...); what it says joining a doing to a thing, over every PropBank argument it opens (`_propbank_joins`,
+  through `_PLACE_LINKS`): `done_for` 283, `has_purpose` 199. Every word's uses are counted so ("paint" a verb, a
+  noun; "painting" as a noun is the word "painting", not "paint": a use is a word's where its form is the word as that
+  class). The grammar takes both (`GrammarView.hold_word`: `form_uses`, `prep`). Taught with "paint" (corrected):
+  every check (27), 9 of 9 through the front door, none wrong: "Roy painted the medal for Tom." and "Roy fastened
+  the medal for Tom." (a verb no record joined it to) read `done_for`; told "Roy painted the box for Tom.", "Who did
+  Roy paint the box for?" Tom, "Did Roy paint the box for Tom?" Yes. TRAIN-FORMAT-01 every check, 5 of 5; GRAMMAR-01
+  383.
 
