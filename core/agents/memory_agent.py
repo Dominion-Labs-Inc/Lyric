@@ -7253,7 +7253,7 @@ class MemoryAgent(IMemoryConsolidation):
         """WHAT A WORD MEANS, as the words recorded whole say it: every sense of each word one of whose senses is the
         thing `name` names, or which is written `name` — its word, class, the thing it names (`concept`), what it
         means (WordNet's definition), the nearest kind it is a kind of, how often it is used so, the most used first.
-        The conversation answers "What does paint mean?" and "What is a wall?" by them (`Conversation.say`)."""
+        The conversation answers "What does paint mean?" and "What is a wall?" by them (`_meanings_held`)."""
         folded = str(name).casefold().replace("_", " ")
         out: List[Dict[str, Any]] = []
         for word in self._grammar_words:

@@ -419,7 +419,7 @@ class Derived:
         return (self.said_in, self.part) if self.said_in else None
 
     def claim(self) -> str:
-        """The belief this derivation stands on: that the sentence goes together so."""
+        """What it was taught as, as the knowledge ledger records it: the sentence derived so."""
         return f'the derivation of "{self.text}" ({self.key()[:8]})'
 
     def said(self) -> str:

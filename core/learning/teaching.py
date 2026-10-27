@@ -529,8 +529,7 @@ class TeachingPass:
             await self._flush()
 
         # HOW THE WORDS OF A SENTENCE GO TOGETHER, from a source of sentences analysed by hand (`analysed()`: a
-        # treebank): each kept by memory whole, as it was analysed, its standing a belief on that memory, and read as
-        # memory-based learning reads them (`structure.StructureView`). A limited pass takes the first `limit`.
+        # treebank): each kept by memory whole, as it was analysed, and read as memory-based learning reads them (`structure.StructureView`). A limited pass takes the first `limit`.
         if hasattr(self.source, "analysed"):
             analysed = await asyncio.to_thread(list, self.source.analysed())
             if self.limit is not None:
@@ -547,7 +546,7 @@ class TeachingPass:
         # (`taught_sentences()`), for the composer; and WHICH WORDS KEEP THE SAME COMPANY, from words grouped by counting
         # text (`word_groups()`), for the structure reader; and WHAT EACH WORD TAKES BESIDE THE WORDS AROUND IT, from
         # sentences derived by hand in a categorial grammar (`derived()`: the PMB's), for English's grammar: each kept
-        # whole by memory, its standing a belief on that memory. A limited pass takes the first `limit`.
+        # whole by memory, no belief and no domain made of it. A limited pass takes the first `limit`.
         for method, learn, phase, field_name in (
                 ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
                 ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),

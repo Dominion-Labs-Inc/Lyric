@@ -2467,7 +2467,7 @@ class SentenceRecord:
         return ("record", self.id)
 
     def claim(self) -> str:
-        """The belief it stands on: that the sentence is as recorded, every layer."""
+        """What it was taught as, as the knowledge ledger records it: the sentence as recorded, every layer."""
         return f'"{self.text}" as recorded whole ({self.id}, {self.key()[:8]})'
 
     def said(self) -> str:
@@ -3041,7 +3041,7 @@ class WordRecord:
         return ("word", self.word)
 
     def claim(self) -> str:
-        """The belief it stands on: that the word is as recorded."""
+        """What it was taught as, as the knowledge ledger records it: the word as recorded."""
         return f'the word "{self.word}" as recorded ({self.key()[:8]})'
 
     def said(self) -> str:

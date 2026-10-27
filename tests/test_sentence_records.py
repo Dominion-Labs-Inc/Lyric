@@ -201,3 +201,70 @@ def test_a_word_the_analysts_marked_miswritten_is_no_form_of_it():
              "1\tmade\tmake\tVERB\tVBD\tMood=Ind|Tense=Past|VerbForm=Fin\t0\troot\t_\t_\n"]
     (made,) = forms_from_conllu(lines, "test")
     assert [form for form, _, _ in made.forms] == ["made"]
+
+
+def test_language_taught_makes_no_belief_and_is_in_no_domain(monkeypatch):
+    """Language is how to read, not knowledge of the world: a word recorded whole, kept, held already or corrected, is
+    held by memory and recorded in the knowledge ledger as taught, with no belief made of it and no domain. Each had
+    been a belief in the `english` domain that nothing read, and each correction left one more."""
+    import asyncio
+    import core.database
+    import core.memory
+    from core.learning.unified_learning_system import UnifiedLearningSystem
+    from core.memory import knowledge_ledger
+    from core.reasoning import bayesian_uncertainty
+
+    word, was = _word(), _word(senses=_word().senses[:1])
+
+    class Memory:
+        async def remember_word_records(self, items, progress=None):
+            return {"kept": [(word, "m1")], "held_already": [(word, "m2")], "corrected_items": [(word, "m3", was)],
+                    "remembered": 1, "already": 1, "corrected": 1, "total": 3}
+
+    async def memory():
+        return Memory()
+
+    recorded = []
+
+    async def record_many(db, updates):
+        recorded.extend(updates)
+
+    def no_belief():
+        raise AssertionError("taught language reached the beliefs")
+
+    monkeypatch.setattr(core.memory, "get_memory_agent", memory)
+    monkeypatch.setattr(core.database, "get_database_manager", lambda: None)
+    monkeypatch.setattr(knowledge_ledger, "record_many", record_many)
+    monkeypatch.setattr(bayesian_uncertainty, "get_uncertainty_system", no_belief)
+    counts = asyncio.run(UnifiedLearningSystem.__new__(UnifiedLearningSystem).learn_word_records(
+        [word], quality=0.95))
+    assert counts["remembered"] == 1 and counts["corrected"] == 1
+    assert [(u.disposition.value, u.domain) for u in recorded] == [("new", None), ("updated", None)]
+
+
+def test_what_a_thing_is_and_what_a_word_means_are_answers_held_not_sentences_written():
+    """"What is a wall?" is answered by the kind the words hold a wall to be, "What does paint mean?" by what each
+    sense it is used in means: each an answer as a held relation is, said as Lyric was taught to say it or by its name
+    (`_meanings_held`). They had been sentences written in the code ("A wall is a partition: ...")."""
+    from core.agents.autonomous.autonomous_coordinator import Understanding, _meanings_held
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+    paint = [{"word": "paint", "class": "VERB", "concept": "paint", "means": "make a painting", "kind": "create",
+              "used": 17, "named": False},
+             {"word": "paint", "class": "NOUN", "concept": "coating paint", "means": "a substance used as a coating",
+              "kind": "coating", "used": 7, "named": True},
+             {"word": "paint", "class": "NOUN", "concept": "rouge", "means": "makeup", "kind": "makeup", "used": 0,
+              "named": False}]
+    u = Understanding(sentence="What is paint?")
+    u.meanings = {"coating paint": paint}
+    what_is = Meaning("ask", (F("equals", "?v0", "?v1"), F("instance_of", "?v0", "coating paint")), ("?v1",))
+    assert [(a.about, a.relation, a.others, a.verdict) for a in _meanings_held(u, what_is)] \
+        == [("paint", "isa", ("coating",), None)]
+    means = Meaning("ask", (F("done_by", "?e", "coating paint"), F("done_to", "?e", "?v1"),
+                            F("instance_of", "?e", "mean")), ("?v1",))
+    assert [(a.relation, a.others) for a in _meanings_held(u, means)] \
+        == [("means", ("make a painting",)), ("means", ("a substance used as a coating",))]
+    assert not any(a.conclusion for a in _meanings_held(u, what_is) + _meanings_held(u, means))
+    described = Meaning("ask", (F("equals", "?v0", "?v1"), F("instance_of", "?v0", "coating paint"),
+                                F("has_property", "?v0", "red")), ("?v1",))
+    assert _meanings_held(u, described) == [], "a thing asked of more than its kind is not what the kind is"
+    assert _meanings_held(u, Meaning("ask", (F("isa", "coating paint", "coating"),))) == [], "a yes or no asks nothing"

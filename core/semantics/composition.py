@@ -476,7 +476,7 @@ class TaughtSentence:
         return (self.said_in, self.sentence) if self.said_in else None
 
     def claim(self) -> str:
-        """The belief it stands on: that the sentence means what it was taught to."""
+        """What it was taught as, as the knowledge ledger records it: the sentence meaning what it was taught to."""
         return f'"{self.sentence}" means {self.meaning.canonical()} ({self.key()[:8]})'
 
     def said(self) -> str:

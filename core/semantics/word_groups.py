@@ -142,7 +142,7 @@ class WordGroup:
         return f"{self.counted_from}:{self.of}:{self.group}"
 
     def claim(self) -> str:
-        """The belief this group stands on: that these words keep the same company in the text."""
+        """What it was taught as, as the knowledge ledger records it: these words keeping the same company in the text."""
         return f"the words of group {self.group} of {self.of} keep the same company in {self.counted_from}"
 
     def said(self) -> str:

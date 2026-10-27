@@ -4062,15 +4062,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """How the words of a sentence go together, from sentences analysed by hand (a treebank): `analysed` is an
         iterable of `structure.Analysed`, each word's class and the word it depends on and as what. Each is held by
-        memory whole, as it was analysed (`MemoryAgent.remember_analysed`), and its standing is a belief on that
-        memory: one observation from the source, so the same source again moves nothing, and a reading that goes
-        wrong by it can argue it down. Read as memory-based learning reads them (`structure.StructureView`).
+        memory whole, as it was analysed (`MemoryAgent.remember_analysed`), and read as memory-based learning reads
+        them (`structure.StructureView`). No belief is made of it and it is in no domain (`_learn_held`).
 
         Returns counts: `remembered`, `already`, `refused`, `total`."""
         from core.memory import knowledge_ledger as _ledger
         from core.memory import get_memory_agent
-        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        from core.semantics import derived_reader as dr
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
         analysed = list(analysed)
         if self._refused_while_frozen(f"learn_structure ({len(analysed)})"):
@@ -4083,18 +4080,14 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         source_id = getattr(provenance, "source_id", None) or "you"
         agent = await get_memory_agent()
         held = await agent.remember_analysed(analysed, progress=progress)
-        us = get_uncertainty_system()
         cause = f"learning.structure.{producer}"
         batch = _ledger.begin_batch(cause)
         updates: List[Any] = []
         try:
-            for item, memory_id in held["kept"]:
-                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
-                                 observation=f"{source_id}:structure", memory_id=memory_id)
+            for item, _ in held["kept"]:
                 updates.append(_ledger.KnowledgeUpdate(
                     subject_kind="analysed_sentence", subject_id=item.key(), disposition=_ledger.Disposition.NEW,
-                    domain=dr.ENGLISH_DOMAIN, detail=f"{item.text!r} as analysed ({item.said_in})"[:500],
-                    cause=cause))
+                    detail=f"{item.text!r} as analysed ({item.said_in}, {source_id})"[:500], cause=cause))
             if updates:
                 from core.database import get_database_manager
                 await _ledger.record_many(get_database_manager(), updates)
@@ -4105,15 +4098,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
     async def _learn_held(self, items, *, what: str, remember: str, subject_kind: str, provenance: Any,
                           quality: float, progress: Optional[Callable[[int, int], None]]) -> Dict[str, int]:
-        """Hold items of language knowledge whole in memory (`remember`, a `MemoryAgent` method returning `kept` and
-        `held_already`), each item's standing a belief on its memory, as `learn_structure` holds sentences analysed:
-        one observation from the source, so the same source again moves nothing. An item memory held already is
-        observed again, which moves nothing where it was observed and gives its standing to one a pass stopped
-        before observing (memories are kept first, observed after). Each item has `key()` and `claim()`."""
+        """Hold items of language knowledge whole in memory (`remember`, a `MemoryAgent` method returning `kept`), each
+        recorded in the knowledge ledger as taught. Each item has `key()` and `claim()`.
+
+        LANGUAGE IS HOW TO READ, NOT KNOWLEDGE OF THE WORLD: no belief is made of an item and it is in no domain. Each
+        had been a belief in the `english` domain that nothing read (no reader weighs a word record, a derivation or a
+        sentence analysed by its belief), and each correction left one more (eight for "paint" on lyric_dev2,
+        2026-10-27); memory holding the item, corrected in place (`MemoryAgent._remember_whole`), is its standing."""
         from core.memory import knowledge_ledger as _ledger
         from core.memory import get_memory_agent
-        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        from core.semantics import derived_reader as dr
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
         items = list(items)
         if self._refused_while_frozen(f"{remember} ({len(items)})"):
@@ -4126,30 +4119,18 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         source_id = getattr(provenance, "source_id", None) or "you"
         agent = await get_memory_agent()
         held = await getattr(agent, remember)(items, progress=progress)
-        us = get_uncertainty_system()
         cause = f"learning.{subject_kind}.{producer}"
         batch = _ledger.begin_batch(cause)
         updates: List[Any] = []
         try:
-            for item, memory_id in held.get("held_already", ()):
-                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
-                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
-            for item, memory_id in held["kept"]:
-                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
-                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
+            for item, _ in held["kept"]:
                 updates.append(_ledger.KnowledgeUpdate(
                     subject_kind=subject_kind, subject_id=item.key(), disposition=_ledger.Disposition.NEW,
-                    domain=dr.ENGLISH_DOMAIN, detail=item.claim()[:500], cause=cause))
-            # A TEACHING CORRECTED IS ITS WITNESS CHANGING ITS WORD: what the item said before is observed not so by
-            # the same witness (a revision, `observe_claim`: the earlier word withdrawn), what it says now as so.
-            for item, memory_id, was in held.get("corrected_items", ()):
-                us.observe_claim(was.claim(), dr.ENGLISH_DOMAIN, supports=False, quality=quality, source="taught",
-                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
-                us.observe_claim(item.claim(), dr.ENGLISH_DOMAIN, supports=True, quality=quality, source="taught",
-                                 observation=f"{source_id}:{subject_kind}", memory_id=memory_id)
+                    detail=f"{item.claim()} ({source_id})"[:500], cause=cause))
+            for item, _, was in held.get("corrected_items", ()):
                 updates.append(_ledger.KnowledgeUpdate(
                     subject_kind=subject_kind, subject_id=item.key(), disposition=_ledger.Disposition.UPDATED,
-                    domain=dr.ENGLISH_DOMAIN, detail=f"corrected: {item.claim()[:240]}; was {was.claim()[:240]}",
+                    detail=f"corrected: {item.claim()[:240]}; was {was.claim()[:240]} ({source_id})"[:500],
                     cause=cause))
             if updates:
                 from core.database import get_database_manager
@@ -4171,7 +4152,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """Which phrases are a happening's arguments and what each is, from sentences whose happenings' arguments
         were annotated by hand (PropBank): `argued` is an iterable of `argument_structure.Argued`. Each is held by
-        memory whole (`MemoryAgent.remember_argued`), its standing a belief on that memory, and read as
+        memory whole (`MemoryAgent.remember_argued`) and read as
         memory-based learning reads them (`argument_structure.ArgumentStructureView`).
 
         Returns counts: `remembered`, `already`, `refused`, `total`."""
@@ -4183,7 +4164,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                      progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """How a sentence's meaning is composed from how its words go together, from the lessons' sentences each with
         the meaning it was taught to have: `taught` is an iterable of `composition.TaughtSentence`. Each is held by
-        memory whole (`MemoryAgent.remember_taught_sentences`), its standing a belief on that memory, and the
+        memory whole (`MemoryAgent.remember_taught_sentences`), and the
         composer learns from them as each is read with the structure memory holds (`composition.CompositionView`).
 
         Returns counts: `remembered`, `already`, `refused`, `total`."""
@@ -4217,7 +4198,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """What each word takes beside the words around it, from sentences derived by hand in a categorial grammar
         (the PMB's CCG derivations checked by hand): `derived` is an iterable of `grammar.Derived`. Each is held by
-        memory whole (`MemoryAgent.remember_derived`), its standing a belief on that memory, and English's grammar
+        memory whole (`MemoryAgent.remember_derived`), and English's grammar
         chooses each word's category by them (`Lexicon.hear_derived`).
 
         Returns counts: `remembered`, `already`, `refused`, `total`."""
@@ -4239,8 +4220,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
     async def learn_records(self, records, *, provenance: Any = None, quality: float,
                             progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """Sentences recorded whole (`teaching_sources.SentenceRecord`: every layer of each sentence by word
-        position): each held by memory as one memory (`MemoryAgent.remember_records`), its standing a belief on that
-        memory, each layer learned by the part of reading that learns from it.
+        position): each held by memory as one memory (`MemoryAgent.remember_records`), each layer learned by the part of reading that learns from it.
 
         Returns counts: `remembered`, `already`, `refused`, `total`."""
         return await self._learn_held(records, what="sentences recorded whole", remember="remember_records",

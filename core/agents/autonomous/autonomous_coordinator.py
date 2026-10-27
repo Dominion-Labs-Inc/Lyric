@@ -20780,43 +20780,44 @@ def said_plainly(text: str) -> str:
     return re.sub(r"(?m)^[ \t]*- (?=\S)", "- ", text) if "\n - " in text or text.startswith(" - ") else text
 
 
-def _meanings_said(understanding: "Understanding", asked: Any) -> List[Tuple[str, str]]:
-    """WHAT A WORD MEANS, OR WHAT A THING IS, SAID FROM THE WORDS RECORDED WHOLE (`Understanding.meanings`): asked
-    what a word means ("What does paint mean?": a meaning `mean` of it), every meaning it has, the most used first, a
-    verb's as a doing ("Paint can mean: a substance used as a coating ...; to make a painting; ..."); asked what a
-    thing is ("What is a wall?"), the kind it is and what it means ("A wall is a partition: an architectural partition
-    ..."). Nothing, where no word recorded whole names what was asked. Told by nothing else in a store taught only
-    words, "What is a wall?" was "I don't hold wall yet." (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26)."""
-    if not understanding.meanings:
+def _meanings_held(understanding: "Understanding", asked: Any) -> List["Answer"]:
+    """WHAT A THING IS, OR WHAT A WORD MEANS, AS THE WORDS RECORDED WHOLE HOLD IT (`Understanding.meanings`), each an
+    answer as a held relation is, said by what Lyric was taught to say it with or else by its name (`Conversation.say`).
+
+    A thing asked to be what a kind is, and nothing more ("What is a wall?": `equals(?a, ?b) & instance_of(?a, wall)
+    ? ?b`), is answered by the kind its sense is nearest a kind of: `wall isa partition`. A word asked what it means
+    ("What does paint mean?": a meaning done by it, asked what the meaning is done to) is answered by what each sense
+    it is used in means, the most used first; the first sense where no use of any was counted. Nothing otherwise.
+
+    These had been sentences written here in English ("A wall is a partition: ...", "Paint can mean: ..."), said
+    whatever Lyric had been taught to say (TRAIN-FORMAT-02, lyric_dev2, 2026-10-27)."""
+    from core.semantics.derived_reader import is_variable
+    wanted = set(getattr(asked, "asked", ()) or ())
+    if not understanding.meanings or not wanted:
         return []
-    if not tuple(getattr(asked, "asked", ()) or ()):
-        # A YES OR NO ASKS FOR NOTHING to be told what a word means: "Is a wall a structure?" was answered with what a
-        # wall is and "I hold nothing for structure." (lyric_dev2, 2026-10-26). Whether it holds is reasoning's.
-        return []
-    facts = list(getattr(asked, "facts", ()) or ())
-    asks_meaning = any(f.relation == "instance_of" and str(f.obj) == "mean" for f in facts)
-    sentence = str(understanding.sentence or "").lower()
-    lines: List[Tuple[str, str]] = []
-    for phrase, senses in understanding.meanings.items():
-        if phrase == "mean" or not senses:
+    facts = [f for f in (getattr(asked, "facts", ()) or ()) if f.positive]
+    answers: List[Answer] = []
+    for fact in facts:
+        if fact.relation != "equals":
             continue
-        word = senses[0]["word"]
-        if asks_meaning:
-            said = []
-            for s in senses:
-                if s["used"] or not said:
-                    said.append(("to " if s["class"] == "VERB" else "") + s["means"])
-            lines.append((phrase, f"{word[:1].upper()}{word[1:]} can mean: " + "; ".join(said[:4]) + "."))
+        for thing, other in ((fact.subject, fact.obj), (fact.obj, fact.subject)):
+            described = [f for f in facts if f is not fact and thing in (f.subject, f.obj)]
+            if other not in wanted or not is_variable(thing) or len(described) != 1 \
+                    or described[0].relation != "instance_of" or described[0].subject != thing \
+                    or is_variable(described[0].obj):
+                continue
+            nearest = next((s for s in understanding.meanings.get(described[0].obj) or () if s["named"] and s["kind"]),
+                           None)
+            if nearest is not None:
+                answers.append(Answer(nearest["word"], "isa", (nearest["kind"],), verdict=None))
+    for meaning in {f.subject for f in facts if f.relation == "instance_of" and f.obj == "mean"}:
+        if not any(f.relation == "done_to" and f.subject == meaning and f.obj in wanted for f in facts):
             continue
-        named = next((s for s in senses if s["named"]), senses[0])
-        if not named["kind"]:
-            continue
-        indefinite = re.search(rf"\b(a|an)\s+{re.escape(word)}\b", sentence) is not None
-        subject = (("An " if word[:1] in "aeiou" else "A ") + word) if indefinite else word[:1].upper() + word[1:]
-        kind = named["kind"]
-        article = "an" if kind[:1] in "aeiou" else "a"
-        lines.append((phrase, f"{subject} is {article} {kind}: {named['means']}."))
-    return lines
+        for doer in [f.obj for f in facts if f.relation == "done_by" and f.subject == meaning]:
+            senses = understanding.meanings.get(doer) or []
+            answers += [Answer(s["word"], "means", (s["means"],), verdict=None)
+                        for s in ([s for s in senses if s["used"]] or senses[:1])]
+    return answers
 
 
 def _said(subject: str, relation: str, obj: str, positive: bool = True,
@@ -23954,9 +23955,8 @@ class Conversation:
                 for found in [_memory_module._memory_agent.word_meanings(r.phrase)] if found}
         if asked and not answers and understanding.meanings:
             # A QUESTION NOTHING HELD ANSWERS, ASKING WHAT A WORD MEANS OR WHAT A THING IS, is answered from the words
-            # recorded whole (`_meanings_said`), an answer as any other is: worked, its sentence said as it is.
-            for phrase, line in _meanings_said(understanding, meaning):
-                answers.append(Answer(phrase, "means", (), verdict=None, conclusion=line, worked=True))
+            # recorded whole (`_meanings_held`), each answer said as any held relation is.
+            answers.extend(_meanings_held(understanding, meaning))
         understanding.plurals = await self._plural_map(
             [r.phrase for r in resolved]
             + [str(o) for r in resolved for _rel, o in r.relations]

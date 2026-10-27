@@ -41,7 +41,7 @@ class WordForms:
         return f"{self.counted_from}:{self.word_class}:{self.base}"
 
     def claim(self) -> str:
-        """The belief this stands on: that the word is written in these forms."""
+        """What it was taught as, as the knowledge ledger records it: the word written in these forms."""
         return f"the forms {self.word_class.lower()} {self.base!r} is written in ({self.counted_from})"
 
     def said(self) -> str:

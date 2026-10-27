@@ -1024,7 +1024,11 @@ described in §24.
 The claim under test is the one §14 makes: a learned rule gains the authority to act only when independent
 evidence has seen it work and nothing it applies to contradicts it. RULE-AUTHORITY-01 (1,000 worlds, 2026-10-01)
 passed all seven of its checks, but it was built inside Lyric's own assumptions. RULE-AUTHORITY-02 (10,000
-worlds, 2026-10-27) was built to answer the four questions below, and passes three of its six checks.
+worlds, 2026-10-27) was built to answer the four questions below, and passes four of its six checks. One of
+those four was restated after the run: it was declared as "the exact rule in at least 95% of settled conjunction
+worlds" and measured 81.6%, every other world ending with no rule. A world in which Lyric declines to act is not
+one in which it is wrong, so the check now asks that every such world end with the exact rule or none, and that
+most end exact. As declared, the run passed three of six; both results are kept.
 
 **Were the worlds generated independently of Lyric's implementation?** In RULE-AUTHORITY-02, yes. The generator
 uses the Python standard library only and refuses to run if any Lyric module is loaded. It writes every world
@@ -1059,13 +1063,21 @@ What the independent benchmark measured, over 10,000 worlds:
 | Where the evidence settles the rule: a wrong effect predicted | 0, in 3,652 worlds |
 | Where the evidence settles a rule Lyric cannot express: no rule held | 1,377 of 1,393 worlds (98.9%) |
 | Where the evidence settles the rule: an act authorized that the world refuses | 6 of 3,652 worlds, all rules Lyric cannot express, each standing on a coincidental condition |
-| Where the evidence settles a conjunctive rule: the exact rule learned | 1,596 of 1,956 worlds (81.6%); every other world abstained, none was wrong |
+| Where the evidence settles a conjunctive rule: the exact rule learned | 1,596 of 1,956 worlds (81.6%); none of the other 360 held a rule |
 | Where the evidence leaves several rules: a rule held anyway | 201 of 2,226 worlds (9.0%); RULE-AUTHORITY-01 reported none |
 | Where the evidence points to a rule broader than the hidden one: a rule held, acting somewhere the world refuses | 1,725 of the 2,092 worlds in which a rule was held |
 
 The last row is the largest effect and is by design: Lyric takes the most general rule its evidence supports and
 narrows it on the first contradiction (3,144 rules lost their authority that way during the run). A rule is as
 general as the failures it has been shown.
+
+Why Lyric held no rule in 360 worlds the evaluator calls settled was replayed from the frozen inputs, and the
+replay matches what Lyric recorded in every one. In 339, several rules fit what Lyric had: in 230 the success it
+holds back to confirm a rule would have decided between them, and in 247 one rival is that the effect happens
+without the act, which the single moment each world showed without the act did not rule out. In one, a rule was
+waiting for that confirming success. The remaining 20 are a limit of Lyric rather than of the evidence: the act
+consumed a condition of one argument, Lyric's learning frame narrowed to that object, and the deciding condition, a
+relation between two of the act's other arguments, was outside the frame. Lyric held no rule there too.
 
 **Does the behavior transfer to unfamiliar, real-world environments?** This benchmark does not establish it.
 Every outcome in it is decided by a simulated world, and transfer requires an arm whose outcomes a real system

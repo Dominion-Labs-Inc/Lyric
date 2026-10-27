@@ -104,7 +104,7 @@ class Analysed:
              "\x1f".join(self.relations)]).encode("utf-8")).hexdigest()[:32]
 
     def claim(self) -> str:
-        """The belief this analysis stands on: that the sentence goes together so."""
+        """What it was taught as, as the knowledge ledger records it: the sentence going together so."""
         return f'the structure of "{self.text}" ({self.key()[:8]})'
 
     def said(self) -> str:

@@ -169,7 +169,7 @@ class Argued:
                               .encode("utf-8")).hexdigest()[:32]
 
     def claim(self) -> str:
-        """The belief this annotation stands on: that the sentence's happenings have these arguments."""
+        """What it was taught as, as the knowledge ledger records it: the sentence's happenings having these arguments."""
         return f'the arguments of the happenings in "{self.analysed.text}" ({self.key()[:8]})'
 
     def said(self) -> str:

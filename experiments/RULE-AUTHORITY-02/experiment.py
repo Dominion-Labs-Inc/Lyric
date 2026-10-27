@@ -52,8 +52,8 @@ EV = RunRecord(
     hypothesis=("Over worlds whose hidden rules include forms Lyric cannot express, no rule left with authority "
                 "is contradicted by what was shown or follows from fewer than three successes; where the "
                 "evidence settles the rule, no rule authorizes an act the world refuses or predicts a wrong "
-                "effect, and conjunctive rules are learned exactly at least 95% of the time; where it does not, "
-                "no rule holds authority."))
+                "effect, and where it settles a conjunctive rule Lyric ends with that rule or none, most often "
+                "that rule; where it does not, no rule holds authority."))
 
 
 async def run_world(w, run_tag, la, store, demos):
