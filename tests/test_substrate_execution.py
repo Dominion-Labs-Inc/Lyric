@@ -710,6 +710,31 @@ def test_a_habit_is_relied_on_by_how_often_it_held():
     assert not relied_on_rate(50, 100) and not relied_on_rate(500, 1000)
 
 
+def test_a_success_nothing_it_held_explains_is_the_world_departing():
+    """A press works where the button is ready. One worked where it was only
+    lit, and two presses where it was only lit were refused: the world leaked
+    there. Refusals that held something no press that worked held (the button
+    jammed) could be refused for that, and say nothing of the lit press; and
+    one refusal can be the world departing the other way."""
+    from core.learning.unified_learning_system import _leaks
+
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(Fact(p, (thing,)) for p in held))
+        after = before + ((Fact("PRESSED", (thing,)),) if worked else ())
+        return TrainingExample(before=before, action=Fact("PRESS", (thing,)), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    worked = [press(i, "READY", *(("LIT",) if i % 2 else ()), worked=True) for i in range(4)]
+    leak = press(4, "LIT", worked=True)
+    lit = [press(5, "LIT", worked=False), press(6, "LIT", worked=False)]
+    jammed = [press(7, "LIT", "JAMMED", worked=False), press(8, "LIT", "JAMMED", worked=False)]
+
+    assert _leaks(worked + [leak] + lit, set(), lambda basis: basis) == {"p4"}
+    assert _leaks(worked + [leak] + jammed, set(), lambda basis: basis) == set()
+    assert _leaks(worked + [leak] + lit[:1] + jammed, set(), lambda basis: basis) == set()
+    assert _leaks(worked + [leak] + lit, {"p5"}, lambda basis: basis) == set()
+
+
 def test_what_the_substrate_touched_is_told_apart_per_thing():
     """An act that says what it changed names those things, and the world's own
     change of anything else is still the world's; one that does not say, or one

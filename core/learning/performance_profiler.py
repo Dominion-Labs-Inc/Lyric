@@ -41,9 +41,10 @@ class PerformanceMetrics:
     execution_time_ms: float
     cpu_time_ms: float
 
-    # Memory
+    # Memory. The peak is None where it was not measured: a coroutine's
+    # (`profile_function`).
     memory_used_mb: float
-    peak_memory_mb: float
+    peak_memory_mb: Optional[float]
     memory_delta_mb: float  # Change during execution
 
     # CPU
@@ -216,8 +217,19 @@ class PerformanceProfiler:
 
         # Only start tracing if nobody else is. A nested profile used to call
         # start() and then stop(), tearing down the OUTER profile's tracer.
+        #
+        # AND ONLY A FUNCTION THAT RUNS TO ITS END. tracemalloc traces the whole
+        # process, and a coroutine lets everything else run while it waits, so
+        # its peak was every coroutine's allocations, never its own. The cost
+        # fell on everything too: `execute_task` is profiled and lasts the
+        # whole task, so with tasks running the tracer was nearly always on,
+        # and every allocation anywhere recorded where it was made. Measured on
+        # a booted substrate running RULE-AUTHORITY-02, two thirds of the main
+        # thread went to that bookkeeping, and the run acted at a fifth of the
+        # rate it had. A coroutine's peak is left unmeasured.
         owns_tracer = False
-        if self.enable_memory_profiling and not tracemalloc.is_tracing():
+        if self.enable_memory_profiling and not asyncio.iscoroutinefunction(func) \
+                and not tracemalloc.is_tracing():
             tracemalloc.start()
             owns_tracer = True
 
@@ -255,7 +267,7 @@ class PerformanceProfiler:
             end_cpu_time = time.process_time()
             mem_after = self.process.memory_info().rss / 1024 / 1024
 
-            peak_memory = 0.0
+            peak_memory = None
             if owns_tracer and tracemalloc.is_tracing():
                 _current, peak = tracemalloc.get_traced_memory()
                 peak_memory = peak / 1024 / 1024
@@ -397,7 +409,8 @@ class PerformanceProfiler:
         # Calculate statistics
         execution_times = [m.execution_time_ms for m in component_metrics]
         memory_usage = [m.memory_used_mb for m in component_metrics]
-        peak_memory = max(m.peak_memory_mb for m in component_metrics)
+        peaks = [m.peak_memory_mb for m in component_metrics if m.peak_memory_mb is not None]
+        peak_memory = max(peaks) if peaks else None
 
         # Identify bottlenecks
         bottlenecks = await self._identify_bottlenecks(component_name, component_metrics)
@@ -520,7 +533,8 @@ class PerformanceProfiler:
                 execution_time_ms=float(row["duration"] or 0.0),
                 cpu_time_ms=float(details.get("cpu_time_ms") or 0.0),
                 memory_used_mb=operation_memory,
-                peak_memory_mb=float(details.get("peak_memory_mb") or 0.0),
+                peak_memory_mb=(None if details.get("peak_memory_mb") is None
+                                else float(details["peak_memory_mb"])),
                 memory_delta_mb=float(details.get("memory_delta_mb") or 0.0),
                 cpu_percent=float(row["cpu_usage"] or 0.0),
                 call_count=1,
@@ -632,7 +646,7 @@ class PerformanceProfiler:
         self,
         avg_time_ms: float,
         avg_memory_mb: float,
-        peak_memory_mb: float
+        peak_memory_mb: Optional[float]
     ) -> str:
         """
         Calculate overall performance grade
@@ -640,7 +654,8 @@ class PerformanceProfiler:
         Based on:
         - Average execution time (70% weight)
         - Average memory usage (20% weight)
-        - Peak memory usage (10% weight)
+        - Peak memory usage (10% weight), where it was measured; where it was
+          not, the other two carry the grade in the same proportion
 
         Returns:
             Performance grade: EXCELLENT, GOOD, FAIR, POOR, CRITICAL
@@ -672,7 +687,9 @@ class PerformanceProfiler:
             mem_score = 20
 
         # Peak memory score (0-100, inverted)
-        if peak_memory_mb <= mem_thresholds["excellent"]:
+        if peak_memory_mb is None:
+            peak_score = None
+        elif peak_memory_mb <= mem_thresholds["excellent"]:
             peak_score = 100
         elif peak_memory_mb <= mem_thresholds["good"]:
             peak_score = 80
@@ -684,7 +701,10 @@ class PerformanceProfiler:
             peak_score = 20
 
         # Weighted average
-        overall_score = (time_score * 0.7) + (mem_score * 0.2) + (peak_score * 0.1)
+        if peak_score is None:
+            overall_score = ((time_score * 0.7) + (mem_score * 0.2)) / 0.9
+        else:
+            overall_score = (time_score * 0.7) + (mem_score * 0.2) + (peak_score * 0.1)
 
         # Convert to grade
         if overall_score >= 90:
@@ -869,7 +889,8 @@ class PerformanceProfiler:
                         "memory_semantics": "operation_delta_mb",
                         "process_rss_mb": round(mem_after_rss, 2),
                         "memory_delta_mb": round(metrics.memory_delta_mb, 4),
-                        "peak_memory_mb": round(metrics.peak_memory_mb, 4),
+                        "peak_memory_mb": (None if metrics.peak_memory_mb is None
+                                           else round(metrics.peak_memory_mb, 4)),
                         "cpu_time_ms": round(metrics.cpu_time_ms, 4),
                         "context": context,
                     }, default=str),

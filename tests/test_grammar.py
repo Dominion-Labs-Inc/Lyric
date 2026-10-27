@@ -685,3 +685,85 @@ def test_a_happening_is_said_with_its_doer_and_what_it_was_done_to():
     said = g.say(told)
     assert said and all(read(g, s) == told.canonical() for s in said)
     assert "Tom chased a cat." in said
+
+
+class Sounding(Speaking):
+    """The words above, and an owl, with how each is said, the first sounds "a" and "an" were said before, the
+    subjects each form of "be" took, and what form each noun is, as words recorded whole hold them."""
+
+    SOUNDS = {"owl": ["AW1 L"], "bird": ["B ER1 D"], "dog": ["D AO1 G"], "dogs": ["D AO1 G Z"],
+              "mammal": ["M AE1 M AH0 L"], "mammals": ["M AE1 M AH0 L Z"]}
+    BEFORE = {"a": {"B": 50.0, "D": 40.0, "M": 30.0, "Y": 5.0}, "an": {"AW": 10.0, "AE": 12.0, "IH": 9.0}}
+    SUBJECTS = {"is": {("NOUN", "Number=Sing"): 100.0, ("PRONOUN", "Number=Sing|Person=3"): 50.0},
+                "'s": {("NOUN", "Number=Sing"): 20.0, ("PRONOUN", "Number=Sing|Person=3"): 60.0},
+                "am": {("PRONOUN", "Number=Sing|Person=1"): 40.0},
+                "'m": {("PRONOUN", "Number=Sing|Person=1"): 40.0},
+                "are": {("NOUN", "Number=Plur"): 80.0, ("PRONOUN", "Person=2"): 30.0},
+                "'re": {("PRONOUN", "Person=2"): 30.0}}
+
+    USES = {"a": {"det": 100.0}, "an": {"det": 100.0}, "is": {"be:np": 60.0, "be:adj": 40.0},
+            "'s": {"be:np": 15.0, "be:adj": 10.0}, "am": {"be:np": 10.0, "be:adj": 20.0},
+            "'m": {"be:np": 10.0, "be:adj": 20.0}, "are": {"be:np": 40.0, "be:adj": 40.0},
+            "'re": {"be:np": 10.0, "be:adj": 20.0}}
+
+    def uses(self, word: str) -> Mapping[str, float]:
+        w = word.lower()
+        return {"NOUN": 10.0} if w == "owl" else self.USES.get(w) or super().uses(word)
+
+    def noun_alone(self, word: str) -> Mapping[str, float]:
+        # As the treebanks say nouns: one alone seldom, many alone often.
+        return {"bare": 20.0, "determined": 10.0} if self.plural(word) else {"bare": 1.0, "determined": 30.0}
+
+    def name(self, word: str, cls: str) -> str:
+        return "owl" if word.lower() == "owl" else super().name(word, cls)
+
+    def words_for(self, name: str, cls: str):
+        return ["owl"] if name == "owl" and cls == "NOUN" else super().words_for(name, cls)
+
+    def sounds(self, word: str):
+        return self.SOUNDS.get(word.lower(), [])
+
+    def said_before(self, word: str):
+        return self.BEFORE if word.lower() in self.BEFORE else {}
+
+    def subjects(self, word=None):
+        if word is None:
+            every: Dict = {}
+            for held in self.SUBJECTS.values():
+                for k, n in held.items():
+                    every[k] = every.get(k, 0.0) + n
+            return every
+        return self.SUBJECTS.get(word.lower(), {})
+
+    def form_features(self, word: str, cls: str):
+        w = word.lower()
+        if cls != "NOUN" or (w not in NOUNS and w != "owl"):
+            return {}
+        return {"Number=Plur" if self.plural(w) else "Number=Sing": 1.0}
+
+
+def test_a_or_an_is_said_as_the_word_after_it_is_said():
+    """Of the forms of "a" the analysts mark nothing apart, the one said before the word after it, by its first sound
+    (`Lexicon._sound_after`): "an owl", "a bird"; read, "a owl" is read less surely than "an owl"."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "owl", "bird"),)))
+    assert said and said[0].startswith("An owl "), said[:5]
+    assert said.index("An owl is a bird.") < said.index("An owl is an bird."), said[:8]
+    assert not any(s.startswith("A owl ") for s in said), said[:8]
+    sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
+            for text in ("An owl is a bird.", "A owl is a bird.")}
+    assert sure["An owl is a bird."] > sure["A owl is a bird."]
+
+
+def test_a_subject_agrees_with_its_verb_as_the_subjects_it_took():
+    """A subject weighed with its verb's finite form by the subjects that form took (`Grammar._agreement`): "a dog
+    am" is read less surely than "a dog is", and what is said of a dog being a mammal first says it agreeing."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
+            for text in ("A dog is a mammal.", "A dog am a mammal.", "Dogs are mammals.", "Dogs is mammals.")}
+    assert sure["A dog is a mammal."] > sure["A dog am a mammal."]
+    assert sure["Dogs are mammals."] > sure["Dogs is mammals."]
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
+    first = gm.tokens_of(said[0], g.lexicon.words)
+    assert ("dogs" in [w.lower() for w in first]) == any(w.lower() in ("are", "'re") for w in first), said[:5]
+    assert not any(w.lower() in ("am", "'m") for w in first), said[:5]

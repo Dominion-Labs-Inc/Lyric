@@ -100,6 +100,8 @@ class GroundingReport:
     rules_used: List[str] = field(default_factory=list)
     rules_skipped: Dict[str, str] = field(default_factory=dict)
     rules_unreachable: Dict[str, str] = field(default_factory=dict)
+    #: Rules grounded and yielding no operator, with why.
+    rules_unmatched: Dict[str, str] = field(default_factory=dict)
     constants: List[str] = field(default_factory=list)
     closure_converged: bool = True
 
@@ -342,12 +344,24 @@ def ground_rule(
     def first_the_goal(term: str):
         return (term not in relevant, term)
 
+    # A VARIABLE NOTHING READS OR CHANGES is grounded once. Named by no
+    # precondition, no effect and no output's inputs, every term it could take
+    # gives an operator with the same preconditions and the same effects: the
+    # search expands the first and finds every other's successor already seen.
+    # Enumerated over every constant, an act with two such arguments in a world
+    # of some two hundred things made forty thousand of them, enough to reach
+    # the bound and leave the set partial, with every plan the same as from the
+    # first.
+    read_by_outputs = {name for output in rule.outputs for name in output.inputs}
     candidates: List[List[str]] = []
     for variable in free:
         pool: Set[str] = set()
         for key in effect_positions[variable]:
             pool |= (targets or {}).get(key, set())
-        candidates.append(sorted(pool or set(universe), key=first_the_goal))
+        ranked = sorted(pool or set(universe), key=first_the_goal)
+        if not effect_positions[variable] and variable not in read_by_outputs:
+            ranked = ranked[:1]
+        candidates.append(ranked)
     rows.sort(key=lambda row: (-sum(value in relevant for value in row.values()),
                                tuple(sorted(row.items()))))
 
@@ -453,6 +467,10 @@ def ground_for_problem(
                                                relevant=relevant)
             built.operators.extend(operators)
             built.rules_used.append(rule_id or str(rule))
+            if not operators:
+                built.rules_unmatched[rule_id or str(rule)] = (
+                    "its preconditions hold together for no terms this problem "
+                    "has or its rules produce")
             remaining -= len(operators)
             if truncated or remaining <= 0:
                 built.truncated = True
@@ -524,14 +542,24 @@ def ground_for_problem(
             len(report.rules_unreachable),
             "; ".join(f"{rid}: {why}" for rid, why in report.rules_unreachable.items()))
 
-    if not report.operators:
+    if not rules:
+        # NOTHING LEARNED HERE YET is a state, not a fault: the goal was asked of
+        # a domain with no executable rule, and the planner is offered nothing.
+        # It was a warning with "no reason recorded" every time Lyric pursued a
+        # goal before it had learned to act there (931 times over 100 worlds of
+        # RULE-AUTHORITY-02's live arm, every one with no rule).
+        logger.info(
+            "Grounding: no executable rule to ground — nothing learned to act "
+            "with here, so UNREACHABLE means 'nothing was offered', not "
+            "'nothing is possible'")
+    elif not report.operators:
         logger.warning(
             "Grounding produced NO operators from %d rule(s) — the planner "
             "cannot reach any goal from an empty operator set, so UNREACHABLE "
-            "means 'nothing was offered', not 'nothing is possible'. Skipped: %s",
+            "means 'nothing was offered', not 'nothing is possible'. Why: %s",
             len(rules),
-            "; ".join(f"{rid}: {why}" for rid, why in report.rules_skipped.items())
-            or "no reason recorded")
+            "; ".join(f"{rid}: {why}" for rid, why in {
+                **report.rules_skipped, **report.rules_unmatched}.items()))
     else:
         logger.info(
             "Grounding: %d rule(s) in, %d used, %d skipped, %d operator(s), "

@@ -28,8 +28,10 @@ Here three parts keep apart:
 The checks are the evaluator's (see its docstring); the learner's own bookkeeping (rules refuted after validation)
 is recorded beside them as reported by Lyric, never as a check.
 
-Run on the benchmark's own instance, `lyric_bench` (lyric_dev's schema, no data; nothing else uses it), which the
-runner makes again before every run (`fresh_instance`):
+Run on the benchmark's own instance, `lyric_bench` (nothing else uses it), which the runner makes again before every
+run as a copy of Lyric's home, `lyric_bench_home` (`fresh_instance`): lyric_dev's schema, and what Lyric held after
+booting on it once and meeting the place it runs in. The home is made the first time it is needed, or again with
+--home. Run from the Lyric folder, the place Lyric's home is:
   POSTGRES_DATABASE=lyric_bench ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-02/experiment.py --worlds 10000 --seed 20261026
 
 NOT lyric_dev. Every session working on Lyric shares lyric_dev, and what one runs there (a reset, a sweep, a drain
@@ -104,8 +106,14 @@ class World:
 
     def propose(self):
         """The acts the world lets Lyric practise, those not yet offered first: its first practice, then more of the
-        same kind whenever Lyric explores again."""
+        same kind whenever Lyric explores again, whose things the world brings as it offers them."""
         batch = self.offerable[self.offered:self.limit][:MAX_ACTIONS]
+        arriving = self.offered + len(batch) - max(self.offered, len(self.practice))
+        if arriving > 0:
+            request = urllib.request.Request(f"{self.base}/offer", data=json.dumps({"count": arriving}).encode(),
+                                             headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(request) as answer:
+                answer.read()
         self.offered += len(batch)
         return batch
 
@@ -194,19 +202,53 @@ async def run_world(public, run_tag, port, coordinator, db, store):
             "rules_total": len(all_rules), "refuted_after_validation": refuted_late}
 
 
-def fresh_instance():
-    """`lyric_bench` as the benchmark defines it, made again before every run: lyric_dev's schema and no rows. What a
-    run leaves (concepts Lyric would transfer from, the outcomes and evidence of every world it ran) is not where the
-    next one starts. Only `lyric_bench` is ever dropped."""
-    assert os.environ["POSTGRES_DATABASE"] == "lyric_bench", "RULE-AUTHORITY-02 runs on lyric_bench only"
+HOME = "lyric_bench_home"
+
+
+def _postgres():
     pg = Path(os.environ.get("LYRIC_PG_BIN", "/opt/homebrew/opt/postgresql@16/bin"))
     where = ["-h", os.environ.get("POSTGRES_HOST", "localhost"), "-p", os.environ.get("POSTGRES_PORT", "5433")]
+    return pg, where
+
+
+def fresh_instance():
+    """`lyric_bench` as the benchmark defines it, made again before every run: a copy of Lyric's home. What a run
+    leaves (concepts Lyric would transfer from, the outcomes and evidence of every world it ran) is not where the next
+    one starts; where Lyric lives is. Made with no rows at all, every run's Lyric met the place it runs in as a new
+    one and read up to 400 of its files, each read holding every world for as long as it took (minutes, 2026-10-27).
+    Only `lyric_bench` is ever dropped."""
+    assert os.environ["POSTGRES_DATABASE"] == "lyric_bench", "RULE-AUTHORITY-02 runs on lyric_bench only"
+    pg, where = _postgres()
+    held = subprocess.run([pg / "psql", *where, "-Atc", f"SELECT 1 FROM pg_database WHERE datname = '{HOME}'",
+                           "postgres"], check=True, capture_output=True, text=True).stdout.strip()
+    if not held:
+        subprocess.run([sys.executable, __file__, "--home"], check=True,
+                       env={**os.environ, "POSTGRES_DATABASE": HOME})
     subprocess.run([pg / "dropdb", *where, "--if-exists", "--force", "lyric_bench"], check=True)
-    subprocess.run([pg / "createdb", *where, "lyric_bench"], check=True)
+    subprocess.run([pg / "createdb", *where, "-T", HOME, "lyric_bench"], check=True)
+
+
+async def make_home() -> int:
+    """Lyric's home: lyric_dev's schema, then Lyric booted on it once, until it has met the place it runs in, and
+    stopped. Meeting it is registering it as an environment domain (`_situate`), which is what every later boot finds
+    and so does not meet it as new. What the encounter goes on to do, reading up to 400 of the place's files on the
+    event loop (`_react_investigate_environment`), is not waited for: no boot had been seen to finish it (no
+    "Investigated environment" in Lyric's log since 2026-10-26), and the read in progress ends with the boot."""
+    assert os.environ["POSTGRES_DATABASE"] == HOME, f"Lyric's home is made on {HOME} only"
+    pg, where = _postgres()
+    subprocess.run([pg / "dropdb", *where, "--if-exists", "--force", HOME], check=True)
+    subprocess.run([pg / "createdb", *where, HOME], check=True)
     schema = subprocess.run([pg / "pg_dump", *where, "--schema-only", "--no-owner", "lyric_dev"],
                             check=True, capture_output=True).stdout
-    subprocess.run([pg / "psql", *where, "-q", "-v", "ON_ERROR_STOP=1", "lyric_bench"], input=schema, check=True,
+    subprocess.run([pg / "psql", *where, "-q", "-v", "ON_ERROR_STOP=1", HOME], input=schema, check=True,
                    capture_output=True)
+    from experiments._isolation import boot, shutdown
+    system, coordinator = await boot()
+    environment = coordinator._environment
+    assert environment is not None and environment["novel"], "Lyric did not meet its home as a new place"
+    await shutdown(system)
+    print(f"  Lyric met its home: {environment['identity']}, domain {environment['domain_id']}", flush=True)
+    return 0
 
 
 def isolated(script, *args):
@@ -218,10 +260,15 @@ def isolated(script, *args):
 async def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--worlds", type=int, default=10000)
-    ap.add_argument("--seed", type=int, required=True)
+    ap.add_argument("--seed", type=int)
     ap.add_argument("--concurrency", type=int, default=8)
     ap.add_argument("--noise", action="store_true", help="the noisy arm (generator.NOISE)")
+    ap.add_argument("--home", action="store_true", help=f"make Lyric's home ({HOME}) again, and nothing else")
     args = ap.parse_args()
+    if args.home:
+        return await make_home()
+    if args.seed is None:
+        ap.error("--seed is required for a run")
 
     fresh_instance()
     run_dir = EV.results_dir / f"{EV.started_at.strftime('%Y%m%dT%H%M%SZ')}_run"

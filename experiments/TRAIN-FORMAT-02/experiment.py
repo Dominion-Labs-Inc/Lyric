@@ -190,6 +190,19 @@ async def store_checks() -> int:
                  f"({', '.join(f'{p} {l}' for p, l in w.prepositions())})",
                  all(after.get(p, {}).get(link, 0) > 0 for p, link in w.prepositions()), json.dumps(after))
 
+    # ── how each form is said, the subjects each finite form took ──
+    unsaid = [(f.form, w.word) for w in words for f in w.forms if f.sounds
+              and not set(f.sounds) <= set(held_words.sounds(f.form))]
+    EV.check("the grammar holds how each form is said (\"wall\" W AO1 L)", not unsaid, str(unsaid)[:300])
+    alike = {f.form for w in words for f in w.forms if f.before}
+    unalike = [form for form in alike if len(held_words.said_before(form)) < 2]
+    EV.check("the grammar holds which forms are said alike and the first sounds said after each (\"a\" and \"an\")",
+             alike and not unalike, f"{sorted(alike)}; not held: {unalike}")
+    untaken = [(f.form, w.word) for w in words for f in w.forms
+               if f.subjects and not held_words.subjects(f.form)]
+    EV.check("the grammar holds the subjects each finite form took (\"is\" nouns, \"am\" I)", not untaken,
+             str(untaken)[:300])
+
     # ── what each word means, and each word read back in its own examples ──
     unmeant = [w.word for w in words if w.senses and not agent.word_meanings(w.word)]
     EV.check("memory says what each word means, every sense with its definition and kind (`word_meanings`)",
@@ -223,6 +236,20 @@ async def store_checks() -> int:
             holds(reading.meaning, [w]) for w in NOT_READ.get(sentence, []))
         say(f"  {sentence}\n    read: {got}")
         EV.check(f"{sentence!r} is read: {' & '.join(wanted)}", right, got)
+
+    # ── saying what the words mean, by the grammar they are read by ──
+    from core.semantics.derived_reader import Meaning, MeaningFact
+    for better, worse in (("A wall is a partition.", "A wall am a partition."),
+                          ("Walls are partitions.", "Walls is partitions."),
+                          ("A picture is a representation.", "An picture is a representation.")):
+        sure = {text: view.read(text) for text in (better, worse)}
+        scores = {text: r.sign.score if r.sign is not None else None for text, r in sure.items()}
+        EV.check(f"{better!r} is read more surely than {worse!r}", None not in scores.values()
+                 and scores[better] > scores[worse], json.dumps(scores))
+    said = view.say(Meaning("tell", (MeaningFact("isa", "wall", "partition"),)))
+    say(f"  said of a wall being a partition, first: {said[:6]}")
+    EV.check("a wall being a partition is said first as English says it: \"A wall is a partition.\"",
+             bool(said) and said[0] == "A wall is a partition.", json.dumps(said[:6]))
 
     # ── reasoning over what the words mean ──
     # The yes of each question below is scored through the front door (`texts.json`, "kinds"); here, that reasoning

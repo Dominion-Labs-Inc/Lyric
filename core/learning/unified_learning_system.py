@@ -182,15 +182,56 @@ def _relied_on(examples, departed) -> Optional[str]:
     COUNTED FOR THE ACT, NOT FOR ONE RULE. Counted over the acts a rule applied
     to, a narrower rule validated before the misses came did not fall under
     them and kept its authority while the act failed two times in seven
-    (RULE-AUTHORITY-02 world 3993: it acted where the world refuses)."""
-    if not departed:
+    (RULE-AUTHORITY-02 world 3993: it acted where the world refuses).
+
+    A leak (`_leaks`) is neither a time it held nor a miss: the world did more
+    there than the act does, not less."""
+    missed = sum(1 for e in examples if not e.positive and e.evidence_id in departed)
+    if not missed:
         return None
-    held = sum(1 for e in examples if e.positive)
-    missed = sum(1 for e in examples if e.evidence_id in departed)
+    held = sum(1 for e in examples if e.positive and e.evidence_id not in departed)
     if relied_on_rate(held, held + missed):
         return None
     return (f"the world departed from this act in {missed} of {held + missed} attempts; "
             f"relied on once it holds at least {RELIED_ON_RATE:.0%} of the time")
+
+
+def _leaks(examples, departed, frame) -> Set[str]:
+    """The successes nothing they held can explain: the world doing what an act
+    does where it does not do it, not the act's rule being wrong.
+
+    A success is put to the refusals as a miss is put to the successes
+    (`_departures`): can a body hold of it and of none of them? A body is made
+    of what the success held, so a refusal that held all of that holds every
+    such body, unless it held something no success held (that could be the
+    condition that must be absent, as in a world that refuses where one
+    condition holds). Two such refusals are the world refusing there; one can be
+    the world departing the other way. Only a success that lacked something
+    every other success held is asked: one that did not is explained by what
+    explains them.
+
+    Without it a leak stood among the successes for good. A body has to hold of
+    every success, and whatever held of the leak held of refusals too, so no
+    rule was ever learned for the act (RULE-AUTHORITY-02's noisy arm: two of the
+    thirteen settled conjunction worlds where Lyric held no rule)."""
+    positives = [e for e in examples if e.positive and e.action is not None]
+    refusals = [e for e in examples if not e.positive and e.action is not None
+                and e.evidence_id not in departed]
+    if len(positives) < 3 or len(refusals) < 2:
+        return set()
+    framed = frame(positives + refusals)
+    seen, refused = framed[:len(positives)], framed[len(positives):]
+    named = lambda e: frozenset(c for c in _conditions(e) if "_" not in c)
+    held_by_a_success = frozenset().union(*(_conditions(e) for e in seen))
+    plain = [named(e) for e in refused if not _conditions(e) - held_by_a_success]
+    leaked: Set[str] = set()
+    for index, success in enumerate(seen):
+        others = seen[:index] + seen[index + 1:]
+        if not frozenset.intersection(*(named(e) for e in others)) - named(success):
+            continue
+        if sum(1 for held in plain if named(success) <= held) >= 2:
+            leaked.add(positives[index].evidence_id)
+    return leaked
 
 
 _BASIS_POSITIVES = 8
@@ -5759,7 +5800,21 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         confirmations (a condition that must be absent tells it apart as surely
         as one that must hold), nothing observed tells it apart. A regularity
         and an act ask it the same way; an act's demonstrations are cut by its
-        frame first, as its induction's are."""
+        frame first, as its induction's are.
+
+        An act's success nothing it held explains departs the other way
+        (`_leaks`) and leaves the basis the same way. The misses are then put
+        again to the successes without it: it lacked what they need, and kept
+        among them it made that look unneeded."""
+        departed = await self._misses_departed(examples, frame)
+        leaked = _leaks(examples, departed, frame)
+        if leaked:
+            departed = await self._misses_departed(
+                [e for e in examples if e.evidence_id not in leaked], frame)
+        return departed | leaked
+
+    async def _misses_departed(self, examples, frame) -> Set[str]:
+        """The misses `_departures` finds the world departing in."""
         positives = [e for e in examples if e.positive]
         if len(positives) < 2 or all(e.positive for e in examples):
             return set()

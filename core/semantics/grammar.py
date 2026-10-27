@@ -366,6 +366,28 @@ class Words:
     def plural(self, word: str) -> bool:
         return False
 
+    def sounds(self, word: str) -> List[str]:
+        """How the word is said, each way its phones, as a word recorded whole holds them (the CMU Pronouncing
+        Dictionary's: "wall" `W AO1 L`). Nothing where memory holds none."""
+        return []
+
+    def said_before(self, word: str) -> Mapping[str, Mapping[str, float]]:
+        """Of the forms of the word the analysts mark nothing apart ("a" and "an"), each, the word itself among them,
+        with how often it was said before a word beginning with each first sound (`AW`: "an hour"). Nothing where the
+        word has no such forms."""
+        return {}
+
+    def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        """Of a finite form of a verb ("is", "paints"), how often its subjects were of each class with each of the
+        features subjects share with verbs: `("NOUN", "Number=Sing")`, `("PRONOUN", "Number=Sing|Person=1")`; of no
+        word, every finite form's together. Nothing where memory holds none."""
+        return {}
+
+    def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+        """What form the word is as a word of the class, as the forms memory holds say, how often each: "walls" as a
+        noun `Number=Plur`. Nothing where memory holds none."""
+        return {}
+
 
 @dataclass(frozen=True)
 class Entry:
@@ -885,7 +907,33 @@ class Lexicon:
                 if t.get("use") == use:
                     out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
                                              t.get("label", ""))))
+        after = self._sound_after(tokens, i)
+        if after:
+            out = [(end, Entry(e.cat, e.sem, e.cls, e.name, e.score + after, e.label, e.crossing)) for end, e in out]
         return out
+
+    def _sound_after(self, tokens: Sequence[str], i: int) -> float:
+        """HOW LIKELY THE WORD AT `i` IS BEFORE THE WORD AFTER IT, of the forms of its word the analysts mark nothing
+        apart ("a" and "an"), as a logarithm: as often as it was said before a word beginning with that word's first
+        sound, of all of them so said, with one saying more spread as each is said at all (`Words.said_before`); where
+        memory holds no sound of the word after it, as often as it is said at all. Nothing for a word with no such
+        forms. Every way the word is read is weighed alike: which form is said, not which reading, is weighed.
+
+        Taught no sounds, "a" and "an" were one word to the grammar, and nothing but a first letter written by hand
+        ever chose between them, which says "a hour" and "an unicorn" (lyric_dev2, 2026-10-27)."""
+        alike = self.words.said_before(tokens[i])
+        own = alike.get(tokens[i].lower())
+        if own is None or len(alike) < 2:
+            return 0.0
+        said = {form: sum(sounds.values()) for form, sounds in alike.items()}
+        prior = (said[tokens[i].lower()] + 1.0) / (sum(said.values()) + len(said))
+        firsts = set()
+        if i + 1 < len(tokens):
+            firsts = {way.split()[0].rstrip("012") for way in self.words.sounds(tokens[i + 1]) if way.split()}
+        if not firsts:
+            return math.log(prior)
+        return max(math.log((own.get(s, 0.0) + prior) / (sum(f.get(s, 0.0) for f in alike.values()) + 1.0))
+                   for s in firsts)
 
     def _said_as_one(self, tokens: Sequence[str], i: int, name: str) -> Tuple[float, float]:
         """How likely the verb at `i` (named `name`) and the word after it are one verb, and how likely apart, as
@@ -1861,9 +1909,9 @@ class Grammar:
         out: List[Sign] = []
         lc, rc = left.cat, right.cat
 
-        def made(cat: Cat, s: Dict[int, Term], rule: str, head: int) -> None:
-            out.append(Sign(_apply(cat, s), (), left.score + right.score, left.start, right.end, rule, (left, right),
-                            head, binding=s))
+        def made(cat: Cat, s: Dict[int, Term], rule: str, head: int, weighed: float = 0.0) -> None:
+            out.append(Sign(_apply(cat, s), (), left.score + right.score + weighed, left.start, right.end, rule,
+                            (left, right), head, binding=s))
         # A stretch joined by "and" waits for what it is joined to, and nothing else takes it.
         joining = isinstance(rc, Fn) and rc.slash == "&"
         if isinstance(lc, Fn) and lc.slash == "&":
@@ -1914,7 +1962,8 @@ class Grammar:
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
             if _unify(rc.arg, lc, s):
-                made(rc.res, s, "<", left.head if _same_shape(rc.res, rc.arg) else right.head)
+                made(rc.res, s, "<", left.head if _same_shape(rc.res, rc.arg) else right.head,
+                     self._agreement(left, right) if _verb_phrase(rc) and isinstance(lc, Atom) else 0.0)
         # Composition: X/Y Y/Z => X/Z; Y\Z X\Y => X\Z.
         if isinstance(lc, Fn) and lc.slash == "/" and isinstance(rc, Fn) and rc.slash == "/":
             s = {}
@@ -1994,8 +2043,49 @@ class Grammar:
                 and rc.res.arg.base == "NP" and isinstance(rc.res.res, Atom) and rc.res.res.base == "S":
             s = {}
             if _unify(rc.res.arg, lc, s):
-                made(Fn(rc.res.res, "/", rc.arg), s, ">T>B", right.head)
+                # Its subject agrees with its verb as when the verb's phrase is whole: "Owl'm birds." was read so,
+                # "Owl'm" composed before "birds", and agreement weighed only the other way of reading it.
+                made(Fn(rc.res.res, "/", rc.arg), s, ">T>B", right.head, self._agreement(left, right))
         return out
+
+    def _agreement(self, subject: Sign, doing: Sign) -> float:
+        """HOW WELL A SUBJECT AGREES WITH ITS VERB, as a logarithm, never more than nothing: of the subjects the
+        doing's finite verb took (`Words.subjects`, as the treebanks' subjects took that form), the share of this
+        subject's class with its features (what form it is, as the forms memory holds say; any features where it holds
+        none), against that share of every finite verb's subjects, with one subject more spread as that share is.
+        Nothing where memory holds no subject of the verb, or the subject is no one word of a class: a noun, a name, a
+        pronoun.
+
+        Nothing compared a subject with its verb: "a wall am" was read as "a wall is", and the first sentence the
+        grammar said of a wall being a partition was "Wall'm the the a partition." (lyric_dev2, 2026-10-27)."""
+        words, tokens = self.lexicon.words, self._tokens
+        hook = _hook(doing.cat)
+        finite = [p[-1] for p in doing.pieces if p[0] == "finite" and p[1] == hook]
+        if not finite or not 0 <= min(finite) < len(tokens):
+            return 0.0
+        took = words.subjects(str(tokens[min(finite)]))
+        if not took:
+            return 0.0
+        ref = subject.cat.ref
+        said = [p for p in subject.pieces if p[0] == "word"]
+        at = {p[-1] for p in subject.pieces if p[0] == "kind" and p[1] == ref}
+        found = [(p[2], p[4] - 1) for p in said if p[3] in at and p[2] == "NOUN"] or \
+            [(p[2], p[3]) for p in said if p[2] == "NAME" and p[1] == ref] or \
+            ([("PRONOUN", subject.start)] if subject.rule == "lex" and subject.entry == "pron" else [])
+        if len(found) != 1 or not 0 <= found[0][1] < len(tokens):
+            return 0.0
+        cls, k = found[0]
+        every = words.subjects()
+        shared = {f.split("=")[0] for _, features in every for f in features.split("|") if f}
+        forms = {"|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
+                 for features in words.form_features(str(tokens[k]), cls)}
+
+        def matched(held: Mapping[Tuple[str, str], float]) -> float:
+            return sum(n for (c, features), n in held.items() if c == cls and (not forms or features in forms))
+        share = matched(every) / sum(every.values()) if every else 0.0
+        if share <= 0:
+            return 0.0
+        return min(0.0, math.log((matched(took) + share) / (sum(took.values()) + 1.0) / share))
 
     def _coordinate(self, left: Sign, right: Sign) -> Optional[Sign]:
         """Two read alike joined: two things are a group of both ("Ken and Yumi"), two of anything else are both
@@ -2386,9 +2476,23 @@ class Grammar:
         held: Dict[Tuple, Item] = {}
         agenda: List[Item] = []
         none = tuple(0 for _ in spending)
+        # A WORD WEIGHED BY THE WORD SAID AFTER IT ("a", "an": `Lexicon._sound_after`) is weighed alone until a word is
+        # put after it, then by that word; what ends in one, and what begins with each first sound, is kept apart
+        # until then. Packed by meaning alone, "a" was surer alone than "an" and "an" was never said: "A owl is a
+        # bird." was said first (2026-10-27).
+        lexicon = self.lexicon
+        alike = {w for w in set(tokens) if len(lexicon.words.said_before(w)) > 1}
+        # What such a word takes after it ("a" a noun): only that is kept apart by the sound it begins with.
+        taken = [cat.arg for w in alike for _, e in lexicon.entries((w,), 0)
+                 for cat in [parse_category(e.cat)] if isinstance(cat, Fn) and cat.slash == "/"]
+
+        def first_sound(word: str) -> Tuple[str, ...]:
+            return tuple(sorted({way.split()[0].rstrip("012") for way in lexicon.words.sounds(word) if way.split()}))
 
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
-            key = (filled, used, _meant(sign, order, tokens))
+            key = (filled, used, _meant(sign, order, tokens)) + (
+                (said[-1] if said[-1] in alike else "",
+                 first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
             if key in held and held[key][2].score >= sign.score:
                 return
             held[key] = item = (filled, used, sign, said, order, key)
@@ -2416,13 +2520,17 @@ class Grammar:
                 together = tuple(a + b for a, b in zip(used, other_used))
                 if any(n > m for n, m in zip(together, most)):
                     continue
-                for left, right, words_said, words_order in ((sign, other, said + other_said, order + other_order),
-                                                             (other, sign, other_said + said, other_order + order)):
+                for left, right, words_said, words_order, last, first in (
+                        (sign, other, said + other_said, order + other_order, said[-1], other_said[0]),
+                        (other, sign, other_said + said, other_order + order, other_said[-1], said[0])):
+                    beside = lexicon._sound_after((last, first), 0) - lexicon._sound_after((last,), 0) \
+                        if last in alike else 0.0
                     for combined in self._combine(left, right):
                         if combined.binding is not None:
                             # As the chart makes a combination's meaning (`chart`, `keep`): its parts' pieces, bound.
                             combined.pieces = _substitute(left.pieces + right.pieces, combined.binding)
                             combined.binding = None
+                        combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
         closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
         wanted_act = meaning.act
@@ -3723,6 +3831,49 @@ class GrammarView:
                 uses[form][use] += times * n
                 if uses[form][use] <= 0:
                     del uses[form][use]
+        # AND HOW OFTEN EACH USE HAD A DOING'S -ING FORM NEXT, AND WAS IN A SENTENCE THAT ASKS, as an analysed sentence
+        # counts them (`doing_after`, `asking`). Taught only how often "is" is each use, "Roy is painting the medal."
+        # was Roy being a painting, `be:np` used 1,671 times to `be:ng`'s 306 (lyric_dev2, 2026-10-27).
+        for table, layer in ((getattr(words, "before_doing", None), "used_before_doing"),
+                             (getattr(words, "asked", None), "used_asking")):
+            if table is None:
+                continue
+            so = {(form, use): n for form, use, n in getattr(word, layer, ())}
+            for form, use, n in getattr(word, "used_as", ()):
+                for flag, k in ((True, so.get((form, use), 0)), (False, n - so.get((form, use), 0))):
+                    table[use][flag] += times * k
+                    if table[use][flag] <= 0:
+                        del table[use][flag]
+        # HOW EACH FORM IS SAID, which forms are said alike and the first sounds said after each ("a" and "an", each
+        # written most often as the other is), and the subjects each finite form took: what the grammar weighs a form
+        # by beside the word after it, and a subject with its verb (`Lexicon._sound_after`, `Grammar._agreement`).
+        if hasattr(words, "said"):
+            def counted(table: Dict[Any, Counter], key: Any, what: Any, n: int) -> None:
+                table[key][what] += times * n
+                if table[key][what] <= 0:
+                    del table[key][what]
+            most: Dict[Tuple[str, str], Any] = {}
+            for f in word.forms:
+                form = f.form.lower()
+                for way in f.sounds:
+                    counted(words.said, form, way, 1)
+                for cls, features, n in f.subjects:
+                    counted(words.subjects_of, form, (cls, features), n)
+                    words.every_subject[(cls, features)] += times * n
+                    if words.every_subject[(cls, features)] <= 0:
+                        del words.every_subject[(cls, features)]
+                if (form, f.word_class) not in most or f.count > most[(form, f.word_class)].count:
+                    most[(form, f.word_class)] = f
+            alike: Dict[Tuple[str, str], List[str]] = defaultdict(list)
+            for (form, cls), f in most.items():
+                if f.before:
+                    alike[(cls, f.features)].append(form)
+                    for sound, n in f.before:
+                        counted(words.sounds_after, form, sound, n)
+            for forms in alike.values():
+                for form in forms:
+                    for other in forms:
+                        counted(words.said_alike, form, other, 1)
         # WHAT IT SAYS JOINING A DOING TO A THING, as a taught meaning teaches a preposition (`prep`): "for"
         # `done_for`, `has_purpose`, weighed against each other by how often PropBank's arguments it opens are each.
         for link, n in getattr(word, "joins", ()):

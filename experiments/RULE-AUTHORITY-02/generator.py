@@ -10,8 +10,8 @@ two of them are outside what a learner limited to plain conjunctions can express
 
 Every world draws its own vocabulary (invented names), 4 to 7 conditions, an act of 1 to 3 arguments, conditions
 over those arguments in any order, one or two effects, sometimes a condition the act consumes, and distractor facts
-about other things. A world is a set of GROUPS OF THINGS, all present from the start, each with the conditions that
-hold of it:
+about other things. A world is a set of GROUPS OF THINGS, each with the conditions that hold of it, all present from
+the start but the more, which arrive as the world offers them:
 
   the still group     every condition holds; never offered to act on, so the world left alone shows that the act,
                       and no combination of the conditions alone, produces the effect
@@ -20,7 +20,8 @@ hold of it:
                       miss that comes last: the acts the world offers Lyric to practise, in this order
   goals               6 groups, half where the rule lets the act work and half where it does not: the world asks
                       Lyric to bring the act's effect about on each
-  more                another practice drawn the same way, offered whenever Lyric explores again
+  more                practice drawn the same way, round after round, offered whenever Lyric explores again: more
+                      than its goals can lead it to try, so the world does not run out of things to try
 
 Two files are written, and the learner's side opens only the first:
 
@@ -138,6 +139,11 @@ NOISE = {"success_rate": 0.90, "leak_rate": 0.02, "unknown_rate": 0.10}
 #: it does not.
 GOALS = 6
 
+#: Acts the world keeps for Lyric to try once the first practice is used up: more than its goals can ask for, each
+#: goal tried twice and each try that finds a gap explored by a cycle of 8 acts. Drawn whole before Lyric runs, and
+#: each arrives in the world only when offered, so what Lyric sees when it looks stays the size of what it has met.
+OFFERED = 2 * GOALS * 8
+
 
 def make_world(i, seed, noise=None):
     rng = random.Random(seed)
@@ -216,18 +222,21 @@ def make_world(i, seed, noise=None):
         if a is not None:
             tests.append(group(a, kind))
 
-    # MORE TO PRACTISE ON, drawn as the practice was: what the world offers once the first practice is used up,
-    # when Lyric explores again (to close a gap a goal showed it, or of its own accord). A world does not run out of
-    # things to try.
-    more_plan = [("success", None)] * n_succ + [("near_miss", lit) for lit in literals] + \
-                [("failure", None)] * rng.randint(0, 3)
-    rng.shuffle(more_plan)
+    # MORE TO PRACTISE ON, drawn as the practice was, round after round: what the world offers once the first
+    # practice is used up, when Lyric explores again (to close a gap a goal showed it, or of its own accord). A world
+    # does not run out of things to try. One round of it did: the explorer then had nothing to try, a goal's gap was
+    # never explored, and in the noisy arm a refusal the noise made stood as refutation for want of the successes
+    # that would have shown it was the noise (RULE-AUTHORITY-02, 13 settled noisy worlds with no rule).
     more = []
-    for kind, lit in more_plan:
-        a = success(rng, terms, n) if kind == "success" else \
-            near_miss(rng, terms, n, lit) if kind == "near_miss" else failure(rng, terms, n)
-        if a is not None:
-            more.append(group(a, kind))
+    while len(more) < OFFERED:
+        more_plan = [("success", None)] * n_succ + [("near_miss", lit) for lit in literals] + \
+                    [("failure", None)] * rng.randint(0, 3)
+        rng.shuffle(more_plan)
+        for kind, lit in more_plan:
+            a = success(rng, terms, n) if kind == "success" else \
+                near_miss(rng, terms, n, lit) if kind == "near_miss" else failure(rng, terms, n)
+            if a is not None:
+                more.append(group(a, kind))
 
     def acts_on(k):
         return f"{act}({', '.join(groups[k]['objects'])})"
@@ -257,6 +266,7 @@ def terms_of(text):
 def serve(inputs, log_path):
     """Every world, as a service Lyric reaches over HTTP and nothing else.
 
+      POST /w/<world>/offer {"count": n}           the next n groups of the more arrive in the world: it offers them.
       POST /w/<world>/act   {"x": ..., "y": ...}   the act, on the things named. The world works out from what holds
                                                     now whether its rule lets the act work (and, in the noisy arm,
                                                     whether the noise turns it), changes accordingly, and answers
@@ -281,8 +291,9 @@ def serve(inputs, log_path):
     def state_of(w):
         if w not in states:
             t = worlds[w]
-            states[w] = {"facts": {f for g in t["groups"] for f in g["facts"]},
-                         "rng": random.Random(t["seed"] + 1), "unreadable": False, "acts": 0}
+            arriving = set(t["more"])
+            states[w] = {"facts": {f for k, g in enumerate(t["groups"]) if k not in arriving for f in g["facts"]},
+                         "rng": random.Random(t["seed"] + 1), "unreadable": False, "acts": 0, "arrived": 0}
         return states[w]
 
     def act(w, given):
@@ -347,12 +358,22 @@ def serve(inputs, log_path):
             self._answer(200, {"facts": facts})
 
         def do_POST(self):
+            given = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            given = given if isinstance(given, dict) else {}
+            w = self._world("offer")
+            if w is not None:
+                with lock:
+                    s, more = state_of(w), worlds[w]["more"]
+                    arriving = more[s["arrived"]:s["arrived"] + max(0, int(given.get("count") or 0))]
+                    for k in arriving:
+                        s["facts"] |= set(worlds[w]["groups"][k]["facts"])
+                    s["arrived"] += len(arriving)
+                return self._answer(200, {"arrived": s["arrived"]})
             w = self._world("act")
             if w is None:
                 return self._answer(404, {"error": "no such world"})
-            given = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
             with lock:
-                act(w, given if isinstance(given, dict) else {})
+                act(w, given)
             self._answer(200, {"performed": True})
 
     server = ThreadingHTTPServer(("127.0.0.1", 0), World)

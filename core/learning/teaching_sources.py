@@ -19,9 +19,10 @@ from __future__ import annotations
 import gzip
 import json
 import logging
+import math
 import os
 import re
-from collections import Counter
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
 
@@ -2895,19 +2896,38 @@ def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRe
 @dataclass(frozen=True)
 class WordForm:
     """One way a recorded word is written (`WordRecord`): the form, as which class, what form it is (a treebank's
-    features: "Tense=Past", "Number=Plur"), and how often a treebank wrote it so."""
+    features: "Tense=Past", "Number=Plur"), and how often a treebank wrote it so; how it is said (`sounds`, the CMU
+    Pronouncing Dictionary's phones of each way of saying it); of a form the analysts mark nothing apart from another
+    form of the word ("a" and "an"), the first sound of the word said after it, how often each (`before`); and of a
+    finite form of a verb, the subjects that took it, by their class and the features they share with verbs, how often
+    each (`subjects`: "is" a NOUN `Number=Sing`, "am" a PRONOUN `Number=Sing|Person=1`)."""
 
     form: str
     word_class: str
     features: str = ""
     count: int = 0
+    sounds: Tuple[str, ...] = ()
+    before: Tuple[Tuple[str, int], ...] = ()
+    subjects: Tuple[Tuple[str, str, int], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"form": self.form, "class": self.word_class, "features": self.features, "count": self.count}
+        out: Dict[str, Any] = {"form": self.form, "class": self.word_class, "features": self.features,
+                               "count": self.count}
+        # A layer the form has none of is not written: a record made before the layer is the same record.
+        if self.sounds:
+            out["sounds"] = list(self.sounds)
+        if self.before:
+            out["before"] = [list(b) for b in self.before]
+        if self.subjects:
+            out["subjects"] = [list(s) for s in self.subjects]
+        return out
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordForm":
-        return cls(str(data["form"]), str(data["class"]), str(data.get("features") or ""), int(data.get("count") or 0))
+        return cls(str(data["form"]), str(data["class"]), str(data.get("features") or ""), int(data.get("count") or 0),
+                   tuple(str(s) for s in data.get("sounds") or ()),
+                   tuple((str(b[0]), int(b[1])) for b in data.get("before") or ()),
+                   tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("subjects") or ()))
 
 
 @dataclass(frozen=True)
@@ -3048,6 +3068,11 @@ class WordRecord:
     #: the clause ended after them ("We made it!"). The reader reads them as one by it (`Lexicon.entries`, a verb and
     #: the word after it).
     together: Tuple[int, ...] = ()
+    #: Of its uses (`used_as`), how often a doing's -ing form was said next, and how often in a sentence that asks:
+    #: (form, use, how often), as the grammar weighs a use beside what follows it and in a question
+    #: (`Words.doing_after`, `asking`): "is" before "painting" a `be:ng`, never a `be:np`.
+    used_before_doing: Tuple[Tuple[str, str, int], ...] = ()
+    used_asking: Tuple[Tuple[str, str, int], ...] = ()
 
     def key(self) -> str:
         import hashlib
@@ -3072,7 +3097,10 @@ class WordRecord:
                 "uses": [u.to_dict() for u in self.uses], "used_as": [list(u) for u in self.used_as],
                 "joins": [list(j) for j in self.joins],
                 "joins_things": [[link, list(names), k] for link, names, k in self.joins_things],
-                "together": list(self.together)}
+                "together": list(self.together)} | ({
+                    "used_before_doing": [list(u) for u in self.used_before_doing],
+                    "used_asking": [list(u) for u in self.used_asking]}
+                    if self.used_before_doing or self.used_asking else {})
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
@@ -3083,7 +3111,9 @@ class WordRecord:
                    tuple((str(j[0]), int(j[1])) for j in data.get("joins") or ()), str(data.get("source") or ""),
                    str(data.get("licence") or ""), str(data.get("split") or "train"),
                    tuple((str(j[0]), tuple(str(x) for x in j[1]), int(j[2])) for j in data.get("joins_things") or ()),
-                   tuple(int(n) for n in data.get("together") or ()))
+                   tuple(int(n) for n in data.get("together") or ()),
+                   tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_before_doing") or ()),
+                   tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()))
 
     def problems(self) -> List[str]:
         """What is wrong with the record, each said: an empty list where it is whole."""
@@ -3100,10 +3130,19 @@ class WordRecord:
                 out.append(f"form {f.form!r} of class {f.word_class!r}")
             elif f.word_class in _OPEN_CLASSES and f.word_class not in classes:
                 out.append(f"form {f.form!r} as a {f.word_class.lower()}, which no sense of the word is")
+            if any(not s.strip() for s in f.sounds) or any(not s or n <= 0 for s, n in f.before):
+                out.append(f"form {f.form!r}: a way of saying it, or a sound said after it, that is none")
+            if f.subjects and ("VerbForm=Fin" not in f.features.split("|") or any(
+                    not c or n <= 0 for c, _, n in f.subjects)):
+                out.append(f"form {f.form!r}: subjects that took it, but it is no finite form, or one never taken")
         written = {f.form for f in self.forms}
         for form, use, n in self.used_as:
             if form not in written or n <= 0 or not use:
                 out.append(f"used as {use!r} written {form!r} {n} times, no form of the word or never")
+        used = {(form, use): n for form, use, n in self.used_as}
+        for form, use, n in self.used_before_doing + self.used_asking:
+            if not 0 < n <= used.get((form, use), 0):
+                out.append(f"used as {use!r} written {form!r} {n} times so, more than it was used so at all")
         for link, n in self.joins:
             if not link or n <= 0:
                 out.append(f"joins as {link!r} {n} times")
@@ -3237,12 +3276,16 @@ _PLACE_LINKS = {
 
 
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
-                   ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter]]:
+                   ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter]]:
     """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
     which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
-    analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word)."""
+    analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word); and of those, how
+    often a doing's -ing form came next, and how often the sentence asked (form -> use -> n each), as the grammar
+    weighs a use beside what follows it and in a question (`Words.doing_after`, `asking`). A WORD IS COUNTED WHERE
+    THE ANALYSTS GAVE IT AS THIS WORD (its base form): "and" analysed once as a form of `a` brought every "and" into the
+    record of "a", 295 of them before a doing, and the possessive "'s" every one into the record of "be"."""
     from core.semantics.grammar import closed_uses
-    from core.semantics.grammar_words import HeldWords
+    from core.semantics.grammar_words import HeldWords, MARKS
     if "sentences" not in cache:
         sentences, holding = [], {}
         for treebank in treebanks:
@@ -3251,16 +3294,186 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                 sentences.append(analysed)
                 for w in {w.lower() for w in analysed.words}:
                     holding.setdefault(w, []).append(k)
-        cache["sentences"], cache["holding"] = sentences, holding
+        # Each sentence's base forms, as the analysts gave them: the same sentences, read the same way.
+        bases = [tuple(base for _, base, _, _, _, _ in sentence) for sentence in _treebank_words(treebanks, cache)]
+        if len(bases) != len(sentences) or any(len(b) != len(a.words) for b, a in zip(bases, sentences)):
+            raise ValueError("the treebanks' sentences and their base forms do not read as the same sentences")
+        cache["sentences"], cache["holding"], cache["bases"] = sentences, holding, bases
     ids = sorted({k for form in written for k in cache["holding"].get(form, ())})
     held = [cache["sentences"][k] for k in ids]
+    of_word = [cache["bases"][k] for k in ids]
+    single = " " not in word
     classes: Dict[Tuple[str, str], int] = {}
-    for analysed in held:
-        for w, c in zip(analysed.words, analysed.classes):
-            if w.lower() in written:
+    for analysed, bases in zip(held, of_word):
+        for w, c, base in zip(analysed.words, analysed.classes, bases):
+            if w.lower() in written and (base == word or not single):
                 classes[(w.lower(), c)] = classes.get((w.lower(), c), 0) + 1
     counted = HeldWords(held, closed_uses(), lambda w, c: w.lower())
-    return classes, {form: Counter(counted.form_uses.get(form, {})) for form in written}
+    uses: Dict[str, Counter] = {form: Counter() for form in written}
+    doing: Dict[str, Counter] = {form: Counter() for form in written}
+    asking: Dict[str, Counter] = {form: Counter() for form in written}
+    for analysed, bases in zip(held, of_word):
+        words, cls, heads, relations = analysed.words, analysed.classes, analysed.heads, analysed.relations
+        under: Dict[int, List[int]] = defaultdict(list)
+        for i, h in enumerate(heads):
+            if h:
+                under[h - 1].append(i)
+        asks = words[-1] == "?"
+        for i, w in enumerate(words):
+            if w.lower() not in written or cls[i] in MARKS or (single and bases[i] != word):
+                continue
+            use = counted.use_of(words, cls, heads, relations, under, asks, i)
+            uses[w.lower()][use] += 1
+            doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
+            asking[w.lower()][use] += asks
+    return classes, uses, doing, asking
+
+
+#: The closed classes whose words UD's English treebanks write in forms of their own, each with its features: "is",
+#: "am", "were" of `be`; "an" of `a`; "me", "my" of `I`.
+_FORMED_CLOSED = frozenset({"AUXILIARY", "DETERMINER", "PRONOUN"})
+
+
+def _treebank_words(treebanks: Sequence[str], cache: Dict[str, Any]
+                    ) -> List[List[Tuple[str, str, str, str, int, str]]]:
+    """UD's English treebanks' sentences (the parts taught, as `TreebankSource` reads them), each word as its analysts
+    wrote it: (form lowered, base form lowered, class by Lyric's names, features, the word it depends on (1 the first,
+    0 the root), as what)."""
+    if "treebank_words" not in cache:
+        sentences: List[List[Tuple[str, str, str, str, int, str]]] = []
+        for treebank in treebanks:
+            for path in TreebankSource.of(treebank)._paths():
+                sentence: List[Tuple[str, str, str, str, int, str]] = []
+                with open(path, encoding="utf-8") as handle:
+                    for line in handle:
+                        if not line.strip():
+                            if sentence:
+                                sentences.append(sentence)
+                            sentence = []
+                            continue
+                        cols = line.rstrip("\n").split("\t")
+                        if line.startswith("#") or len(cols) != 10 or not cols[0].isdigit():
+                            continue
+                        sentence.append((cols[1].lower(), cols[2].lower(), _UD_CLASS.get(cols[3], "OTHER"),
+                                         "" if cols[5] == "_" else cols[5], int(cols[6]), cols[7]))
+                if sentence:
+                    sentences.append(sentence)
+        cache["treebank_words"] = sentences
+    return cache["treebank_words"]
+
+
+def _closed_forms(word: str, treebanks: Sequence[str], cache: Dict[str, Any]) -> Counter:
+    """THE FORMS OF A CLOSED WORD, as the treebanks' analysts gave each its base form and features (`_FORMED_CLOSED`):
+    (form, class, features) -> how often. "is" `Number=Sing|Person=3|Tense=Pres` of `be`, "an" of `a`. A misspelling
+    (`Typo=Yes`) is no form of the word; a form not written as words are ("’s") is not counted."""
+    from core.semantics.word_forms import _written
+    if "closed_forms" not in cache:
+        held: Dict[str, Counter] = {}
+        for sentence in _treebank_words(treebanks, cache):
+            for form, base, cls, features, _, _ in sentence:
+                if cls in _FORMED_CLOSED and _written(form) and "Typo=Yes" not in features.split("|"):
+                    held.setdefault(base, Counter())[(form, cls, features)] += 1
+        cache["closed_forms"] = held
+    return cache["closed_forms"].get(word, Counter())
+
+
+def _subjects_taking(word: str, treebanks: Sequence[str], cache: Dict[str, Any]) -> Dict[Tuple[str, str, str], Counter]:
+    """THE SUBJECTS EACH FINITE FORM OF A VERB TOOK in the treebanks: (form, class, features) -> (the subject's class,
+    the features it shares with verbs) -> how often. A subject (`nsubj`, `nsubj:pass`) takes the finite verb of its
+    clause: the word it depends on where that is finite (`VerbForm=Fin`), else that word's first finite auxiliary or
+    copula ("A wall is a partition.": "wall" depends on "partition", "is" its copula). The features a subject shares
+    with verbs are those the treebanks write on most finite verbs taking a subject and on subjects too, by name (number
+    and person: "I" `Number=Sing|Person=1`, "walls" `Number=Plur`, "you" `Person=2`); a feature written on both now
+    and then is no agreement ("r" for "are" and "u" for "you" both `Abbr=Yes`)."""
+    if "subjects" not in cache:
+        pairs: List[Tuple[str, str, str, str, str, str]] = []
+        on_verbs: Counter = Counter()
+        on_subjects: Set[str] = set()
+        for sentence in _treebank_words(treebanks, cache):
+            under: Dict[int, List[int]] = {}
+            for k, (_, _, _, _, head, relation) in enumerate(sentence):
+                if head:
+                    under.setdefault(head - 1, []).append(k)
+            for k, (_, _, cls, features, head, relation) in enumerate(sentence):
+                if relation not in ("nsubj", "nsubj:pass") or not head:
+                    continue
+                h = head - 1
+                finite = [h] if "VerbForm=Fin" in sentence[h][3].split("|") else [
+                    j for j in under.get(h, ()) if sentence[j][5] in ("aux", "aux:pass", "cop")
+                    and "VerbForm=Fin" in sentence[j][3].split("|")][:1]
+                if not finite:
+                    continue
+                verb = sentence[finite[0]]
+                if "Typo=Yes" in verb[3].split("|"):
+                    continue
+                pairs.append((verb[1], verb[0], verb[2], verb[3], cls, features))
+                on_verbs.update({f.split("=")[0] for f in verb[3].split("|") if f})
+                on_subjects |= {f.split("=")[0] for f in features.split("|") if f}
+        shared = {name for name, n in on_verbs.items() if 2 * n > len(pairs)} & on_subjects
+        held: Dict[str, Dict[Tuple[str, str, str], Counter]] = {}
+        for base, form, cls, features, of_class, of_features in pairs:
+            kept = "|".join(f for f in of_features.split("|") if f and f.split("=")[0] in shared)
+            held.setdefault(base, {}).setdefault((form, cls, features), Counter())[(of_class, kept)] += 1
+        cache["subjects"] = held
+    return cache["subjects"].get(word, {})
+
+
+def _pronounced(cache: Dict[str, Any]) -> Dict[str, List[List[str]]]:
+    """The CMU Pronouncing Dictionary (`PronunciationSource`'s): every word it writes, with the phones of each way of
+    saying it. Read once."""
+    if "cmudict" not in cache:
+        from nltk.corpus import cmudict
+        cache["cmudict"] = cmudict.dict()
+    return cache["cmudict"]
+
+
+def _sounds_of(form: str, cache: Dict[str, Any]) -> Tuple[str, ...]:
+    """How a form is said, as the CMU Pronouncing Dictionary writes it: each way, its phones; a form of several words
+    each way of saying its words, one after another. None where it says a word of it no way."""
+    import itertools
+    said = _pronounced(cache)
+    ways = [said.get(w, []) for w in form.split(" ")]
+    if not all(ways):
+        return ()
+    return tuple(dict.fromkeys(" ".join(p for way in combined for p in way) for combined in itertools.product(*ways)))
+
+
+def _told_apart(said: Sequence[Counter]) -> float:
+    """HOW MUCH THE SOUND AFTER TELLS WHICH OF SEVERAL FORMS WAS SAID: of the uncertainty which form it was, the share
+    knowing the first sound of the word after it takes away (their mutual information over the forms' entropy), less
+    what forms and sounds share by chance in as few sayings (Miller and Madow's correction, (forms - 1) (sounds - 1)
+    over twice the sayings): 1 where the sound always tells, 0 where it never does or too little was said to know."""
+    total = sum(sum(c.values()) for c in said)
+    sounds = {s for c in said for s in c}
+    if total <= 0 or len(said) < 2 or not sounds:
+        return 0.0
+
+    def entropy(counts: Sequence[float]) -> float:
+        n = sum(counts)
+        return -sum(k / n * math.log(k / n) for k in counts if k > 0) if n > 0 else 0.0
+    whole = entropy([sum(c.values()) for c in said])
+    if whole <= 0:
+        return 0.0
+    given = sum(sum(c.get(s, 0) for c in said) / total * entropy([c.get(s, 0) for c in said]) for s in sounds)
+    chance = (len(said) - 1) * (len(sounds) - 1) / (2.0 * total)
+    return max(0.0, whole - given - chance) / whole
+
+
+def _said_before(word: str, forms: Set[Tuple[str, str]], treebanks: Sequence[str], cache: Dict[str, Any]
+                 ) -> Dict[Tuple[str, str], Counter]:
+    """THE FIRST SOUND OF THE WORD SAID AFTER EACH OF THESE FORMS of a word (form, class), in the treebanks: its first
+    phone as the CMU Pronouncing Dictionary says it, stress aside, each way it says it once: "an" before "hour" AW,
+    "a" before "unicorn" Y. A word after it the dictionary does not say is not counted."""
+    said = _pronounced(cache)
+    out: Dict[Tuple[str, str], Counter] = {}
+    for sentence in _treebank_words(treebanks, cache):
+        for k in range(len(sentence) - 1):
+            form, base, cls = sentence[k][:3]
+            if base != word or (form, cls) not in forms or "Typo=Yes" in sentence[k][3].split("|"):
+                continue
+            for first in {way[0].rstrip("012") for way in said.get(sentence[k + 1][0], ()) if way}:
+                out.setdefault((form, cls), Counter())[first] += 1
+    return out
 
 
 def _semcor_sentences(cache: Dict[str, Any]) -> List[Tuple[Tuple[str, ...], Tuple[Optional[Any], ...]]]:
@@ -3627,8 +3840,10 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 features = max(((f, k) for (w, f), k in head_forms.items() if w == first), key=lambda x: x[1],
                                default=("VerbForm=Inf" if first == head and cls == "VERB" else "", 0))[0]
                 inflected[cls][(form, features)] = inflected[cls].get((form, features), 0) + n
-    written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of}
-    classes, uses_of = _treebank_uses(word, written, treebanks, _cache)
+    closed_written = _closed_forms(word, treebanks, _cache) if not rest else Counter()
+    written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of} | \
+        {form for form, _, _ in closed_written}
+    classes, uses_of, doing_of, asking_of = _treebank_uses(word, written, treebanks, _cache)
     forms: List[WordForm] = []
     for cls in sorted(by_class):
         base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
@@ -3636,10 +3851,42 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             forms.append(WordForm(word, cls, base_features, classes.get((word, cls), 0)))
         for (form, features), n in sorted(inflected[cls].items(), key=lambda x: (-x[1], x[0])):
             forms.append(WordForm(form, cls, features, n))
-    # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator.
+    # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator; of a class
+    # whose words take forms (`_FORMED_CLOSED`), each form the analysts gave the word as its base, with its features
+    # ("is", "am", "was" of `be` as an auxiliary; "an" of `a`). Without them "is", "am" and "are" were one word to
+    # the grammar, and it said "Wall'm the the a partition." (lyric_dev2, 2026-10-27).
     for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
-        if cls in _CLOSED_CLASSES and form == word:
+        if cls in _CLOSED_CLASSES and form == word and cls not in _FORMED_CLOSED:
             forms.append(WordForm(form, cls, "", n))
+    for (form, cls, features), n in sorted(closed_written.items(), key=lambda x: (-x[1], x[0])):
+        forms.append(WordForm(form, cls, features, n))
+    # HOW EACH FORM IS SAID; the subjects each finite form took; and of forms the analysts mark nothing apart (each
+    # written most often with the same features as the other: "a" and "an", "is" and "'s"; not "was" and "were", though
+    # "was" is now and then written plural), the first sound of the word said after each.
+    subjects = _subjects_taking(word, treebanks, _cache) if not rest else {}
+    most: Dict[Tuple[str, str], WordForm] = {}
+    for f in forms:
+        if (f.form, f.word_class) not in most or f.count > most[(f.form, f.word_class)].count:
+            most[(f.form, f.word_class)] = f
+    marked: Dict[Tuple[str, str], Set[str]] = {}
+    for f in most.values():
+        marked.setdefault((f.word_class, f.features), set()).add(f.form)
+    alike = {key for key, f in most.items() if len(marked[(f.word_class, f.features)]) > 1}
+    before = _said_before(word, alike, treebanks, _cache) if alike else {}
+    # KEPT ONLY WHERE THE SOUND AFTER DECIDES WHICH FORM IS SAID (`_told_apart`): "a" and "an" 0.95; "is" and "'s"
+    # 0.07, "am" and "'m" 0.07, said alike before any sound. Weighed by it, every way of saying a thing was kept
+    # apart by the sound it begins with, and saying a wall was a partition took 49 s, not 4 (lyric_dev2, 2026-10-27).
+    for (cls, _), group in marked.items():
+        held = [before.get((form, cls), Counter()) for form in group]
+        if len(group) > 1 and _told_apart(held) <= 0.5:
+            for form in group:
+                before.pop((form, cls), None)
+    forms = [dataclasses.replace(
+        f, sounds=_sounds_of(f.form, _cache),
+        before=tuple(sorted(before.get((f.form, f.word_class), Counter()).items(), key=lambda x: (-x[1], x[0]))),
+        subjects=tuple((c, feats, n) for (c, feats), n in sorted(
+            subjects.get((f.form, f.word_class, f.features), Counter()).items(), key=lambda x: (-x[1], x[0])))
+        if "VerbForm=Fin" in f.features.split("|") else ()) for f in forms]
     kept = {f.word_class for f in forms}
     as_class = {(f.form, f.word_class) for f in forms}
     closed_forms = {f.form for f in forms if f.word_class in _CLOSED_CLASSES}
@@ -3651,6 +3898,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         return (form, cls) in as_class if cls in _OPEN_CLASSES | _CLOSED_CLASSES | {"NAME"} else form in closed_forms
     used_as = tuple((form, use, n) for form in sorted(written) for use, n in uses_of.get(form, {}).most_common()
                     if n > 0 and ours(form, use))
+    used_before_doing = tuple((form, use, doing_of[form][use]) for form, use, _ in used_as if doing_of[form][use] > 0)
+    used_asking = tuple((form, use, asking_of[form][use]) for form, use, _ in used_as if asking_of[form][use] > 0)
     joins: Dict[str, int] = {}
     if "PREPOSITION" in kept or "SUBORDINATOR" in kept:
         for function, n in _propbank_joins(_cache).get(word, {}).items():
@@ -3675,7 +3924,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
-                      together)
+                      together, used_before_doing, used_asking)
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").

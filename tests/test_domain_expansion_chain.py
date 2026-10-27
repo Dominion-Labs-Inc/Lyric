@@ -419,11 +419,17 @@ async def test_a_stored_outcome_wakes_its_reader():
             "a stored task outcome woke no reader; nothing expands what the "
             "producer writes into the domain layer")
         await asyncio.wait_for(drain, timeout=120)
-        # THE READER EXPANDED IT. The drain runs passes until one expands nothing,
-        # so its last status is that empty pass's; the pass that did the work
-        # leaves its counts. A pass that only skipped the outcome expands nothing.
-        assert (coord._domain_expansion_counts or {}).get("expanded", 0) >= 1, (
-            f"the woken reader expanded nothing: {coord._domain_expansion_counts}")
+        # THE READER EXPANDED IT: THIS outcome carries the expansion mark. The
+        # drain's counts are its last pass's, and that pass expands nothing: it
+        # runs passes until one does, and in a shared store holding outcomes it
+        # passes over (an operator domain that holds no concepts) the last one
+        # sees only those.
+        rows = await db.execute_query(
+            f"SELECT metadata->>'{MARK}' AS m FROM memory_hot.memory_hot "
+            f"WHERE memory_id = $1", (memory_id,), fetch_all=True)
+        assert rows and rows[0]["m"], (
+            f"the woken reader did not expand the stored outcome: "
+            f"{coord._domain_expansion_counts}")
     finally:
         await db.execute_query(
             "DELETE FROM memory_hot.memory_hot WHERE memory_id = $1",
@@ -826,10 +832,10 @@ async def test_chain_end_to_end():
 
         # 4. The reader the producer woke runs.
         await _reader_woken_by(coord)
-        assert (coord._domain_expansion_counts or {}).get("expanded", 0) >= 1, (
-            f"the woken reader expanded nothing: {coord._domain_expansion_counts}")
 
-        # 5-8. The outcome is consumed, and the marker is durably written.
+        # 5-8. The outcome is consumed, and the marker is durably written. Read
+        #      of THIS outcome: the drain's counts are its last pass's, which in
+        #      a shared store may see only outcomes it passes over.
         async def mark():
             rows = await db.execute_query(
                 f"SELECT metadata->>'{MARK}' AS m FROM memory_hot.memory_hot "

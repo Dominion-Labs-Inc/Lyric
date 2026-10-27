@@ -250,6 +250,14 @@ class HeldWords(Words):
         self.adjective_places: Counter = Counter()
         #: How words joined by a hyphen are used, by kind of word ("high-level" before a noun, its modifier).
         self.hyphened: Counter = Counter()
+        #: From words recorded whole (`GrammarView.hold_word`): each form's ways of being said; of forms the analysts
+        #: mark nothing apart ("a", "an"), the forms said alike with each and the first sounds said after each; of a
+        #: finite form, its subjects by class and the features they share with verbs; every finite form's together.
+        self.said: Dict[str, Counter] = defaultdict(Counter)
+        self.said_alike: Dict[str, Counter] = defaultdict(Counter)
+        self.sounds_after: Dict[str, Counter] = defaultdict(Counter)
+        self.subjects_of: Dict[str, Counter] = defaultdict(Counter)
+        self.every_subject: Counter = Counter()
         self._names: Dict[Tuple[str, str], str] = {}
         self._uses: Dict[str, Mapping[str, float]] = {}
         self.sentences = 0
@@ -663,6 +671,24 @@ class HeldWords(Words):
             return True
         held = self.plurals.get(word.lower())
         return bool(held) and held[True] > held[False]
+
+    def sounds(self, word: str) -> List[str]:
+        return [way for way, n in self.said.get(word.lower(), {}).items() if n > 0]
+
+    def said_before(self, word: str) -> Mapping[str, Mapping[str, float]]:
+        alike = [form for form, n in self.said_alike.get(word.lower(), {}).items() if n > 0]
+        return {form: {s: float(n) for s, n in self.sounds_after.get(form, {}).items() if n > 0} for form in alike}
+
+    def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        held = self.every_subject if word is None else self.subjects_of.get(word.lower(), {})
+        return {k: float(n) for k, n in held.items() if n > 0}
+
+    def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+        out: Counter = Counter()
+        for _, of_class, features, n in self._forms_of(word):
+            if of_class == cls:
+                out[features] += n
+        return {f: float(n) for f, n in out.items() if n > 0}
 
     def known_name(self, words: Sequence[str]) -> Optional[str]:
         return self.knowledge.known_name(words)

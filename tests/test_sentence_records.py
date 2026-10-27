@@ -364,3 +364,48 @@ def test_research_takes_no_kind_from_a_word_that_names_none():
     agent._grammar_view = gm.GrammarView(words)
     assert not agent.says_a_kind("into")
     assert agent.says_a_kind("domestic mammal") and agent.says_a_kind("zorp"), "nothing held of it: it may"
+
+
+def test_a_closed_words_forms_their_sounds_and_the_subjects_each_took_are_held_by_the_grammar():
+    """A closed word recorded whole with each form's features, how each is said, the first sounds said after forms
+    the analysts mark nothing apart ("a", "an"), the subjects each finite form took ("is", "am"), and how often each use
+    had a doing's -ing form next and was in a question: the grammar holds every layer (`Words.sounds`,
+    `said_before`, `subjects`, `doing_after`, `asking`), and takes it back whole."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, _told_apart
+    from core.semantics.grammar_words import HeldWords
+    from collections import Counter
+    art = "Definite=Ind|PronType=Art"
+    a = WordRecord("a", (WordForm("a", "DETERMINER", art, 90, ("AH0", "EY1"), (("W", 40), ("P", 30))),
+                         WordForm("an", "DETERMINER", art, 12, ("AE1 N", "AH0 N"), (("AW", 6), ("AE", 5)))), ())
+    be = WordRecord("be", (WordForm("is", "AUXILIARY", "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin", 50,
+                                    ("IH1 Z",), (), (("NOUN", "Number=Sing", 30), ("PRONOUN", "Number=Sing|Person=3", 15))),
+                           WordForm("am", "AUXILIARY", "Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin", 9,
+                                    ("AE1 M",), (), (("PRONOUN", "Number=Sing|Person=1", 9),))), (),
+                    used_as=(("is", "be:ng", 10), ("is", "be:np", 40), ("am", "be:np", 9)),
+                    used_before_doing=(("is", "be:ng", 9), ("is", "be:np", 1)), used_asking=(("is", "be:np", 4),))
+    for word in (a, be):
+        assert not word.problems(), word.problems()
+        assert WordRecord.from_dict(json.loads(json.dumps(word.to_dict()))) == word
+    assert any("no finite form" in p for p in WordRecord("be", (WordForm(
+        "been", "AUXILIARY", "Tense=Past|VerbForm=Part", 3, (), (), (("NOUN", "", 1),)),), ()).problems())
+    assert any("more than it was used so" in p for p in WordRecord(
+        "be", be.forms, (), used_as=be.used_as, used_before_doing=(("is", "be:ng", 11),)).problems())
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    words = view.words
+    for word in (a, be):
+        view.hold_word(word)
+    assert words.sounds("an") == ["AE1 N", "AH0 N"]
+    assert words.said_before("an") == {"a": {"W": 40.0, "P": 30.0}, "an": {"AW": 6.0, "AE": 5.0}}
+    assert words.said_before("is") == {}, "a form with no form said alike"
+    assert words.subjects("am") == {("PRONOUN", "Number=Sing|Person=1"): 9.0}
+    assert words.subjects()[("PRONOUN", "Number=Sing|Person=1")] == 9.0
+    assert words.doing_after("be:ng") == (9.0, 1.0) and words.doing_after("be:np") == (1.0, 48.0)
+    assert words.asking("be:np") == (4.0, 45.0)
+    for word in (a, be):
+        view.drop_word(word)
+    assert not words.sounds("an") and not words.said_before("an") and not words.subjects()
+    assert words.doing_after("be:ng") == (0.0, 0.0)
+    # The sound after tells "a" from "an"; it tells nothing of two forms said before the same sounds as often.
+    assert _told_apart([Counter({"W": 400, "P": 300}), Counter({"AW": 60, "AE": 50})]) > 0.9
+    assert _told_apart([Counter({"W": 400, "P": 300}), Counter({"W": 40, "P": 30})]) == 0.0
