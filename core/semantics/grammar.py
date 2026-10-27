@@ -272,6 +272,11 @@ class Words:
         """The name memory knows a verb and the word after it as together ("pass away"), or None."""
         return None
 
+    def words_for(self, name: str, cls: str) -> List[str]:
+        """What is written for a thing as a word of the class, every form, the word most used for it first: `name` the
+        other way (`Grammar.say`). Nothing where memory holds no word for it."""
+        return []
+
     def kinds(self, name: str, cls: str) -> List[str]:
         """What memory holds the word's thing to be a kind of, nearest first."""
         return []
@@ -713,6 +718,19 @@ class Lexicon:
         self.thing_used: Dict[str, Counter] = defaultdict(Counter)
         self.thing_covers: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(dict)
         self._taking_pps: Optional[List[Cat]] = None
+
+    def saying(self, link: str) -> List[str]:
+        """THE WORDS THAT SAY A LINK joining a doing or a thing to a thing, as what was taught says each did
+        (`prep`, `prep_to`, `prep_of`), the most said first; a word whose own link it is (`worded`: "of" `word_of`).
+        What `Grammar.say` says a link with."""
+        counted: Counter = Counter()
+        for table, at in (("prep", 0), ("prep_to", 0), ("prep_of", 1)):
+            for key, links in self.learned[table].items():
+                if links.get(link, 0) > 0:
+                    counted[key[at]] += links[link]
+        if is_worded(link):
+            counted[link.split("_", 1)[1].replace("_", " ")] += 1
+        return [w for w, _ in counted.most_common()]
 
     def sense_of(self, name: str, fillers: Mapping[str, str]) -> str:
         """THE SENSE OF A VERB A SENTENCE MEANS, by what fills its places (`fillers`: slot -> the thing's name): each
@@ -1630,6 +1648,138 @@ WHOLE = {"S[dcl]": "tell", "S[q]": "ask", "S[wq]": "ask", "S[imp]": "tell", "S":
 #: Punctuation that closes a sentence, and what it says the speaker wants.
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
+#: The links that tell of a happening: what holds them is said with a verb.
+_HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "follows", "during"})
+#: What the situation names ("I", "you", "it", "now"): said with the grammar's own words, never a word for a thing.
+_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})
+
+
+def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
+    """WHAT A MEANING NAMES, each with the class of word that says it, once (`Grammar.say`): the kind a thing is
+    (`instance_of`), a doing where the thing is a happening; both kinds a kind is said of (`isa`); a quality a thing
+    has, an adverb's of a happening; a number; any other thing named, by its name."""
+    events = {f.subject for f in meaning.facts if f.relation in _HAPPENING_LINKS}
+    out: List[Tuple[str, str]] = []
+    for f in meaning.facts:
+        if f.relation == "instance_of" and not is_variable(f.obj):
+            out.append((f.obj, "VERB" if f.subject in events else "NOUN"))
+            continue
+        if f.relation == "isa":
+            out += [(t, "NOUN") for t in (f.subject, f.obj) if not is_variable(t)]
+            continue
+        if f.relation == "has_property" and not is_variable(f.obj):
+            out.append((f.obj, "ADVERB" if f.subject in events else "ADJECTIVE"))
+            terms = (f.subject,)
+        else:
+            terms = (f.subject, f.obj)
+        for t in terms:
+            if not is_variable(t) and t not in _SITUATION:
+                out.append((t, "NUMERAL" if _number(str(t)) is not None else "NAME"))
+    return list(dict.fromkeys(out))
+
+
+def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
+    """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
+    facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
+    `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`), none for any other piece;
+    None for a piece saying nothing a meaning holds (`indefinite`, `finite`)."""
+    kind, facts = piece[0], meaning.facts
+    if kind in ("indefinite", "finite"):
+        return None
+    if kind == "given":
+        return sum(1 for f in facts if f.given)
+    if kind == "past":
+        return sum(1 for f in facts if f.relation == "precedes" and f.obj == "?now")
+    if kind == "be":
+        return sum(1 for f in facts if f.relation in ("isa", "equals")
+                   or (f.relation == "instance_of" and not is_variable(f.subject)))
+    if kind == "deny":
+        return sum(1 for f in facts if not f.positive)
+    if kind == "fact":
+        return sum(1 for f in facts if f.relation == piece[1])
+    return 0
+
+
+def _says_of(entry: Entry, meaning: Meaning) -> Optional[Dict[Tuple[str, ...], int]]:
+    """WHAT A GRAMMAR WORD'S ENTRY SAYS OF A MEANING (`Grammar.say`), as what it spends: each piece saying something
+    the meaning holds (`_piece_says`), with how often the meaning holds it; ONE FOR EVERY WORD SAYING IT ("is", "was"
+    and "'s" all say one `be`, so a meaning of one kind said of another has one of them). None where a piece says
+    what the meaning does not hold; empty for an entry saying nothing."""
+    out: Dict[Tuple[str, ...], int] = {}
+    for piece in entry.sem:
+        n = _piece_says(piece, meaning)
+        if n is None:
+            continue
+        if n == 0:
+            return None
+        out[("fact", piece[1]) if piece[0] == "fact" else (piece[0],)] = n
+    return out
+
+
+def _comes_to(cat: Cat) -> List[Cat]:
+    """What a category comes to as it takes what it takes: each result, the first taken first ("is" before a noun
+    phrase: `S[dcl]\\NP`, then `S[dcl]`)."""
+    out: List[Cat] = []
+    while isinstance(cat, Fn):
+        cat = cat.res
+        out.append(cat)
+    return out
+
+
+def _heads_a_clause(cat: Cat) -> bool:
+    """Whether a word of this category heads a sentence of its own: it makes a sentence and takes none ("paint",
+    "is" before a noun phrase; never "did" or "to", which take the doing they make finite or make an aim of)."""
+    if not _clausal(cat):
+        return False
+    while isinstance(cat, Fn):
+        if _clausal(cat.arg):
+            return False
+        cat = cat.res
+    return True
+
+
+def _meant(sign: "Sign", order: Sequence[int], tokens: Sequence[str]) -> Tuple:
+    """WHAT A SIGN MADE IN SAYING MEANS, as reading spells it out (`spell_out`): its category and its pieces, their
+    variables numbered as they come, each word by where it stands among the sign's words (`order`), a word for a thing
+    by how it is written ("wall", "walls"), a grammar word not by which it is ("is", "'s" and "was" each say `be`, and
+    `spell_out` reads no grammar word by its name). Two signs meaning the same in one category go on to the same
+    sentences."""
+    rank = {at: k for k, at in enumerate(order)}
+    seen: Dict[int, int] = {}
+
+    def term(t: Any) -> Any:
+        if isinstance(t, int) and not isinstance(t, bool):
+            return ("at", rank.get(t, -1)) if t < FIRST_VARIABLE else ("x", seen.setdefault(t, len(seen)))
+        return t
+
+    def walk(c: Cat) -> Tuple:
+        if isinstance(c, Atom):
+            return (c.base, term(c.feat), term(c.ref))
+        return (walk(c.res), c.slash, walk(c.arg))
+    shape = walk(sign.cat)
+    pieces = []
+    for p in sign.pieces:
+        if p[0] == "word":
+            if p[2] != "GRAMMAR":
+                pieces.append(("word", p[1], p[2], tokens[p[3]], rank.get(p[3], -1)))
+            continue
+        pieces.append(tuple(term(t) for t in p))
+    return shape, tuple(pieces)
+
+
+def _joins(cat: Cat) -> bool:
+    """Whether a word of this category, saying nothing, joins a sentence onto another thing: it takes a sentence and
+    makes of it what modifies something ("that", "who": `(N\\N)/(S[dcl]\\NP)`; "if")."""
+    return isinstance(cat, Fn) and _clausal(cat.arg) and isinstance(cat.res, Fn) and _same_shape(cat.res.res,
+                                                                                                    cat.res.arg)
+
+
+def _written(said: Sequence[str], closing: str) -> str:
+    """Words said, written as a sentence: one space between words, none before a word's ending written apart ("'s",
+    "n't"), the first letter a capital, its closing mark."""
+    text = re.sub(r" (?=['\u2019]|n't\b)", "", " ".join(said))
+    return text[:1].upper() + text[1:] + closing
+
 
 def _clausal(cat: Cat) -> bool:
     """Whether a category is of a doing or a sentence: what it makes, taken all it takes, is a sentence (`S`)."""
@@ -2115,6 +2265,183 @@ class Grammar:
         except ValueError as error:
             reading.why = str(error)
         return reading
+
+    # ── saying a meaning ──
+    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None) -> List[str]:
+        """EVERY SENTENCE THIS GRAMMAR SAYS A MEANING WITH, the surest read first: the grammar a sentence is read by,
+        used the other way (one grammar for reading and saying, Shieber 1988; chart generation, Kay 1996). The words
+        for its things (`Words.words_for`: memory's words for each, every form held), and the grammar's own words whose
+        pieces say what it holds (`_says_of`), as often as it holds it, a word saying nothing as often as what it takes
+        is made ("a", making a thing of a kind); combined by the rules reading combines by (`_combine`, `_unary`), in
+        any order, each word for a thing once; each sentence made READ BACK (`read`), and said only where it reads to
+        exactly this meaning. The speaker's own word for a thing (`named`) before another. Empty where nothing the
+        grammar holds says it: then it is not said another way here."""
+        if meaning.act not in WHOLE.values() or not meaning.facts:
+            return []
+        wanted = _things_said(meaning)
+        if not wanted:
+            return []
+        words = self.lexicon.words
+        named = {str(k).lower(): str(v).lower() for k, v in (named or {}).items()}
+        # THE WORDS FOR ITS THINGS, each a place the sentence must fill once, with each word and entry that may fill it.
+        tokens: List[str] = []
+        places: List[List[Tuple[int, Entry]]] = []
+        for concept, cls in wanted:
+            written = words.words_for(concept, cls) or []
+            if cls == "NAME":
+                written = [" ".join(w[:1].upper() + w[1:] for w in str(concept).split())]
+            options: List[Tuple[int, Entry]] = []
+            for form in written:
+                for _, entry in self.lexicon.entries((form,), 0):
+                    if entry.cls == cls:
+                        options.append((len(tokens), entry))
+                        tokens.append(form)
+            if not options:
+                return []
+            places.append(options)
+        # THE GRAMMAR'S OWN WORDS, each spending what it says, as often as the meaning holds it, with every other word
+        # saying the same (`_says_of`); a link a preposition names, once for each fact of it.
+        budget: Dict[Tuple[str, ...], int] = {}
+        chosen: List[Tuple[str, Entry, Dict[Tuple[str, ...], int]]] = []
+        empty: List[Tuple[str, Entry]] = []
+        for word in sorted(self.lexicon.closed):
+            for _, entry in self.lexicon.entries((word,), 0):
+                if entry.cls != "GRAMMAR":
+                    continue
+                # A word making a question ("is" put first, a tag "isn't it") only asks: nothing told holds one.
+                cat = parse_category(entry.cat)
+                if meaning.act != "ask" and _whole((_comes_to(cat) or [cat])[-1]) == "ask":
+                    continue
+                says = _says_of(entry, meaning)
+                if says:
+                    budget.update(says)
+                    chosen.append((word, entry, {k: 1 for k in says}))
+                elif says is not None and isinstance(parse_category(entry.cat), Fn):
+                    empty.append((word, entry))
+        for link in sorted({f.relation for f in meaning.facts}):
+            for word in self.lexicon.saying(link):
+                for _, entry in self.lexicon.entries((word,), 0):
+                    if entry.cls == "PREPOSITION":
+                        budget[("fact", link)] = sum(1 for f in meaning.facts if f.relation == link)
+                        chosen.append((word, entry, {("fact", link): 1}))
+        # WHAT THE SENTENCE MAKES, so a word saying nothing is said only as often as what it takes is: each phrase the
+        # words for its things and the grammar words saying something come to ("paint" a doing, "is" a doing of a
+        # thing), each once a place or as often as what it says; and how many sentences of their own they head.
+        made: Counter = Counter()
+        clauses = 0
+        for options in places:
+            cats = [parse_category(e.cat) for _, e in options]
+            made.update({_key(c) for cat in cats for c in [cat] + _comes_to(cat)})
+            clauses += any(_heads_a_clause(cat) for cat in cats)
+        spent_by: Dict[Tuple[str, ...], List[Cat]] = defaultdict(list)
+        for _, entry, spends in chosen:
+            for k in spends:
+                spent_by[k].append(parse_category(entry.cat))
+        for k, cats in spent_by.items():
+            made.update({c: budget[k] for c in {_key(c) for cat in cats for c in _comes_to(cat)}})
+            clauses += budget[k] if any(_heads_a_clause(cat) for cat in cats) else 0
+        # A WORD SAYING NOTHING spends what it takes, with every word taking the same: "a", "an" and "some" together
+        # one for each kind said; one joining a sentence onto a thing ("that", "who"), once less than the sentences
+        # the meaning's words head, the sentence said keeping one. What one makes ("the medal" of "medal") is what
+        # another takes ("by"), counted over again as often as there are words making a thing, a chain of them no
+        # longer (one modifying what it takes makes nothing more).
+        def takes(cat: Fn) -> Tuple[str, ...]:
+            return ("joins",) if _joins(cat) else ("takes", _key(cat.arg))
+        making: Dict[Tuple[str, ...], Set[str]] = defaultdict(set)
+        for _, entry in empty:
+            cat = parse_category(entry.cat)
+            if not _joins(cat) and not _same_shape(cat.res, cat.arg):
+                making[takes(cat)] |= {_key(c) for c in _comes_to(cat)}
+        budget[("joins",)] = max(clauses - 1, 0)
+        grown = Counter(made)
+        for _ in range(len(making) + 1):
+            for _, entry in empty:
+                cat = parse_category(entry.cat)
+                if not _joins(cat):
+                    budget[takes(cat)] = grown[_key(cat.arg)]
+            more = Counter(made)
+            for k, keys in making.items():
+                more.update({c: budget[k] for c in keys})
+            if more == grown:
+                break
+            grown = more
+        for word, entry in empty:
+            k = takes(parse_category(entry.cat))
+            if budget.get(k):
+                chosen.append((word, entry, {k: 1}))
+        spending = sorted({k for _, _, spends in chosen for k in spends})
+        extra: List[Tuple[int, Entry, Tuple[int, ...]]] = []
+        for word, entry, spends in chosen:
+            extra.append((len(tokens), entry, tuple(spends.get(k, 0) for k in spending)))
+            tokens.append(word)
+        most = tuple(budget[k] for k in spending)
+        self._tokens, self._weighed, self._marking, self._asking = tuple(tokens), None, frozenset(), frozenset()
+        full = (1 << len(places)) - 1
+        # THE CHART, over which words are used, not where they stand: (places filled, what the grammar words spent,
+        # what it means and its category (`_meant`)) -> the surest such sign, with its words in order and where each
+        # is among the words. ONE OF WHAT MEANS THE SAME: "a wall is" and "a wall 's" go on to the same sentences,
+        # only as surely as each is read (kept by its words in order, every way of putting each was read back, 19,296
+        # for "A wall is a partition.", lyric_dev2, 2026-10-27).
+        Item = Tuple[int, Tuple[int, ...], Sign, Tuple[str, ...], Tuple[int, ...], Tuple]
+        held: Dict[Tuple, Item] = {}
+        agenda: List[Item] = []
+        none = tuple(0 for _ in spending)
+
+        def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
+            key = (filled, used, _meant(sign, order, tokens))
+            if key in held and held[key][2].score >= sign.score:
+                return
+            held[key] = item = (filled, used, sign, said, order, key)
+            agenda.append(item)
+            for u in self._unary(sign):
+                hold(filled, used, u, said, order)
+        for k, options in enumerate(places):
+            for at, entry in options:
+                with contextlib.suppress(ValueError, IndexError):
+                    hold(1 << k, none, self._lexical(tokens, at, at + 1, entry), (tokens[at],), (at,))
+        for at, entry, spends in extra:
+            with contextlib.suppress(ValueError, IndexError):
+                hold(0, spends, self._lexical(tokens, at, at + 1, entry), (tokens[at],), (at,))
+        done: List[Item] = []
+        while agenda:
+            item = agenda.pop()
+            filled, used, sign, said, order, key = item
+            if held[key] is not item:
+                continue
+            done.append(item)
+            for other_item in done:
+                other_filled, other_used, other, other_said, other_order, other_key = other_item
+                if filled & other_filled or held[other_key] is not other_item:
+                    continue
+                together = tuple(a + b for a, b in zip(used, other_used))
+                if any(n > m for n, m in zip(together, most)):
+                    continue
+                for left, right, words_said, words_order in ((sign, other, said + other_said, order + other_order),
+                                                             (other, sign, other_said + said, other_order + order)):
+                    for combined in self._combine(left, right):
+                        if combined.binding is not None:
+                            # As the chart makes a combination's meaning (`chart`, `keep`): its parts' pieces, bound.
+                            combined.pieces = _substitute(left.pieces + right.pieces, combined.binding)
+                            combined.binding = None
+                        hold(filled | other_filled, together, combined, words_said, words_order)
+        closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
+        wanted_act = meaning.act
+        target = meaning.canonical()
+        sentences: Dict[Tuple[str, ...], Tuple[int, float]] = {}
+        for filled, _, sign, said, _, _ in list(held.values()):
+            if filled != full or _whole(sign.cat) is None:
+                continue
+            if said in sentences:
+                continue
+            # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
+            # (-32.3), a name it might be (lyric_dev2, 2026-10-27).
+            reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))
+            if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
+                continue
+            own = sum(1 for w in said if w.lower() in named.values())
+            sentences[said] = (own, reading.sign.score if reading.sign is not None else 0.0)
+        ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
+        return [_written(said, closing) for said in ranked]
 
     def _said_so(self, cat: Cat) -> float:
         """How often what is said is said as a reading of this category says it, as a logarithm: an order
@@ -3583,6 +3910,12 @@ class GrammarView:
             if _TEACHES.get():
                 self._learn_from_reading(sentence, tokens, reading, named)
         return reading
+
+    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None) -> List[str]:
+        """A meaning said by the grammar it is read by (`Grammar.say`), after learning from what is waiting: every
+        sentence that reads back to exactly it, the surest first."""
+        self.learn_waiting()
+        return self.grammar.say(meaning, named)
 
     def _learn_from_reading(self, sentence: str, tokens: Sequence[str], reading: Reading, named: List[str]) -> None:
         """READING TEACHES, as a book teaches its reader (`reading_teaches`): how the sentence's reading used each of its

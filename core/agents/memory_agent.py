@@ -4289,11 +4289,19 @@ class MemoryAgent(IMemoryConsolidation):
             (domain_id, predicate, arity), commit=True)
 
     async def clear_induction_pending(self, *, domain_id: str, predicate: str,
-                                      arity: int) -> None:
+                                      arity: int, marked: Any = None) -> None:
+        """Clear a signature's pending mark; given `marked` (when the mark was
+        read), only that mark, so one made since is kept."""
+        if marked is None:
+            await self._memory_db().execute_query(
+                "DELETE FROM unified.operator_induction_pending"
+                " WHERE domain_id = $1 AND predicate = $2 AND arity = $3",
+                (domain_id, predicate, arity), commit=True)
+            return
         await self._memory_db().execute_query(
             "DELETE FROM unified.operator_induction_pending"
-            " WHERE domain_id = $1 AND predicate = $2 AND arity = $3",
-            (domain_id, predicate, arity), commit=True)
+            " WHERE domain_id = $1 AND predicate = $2 AND arity = $3 AND enqueued_at <= $4",
+            (domain_id, predicate, arity, marked), commit=True)
 
     # ---- domains ------------------------------------------------------------
 
@@ -7124,7 +7132,8 @@ class MemoryAgent(IMemoryConsolidation):
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms,
-                                         recorded=self.recorded_name), structure=self._structure_view)
+                                         recorded=self.recorded_name, written_for=self.words_for),
+                               structure=self._structure_view)
             for word in self._grammar_words:
                 view.hold_word(word)
             for record in self._grammar_records:
@@ -7325,6 +7334,34 @@ class MemoryAgent(IMemoryConsolidation):
         if sum(by_class.values()) <= 0:
             return True
         return by_class.most_common(1)[0][0] in ("NOUN", "NAME")
+
+    def words_for(self, name: str, word_class: str) -> List[str]:
+        """WHAT IS WRITTEN FOR A THING AS A WORD OF A CLASS, the other way from `name_of`: each word memory holds naming
+        it so (a word recorded whole with a sense of the class that is it; a word a sentence recorded whole named it
+        by; the thing's own name, where memory names that word so), in every form memory holds the word written in,
+        the word used most for it first. `partition`: "partition"; `coat paint`: "paint", "paints", "painted", ...
+        What `Grammar.say` says a thing with."""
+        folded = str(name).casefold().replace("_", " ")
+        found: Counter = Counter()
+        bases: Counter = Counter()
+        for word in self._grammar_words:
+            for sense in word.senses:
+                if sense.word_class == word_class and sense.concept == folded:
+                    bases[word.word] += sense.used + 1
+                    for form in word.forms:
+                        if form.word_class == word_class:
+                            found[form.form.lower()] += sense.used + 1
+        for (written, cls), names in self._record_names.items():
+            if cls == word_class and names.get(folded, 0) > 0:
+                found[written] += names[folded]
+        if not found and self.name_of(folded, word_class) == folded:
+            bases[folded] += 1
+            found[folded] += 1
+        for item in (self._word_forms.items() if self._word_forms is not None else ()):
+            if item.base in bases and item.word_class == word_class:
+                for form, _, n in item.forms:
+                    found[form.lower()] += n
+        return [w for w, _ in found.most_common()]
 
     def recorded_name(self, word: str, word_class: str) -> Optional[str]:
         """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None

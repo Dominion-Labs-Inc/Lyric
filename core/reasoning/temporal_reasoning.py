@@ -831,6 +831,7 @@ class TemporalReasoningSystem:
                     status=PlanningStatus.INVALID_GOAL,
                     reason=f"an available action has no name: {action!r}",
                 )
+        available_actions = self._relevant(goal_conditions, available_actions)
 
         frontier = deque([(start, [], frozenset())])
         seen = {start}
@@ -951,6 +952,52 @@ class TemporalReasoningSystem:
     def _parse(conditions) -> List[Any]:
         from core.learning.rule_induction import Fact
         return [Fact.parse(c) for c in conditions]
+
+    @classmethod
+    def _relevant(cls, goal_conditions: List[str],
+                  actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """The actions that can bear on the goal: one that adds a fact the goal
+        asks for or removes one it denies, and, as each is found, one that adds
+        a precondition of it.
+
+        THE SEARCH TRIED EVERY GROUND ACTION AT EVERY STATE, including acts on
+        things the goal never names. Asked to make one thing hold in a world of
+        many (RULE-AUTHORITY-02's live arm: some 500 ground acts), a goal it
+        could not reach was searched over every combination of acting on
+        everything else until the 20,000-state bound, and two thirds of the
+        whole running system's time went there. No plan is lost: an action that
+        adds nothing the goal or a relevant action needs, and removes nothing
+        the goal denies, can only be dropped from a plan, so no shortest plan
+        holds one, and the breadth-first order of the rest is kept.
+
+        An action that invents a value (`open`, `outputs`) adds what is known
+        only once it runs, so where there is one, every action is kept."""
+        if any(a.get('open') or a.get('outputs') for a in actions):
+            return list(actions)
+        wanted_facts, wanted_patterns, unwanted = set(), [], []
+        for condition in goal_conditions:
+            denied = cls.denied(condition)
+            if denied is not None:
+                unwanted.append(denied)
+            elif "?" in condition:
+                wanted_patterns.append(condition)
+            else:
+                wanted_facts.add(condition)
+        relevant: Set[int] = set()
+        grew = True
+        while grew:
+            grew = False
+            for index, action in enumerate(actions):
+                if index in relevant:
+                    continue
+                adds, deletes = action.get('effects', ()), action.get('deletes', ())
+                if (wanted_facts.intersection(adds)
+                        or any(cls.held_among(p, adds) for p in wanted_patterns)
+                        or any(cls.held_among(u, deletes) for u in unwanted)):
+                    relevant.add(index)
+                    wanted_facts.update(action.get('preconditions', ()))
+                    grew = True
+        return [a for index, a in enumerate(actions) if index in relevant]
 
     @staticmethod
     def _instances(action: Dict[str, Any], state_facts, parsed,

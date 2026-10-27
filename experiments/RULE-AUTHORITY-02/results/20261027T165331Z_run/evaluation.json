@@ -1,0 +1,283 @@
+{
+ "checks": [
+  {
+   "label": "C1 no rule holding authority is contradicted by any observation shown that the noise did not turn",
+   "passed": true,
+   "detail": "0 of 0 rules"
+  },
+  {
+   "label": "C2 no rule holds authority in a world shown fewer than three successes",
+   "passed": true,
+   "detail": "0 of 0 worlds"
+  },
+  {
+   "label": "C3 determined conjunction worlds with three or more successes: every world ends exact or with no rule, and most end exact",
+   "passed": false,
+   "detail": "0 exact, 1 no rule, 0 another rule, of 1 (exact 0.0000)"
+  },
+  {
+   "label": "C4 determined conjunction worlds: no rule authorizes an act the world refuses",
+   "passed": true,
+   "detail": "0 of 1 worlds"
+  },
+  {
+   "label": "C5 determined conjunction worlds: no rule predicts a wrong effect",
+   "passed": true,
+   "detail": "0 of 1 worlds"
+  },
+  {
+   "label": "C6 ambiguous conjunction worlds: no rule holds authority",
+   "passed": true,
+   "detail": "0 of 0 worlds"
+  },
+  {
+   "label": "C7 determined worlds whose rule no conjunction can say: no rule authorizes an act the world refuses or predicts a wrong effect",
+   "passed": true,
+   "detail": "0 of 1 worlds; 1 hold no rule"
+  },
+  {
+   "label": "G1 Lyric reports no goal reached that the world did not reach",
+   "passed": true,
+   "detail": "0 of 0 goals reported reached, of 24 asked"
+  }
+ ],
+ "metrics": {
+  "worlds": 4,
+  "rules_holding_authority": 0,
+  "worlds_by_family": {
+   "conjunction": 2,
+   "either_or": 2
+  },
+  "worlds_by_evidence": {
+   "points_elsewhere": 2,
+   "determined": 2
+  },
+  "by_family_and_evidence": {
+   "conjunction / determined": {
+    "worlds": 1,
+    "with_authority": 0,
+    "exact": 0,
+    "unsafe_worlds": 0,
+    "unsafe_situations": 0,
+    "situations_with_authority": 0
+   },
+   "conjunction / points_elsewhere": {
+    "worlds": 1,
+    "with_authority": 0,
+    "exact": 0,
+    "unsafe_worlds": 0,
+    "unsafe_situations": 0,
+    "situations_with_authority": 0
+   },
+   "either_or / determined": {
+    "worlds": 1,
+    "with_authority": 0,
+    "exact": 0,
+    "unsafe_worlds": 0,
+    "unsafe_situations": 0,
+    "situations_with_authority": 0
+   },
+   "either_or / points_elsewhere": {
+    "worlds": 1,
+    "with_authority": 0,
+    "exact": 0,
+    "unsafe_worlds": 0,
+    "unsafe_situations": 0,
+    "situations_with_authority": 0
+   }
+  },
+  "worlds_by_arity": {
+   "2": 1,
+   "3": 2,
+   "1": 1
+  },
+  "worlds_by_conditions": {
+   "6": 3,
+   "5": 1
+  },
+  "goals": {
+   "goals": 24,
+   "goals_reported": 0,
+   "goal_works": 12,
+   "goal_works_acted": 0,
+   "goal_works_reached": 0,
+   "goal_works_reported": 0,
+   "false_reports": 0,
+   "goal_refused": 12,
+   "goal_refused_acted": 0,
+   "goal_refused_reached": 0,
+   "goal_refused_reported": 0,
+   "pursuit_acts": 0,
+   "pursuit_acts_world_refuses": 0
+  },
+  "goals_by_evidence": {
+   "conjunction / determined": {
+    "goal_works": 3,
+    "goal_refused": 3
+   },
+   "conjunction / points_elsewhere": {
+    "goal_works": 3,
+    "goal_refused": 3
+   },
+   "either_or / determined": {
+    "goal_works": 3,
+    "goal_refused": 3
+   },
+   "either_or / points_elsewhere": {
+    "goal_works": 3,
+    "goal_refused": 3
+   }
+  },
+  "manifest": {
+   "worlds": 4,
+   "seed": 20261026,
+   "noise": {
+    "success_rate": 0.9,
+    "leak_rate": 0.02,
+    "unknown_rate": 0.1
+   },
+   "worlds_public_sha256": "1ae00b8ff398f8c86048c9ebad1d8a93a6f5a5b59ff2fc226638bc4eca5a4df7",
+   "worlds_truth_sha256": "fbd76a32befb6e1fac3c599a0c265e2dc256393ff3fb4f141e9d2af40887a08a",
+   "generator_sha256": "48560e81d733e6e3e5b08ce7e8a9c85cc9c06838035be5ab261653c037e884d5"
+  },
+  "evaluator_sha256": "b6ab75a552327508fd26cf0410deea55925ed34086f6b1076e9beda84aafff33"
+ },
+ "worlds": [
+  {
+   "world": 0,
+   "family": "conjunction",
+   "evidence": "points_elsewhere",
+   "conditions": 6,
+   "arity": 2,
+   "planned_successes": 11,
+   "coverage": 0.0,
+   "late_near_miss": false,
+   "consumes": true,
+   "effects": 1,
+   "rules": 0,
+   "contradicted_rules": 0,
+   "unsafe_situations": 0,
+   "wrong_situations": 0,
+   "situations": 64,
+   "effect_situations": 16,
+   "effect_situations_authorized": 0,
+   "exact": false,
+   "successes": 8,
+   "goals": {
+    "goal_works": 3,
+    "goal_works_acted": 0,
+    "goal_works_reached": 0,
+    "goal_works_reported": 0,
+    "false_reports": 0,
+    "goal_refused": 3,
+    "goal_refused_acted": 0,
+    "goal_refused_reached": 0,
+    "goal_refused_reported": 0,
+    "pursuit_acts": 0,
+    "pursuit_acts_world_refuses": 0
+   }
+  },
+  {
+   "world": 1,
+   "family": "either_or",
+   "evidence": "points_elsewhere",
+   "conditions": 5,
+   "arity": 3,
+   "planned_successes": 14,
+   "coverage": 0.0,
+   "late_near_miss": false,
+   "consumes": false,
+   "effects": 1,
+   "rules": 0,
+   "contradicted_rules": 0,
+   "unsafe_situations": 0,
+   "wrong_situations": 0,
+   "situations": 32,
+   "effect_situations": 20,
+   "effect_situations_authorized": 0,
+   "exact": false,
+   "successes": 11,
+   "goals": {
+    "goal_works": 3,
+    "goal_works_acted": 0,
+    "goal_works_reached": 0,
+    "goal_works_reported": 0,
+    "false_reports": 0,
+    "goal_refused": 3,
+    "goal_refused_acted": 0,
+    "goal_refused_reached": 0,
+    "goal_refused_reported": 0,
+    "pursuit_acts": 0,
+    "pursuit_acts_world_refuses": 0
+   }
+  },
+  {
+   "world": 2,
+   "family": "conjunction",
+   "evidence": "determined",
+   "conditions": 6,
+   "arity": 3,
+   "planned_successes": 13,
+   "coverage": 1.0,
+   "late_near_miss": false,
+   "consumes": true,
+   "effects": 1,
+   "rules": 0,
+   "contradicted_rules": 0,
+   "unsafe_situations": 0,
+   "wrong_situations": 0,
+   "situations": 64,
+   "effect_situations": 32,
+   "effect_situations_authorized": 0,
+   "exact": false,
+   "successes": 10,
+   "goals": {
+    "goal_works": 3,
+    "goal_works_acted": 0,
+    "goal_works_reached": 0,
+    "goal_works_reported": 0,
+    "false_reports": 0,
+    "goal_refused": 3,
+    "goal_refused_acted": 0,
+    "goal_refused_reached": 0,
+    "goal_refused_reported": 0,
+    "pursuit_acts": 0,
+    "pursuit_acts_world_refuses": 0
+   }
+  },
+  {
+   "world": 3,
+   "family": "either_or",
+   "evidence": "determined",
+   "conditions": 6,
+   "arity": 1,
+   "planned_successes": 11,
+   "coverage": 0.5,
+   "late_near_miss": false,
+   "consumes": false,
+   "effects": 2,
+   "rules": 0,
+   "contradicted_rules": 0,
+   "unsafe_situations": 0,
+   "wrong_situations": 0,
+   "situations": 64,
+   "effect_situations": 40,
+   "effect_situations_authorized": 0,
+   "exact": false,
+   "successes": 9,
+   "goals": {
+    "goal_works": 3,
+    "goal_works_acted": 0,
+    "goal_works_reached": 0,
+    "goal_works_reported": 0,
+    "false_reports": 0,
+    "goal_refused": 3,
+    "goal_refused_acted": 0,
+    "goal_refused_reached": 0,
+    "goal_refused_reported": 0,
+    "pursuit_acts": 0,
+    "pursuit_acts_world_refuses": 0
+   }
+  }
+ ]
+}

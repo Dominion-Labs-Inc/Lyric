@@ -1,18 +1,52 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-26)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-27)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
 2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
-to 2026-10-26 (52) in `docs/research/LAB_NOTEBOOK.md`.
+to 2026-10-27 (61) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-26)
+## 0. Where it stands (2026-10-27)
 
 **THE BAR IS 95% AND NOTHING IS DONE BEFORE IT IS MET (the owner, 2026-10-26).** Steps landed are "landed,
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (56), (57)): ONE STANDARD FORMAT LYRIC IS TAUGHT FROM, WORDS BEFORE SENTENCES** (the owner:
+**LATEST (lab notebook (58) to (61), 2026-10-27): SAID BY THE GRAMMAR IT IS READ BY; WHAT IT SAYS FIRST IS NOT YET
+ENGLISH.** lyric_dev2 holds 10 words recorded whole (paint, for, wall, picture, coat, make, representation, of, make it,
+mean) and one sentence; TRAIN-FORMAT-02 63 of 64 checks, front door 21 of 21; TRAIN-FORMAT-01 5 of 5. Language makes no
+belief and no domain (`_learn_held`, `learn_structure`); the hand-written meaning answer is gone (`_meanings_held`);
+the reasoning owner is handed the words' kinds (`word_kinds`, `_held_premises`); a noun's sense by the things around
+it (`thing_sense_of`); "of" from STREUSLE; verbs of several words ("make it").
+(61): `Grammar.say(meaning)` builds sentences by chart realization with the reading's own `_combine` and `_unary`
+(words for things from `MemoryAgent.words_for`; grammar words by what they say, `_says_of`; shared budgets; chart
+packed by meaning, `_meant`) and keeps only those `read` reads back, as written, to exactly the meaning;
+`derived_reader.say` asks it first, the taught constructions after. lyric_dev2: 4.3 s, 44 sentences read back right
+for `isa(wall, partition)`, but the first said is "Wall'm the the a partition.": reading accepts it, so saying does.
+
+**Open, in order (nothing here is done):**
+1. *Saying ranks bad English first.* Causes found (notebook (61)): the structure view scores a join it never met at
+   log(1e-12) (`structure._Pairs.chance`, no base distribution); no agreement (word records keep features for open
+   classes only, `word_forms.OPEN_CLASSES`, so "is"/"am"/"are" carry none, and reading compares no subject with its
+   verb); no "a"/"an" (no word record carries CMUdict's sounds; the only choice is the hand-written first letter rule
+   `teaching_sources._article`); reading takes "the" before a name and a bare singular noun; "walls" reads as `wall`.
+   The fix proposed, **waiting on the owner's yes**: closed words recorded with forms and features (UD AUX, DET,
+   PRON); each form's sounds, "a"/"an" with the first sounds they came before; agreement weighed as often as the
+   treebanks' subjects with those features took that form; "be", "a", "an", "the" taught on lyric_dev2; a base rate
+   for unmet joins, measured on GRAMMAR-01 (199/386 of 911) and prose joins (68.0%) before and after.
+2. *Main speaks through `Grammar.say` at its next start* (`derived_reader.say` asks it first), unmeasured there.
+   Whether a trained structure view (lyric_dev) ranks English first was being checked and was stopped unfinished:
+   boot lyric_dev, `grammar_view().say(Meaning("tell", (MeaningFact("isa", "dog", "animal"),)))`, print as it goes.
+3. *Two ways of saying* until the grammar says all the constructions do.
+4. *Main's 45,463 per-item language beliefs* (`unified.beliefs`, domain `english`, read by nothing): the beliefs
+   whose claim is one taught item's `claim()` (a sentence analysed, a derivation, an argument annotation, a word's
+   forms, a word group, a word or sentence recorded whole, a sentence taught with its meaning); constructions', links'
+   and the listener's beliefs are read and stay. Letting them go writes the live store: the owner's to run (a session
+   scratchpad script, `let_go_language_beliefs_main.py --apply`, not in the repo).
+5. From (60): "We made it!" (WordNet and SemCor disagree); 9 of 101 examples of the taught words read in their sense
+   (neighbours untaught); a sentence record's semtag, sense and roles are read by nothing.
+
+**(56), (57): ONE STANDARD FORMAT LYRIC IS TAUGHT FROM, WORDS BEFORE SENTENCES** (the owner:
 standardize how Lyric learns, as a model is taught from one dataset format; one record verified fully before a set;
 words and their meanings before phrases; language touches no beliefs or domains). `lyric_dev2` (lyric_dev's schema, no
 rows) holds one sentence (`experiments/TRAIN-FORMAT-01`, `teaching_sources.SentenceRecord`, converted from the PMB's

@@ -16,6 +16,68 @@ Conventions:
 
 ---
 
+## 2026-10-27 (61) — Said by the grammar it is read by: a meaning said only in sentences its own reading reads back to it; what it says first is not yet English (TRAIN-FORMAT-02)
+
+**Objective** (agreed by the owner after (60)): Lyric speaks with the grammar it reads with. `Grammar.say(meaning)`
+beside `Grammar.read(sentence)`, giving only sentences `read` reads back to exactly that meaning; `GrammarView.say`;
+`derived_reader.say` asks it first.
+
+**Built:**
+- *Chart realization* (Shieber 1988, uniform architecture; Kay 1996, chart generation), `Grammar.say`: the words for
+  the meaning's things (`MemoryAgent.words_for`, the other way from `name_of`: every word memory holds naming the thing
+  as a word of the class, in every form held, most used first; `HeldWords.written_for`), and the closed grammar words
+  whose pieces say part of the meaning (`_says_of`), combined by the same `_combine` and `_unary` reading uses. Every
+  sentence the chart completes is read back as written, its first word capitalised, and kept only where its reading's
+  `canonical()` is the meaning's.
+- *What a word says is one budget, shared by every word saying it* (all forms of "be" share `be`; "a", "an", "some"
+  share what they take): a word saying nothing spends what it takes; a word joining a clause to a thing (a relative
+  word, "if") is allowed one fewer than the clauses the meaning has; a word that makes a question is not offered for a
+  telling.
+- *The chart packed by meaning* (`_meant`): signs with the same category and the same pieces (variables renumbered,
+  positions ranked by word order) are one item, the surest kept.
+- *"was" and "were" say the past*: `["past", "p"]` added to their 16 `be` entries in `data/grammar/english.json`, so a
+  present meaning is not said with them. Readings unchanged (the spelling-out of "be" reads no time).
+- Tests (`tests/test_grammar.py`): every sentence said reads back to its meaning, with one form of "be", ending "."; an
+  unknown thing is said in nothing; "Tom chased a cat." among the sayings of its meaning. Both pass.
+
+**Errors and their causes:**
+- The first saying on lyric_dev2 did not finish in 600 s: each grammar entry had its own budget, and walking a
+  category's results gave relative words a budget of their own. Shared budgets: 129 s, 19,296 sentences read back.
+  Packed by meaning: 4.3 s, 792 read back, 44 read back right.
+- The read-back read the sentence lowercased: "wall" first reads surely (-4.6), "Wall" first does not (-32.3, a name
+  it might be). Now read as written.
+- My lyric_dev check (does a trained structure view rank good English first?) ran 1 h 46 min showing nothing: its
+  output went through `tail`, which holds every line until the process ends. Run again printing as it went; stopped on
+  the owner's word before it finished. Not known.
+
+**Not right yet:**
+- *What it says first is not English.* lyric_dev2's first saying of `isa(wall, partition)`: "Wall'm the the a
+  partition." (-3.596); the test grammar's: "Dogs'm mammals.", "Tom chased cat.", and "Cat the Tom chased." among the
+  rest. Each reads back to its meaning: reading accepts them, so saying does. Causes, found:
+  1. The structure view scores a join it never met at the floor, log(1e-12) = -27.6 (`_Pairs.chance`, Witten-Bell
+     with no base distribution); lyric_dev2's view is learned from one sentence, so nearly every join is unmet.
+  2. No agreement: the word records hold an open word's forms with their features ("walls" `Number=Plur`, "paints"
+     `Person=3|Number=Sing|Tense=Pres`), but only the open classes (`forms_from_conllu`, `OPEN_CLASSES`): "is", "am",
+     "are" hold no person or number, their entries are written in `english.json`; and nothing in reading compares a
+     subject with its verb ("a wall am" reads as "a wall is").
+  3. No "a" against "an": no word record carries sounds (CMUdict is a source, read only for plurals' spelling); "a"
+     and "an" were never taught on lyric_dev2; the only choice in the code is a first letter rule written by hand
+     (`teaching_sources._article`, the coordinator's), which says "a hour" and "an unicorn".
+  4. Reading takes "the" before a name and a bare singular noun; "walls" reads as `wall`, its number lost; "be" in the
+     past has no meaning in `spell_out`.
+- *Two ways of saying*: where the grammar says nothing for a meaning, the constructions taught still say it
+  (`derived_reader.say`), until the grammar says all they do.
+- *Main speaks through it at its next start* (`derived_reader.say` asks the grammar first); main's saying is unmeasured.
+
+**Proposed, waiting on the owner's yes:** (1) closed words recorded with forms and features (UD's AUX, DET, PRON);
+(2) each form's sounds from CMUdict, "a" and "an" with the first sounds they were said before, counted in the
+treebanks; (3) agreement weighed in reading as often as the treebanks' subjects with those features took that form;
+(4) "be", "a", "an", "the" taught on lyric_dev2, TRAIN-FORMAT-01, -02 and the saying checked again; (5) a base rate in
+the structure view for joins never met, measured on GRAMMAR-01 (199/386 of 911) and prose joins (68.0%) before and
+after, since it changes main's reading.
+
+---
+
 ## 2026-10-27 (60) — What was not right, worked through: a noun's sense by the things around it, "of" taught, verbs of several words, "mean" a word, research that took a preposition for a kind (TRAIN-FORMAT-02)
 
 **Objective** (the owner: "fix what's not right yet ... stop calling done"). Every fault (59) listed, worked, each in

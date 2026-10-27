@@ -6,6 +6,7 @@ Integrated learning system combining all learning components
 
 from statistics import NormalDist
 import hashlib
+import itertools
 import logging
 import asyncio
 import json
@@ -2434,7 +2435,20 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # A domain is something Lyric has learned, not something minted on
             # first mention. The registry already resolves a category to the
             # fields beneath it; the reference is answered, never invented.
-            resolved = registry.resolve_domain_reference(domain, require_concepts=True)
+            #
+            # A WORLD LYRIC ACTS IN IS NOT YET A FIELD. A task names the domain
+            # it acted in (`knowledge_domain_of`), and a world met by acting is
+            # registered only once discovery crystallizes what was learned there
+            # (`_idle_domain_discovery_work`). Until then the reference resolves
+            # to nothing, which is this method's own `domain_empty` state --
+            # handed again once the domain is learned -- and not a failure: it
+            # raised here and was logged as an error with its traceback on every
+            # pass, 107 times over 100 worlds of RULE-AUTHORITY-02's live arm.
+            from core.domain.domain_registry import UnresolvedDomainReference
+            try:
+                resolved = registry.resolve_domain_reference(domain, require_concepts=True)
+            except UnresolvedDomainReference:
+                resolved = []
             if not resolved:
                 logger.info(
                     "Domain-specific learning skipped: %r holds no learned concepts",
@@ -5494,7 +5508,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                                        is_regularity_signature)
 
         demos = get_demonstration_store()
-        pending = await demos.pending_signatures(limit=limit)
+        pending = await demos.pending_signatures(limit=limit, with_marks=True)
         induced: List[Dict[str, Any]] = []
         by_domain: Dict[str, bool] = {}
 
@@ -5502,8 +5516,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if is_regularity_signature(predicate):
                 # A REGULARITY OF THE WORLD, not an operator: judged by its own
                 # door, and it never makes a domain more competent to act.
-                induced.append(await self._judge_regularity(
-                    domain_id=domain_id, predicate=predicate, arity=arity))
+                async with self._judging(domain_id, predicate, arity):
+                    induced.append(await self._judge_regularity(
+                        domain_id=domain_id, predicate=predicate, arity=arity))
                 return
             outcome = await self._induce_signature(
                 domain_id=domain_id, predicate=predicate, arity=arity)
@@ -5511,7 +5526,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             by_domain[domain_id] = by_domain.get(domain_id, False) or bool(
                 outcome.get("executable"))
 
-        for domain_id, predicate, arity in pending:
+        for domain_id, predicate, arity, marked in pending:
             try:
                 if (predicate, arity) == demos.CONTRASTIVE:
                     # A contrastive negative sharpens the domain's OPERATORS: it
@@ -5524,20 +5539,35 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     await run(domain_id, predicate, arity)
             finally:
                 await demos.clear_pending(
-                    domain_id=domain_id, predicate=predicate, arity=arity)
+                    domain_id=domain_id, predicate=predicate, arity=arity, marked=marked)
 
         return {"drained": len(pending), "induced": induced, "by_domain": by_domain}
+
+    def _judging(self, domain_id: str, predicate: str, arity: int) -> asyncio.Lock:
+        """The one judgement of a signature at a time.
+
+        Several paths drain pending induction (the coordinator's coalesced
+        drain, a deficit's closure, practice re-inducing), and nothing kept two
+        of them off one signature: a judgement that loaded the demonstrations
+        before a refusal was recorded validated the rule again after another had
+        seen the refusal, and the rule kept its authority with the refusal on
+        record (RULE-AUTHORITY-02's live arm: 3 of 227 rules, only with worlds
+        running side by side). Taken in turn, each judgement reads what the one
+        before it left."""
+        locks = self.__dict__.setdefault("_judgement_locks", {})
+        return locks.setdefault((domain_id, predicate, arity), asyncio.Lock())
 
     async def _induce_signature(self, *, domain_id: str, predicate: str,
                                 arity: int) -> Dict[str, Any]:
         """Load a signature's demonstrations, judge and re-induce its operator,
         and project an executable one into the concept graph. Off the hot path
         by construction: this is the expensive half."""
-        summary, promoted, basis = await self._judge_signature(
-            domain_id=domain_id, predicate=predicate, arity=arity)
-        if promoted is not None:
-            summary["projected_to_concepts"] = await self._project_operator_to_concepts(
-                promoted, basis, domain_id=domain_id)
+        async with self._judging(domain_id, predicate, arity):
+            summary, promoted, basis = await self._judge_signature(
+                domain_id=domain_id, predicate=predicate, arity=arity)
+            if promoted is not None:
+                summary["projected_to_concepts"] = await self._project_operator_to_concepts(
+                    promoted, basis, domain_id=domain_id)
         return summary
 
     async def _judge_signature(self, *, domain_id: str, predicate: str,
@@ -5733,8 +5763,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         positives = [e for e in examples if e.positive]
         if len(positives) < 2 or all(e.positive for e in examples):
             return set()
+        negatives = [e for e in examples if not e.positive]
+        framed = frame(positives + negatives)
+        named = lambda e: frozenset(c for c in _conditions(e) if "_" not in c)
         departed: Set[str] = set()
-        for negative in (e for e in examples if not e.positive):
+        for index, negative in enumerate(negatives):
             basis = frame(_bounded_basis(positives, ()) + [negative])
             result = await self.induce_on_thread(basis)
             if result.status is not InductionStatus.NO_RULE or not result.negative_coverage:
@@ -5752,11 +5785,40 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # have (a leak) read as noise too, so the leak widened the rule (67
             # of 73 unsafe settled worlds). One such success can be that leak;
             # two are the world working.
+            #
+            # AND THE WORLD WORKING THERE MORE OFTEN THAN IT REFUSED. Counted
+            # alone, two successes outweighed any number of refusals where the
+            # same nothing-it-lacked held: the noise leaked twice in one world of
+            # RULE-AUTHORITY-02's live arm, the rule dropped the condition both
+            # leaks lacked, and when Lyric then acted three times without it and
+            # the world refused all three, each refusal read as noise beside the
+            # two leaks and the rule kept its authority. What Lyric sees by
+            # acting again must be able to outweigh what it saw before. The
+            # refusals counted are the ones the successes do not explain: misses
+            # that held everything every success held, as this one did.
+            #
+            # ASKED OF EACH CONDITION THE MISS LACKED, AND OF EACH TWO. Asked of
+            # everything it lacked at once, it needed successes lacking all of it
+            # together, which a miss lacking four or five conditions almost never
+            # has: in the live arm Lyric held no rule in 5 of 7 noisy worlds the
+            # evidence settled, with 13 to 24 successes, its noise read as
+            # refutation. A world working on either of two groups is caught by
+            # the two (no success lacks one condition of each group), a leak by
+            # the one (the refusals lacking it outweigh the leaks).
             if miss.action is not None:
-                *seen, missed = frame(positives + [negative])
-                held = frozenset(c for c in _conditions(missed) if "_" not in c)
-                if sum(1 for e in seen
-                       if frozenset(c for c in _conditions(e) if "_" not in c) <= held) < 2:
+                seen, missed = framed[:len(positives)], framed[len(positives) + index]
+                held = named(missed)
+                core = frozenset.intersection(*(named(e) for e in seen))
+                unexplained = [e for e in framed[len(positives):] if core <= named(e)]
+                lacked = sorted(frozenset().union(*(named(e) for e in seen)) - held)
+
+                def outweighs(absent: FrozenSet[str]) -> bool:
+                    worked = sum(1 for e in seen if not absent & named(e))
+                    refused = sum(1 for e in unexplained if not absent & named(e))
+                    return worked >= 2 and worked >= refused
+
+                if not all(outweighs(frozenset(pair))
+                           for pair in itertools.combinations_with_replacement(lacked, 2)):
                     continue
             departed.add(negative.evidence_id)
         return departed
@@ -5775,7 +5837,6 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         the demonstrations apart: the rule's own conditions, what held in every
         success, and what held in a miss and in no success, the only conditions
         that could be forbidden."""
-        import itertools
         from core.learning.probabilistic_version_space import StructuralHypothesis
         if rule.action is None:
             return None

@@ -193,8 +193,11 @@ class HeldWords(Words):
 
     def __init__(self, analysed: Iterable, closed: Mapping[str, Set[str]], name_of: Callable[[str, str], str],
                  knowledge: Optional[Knowledge] = None, forms: Optional[Any] = None,
-                 recorded: Optional[Callable[[str, str], Optional[str]]] = None):
+                 recorded: Optional[Callable[[str, str], Optional[str]]] = None,
+                 written_for: Optional[Callable[[str, str], List[str]]] = None):
         self.closed = {w: set(u) for w, u in closed.items()}
+        #: What memory writes for a thing as a word of a class (`MemoryAgent.words_for`): the other way from `name_of`.
+        self.written_for = written_for
         #: What a word recorded whole, or a sentence recorded whole, names a word as a class (`MemoryAgent.recorded_name`):
         #: before any other name (`_name`).
         self.recorded = recorded
@@ -666,6 +669,9 @@ class HeldWords(Words):
 
     def known_verb(self, words: Sequence[str]) -> Optional[str]:
         return self.knowledge.known_verb(words)
+
+    def words_for(self, name: str, cls: str) -> List[str]:
+        return list(self.written_for(name, cls)) if self.written_for is not None else []
 
     def kinds(self, name: str, cls: str) -> List[str]:
         return self.knowledge.kinds(name, cls)

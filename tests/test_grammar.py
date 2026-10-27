@@ -648,3 +648,40 @@ def test_which_word_takes_which_is_decided_by_how_the_structure_view_joins_them(
         g = gm.Grammar(gm.Lexicon(Held()))
         g.structure = Joins(head) if head else None
         assert read(g, "The dog chased the cat in the park.") == said + where, head
+
+
+class Speaking(Held):
+    """The words above, with memory's words for each thing (`Words.words_for`): every form held of it."""
+
+    def words_for(self, name: str, cls: str):
+        held = {"NOUN": NOUNS, "VERB": VERBS, "ADJECTIVE": ADJECTIVES}.get(cls, {})
+        return [w for w, n in held.items() if n == name]
+
+
+BE = {"is", "am", "are", "'s", "'m", "'re", "was", "were", "be", "been", "being"}
+
+
+def test_a_meaning_is_said_only_in_sentences_the_grammar_reads_back_to_it():
+    """`Grammar.say`: the grammar a sentence is read by, used the other way; a sentence said only where reading it
+    gives exactly the meaning said, a kind said of a kind with one word saying `be` ("is" and "'s" both say it, the
+    one said only as surely as it is read), never a question's word in a telling; nothing said of a thing no word is
+    held for."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),))
+    said = g.say(meaning)
+    assert said
+    for sentence in said:
+        assert read(g, sentence) == meaning.canonical(), sentence
+        words = gm.tokens_of(sentence, g.lexicon.words)
+        assert sum(1 for w in words if w.lower() in BE) == 1, sentence
+        assert sentence.endswith(".")
+    assert g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "griffin", "mammal"),))) == []
+
+
+def test_a_happening_is_said_with_its_doer_and_what_it_was_done_to():
+    """A sentence read, said again: the meaning it read to said by the same grammar, read back to the same meaning."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
+    said = g.say(told)
+    assert said and all(read(g, s) == told.canonical() for s in said)
+    assert "Tom chased a cat." in said

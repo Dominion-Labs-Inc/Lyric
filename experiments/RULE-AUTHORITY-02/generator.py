@@ -9,19 +9,31 @@ two of them are outside what a learner limited to plain conjunctions can express
   either_or     either of two groups of 1 or 2 conditions holds
 
 Every world draws its own vocabulary (invented names), 4 to 7 conditions, an act of 1 to 3 arguments, conditions
-over those arguments in any order, one or two effects, sometimes a condition the act consumes, distractor facts
-about other objects, 2 to 6 successes, near misses covering none, about half or all of the rule, failures the rule
-says nothing about, and in a quarter of worlds a revealing near miss that arrives last. Each world opens with a
-still world: every condition holds, nothing is done, nothing happens.
+over those arguments in any order, one or two effects, sometimes a condition the act consumes, and distractor facts
+about other things. A world is a set of GROUPS OF THINGS, all present from the start, each with the conditions that
+hold of it:
+
+  the still group     every condition holds; never offered to act on, so the world left alone shows that the act,
+                      and no combination of the conditions alone, produces the effect
+  practice            2 to 6 successes (8 to 16 in the noisy arm), near misses covering none, about half or all of
+                      the rule, failures the rule says nothing about, and in a quarter of worlds a revealing near
+                      miss that comes last: the acts the world offers Lyric to practise, in this order
+  goals               6 groups, half where the rule lets the act work and half where it does not: the world asks
+                      Lyric to bring the act's effect about on each
+  more                another practice drawn the same way, offered whenever Lyric explores again
 
 Two files are written, and the learner's side opens only the first:
 
-  worlds_public.jsonl   what is shown: per world, the act and its observations (facts before, act, facts after)
-  worlds_truth.jsonl    the answers: conditions, hidden rule, effects, factors
+  worlds_public.jsonl   what the world offers: its act, the acts it lets Lyric practise, the goals it asks for
+  worlds_truth.jsonl    the answers: conditions, hidden rule, effects, the groups, factors
 
 plus manifest.json with the SHA-256 of both files and of this script, written before any learner runs.
 
-Run:  python3 -I generator.py --worlds 10000 --seed 20261026 --outdir <folder>
+`serve` IS THE WORLDS: a separate process that holds the truth and works out, when Lyric acts, what the act does
+from what holds then (and, in the noisy arm, whether the noise turns or hides it), logging every act it receives.
+
+Run:  python3 -I generator.py --worlds 10000 --seed 20261026 --outdir <folder> [--noise]
+      python3 -I generator.py serve --inputs <folder> --log <folder>/world_log.jsonl
 """
 import argparse
 import hashlib
@@ -122,6 +134,10 @@ def fact(name, args, binding):
 #: 90% of the time, where it does not it works 2% of the time, and 10% of outcomes cannot be read at all.
 NOISE = {"success_rate": 0.90, "leak_rate": 0.02, "unknown_rate": 0.10}
 
+#: Goals each world asks of Lyric once it has practised: half where the world's rule lets the act work, half where
+#: it does not.
+GOALS = 6
+
 
 def make_world(i, seed, noise=None):
     rng = random.Random(seed)
@@ -154,66 +170,198 @@ def make_world(i, seed, noise=None):
         late = rng.choice(uncovered)
         plan.append(("near_miss", late))
 
-    def observe(k, a, acted):
+    # EVERY SITUATION IS A GROUP OF THINGS PRESENT IN ONE WORLD, from the start: its objects (the act's arguments),
+    # the conditions that hold of them, and distractor things beside them. What an act does is not drawn here: the
+    # world works it out when Lyric acts (`serve`), from what holds then.
+    groups = []
+
+    def group(a, kind):
+        k = len(groups)
         names = [f"o{k}{c}" for c in "abc"[:arity]]
         binding = dict(zip(args, names))
-        before = [fact(c["name"], c["args"], binding) for c, on in zip(conditions, a) if on]
+        facts = [fact(c["name"], c["args"], binding) for c, on in zip(conditions, a) if on]
+        things = list(names)
         for d in range(rng.randint(0, 3)):
             other = f"o{k}w{d}"
+            things.append(other)
             if rng.random() < 0.5:
                 c = rng.choice(conditions)
                 b = {v: other for v in args}
                 if len(c["args"]) == 2:
                     b[c["args"][0]] = binding[c["args"][0]]
-                before.append(fact(c["name"], c["args"], b))
+                facts.append(fact(c["name"], c["args"], b))
             else:
-                before.append(f"{rng.choice(unrelated_preds)}({other})")
-        before = sorted(set(before))
-        fired = acted and fires(terms, a)
-        happened, unknown = fired, False
-        if noise and acted:
-            happened = rng.random() < (noise["success_rate"] if fired else noise["leak_rate"])
-            unknown = rng.random() < noise["unknown_rate"]
-        after = set(before)
-        if happened:
-            if consumes is not None:
-                after.discard(fact(conditions[consumes]["name"], conditions[consumes]["args"], binding))
-            after |= {fact(e["name"], e["args"], binding) for e in adds}
-        action = f"{act}({', '.join(names)})" if acted else None
-        truth = {"kind": None, "assignment": [int(v) for v in a], "fired": fired}
-        if noise:
-            truth.update(happened=happened, unknown=unknown)
-        return {"before": before, "action": action, "after": None if unknown else sorted(after)}, truth
+                facts.append(f"{rng.choice(unrelated_preds)}({other})")
+        groups.append({"kind": kind, "objects": names, "things": things, "assignment": [int(v) for v in a],
+                       "facts": sorted(set(facts))})
+        return k
 
-    public_obs, truth_obs = [], []
-    # THE STILL WORLD HOLDS EVERY CONDITION, as RULE-AUTHORITY-01's did: only then does it show that the act, and no
-    # combination of the conditions alone, produces the effect. Drawn as a random situation the rule allows, it left
-    # "the effect happens without the act" standing in 247 worlds the evaluator, which takes the act as necessary,
-    # called settled (run 20261027T022228Z). The draw is still made, so every later draw is the one it was.
+    # THE STILL GROUP HOLDS EVERY CONDITION and is never acted on: the world unchanged where nothing is done shows
+    # that the act, and no combination of the conditions alone, produces the effect.
     success(rng, terms, n)
-    o, t = observe(0, [1] * n, acted=False)
-    t["kind"] = "still"
-    public_obs.append(o)
-    truth_obs.append(t)
-    shown_succ = 0
-    for k, (kind, lit) in enumerate(plan, start=1):
+    group([1] * n, "still")
+    practice = []
+    for kind, lit in plan:
         a = success(rng, terms, n) if kind == "success" else \
             near_miss(rng, terms, n, lit) if kind == "near_miss" else failure(rng, terms, n)
-        if a is None:
-            continue
-        o, t = observe(k, a, acted=True)
-        t["kind"] = kind
-        shown_succ += o["after"] is not None and o["after"] != o["before"]
-        public_obs.append(o)
-        truth_obs.append(t)
+        if a is not None:
+            practice.append(group(a, kind))
+    tests = []
+    for g in range(GOALS):
+        if g % 2 == 0:
+            a, kind = success(rng, terms, n), "goal_works"
+        else:
+            a, kind = (near_miss(rng, terms, n, rng.choice(literals)) if rng.random() < 0.5 else None), "goal_refused"
+            a = a or failure(rng, terms, n)
+        if a is not None:
+            tests.append(group(a, kind))
 
-    public = {"world": i, "act": act, "arity": arity, "observations": public_obs}
+    # MORE TO PRACTISE ON, drawn as the practice was: what the world offers once the first practice is used up,
+    # when Lyric explores again (to close a gap a goal showed it, or of its own accord). A world does not run out of
+    # things to try.
+    more_plan = [("success", None)] * n_succ + [("near_miss", lit) for lit in literals] + \
+                [("failure", None)] * rng.randint(0, 3)
+    rng.shuffle(more_plan)
+    more = []
+    for kind, lit in more_plan:
+        a = success(rng, terms, n) if kind == "success" else \
+            near_miss(rng, terms, n, lit) if kind == "near_miss" else failure(rng, terms, n)
+        if a is not None:
+            more.append(group(a, kind))
+
+    def acts_on(k):
+        return f"{act}({', '.join(groups[k]['objects'])})"
+
+    def effects_on(k):
+        binding = dict(zip(args, groups[k]["objects"]))
+        return sorted(fact(e["name"], e["args"], binding) for e in adds)
+
+    public = {"world": i, "act": act, "arity": arity, "args": args,
+              "practice": [acts_on(k) for k in practice], "more": [acts_on(k) for k in more],
+              "goals": [effects_on(k) for k in tests]}
     truth = {"world": i, "seed": seed, "family": family, "act": act, "args": args, "conditions": conditions,
-             "rule": terms, "effects": {"add": adds, "consumes": consumes}, "observations": truth_obs,
-             "factors": {"conditions": n, "arity": arity, "successes": shown_succ, "coverage": q,
+             "rule": terms, "effects": {"add": adds, "consumes": consumes}, "noise": noise, "groups": groups,
+             "practice": practice, "tests": tests, "more": more,
+             "factors": {"conditions": n, "arity": arity, "planned_successes": n_succ, "coverage": q,
                          "late_near_miss": late is not None, "consumes": consumes is not None,
                          "effects": len(adds)}}
     return public, truth
+
+
+# ── the world, live ─────────────────────────────────────────────────────────────────────────────────────────────
+
+def terms_of(text):
+    return set(text[text.index("(") + 1:-1].split(", "))
+
+
+def serve(inputs, log_path):
+    """Every world, as a service Lyric reaches over HTTP and nothing else.
+
+      POST /w/<world>/act   {"x": ..., "y": ...}   the act, on the things named. The world works out from what holds
+                                                    now whether its rule lets the act work (and, in the noisy arm,
+                                                    whether the noise turns it), changes accordingly, and answers
+                                                    that the act was performed: what it did is read by looking.
+      GET  /w/<world>/look                          every fact that holds now; 503 when the outcome of the last act
+                                                    cannot be read (the noisy arm), once.
+
+    Every act is written to `log_path` as it happens, with the world's own account of it, for the evaluator.
+    """
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    worlds = {}
+    with open(Path(inputs) / "worlds_truth.jsonl") as f:
+        for line in f:
+            t = json.loads(line)
+            worlds[t["world"]] = t
+    states, lock = {}, threading.Lock()
+    log = open(log_path, "a")
+
+    def state_of(w):
+        if w not in states:
+            t = worlds[w]
+            states[w] = {"facts": {f for g in t["groups"] for f in g["facts"]},
+                         "rng": random.Random(t["seed"] + 1), "unreadable": False, "acts": 0}
+        return states[w]
+
+    def act(w, given):
+        t, s = worlds[w], state_of(w)
+        names = [str(given.get(v)) for v in t["args"]]
+        binding = dict(zip(t["args"], names))
+        a = [int(fact(c["name"], c["args"], binding) in s["facts"]) for c in t["conditions"]]
+        fired = fires(t["rule"], a)
+        happened, unknown = fired, False
+        if t["noise"]:
+            happened = s["rng"].random() < (t["noise"]["success_rate"] if fired else t["noise"]["leak_rate"])
+            unknown = s["rng"].random() < t["noise"]["unknown_rate"]
+        k = next((k for k, g in enumerate(t["groups"]) if g["objects"] == names), None)
+        frame = set(t["groups"][k]["things"]) if k is not None else set(names)
+        before = sorted(f for f in s["facts"] if terms_of(f) & frame)
+        added = []
+        if happened:
+            if t["effects"]["consumes"] is not None:
+                c = t["conditions"][t["effects"]["consumes"]]
+                s["facts"].discard(fact(c["name"], c["args"], binding))
+            effects = {fact(e["name"], e["args"], binding) for e in t["effects"]["add"]}
+            added = sorted(effects - s["facts"])
+            s["facts"] |= effects
+        s["unreadable"] = unknown
+        s["acts"] += 1
+        after = sorted(f for f in s["facts"] if terms_of(f) & frame)
+        log.write(json.dumps({"world": w, "n": s["acts"], "at": time.time(), "objects": names, "group": k,
+                              "kind": t["groups"][k]["kind"] if k is not None else None, "assignment": a,
+                              "fired": fired, "happened": happened, "unknown": unknown,
+                              "before": before, "after": after, "added": added}) + "\n")
+        log.flush()
+
+    class World(BaseHTTPRequestHandler):
+        def log_message(self, *_):
+            pass
+
+        def _world(self, verb):
+            parts = self.path.strip("/").split("/")
+            if len(parts) == 3 and parts[0] == "w" and parts[2] == verb and parts[1].isdigit() \
+                    and int(parts[1]) in worlds:
+                return int(parts[1])
+            return None
+
+        def _answer(self, status, body):
+            data = json.dumps(body).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def do_GET(self):
+            w = self._world("look")
+            if w is None:
+                return self._answer(404, {"error": "no such world"})
+            with lock:
+                s = state_of(w)
+                if s["unreadable"]:
+                    s["unreadable"] = False
+                    return self._answer(503, {"error": "the world cannot be read just now"})
+                facts = sorted(s["facts"])
+            self._answer(200, {"facts": facts})
+
+        def do_POST(self):
+            w = self._world("act")
+            if w is None:
+                return self._answer(404, {"error": "no such world"})
+            given = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            with lock:
+                act(w, given if isinstance(given, dict) else {})
+            self._answer(200, {"performed": True})
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), World)
+    server.daemon_threads = True
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    print(json.dumps({"port": server.server_address[1]}), flush=True)
+    sys.stdin.read()            # the world stands until whoever started it lets go
+    server.shutdown()
+    log.close()
 
 
 def sha256(path):
@@ -225,6 +373,13 @@ def sha256(path):
 
 
 def main():
+    if sys.argv[1:2] == ["serve"]:
+        ap = argparse.ArgumentParser()
+        ap.add_argument("serve")
+        ap.add_argument("--inputs", required=True)
+        ap.add_argument("--log", required=True)
+        a = ap.parse_args()
+        return serve(a.inputs, a.log)
     ap = argparse.ArgumentParser()
     ap.add_argument("--worlds", type=int, default=10000)
     ap.add_argument("--seed", type=int, required=True)

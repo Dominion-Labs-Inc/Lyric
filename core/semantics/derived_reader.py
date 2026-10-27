@@ -6966,6 +6966,16 @@ def say(meaning: Meaning, inventory: Optional[PatternInventory] = None, *,
     sentence for the meaning puts none so. `heard`: not even then, for a speaker with more than one meaning for what
     it says: an event held at no time, asked of at one, is said "The kelt might chase the fip.", at none, before "The
     kelt did might chase the fip.", at the time asked."""
+    if inventory is None:
+        # SAID BY THE GRAMMAR IT IS READ BY (`GrammarView.say`), as memory holds it: every sentence the grammar makes
+        # of the meaning's words that reads back to exactly it. The constructions taught say what it does not yet say,
+        # until it says all they do.
+        from core.agents import memory_agent as _memory
+        grammar = getattr(_memory._memory_agent, "grammar_view", None)
+        if grammar is not None:
+            by_grammar = tuple(grammar().say(meaning, named=named))
+            if by_grammar:
+                return by_grammar
     view = inventory if inventory is not None else _live_inventory()
     said = _said_whole(meaning, view, uses=uses, named=named, framed=framed, apart=apart, heard=heard)
     if said or not meaning.unasserted:

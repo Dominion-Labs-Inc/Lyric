@@ -2698,6 +2698,10 @@
     "cat": "(S[dcl].p\\NP.x)/NP.y",
     "sem": [
      [
+      "past",
+      "p"
+     ],
+     [
       "be",
       "x",
       "y",
@@ -2718,6 +2722,10 @@
     "use": "be:pp",
     "only": true,
     "sem": [
+     [
+      "past",
+      "p"
+     ],
      [
       "finite",
       "p"
@@ -2760,25 +2768,49 @@
     "cat": "(S[dcl].p\\THERE)/NP.y",
     "label": "be:there",
     "use": "be:there",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
     "label": "be:there:pp",
     "use": "be:there:pp",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "(S[q].p/NP.y)/THERE",
     "label": "be:q:there",
     "use": "be:q:there",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
     "label": "be:q:there:pp",
     "use": "be:q:there:pp",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
@@ -2800,6 +2832,10 @@
     "cat": "(S[q].p/NP.y)/NP.x",
     "sem": [
      [
+      "past",
+      "p"
+     ],
+     [
       "be",
       "x",
       "y",
@@ -2820,6 +2856,10 @@
     "use": "be:q:pp",
     "only": true,
     "sem": [
+     [
+      "past",
+      "p"
+     ],
      [
       "finite",
       "p"
@@ -2884,6 +2924,10 @@
     "cat": "(S[dcl].p\\NP.x)/NP.y",
     "sem": [
      [
+      "past",
+      "p"
+     ],
+     [
       "be",
       "x",
       "y",
@@ -2904,6 +2948,10 @@
     "use": "be:pp",
     "only": true,
     "sem": [
+     [
+      "past",
+      "p"
+     ],
      [
       "finite",
       "p"
@@ -2946,25 +2994,49 @@
     "cat": "(S[dcl].p\\THERE)/NP.y",
     "label": "be:there",
     "use": "be:there",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "((S[dcl].p\\THERE)/(S[pp].p\\NP.y))/NP.y",
     "label": "be:there:pp",
     "use": "be:there:pp",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "(S[q].p/NP.y)/THERE",
     "label": "be:q:there",
     "use": "be:q:there",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "((S[q].p/(S[pp].p\\NP.y))/NP.y)/THERE",
     "label": "be:q:there:pp",
     "use": "be:q:there:pp",
-    "only": true
+    "only": true,
+    "sem": [
+     [
+      "past",
+      "p"
+     ]
+    ]
    },
    {
     "cat": "(S[q].q/(S[adj].q\\NP.x))/NP.x",
@@ -2986,6 +3058,10 @@
     "cat": "(S[q].p/NP.y)/NP.x",
     "sem": [
      [
+      "past",
+      "p"
+     ],
+     [
       "be",
       "x",
       "y",
@@ -3006,6 +3082,10 @@
     "use": "be:q:pp",
     "only": true,
     "sem": [
+     [
+      "past",
+      "p"
+     ],
      [
       "finite",
       "p"

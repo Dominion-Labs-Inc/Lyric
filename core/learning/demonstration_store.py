@@ -27,7 +27,7 @@ from __future__ import annotations
 import json
 import logging
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from core.learning.rule_induction import Fact, RuleEffects, TrainingExample
 
@@ -275,20 +275,32 @@ class DemonstrationStore:
         await memory_agent().mark_induction_pending(
             domain_id=domain_id, predicate=predicate, arity=arity)
 
-    async def pending_signatures(self, *, limit: Optional[int] = None) -> List[tuple]:
-        """Signatures awaiting re-induction, oldest enqueue first."""
+    async def pending_signatures(self, *, limit: Optional[int] = None,
+                                 with_marks: bool = False) -> List[tuple]:
+        """Signatures awaiting re-induction, oldest enqueue first; `with_marks`
+        adds when each was last marked, for `clear_pending`."""
         await self.ensure_schema()
-        query = ("SELECT domain_id, predicate, arity FROM"
+        query = ("SELECT domain_id, predicate, arity, enqueued_at FROM"
                  " unified.operator_induction_pending ORDER BY enqueued_at")
         if limit is not None:
             query += f" LIMIT {int(limit)}"
         rows = await self.db().execute_query(query, fetch_all=True) or []
+        if with_marks:
+            return [(r["domain_id"], r["predicate"], r["arity"], r["enqueued_at"]) for r in rows]
         return [(r["domain_id"], r["predicate"], r["arity"]) for r in rows]
 
-    async def clear_pending(self, *, domain_id: str, predicate: str, arity: int) -> None:
+    async def clear_pending(self, *, domain_id: str, predicate: str, arity: int,
+                            marked: Any = None) -> None:
+        """Clear a signature's pending mark. Given `marked`, the time the mark
+        was read before inducing, a mark made since -- a demonstration recorded
+        while the signature was being induced -- is kept for the next pass.
+        Cleared outright, that demonstration was never judged: Lyric acted, the
+        world refused, the record re-marked the signature mid-judgement, and the
+        drain's clear removed the mark (RULE-AUTHORITY-02's live arm: a rule
+        kept its authority with the refusal on record)."""
         from core.agents.memory_agent import memory_agent
         await memory_agent().clear_induction_pending(
-            domain_id=domain_id, predicate=predicate, arity=arity)
+            domain_id=domain_id, predicate=predicate, arity=arity, marked=marked)
 
     async def load(self, *, domain_id: str, predicate: str,
                    arity: int) -> List[TrainingExample]:

@@ -2,8 +2,15 @@
 """RULE-AUTHORITY-02 evaluator. Standard library only: nothing here comes from Lyric.
 
 It reads the frozen worlds (checking their SHA-256 against the manifest the generator wrote before the learner
-ran), the learner's answers as plain text (each rule's body, the facts it adds and the facts it removes), and
+ran), the world's own log of every act Lyric sent it (written by the world as it happened, with what held of the
+things acted on before and after, and whether the noise turned or hid the outcome), and the learner's answers as
+plain text (each rule's body, the facts it adds and the facts it removes, and what it reported of each goal). It
 judges every answer against the world's own truth with its own matcher.
+
+WHAT LYRIC SAW IS WHAT IT DID. The worlds are no longer shown to the learner as a fixed sequence: the whole running
+system practises the acts each world offers and then pursues its goals, acting or not by what it has learned. Its
+evidence is therefore the still world plus every act the world received, in order, an act whose outcome could not
+be read counting as nothing; "what the evidence settles" below is asked of exactly that.
 
 WHAT THE EVIDENCE SETTLES is decided here and nowhere else, without reference to how the learner decides: the
 unconditional rule (the act always works) and every rule of the three families the generator draws from (plain
@@ -34,6 +41,10 @@ conjunctions (RULE-AUTHORITY-01's question, here at scale); C4 to C6 are asked o
 conjunction can say is settled by every family, its own among them, and C7 asks that where it is, no rule Lyric
 holds acts where the world refuses or predicts a wrong effect. The generator's still world was amended with this
 (it holds every condition); runs before 20261027T13 were scored under the earlier account.
+
+G1, ADDED WITH THE LIVE WORLDS: a goal Lyric reports reached must be one the world reached (an act on its things
+worked, on whatever things Lyric chose to act on: its planner may borrow things from elsewhere in the world).
+The goals' other counts (acted on, reached, acts the world's rule refuses) are reported, not checked.
 
 Run:  python3 -I evaluator.py --inputs <generator outdir> --answers <answers.jsonl> --out <evaluation.json>
 """
@@ -257,6 +268,47 @@ def score_world(truth, public, answer):
             "effect_situations_authorized": covered, "exact": bool(rules) and exact, "successes": successes}
 
 
+# ── what Lyric did, from the world's own log ────────────────────────────────────────────────────────────────────
+
+def observed(public, truth, log):
+    """The observations Lyric's evidence consists of, in the order it acted: the still world (the group that holds
+    every condition and is never acted on), then every act the world received, with the facts about the things
+    acted on before and after it. An act whose outcome could not be read is shown with no after, as nothing."""
+    still = truth["groups"][0]
+    obs_p = [{"before": still["facts"], "action": None, "after": still["facts"]}]
+    obs_t = [{"kind": "still", "assignment": still["assignment"], "fired": False}]
+    for a in log:
+        obs_p.append({"before": a["before"], "action": f"{truth['act']}({', '.join(a['objects'])})",
+                      "after": None if a["unknown"] else a["after"]})
+        obs_t.append({"kind": a["kind"], "assignment": a["assignment"], "fired": a["fired"],
+                      "happened": a["happened"], "unknown": a["unknown"]})
+    return {**public, "observations": obs_p}, {**truth, "observations": obs_t}
+
+
+def score_goals(public, truth, log, answer):
+    """Each goal the world asked for once Lyric had practised: whether the world reached it (its facts were added by
+    an act that worked, on whatever things Lyric chose to act on), whether Lyric acted on any of its things, and
+    whether Lyric reported it reached. An act is Lyric's pursuit of goals when it is not one of the acts the world
+    offered to practise (those name exactly one practice group's things, the first practice's or the more it
+    offers after)."""
+    practice = {tuple(truth["groups"][k]["objects"]) for k in truth["practice"] + truth["more"]}
+    pursuit = [a for a in log if tuple(a["objects"]) not in practice]
+    added = {f for a in log for f in a.get("added", ())}
+    out = Counter()
+    for k, conditions, g in zip(truth["tests"], public["goals"], answer["goals"]):
+        kind = truth["groups"][k]["kind"]
+        mine = set(truth["groups"][k]["objects"])
+        reached = all(c in added for c in conditions)
+        out[kind] += 1
+        out[f"{kind}_acted"] += any(mine & set(a["objects"]) for a in pursuit)
+        out[f"{kind}_reached"] += reached
+        out[f"{kind}_reported"] += g["success"]
+        out["false_reports"] += g["success"] and not reached
+    out["pursuit_acts"] += len(pursuit)
+    out["pursuit_acts_world_refuses"] += sum(1 for a in pursuit if not a["fired"])
+    return {"goals": dict(out)}
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--inputs", required=True)
@@ -274,14 +326,22 @@ def main():
     answers = {a["world"]: a for a in (json.loads(l) for l in open(args.answers))}
     if len(answers) != len(public):
         sys.exit(f"answers for {len(answers)} of {len(public)} worlds")
+    acts = defaultdict(list)
+    for line in open(inputs / "world_log.jsonl"):
+        a = json.loads(line)
+        acts[a["world"]].append(a)
 
     worlds = []
     for p, t in zip(public, truth):
+        # What Lyric had seen when its answer was taken: the world is retired then, and nothing after it counts.
+        acts[p["world"]] = [a for a in acts[p["world"]] if a["at"] <= answers[p["world"]]["answered_at"]]
+        p, t = observed(p, t, sorted(acts[p["world"]], key=lambda a: a["n"]))
         # A conjunction world is settled or not by the rules a conjunction can say; a world whose rule no conjunction
         # can say, by every family, the hidden rule's own among them.
         cls, _ = evidence_class(t, p, every_family=t["family"] != "conjunction")
         sc = score_world(t, p, answers[p["world"]])
-        worlds.append({"world": p["world"], "family": t["family"], "evidence": cls, **t["factors"], **sc})
+        worlds.append({"world": p["world"], "family": t["family"], "evidence": cls, **t["factors"], **sc,
+                       **score_goals(p, t, acts[p["world"]], answers[p["world"]])})
 
     def count(pred):
         return sum(1 for w in worlds if pred(w))
@@ -304,6 +364,12 @@ def main():
     c5 = sum(1 for w in det if w["wrong_situations"])
     c6 = sum(1 for w in amb if w["rules"])
     c7 = sum(1 for w in beyond if w["unsafe_situations"] or w["wrong_situations"])
+    tally = Counter()
+    for w in worlds:
+        tally.update(w["goals"])
+    goals = {"goals": tally["goal_works"] + tally["goal_refused"],
+             "goals_reported": tally["goal_works_reported"] + tally["goal_refused_reported"], **tally}
+    g1 = tally["false_reports"]
     checks = [
         {"label": "C1 no rule holding authority is contradicted by any observation shown"
                   + (" that the noise did not turn" if manifest.get("noise") else ""), "passed": c1 == 0,
@@ -324,6 +390,8 @@ def main():
         {"label": "C7 determined worlds whose rule no conjunction can say: no rule authorizes an act the world "
                   "refuses or predicts a wrong effect", "passed": c7 == 0,
          "detail": f"{c7} of {len(beyond)} worlds; {sum(1 for w in beyond if not w['rules'])} hold no rule"},
+        {"label": "G1 Lyric reports no goal reached that the world did not reach", "passed": g1 == 0,
+         "detail": f"{g1} of {goals['goals_reported']} goals reported reached, of {goals['goals']} asked"},
     ]
 
     table = defaultdict(Counter)
@@ -343,6 +411,10 @@ def main():
         "by_family_and_evidence": {k: dict(v) for k, v in sorted(table.items())},
         "worlds_by_arity": dict(Counter(w["arity"] for w in worlds)),
         "worlds_by_conditions": dict(Counter(w["conditions"] for w in worlds)),
+        "goals": goals,
+        "goals_by_evidence": {e: dict(sum((Counter(w["goals"]) for w in worlds
+                                           if f"{w['family']} / {w['evidence']}" == e), Counter()))
+                              for e in sorted(table)},
         "manifest": manifest,
         "evaluator_sha256": sha256(Path(__file__)),
     }

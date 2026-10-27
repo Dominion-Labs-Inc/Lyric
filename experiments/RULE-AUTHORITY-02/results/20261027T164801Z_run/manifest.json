@@ -1,0 +1,12 @@
+{
+ "worlds": 20,
+ "seed": 20261026,
+ "noise": {
+  "success_rate": 0.9,
+  "leak_rate": 0.02,
+  "unknown_rate": 0.1
+ },
+ "worlds_public_sha256": "e6b5ae237812b56153662df56e81f541ef8667a8cc43e5d9542498bad94c6208",
+ "worlds_truth_sha256": "5e38f6e1bb0631dfe0a40a13df4aaba7b09a60df76c7fafc5c7336abec5e621d",
+ "generator_sha256": "48560e81d733e6e3e5b08ce7e8a9c85cc9c06838035be5ab261653c037e884d5"
+}
