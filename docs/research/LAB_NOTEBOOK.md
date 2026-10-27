@@ -16,6 +16,58 @@ Conventions:
 
 ---
 
+## 2026-10-26 (58) — Reasoning over what the words mean: the reasoning owner was handed nothing; memory now hands it the words' kinds (TRAIN-FORMAT-02)
+
+**Objective** (the owner: "that one record means nothing if the reasoning is not working, which is part of the
+language"; "we're using the authorities for this, correct?"). Make yes and no follow from what the words taught, through
+the authorities, with no belief and no domain made of a word's meaning.
+
+**Traced, not guessed** (lyric_dev2, the front door, `scratch dev2_reason_trace.py`): learning (`learn_word_records`)
+and memory (one memory a record) held; `_held_premises` handed `NeuralSymbolicBridge.reason` **no premise** for "Is a
+wall a structure?" ("Not entailed by the premises"), the record's kinds reaching only the grammar's knowledge. Told
+"A wall is a partition. A partition is a structure.", the same question was yes in 0.2 s, the two chained: the
+reasoning owner was sound; what reached it was not.
+
+**Built:** `MemoryAgent.word_kinds` (every kind of each sense the name names, with the record's memory id),
+`word_senses_alike` (the senses, of its class, a word written so may mean), `word_held_as_both`; the conversation's
+premises take them (`_held_premises`, kind `word`); a happening told is met by its kinds (`_Held.kinds`) and a word
+asked in the sense the thing bears on (`_Held.is_kind`; lexical cohesion, Morris and Hirst 1991); a yes or no's kind
+read so before it is asked (`_reasoned_answers`: "Is a picture a representation?", `representation.n.02`); where
+neither follows, what the words hold to be both, else what each is (`_held_as_both`), never a "no". Reply faults fixed,
+each general: a word recorded was "I hold nothing for make." (`Understanding.unknown` counts the words' meanings); what
+an answer says it is of was "nothing held" (`spoken_for`); a doer told was "nothing said about it yet"
+(`Understanding.pointed_at`). Taught: "coat", "make", "representation".
+
+**Errors found, with their causes:**
+- A sense Lyric's naming cannot tell apart is `""` (not taught), and `word_record_of` recorded it under its word: four
+  senses of "make" were `make`, two of "representation" `representation`. A fallback; removed. The naming now tells
+  such a sense apart as it already did across parts of speech (another word of it, a kind further up, "to make"),
+  after every sense named before: 570 of 845 named, **no name held before changed** (compared against the code before,
+  read from git before another session's commit took this tree in); 275 left, not recorded. Recorded in
+  `data/lessons/wordnet_names.tsv.gz` (the guard test's record; nothing to repair, none was taught).
+- Measuring that, my own comparison misled twice: the earlier code, run from the scratchpad, found no lessons by path
+  (189 "renamed"), and `git show HEAD:` had become the new code once commit `c899edac` (another session's, "with the
+  working tree's other changes") took in this work, so an "old" run was new. Redone from the copy saved before it.
+- WordNet gives a sense's examples for all its words ("do nothing" an example of `make`): kept only where the word is
+  written. Forms the treebanks' analysts marked miswritten (`Typo=Yes`, "madea") were taught as forms
+  (`forms_from_conllu`, main's word forms too): none now.
+- A test's stand-in memory lacked the two new questions memory answers: it now answers them with nothing.
+
+**Verified:** TRAIN-FORMAT-02 store, reader and reasoning checks 55 of 56; front door **21 of 21, none wrong** (8 new:
+a wall a structure, an artifact; paint a substance; Roy coated the wall, painted a structure; made something, of a
+picture; a picture a representation; painted a representation); no yes where none follows (a wall a substance; the
+picture coated; something made, of the wall). TRAIN-FORMAT-01 every check, 5 of 5. Tests: sentence records 15,
+grammar, lesson terms, derived reading: 169 passed; conversation 35 passed, the 2 failing before this session as
+before. GRAMMAR-01 compared sentence by sentence with the naming before: dev with every sense named 884 -> 911,
+senses aside 383 -> 386, strict 200 -> 199 (3 lost, each a link learned from 189 more gold training sentences now
+whole: "worked with Hooper" `done_to`).
+
+**Not right yet, said so:** the check failing is sense in context (a noun's sense is its most used: "a second coat of
+paint", the garment; the idiom "We made it!"). On lyric_dev2 nothing taught says "X is a Y": an answer of a kind is
+said by the name ("Structure.", "Representation. Partition."), and the meaning answer "A wall is a partition: ..." is a
+sentence written by hand in `_meanings_said`, not taught: a workaround. Every record taught is a belief in the
+`english` belief domain (`_learn_held`, as for every kind of language held whole on main), read by nothing.
+
 ## 2026-10-26 (57) — Words before sentences: one word recorded whole teaches every part of reading the word (TRAIN-FORMAT-02)
 
 **The owner, on (56):** language learning should not touch beliefs or domains (facts do); and teach WORDS and their

@@ -130,3 +130,38 @@ treebank: the noun's plural "paints".
   Roy paint the box for?" Tom, "Did Roy paint the box for Tom?" Yes. TRAIN-FORMAT-01 every check, 5 of 5; GRAMMAR-01
   383.
 
+- **Reasoning over what the words mean (2026-10-26 night, the owner: "the one record means nothing if the reasoning
+  is not working, which is part of the language").** Traced through the authorities: learning (`learn_word_records`)
+  and memory (one memory a record, warmed into the grammar) held; the reasoning owner (`NeuralSymbolicBridge.reason`)
+  was handed **no premise** for "Is a wall a structure?" (the records' kinds reached the grammar only), and told "A wall
+  is a partition. A partition is a structure." it said yes, chaining the two: the reasoning was sound, what it was
+  handed was not. Now memory hands it what the words mean (`MemoryAgent.word_kinds`, each premise from the word
+  record saying it, `_held_premises`), and a happening told is met by its kinds (`_Held.kinds`); a word asked may mean
+  any of its senses, the one the thing told bears on (`word_senses_alike`, lexical cohesion, Morris and Hirst 1991):
+  "Did Roy make something?" of a picture painted (`represent paint`, a kind of `to make`); the kind asked in "Is a
+  picture a representation?" read as the representation a picture is (`representation.n.02`). Where neither is held a
+  kind of the other, what the words hold to be both (`word_held_as_both`: "Is a structure a wall?", a wall), else what
+  each is ("Is a picture a wall?": a picture a representation, a wall a partition), never a "no": two kinds may hold of
+  one thing. No belief and no domain is made of a word's meaning. Words taught for it: "coat" (`to coat`), "make",
+  "representation". The reply no longer says it holds nothing of a word recorded, of what a yes is said of, or "nothing
+  said about" a doer told.
+- **Found teaching them, in the format:** a sense Lyric's naming could not tell apart was recorded under its word
+  (four senses of "make" all `make`): the naming now tells such a sense apart as it does across parts of speech, after
+  every sense named before (`_sense_names`: 570 of 845 senses unnamed named, no name held before changed; recorded in
+  `data/lessons/wordnet_names.tsv.gz`), and one still unnamed is not recorded (`make.v.30`, used 0 times); a sense's
+  examples were WordNet's for all its words ("do nothing" an example of `make`): only those writing the word; forms the
+  treebanks' analysts marked miswritten (`Typo=Yes`: "madea", "makke") were forms: none (`forms_from_conllu`).
+  GRAMMAR-01, compared sentence by sentence with the naming before: 27 more dev sentences and 189 more gold training
+  sentences have every sense named; senses aside 383/884 -> 386/911, strict 200 -> 199 (2 gained; 3 lost, each a link
+  learned from the larger training set: "worked with Hooper" read `done_to`, the gold a second doer).
+- **Measured** (`results/20261027T021648Z`, `20261027T021653Z`): store, reader and reasoning checks **55 of 56**;
+  through the front door **21 of 21 right, none wrong** (the 13 before and "Is a wall a structure?", "Is a wall an
+  artifact?", "Is paint a substance?", "Did Roy coat the wall?", "Did Roy paint a structure?", "Did Roy make
+  something?", "Is a picture a representation?", "Did Roy paint a representation?"); no yes where none follows ("Is a
+  wall a substance?", "Did Roy coat the picture?", "Did Roy make something?" of the wall). TRAIN-FORMAT-01 every
+  check, 5 of 5. **The check failing:** two examples whose words are all taught read, not in their sense: "a second coat
+  of paint" (`coat` the garment, not the layer: a noun's sense is its most used, never chosen by the words beside it)
+  and "We made it!" (`make it`, to reach). **Not right yet:** on lyric_dev2 nothing taught says "X is a Y", so such an
+  answer is said by its kind's name ("Structure."), and "What is a wall?" is answered by a sentence written by hand in
+  `_meanings_said` ("A wall is a partition: ..."), not by what Lyric was taught to say; and each record taught is a
+  belief in the `english` belief domain (`_learn_held`, as every kind of language held whole is), which nothing reads.
