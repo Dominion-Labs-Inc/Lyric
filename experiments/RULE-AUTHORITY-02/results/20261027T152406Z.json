@@ -1,0 +1,284 @@
+{
+  "experiment": "RULE-AUTHORITY-02",
+  "claim": "A learned operator gains the authority to act only when independent evidence has seen it work and nothing it applies to contradicts it, judged by a generator and an evaluator that share no code or representation with Lyric.",
+  "hypothesis": "Over worlds whose hidden rules include forms Lyric cannot express, no rule left with authority is contradicted by what was shown or follows from fewer than three successes; where the evidence settles a conjunctive rule, Lyric ends with that rule or none, most often that rule, and no rule authorizes an act the world refuses or predicts a wrong effect; where it leaves several, no rule holds authority; where it settles a rule no conjunction can say, no rule acts where the world refuses or predicts a wrong effect.",
+  "started_at": "2026-10-27T15:24:06.088843+00:00",
+  "duration_seconds": 76.66,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "e8ed32cb3dbdf297d4277778a9cbdb3a2842676e",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_bench",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_bench",
+        "model": "lyric_bench",
+        "user_context": "lyric_bench",
+        "learning": "lyric_bench"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 12,
+    "database_verified": "lyric_bench",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 7,
+    "passed": 4,
+    "failed": 3,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "worlds",
+      "value": 500,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "rules_holding_authority",
+      "value": 200,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "worlds_by_family",
+      "value": {
+        "conjunction": 246,
+        "either_or": 127,
+        "negated": 127
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "worlds_by_evidence",
+      "value": {
+        "points_elsewhere": 224,
+        "determined": 214,
+        "ambiguous": 62
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "by_family_and_evidence",
+      "value": {
+        "conjunction / ambiguous": {
+          "worlds": 23,
+          "with_authority": 0,
+          "exact": 0,
+          "unsafe_worlds": 0,
+          "unsafe_situations": 0,
+          "situations_with_authority": 0
+        },
+        "conjunction / determined": {
+          "worlds": 113,
+          "with_authority": 74,
+          "exact": 71,
+          "unsafe_worlds": 3,
+          "unsafe_situations": 40,
+          "situations_with_authority": 4208
+        },
+        "conjunction / points_elsewhere": {
+          "worlds": 110,
+          "with_authority": 63,
+          "exact": 0,
+          "unsafe_worlds": 63,
+          "unsafe_situations": 1462,
+          "situations_with_authority": 3808
+        },
+        "either_or / ambiguous": {
+          "worlds": 26,
+          "with_authority": 3,
+          "exact": 0,
+          "unsafe_worlds": 2,
+          "unsafe_situations": 20,
+          "situations_with_authority": 192
+        },
+        "either_or / determined": {
+          "worlds": 49,
+          "with_authority": 2,
+          "exact": 0,
+          "unsafe_worlds": 0,
+          "unsafe_situations": 0,
+          "situations_with_authority": 80
+        },
+        "either_or / points_elsewhere": {
+          "worlds": 52,
+          "with_authority": 24,
+          "exact": 0,
+          "unsafe_worlds": 17,
+          "unsafe_situations": 204,
+          "situations_with_authority": 1296
+        },
+        "negated / ambiguous": {
+          "worlds": 13,
+          "with_authority": 3,
+          "exact": 0,
+          "unsafe_worlds": 3,
+          "unsafe_situations": 13,
+          "situations_with_authority": 80
+        },
+        "negated / determined": {
+          "worlds": 52,
+          "with_authority": 2,
+          "exact": 0,
+          "unsafe_worlds": 2,
+          "unsafe_situations": 11,
+          "situations_with_authority": 80
+        },
+        "negated / points_elsewhere": {
+          "worlds": 62,
+          "with_authority": 29,
+          "exact": 0,
+          "unsafe_worlds": 29,
+          "unsafe_situations": 596,
+          "situations_with_authority": 1920
+        }
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "worlds_by_arity",
+      "value": {
+        "2": 254,
+        "3": 128,
+        "1": 118
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "worlds_by_conditions",
+      "value": {
+        "6": 137,
+        "5": 131,
+        "4": 112,
+        "7": 120
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "manifest",
+      "value": {
+        "worlds": 500,
+        "seed": 20261026,
+        "noise": {
+          "success_rate": 0.9,
+          "leak_rate": 0.02,
+          "unknown_rate": 0.1
+        },
+        "worlds_public_sha256": "cfd1ed38826ad65160a1a4bad8f578d0765ef4e83e41c913940cbb8bc4c60c15",
+        "worlds_truth_sha256": "d633c40d9348f74af11bf9b95b427ff554f3a3ebfd0bfdf571dffdbd03b9b8b3",
+        "generator_sha256": "f9acf1b73516bf0e50fa1aadce283648cab8fa2ffbbb3bf5c85f9c99fdfa376c"
+      },
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "evaluator_sha256",
+      "value": "85e360ed306ee46aef440b150a9c51bb29ea46529870b24797c3a8f9c0b324fe",
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "observations_shown",
+      "value": 7975,
+      "unit": "",
+      "note": ""
+    },
+    {
+      "name": "outcomes_unread",
+      "value": 722,
+      "unit": "",
+      "note": "recorded as nothing"
+    },
+    {
+      "name": "authority_judgements",
+      "value": 6753,
+      "unit": "",
+      "note": "one after every act shown"
+    },
+    {
+      "name": "rules_refuted_after_validation",
+      "value": 340,
+      "unit": "",
+      "note": "reported by Lyric, not judged by the evaluator"
+    },
+    {
+      "name": "elapsed_s",
+      "value": 72.6,
+      "unit": "",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "C1 no rule holding authority is contradicted by any observation shown that the noise did not turn",
+      "passed": true,
+      "detail": "0 of 200 rules",
+      "at": "2026-10-27T15:25:22.746788+00:00"
+    },
+    {
+      "label": "C2 no rule holds authority in a world shown fewer than three successes",
+      "passed": true,
+      "detail": "0 of 0 worlds",
+      "at": "2026-10-27T15:25:22.746827+00:00"
+    },
+    {
+      "label": "C3 determined conjunction worlds with three or more successes: every world ends exact or with no rule, and most end exact",
+      "passed": false,
+      "detail": "71 exact, 39 no rule, 3 another rule, of 113 (exact 0.6283)",
+      "at": "2026-10-27T15:25:22.746831+00:00"
+    },
+    {
+      "label": "C4 determined conjunction worlds: no rule authorizes an act the world refuses",
+      "passed": false,
+      "detail": "3 of 113 worlds",
+      "at": "2026-10-27T15:25:22.746834+00:00"
+    },
+    {
+      "label": "C5 determined conjunction worlds: no rule predicts a wrong effect",
+      "passed": true,
+      "detail": "0 of 113 worlds",
+      "at": "2026-10-27T15:25:22.746836+00:00"
+    },
+    {
+      "label": "C6 ambiguous conjunction worlds: no rule holds authority",
+      "passed": true,
+      "detail": "0 of 23 worlds",
+      "at": "2026-10-27T15:25:22.746840+00:00"
+    },
+    {
+      "label": "C7 determined worlds whose rule no conjunction can say: no rule authorizes an act the world refuses or predicts a wrong effect",
+      "passed": false,
+      "detail": "2 of 101 worlds; 97 hold no rule",
+      "at": "2026-10-27T15:25:22.746843+00:00"
+    }
+  ],
+  "notes": [
+    "run tag a66626; seed 20261026; noise {'success_rate': 0.9, 'leak_rate': 0.02, 'unknown_rate': 0.1}; every world's domain forgotten after it ran; inputs, answers and per-world evaluation in 20261027T152406Z_run/"
+  ]
+}

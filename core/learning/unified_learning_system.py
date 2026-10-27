@@ -5743,6 +5743,21 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if miss.action is not None and _conditions(miss) - frozenset().union(
                     *(_conditions(e) for e in confirmations)):
                 continue
+            # SEEN TO WORK, TWICE, WITH NOTHING THE MISS LACKED. Only then can
+            # nothing it lacked explain it. Without this, a world that works on
+            # either of two groups of conditions, whose misses lack both, read as
+            # noise to rules that cannot say "either" (210 rules in the noisy arm
+            # of RULE-AUTHORITY-02 acted where the world refuses); and a near miss
+            # beside the one success the world let through where it should not
+            # have (a leak) read as noise too, so the leak widened the rule (67
+            # of 73 unsafe settled worlds). One such success can be that leak;
+            # two are the world working.
+            if miss.action is not None:
+                *seen, missed = frame(positives + [negative])
+                held = frozenset(c for c in _conditions(missed) if "_" not in c)
+                if sum(1 for e in seen
+                       if frozenset(c for c in _conditions(e) if "_" not in c) <= held) < 2:
+                    continue
             departed.add(negative.evidence_id)
         return departed
 
