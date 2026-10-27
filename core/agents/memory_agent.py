@@ -185,6 +185,9 @@ class MemoryAgent(IMemoryConsolidation):
         self._record_names: Dict[Tuple[str, str], Counter] = {}
         #: The words held recorded whole (`teaching_sources.WordRecord`), for English's grammar (`grammar_view`).
         self._grammar_words: List[Any] = []
+        #: The memory holding each word recorded whole, by the record (`WordRecord.key`): what reasoning is handed
+        #: of a word says where it came from (`word_kinds`).
+        self._word_record_ids: Dict[str, str] = {}
         #: The sentences held recorded whole, for which sense each verb was used in (`grammar_view`, `hold_use`).
         self._grammar_records: List[Any] = []
         #: Each taught sentence's memory, what the grammar learned from it, and the rules it was learned under
@@ -2953,10 +2956,12 @@ class MemoryAgent(IMemoryConsolidation):
         derived = await self._derived_memories()
         # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
         self._record_names, self._grammar_words, self._grammar_records = {}, [], []
+        self._word_record_ids = {}
         for row, word in await self._word_record_memories():
             await give_way()
             self._learn_word_record(word, index, forms)
             self._grammar_words.append(word)
+            self._word_record_ids[word.key()] = row.memory_id
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
         for row, record in await self._record_memories():
             await give_way()
@@ -7000,6 +7005,8 @@ class MemoryAgent(IMemoryConsolidation):
             content=lambda item: item.said(), add=lambda _, item: self._hold_word_record(item),
             drop=lambda _, item: self._drop_word_record(item))
         held["refused"] = refused
+        for item, memory_id, *_ in held["kept"] + held["held_already"] + held["corrected_items"]:
+            self._word_record_ids[item.key()] = memory_id
         # EACH WORD TAUGHT, READ BACK IN ITS OWN EXAMPLES (`GrammarView.review_word`): what it reads, what it reads in
         # the example's sense, and the words its examples hold that nothing taught yet holds, said in the log and
         # the report (`reviewed`): the words to teach next.
@@ -7042,6 +7049,7 @@ class MemoryAgent(IMemoryConsolidation):
         """A word recorded whole, taken back from English's grammar (recorded otherwise since)."""
         key = word.key()
         self._grammar_words = [w for w in self._grammar_words if w.key() != key]
+        self._word_record_ids.pop(key, None)
         if self._grammar_view is not None:
             self._grammar_view.drop_word(word)
 
@@ -7258,6 +7266,47 @@ class MemoryAgent(IMemoryConsolidation):
                             "kind": s.kind_of[0][0].split(".")[0].replace("_", " ") if s.kind_of else "",
                             "used": s.used, "named": s.concept == folded})
         return out
+
+    def word_kinds(self, name: str) -> List[Tuple[str, Optional[str]]]:
+        """WHAT A THING IS A KIND OF, as the words recorded whole say it: each kind of every sense that is the thing
+        `name` names (WordNet's kinds, the nearest first: `wall` is a partition, a structure, an artifact, ...), with
+        the memory of the word record saying so. What reasoning is handed of what the question names
+        (`Conversation._held_premises`), and what a happening told is met by (`_Held.kinds`): "Is a wall a
+        structure?", "Did Roy coat the wall?". It is what the words mean, held as language: no belief and no domain
+        is made of it."""
+        folded = str(name).casefold().replace("_", " ")
+        out: List[Tuple[str, Optional[str]]] = []
+        for word in self._grammar_words:
+            for s in word.senses:
+                if s.concept == folded:
+                    out += [(kind, self._word_record_ids.get(word.key())) for _, kind in s.kind_of]
+        return list(dict.fromkeys(out))
+
+    def word_senses_alike(self, name: str) -> List[str]:
+        """EVERY THING A WORD WRITTEN SO MAY NAME: the senses, of the same class, of each word recorded whole one of
+        whose senses is the thing `name` names. "make" names its most used sense (`make.v.01`, engage in), and "Did
+        Roy make something?", asked of a painting told, asks in the sense the painting is a kind of (`make.v.03`,
+        make or cause to be): a word's sense is the one its neighbours in the talk bear on (lexical cohesion, Morris
+        and Hirst 1991). Empty where no word recorded names it."""
+        folded = str(name).casefold().replace("_", " ")
+        out: List[str] = []
+        for word in self._grammar_words:
+            classes = {s.word_class for s in word.senses if s.concept == folded}
+            out += [s.concept for s in word.senses if s.word_class in classes]
+        return list(dict.fromkeys(out))
+
+    def word_held_as_both(self, first: str, second: str) -> Optional[str]:
+        """A THING THE WORDS RECORDED WHOLE HOLD TO BE BOTH: of every sense recorded, the most used that is, or is a
+        kind of, each of the two things named: of `structure` and `wall`, `wall`; of `artifact` and `structure`,
+        `wall`. None where none is. What answers "Is a structure a wall?" (`Conversation._held_as_both`)."""
+        a, b = (str(n).casefold().replace("_", " ") for n in (first, second))
+        best = None
+        for word in self._grammar_words:
+            for s in word.senses:
+                kinds = {s.concept} | {kind for _, kind in s.kind_of}
+                if a in kinds and b in kinds and (best is None or s.used > best.used):
+                    best = s
+        return best.concept if best is not None else None
 
     def recorded_name(self, word: str, word_class: str) -> Optional[str]:
         """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None

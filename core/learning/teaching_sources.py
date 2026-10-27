@@ -1380,6 +1380,31 @@ class WordNetSource:
                     if not names[synset]:
                         # Nothing it is a kind of tells it apart: it stays one with the others, as before.
                         names[synset] = name
+        # A SENSE ITS NEAREST KIND CANNOT TELL APART is told apart as one across parts of speech is (above): by another
+        # word it is written with, no other sense's; else by a kind further up; else, a verb nothing is above, as
+        # English names a doing. The most used first, and after every sense named above, so none of theirs is taken.
+        # Left unnamed, `make.v.03` (make or cause to be) and three other senses of "make" were all recorded `make`
+        # (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26); named so, 570 of the 845 senses unnamed are named, no name held
+        # before changed, `make.v.03` "to make" and `make.v.15` "create make". One still unnamed is not taught.
+        for name, synset in sorted(qualify, key=lambda q: (-sum(l.count() for l in q[1].lemmas()), q[1].name())):
+            if names[synset]:
+                continue
+            other = next((w for w in (self._written(l).lower() for l in synset.lemma_names())
+                          if w != name and w not in taken and _term_words(w) <= MAX_TERM_WORDS), None)
+            above = [k for q in self._qualifiers(synset) for k in q.hypernyms() + q.instance_hypernyms()]
+            while above and other is None:
+                for kind in self._ordered(above):
+                    other = next((c for c in (f"{w} {name}" for w in (self._written(l).lower()
+                                                                       for l in kind.lemma_names()) if w != name)
+                                  if c not in taken and _term_words(c) <= MAX_TERM_WORDS), None)
+                    if other:
+                        break
+                above = [k for kind in above for k in kind.hypernyms() + kind.instance_hypernyms()]
+            if other is None and synset.pos() == "v" and f"to {name}" not in taken:
+                other = f"to {name}"
+            if other:
+                names[synset] = other
+                taken.add(other)
         # NAMES AS THE DOOR WRITES THEM. Every name is written at the door as `normalize_term` writes it, its last
         # word in the singular: "blues" (the music) comes in as `blue`, the colour, "glasses" as `glass`, "aids" as
         # `aid`. A name the door writes as another sense's is one name, and the sense it was rewritten from is
@@ -3323,7 +3348,9 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     verbnet = _cache["verbnet"]
 
     def named(synset: Any) -> str:
-        return names.get(synset) or synset.lemma_names()[0].replace("_", " ")
+        # A SENSE NOTHING TELLS APART FROM ITS WORD'S OTHERS has no name (`_sense_names`), and is not taught: named by
+        # its word, four senses of "make" were one, `make` (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26).
+        return names.get(synset, "")
 
     def kinds_of(synset: Any) -> Tuple[Tuple[str, str], ...]:
         out, frontier, seen = [], [synset], {synset}
@@ -3333,12 +3360,18 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 for h in s.hypernyms() + s.instance_hypernyms():
                     if h not in seen:
                         seen.add(h)
-                        out.append((h.name(), named(h)))
+                        if named(h):
+                            out.append((h.name(), named(h)))
                         nxt.append(h)
             frontier = nxt
         return tuple(out)
 
-    synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas())]
+    def of_the_word(example: str, pos: str) -> bool:
+        # A SENSE'S EXAMPLE IS ONE OF THIS WORD where the word is written in it, in any form: WordNet gives a sense's
+        # examples for all its words, and "do nothing" was read back as an example of `make` (engage in).
+        return any(w == word or wn.morphy(w, pos) == word for w in re.findall(r"[a-z]+(?:-[a-z]+)*", example.lower()))
+
+    synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas()) and named(s)]
     senses: List[WordSense] = []
     for s in synsets:
         cls = _WORDNET_CLASS[s.pos()]
@@ -3346,7 +3379,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
         senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds_of(s), lemma.count(),
-                                tuple(s.examples()), frames))
+                                tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames))
     # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
     # the class's roles may be filled with.
     classes_of: Dict[str, Set[str]] = {}

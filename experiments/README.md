@@ -100,6 +100,7 @@ been verified in the sandbox, and that run names `lyric_db` on purpose.
 | [DRIVES-01](DRIVES-01/) | Each drive measured from something real, or honestly unmeasured | `results/` |
 | [RULE-EVIDENCE-01](RULE-EVIDENCE-01/) | Whether a rule can say how sure it is, and whether the act carries it to the judgement | `results/` + `.md` |
 | [RULE-AUTHORITY-01](RULE-AUTHORITY-01/) | 1,000 hidden worlds: whether a learned rule gets the authority to act only when evidence has seen it work and nothing contradicts it | `results/` + `.md` + `_worlds.json` (from 2026-10-01) |
+| [RULE-AUTHORITY-02](RULE-AUTHORITY-02/) | The same question benchmarked independently of Lyric: worlds and evaluator that share no code or representation with it, rules Lyric cannot express, varied vocabulary, arity and distractors | `results/` + `.md` + `_run/` (inputs, answers, evaluation; from 2026-10-27) |
 
 ## Planning
 

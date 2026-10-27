@@ -177,3 +177,27 @@ def test_every_kind_of_taught_language_memory_holds_is_kept_out_of_recall():
             MemoryAgent.WORD_FORMS_TAG, MemoryAgent.WORD_GROUP_TAG]
     assert [t for t in tags if get_memory_filter().exemption_for(tags=["language", t]) is None] == []
     assert all(MemoryAgent.IMPORTANCE_BY_KIND.get(t) == 0.6 for t in tags[:5])
+
+
+def test_memory_hands_reasoning_what_a_word_means():
+    """What a thing is a kind of, as the words recorded whole say it, each with the memory of the record saying so
+    (`MemoryAgent.word_kinds`); the senses a word written so may mean (`word_senses_alike`); a thing the words hold to
+    be both of two (`word_held_as_both`). Told nothing of walls, "Is a wall a structure?" was handed no premise."""
+    from core.agents.memory_agent import MemoryAgent
+    agent = MemoryAgent()
+    word = _word()
+    agent._grammar_words.append(word)
+    agent._word_record_ids[word.key()] = "m1"
+    assert agent.word_kinds("coating paint") == [("coating", "m1")]
+    assert agent.word_kinds("coat paint") == [("to coat", "m1")] and agent.word_kinds("wall") == []
+    assert agent.word_senses_alike("coat paint") == ["paint", "coat paint"], "the verb's senses, not the noun's"
+    assert agent.word_held_as_both("to coat", "coat paint") == "coat paint"
+    assert agent.word_held_as_both("coating", "to coat") is None
+
+
+def test_a_word_the_analysts_marked_miswritten_is_no_form_of_it():
+    from core.semantics.word_forms import forms_from_conllu
+    lines = ["1\tmadea\tmake\tVERB\tVBD\tMood=Ind|Tense=Past|Typo=Yes|VerbForm=Fin\t0\troot\t_\t_\n",
+             "1\tmade\tmake\tVERB\tVBD\tMood=Ind|Tense=Past|VerbForm=Fin\t0\troot\t_\t_\n"]
+    (made,) = forms_from_conllu(lines, "test")
+    assert [form for form, _, _ in made.forms] == ["made"]

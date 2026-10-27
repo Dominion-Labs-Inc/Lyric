@@ -20331,6 +20331,10 @@ class Understanding:
     #: answered from where nothing held says what the thing is ("What does paint mean?", "What is a wall?").
     #: Gathered in `understand()`, as `plurals` is.
     meanings: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
+    #: WHAT HELD FACTS NAME FROM THE OTHER SIDE: each thing the question names that something held points at
+    #: (`_incoming_relations`), the doer of a happening told. Told "Roy painted the wall.", Roy holds nothing of his
+    #: own, and is no thing "nothing said about it yet" (lyric_dev2, 2026-10-26).
+    pointed_at: FrozenSet[str] = frozenset()
     #: HOW THIS SPEAKER HAS SAID THINGS in the conversation: the word they last
     #: called each thing by (`named`, by the thing's name), and the
     #: constructions their sentences were read with (`framed`). A thing has
@@ -20381,6 +20385,12 @@ class Understanding:
             used.update(about.split())
             if about:
                 used.add(about)         # a name of several words, matched whole ("coating paint")
+            # WHAT AN ANSWER SAYS IT IS OF is answered: "Is a wall a structure?" "Yes." was followed by "I hold nothing
+            # for structure." (lyric_dev2, 2026-10-26).
+            used.update(str(other).replace("_", " ").strip() for other in answer.others)
+            if answer.verdict is True and not answer.relation:
+                # A HAPPENING HELD THAT IS ALL THE QUESTION ASKS (`_asked_of_events`) holds every thing it names.
+                used.update(str(r.phrase).replace("_", " ") for r in self.resolved)
         return used
 
     @property
@@ -20389,7 +20399,9 @@ class Understanding:
 
     @property
     def unknown(self) -> List[Resolved]:
-        return [r for r in self.resolved if not r.informative]
+        """What the question names that nothing held says anything of: no concept, and NO WORD RECORDED WHOLE
+        (`meanings`): "make", taught, was "I hold nothing for make." (lyric_dev2, 2026-10-26)."""
+        return [r for r in self.resolved if not r.informative and not self.meanings.get(r.phrase)]
 
 
 def _titles(phrase: str, title: str) -> bool:
@@ -20560,19 +20572,29 @@ class _Held:
         return name
 
     async def kinds(self, thing: str) -> List[str]:
-        """Every kind the thing, or what it equals, is held to be one of."""
+        """Every kind the thing, or what it equals, is held to be one of, and what each of those is a kind of as the
+        words recorded whole say (`MemoryAgent.word_kinds`): the wall told of is a wall, a partition, a structure;
+        painting it, a coating paint, a coating."""
         found: List[str] = []
         for each in await self.same(thing):
             talked_of = self._conversation._particulars.get(each)
             found += ([talked_of[0]] if talked_of else []) + [other for kind, other in await self.out(each)
                                                              if kind == "instance_of"]
+        words = _words_held()
+        if words is not None:
+            found += [kind for each in list(found) for kind, _ in words.word_kinds(each)]
         return list(dict.fromkeys(found))
 
     async def is_kind(self, thing: str, kind: str) -> bool:
-        """Whether the thing is what `kind` names: it, what it equals, or one of that kind."""
-        if self.plain(kind) in {self.plain(each) for each in await self.same(thing)}:
+        """Whether the thing is what `kind` names: it, what it equals, or one of that kind. A WORD ASKED MAY MEAN ANY
+        OF ITS SENSES (`MemoryAgent.word_senses_alike`), the one the thing told bears on: "Did Roy make something?",
+        of a painting told, asks in the sense the painting is a kind of (make or cause to be), not the one "make" is
+        most used in (engage in)."""
+        words = _words_held()
+        asked = {self.plain(kind)} | ({self.plain(s) for s in words.word_senses_alike(kind)} if words else set())
+        if asked & {self.plain(each) for each in await self.same(thing)}:
             return True
-        return self.plain(kind) in {self.plain(each) for each in await self.kinds(thing)}
+        return bool(asked & {self.plain(each) for each in await self.kinds(thing)})
 
     async def _each(self, things: Sequence[str], relation: str) -> List[str]:
         """The things, a group as each one in it where the relation is not said of the group as one."""
@@ -20684,6 +20706,13 @@ class _Held:
             if await self.is_kind(other, obj):
                 return True
         return False
+
+
+def _words_held() -> Optional[Any]:
+    """The memory agent, holding the words recorded whole (`word_kinds`, `word_senses_alike`), where memory is up in
+    this process; None where it is not, and nothing is read of the words."""
+    from core.agents import memory_agent as _memory
+    return _memory._memory_agent
 
 
 def _clause_atom(subject: str, relation: str, obj: Optional[str], positive: bool = True) -> Optional[str]:
@@ -22656,6 +22685,16 @@ class Conversation:
                 for relation, o2 in hops.relations:
                     hold_relation(hops.phrase, relation, str(o2), "concept", hops.concept_id)
 
+        # WHAT THE WORDS MEAN, as memory holds the words recorded whole (`MemoryAgent.word_kinds`): what each thing the
+        # question names, and each thing that is held to be, is a kind of, from the word record saying so. Told
+        # nothing of walls, "Is a wall a structure?" was handed no premise and was not entailed, the record of "wall"
+        # holding it a partition, a structure, an artifact (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26).
+        words = _words_held()
+        if words is not None:
+            for name in dict.fromkeys([str(item.phrase) for item in resolved] + sorted(others)):
+                for kind, ref in words.word_kinds(name):
+                    hold_relation(name, "isa", kind, "word", ref)
+
         if harvest is not None:
             for recalled in (getattr(harvest, "memories", None) or [])[:3]:
                 text = str(getattr(recalled, "text", "") or "")
@@ -22739,6 +22778,17 @@ class Conversation:
             # the valve alone); taken as one, it stopped the conversation (UNDERSTANDS-PROSE-01, 2026-10-17).
             return []
         fact = goal_fact(Meaning(meaning.act, asked_of, meaning.asked))
+        words = _words_held()
+        if fact is not None and fact.relation in ("isa", "instance_of") and words is not None:
+            # THE KIND ASKED IS READ IN THE SENSE THE THING BEARS ON (`MemoryAgent.word_senses_alike`), as a happening
+            # told is met (`_Held.is_kind`): "Is a picture a representation?" asks of the representation a picture is
+            # (`representation.n.02`, a creation), not the one the word is most used for (`representation.n.01`, a
+            # presentation to the mind), and was not entailed (lyric_dev2, 2026-10-26).
+            kinds = {_Held.plain(kind) for kind, _ in words.word_kinds(fact.subject)}
+            if _Held.plain(fact.obj) not in kinds:
+                borne = next((s for s in words.word_senses_alike(fact.obj) if _Held.plain(s) in kinds), None)
+                if borne is not None:
+                    fact = dataclasses.replace(fact, obj=borne)
         if fact is not None:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
@@ -22800,7 +22850,13 @@ class Conversation:
         asked what a thing is not.
 
         Some X being Y is neither a yes nor a no about X, and saying what X is instead ("A canine is a carnivore.")
-        changes the subject. The thing that is both is what is known that bears on it."""
+        changes the subject. The thing that is both is what is known that bears on it.
+
+        THE WORDS RECORDED WHOLE SAY IT TOO, where the store holds nothing of the two (`MemoryAgent.word_held_as_both`):
+        "Is a structure a wall?", "A wall is a structure.". Where nothing they hold is both, and both words are
+        recorded, what each is answers it, the two told apart: "Is a picture a wall?", "A picture is a
+        representation. A wall is a partition.". A kind is no "no": two kinds may hold of one thing (a teacher may be
+        a mother), and nothing held says these two do not."""
         from core.reasoning.concept_graph_reasoning import held_as_both
         from core.semantics.cognitive_ingress import normalize_term
         if fact.relation not in ("isa", "instance_of") or not fact.positive:
@@ -22808,6 +22864,16 @@ class Conversation:
         db, _ = await self._services()
         subject, obj = normalize_term(fact.subject), normalize_term(fact.obj)
         both = await held_as_both(db, subject, obj, actor=self._actor)
+        words = _words_held()
+        if both is None and words is not None:
+            recorded = words.word_held_as_both(fact.subject, fact.obj)
+            if recorded is not None:
+                both = normalize_term(recorded)
+            else:
+                nearest = [next(((m["word"], m["kind"]) for m in words.word_meanings(name)
+                                 if m["named"] and m["kind"]), None) for name in (fact.subject, fact.obj)]
+                if all(nearest):
+                    return [Answer(word, "isa", (kind,), verdict=None) for word, kind in nearest]
         if both is None or both == subject:
             return []
         if both == obj:
@@ -23871,7 +23937,8 @@ class Conversation:
             acquired=acquired, asked=asked,
             remembered=harvest.texts(_RECALLED), recall=harvest,
             disposition=self._read_disposition(),
-            named=dict(self._named), framed=frozenset(self._framed), looking_up=looking)
+            named=dict(self._named), framed=frozenset(self._framed), looking_up=looking,
+            pointed_at=frozenset(phrase for phrase, rows in incoming.items() if rows))
         # NUMBER FOR EVERY WORD THE REPLY MIGHT USE, in one pass, before the
         # sentence is built. Gathered here because it needs the store and `say()`
         # is a pure function over what was already found.
@@ -24489,7 +24556,7 @@ class Conversation:
                              f"{item.description}")
             elif item.phrase in understanding.kinds:
                 continue
-            elif item.relations:
+            elif item.relations or item.phrase in understanding.pointed_at:
                 lines.append(f"I hold things about {item.phrase} that I have not "
                              f"been taught to say yet.")
             else:

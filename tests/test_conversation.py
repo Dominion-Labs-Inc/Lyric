@@ -764,8 +764,15 @@ async def test_a_question_is_also_asked_as_the_grammar_reads_it(talk, monkeypatc
             return composed
 
     class Agent:
+        # Memory holding no word recorded whole: nothing is a kind of anything by what a word means.
         def grammar_view(self):
             return View()
+
+        def word_kinds(self, name):
+            return []
+
+        def word_senses_alike(self, name):
+            return []
 
     async def known(meaning, *, telling=False):
         return {"?a": "account_1"}

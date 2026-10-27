@@ -114,5 +114,55 @@
     ]
    }
   ]
+ },
+ {
+  "name": "kinds",
+  "kind": "taught word",
+  "text": [
+   "Roy painted the wall."
+  ],
+  "questions": [
+   {
+    "q": "Is a wall a structure?",
+    "answer": "yes"
+   },
+   {
+    "q": "Is a wall an artifact?",
+    "answer": "yes"
+   },
+   {
+    "q": "Is paint a substance?",
+    "answer": "yes"
+   },
+   {
+    "q": "Did Roy coat the wall?",
+    "answer": "yes"
+   },
+   {
+    "q": "Did Roy paint a structure?",
+    "answer": "yes"
+   }
+  ]
+ },
+ {
+  "name": "kinds of a making",
+  "kind": "taught word",
+  "text": [
+   "Roy painted a picture."
+  ],
+  "questions": [
+   {
+    "q": "Did Roy make something?",
+    "answer": "yes"
+   },
+   {
+    "q": "Is a picture a representation?",
+    "answer": "yes"
+   },
+   {
+    "q": "Did Roy paint a representation?",
+    "answer": "yes"
+   }
+  ]
  }
 ]

@@ -223,6 +223,48 @@ async def store_checks() -> int:
             holds(reading.meaning, [w]) for w in NOT_READ.get(sentence, []))
         say(f"  {sentence}\n    read: {got}")
         EV.check(f"{sentence!r} is read: {' & '.join(wanted)}", right, got)
+
+    # ── reasoning over what the words mean ──
+    # The yes of each question below is scored through the front door (`texts.json`, "kinds"); here, that reasoning
+    # is handed the words' meanings as premises, and what must NOT follow does not.
+    from core.agents.autonomous.autonomous_coordinator import get_conversation
+    told = get_conversation("tf02_reasoning_wall", remembers=False)
+    with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
+        await told.understand("Roy painted the wall.", look_up=False)
+        premises = await told._held_premises("Is a wall a structure?", await told.resolve("Is a wall a structure?"),
+                                             None)
+    wall_id = agent._word_record_ids.get(next(w.key() for w in words if w.word == "wall"))
+    handed = [(p.statement, p.provenance_kind, p.provenance) for p in premises]
+    EV.check("the reasoning owner is handed what the words mean, each premise from the word record saying it "
+             "(\"wall\": a partition, a structure, an artifact)",
+             ("wall_structure", "word", wall_id) in handed and ("wall_partition", "word", wall_id) in handed,
+             str(handed)[:300])
+
+    async def asked(conversation, question):
+        with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
+            u = await conversation.understand(question, look_up=False)
+        return u
+
+    for question in ("Is a wall a substance?", "Did Roy coat the picture?", "Did Roy make something?"):
+        u = await asked(told, question)
+        EV.check(f"told \"Roy painted the wall.\", {question!r} is no yes (a wall is no substance; no picture was "
+                 f"coated; a coating is no making)", not any(a.verdict for a in u.answers or []), repr(u.reply))
+    u = await asked(told, "Is a structure a wall?")
+    EV.check("\"Is a structure a wall?\" is answered by what the words hold to be both, a wall being a structure, "
+             "and no yes", [(a.about, a.relation, tuple(a.others), a.verdict) for a in u.answers]
+             == [("wall", "isa", ("structure",), None)], repr(u.reply))
+    u = await asked(told, "Is a picture a wall?")
+    EV.check("\"Is a picture a wall?\", neither held a kind of the other, is answered by what each is, and no yes "
+             "or no", sorted((a.about, tuple(a.others), a.verdict) for a in u.answers)
+             == [("picture", ("representation",), None), ("wall", ("partition",), None)], repr(u.reply))
+    replies = [(await asked(told, q)).reply for q in ("Did Roy coat the wall?", "Is a structure a wall?")]
+    EV.check("no reply says it holds nothing of a word taught", not any("nothing for" in r for r in replies),
+             repr(replies))
+    painted = get_conversation("tf02_reasoning_picture", remembers=False)
+    await asked(painted, "Roy painted a picture.")
+    u = await asked(painted, "Did Roy coat the picture?")
+    EV.check("told \"Roy painted a picture.\", \"Did Roy coat the picture?\" is no yes (painting a picture is a "
+             "making, no coating)", not any(a.verdict for a in u.answers or []), repr(u.reply))
     EV.write()
     return EV.failed
 

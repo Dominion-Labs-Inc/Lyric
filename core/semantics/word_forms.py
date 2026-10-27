@@ -62,7 +62,9 @@ class WordForms:
 
 def forms_from_conllu(lines: Iterable[str], counted_from: str) -> List[WordForms]:
     """Every word of the open classes in CoNLL-U lines, by its base form and class, with each form it was written
-    in other than the base itself, lowered; a word written only as its base gives nothing."""
+    in other than the base itself, lowered; a word written only as its base gives nothing. A WORD THE ANALYSTS MARKED
+    MISWRITTEN (`Typo=Yes`) is no form of its word: "madea" and "makke" were taught forms of `make`, read as none
+    (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26)."""
     met: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
     for line in lines:
         if not line.strip() or line.startswith("#"):
@@ -72,7 +74,8 @@ def forms_from_conllu(lines: Iterable[str], counted_from: str) -> List[WordForms
             continue
         form, base, upos, features = cols[1].lower(), cols[2].lower(), cols[3], cols[5]
         word_class = OPEN_CLASSES.get(upos)
-        if word_class is None or form == base or not _written(form) or not _written(base):
+        if word_class is None or form == base or not _written(form) or not _written(base) \
+                or "Typo=Yes" in features.split("|"):
             continue
         met[(base, word_class)][(form, "" if features == "_" else features)] += 1
     return [WordForms(base, word_class, tuple((form, features, n) for (form, features), n in counts.most_common()),

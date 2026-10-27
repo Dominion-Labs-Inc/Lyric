@@ -761,12 +761,20 @@ def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) ->
     2, 4, 8, 16 variables, past the body bound before minimization could see
     them (an office's MOVE never learned).
 
-    A literal whose variables occur nowhere else in the rule says only that some
-    such fact holds; when another literal of its predicate is in the body, that
-    one already says it, and mapping the first onto it leaves a rule that
-    subsumes the same states. It is removed. Nothing else is: a literal sharing
-    a variable with the action, the effects or another literal carries meaning
-    of its own."""
+    A literal's OWN variables are those occurring nowhere else in the rule; they
+    say only that some such thing exists. When renaming its own variables, every
+    other one held fixed, turns the literal into another literal of the body,
+    that one already says it, and mapping the first onto it leaves a rule that
+    subsumes the same states. It is removed. Nothing else is: a literal with no
+    variables of its own carries meaning of its own.
+
+    THE SHARED VARIABLES ARE HELD, NOT REQUIRED ABSENT. This used to drop a
+    literal only when ALL its variables were its own, so `DODRAJO(?X1, ?X5)` was
+    kept beside `DODRAJO(?X1, ?X0)` because ?X1 is the action's: both say ?X1
+    stands in DODRAJO to something. Measured (RULE-AUTHORITY-02, 2026-10-27): a
+    thing related by one predicate to three others in each of five
+    demonstrations gave twelve such copies, a 16-literal body at the bound, and
+    65,536 subsets for minimization, which never finished; reduced, 4."""
     kept = set(body)
     while True:
         dropped = None
@@ -776,9 +784,10 @@ def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) ->
             rest = kept - {literal}
             elsewhere = set().union(effects.variables, action.variables if action else set(),
                                     *(f.variables for f in rest))
-            if literal.variables & elsewhere:
+            own = literal.variables - elsewhere
+            if not own:
                 continue
-            if any(_maps_onto(literal, other) for other in rest if other.predicate == literal.predicate):
+            if any(_maps_onto(literal, other, own) for other in rest if other.predicate == literal.predicate):
                 dropped = literal
                 break
         if dropped is None:
@@ -786,13 +795,13 @@ def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) ->
         kept.discard(dropped)
 
 
-def _maps_onto(literal: Fact, other: Fact) -> bool:
-    """Whether a substitution of `literal`'s variables alone makes it `other`."""
+def _maps_onto(literal: Fact, other: Fact, free: Set[str]) -> bool:
+    """Whether a substitution of `literal`'s variables in `free` alone makes it `other`."""
     if len(literal.args) != len(other.args):
         return False
     bound: Dict[str, str] = {}
     for mine, theirs in zip(literal.args, other.args):
-        if is_variable(mine):
+        if mine in free:
             if bound.setdefault(mine, theirs) != theirs:
                 return False
         elif mine != theirs:

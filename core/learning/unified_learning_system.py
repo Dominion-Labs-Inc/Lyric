@@ -3150,6 +3150,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         """Learn a rule from demonstrations. The world is the only teacher here."""
         return self.inducer.induce(examples, target_predicate=target_predicate)
 
+    async def induce_on_thread(self, examples, target_predicate: Optional[str] = None):
+        """`induce` on a worker thread, for the coroutines that learn.
+
+        Induction is CPU work with no await in it. On the event loop, one long
+        induction froze every other coroutine in the process: measured 2026-10-27
+        (RULE-AUTHORITY-02), a world whose demonstrations related one thing to
+        several others held the loop for minutes, and every other worker's
+        database query timed out waiting behind it."""
+        return await asyncio.to_thread(self.induce, examples, target_predicate)
+
     async def record(self, result, examples, *, domain_id: str,
                      rule_kind: str = "state_transition"):
         """Persist what induction produced, against the demonstrations that
@@ -3236,7 +3246,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if ex is not None:
                 examples.append(ex)
 
-        result = self.induce(examples, target_predicate=head)
+        result = await self.induce_on_thread(examples, target_predicate=head)
         # EVERY SURVIVING HYPOTHESIS IS KEPT, and that is deliberate: the store
         # holds a version space for a later demonstration to collapse. What used
         # to go wrong was downstream -- naming fired on the FIRST hypothesis that
@@ -5547,7 +5557,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             held_out.append(signature_basis.pop(latest))
 
         basis = _relevant_frame(_bounded_basis(signature_basis, contrastive))
-        result = self.induce(basis)
+        result = await self.induce_on_thread(basis)
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
             return summary, None, []
@@ -5638,7 +5648,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             return examples
         departed = set()
         for negative in (e for e in examples if not e.positive):
-            result = self.induce(_bounded_basis(positives, ()) + [negative])
+            result = await self.induce_on_thread(_bounded_basis(positives, ()) + [negative])
             if result.status is InductionStatus.NO_RULE and result.negative_coverage:
                 departed.add(negative.evidence_id)
         return [e for e in examples if e.evidence_id not in departed]
@@ -5686,7 +5696,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             latest = max(i for i, e in enumerate(basis) if e.positive)
             held_out.append(basis.pop(latest))
 
-        result = self.induce(_bounded_basis(basis, ()))
+        result = await self.induce_on_thread(_bounded_basis(basis, ()))
         summary["status"] = result.status.value
         if result.status not in (InductionStatus.RULE_LEARNED,
                                  InductionStatus.MULTIPLE_HYPOTHESES) or not result.candidates:
@@ -5754,7 +5764,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             domain_id=domain_id, predicate=predicate, arity=arity) if e.positive]
         if len(positives) < 2:
             return None
-        result = self.induce(_bounded_basis(positives, ()) + [case])
+        result = await self.induce_on_thread(_bounded_basis(positives, ()) + [case])
         if result.status in (InductionStatus.RULE_LEARNED,
                              InductionStatus.MULTIPLE_HYPOTHESES) and result.candidates:
             return True
