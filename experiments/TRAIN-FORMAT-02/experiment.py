@@ -190,6 +190,23 @@ async def store_checks() -> int:
                  f"({', '.join(f'{p} {l}' for p, l in w.prepositions())})",
                  all(after.get(p, {}).get(link, 0) > 0 for p, link in w.prepositions()), json.dumps(after))
 
+    # ── what each word means, and each word read back in its own examples ──
+    unmeant = [w.word for w in words if w.senses and not agent.word_meanings(w.word)]
+    EV.check("memory says what each word means, every sense with its definition and kind (`word_meanings`)",
+             not unmeant, str(unmeant))
+    reviews = {w.word: view.review_word(w) for w in words}
+    every = sum(len(s.examples) for w in words for s in w.senses)
+    EV.check("each word is read back in every example of every sense", sum(len(r) for r in reviews.values()) == every,
+             f"{sum(len(r) for r in reviews.values())} of {every}")
+    known_all = [r for rs in reviews.values() for r in rs if not r["unknown"]]
+    missed = [(r["example"], r["sense"]) for r in known_all if not (r["read"] and r["in_sense"])]
+    EV.check(f"every example whose words are all taught ({len(known_all)}) is read whole, the word in its sense",
+             not missed, str(missed)[:300])
+    unknown = sorted({u for rs in reviews.values() for r in rs for u in r["unknown"]})
+    say(f"  examples: {every}; read {sum(r['read'] for rs in reviews.values() for r in rs)}, in their sense "
+        f"{sum(r['in_sense'] for rs in reviews.values() for r in rs)}; words not yet taught: {', '.join(unknown)}")
+    EV.note(f"words the examples hold that nothing taught holds yet: {', '.join(unknown)}")
+
     # ── sentences never taught ──
     for sentence, wanted in READ:
         unknown = [t for t in sentence.rstrip(".").split()[1:] if t.lower() in ("for",)

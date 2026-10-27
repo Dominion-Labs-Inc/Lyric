@@ -146,6 +146,14 @@ class MemoryFilter:
         "pronunciation": "taught language",
         "taught_sentence": "taught language",
         "argued_sentence": "taught language",
+        # AND SO ARE THE SENTENCES DERIVED BY HAND, THE SENTENCES AND WORDS RECORDED WHOLE, AND WHAT READING TAUGHT
+        # (`MemoryAgent.DERIVED_TAG`, `RECORD_TAG`, `WORD_RECORD_TAG`, `READ_ENGLISH_TAG`). Left out when they were
+        # made (2026-10-26), they were recalled as knowledge: asked "What is a wall?", the word "wall"'s record was read
+        # as a claim by the grammar, 109 million combinations, 148 s (TRAIN-FORMAT-02, lyric_dev2).
+        "derived_sentence": "taught language",
+        "sentence_record": "taught language",
+        "word_record": "taught language",
+        "read_english": "taught language",
     }
 
     #: What came through these doors is TAUGHT, and kept because it was taught.

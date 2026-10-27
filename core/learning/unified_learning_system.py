@@ -4150,9 +4150,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # together (`MemoryAgent.remember_records`) was reported as nothing refused.
         for item_id, why in held.get("refused") or ():
             logger.warning("%s: %s refused: %s", what, item_id, "; ".join(why)[:500])
-        return {"remembered": held["remembered"], "already": held["already"],
-                "corrected": held.get("corrected", 0), "refused": len(held.get("refused") or ()),
-                "total": held["total"] + len(held.get("refused") or ())}
+        counts = {"remembered": held["remembered"], "already": held["already"],
+                  "corrected": held.get("corrected", 0), "refused": len(held.get("refused") or ()),
+                  "total": held["total"] + len(held.get("refused") or ())}
+        if held.get("reviewed"):
+            counts["reviewed"] = held["reviewed"]
+        return counts
 
     async def learn_arguments(self, argued, *, provenance: Any = None, quality: float,
                               progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:

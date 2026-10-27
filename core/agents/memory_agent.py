@@ -581,7 +581,8 @@ class MemoryAgent(IMemoryConsolidation):
         "admitted_proposition": 0.75, "told_but_unread": 0.75,
         # What it gathered of how English is used from what it was taught, and a lesson's label.
         "said_of": 0.6, "heard_after": 0.6, "analysed_sentence": 0.6, "word_forms": 0.6, "word_group": 0.6,
-        "taught_sentence": 0.6, "argued_sentence": 0.6, "lesson": 0.6,
+        "taught_sentence": 0.6, "argued_sentence": 0.6, "lesson": 0.6, "derived_sentence": 0.6, "sentence_record": 0.6,
+        "word_record": 0.6, "read_english": 0.6,
         # Its ways of working, and how one has gone in a person's work.
         "method": 0.6, "standing": 0.5,
         # What happened in its work: a pursuit, a step that failed, an exchange, a review of what it was taught, a
@@ -6999,6 +7000,20 @@ class MemoryAgent(IMemoryConsolidation):
             content=lambda item: item.said(), add=lambda _, item: self._hold_word_record(item),
             drop=lambda _, item: self._drop_word_record(item))
         held["refused"] = refused
+        # EACH WORD TAUGHT, READ BACK IN ITS OWN EXAMPLES (`GrammarView.review_word`): what it reads, what it reads in
+        # the example's sense, and the words its examples hold that nothing taught yet holds, said in the log and
+        # the report (`reviewed`): the words to teach next.
+        taught = [item for item, _ in held["kept"]] + [item for item, _, _ in held.get("corrected_items", ())]
+        if taught:
+            view = self.grammar_view()
+            reviews = [r for item in taught for r in view.review_word(item)]
+            unknown = sorted({w for r in reviews for w in r["unknown"]})
+            held["reviewed"] = {"examples": len(reviews), "read": sum(r["read"] for r in reviews),
+                                "in their sense": sum(r["in_sense"] for r in reviews), "words not yet taught":
+                                unknown}
+            for r in reviews:
+                logger.info("word review %s: %s read=%s in_sense=%s unknown=%s", r["sense"], r["example"][:120],
+                            r["read"], r["in_sense"], ",".join(r["unknown"]))
         return held
 
     def _learn_word_record(self, word, index: Dict[str, Dict[str, int]], forms) -> None:
@@ -7225,6 +7240,24 @@ class MemoryAgent(IMemoryConsolidation):
             return None
         read = self.structure_view().read(words)
         return lay(read.words, read.classes, read.heads, read.relations, self.name_of, self.known_name)
+
+    def word_meanings(self, name: str) -> List[Dict[str, Any]]:
+        """WHAT A WORD MEANS, as the words recorded whole say it: every sense of each word one of whose senses is the
+        thing `name` names, or which is written `name` — its word, class, the thing it names (`concept`), what it
+        means (WordNet's definition), the nearest kind it is a kind of, how often it is used so, the most used first.
+        The conversation answers "What does paint mean?" and "What is a wall?" by them (`Conversation.say`)."""
+        folded = str(name).casefold().replace("_", " ")
+        out: List[Dict[str, Any]] = []
+        for word in self._grammar_words:
+            if word.word != folded and not any(s.concept == folded for s in word.senses):
+                continue
+            for s in sorted(word.senses, key=lambda s: -s.used):
+                # The kind said in English is WordNet's word for it (`representation.n.02`: representation), not
+                # Lyric's name that tells it apart from the word's other senses ("creation representation").
+                out.append({"word": word.word, "class": s.word_class, "concept": s.concept, "means": s.means,
+                            "kind": s.kind_of[0][0].split(".")[0].replace("_", " ") if s.kind_of else "",
+                            "used": s.used, "named": s.concept == folded})
+        return out
 
     def recorded_name(self, word: str, word_class: str) -> Optional[str]:
         """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None

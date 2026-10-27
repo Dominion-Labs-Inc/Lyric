@@ -164,3 +164,16 @@ def test_a_link_held_as_its_word_gives_way_to_one_taught_saying():
     assert gm._weighed(Counter({"done_with": 1}), "word_with") == "done_with"
     assert gm._weighed(Counter(), "word_with") == "word_with"
     assert gm._weighed(Counter({"has_purpose": 1}), "done_by") == "done_by", "a rule of the grammar's ties and stands"
+
+
+def test_every_kind_of_taught_language_memory_holds_is_kept_out_of_recall():
+    """What memory holds of how English goes is no knowledge of the world: every kind of language record it keeps
+    (`MemoryAgent`'s tags for them) is held back from recall (`memory_filter.exemption_for`). The PMB's derivations and
+    the records were left out when they were made, and "What is a wall?" read the word's record as a claim (148 s)."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.memory.utils.memory_filter import get_memory_filter
+    tags = [MemoryAgent.STRUCTURE_TAG, MemoryAgent.DERIVED_TAG, MemoryAgent.RECORD_TAG, MemoryAgent.WORD_RECORD_TAG,
+            MemoryAgent.READ_ENGLISH_TAG, MemoryAgent.TAUGHT_SENTENCE_TAG, MemoryAgent.ARGUED_TAG,
+            MemoryAgent.WORD_FORMS_TAG, MemoryAgent.WORD_GROUP_TAG]
+    assert [t for t in tags if get_memory_filter().exemption_for(tags=["language", t]) is None] == []
+    assert all(MemoryAgent.IMPORTANCE_BY_KIND.get(t) == 0.6 for t in tags[:5])

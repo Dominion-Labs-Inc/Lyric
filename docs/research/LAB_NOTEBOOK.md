@@ -75,7 +75,13 @@ verb in the sense its meaning names, `SentenceRecord.verb_uses`: the sentence re
 the wall." `coat paint`, "Roy painted a picture." `represent paint`, as the hand-tagged data says; every check (37),
 9 of 9. Thin evidence; it grows with each record.
 
-**Held but read by nothing yet:** each sense's definition and examples.
+**Then everything else** (owner: "account for everything else"): what may fill a place counts in the sense chosen;
+"What does paint mean?" and "What is a wall?" answered from the word records, worked answers built in
+`understand()`; each word read back in its own examples at teaching (46: 22 read, 2 in their sense; the words to
+teach next listed). Found, general: taught language was recalled as knowledge (`memory_filter`): the derivations
+(on main all 8,679, since (52)), the records and what reading taught; "What is a wall?" 148 s -> 0.1 s. Every check
+(40), 13 of 13; TRAIN-FORMAT-01 5 of 5; GRAMMAR-01 383; tests 79 (the 2 old conversation failures as before). Read by
+nothing: the sentence record's `semtag`, `sense`, `roles` (they repeat the terms and the word records).
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 

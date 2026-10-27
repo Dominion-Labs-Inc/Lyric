@@ -80,5 +80,39 @@
     "answer": "yes"
    }
   ]
+ },
+ {
+  "name": "meanings",
+  "kind": "taught word",
+  "text": [
+   "Roy painted the wall."
+  ],
+  "questions": [
+   {
+    "q": "What does paint mean?",
+    "answer": [
+     "painting",
+     "coat"
+    ]
+   },
+   {
+    "q": "What is paint?",
+    "answer": [
+     "coating"
+    ]
+   },
+   {
+    "q": "What is a wall?",
+    "answer": [
+     "partition"
+    ]
+   },
+   {
+    "q": "What is a picture?",
+    "answer": [
+     "representation"
+    ]
+   }
+  ]
  }
 ]

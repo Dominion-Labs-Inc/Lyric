@@ -96,7 +96,27 @@ treebank: the noun's plural "paints".
   painted the wall." `coat paint` (the wall a structure, as the porch); "Roy painted a picture." `represent paint`
   (an artifact creation, as the painting: SemCor's annotators tagged "paint pictures" so). Every check (37), 9 of 9.
   The evidence is thin (9 things seen with 3 senses): each word and sentence recorded adds to it.
-- **Held, read by no part of reading yet:** what each sense means (its definition), its examples.
+- **What may fill each place counts in the sense chosen** (`Lexicon.sense_wants`): a filler of a kind PropBank's
+  description names is evidence for the sense; one of no kind VerbNet restricts the place to, against it.
+- **What a word means, answered** (`MemoryAgent.word_meanings`, gathered in `Conversation.understand`, a worked answer
+  built there, `_meanings_said`): "What does paint mean?" every sense, most used first ("to make a painting; to apply
+  paint to; ...; a substance used as a coating ..."); "What is a wall?" its kind in WordNet's word and what it means
+  ("A wall is a partition: an architectural partition ..."). An answer's thing is answered (`spoken_for`, a name of
+  several words whole): "Paint is a coating: ..." was followed by "I hold nothing for coating paint.".
+- **Each word read back in its own examples** (`GrammarView.review_word`, at teaching, `reviewed` in the report and
+  the log): 46 examples of the four words; 22 read, 2 in their sense; the words they hold that nothing taught yet
+  holds (artists, blue, brick, city, rooms, yellow, ...), the words to teach next; every example whose words are all
+  taught read whole, in its sense.
+- **Found doing it, general: taught language recalled as knowledge.** "What is a wall?" took 148 s: the reasoner
+  read the word's record, recalled as a premise, as a claim (109 million combinations in the chart). The sentences
+  derived by hand (since 2026-10-26 (52), on main all 8,679), the records and what reading taught were left out of
+  what recall holds back (`memory_filter`) and out of `IMPORTANCE_BY_KIND`; now held back, 0.6 as their peers, and a
+  test holds every kind of taught language memory keeps held back. "What is a wall?" 0.1 s.
+- **Every check (40), 13 of 13 through the front door, none wrong**; TRAIN-FORMAT-01 every check, 5 of 5;
+  GRAMMAR-01 383; tests 79 passed (tests/test_conversation.py's 2 failing before this session fail as before).
+- **Every field now:** read by a part of reading, or kept as where a link came from (`who`, `function`,
+  `prepositions`, `bare`, `verbnet`: the converter's grounds for each place's slot and link). In the sentence record
+  `semtag`, `sense` and `roles` repeat what the meaning's terms and the word records carry: read by nothing.
 - **A word WordNet has none of: "for"** (the format now holds every word; `_CLOSED_CLASSES`). Its classes as UD's
   treebanks used it (a preposition 3,154 times, a subordinator 289, a conjunction 5); its uses named as the grammar's
   entries name them, counted as the grammar counts an analysed sentence (`HeldWords.use_of` over the treebanks'

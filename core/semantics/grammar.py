@@ -702,6 +702,10 @@ class Lexicon:
         #: thing) -> how often), from words and sentences recorded whole (`GrammarView.hold_word`, `hold_use`).
         self.sense_used: Dict[str, Counter] = defaultdict(Counter)
         self.sense_seen: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+        #: What may fill each place of each sense (verb name -> sense -> (slot, the thing) -> how many say it): what
+        #: VerbNet restricts it to, "restricted" ("+animate", a living thing), and what PropBank says fills it,
+        #: "described" ("art").
+        self.sense_wants: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         self._taking_pps: Optional[List[Cat]] = None
 
     def sense_of(self, name: str, fillers: Mapping[str, str]) -> str:
@@ -720,6 +724,16 @@ class Lexicon:
             if not filler:
                 continue
             levels = [filler] + list(self.words.kinds(filler, "NOUN"))
+            # WHAT MAY FILL THE PLACE: a filler of a kind PropBank's description of the place names is evidence for
+            # the sense; one of no kind VerbNet restricts the place to, where its kinds are known, against it.
+            for c in senses:
+                wants = self.sense_wants.get(name, {}).get(c, {})
+                described = {f for (sl, how, f), n in wants.items() if sl == slot and how == "described" and n > 0}
+                restricted = {f for (sl, how, f), n in wants.items() if sl == slot and how == "restricted" and n > 0}
+                if described & set(levels):
+                    score[c] += math.log(2.0)
+                if restricted and len(levels) > 1 and not restricted & set(levels):
+                    score[c] -= math.log(2.0)
             seen = {c: [(f, n) for (sl, f), n in self.sense_seen.get(name, {}).get(c, {}).items() if sl == slot]
                     for c in senses}
             kinds_of = {f: {f} | set(self.words.kinds(f, "NOUN")) for c in senses for f, _ in seen[c]}
@@ -3249,6 +3263,33 @@ class GrammarView:
         self._count_word(word, 1)
         self._rules = None
 
+    def review_word(self, word: Any) -> List[Dict[str, Any]]:
+        """A WORD TAUGHT, READ BACK IN ITS OWN EXAMPLES (WordNet's, each of a sense): whether each example is read
+        whole, whether the word is read in the example's sense (its thing, or its doing, named so), and the words
+        of the example nothing taught yet holds, the words to teach next. Asks nothing of memory; reads nothing it
+        learns from."""
+        words = self.grammar.lexicon.words
+        knowledge = getattr(words, "knowledge", None)
+        out: List[Dict[str, Any]] = []
+        for sense in word.senses:
+            for example in sense.examples:
+                text = example.strip().strip("`'\"")
+                if not text:
+                    continue
+                if text[-1:] not in ".?!":
+                    text += "."
+                tokens = tokens_of(text, words)
+                unknown = sorted({t.lower() for t in tokens if str(t).isalpha() and not words.closed.get(t.lower())
+                                  and not getattr(words, "form_uses", {}).get(t.lower())
+                                  and not (knowledge.classes(t) if knowledge is not None else {})})
+                reading = self.grammar.read(tokens)
+                meaning = reading.meaning
+                in_sense = meaning is not None and any(
+                    f.relation == "instance_of" and f.obj == sense.concept for f in meaning.facts)
+                out.append({"sense": sense.id, "example": text, "read": meaning is not None,
+                            "in_sense": in_sense, "unknown": unknown})
+        return out
+
     def hold_use(self, word: str, sense: str, slot: str, filler: str, times: int = 1) -> None:
         """A SENSE OF A VERB SEEN USED, in a sentence recorded whole: the verb's word, the sense its meaning names, the
         place (subject, object) and the thing in it ("fastened" `fasten`, the object `award decoration`)."""
@@ -3304,6 +3345,13 @@ class GrammarView:
             if sense.word_class != "VERB":
                 continue
             lexicon.sense_used[name][sense.concept] += times * (sense.used + 1)
+            for place in sense.places:
+                for slot, _ in place.slots:
+                    if slot in ("subject", "object"):
+                        for how, thing in [("described", place.fills)] + [("restricted", c) for _, c in
+                                                                          place.restricted]:
+                            if thing:
+                                lexicon.sense_wants[name][sense.concept][(slot, how, thing)] += times
             for slot, _, kinds, n in getattr(sense, "seen_with", ()):
                 lexicon.sense_seen[name][sense.concept][(slot, kinds[0])] += times * n
                 if knowledge is not None and hasattr(knowledge, "discard"):

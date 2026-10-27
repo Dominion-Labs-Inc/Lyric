@@ -20327,6 +20327,10 @@ class Understanding:
     #: Gathered here, in `understand()`, because it needs the database and `say()`
     #: is a pure function over what was already found.
     plurals: Dict[str, bool] = field(default_factory=dict)
+    #: WHAT EACH WORD THE QUESTION NAMES MEANS, as the words recorded whole say it (`MemoryAgent.word_meanings`):
+    #: answered from where nothing held says what the thing is ("What does paint mean?", "What is a wall?").
+    #: Gathered in `understand()`, as `plurals` is.
+    meanings: Dict[str, List[Dict[str, Any]]] = field(default_factory=dict)
     #: HOW THIS SPEAKER HAS SAID THINGS in the conversation: the word they last
     #: called each thing by (`named`, by the thing's name), and the
     #: constructions their sentences were read with (`framed`). A thing has
@@ -20371,6 +20375,12 @@ class Understanding:
             # too turned `caused` into `caus` into `cau`, so the word that
             # matched the relation was still reported as one nothing was held for.
             used.update(answer.relation.replace("_", " ").split())
+            # WHAT AN ANSWER IS ABOUT is answered: "Paint is a coating: ..." was followed by "I hold nothing for
+            # coating paint." (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26).
+            about = str(answer.about).replace("_", " ").strip()
+            used.update(about.split())
+            if about:
+                used.add(about)         # a name of several words, matched whole ("coating paint")
         return used
 
     @property
@@ -20739,6 +20749,41 @@ def said_plainly(text: str) -> str:
     text = re.sub(r"(?<=[\w.,;:!?)\]\"'])[ \t]+-{2,}[ \t]+(?=[\w(\[\"'])", " - ", text)
     text = re.sub(r"(?<=[^\W\d_])-{2,}(?=[^\W\d_])", " - ", text)
     return re.sub(r"(?m)^[ \t]*- (?=\S)", "- ", text) if "\n - " in text or text.startswith(" - ") else text
+
+
+def _meanings_said(understanding: "Understanding", asked: Any) -> List[Tuple[str, str]]:
+    """WHAT A WORD MEANS, OR WHAT A THING IS, SAID FROM THE WORDS RECORDED WHOLE (`Understanding.meanings`): asked
+    what a word means ("What does paint mean?": a meaning `mean` of it), every meaning it has, the most used first, a
+    verb's as a doing ("Paint can mean: a substance used as a coating ...; to make a painting; ..."); asked what a
+    thing is ("What is a wall?"), the kind it is and what it means ("A wall is a partition: an architectural partition
+    ..."). Nothing, where no word recorded whole names what was asked. Told by nothing else in a store taught only
+    words, "What is a wall?" was "I don't hold wall yet." (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26)."""
+    if not understanding.meanings:
+        return []
+    facts = list(getattr(asked, "facts", ()) or ())
+    asks_meaning = any(f.relation == "instance_of" and str(f.obj) == "mean" for f in facts)
+    sentence = str(understanding.sentence or "").lower()
+    lines: List[Tuple[str, str]] = []
+    for phrase, senses in understanding.meanings.items():
+        if phrase == "mean" or not senses:
+            continue
+        word = senses[0]["word"]
+        if asks_meaning:
+            said = []
+            for s in senses:
+                if s["used"] or not said:
+                    said.append(("to " if s["class"] == "VERB" else "") + s["means"])
+            lines.append((phrase, f"{word[:1].upper()}{word[1:]} can mean: " + "; ".join(said[:4]) + "."))
+            continue
+        named = next((s for s in senses if s["named"]), senses[0])
+        if not named["kind"]:
+            continue
+        indefinite = re.search(rf"\b(a|an)\s+{re.escape(word)}\b", sentence) is not None
+        subject = (("An " if word[:1] in "aeiou" else "A ") + word) if indefinite else word[:1].upper() + word[1:]
+        kind = named["kind"]
+        article = "an" if kind[:1] in "aeiou" else "a"
+        lines.append((phrase, f"{subject} is {article} {kind}: {named['means']}."))
+    return lines
 
 
 def _said(subject: str, relation: str, obj: str, positive: bool = True,
@@ -23831,6 +23876,16 @@ class Conversation:
         # "andaman islands" when it was asked about and not when a memory
         # volunteered it — so the same fact read "andaman islands are found in"
         # in one turn and "an andaman islands is found in" in the next.
+        from core.agents import memory_agent as _memory_module
+        if _memory_module._memory_agent is not None:
+            understanding.meanings = {
+                r.phrase: found for r in list(understanding.unknown) + list(resolved)
+                for found in [_memory_module._memory_agent.word_meanings(r.phrase)] if found}
+        if asked and not answers and understanding.meanings:
+            # A QUESTION NOTHING HELD ANSWERS, ASKING WHAT A WORD MEANS OR WHAT A THING IS, is answered from the words
+            # recorded whole (`_meanings_said`), an answer as any other is: worked, its sentence said as it is.
+            for phrase, line in _meanings_said(understanding, meaning):
+                answers.append(Answer(phrase, "means", (), verdict=None, conclusion=line, worked=True))
         understanding.plurals = await self._plural_map(
             [r.phrase for r in resolved]
             + [str(o) for r in resolved for _rel, o in r.relations]

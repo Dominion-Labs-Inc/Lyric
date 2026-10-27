@@ -1,0 +1,119 @@
+{
+  "experiment": "TRAIN-FORMAT-01",
+  "claim": "a sentence recorded whole, every layer by word position, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, it is read back as taught, and what it said is answered through the front door",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-27T00:12:37.422702+00:00",
+  "duration_seconds": 5.707,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "1af3c3ea2c240a1a4089f64637b9418b0be893d8",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev2",
+        "model": "lyric_dev2",
+        "user_context": "lyric_dev2",
+        "learning": "lyric_dev2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 43,
+    "database_verified": "lyric_dev2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 6,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "1/1; 95% interval 20.7% to 100.0%"
+    },
+    {
+      "name": "questions answered right",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "5/5; 95% interval 56.6% to 100.0%"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/5; 95% interval 0.0% to 43.4%"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_dev2",
+      "at": "2026-10-27T00:12:37.479809+00:00"
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": true,
+      "detail": "1/1 = 100.0% (95% interval 20.7% to 100.0%)",
+      "at": "2026-10-27T00:12:42.033977+00:00"
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": true,
+      "detail": "5/5 = 100.0% (95% interval 56.6% to 100.0%)",
+      "at": "2026-10-27T00:12:42.033997+00:00"
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": true,
+      "detail": "0/5 = 0.0% (95% interval 0.0% to 43.4%)",
+      "at": "2026-10-27T00:12:42.034010+00:00"
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-10-27T00:12:42.034020+00:00"
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-27T00:12:43.129604+00:00"
+    }
+  ],
+  "notes": [
+    "reading by English's grammar on: an utterance no taught frame reads is read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)",
+    "an utterance every frame reads only by supposing more than any lesson read as taught is read by the grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)",
+    "taught record: sentences 1/1, questions right 5/5, wrong 0"
+  ]
+}
