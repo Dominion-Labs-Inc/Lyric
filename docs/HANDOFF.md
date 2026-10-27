@@ -12,7 +12,16 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (55)): WHICH WORD TAKES WHICH, WEIGHED BY THE STRUCTURE VIEW.** The chart scored two readings
+**LATEST (lab notebook (56), (57)): ONE STANDARD FORMAT LYRIC IS TAUGHT FROM, WORDS BEFORE SENTENCES** (the owner:
+standardize how Lyric learns, as a model is taught from one dataset format; one record verified fully before a set;
+words and their meanings before phrases; language touches no beliefs or domains). `lyric_dev2` (lyric_dev's schema, no
+rows) holds one sentence (`experiments/TRAIN-FORMAT-01`, `teaching_sources.SentenceRecord`, converted from the PMB's
+checked data) and four words (`experiments/TRAIN-FORMAT-02`, `WordRecord`: forms, classes and uses from UD EWT/GUM;
+WordNet senses with definitions, kinds, frames; PropBank places joined through VerbNet; SemCor uses), taught through
+`teach.py --source records`; every layer read by a part of reading; 40 of 40 checks, 13 of 13 through the front door.
+Taught language was recalled as knowledge since (52): fixed (`memory_filter`). Next on the owner's word: more words.
+
+**(55): WHICH WORD TAKES WHICH, WEIGHED BY THE STRUCTURE VIEW.** The chart scored two readings
 joining the same words otherwise the same and kept the first it built (146 of 221 joins in 20 prose sentences).
 Now each combination adds the structure view's log likelihood of its join (`Grammar._joined`, `StructureView.joins`;
 memory hands its structure view to the grammar, `MemoryAgent.grammar_view`): published prose held out (UD English
