@@ -17,10 +17,11 @@ An independent oracle classifies each world by what the learner's own basis dete
 enumerates every well-formed conjunction of the six conditions and the act consistent with the
 shown evidence and keeps the minimal ones (`determined`, `ambiguous`, `pins_other_rule`).
 
-**Run** (sandbox only; every world's domain is removed after it runs):
+**Run** on `lyric_bench`, the benchmarks' own instance (lyric_dev's schema, no data, nothing else uses it; runs
+before 2026-10-27 13:00 UTC were on the shared lyric_dev). Every world's domain is removed after it runs:
 
 ```
-POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-01/experiment.py --worlds 1000 --seed 20260930
+POSTGRES_DATABASE=lyric_bench ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-01/experiment.py --worlds 1000 --seed 20260930
 ```
 
 **Checks, declared before the run.**

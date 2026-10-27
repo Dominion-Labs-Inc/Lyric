@@ -181,13 +181,25 @@ def _description(example: "TrainingExample") -> Tuple[str, ...]:
     the earliest: the first eight, all alice's while only alice's had come. Every
     later miss of another sender's was then told apart by its sender -- "the
     substrate was wrong" -- however many of theirs had moved since (EXPECT-02:
-    a habit of six senders lost to the first fifteen files)."""
+    a habit of six senders lost to the first fifteen files).
+
+    THE THING IS THE ONE THE CHANGE IS ABOUT, decided as the frame decided it
+    (`_changed_things`). Counted over everything held before instead, the
+    relation between the two rooms (PATH(INBOX, DONE)), kept once the frame
+    kept relations among the things a change names, tied INBOX with the file,
+    INBOX sorted first, and every file's change became its own bucket: the cap
+    kept the first eight again, all alice's. Counting stays for a case with no
+    change to read, an expectation that went unmet."""
     from collections import Counter
-    counts = Counter(t for f in example.before for t in f.args)
-    if not counts:
-        return ()
-    thing = max(sorted(counts), key=lambda t: counts[t])
-    return tuple(sorted(f"{f.predicate}({','.join('_' if a == thing else a for a in f.args)})"
+    before, after = frozenset(example.before), frozenset(example.after)
+    changed = (after - before) | (before - after)
+    about = {t for _facts, things in _changed_things(changed, before | after) for t in things} if changed else set()
+    if not about:
+        counts = Counter(t for f in example.before for t in f.args)
+        if not counts:
+            return ()
+        about = {max(sorted(counts), key=lambda t: counts[t])}
+    return tuple(sorted(f"{f.predicate}({','.join('_' if a in about else a for a in f.args)})"
                         for f in example.before))
 
 
@@ -341,6 +353,17 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
         # changes stays out, and so does a fact that only mentions a named
         # thing, which is what a room's many paths or a directory's many files
         # are.
+        #
+        # A RELATION AMONG THE THINGS THE ACT NAMES IS IN, whatever its order.
+        # Cut, it was unlearnable whenever the act transforms one argument and
+        # the condition holds between two others: RULE-AUTHORITY-02 world 264
+        # (the act consumes RINMIR(x), its rule needs VORDRAGOR(y, z)) left the
+        # near miss lacking VORDRAGOR looking like a success, and no rule was
+        # learned in 20 such worlds; world 3847 lost POLSOL(z, x), the rival
+        # that would have left the evidence undecided, and gave authority to a
+        # rule acting in 12 situations the world refuses. Such a fact names
+        # nothing outside the act, so there are at most a predicate's worth per
+        # tuple of its arguments, never the world's many.
         named = set(example.action.args)
         before = tuple(f for f in example.before if _bears_on(f, anchors, named, changed))
         after = tuple(f for f in example.after if _bears_on(f, anchors, named, changed))
@@ -355,12 +378,13 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
 def _bears_on(fact: "Fact", anchors, named, changed) -> bool:
     """Whether a fact can bear on a change: it is about a thing the change
     transformed (an anchor), or it says something about one thing the change
-    names -- of that thing alone, or in a relation the change moved. The
-    relevance restriction every frame here is cut by (`_relevant_frame`,
-    `world_change_examples`)."""
+    names -- of that thing alone, or in a relation the change moved -- or it
+    relates only things the change names. The relevance restriction every
+    frame here is cut by (`_relevant_frame`, `world_change_examples`)."""
     return bool(set(fact.args) & set(anchors)) or (
         bool(fact.args) and fact.args[0] in named
-        and (len(fact.args) == 1 or fact.predicate in changed))
+        and (len(fact.args) == 1 or fact.predicate in changed
+             or set(fact.args) <= set(named)))
 
 
 def _changed_things(changed, world) -> List[Tuple[frozenset, frozenset]]:

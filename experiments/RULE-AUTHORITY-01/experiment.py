@@ -47,7 +47,7 @@ Over-broad authority in UNDER-determined worlds is measured, not a failure: a ru
 exactly as general as its evidence is what induction is for, and it is reported.
 
 Run (sandbox only):
-  POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-01/experiment.py [--worlds 1000] [--seed 20260930]
+  POSTGRES_DATABASE=lyric_bench ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-01/experiment.py [--worlds 1000] [--seed 20260930]
 """
 import argparse
 import asyncio
@@ -60,7 +60,7 @@ import time
 import uuid
 from pathlib import Path
 
-os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_bench")
 os.environ.setdefault("LYRIC_NO_WATCHDOG", "1")
 
 HERE = Path(__file__).resolve().parent
@@ -281,7 +281,7 @@ async def main() -> int:
     db = get_database_manager()
     if not getattr(db, "initialized", False):
         await db.initialize()
-    await db.assert_database_identity("lyric_dev")
+    await db.assert_database_identity("lyric_bench")
     await EV.verify_database()
     store, demos, la = get_rule_store(), get_demonstration_store(), get_learning_authority()
     await store.ensure_schema()

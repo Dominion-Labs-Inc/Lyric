@@ -27,6 +27,14 @@ learner declines to act is not one in which it is wrong, so C3 now asks what the
 world, that it end with the exact rule or none, and that most end exact. The run's record keeps the result as
 declared.
 
+TWO ARMS, AMENDED THE SAME DAY. Settling a conjunction world against all three families counted as rivals rules no
+conjunction can say: 126 conjunction worlds were called ambiguous that the rules a conjunction can say decide, and
+Lyric held the exact rule in 97 of them. A conjunction world is now settled or not by the unconditional rule and the
+conjunctions (RULE-AUTHORITY-01's question, here at scale); C4 to C6 are asked of those worlds. A world whose rule no
+conjunction can say is settled by every family, its own among them, and C7 asks that where it is, no rule Lyric
+holds acts where the world refuses or predicts a wrong effect. The generator's still world was amended with this
+(it holds every condition); runs before 20261027T13 were scored under the earlier account.
+
 Run:  python3 -I evaluator.py --inputs <generator outdir> --answers <answers.jsonl> --out <evaluation.json>
 """
 import argparse
@@ -126,16 +134,21 @@ class Rule:
 _UNIVERSE = {}
 
 
-def universe(n):
-    """(size, truth table) for every rule of the three families over n conditions."""
-    if n in _UNIVERSE:
-        return _UNIVERSE[n]
+def universe(n, every_family=True):
+    """(size, truth table) for every rule of the three families over n conditions, or, with every_family False,
+    for the rules a conjunction can say (the unconditional rule and the conjunctions)."""
+    if (n, every_family) in _UNIVERSE:
+        return _UNIVERSE[(n, every_family)]
     idx = range(n)
     # The unconditional rule, the act always works: the simplest of all, and what only successes support.
     rules = [(0, [(set(), set())])]
     for k in range(1, min(4, n) + 1):
         for pos in itertools.combinations(idx, k):
             rules.append((k, [(set(pos), set())]))
+    if not every_family:
+        table = [(size, truth_table(terms, n)) for size, terms in rules]
+        _UNIVERSE[(n, every_family)] = table
+        return table
     for k in range(1, min(3, n - 1) + 1):
         for pos in itertools.combinations(idx, k):
             for neg in idx:
@@ -146,7 +159,7 @@ def universe(n):
         if not a <= b and not b <= a:
             rules.append((len(a) + len(b), [(a, set()), (b, set())]))
     table = [(size, truth_table(terms, n)) for size, terms in rules]
-    _UNIVERSE[n] = table
+    _UNIVERSE[(n, every_family)] = table
     return table
 
 
@@ -168,7 +181,7 @@ def situation_index(conditions, args, action, before):
     return s
 
 
-def evidence_class(truth, public):
+def evidence_class(truth, public, every_family=True):
     n = len(truth["conditions"])
     hidden = truth_table([(set(t["pos"]), set(t["neg"])) for t in truth["rule"]], n)
     pos_mask = neg_mask = 0
@@ -181,7 +194,8 @@ def evidence_class(truth, public):
             pos_mask |= 1 << s
         else:
             neg_mask |= 1 << s
-    consistent = [(size, tt) for size, tt in universe(n) if tt & pos_mask == pos_mask and not tt & neg_mask]
+    consistent = [(size, tt) for size, tt in universe(n, every_family)
+                  if tt & pos_mask == pos_mask and not tt & neg_mask]
     if not consistent:
         return "none", hidden
     smallest = min(size for size, _ in consistent)
@@ -261,25 +275,33 @@ def main():
 
     worlds = []
     for p, t in zip(public, truth):
-        cls, _ = evidence_class(t, p)
+        # A conjunction world is settled or not by the rules a conjunction can say; a world whose rule no conjunction
+        # can say, by every family, the hidden rule's own among them.
+        cls, _ = evidence_class(t, p, every_family=t["family"] != "conjunction")
         sc = score_world(t, p, answers[p["world"]])
         worlds.append({"world": p["world"], "family": t["family"], "evidence": cls, **t["factors"], **sc})
 
     def count(pred):
         return sum(1 for w in worlds if pred(w))
 
-    det = [w for w in worlds if w["evidence"] == "determined"]
-    det_conj3 = [w for w in det if w["family"] == "conjunction" and w["successes"] >= 3]
-    amb = [w for w in worlds if w["evidence"] == "ambiguous"]
+    # Two arms. CONJUNCTION worlds, settled or not in the rules a conjunction can say, are RULE-AUTHORITY-01's
+    # question at scale. Worlds whose rule NO conjunction can say ask whether Lyric keeps from acting on a rule it
+    # cannot represent, judged where every family's account settles the hidden rule.
+    conj = [w for w in worlds if w["family"] == "conjunction"]
+    det = [w for w in conj if w["evidence"] == "determined"]
+    det_conj3 = [w for w in det if w["successes"] >= 3]
+    amb = [w for w in conj if w["evidence"] == "ambiguous"]
+    beyond = [w for w in worlds if w["family"] != "conjunction" and w["evidence"] == "determined"]
     total_rules = sum(w["rules"] for w in worlds)
     c1 = sum(w["contradicted_rules"] for w in worlds)
     c2 = count(lambda w: w["successes"] < 3 and w["rules"])
     c3_exact = sum(1 for w in det_conj3 if w["exact"])
     c3_none = sum(1 for w in det_conj3 if not w["rules"])
     c3_other = len(det_conj3) - c3_exact - c3_none
-    c4 = count(lambda w: w["evidence"] == "determined" and w["unsafe_situations"])
-    c5 = count(lambda w: w["evidence"] == "determined" and w["wrong_situations"])
-    c6 = count(lambda w: w["evidence"] == "ambiguous" and w["rules"])
+    c4 = sum(1 for w in det if w["unsafe_situations"])
+    c5 = sum(1 for w in det if w["wrong_situations"])
+    c6 = sum(1 for w in amb if w["rules"])
+    c7 = sum(1 for w in beyond if w["unsafe_situations"] or w["wrong_situations"])
     checks = [
         {"label": "C1 no rule holding authority is contradicted by any observation shown", "passed": c1 == 0,
          "detail": f"{c1} of {total_rules} rules"},
@@ -290,12 +312,15 @@ def main():
          "passed": bool(det_conj3) and c3_other == 0 and c3_exact * 2 > len(det_conj3),
          "detail": f"{c3_exact} exact, {c3_none} no rule, {c3_other} another rule, of {len(det_conj3)} "
                    f"(exact {c3_exact / len(det_conj3) if det_conj3 else 0.0:.4f})"},
-        {"label": "C4 determined worlds, every family: no rule authorizes an act the world refuses",
+        {"label": "C4 determined conjunction worlds: no rule authorizes an act the world refuses",
          "passed": c4 == 0, "detail": f"{c4} of {len(det)} worlds"},
-        {"label": "C5 determined worlds, every family: no rule predicts a wrong effect", "passed": c5 == 0,
+        {"label": "C5 determined conjunction worlds: no rule predicts a wrong effect", "passed": c5 == 0,
          "detail": f"{c5} of {len(det)} worlds"},
-        {"label": "C6 ambiguous worlds: no rule holds authority", "passed": c6 == 0,
+        {"label": "C6 ambiguous conjunction worlds: no rule holds authority", "passed": c6 == 0,
          "detail": f"{c6} of {len(amb)} worlds"},
+        {"label": "C7 determined worlds whose rule no conjunction can say: no rule authorizes an act the world "
+                  "refuses or predicts a wrong effect", "passed": c7 == 0,
+         "detail": f"{c7} of {len(beyond)} worlds; {sum(1 for w in beyond if not w['rules'])} hold no rule"},
     ]
 
     table = defaultdict(Counter)

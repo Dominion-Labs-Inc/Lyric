@@ -11,7 +11,8 @@ two of them are outside what a learner limited to plain conjunctions can express
 Every world draws its own vocabulary (invented names), 4 to 7 conditions, an act of 1 to 3 arguments, conditions
 over those arguments in any order, one or two effects, sometimes a condition the act consumes, distractor facts
 about other objects, 2 to 6 successes, near misses covering none, about half or all of the rule, failures the rule
-says nothing about, and in a quarter of worlds a revealing near miss that arrives last.
+says nothing about, and in a quarter of worlds a revealing near miss that arrives last. Each world opens with a
+still world: every condition holds, nothing is done, nothing happens.
 
 Two files are written, and the learner's side opens only the first:
 
@@ -174,7 +175,12 @@ def make_world(i, seed):
                {"kind": None, "assignment": [int(v) for v in a], "fired": fired}
 
     public_obs, truth_obs = [], []
-    o, t = observe(0, success(rng, terms, n), acted=False)
+    # THE STILL WORLD HOLDS EVERY CONDITION, as RULE-AUTHORITY-01's did: only then does it show that the act, and no
+    # combination of the conditions alone, produces the effect. Drawn as a random situation the rule allows, it left
+    # "the effect happens without the act" standing in 247 worlds the evaluator, which takes the act as necessary,
+    # called settled (run 20261027T022228Z). The draw is still made, so every later draw is the one it was.
+    success(rng, terms, n)
+    o, t = observe(0, [1] * n, acted=False)
     t["kind"] = "still"
     public_obs.append(o)
     truth_obs.append(t)

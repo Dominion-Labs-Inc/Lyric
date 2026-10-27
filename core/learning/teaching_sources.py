@@ -2966,13 +2966,20 @@ class WordSense:
     #: sense, Lyric's name for it and for everything it is a kind of, how often) — the verb `coat paint` with a house
     #: as what it was done to. Which sense a sentence means is chosen by them (`Lexicon.sense_of`).
     seen_with: Tuple[Tuple[str, str, Tuple[str, ...], int], ...] = ()
+    #: HOW MUCH OF WHAT IS SAID A NOUN SENSE AND EACH OF ITS KINDS COVER: for the sense, then each kind in `kind_of`,
+    #: how many uses SemCor tagged of it or of anything that is a kind of it, each WordNet noun sense counted once
+    #: more, so none covers nothing. The rarer a kind a sense shares with a thing said beside it, the more that thing
+    #: says the sense is meant (Resnik 1995, the information a shared kind carries): "a second coat of paint", the
+    #: coat a coating, as paint is. Which sense a sentence means is chosen by them (`Lexicon.thing_sense_of`).
+    covers: Tuple[int, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
                 "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
                 "places": [p.to_dict() for p in self.places],
-                "seen_with": [[slot, sense, list(kinds), n] for slot, sense, kinds, n in self.seen_with]}
+                "seen_with": [[slot, sense, list(kinds), n] for slot, sense, kinds, n in self.seen_with],
+                "covers": list(self.covers)}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordSense":
@@ -2981,7 +2988,8 @@ class WordSense:
                    tuple(data.get("examples") or ()), tuple(data.get("frames") or ()), str(data.get("roleset") or ""),
                    str(data.get("use") or ""), str(data.get("verbnet") or ""),
                    tuple(WordPlace.from_dict(p) for p in data.get("places") or ()),
-                   tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()))
+                   tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()),
+                   tuple(int(c) for c in data.get("covers") or ()))
 
 
 @dataclass(frozen=True)
@@ -3098,6 +3106,9 @@ class WordRecord:
                 out.append(f"sense {s.id} has a verb's places but is no verb")
             if bool(s.roleset) != bool(s.places):
                 out.append(f"sense {s.id}: a PropBank sense without places, or places without one")
+            if s.covers and (s.word_class != "NOUN" or len(s.covers) != 1 + len(s.kind_of)
+                             or s.covers[0] <= 0 or any(c < s.covers[0] for c in s.covers[1:])):
+                out.append(f"sense {s.id}: what it covers is not a count for it and one, no smaller, for each kind")
         if self.uses and "VERB" not in classes:
             out.append("uses of a verb, but no sense of the word is a verb")
         for place in [p for s in self.senses for p in s.places] + [p for u in self.uses for p in u.places]:
@@ -3371,6 +3382,17 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         # examples for all its words, and "do nothing" was read back as an example of `make` (engage in).
         return any(w == word or wn.morphy(w, pos) == word for w in re.findall(r"[a-z]+(?:-[a-z]+)*", example.lower()))
 
+    if "covers" not in _cache:
+        # WHAT EACH NOUN SENSE AND KIND COVERS of what SemCor tagged (WordNet's counts are SemCor's): every use of a
+        # sense counted for it and for each kind it is, each sense once more.
+        covered: Counter = Counter()
+        for synset in wn.all_synsets("n"):
+            n = sum(l.count() for l in synset.lemmas()) + 1
+            for c in {synset} | set(synset.closure(lambda x: x.hypernyms() + x.instance_hypernyms())):
+                covered[c.name()] += n
+        _cache["covers"] = covered
+    covered = _cache["covers"]
+
     synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas()) and named(s)]
     senses: List[WordSense] = []
     for s in synsets:
@@ -3378,8 +3400,11 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         lemma = next(l for l in s.lemmas() if l.name().lower() == word)
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
-        senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds_of(s), lemma.count(),
-                                tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames))
+        kinds = kinds_of(s)
+        senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds, lemma.count(),
+                                tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames,
+                                covers=(tuple(covered[c] for c in [s.name()] + [k for k, _ in kinds])
+                                        if cls == "NOUN" else ())))
     # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
     # the class's roles may be filled with.
     classes_of: Dict[str, Set[str]] = {}

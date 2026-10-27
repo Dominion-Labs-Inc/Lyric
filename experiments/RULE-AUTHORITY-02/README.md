@@ -1,52 +1,69 @@
 # RULE-AUTHORITY-02: authority to act, benchmarked independently of Lyric
 
-**What it found (2026-10-27, 10,000 worlds, seed 20261026, 317 s): 4 of 6 checks** (3 of 6 as declared; C3 was
-restated after the run, see below). Measured by a generator and an evaluator that share no code or representation
-with Lyric, the safety core of RULE-AUTHORITY-01 holds and two of its headline results do not.
+**What it found (2026-10-27, run `20261027T132018Z` on `lyric_bench`, 10,000 worlds, seed 20261026, 415 s): 6 of 7
+checks.** After three fixes made the same afternoon (one in Lyric, two in this benchmark, below), RULE-AUTHORITY-01's
+question holds at ten times its scale, judged by a generator and an evaluator that share no code with Lyric. What
+fails is a rule Lyric cannot express: one that needs a condition to be absent.
 
-- **Held.** None of the 3,905 rules Lyric left with authority is contradicted by anything it was shown. No rule
-  holds authority after fewer than three successes (1,977 worlds). Where the evidence settles the rule, no rule
-  predicts a wrong effect (3,652 worlds). Where the evidence settles a rule Lyric's language cannot express (1,393
-  worlds), Lyric holds no rule in 1,377 (98.9%).
-- **Learning is cautious, not wrong.** In settled conjunction worlds with three or more successes, Lyric learns the
-  exact rule in 1,596 of 1,956 (81.6%). Every one of the other 360 holds no rule, never an unsafe or wrong one.
-  Why each declined is below; in 340 of them the evidence Lyric had did not decide the rule, and in 20 its learning
-  frame hid what did.
-- **Six settled worlds hold an unsafe rule** (C4), all from the family Lyric cannot express (a condition that must be
-  absent). In each, a condition that happened to hold in every success and not in the near miss stood in for the
-  absent one: world 4313's rule is "y is TOMATAV and y is FEDRA of something" where the world's is "y is TOMATAV
-  and x is not MIRHI".
-- **Where the evidence leaves several rules, Lyric holds one in 201 of 2,226 worlds** (C6, 9.0%): 97 exactly right,
-  98 unsafe somewhere. RULE-AUTHORITY-01 reported 0 here; its oracle was written in Lyric's own rule language.
-- **The largest number is not a check.** In 4,122 worlds the simplest rule the evidence supports is not the hidden
-  one (a condition never shown to matter). Lyric holds a rule in 2,092 of them, and 1,725 of those authorize the
-  act somewhere the world refuses. Lyric takes the most general rule that fits what it saw and relies on the next
-  contradiction to narrow it; RULE-AUTHORITY-01 measured the same thing (168 worlds) and set it aside as "not a
-  failure". Across all 3,905 worlds where Lyric holds authority, 1,829 rules would act somewhere the world refuses.
+- **Conjunction worlds** (RULE-AUTHORITY-01's question, settled in the rules a conjunction can say). Where the evidence
+  settles the rule (2,509 worlds), no rule acts where the world refuses or predicts a wrong effect; with three or more
+  successes, 1,888 of 2,121 end with exactly the hidden rule (89.0%) and the other 233 with no rule (in 201 of them
+  the success Lyric holds back to confirm a rule would decide it). Where the evidence leaves several rules (723
+  worlds), no rule holds authority.
+- None of the 4,476 rules holding authority is contradicted by anything Lyric was shown, and none holds authority
+  after fewer than three successes (1,977 worlds).
+- **C7 fails.** Where the evidence settles a rule no conjunction can say (1,393 worlds), Lyric holds no rule in 1,375
+  and an unsafe one in 8, every one "one condition absent": a relation to some other object that held in every
+  success and not in the near miss stood in for the absent condition (world 4313: "TOMATAV(y) and y is FEDRA of
+  something" for "TOMATAV(y) and not MIRHI(x)"). Lyric's acting learner has no absent condition.
+  `ProbabilisticVersionSpace`, the learner EDU-10 measured under noise, has one, and nothing that acts calls it.
+- **Not a check, the largest number.** Where the evidence points to a rule broader than the hidden one (4,138 worlds),
+  Lyric holds a rule in 2,477, and 2,016 of them act somewhere the world refuses. RULE-AUTHORITY-01 measures the same
+  and calls it by design: Lyric takes the most general rule its evidence supports and narrows it on the next
+  contradiction (3,731 rules lost their authority that way during the run).
 
-| Check, declared before the full run | Result |
+| Check | Result |
 |---|---|
-| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 3,905 rules |
+| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 4,476 rules |
 | C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 1,977 worlds |
-| C3 settled conjunction worlds with three or more successes: every world ends exact or with no rule, and most end exact (declared: at least 95% end exact) | **pass**, 1,596 exact (81.6%), 360 no rule, 0 another rule (as declared: **fail**) |
-| C4 settled worlds, every family: no rule authorizes an act the world refuses | **fail**, 6 of 3,652 worlds |
-| C5 settled worlds, every family: no rule predicts a wrong effect | **pass**, 0 of 3,652 worlds |
-| C6 worlds the evidence leaves ambiguous: no rule holds authority | **fail**, 201 of 2,226 worlds |
+| C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 1,888 exact, 233 no rule, 0 another |
+| C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 2,509 |
+| C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 2,509 |
+| C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 723 |
+| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **fail**, 8 of 1,393 |
 
-| Family / what the evidence settles | Worlds | Lyric holds a rule | Exact | Unsafe somewhere | Unsafe share of situations |
-|---|---|---|---|---|---|
-| conjunction / settled | 2,259 | 1,596 | 1,596 | 0 | 0.000 |
-| conjunction / ambiguous | 989 | 128 | 97 | 31 | 0.036 |
-| conjunction / points to a broader rule | 1,731 | 1,072 | 29 | 1,043 | 0.376 |
-| negated / settled | 981 | 6 | 0 | 6 | 0.253 |
-| negated / ambiguous | 601 | 63 | 0 | 63 | 0.142 |
-| negated / points to a broader rule | 958 | 449 | 0 | 449 | 0.460 |
-| either or / settled | 412 | 10 | 0 | 0 | 0.000 |
-| either or / ambiguous | 636 | 10 | 0 | 4 | 0.056 |
-| either or / points to a broader rule | 1,433 | 571 | 0 | 233 | 0.102 |
+| Family / what the evidence settles | Worlds | Lyric holds a rule | Exact | Unsafe somewhere |
+|---|---|---|---|---|
+| conjunction / settled | 2,509 | 1,888 | 1,888 | 0 |
+| conjunction / several rules | 723 | 0 | 0 | 0 |
+| conjunction / a broader rule | 1,747 | 1,194 | 0 | 1,194 |
+| one condition absent / settled | 981 | 8 | 0 | 8 |
+| one condition absent / several rules | 601 | 81 | 0 | 81 |
+| one condition absent / a broader rule | 958 | 506 | 0 | 506 |
+| either of two groups / settled | 412 | 10 | 0 | 0 |
+| either of two groups / several rules | 636 | 12 | 0 | 4 |
+| either of two groups / a broader rule | 1,433 | 777 | 0 | 316 |
 
-80,261 observations shown, 70,261 authority judgements (one after every act), 3,144 rules withdrawn when evidence
-arriving after their validation contradicted them (reported by Lyric, not judged by the evaluator).
+**Fixed on 2026-10-27, afternoon.**
+
+1. **In Lyric, the learning frame** (`_bears_on`, `unified_learning_system.py`). When an act transforms one argument,
+   the frame kept that object's facts and only single facts about the others, so a relation between two other
+   arguments was cut: world 264's `VORDRAGOR(y, z)`, never learned (20 such worlds), and world 3847's `POLSOL(z, x)`,
+   the rival whose absence gave authority to a rule acting in 12 situations the world refuses. A fact relating only
+   things the act names is now kept. That exposed `_description` guessing what a world change is about by counting
+   terms (a room's PATH tied the file); it now takes it from `_changed_things`, as the frame does.
+   `tests/test_substrate_execution.py` and `tests/test_rule_induction.py` 46/46 (54 s); RULE-AUTHORITY-01 on its seed
+   7/7 with every figure as on 2026-10-01 (`20261027T131930Z`).
+2. **In the generator, the still world** holds every condition, as RULE-AUTHORITY-01's did. Drawn at random, it left
+   "the effect happens without the act" standing in 247 worlds the evaluator, taking the act as necessary, called
+   settled. Every other observation of every world is byte for byte what it was.
+3. **In the evaluator, two arms.** Settling a conjunction world against all three families counted rules no
+   conjunction can say as rivals (126 conjunction worlds called undecided that the conjunctions decide; Lyric held
+   the exact rule in 97). Conjunction worlds are now settled by the rules a conjunction can say; worlds whose rule no
+   conjunction can say, by every family, with C7 asked of them.
+
+Every run since 13:00 UTC is on `lyric_bench`, the benchmarks' own instance; lyric_dev is shared by every session.
+The findings below are the morning's, under the earlier generator and evaluator, kept as they were.
 
 ## C3, restated after the run
 
@@ -157,5 +174,6 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | Run | Worlds | Result |
 |---|---|---|
 | `20261027T013716Z` | 100 | 4/6, scored before the evaluator amendment |
-| `20261027T022228Z` | 10,000 | 3/6 as declared; **4/6** with C3 restated (`evaluation_c3_amended.json`), the figures above; on lyric_dev |
+| `20261027T022228Z` | 10,000 | 3/6 as declared; **4/6** with C3 restated (`evaluation_c3_amended.json`), the morning's figures; on lyric_dev |
 | `20261027T124318Z` | 10,000 | 4/6 on `lyric_bench`, the benchmark's own instance: every world's final rules, status after every act, rules refuted after validation and score identical to `20261027T022228Z`, so sharing lyric_dev did not change the result |
+| `20261027T132018Z` | 10,000 | **6/7** on `lyric_bench`, with the frame fix, the full still world and the two arms: the figures at the top |

@@ -706,6 +706,11 @@ class Lexicon:
         #: VerbNet restricts it to, "restricted" ("+animate", a living thing), and what PropBank says fills it,
         #: "described" ("art").
         self.sense_wants: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
+        #: WHICH SENSE OF A NOUN A SENTENCE MEANS (`thing_sense_of`): each noun's senses by the name its word is read
+        #: under (noun name -> sense -> how often used), and how much of what is said each sense and each of its kinds
+        #: cover (noun name -> sense -> the sense or kind -> SemCor's uses under it), from words recorded whole.
+        self.thing_used: Dict[str, Counter] = defaultdict(Counter)
+        self.thing_covers: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(dict)
         self._taking_pps: Optional[List[Cat]] = None
 
     def sense_of(self, name: str, fillers: Mapping[str, str]) -> str:
@@ -744,6 +749,33 @@ class Lexicon:
                     for c in senses:
                         score[c] += math.log((counts[c] + 0.5) / (every + 0.5 * len(senses)))
                     break
+        return max(senses, key=lambda c: (score[c], used[c]))
+
+    def thing_sense_of(self, name: str, around: Sequence[str]) -> str:
+        """THE SENSE OF A NOUN A SENTENCE MEANS, by the other things it names (`around`, each by its name): each sense
+        weighed by how often it is used, and, for each thing around it, by the information of the most specific kind
+        the sense shares with it (the sense itself, or a kind of it, that the thing is or is a kind of): how little of
+        what is said that kind covers, against the most any sense's kinds cover (Resnik 1995; lexical cohesion, Morris
+        and Hirst 1991). "a second coat of paint": paint is a coating, as the coat that is a layer is, and a coating
+        covers far less than the coverings a coat that is worn shares with it. The name the word is read under where
+        it has no senses apart, or nothing around it is of any kind its senses are."""
+        used = self.thing_used.get(name)
+        if not used or len(used) < 2:
+            return name
+        senses = list(used)
+        covers = {c: self.thing_covers.get(name, {}).get(c, {}) for c in senses}
+        everything = max((n for held in covers.values() for n in held.values()), default=0)
+        total = sum(used.values())
+        score = {c: math.log(used[c] / total) for c in senses}
+        for other in around:
+            if not other or other == name:
+                continue
+            levels = [other] + list(self.words.kinds(other, "NOUN"))
+            shared = {c: next((covers[c][level] for level in levels if level in covers[c]), everything)
+                      for c in senses}
+            if everything and any(n < everything for n in shared.values()):
+                for c in senses:
+                    score[c] += math.log(everything / shared[c])
         return max(senses, key=lambda c: (score[c], used[c]))
 
     # ── what each word may be ──
@@ -2768,7 +2800,11 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 # "the function sorted": what the named one is (`isa(sorted, function)`).
                 add("isa", x, p[2], at=p[-1])
             continue
-        add("instance_of", x, p[2], given_=x in given and isinstance(x, int), at=p[-1])
+        around = [q[2] for y, q in kinds.items() if y != x and y not in events and isinstance(q[2], str)]
+        meant = lexicon.thing_sense_of(p[2], around)
+        if meant != p[2]:
+            decided.append(("sense", p[2], "around", None))
+        add("instance_of", x, meant, given_=x in given and isinstance(x, int), at=p[-1])
     def numeric(t: Term) -> bool:
         """Whether a term is a number, or one of a kind of number."""
         kind = kinds[t][2] if t in kinds else t if isinstance(t, str) and t in kind_of.values() else None
@@ -3337,6 +3373,19 @@ class GrammarView:
             held[link] += times * n
             if held[link] <= 0:
                 del held[link]
+        # EACH NOUN SENSE, how often it is used and how much of what is said it and each of its kinds cover.
+        if any(s.word_class == "NOUN" for s in word.senses):
+            thing = words.name(word.word, "NOUN")
+            for sense in word.senses:
+                if sense.word_class != "NOUN":
+                    continue
+                lexicon.thing_used[thing][sense.concept] += times * (sense.used + 1)
+                if lexicon.thing_used[thing][sense.concept] <= 0:
+                    del lexicon.thing_used[thing][sense.concept]
+                    lexicon.thing_covers[thing].pop(sense.concept, None)
+                elif sense.covers:
+                    lexicon.thing_covers[thing][sense.concept] = dict(
+                        zip([sense.concept] + [kind for _, kind in sense.kind_of], sense.covers))
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")
