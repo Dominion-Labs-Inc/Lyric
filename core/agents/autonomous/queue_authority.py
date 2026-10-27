@@ -27,9 +27,13 @@ question, owned above.
 """
 
 import asyncio
+import contextvars
 import inspect
 import logging
+import os
+import re
 import time
+from pathlib import Path
 from enum import Enum
 from typing import Dict, Any, Optional, List, Tuple, Callable, Awaitable
 from datetime import datetime, timedelta
@@ -40,6 +44,45 @@ from .shared_types import (Task, TaskStatus, Priority, TaskSource, TaskType,
                            SUBSTRATE_ACTOR)
 
 logger = logging.getLogger(__name__)
+
+#: The work job running now, in the task that runs it and every task it starts (`QueueAuthority.execute`): whose work
+#: a tool is doing, so what its programs use and the files it keeps are that person's.
+_acting_job: "contextvars.ContextVar[Optional[QueuedTask]]" = contextvars.ContextVar("acting_job", default=None)
+#: Where each person's files are kept while Lyric works for them, one WORKSPACE each: what their compute storage is.
+WORKSPACES = Path(os.environ.get("LYRIC_WORKSPACES") or Path(__file__).resolve().parents[3] / "data" / "workspaces")
+
+
+def acting_for() -> Optional[str]:
+    """The person the work job running now is for; None for the substrate's own work, or none running."""
+    queued = _acting_job.get()
+    actor = getattr(getattr(queued, "task", None), "actor", None)
+    return None if actor in (None, SUBSTRATE_ACTOR) else actor
+
+
+def workspace_of(actor: str) -> Path:
+    """The person's workspace: where their files are kept while Lyric works for them (made when first used)."""
+    path = WORKSPACES / re.sub(r"[^A-Za-z0-9._-]", "_", actor)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def workspace_bytes(actor: str) -> int:
+    """How much the person's workspace holds, in bytes."""
+    total = 0
+    for folder, _, files in os.walk(WORKSPACES / re.sub(r"[^A-Za-z0-9._-]", "_", actor)):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(folder, name)).st_size
+            except OSError:
+                pass
+    return total
+
+
+def compute_used(seconds: float) -> None:
+    """CPU seconds the programs a tool ran used, for the work job running now: kept with it (`QueuedTask.computed`)."""
+    queued = _acting_job.get()
+    if queued is not None and seconds > 0:
+        queued.computed += seconds
 
 
 # A job's time budget, owned by the queue authority (see `timeout_for`). The
@@ -105,6 +148,8 @@ class QueuedTask:
     metadata: Dict[str, Any] = field(default_factory=dict)
     #: The seconds it was in flight before its last start (held for its person, or put back to be tried again).
     acted_before: float = 0.0
+    #: The CPU seconds the programs its tools ran used (`compute_used`).
+    computed: float = 0.0
 
     def acting_seconds(self) -> float:
         """How long it has been in flight, every stretch of it: what the person it is for used of their allowance."""
@@ -744,7 +789,8 @@ class QueueAuthority:
                 "result": queued.task.result, "error": queued.error_message,
                 "read": (queued.task.metadata or {}).get("read"),
                 "told_at": (queued.metadata or {}).get("told_at"),
-                "acting_seconds": round(queued.acting_seconds(), 3)}
+                "acting_seconds": round(queued.acting_seconds(), 3),
+                "compute_seconds": round(queued.computed, 3)}
 
     async def work_of(self, actor: str, *, limit: int = 10) -> List[Dict[str, Any]]:
         """The work `actor` asked for, newest first: each job's id, what was
@@ -1060,9 +1106,13 @@ class QueueAuthority:
         # slot, so `cancel` can stop it wherever it is.
         if not background and asyncio.current_task() is not None:
             self._running_jobs[job_id] = asyncio.current_task()
+        # WHOSE WORK IT IS, for the tools it runs (`acting_for`, `compute_used`).
+        acting = _acting_job.set(self.tasks_by_id.get(job_id)) if not background else None
         try:
             return await self._execute_held(job_id, func, args, kwargs, semaphore, job_timeout)
         finally:
+            if acting is not None:
+                _acting_job.reset(acting)
             if not background:
                 self._running_jobs.pop(job_id, None)
 

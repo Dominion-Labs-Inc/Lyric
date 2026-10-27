@@ -32,6 +32,18 @@ from .tool_registry import Primitive, PrimitiveUse, PrimitiveProfile
 logger = logging.getLogger(__name__)
 
 
+def _resolved(given) -> Path:
+    """A path a tool was given, made absolute. One relative to nothing, while Lyric works for a person, is in their
+    workspace (`workspace_of`), where their files are kept; otherwise where Lyric runs."""
+    path = Path(given).expanduser()
+    if not path.is_absolute():
+        from core.agents.autonomous.queue_authority import acting_for, workspace_of
+        actor = acting_for()
+        if actor:
+            path = workspace_of(actor) / path
+    return path.resolve()
+
+
 class SmartPathResolver:
     """Intelligent path resolution with auto-correction and helpful error messages"""
 
@@ -45,7 +57,7 @@ class SmartPathResolver:
             - path: Path object (if successful)
             - error_info: dict with details (if failed)
         """
-        path = Path(requested_path).expanduser().resolve()
+        path = _resolved(requested_path)
 
         # If path exists, validate type and permissions
         if path.exists():
@@ -243,7 +255,7 @@ class ReadFileTool(Tool):
     async def execute(self, file_path: str, start_line: Optional[int] = None, end_line: Optional[int] = None, tail_lines: Optional[int] = None) -> ToolResult:
         """Read file contents"""
         try:
-            path = Path(file_path).expanduser().resolve()
+            path = _resolved(file_path)
 
             if not path.exists():
                 return ToolResult(
@@ -428,7 +440,7 @@ class WriteFileTool(Tool):
     ) -> ToolResult:
         """Write to file"""
         try:
-            path = Path(file_path).expanduser().resolve()
+            path = _resolved(file_path)
 
             # Check parent directory exists or can be created
             if not path.parent.exists():
@@ -618,7 +630,7 @@ class PatchFileTool(Tool):
     async def execute(self, file_path: str, old_string: str, new_string: str) -> ToolResult:
         """Apply a targeted patch to a file."""
         try:
-            path = Path(file_path).expanduser().resolve()
+            path = _resolved(file_path)
             if not path.exists():
                 return ToolResult(
                     success=False,
@@ -859,7 +871,7 @@ class CreateDirectoryTool(Tool):
     async def execute(self, directory_path: str, parents: bool = True) -> ToolResult:
         """Create directory"""
         try:
-            path = Path(directory_path).expanduser().resolve()
+            path = _resolved(directory_path)
             
             if path.exists():
                 return ToolResult(
@@ -1066,8 +1078,8 @@ class MoveFileTool(Tool):
     ) -> ToolResult:
         """Move or rename file/directory"""
         try:
-            source = Path(source_path).expanduser().resolve()
-            destination = Path(destination_path).expanduser().resolve()
+            source = _resolved(source_path)
+            destination = _resolved(destination_path)
 
             if not source.exists():
                 return ToolResult(
@@ -1180,8 +1192,8 @@ class CopyFileTool(Tool):
     ) -> ToolResult:
         """Copy file or directory"""
         try:
-            source = Path(source_path).expanduser().resolve()
-            destination = Path(destination_path).expanduser().resolve()
+            source = _resolved(source_path)
+            destination = _resolved(destination_path)
 
             if not source.exists():
                 return ToolResult(
@@ -1306,7 +1318,7 @@ class DeleteFileTool(Tool):
                     error="Deletion not confirmed. Set 'confirm' parameter to true to proceed."
                 )
 
-            target = Path(path).expanduser().resolve()
+            target = _resolved(path)
 
             if not target.exists():
                 return ToolResult(
@@ -1433,7 +1445,7 @@ class AtomicWriteFileTool(Tool):
         import tempfile
 
         try:
-            path = Path(file_path).expanduser().resolve()
+            path = _resolved(file_path)
 
             # Create parent directories if needed
             if create_dirs and not path.parent.exists():
@@ -1751,7 +1763,7 @@ class CalculateChecksumTool(Tool):
     ) -> ToolResult:
         """Calculate file checksum"""
         try:
-            path = Path(file_path).expanduser().resolve()
+            path = _resolved(file_path)
 
             if not path.exists():
                 return ToolResult(
@@ -1850,7 +1862,7 @@ class GetFileInfoTool(Tool):
         try:
             from datetime import datetime
 
-            p = Path(file_path).expanduser().resolve()
+            p = _resolved(file_path)
 
             if not p.exists():
                 return ToolResult(
@@ -1948,8 +1960,8 @@ class CompressFileTool(Tool):
     async def execute(self, source_path: str, archive_path: str, format: str = "zip") -> ToolResult:
         """Create compressed archive"""
         try:
-            src = Path(source_path).expanduser().resolve()
-            archive = Path(archive_path).expanduser().resolve()
+            src = _resolved(source_path)
+            archive = _resolved(archive_path)
 
             if not src.exists():
                 return ToolResult(
@@ -2036,8 +2048,8 @@ class DecompressFileTool(Tool):
     async def execute(self, archive_path: str, destination_path: str) -> ToolResult:
         """Extract compressed archive"""
         try:
-            archive = Path(archive_path).expanduser().resolve()
-            dest = Path(destination_path).expanduser().resolve()
+            archive = _resolved(archive_path)
+            dest = _resolved(destination_path)
 
             if not archive.exists():
                 return ToolResult(
@@ -2135,7 +2147,7 @@ class FindDuplicateFilesTool(Tool):
     async def execute(self, directory_path: str, recursive: bool = True) -> ToolResult:
         """Find duplicate files"""
         try:
-            dir_path = Path(directory_path).expanduser().resolve()
+            dir_path = _resolved(directory_path)
 
             if not dir_path.exists() or not dir_path.is_dir():
                 return ToolResult(
@@ -2242,8 +2254,8 @@ class SyncDirectoryTool(Tool):
         try:
             from datetime import datetime
 
-            src = Path(source_path).expanduser().resolve()
-            dst = Path(destination_path).expanduser().resolve()
+            src = _resolved(source_path)
+            dst = _resolved(destination_path)
 
             if not src.exists() or not src.is_dir():
                 return ToolResult(

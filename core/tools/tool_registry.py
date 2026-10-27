@@ -1243,7 +1243,16 @@ class ToolRegistry:
 
         # Execute tool
         try:
-            result = await tool.execute(**parameters)
+            # WHAT ITS PROGRAMS USE is the compute of whoever the work is for (`compute_used`): the CPU the programs it
+            # ran used, as the system counts them once they end.
+            import resource
+            from core.agents.autonomous.queue_authority import compute_used
+            _before = resource.getrusage(resource.RUSAGE_CHILDREN)
+            try:
+                result = await tool.execute(**parameters)
+            finally:
+                _after = resource.getrusage(resource.RUSAGE_CHILDREN)
+                compute_used((_after.ru_utime - _before.ru_utime) + (_after.ru_stime - _before.ru_stime))
             # A RESULT CAN CARRY A KEY BACK: an environment dump, a file of keys,
             # a service echoing its credential. It is cleaned here, before
             # anything records it, says it or remembers it

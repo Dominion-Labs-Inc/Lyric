@@ -50,10 +50,13 @@ def _working_path(working_directory: str) -> Path:
 def resolve_working_directory(working_directory: Optional[str]) -> Optional[Path]:
     """
     Resolve working directory path, handling special cases.
-    Maps /data to Lyric's actual data directory.
+    Maps /data to Lyric's actual data directory. None given: while Lyric works for a person, their workspace
+    (`workspace_of`), where their files are kept; otherwise None.
     """
     if not working_directory:
-        return None
+        from core.agents.autonomous.queue_authority import acting_for, workspace_of
+        actor = acting_for()
+        return workspace_of(actor).resolve() if actor else None
 
     path = _working_path(working_directory)
 

@@ -13,8 +13,9 @@ person who sent it, which is the actor everything of theirs is kept under.
 
 ITS PEOPLE'S ALLOWANCES. Attached with a running Lyric, the queue takes on work for a person only while the
 allowance the world keeps for their seat lets it (`Allowance`: their month's action minutes, the tasks it runs for
-them a day and at once), answers work refused with why, and keeps in their usage each task it took on and how long
-each job was in flight.
+them a day and at once), answers work refused with why, and keeps in their usage each task it took on, how long each
+job was in flight, the CPU its programs used, and how much their workspace holds (where their files are kept while
+Lyric works for them).
 
 The world's address and the inhabitant's key come from the environment (TET_WORLD_ADDRESS,
 TET_OPERATOR_PRIVATE_KEY). Neither has a default: without them Lyric is not attached to a world, and
@@ -109,6 +110,14 @@ class Allowance:
     def acted(self, actor: str, seconds: float, task_id: str) -> None:
         """The seconds a job for its person was in flight: kept in their usage."""
         self._ask(lambda link: link.used(actor, "action", seconds, {"task": task_id}))
+
+    def computed(self, actor: str, seconds: float, task_id: str) -> None:
+        """The CPU seconds the programs a job for its person ran used: kept in their usage."""
+        self._ask(lambda link: link.used(actor, "compute", seconds, {"task": task_id}))
+
+    def holds(self, actor: str, size: int) -> None:
+        """How much the person's workspace holds now, in bytes: kept in their usage as their compute storage."""
+        self._ask(lambda link: link.used(actor, "core", size))
 
     def close_link(self) -> None:
         if self._link is not None:
@@ -257,16 +266,23 @@ class WorldInhabitant:
         return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
 
     async def _work_ended(self, job: Dict[str, Any], task) -> None:
-        """A job for a person ended: the seconds it was in flight are kept in their usage."""
+        """A job for a person ended: what it used is kept in their usage. The seconds it was in flight, the CPU seconds
+        its programs used, and how much their workspace holds now."""
         allowance, actor = self._allowance, getattr(task, "actor", None)
-        seconds = float(job.get("acting_seconds") or 0)
-        if allowance is None or not actor or seconds <= 0:
+        if allowance is None or not actor:
             return
+        from core.agents.autonomous.queue_authority import workspace_bytes
         from core.agents.autonomous.shared_types import is_substrate_actor
         if is_substrate_actor(actor):
             return
+        acted, computed = float(job.get("acting_seconds") or 0), float(job.get("compute_seconds") or 0)
+        loop = asyncio.get_running_loop()
         try:
-            await asyncio.get_running_loop().run_in_executor(None, allowance.acted, actor, seconds, str(task.id))
+            if acted > 0:
+                await loop.run_in_executor(None, allowance.acted, actor, acted, str(task.id))
+            if computed > 0:
+                await loop.run_in_executor(None, allowance.computed, actor, computed, str(task.id))
+            await loop.run_in_executor(None, allowance.holds, actor, workspace_bytes(actor))
         except Exception as error:
             logger.error("what %s used could not be kept in their usage: %s", actor, error)
 
