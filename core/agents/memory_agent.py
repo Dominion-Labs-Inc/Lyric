@@ -7310,6 +7310,22 @@ class MemoryAgent(IMemoryConsolidation):
                     best = s
         return best.concept if best is not None else None
 
+    def says_a_kind(self, term: str) -> bool:
+        """Whether a term can say what kind of thing something is: its last word used most as a noun or a name, as the
+        treebanks use it (the grammar's words, `HeldWords.uses`); where nothing is held of how it is used, it may.
+        "into", a preposition 196 times in 201 and a noun twice, says no kind: research held "balancer" a kind of
+        "into" (lyric_dev, 2026-10-21)."""
+        view = self._grammar_view
+        words = str(term).replace("_", " ").split()
+        if view is None or not words:
+            return True
+        by_class: Counter = Counter()
+        for use, n in view.grammar.lexicon.words.uses(words[-1]).items():
+            by_class[use.split(":")[0]] += n
+        if sum(by_class.values()) <= 0:
+            return True
+        return by_class.most_common(1)[0][0] in ("NOUN", "NAME")
+
     def recorded_name(self, word: str, word_class: str) -> Optional[str]:
         """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None
         where none does. Asked before any other name (`name_of`, the grammar's `HeldWords._name`)."""

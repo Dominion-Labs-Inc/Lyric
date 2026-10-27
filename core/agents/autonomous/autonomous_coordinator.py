@@ -23465,7 +23465,9 @@ class Conversation:
             words = str(fact.obj).split()
             klass = next((" ".join(words[i:]) for i in range(len(words))
                           if admissible(normalize_term(" ".join(words[i:])))[0]), None)
-            if not klass:
+            # A KIND IS SAID WITH A NOUN OR A NAME (`MemoryAgent.says_a_kind`): a reading that made "balancer" a kind of
+            # "into" was held as what a balancer is (lyric_dev, 2026-10-21).
+            if not klass or not memory_agent().says_a_kind(klass):
                 continue
             source = hit.get("url") or "research"
             description = lead.strip()[:400] or content[:400]

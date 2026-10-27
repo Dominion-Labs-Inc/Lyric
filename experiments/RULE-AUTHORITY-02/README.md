@@ -58,6 +58,19 @@ share no code with Lyric, and where the hidden rule is one Lyric cannot express 
 Tests 46/46; RULE-AUTHORITY-01 on its seed 7/7 with every figure as on 2026-10-01 (`20261027T141452Z`). The noisy arm
 (`--noise`, below) measures the first change.
 
+**The noisy arm (`--noise`, run `20261027T142533Z`, 10,000 worlds, 1,544 s): 2 of 7.** The same worlds' rules, with
+outcomes as `warehouse_stochastic.NOISY_PARTIAL` (EDU-10): where the rule holds the act works 90% of the time, where
+it does not 2% of the time (a leak), and 10% of outcomes cannot be read (15,123, recorded as nothing); 8 to 16
+successes a world. Scored on what the situations shown would settle were the world reliable. Lyric learns through
+the noise: 1,522 of 2,455 settled conjunction worlds end with exactly the hidden rule, where one failure of a right
+act used to refute it. It is not yet safe: 73 settled conjunction worlds hold a rule acting where the world refuses
+(67 of them were shown a leak, a success the rule does not allow, which widens the rule until the misses it no
+longer excludes look like noise), 81 hold another rule, 242 rules are contradicted by an observation the noise did
+not turn (210 in worlds shown no leak, not yet traced), 7 undecided conjunction worlds hold a rule, and 88 settled
+worlds whose rule no conjunction can say act where the world refuses. Departures answer the world failing a right
+act; nothing yet answers the world letting a wrong one through, which `ProbabilisticVersionSpace` models with its
+leak rate.
+
 **Fixed on 2026-10-27, afternoon.**
 
 1. **In Lyric, the learning frame** (`_bears_on`, `unified_learning_system.py`). When an act transforms one argument,
@@ -192,3 +205,4 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | `20261027T124318Z` | 10,000 | 4/6 on `lyric_bench`, the benchmark's own instance: every world's final rules, status after every act, rules refuted after validation and score identical to `20261027T022228Z`, so sharing lyric_dev did not change the result |
 | `20261027T132018Z` | 10,000 | 6/7 on `lyric_bench`, with the frame fix, the full still world and the two arms; C7 failed in 8 worlds |
 | `20261027T141542Z` | 10,000 | **7/7** on `lyric_bench`, with Lyric's departures and absent-condition gate: the figures at the top |
+| `20261027T142533Z` | 10,000, `--noise` | 2/7: learns through the noise, not yet safe under leaks (above) |
