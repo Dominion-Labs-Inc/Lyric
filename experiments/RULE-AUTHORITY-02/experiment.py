@@ -21,8 +21,11 @@ Here three parts keep apart:
 The checks are the evaluator's (see its docstring); the learner's own bookkeeping (rules refuted after validation)
 is recorded beside them as reported by Lyric, never as a check.
 
-Run (sandbox only):
-  POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-02/experiment.py --worlds 10000 --seed 20261026
+Run on the benchmark's own instance, `lyric_bench` (lyric_dev's schema, no data; nothing else uses it):
+  POSTGRES_DATABASE=lyric_bench ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-02/experiment.py --worlds 10000 --seed 20261026
+
+NOT lyric_dev. Every session working on Lyric shares lyric_dev, and what one runs there (a reset, a sweep, a drain
+of the whole store's pending learning) acts on another's data mid-run.
 """
 import argparse
 import asyncio
@@ -35,7 +38,7 @@ import time
 import uuid
 from pathlib import Path
 
-os.environ.setdefault("POSTGRES_DATABASE", "lyric_dev")
+os.environ.setdefault("POSTGRES_DATABASE", "lyric_bench")
 os.environ.setdefault("LYRIC_NO_WATCHDOG", "1")
 
 HERE = Path(__file__).resolve().parent
@@ -108,7 +111,7 @@ async def main() -> int:
     db = get_database_manager()
     if not getattr(db, "initialized", False):
         await db.initialize()
-    await db.assert_database_identity("lyric_dev")
+    await db.assert_database_identity("lyric_bench")
     await EV.verify_database()
     store, demos, la = get_rule_store(), get_demonstration_store(), get_learning_authority()
     await store.ensure_schema()

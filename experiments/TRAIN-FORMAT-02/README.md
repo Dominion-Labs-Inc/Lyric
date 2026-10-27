@@ -165,3 +165,19 @@ treebank: the noun's plural "paints".
   answer is said by its kind's name ("Structure."), and "What is a wall?" is answered by a sentence written by hand in
   `_meanings_said` ("A wall is a partition: ..."), not by what Lyric was taught to say; and each record taught is a
   belief in the `english` belief domain (`_learn_held`, as every kind of language held whole is), which nothing reads.
+- **2026-10-27: language makes no belief, and the meaning answer written by hand is gone** (the owner's yes to both).
+  Every language item held whole had been a belief in the `english` belief domain, made by the learning authority
+  (`_learn_held`, `learn_structure`) and read by nothing; each correction left one more (22 on lyric_dev2 for 8 items,
+  8 for "paint"). Now none is made: memory holds the item, the knowledge ledger records it taught, in no domain; the 22
+  on lyric_dev2 let go. "What is a wall?" had been answered by a sentence written in the code (`_meanings_said`: "A wall
+  is a partition: ..."); traced, reasoning was handed the premises ("wall isa partition", ...) and answered nothing, as
+  it answers only what it derives and a kind held is no derivation. Now the question's reading answers it from what the
+  words hold (`_meanings_held`): a thing asked to be what a kind is, by the nearest kind (`equals(?a, ?b) &
+  instance_of(?a, wall) ? ?b`: `wall isa partition`), a word asked what it means, by what each sense it is used in
+  means; each answer said as any held relation is, by what Lyric was taught to say it with, else by its name.
+- **Measured** (`results/20261027T122740Z`, `20261027T122745Z`): checks **55 of 56** (the one failing as before, sense in
+  context); front door **21 of 21, none wrong**: "What is a wall?" "Partition.", "What is paint?" "Coating.", "What is a
+  picture?" "Representation.", "What does paint mean?" each sense used by its definition, a line each. Taught again
+  through `teach.py`: beliefs 2 -> 2, none in `english`. TRAIN-FORMAT-01 every check, 5 of 5. **Not right yet:** nothing
+  taught on lyric_dev2 says "X is a Y" or "X means Y", so these answers are said by name; what "mean" asks is read by
+  its concept (`instance_of(?e, mean)`, the word "mean" itself not taught).

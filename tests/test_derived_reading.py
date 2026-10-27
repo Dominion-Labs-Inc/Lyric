@@ -43,6 +43,15 @@ ROBIN_Q = Meaning("ask", (F("isa", "robin", "bird"),))
 NOT_MAMMAL = Meaning("tell", (F("isa", "robin", "mammal", positive=False),))
 
 
+@pytest.fixture(autouse=True)
+def no_memory_up(monkeypatch):
+    """These read with the views they are handed, as a process with no memory up reads. Memory left up by a test run
+    before them (the conversation's, opened on lyric_dev) lent the reader that store's grammar too: "Blah blah." read,
+    and seven of these failed after the conversation's tests and passed alone."""
+    from core.agents import memory_agent
+    monkeypatch.setattr(memory_agent, "_memory_agent", None)
+
+
 # ------------------------------------------------------------------ pieces
 
 @pytest.mark.parametrize("text,pieces", [

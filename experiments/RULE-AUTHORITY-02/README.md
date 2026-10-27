@@ -135,10 +135,12 @@ world; transfer to a real system needs an arm whose outcomes a real system decid
 
 ## Run
 
-Sandbox only:
+On the benchmark's own instance, `lyric_bench` (created 2026-10-27 with `createdb` and lyric_dev's schema only, no
+data; nothing else uses it). Never lyric_dev: every session working on Lyric shares it, and the runs before
+2026-10-27 13:00 UTC were made there.
 
 ```
-POSTGRES_DATABASE=lyric_dev ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-02/experiment.py --worlds 10000 --seed 20261026
+POSTGRES_DATABASE=lyric_bench ./venv_lyric/bin/python3 experiments/RULE-AUTHORITY-02/experiment.py --worlds 10000 --seed 20261026
 ```
 
 Each run writes `results/<UTC>.json` and `.md` and a `results/<UTC>_run/` folder: `manifest.json`, `answers.jsonl`
@@ -155,4 +157,5 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | Run | Worlds | Result |
 |---|---|---|
 | `20261027T013716Z` | 100 | 4/6, scored before the evaluator amendment |
-| `20261027T022228Z` | 10,000 | 3/6 as declared; **4/6** with C3 restated (`evaluation_c3_amended.json`), the figures above |
+| `20261027T022228Z` | 10,000 | 3/6 as declared; **4/6** with C3 restated (`evaluation_c3_amended.json`), the figures above; on lyric_dev |
+| `20261027T124318Z` | 10,000 | 4/6 on `lyric_bench`, the benchmark's own instance: every world's final rules, status after every act, rules refuted after validation and score identical to `20261027T022228Z`, so sharing lyric_dev did not change the result |

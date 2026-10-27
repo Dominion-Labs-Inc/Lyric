@@ -16,6 +16,50 @@ Conventions:
 
 ---
 
+## 2026-10-27 (59) — Language makes no belief and no domain; the meaning answer written by hand removed (TRAIN-FORMAT-02)
+
+**Objective** (the owner's yes to both: stop language making beliefs, "and do something about that workaround you
+added"). Language is how to read, not knowledge of the world: nothing taught of it should be a belief or sit in a
+domain; and no answer should be a sentence written in the code.
+
+**Found, read from the code and the stores (read only on main):**
+- The learning authority made a belief in the `english` domain for every language item held whole (`_learn_held`:
+  word records, sentence records, derivations, argument annotations, word forms, word groups, taught sentences;
+  `learn_structure`: sentences analysed) and wrote its ledger record under that domain. Every reader of beliefs was
+  checked: the construction inventory's scores (`_held_score`), the listener's worths, `withdraw_pairs`, the neural
+  bridge (`"X isa Y"` claims), releases (beliefs by memory); none reads these. Each correction made one more: 22
+  beliefs on lyric_dev2 for 8 items, 8 for "paint".
+- Main holds 1,237,911 `english` beliefs; 46,343 of one language item (sentences analysed 12,417, derivations 8,679,
+  argument annotations 10,495, word forms 3,703, taught sentences 11,049). The other ~1.19 million are the scores of
+  constructions, links and the listener's evidence, which reading does weigh, and the `english` domain's maturity
+  counts the constructions: language is still in beliefs and a domain there, and read. Not changed.
+- "What is a wall?" reads `equals(?v0, ?v1) & instance_of(?v0, wall) ? ?v1`. Traced (`scratch dev2_open2.py`): the
+  reasoning owner was handed the word's premises (`wall_partition`, `wall_structure`, ...) and answered nothing, as it
+  answers only what it derives (`_reason_by_kind` keeps conclusions derived), and a kind held is no derivation: it is
+  what is held, found as `asked` finds a held relation. `_meanings_said` had answered instead with English written in
+  the code ("A wall is a partition: ...", "Paint can mean: ...").
+
+**Built:** `_learn_held` and `learn_structure` make no belief; the ledger records each item taught, with its source and
+no domain. `_meanings_held` replaces `_meanings_said`: a thing asked to be what a kind is, and nothing more, is answered
+by the nearest kind its sense holds (`wall isa partition`); a word asked what it means, by what each sense it is used in
+means; each an `Answer` said through the one reply path (what Lyric was taught to say it with, else its name). On
+lyric_dev2 the 22 beliefs of one item each were let go through the uncertainty system (`let_go`). Two tests.
+
+**Errors found, with their causes:** another session's commit (`66bd0651`, "the working tree's other changes land with
+it") took this work in mid-session, as `c899edac` did the last; a comparison against `HEAD` would have compared the new
+code with itself, so the code before is `65718515`.
+
+**Verified:** TRAIN-FORMAT-02 checks 55 of 56 (the failing one as before, sense in context); front door **21 of 21, none
+wrong**: "Partition.", "Coating.", "Representation.", and "What does paint mean?" each sense used by its definition, a
+line each. The records taught again through `teach.py`: beliefs 2 -> 2, none in `english`. TRAIN-FORMAT-01 every check,
+5 of 5. Tests: TESTS_LINE
+
+**Not right yet, said so:** on lyric_dev2 nothing taught says "X is a Y" or "X means Y", so these answers are said by
+name. What "mean" asks is read by its concept (`instance_of(?e, mean)`); the word "mean" is not taught. Main's 46,343
+beliefs of one item each are still held: letting them go writes the live store and waits for the owner's yes.
+
+---
+
 ## 2026-10-26 (58) — Reasoning over what the words mean: the reasoning owner was handed nothing; memory now hands it the words' kinds (TRAIN-FORMAT-02)
 
 **Objective** (the owner: "that one record means nothing if the reasoning is not working, which is part of the
