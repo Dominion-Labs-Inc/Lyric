@@ -45,11 +45,14 @@ NOT_MAMMAL = Meaning("tell", (F("isa", "robin", "mammal", positive=False),))
 
 @pytest.fixture(autouse=True)
 def no_memory_up(monkeypatch):
-    """These read with the views they are handed, as a process with no memory up reads. Memory left up by a test run
-    before them (the conversation's, opened on lyric_dev) lent the reader that store's grammar too: "Blah blah." read,
-    and seven of these failed after the conversation's tests and passed alone."""
+    """These read with the views they are handed, as a process with no memory up reads, and score what they read as
+    one with no beliefs held does. Memory and beliefs left up by the tests run before them (the conversation's, opened
+    on lyric_dev) lent the reader that store's grammar ("Blah blah." read) and its beliefs' scores ("A robin is a
+    bird." not read): seven of these failed after the conversation's tests and passed alone."""
     from core.agents import memory_agent
+    from core.reasoning import bayesian_uncertainty
     monkeypatch.setattr(memory_agent, "_memory_agent", None)
+    monkeypatch.setattr(bayesian_uncertainty, "_uncertainty_system", None)
 
 
 # ------------------------------------------------------------------ pieces

@@ -884,11 +884,11 @@ async def test_a_telling_read_by_composing_is_not_taken_in_whole(talk, monkeypat
     async def agent():
         return None
 
-    async def telling(*_, **__):
+    async def told(*_, **__):
         return None, []
 
     monkeypatch.setattr(talk, "_listen", nothing)
-    monkeypatch.setattr(talk, "_telling", telling)
+    monkeypatch.setattr(talk, "_told", told)
     monkeypatch.setattr(core.memory, "get_memory_agent", agent)
     for composed, sentence in ((False, "Chlorophyll is green."), (True, "Chlorophyll is the green pigment.")):
         utterance = Utterance(form_of(sentence), (Reading((), (), meaning, composed=composed),))

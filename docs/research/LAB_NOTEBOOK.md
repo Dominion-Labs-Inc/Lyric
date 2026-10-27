@@ -48,11 +48,20 @@ lyric_dev2 the 22 beliefs of one item each were let go through the uncertainty s
 **Errors found, with their causes:** another session's commit (`66bd0651`, "the working tree's other changes land with
 it") took this work in mid-session, as `c899edac` did the last; a comparison against `HEAD` would have compared the new
 code with itself, so the code before is `65718515`.
+- Tests that fail only after others (found checking this work; the code before it, `65718515`, fails the same 9): the
+  conversation's tests leave memory and beliefs up on lyric_dev, and the reader then read seven derived reading tests
+  with that store's grammar ("Blah blah." read) and its beliefs' scores ("A robin is a bird." not read). Those tests
+  now run as written, with neither up. One conversation test's stand-in replaced `_telling`, which teaching no longer
+  calls (`_told_each`, `_told`), so it reached memory it had set to none: it stands in for `_told` now.
+- Not fixed, found: "what is a load balancer" counts "load" and "balancer" known on lyric_dev, each a concept a look-up
+  stored with a web page's words as what it is ("These are words often used in combination with load.", today; a DeFi
+  article for "balancer"). The look-up admits a page's boilerplate as a description; a fault of research, not of the
+  test.
 
 **Verified:** TRAIN-FORMAT-02 checks 55 of 56 (the failing one as before, sense in context); front door **21 of 21, none
 wrong**: "Partition.", "Coating.", "Representation.", and "What does paint mean?" each sense used by its definition, a
 line each. The records taught again through `teach.py`: beliefs 2 -> 2, none in `english`. TRAIN-FORMAT-01 every check,
-5 of 5. Tests: TESTS_LINE
+5 of 5. Tests: sentence records 17 (2 new); derived reading, sentence records and lesson terms 142 passed; conversation 36 of 37; conversation then derived reading together 158 of 160 before the stand-in below was fixed, 9 failing before this session's work.
 
 **Not right yet, said so:** on lyric_dev2 nothing taught says "X is a Y" or "X means Y", so these answers are said by
 name. What "mean" asks is read by its concept (`instance_of(?e, mean)`); the word "mean" is not taught. Main's 46,343
