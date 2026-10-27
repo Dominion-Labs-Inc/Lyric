@@ -278,3 +278,89 @@ def test_what_a_thing_is_and_what_a_word_means_are_answers_held_not_sentences_wr
     wanting = Meaning("ask", (F("done_by", "?e", "coating paint"), F("done_to", "?e", "?v1"),
                               F("instance_of", "?e", "want")), ("?v1",))
     assert _meanings_held(u, wanting) == [], "a happening no sense of the word \"mean\" names asks no meaning"
+
+
+def test_a_nouns_sense_is_the_one_the_things_around_it_bear_on():
+    """Which sense of a noun a sentence means: each weighed by how often it is used and by how specific a kind it
+    shares with each other thing the sentence names (`Lexicon.thing_sense_of`, from what each sense and kind covers of
+    what SemCor tagged). "a second coat of paint": paint is a coating, as the coat that is a layer is."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.word_forms import HeldForms
+    coat = WordRecord("coat", (WordForm("coat", "NOUN", "Number=Sing"),), (
+        WordSense("coat.n.01", "NOUN", "coat", "an outer garment", (("garment.n.01", "garment"),
+                                                                    ("covering.n.02", "artifact covering")), 29,
+                  covers=(108, 419, 1675)),
+        WordSense("coating.n.01", "NOUN", "coating", "a thin layer covering something",
+                  (("covering.n.02", "artifact covering"),), 1, covers=(76, 1675))))
+    agent, forms = MemoryAgent(), HeldForms()
+    agent._learn_word_record(coat, {}, forms)
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
+    view.hold_word(coat)
+    lexicon = view.grammar.lexicon
+    lexicon.words.kinds = lambda name, cls: {"coating paint": ["coating", "artifact covering"]}.get(name, [])
+    assert lexicon.thing_sense_of("coat", []) == "coat", "alone, the sense most used"
+    assert lexicon.thing_sense_of("coat", ["coating paint"]) == "coating", "beside paint, the coating"
+    assert lexicon.thing_sense_of("coat", ["roy"]) == "coat", "beside a thing of no kind held, the sense most used"
+    view.drop_word(coat)
+    assert not lexicon.thing_used.get("coat")
+
+
+def test_what_a_preposition_says_joining_things_is_held_by_what_it_takes():
+    """What "of" says joining a thing to a thing, as STREUSLE's annotators said each use, by what it took
+    (`WordRecord.joins_things`): the grammar holds each link said of the word (`prep`) and of each kind of what it
+    took (`prep_to`), a time's apart."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord
+    from core.semantics.grammar_words import HeldWords
+    of = WordRecord("of", (WordForm("of", "PREPOSITION", "", 10),), (), used_as=(("of", "PREPOSITION:thing", 10),),
+                    joins_things=(("made_of", ("cheese", "food"), 2), ("word_of", (), 5),
+                                  ("part_of", ("year", "time period"), 1)))
+    assert not of.problems(), of.problems()
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view.hold_word(of)
+    learned = view.grammar.lexicon.learned
+    assert learned["prep"][("of", "thing", "-")] == {"word_of": 5, "made_of": 2}
+    assert learned["prep"][("of", "thing", "point")] == {"part_of": 1}, "a year is a point in time"
+    assert learned["prep_to"][("of", "thing", "food")] == {"made_of": 2}
+    view.drop_word(of)
+    assert not learned["prep"][("of", "thing", "-")]
+
+
+def test_a_verb_of_several_words_is_read_as_one_where_the_clause_ends_after_it():
+    """A word of several words recorded whole ("make it"): how often SemCor's annotators said its words as it, and
+    apart, where the clause ends after them and where it goes on (`WordRecord.together`). Held, a verb and the word
+    after it are said together as often as that, by where the clause ends (`said_together`)."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.word_forms import HeldForms
+    make_it = WordRecord("make it", (WordForm("make it", "VERB", "VerbForm=Inf", 6),
+                                     WordForm("made it", "VERB", "Tense=Past|VerbForm=Fin", 2)),
+                         (WordSense("survive.v.02", "VERB", "overcome survive", "continue in existence", (), 7, (),
+                                    ("intransitive",)),),
+                         together=(10, 91, 5, 3))
+    assert not make_it.problems(), make_it.problems()
+    assert WordRecord("make it", make_it.forms, make_it.senses, together=(10, 91)).problems(), "four counts, or none"
+    agent, forms = MemoryAgent(), HeldForms()
+    agent._learn_word_record(make_it, {}, forms)
+    words = HeldWords((), gm.closed_uses(), agent.name_of, forms=forms)
+    view = gm.GrammarView(words)
+    view.hold_word(make_it)
+    assert words.said_together("make", "it") == (10.0, 91.0)
+    assert words.said_together("make", "it", ends=True) == (5.0, 3.0)
+    assert words.said_together("make", "it", ends=False) == (5.0, 88.0)
+
+
+def test_research_takes_no_kind_from_a_word_that_names_none():
+    """A kind is said with a noun or a name, as the treebanks use its last word (`MemoryAgent.says_a_kind`): research
+    held "balancer" a kind of "into", a preposition 196 times in 201."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.semantics.grammar_words import HeldWords
+    agent = MemoryAgent()
+    words = HeldWords((), gm.closed_uses(), agent.name_of)
+    words.uses = lambda w: {"into": {"PREPOSITION": 196.0, "NOUN": 2.0}, "mammal": {"NOUN": 40.0}}.get(w, {})
+    agent._grammar_view = gm.GrammarView(words)
+    assert not agent.says_a_kind("into")
+    assert agent.says_a_kind("domestic mammal") and agent.says_a_kind("zorp"), "nothing held of it: it may"

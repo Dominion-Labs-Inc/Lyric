@@ -16,6 +16,57 @@ Conventions:
 
 ---
 
+## 2026-10-27 (60) — What was not right, worked through: a noun's sense by the things around it, "of" taught, verbs of several words, "mean" a word, research that took a preposition for a kind (TRAIN-FORMAT-02)
+
+**Objective** (the owner: "fix what's not right yet ... stop calling done"). Every fault (59) listed, worked, each in
+general.
+
+**Found and built:**
+- *A noun's sense was always its most used.* Now weighed as a verb's is, by what is around it
+  (`Lexicon.thing_sense_of`): each sense by its use and, for each other thing the sentence names, by how specific a
+  kind they share, specificity from how much of SemCor's tagged uses the kind covers (`WordSense.covers`, every noun
+  sense and kind counted over WordNet; Resnik 1995, Morris and Hirst 1991). SemCor's one use of the layer sense of
+  "coat" is "arteriolar muscular coats", so no sentence seen could have decided "a coat of paint"; the kinds do:
+  paint shares `coating` (76) with the layer, `artifact covering` (1,675) with the garment. "The coat is paint." reads
+  a `coating`; "Roy painted the coat." the garment.
+- *"a second coat of paint" was not read at all*, which I had described as read in the wrong sense: "of" was not
+  taught. Taught as a word, with what a preposition says joining a thing to a thing as STREUSLE 4.6's annotators said
+  each use in EWT text (`WordRecord.joins_things`, `_streusle_joins`, `_SNACS_LINKS`; the noun taken read as the WordNet
+  sense of its annotated supersense): "of" 380 uses, 278 saying no link Lyric holds (`word_of`), `part_of` 45, `about`
+  25, `equals` 10, `made_of` 9. STREUSLE's Possession is not owning ("the delivery of their gift"): left out. Held by
+  the grammar as a taught meaning teaches it (`prep`, `prep_to`). "For" gained the layer too. The example now reads
+  `has_rank(?v0, 2) & instance_of(?v0, coating) & instance_of(?v1, coating paint) & word_of(?v0, ?v1)`.
+- *"We made it!" was `make` with "it" made.* SemCor's annotators tag "made it" as the verb `make it` (WordNet's
+  `make_it`, PropBank's `make_it.14`), never as a sense of `make`. A word of several words is now a word
+  (`word_record_of("make it")`): its forms as SemCor wrote it, and how often its words were said as it and apart,
+  where the clause ends after them and where it goes on (`WordRecord.together`: 5 of 8 as one where it ends, 5 of 93
+  where it goes on). The verb read alone costs as much as they are said apart there (`Lexicon._alone_cost`); a verb of
+  several words reads only in the frames it is held in. Taught first, "Roy made it clear." read "clear" as what Roy
+  made it: the frames rule ended that. "We made it!" reads `overcome survive`; "Roy made it clear." stays `make`.
+- *"mean" was a concept name in the code.* Taught as a word; a meaning asked is a happening the word "mean" names in
+  any sense memory holds (`_meanings_held`).
+- *"load balancer"*: research had held `balancer isa into`, `centrifugal isa a`, `load isa word`, `into isa substrate`
+  on lyric_dev (8 concepts, every one written by a test's look-up; main holds none). A kind is said with a noun or a
+  name: research takes no class whose last word the treebanks use most otherwise (`MemoryAgent.says_a_kind`; "into" a
+  preposition 196 times in 201). Re-reading what was kept with today's reader was no sound repair (it misreads "A dog
+  is a domestic mammal of the family Canidae." as the family being a mammal): the 8, and what was held on them,
+  removed from lyric_dev (`scratch remove_research_dev.py`, three links from documents to them freed to wait again,
+  `free_links`); the test, which looks up the web, then stored nothing.
+
+**Verified:** TRAIN-FORMAT-02, 10 words (paint, for, wall, picture, coat, make, representation, of, make it, mean):
+checks 63 of 64, front door **21 of 21, none wrong**; TRAIN-FORMAT-01 every check, 5 of 5; taught again each time,
+beliefs 2 -> 2. Tests 210 passed together (the conversation's 37 among them, "load balancer" passing), sentence records
+21 (4 new). GRAMMAR-01 unchanged: strict 199/911, senses aside 386/911 (every new path takes effect only with words
+recorded whole).
+
+**Not right yet, said so:** the check failing is two hand annotations disagreeing (WordNet files "We made it!" under
+`make`, reach a goal; SemCor's annotators tag it the verb `make it`). Of the 125 examples of the words taught, 101 read
+and 9 with the word in its sense: most hold words not yet taught, and a word with nothing known around it takes its
+most used sense. Saying "X is a Y" on lyric_dev waits on the owner: Lyric speaks only from taught constructions
+(`derived_reader.say`), which the records do not teach, and the two ways there are each a large change.
+
+---
+
 ## 2026-10-27 (59) — Language makes no belief and no domain; the meaning answer written by hand removed (TRAIN-FORMAT-02)
 
 **Objective** (the owner's yes to both: stop language making beliefs, "and do something about that workaround you

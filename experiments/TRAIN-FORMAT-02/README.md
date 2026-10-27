@@ -181,3 +181,22 @@ treebank: the noun's plural "paints".
   through `teach.py`: beliefs 2 -> 2, none in `english`. TRAIN-FORMAT-01 every check, 5 of 5. **Not right yet:** nothing
   taught on lyric_dev2 says "X is a Y" or "X means Y", so these answers are said by name; what "mean" asks is read by
   its concept (`instance_of(?e, mean)`, the word "mean" itself not taught).
+- **2026-10-27, later: what was not right, worked through.** A noun's sense is chosen by the things around it
+  (`Lexicon.thing_sense_of`): each sense weighed by its use and by how specific a kind it shares with each other thing
+  the sentence names, specificity read from how much of SemCor's tagged uses the kind covers (`WordSense.covers`;
+  Resnik 1995): "The coat is paint." reads the coat a `coating`, "Roy painted the coat." the garment. "a second coat
+  of paint" did not read at all: "of" was not taught. Taught as a word (`word_record_of("of")`), with what it says
+  joining a thing to a thing as STREUSLE 4.6's annotators said each use in EWT text (`joins_things`, `_SNACS_LINKS`:
+  of 380 uses, 278 no link Lyric holds, `word_of`; `part_of` 45, `about` 25, ...), so it reads, the coat a coating.
+  "For" gained the same layer. A verb of several words is a word (`word_record_of("make it")`): its forms and how often
+  its words were said as it, and apart, where the clause ends after them and where it goes on, from SemCor (5 of 8
+  as one where it ends, 5 of 93 where it goes on); the verb read alone costs as much as they are said apart there
+  (`Lexicon._alone_cost`), and a verb of several words reads only in the frames it is held in: "We made it!" reads
+  `overcome survive` (WordNet's `make_it`), "Roy made it clear." stays `make`. "Mean" is taught as a word, and a
+  meaning asked is a happening the word "mean" names in any sense memory holds (`_meanings_held`).
+- **Measured** (`results/` of 2026-10-27 13:5x): 10 words (paint, for, wall, picture, coat, make, representation, of,
+  make it, mean); checks **63 of 64**; front door **21 of 21, none wrong**; TRAIN-FORMAT-01 every check, 5 of 5.
+  **The check failing is two annotations disagreeing:** WordNet files "We made it!" under `make` (`reach.v.07`,
+  reach a goal); SemCor's annotators tag "made it" where the clause ends as the verb `make it`, never as that sense of
+  `make`. Lyric reads it as SemCor's do. Of all 125 examples, 101 read and 9 with the word in its sense: the rest hold
+  words not yet taught, and with nothing around a word known, its sense is its most used.
