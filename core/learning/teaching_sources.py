@@ -3039,6 +3039,15 @@ class WordRecord:
     source: str = ""
     licence: str = ""
     split: str = "train"
+    #: What it says joining a thing to a thing, as STREUSLE's annotators said each use of it in English Web Treebank
+    #: text (`_SNACS_LINKS`): (link, what it took and everything that is a kind of, how often) — "layers of cheese"
+    #: `made_of` cheese, "the side of the road" `part_of`, "a lot of us" no link Lyric holds (`word_of`).
+    joins_things: Tuple[Tuple[str, Tuple[str, ...], int], ...] = ()
+    #: A WORD OF SEVERAL WORDS ("make it"): how often its words were said as it, and how often its first word was said
+    #: with the same words after it as a word of its own, as SemCor's annotators tagged them; then the same two where
+    #: the clause ended after them ("We made it!"). The reader reads them as one by it (`Lexicon.entries`, a verb and
+    #: the word after it).
+    together: Tuple[int, ...] = ()
 
     def key(self) -> str:
         import hashlib
@@ -3061,7 +3070,9 @@ class WordRecord:
         return {"word": self.word, "source": self.source, "licence": self.licence, "split": self.split,
                 "forms": [f.to_dict() for f in self.forms], "senses": [s.to_dict() for s in self.senses],
                 "uses": [u.to_dict() for u in self.uses], "used_as": [list(u) for u in self.used_as],
-                "joins": [list(j) for j in self.joins]}
+                "joins": [list(j) for j in self.joins],
+                "joins_things": [[link, list(names), k] for link, names, k in self.joins_things],
+                "together": list(self.together)}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
@@ -3070,7 +3081,9 @@ class WordRecord:
                    tuple(WordUse.from_dict(u) for u in data.get("uses") or ()),
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_as") or ()),
                    tuple((str(j[0]), int(j[1])) for j in data.get("joins") or ()), str(data.get("source") or ""),
-                   str(data.get("licence") or ""), str(data.get("split") or "train"))
+                   str(data.get("licence") or ""), str(data.get("split") or "train"),
+                   tuple((str(j[0]), tuple(str(x) for x in j[1]), int(j[2])) for j in data.get("joins_things") or ()),
+                   tuple(int(n) for n in data.get("together") or ()))
 
     def problems(self) -> List[str]:
         """What is wrong with the record, each said: an empty list where it is whole."""
@@ -3094,6 +3107,13 @@ class WordRecord:
         for link, n in self.joins:
             if not link or n <= 0:
                 out.append(f"joins as {link!r} {n} times")
+        for link, names, n in self.joins_things:
+            if not link or n <= 0:
+                out.append(f"joins a thing as {link!r} {n} times")
+        if (" " in self.word) != bool(self.together) or (self.together and (
+                len(self.together) != 4 or min(self.together) < 0 or self.together[2] > self.together[0]
+                or self.together[3] > self.together[1])):
+            out.append("a word of several words, and how often its words were said as it, are not given together")
         for c in classes:
             if not any(f.word_class == c and f.form == self.word for f in self.forms):
                 out.append(f"the word itself is not among its forms as a {c.lower()}")
@@ -3243,11 +3263,9 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     return classes, {form: Counter(counted.form_uses.get(form, {})) for form in written}
 
 
-def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
-    """WHAT EACH VERB SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
-    sense by hand): for each tagged use of the word as a verb, the words the structure reader learned from UD
-    English EWT joins to it as its subject and its object (`StructureView`: `nsubj`, `obj`; a passive's subject its
-    object), each by the WordNet sense SemCor tagged it with. sense -> (slot, the thing's sense) -> how often."""
+def _semcor_sentences(cache: Dict[str, Any]) -> List[Tuple[Tuple[str, ...], Tuple[Optional[Any], ...]]]:
+    """SemCor's sentences, each its words and the WordNet lemma each was tagged with (None where none): the words of a
+    word of several words each tagged with it."""
     from nltk.corpus import semcor
     from nltk.corpus.reader.wordnet import Lemma
     from nltk.tree import Tree
@@ -3264,6 +3282,15 @@ def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
                     tags.extend([label] * len(str(leaf).split()))
             sentences.append((tuple(words), tuple(tags)))
         cache["semcor"] = sentences
+    return cache["semcor"]
+
+
+def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
+    """WHAT EACH VERB SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
+    sense by hand): for each tagged use of the word as a verb, the words the structure reader learned from UD
+    English EWT joins to it as its subject and its object (`StructureView`: `nsubj`, `obj`; a passive's subject its
+    object), each by the WordNet sense SemCor tagged it with. sense -> (slot, the thing's sense) -> how often."""
+    _semcor_sentences(cache)
     if "structure" not in cache:
         from core.semantics.structure import StructureView
         view = StructureView()
@@ -3286,6 +3313,86 @@ def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
                 if slot:
                     out.setdefault(sense, Counter())[(slot, tags[d].synset().name())] += 1
     return out
+
+
+def _semcor_together(lemma_name: str, head: str, rest: Sequence[str], cache: Dict[str, Any]) \
+        -> Tuple[Counter, Tuple[int, int, int, int]]:
+    """A WORD OF SEVERAL WORDS IN SEMCOR: each way its words were written as it (lowered: "made it", "make it"), how
+    often; how often they were said as it; how often its first word, tagged as a word of its own, had the same words
+    after it ("made it clear", `make`); and those two where the clause ended after them (a mark, or nothing, next)."""
+    written: Counter = Counter()
+    counted: Counter = Counter()
+    for words, tags in _semcor_sentences(cache):
+        lowered = [w.lower() for w in words]
+        for k, t in enumerate(tags):
+            if t is None:
+                continue
+            name = t.name().lower()
+            if name == lemma_name and (k == 0 or tags[k - 1] is not t):
+                end = k
+                while end < len(tags) and tags[end] is t:
+                    end += 1
+                written[" ".join(lowered[k:end])] += 1
+                counted[(True, end >= len(lowered) or not any(ch.isalnum() for ch in lowered[end]))] += 1
+            elif name == head and t.synset().pos() == "v" and lowered[k + 1:k + 1 + len(rest)] == list(rest) \
+                    and (k + 1 >= len(tags) or tags[k + 1] is not t):
+                end = k + 1 + len(rest)
+                counted[(False, end >= len(lowered) or not any(ch.isalnum() for ch in lowered[end]))] += 1
+    as_one, apart = counted[(True, True)] + counted[(True, False)], counted[(False, True)] + counted[(False, False)]
+    return written, (as_one, apart, counted[(True, True)], counted[(False, True)])
+
+
+STREUSLE_DATA = os.path.join(SYNTAX_DATA, "streusle")
+
+#: WHAT A PREPOSITION SAYS JOINING A THING TO A THING, as Lyric's links: STREUSLE's adposition supersenses (SNACS 2.5,
+#: Schneider et al. 2018), each a scene role of the thing it takes, that is one of them; any other is the word's own
+#: link (`relation_types.worded`), its kind not known. From the thing it is said of to the thing it takes: "the side
+#: of the road" Whole, the side `part_of` the road; "the car of my friend" Possessor, `owned_by`; "the owners of the
+#: store" Org, `member_of`; "a record of a reversal" Topic, `about`; "layers of cheese" Stuff, `made_of`; "a piece
+#: of the cake" PartPortion, `part_of`; "the city of Paris" Identity, `equals`; "a man from Paris" Source,
+#: `comes_from`; "my uncle in Paris" Locus, `located_in`. Possession is not owning: "the delivery of their gift" is
+#: the gift handed over.
+_SNACS_LINKS = {"p.Whole": "part_of", "p.Possessor": "owned_by", "p.Org": "member_of", "p.Topic": "about",
+                "p.Stuff": "made_of", "p.PartPortion": "part_of", "p.Identity": "equals", "p.Source": "comes_from",
+                "p.Locus": "located_in"}
+
+#: STREUSLE's noun supersenses, as WordNet's lexicographer files name them: what a thing taken is read as.
+_NOUN_SUPERSENSES = {"n.TOPS": "noun.Tops"}
+
+
+def _streusle_joins(word: str, split: str, cache: Dict[str, Any]) -> List[Tuple[str, str, int]]:
+    """EACH USE OF A PREPOSITION JOINING A THING TO A THING in STREUSLE's English Web Treebank text (`split`), as its
+    annotators said it: (Lyric's link, `_SNACS_LINKS`, else the word's own; the WordNet sense of what it took, the
+    first of its word's whose lexicographer file is the noun supersense the annotators gave it, "" where they gave
+    none; how often). A use said of a doing or a quality, or taking a clause, is not a thing's."""
+    import json as _json
+    from pathlib import Path
+    from nltk.corpus import wordnet as wn
+    from core.semantics.relation_types import worded
+    key = f"streusle:{split}"
+    if key not in cache:
+        path = Path(STREUSLE_DATA) / split / f"streusle.ud_{split}.govobj.json"
+        cache[key] = _json.loads(path.read_text(encoding="utf-8"))
+    out: Counter = Counter()
+    for sentence in cache[key]:
+        toks = {t["#"]: t for t in sentence["toks"]}
+        expressions = list(sentence.get("swes", {}).values()) + list(sentence.get("smwes", {}).values())
+        supersense = {n: e.get("ss") for e in expressions for n in e.get("toknums", ())[:1]}
+        for e in expressions:
+            relation = e.get("heuristic_relation") or {}
+            if e.get("lexlemma") != word or e.get("lexcat") != "P" or relation.get("config") != "default":
+                continue
+            gov, obj = toks.get(relation.get("gov")), toks.get(relation.get("obj"))
+            if gov is None or obj is None or gov["upos"] in ("VERB", "AUX", "ADJ", "ADV"):
+                continue
+            ss = supersense.get(obj["#"]) or ""
+            taken = ""
+            if ss.startswith("n."):
+                lexname = _NOUN_SUPERSENSES.get(ss, "noun." + ss[2:].lower())
+                taken = next((s.name() for s in wn.synsets(str(obj["lemma"]).lower().replace(" ", "_"), "n")
+                              if s.lexname() == lexname), "")
+            out[(_SNACS_LINKS.get(str(e.get("ss") or "")) or worded(word), taken)] += 1
+    return [(link, taken, n) for (link, taken), n in out.most_common()]
 
 
 def _propbank_joins(cache: Dict[str, Any]) -> Dict[str, Counter]:
@@ -3377,10 +3484,17 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             frontier = nxt
         return tuple(out)
 
+    # A WORD OF SEVERAL WORDS ("make it", "pass away") is WordNet's lemma written with underscores, its first word the
+    # one inflected ("made it").
+    lemma_name = word.replace(" ", "_")
+    head, *rest = word.split(" ")
+
     def of_the_word(example: str, pos: str) -> bool:
         # A SENSE'S EXAMPLE IS ONE OF THIS WORD where the word is written in it, in any form: WordNet gives a sense's
         # examples for all its words, and "do nothing" was read back as an example of `make` (engage in).
-        return any(w == word or wn.morphy(w, pos) == word for w in re.findall(r"[a-z]+(?:-[a-z]+)*", example.lower()))
+        said = re.findall(r"[a-z]+(?:-[a-z]+)*", example.lower())
+        return any((w == head or wn.morphy(w, pos) == head) and said[k + 1:k + 1 + len(rest)] == rest
+                   for k, w in enumerate(said))
 
     if "covers" not in _cache:
         # WHAT EACH NOUN SENSE AND KIND COVERS of what SemCor tagged (WordNet's counts are SemCor's): every use of a
@@ -3393,11 +3507,12 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         _cache["covers"] = covered
     covered = _cache["covers"]
 
-    synsets = [s for s in wn.synsets(word) if any(l.name().lower() == word for l in s.lemmas()) and named(s)]
+    synsets = [s for s in wn.synsets(lemma_name) if any(l.name().lower() == lemma_name for l in s.lemmas())
+               and named(s)]
     senses: List[WordSense] = []
     for s in synsets:
         cls = _WORDNET_CLASS[s.pos()]
-        lemma = next(l for l in s.lemmas() if l.name().lower() == word)
+        lemma = next(l for l in s.lemmas() if l.name().lower() == lemma_name)
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
         kinds = kinds_of(s)
@@ -3410,13 +3525,13 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     classes_of: Dict[str, Set[str]] = {}
     restrictions: Dict[Tuple[str, str], Tuple[str, ...]] = {}
     try:
-        class_ids = verbnet.classids(word)
+        class_ids = verbnet.classids(lemma_name)
     except Exception:
         class_ids = []
     for cid in class_ids:
         vc = verbnet.vnclass(cid)
         for member in vc.iter("MEMBER"):
-            if member.get("name") != word:
+            if member.get("name") != lemma_name:
                 continue
             for key in (member.get("wn") or "").split():
                 try:
@@ -3428,11 +3543,11 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 f"{r.get('Value')}{r.get('type')}" for r in role.iter("SELRESTR"))
     # PROPBANK: each sense of the verb, its places, and the VerbNet classes it is linked to (by its places' links,
     # the classes VerbNet says the word is a member of).
-    frame_file = Path(SYNTAX_DATA) / "propbank-frames" / "frames" / f"{word}.xml"
+    frame_file = Path(SYNTAX_DATA) / "propbank-frames" / "frames" / f"{head}.xml"
     rolesets: List[Tuple[str, str, List[Tuple[Any, Dict[str, List[str]]]], Set[str]]] = []
     if any(s.word_class == "VERB" for s in senses) and frame_file.exists():
         for roleset in ET.parse(frame_file).iter("roleset"):
-            if not str(roleset.get("id", "")).startswith(word + "."):
+            if not str(roleset.get("id", "")).startswith(lemma_name + "."):
                 continue
             said: Dict[str, List[str]] = {}
             for example in roleset.iter("example"):
@@ -3486,7 +3601,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         senses[k] = WordSense(s.id, s.word_class, s.concept, s.means, s.kind_of, s.used, s.examples, s.frames, rid,
                               means, cid, tuple(place_of(role, said, linked) for role, said in roles))
     # WHAT EACH SENSE WAS SEEN USED WITH (SemCor).
-    seen = _semcor_seen(word, _cache)
+    seen = _semcor_seen(lemma_name, _cache)
     for k, s in enumerate(senses):
         if s.id in seen:
             with_kinds = tuple((slot, filler, (named(wn.synset(filler)),) + tuple(n for _, n in kinds_of(
@@ -3498,6 +3613,20 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             uses.append(WordUse(rid, means, tuple(place_of(role, said, linked) for role, said in roles)))
     by_class = {s.word_class for s in senses}
     inflected = {cls: _cache["forms"].get((word, cls), {}) for cls in by_class}
+    together: Tuple[int, ...] = ()
+    if rest:
+        # A WORD OF SEVERAL WORDS, as SemCor's annotators found it written, each form with what form its first word is
+        # in the treebanks; and how often its words were said as it, against its first word said with the same words
+        # after it as a word of its own ("made it" `make_it` 20 times in SemCor; "made it clear" `make`).
+        written_as, together = _semcor_together(lemma_name, head, rest, _cache)
+        for cls in by_class:
+            head_forms = _cache["forms"].get((head, cls), {})
+            inflected[cls] = {}
+            for form, n in written_as.items():
+                first = form.split(" ")[0]
+                features = max(((f, k) for (w, f), k in head_forms.items() if w == first), key=lambda x: x[1],
+                               default=("VerbForm=Inf" if first == head and cls == "VERB" else "", 0))[0]
+                inflected[cls][(form, features)] = inflected[cls].get((form, features), 0) + n
     written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of}
     classes, uses_of = _treebank_uses(word, written, treebanks, _cache)
     forms: List[WordForm] = []
@@ -3528,15 +3657,25 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             link = _PLACE_LINKS.get((function, word))
             if link:
                 joins[link[1]] = joins.get(link[1], 0) + n
+    joins_things: Counter = Counter()
+    if "PREPOSITION" in kept:
+        for link, synset, k in _streusle_joins(word, split, _cache):
+            took = wn.synset(synset) if synset else None
+            what = (((named(took),) if named(took) else ()) + tuple(n for _, n in kinds_of(took))) if took else ()
+            joins_things[(link, what)] += k
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
                       tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
                       "SemCor (what each verb sense was seen used with); "
                       "PropBank frames (senses of the verb, places; what a preposition opens); VerbNet 3.3 (which "
                       "PropBank sense is which WordNet sense, what may fill a place); UD English EWT and GUM (how "
-                      "each form is used, as the grammar names its uses)",
+                      "each form is used, as the grammar names its uses); STREUSLE 4.6 (what a preposition says "
+                      "joining a thing to a thing)",
                       "WordNet licence (Princeton); UD EWT CC BY-SA 4.0, GUM CC BY-NC-SA 4.0; PropBank CC BY-SA 4.0; "
-                      "VerbNet (University of Colorado)", split)
+                      "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
+                      tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
+                                                                          key=lambda x: (-x[1], x[0]))),
+                      together)
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").

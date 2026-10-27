@@ -239,6 +239,9 @@ class HeldWords(Words):
         #: Sentences that tell: an order (True: its doing's doer unsaid, "Read the links.") or one saying its doer.
         self.ordered: Counter = Counter()
         self.particles: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+        #: Of those, where the clause ended after the two, for a verb of several words recorded whole ("We made it!":
+        #: `make it` 5 of 8 times so in SemCor, 5 of 93 where words go on, "made it clear").
+        self.particles_ending: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         #: Where an adjective is said of a thing, after it or before it, by whether words follow the adjective in
         #: its phrase ("greater than 1"): `(followed, after)`.
         self.adjective_places: Counter = Counter()
@@ -642,9 +645,14 @@ class HeldWords(Words):
     def adjectives_after(self, followed: bool = False) -> Tuple[float, float]:
         return (float(self.adjective_places[(followed, True)]), float(self.adjective_places[(followed, False)]))
 
-    def said_together(self, verb: str, word: str) -> Tuple[float, float]:
+    def said_together(self, verb: str, word: str, ends: Optional[bool] = None) -> Tuple[float, float]:
         held = self.particles.get((verb, word.lower()), {})
-        return float(held.get(True, 0)), float(held.get(False, 0))
+        one, apart = float(held.get(True, 0)), float(held.get(False, 0))
+        ending = self.particles_ending.get((verb, word.lower()))
+        if ends is None or not ending:
+            return one, apart
+        one_ending, apart_ending = float(ending.get(True, 0)), float(ending.get(False, 0))
+        return (one_ending, apart_ending) if ends else (one - one_ending, apart - apart_ending)
 
     def plural(self, word: str) -> bool:
         said = [n for _, cls, features, n in self._forms_of(word) if cls == "NOUN" and "Number=Plur" in features]

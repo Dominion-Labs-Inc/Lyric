@@ -20788,6 +20788,7 @@ def _meanings_held(understanding: "Understanding", asked: Any) -> List["Answer"]
     ? ?b`), is answered by the kind its sense is nearest a kind of: `wall isa partition`. A word asked what it means
     ("What does paint mean?": a meaning done by it, asked what the meaning is done to) is answered by what each sense
     it is used in means, the most used first; the first sense where no use of any was counted. Nothing otherwise.
+    "Mean" is known as the word recorded whole (any of its senses), never by a name written here.
 
     These had been sentences written here in English ("A wall is a partition: ...", "Paint can mean: ..."), said
     whatever Lyric had been taught to say (TRAIN-FORMAT-02, lyric_dev2, 2026-10-27)."""
@@ -20810,7 +20811,14 @@ def _meanings_held(understanding: "Understanding", asked: Any) -> List["Answer"]
                            None)
             if nearest is not None:
                 answers.append(Answer(nearest["word"], "isa", (nearest["kind"],), verdict=None))
-    for meaning in {f.subject for f in facts if f.relation == "instance_of" and f.obj == "mean"}:
+    # A MEANING IS A HAPPENING THE WORD "MEAN" NAMES, in any sense of it memory holds (the reader names it by its most
+    # used, `mean`, "intend to express"; asked of a word, it is `signify mean`, "denote"): the one word of English
+    # this answer is about, as a word recorded whole holds it.
+    words = _words_held()
+
+    def a_meaning(concept: str) -> bool:
+        return words is not None and any(m["word"] == "mean" for m in words.word_meanings(concept))
+    for meaning in {f.subject for f in facts if f.relation == "instance_of" and a_meaning(str(f.obj))}:
         if not any(f.relation == "done_to" and f.subject == meaning and f.obj in wanted for f in facts):
             continue
         for doer in [f.obj for f in facts if f.relation == "done_by" and f.subject == meaning]:

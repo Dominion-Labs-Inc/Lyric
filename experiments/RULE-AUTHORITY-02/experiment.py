@@ -63,8 +63,13 @@ EV = RunRecord(
 async def run_world(w, run_tag, la, store, demos):
     from core.learning.rule_induction import Fact, TrainingExample
     dom = f"ra02_{run_tag}_{w['world']}"
-    statuses = []
+    statuses, unread = [], 0
     for k, o in enumerate(w["observations"]):
+        if o["after"] is None:
+            # WHAT COULD NOT BE READ IS RECORDED AS NOTHING, as exploration records a world it could not read
+            # (`s_after is None`): an attempt whose result was never established is evidence of nothing.
+            unread += 1
+            continue
         action = Fact.parse(o["action"]) if o["action"] else None
         ex = TrainingExample(before=tuple(Fact.parse(f) for f in o["before"]), action=action,
                              after=tuple(Fact.parse(f) for f in o["after"]),
@@ -82,7 +87,7 @@ async def run_world(w, run_tag, la, store, demos):
     refuted_late = sum(1 for r in all_rules
                        if r.status.value == "refuted" and "after it was validated" in (r.detail or ""))
     return {"world": w["world"], "rules": rules, "statuses": statuses, "rules_total": len(all_rules),
-            "refuted_after_validation": refuted_late, "shown": len(w["observations"])}
+            "refuted_after_validation": refuted_late, "shown": len(w["observations"]), "unread": unread}
 
 
 def isolated(script, *args):
@@ -96,11 +101,12 @@ async def main() -> int:
     ap.add_argument("--worlds", type=int, default=10000)
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--concurrency", type=int, default=8)
+    ap.add_argument("--noise", action="store_true", help="the noisy arm (generator.NOISE)")
     args = ap.parse_args()
 
     run_dir = EV.results_dir / f"{EV.started_at.strftime('%Y%m%dT%H%M%SZ')}_run"
     manifest = json.loads(isolated("generator.py", "--worlds", args.worlds, "--seed", args.seed,
-                                   "--outdir", run_dir))
+                                   "--outdir", run_dir, *(["--noise"] if args.noise else [])))
     print(f"  worlds frozen before Lyric ran: {manifest}", flush=True)
 
     from core.database import get_database_manager
@@ -154,11 +160,12 @@ async def main() -> int:
     for name, value in evaluation["metrics"].items():
         EV.metric(name, value)
     EV.metric("observations_shown", sum(a["shown"] for a in answers))
+    EV.metric("outcomes_unread", sum(a.get("unread", 0) for a in answers), note="recorded as nothing")
     EV.metric("authority_judgements", sum(len(a["statuses"]) for a in answers), note="one after every act shown")
     EV.metric("rules_refuted_after_validation", sum(a["refuted_after_validation"] for a in answers),
               note="reported by Lyric, not judged by the evaluator")
     EV.metric("elapsed_s", round(elapsed, 1))
-    EV.note(f"run tag {run_tag}; seed {args.seed}; every world's domain forgotten after it ran; "
+    EV.note(f"run tag {run_tag}; seed {args.seed}; noise {manifest.get('noise')}; every world's domain forgotten after it ran; "
             f"inputs, answers and per-world evaluation in {run_dir.name}/")
 
     left = await db.execute_query(

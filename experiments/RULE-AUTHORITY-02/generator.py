@@ -118,7 +118,12 @@ def fact(name, args, binding):
     return f"{name}({', '.join(binding[v] for v in args)})"
 
 
-def make_world(i, seed):
+#: The noisy arm's world, as `warehouse_stochastic.NOISY_PARTIAL` (EDU-10): where the rule holds the act works
+#: 90% of the time, where it does not it works 2% of the time, and 10% of outcomes cannot be read at all.
+NOISE = {"success_rate": 0.90, "leak_rate": 0.02, "unknown_rate": 0.10}
+
+
+def make_world(i, seed, noise=None):
     rng = random.Random(seed)
     used = set()
     family = rng.choices([f for f, _ in FAMILIES], weights=[w for _, w in FAMILIES])[0]
@@ -137,7 +142,7 @@ def make_world(i, seed):
     unrelated_preds = [invented(rng, used) for _ in range(2)]
 
     literals = sorted({(i, "pos") for t in terms for i in t["pos"]} | {(i, "neg") for t in terms for i in t["neg"]})
-    n_succ = rng.randint(2, 6)
+    n_succ = rng.randint(8, 16) if noise else rng.randint(2, 6)   # noise needs more evidence (EDU-10: 25 -> 36)
     q = rng.choice((0.0, 0.5, 1.0))
     covered = [lit for lit in literals if rng.random() < q]
     uncovered = [lit for lit in literals if lit not in covered]
@@ -165,14 +170,20 @@ def make_world(i, seed):
                 before.append(f"{rng.choice(unrelated_preds)}({other})")
         before = sorted(set(before))
         fired = acted and fires(terms, a)
+        happened, unknown = fired, False
+        if noise and acted:
+            happened = rng.random() < (noise["success_rate"] if fired else noise["leak_rate"])
+            unknown = rng.random() < noise["unknown_rate"]
         after = set(before)
-        if fired:
+        if happened:
             if consumes is not None:
                 after.discard(fact(conditions[consumes]["name"], conditions[consumes]["args"], binding))
             after |= {fact(e["name"], e["args"], binding) for e in adds}
         action = f"{act}({', '.join(names)})" if acted else None
-        return {"before": before, "action": action, "after": sorted(after)}, \
-               {"kind": None, "assignment": [int(v) for v in a], "fired": fired}
+        truth = {"kind": None, "assignment": [int(v) for v in a], "fired": fired}
+        if noise:
+            truth.update(happened=happened, unknown=unknown)
+        return {"before": before, "action": action, "after": None if unknown else sorted(after)}, truth
 
     public_obs, truth_obs = [], []
     # THE STILL WORLD HOLDS EVERY CONDITION, as RULE-AUTHORITY-01's did: only then does it show that the act, and no
@@ -192,7 +203,7 @@ def make_world(i, seed):
             continue
         o, t = observe(k, a, acted=True)
         t["kind"] = kind
-        shown_succ += t["fired"]
+        shown_succ += o["after"] is not None and o["after"] != o["before"]
         public_obs.append(o)
         truth_obs.append(t)
 
@@ -218,6 +229,7 @@ def main():
     ap.add_argument("--worlds", type=int, default=10000)
     ap.add_argument("--seed", type=int, required=True)
     ap.add_argument("--outdir", required=True)
+    ap.add_argument("--noise", action="store_true", help="the noisy arm: outcomes as NOISE says")
     args = ap.parse_args()
     out = Path(args.outdir)
     out.mkdir(parents=True, exist_ok=False)
@@ -225,10 +237,10 @@ def main():
     seeds = [master.randrange(2 ** 31) for _ in range(args.worlds)]
     with open(out / "worlds_public.jsonl", "w") as pub, open(out / "worlds_truth.jsonl", "w") as tru:
         for i, s in enumerate(seeds):
-            p, t = make_world(i, s)
+            p, t = make_world(i, s, NOISE if args.noise else None)
             pub.write(json.dumps(p) + "\n")
             tru.write(json.dumps(t) + "\n")
-    manifest = {"worlds": args.worlds, "seed": args.seed,
+    manifest = {"worlds": args.worlds, "seed": args.seed, "noise": NOISE if args.noise else None,
                 "worlds_public_sha256": sha256(out / "worlds_public.jsonl"),
                 "worlds_truth_sha256": sha256(out / "worlds_truth.jsonl"),
                 "generator_sha256": sha256(Path(__file__))}

@@ -325,9 +325,10 @@ class Words:
         """What memory has just taken in a thing to be (`isa`, `instance_of`: "Harvard is a university."), as
         `kinds` answers from then on (`MemoryAgent.link_concepts`). Words that hold no kinds learn nothing from it."""
 
-    def said_together(self, verb: str, word: str) -> Tuple[float, float]:
+    def said_together(self, verb: str, word: str, ends: Optional[bool] = None) -> Tuple[float, float]:
         """How often the verb is said with the word after it as one verb ("take in"), and how often with that word
-        after it otherwise ("sleep in the car")."""
+        after it otherwise ("sleep in the car"); `ends`, of those where the clause ends after the two (True) or goes
+        on (False), where that is held."""
         return 0.0, 0.0
 
     def adjectives_after(self, followed: bool = False) -> Tuple[float, float]:
@@ -835,11 +836,12 @@ class Lexicon:
                 continue
             name = self.words.name(word, cls) if cls != "NAME" else word.lower()
             if cls == "VERB":
+                alone = self._alone_cost(tokens, i)
                 for form, r in self._forms(word, name).items():
                     for frame, q in self._frame_evidence(name, _beside(tokens, i + 1)).items():
                         for t in self.verb_templates.get(form, {}).get(frame, ()):
                             out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name,
-                                                     p + r + q, f"{form}:{frame}")))
+                                                     p + r + q + alone, f"{form}:{frame}")))
                 continue
             if cls == "NUMERAL":
                 name = _number(word) or self._number_name(word) or self.words.name(word, "NUMERAL")
@@ -866,6 +868,35 @@ class Lexicon:
                     out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
                                              t.get("label", ""))))
         return out
+
+    def _said_as_one(self, tokens: Sequence[str], i: int, name: str) -> Tuple[float, float]:
+        """How likely the verb at `i` (named `name`) and the word after it are one verb, and how likely apart, as
+        logarithms: as often as the two are said together so; where they never were, as often as the second word is
+        said with a verb so. WHERE WHETHER THEY ARE ONE IS HELD BY WHERE THE CLAUSE ENDS (a verb of several words
+        recorded whole), by the clause here ending after them or going on."""
+        second = self.words.uses(tokens[i + 1])
+        alone = estimate(second, {}, set(second) | {"PARTICLE"})["PARTICLE"]
+        one, apart = self.words.said_together(
+            name, tokens[i + 1], ends=i + 2 >= len(tokens) or not any(ch.isalnum() for ch in tokens[i + 2]))
+        shares = estimate({"one": one, "apart": apart},
+                          {"one": math.exp(alone), "apart": 1.0 - math.exp(alone)}, ("one", "apart"))
+        return shares["one"], shares["apart"]
+
+    def _alone_cost(self, tokens: Sequence[str], i: int) -> float:
+        """WHAT THE VERB AT `i` READ ALONE COSTS where it and the word after it are a verb of several words whose being
+        one is held by where the clause ends: as likely as they are said apart there. Told nothing of "it" as a
+        particle, "We made it!" was `make` with "it" made, which SemCor's annotators said 3 times in 8 where the
+        clause ends there, `make it` 5 (lyric_dev2, 2026-10-27). Nothing elsewhere: the second word's own uses weigh
+        a verb read alone, as "away" read as an adverb weighs "passed" (`_together`)."""
+        if i + 1 >= len(tokens) or not tokens[i + 1].isalpha():
+            return 0.0
+        name = self.words.name(tokens[i], "VERB")
+        if not self.words.known_verb([name, tokens[i + 1].lower()]):
+            return 0.0
+        if self.words.said_together(name, tokens[i + 1]) == self.words.said_together(
+                name, tokens[i + 1], ends=i + 2 >= len(tokens) or not any(ch.isalnum() for ch in tokens[i + 2])):
+            return 0.0
+        return self._said_as_one(tokens, i, name)[1]
 
     def _evidence(self, tokens: Sequence[str], i: int, beside: Optional[Tuple[str, str]] = None) -> Dict[str, float]:
         """Each way the word may be read, as a grammar word's use or a kind of word, with the logarithm of how often
@@ -1262,15 +1293,14 @@ class Lexicon:
             name = self.words.name(tokens[i], "VERB") if verb is not None else ""
             together = self.words.known_verb([name, tokens[i + 1].lower()]) if verb is not None else None
             if together:
-                # As often as the two are said together so; where they never were, as often as the second word is
-                # said with a verb so.
-                second = self.words.uses(tokens[i + 1])
-                alone = estimate(second, {}, set(second) | {"PARTICLE"})["PARTICLE"]
-                one, apart = self.words.said_together(name, tokens[i + 1])
-                particle = estimate({"one": one, "apart": apart},
-                                    {"one": math.exp(alone), "apart": 1.0 - math.exp(alone)}, ("one", "apart"))["one"]
+                particle = self._said_as_one(tokens, i, name)[0]
+                # IN THE FRAMES IT IS HELD TO BE USED IN, where any are: "make it" is never said of a thing, and
+                # "Roy made it clear." read "clear" as what Roy made it (lyric_dev2, 2026-10-27).
+                held_frames = {f for f, k in self.words.frames(together).items() if k > 0}
                 for form, r in self._forms(tokens[i], name).items():
                     for frame, q in self._frame_evidence(together, _beside(tokens, i + 2)).items():
+                        if held_frames and frame not in held_frames:
+                            continue
                         for t in self.verb_templates.get(form, {}).get(frame, ()):
                             out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "VERB",
                                                      together, verb + r + q + particle, f"{form}:{frame}:particle")))
@@ -3373,6 +3403,18 @@ class GrammarView:
             held[link] += times * n
             if held[link] <= 0:
                 del held[link]
+        # WHAT IT SAYS JOINING A THING TO A THING, as a taught meaning teaches a preposition (`prep`), and by what the
+        # thing it takes is (`prep_to`): "of" `made_of` cheese, a food, `part_of` a road.
+        from core.semantics.grammar_words import POINTS, STRETCHES, _concept
+        for link, names, n in getattr(word, "joins_things", ()):
+            time = ("point" if {_concept(x) for x in names} & POINTS else
+                    "stretch" if {_concept(x) for x in names} & STRETCHES else "-")
+            for table, key in [("prep", (word.word, "thing", time))] + [("prep_to", (word.word, "thing", kind))
+                                                                        for kind in names]:
+                held = lexicon.learned[table][key]
+                held[link] += times * n
+                if held[link] <= 0:
+                    del held[link]
         # EACH NOUN SENSE, how often it is used and how much of what is said it and each of its kinds cover.
         if any(s.word_class == "NOUN" for s in word.senses):
             thing = words.name(word.word, "NOUN")
@@ -3389,6 +3431,16 @@ class GrammarView:
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")
+        # A VERB OF SEVERAL WORDS ("make it"): how often its first word and the next were said as it, and apart, as the
+        # treebank's verbs said with a particle are counted (`HeldWords.particles`, `said_together`).
+        if getattr(word, "together", ()) and hasattr(words, "particles"):
+            first, after = word.word.split(" ")[:2]
+            key = (words.name(first, "VERB"), after)
+            for table, counts in ((words.particles, word.together[:2]), (words.particles_ending, word.together[2:])):
+                for as_one, n in zip((True, False), counts):
+                    table[key][as_one] += times * n
+                    if table[key][as_one] <= 0:
+                        del table[key][as_one]
         # EACH VERB SENSE, how often it is used and what it was seen used with (SemCor), each thing's kinds known.
         for sense in word.senses:
             if sense.word_class != "VERB":

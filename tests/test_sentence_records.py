@@ -242,11 +242,18 @@ def test_language_taught_makes_no_belief_and_is_in_no_domain(monkeypatch):
     assert [(u.disposition.value, u.domain) for u in recorded] == [("new", None), ("updated", None)]
 
 
-def test_what_a_thing_is_and_what_a_word_means_are_answers_held_not_sentences_written():
+def test_what_a_thing_is_and_what_a_word_means_are_answers_held_not_sentences_written(monkeypatch):
     """"What is a wall?" is answered by the kind the words hold a wall to be, "What does paint mean?" by what each
     sense it is used in means: each an answer as a held relation is, said as Lyric was taught to say it or by its name
-    (`_meanings_held`). They had been sentences written in the code ("A wall is a partition: ...")."""
+    (`_meanings_held`). They had been sentences written in the code ("A wall is a partition: ..."). A meaning is a
+    happening the word "mean" names, as memory holds the word."""
+    from core.agents import memory_agent
     from core.agents.autonomous.autonomous_coordinator import Understanding, _meanings_held
+
+    class Words:
+        def word_meanings(self, name):
+            return [{"word": "mean"}] if name in ("mean", "signify mean") else []
+    monkeypatch.setattr(memory_agent, "_memory_agent", Words())
     from core.semantics.derived_reader import Meaning, MeaningFact as F
     paint = [{"word": "paint", "class": "VERB", "concept": "paint", "means": "make a painting", "kind": "create",
               "used": 17, "named": False},
@@ -268,3 +275,6 @@ def test_what_a_thing_is_and_what_a_word_means_are_answers_held_not_sentences_wr
                                 F("has_property", "?v0", "red")), ("?v1",))
     assert _meanings_held(u, described) == [], "a thing asked of more than its kind is not what the kind is"
     assert _meanings_held(u, Meaning("ask", (F("isa", "coating paint", "coating"),))) == [], "a yes or no asks nothing"
+    wanting = Meaning("ask", (F("done_by", "?e", "coating paint"), F("done_to", "?e", "?v1"),
+                              F("instance_of", "?e", "want")), ("?v1",))
+    assert _meanings_held(u, wanting) == [], "a happening no sense of the word \"mean\" names asks no meaning"

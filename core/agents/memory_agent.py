@@ -7201,7 +7201,9 @@ class MemoryAgent(IMemoryConsolidation):
         # as a verb.", `WordNetSource._word_classes`), and no fact says it in words of its own.
         together = " ".join(w.lower() for w in words)
         if len(words) > 1 and self.word_classes(together).get(word_class, 0) > 0:
-            return together
+            # Named as a word recorded whole names it ("make it", `overcome survive`), as its senses and frames are
+            # held under (`GrammarView.hold_word`).
+            return self.recorded_name(together, word_class) or together
         return None
 
     def _hold_taught(self, view, item) -> None:

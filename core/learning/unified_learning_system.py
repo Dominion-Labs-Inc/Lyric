@@ -15,7 +15,7 @@ import uuid
 from dataclasses import asdict, is_dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
-from typing import Callable, Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Callable, Any, Dict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple
 from core.database.logging_database import LoggingDatabase
 
 logger = logging.getLogger(__name__)
@@ -164,6 +164,32 @@ def relied_on_rate(held: int, expected: int) -> bool:
         return False
     lower, _upper = wilson_interval(held, expected, confidence_level=RELIED_ON_CONFIDENCE)
     return lower >= RELIED_ON_RATE
+
+
+def _relied_on(examples, departed) -> Optional[str]:
+    """Why an act's rules may not be acted on yet, or None when they may.
+
+    The world departing from an act (`_departures`) refutes none of its rules,
+    and an act is relied on as a habit is (`relied_on_rate`): from how often it
+    did what it does, its successes against the misses nothing observed tells
+    apart from them. An act the world never departed from is judged by
+    validation alone, as before; one it departed from waits until it holds
+    often enough, which is also what keeps a world whose rule no conjunction
+    can say (it works on either of two groups) from being acted on as though
+    its misses were noise.
+
+    COUNTED FOR THE ACT, NOT FOR ONE RULE. Counted over the acts a rule applied
+    to, a narrower rule validated before the misses came did not fall under
+    them and kept its authority while the act failed two times in seven
+    (RULE-AUTHORITY-02 world 3993: it acted where the world refuses)."""
+    if not departed:
+        return None
+    held = sum(1 for e in examples if e.positive)
+    missed = sum(1 for e in examples if e.evidence_id in departed)
+    if relied_on_rate(held, held + missed):
+        return None
+    return (f"the world departed from this act in {missed} of {held + missed} attempts; "
+            f"relied on once it holds at least {RELIED_ON_RATE:.0%} of the time")
 
 
 _BASIS_POSITIVES = 8
@@ -373,6 +399,24 @@ def _relevant_frame(basis: List["TrainingExample"]) -> List["TrainingExample"]:
         return replace(example, before=before, after=after)
 
     return [scoped(example) for example in basis]
+
+
+def _conditions(example: "TrainingExample") -> FrozenSet[str]:
+    """What held before an act, of the things it names by their place in it:
+    `TOMATAV(1)` for TOMATAV(y) when y is the act's second argument, and
+    `FEDRA(1,_)` for FEDRA(y, something it does not name). The terms the causal
+    structure is learned over (`induce_causal_structure`), so a condition is the
+    same condition in every demonstration of the act."""
+    place = {a: str(i) for i, a in enumerate(example.action.args)} if example.action else {}
+    return frozenset(f"{f.predicate}({','.join(place.get(a, '_') for a in f.args)})"
+                     for f in example.before)
+
+
+def _rule_conditions(rule: "CandidateRule") -> FrozenSet[str]:
+    """A rule's body as `_conditions` reads a demonstration."""
+    place = {a: str(i) for i, a in enumerate(rule.action.args)} if rule.action else {}
+    return frozenset(f"{f.predicate}({','.join(place.get(a, '_') for a in f.args)})"
+                     for f in rule.body)
 
 
 def _bears_on(fact: "Fact", anchors, named, changed) -> bool:
@@ -5515,6 +5559,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             domain_id=domain_id, predicate=predicate, arity=arity)
         contrastive = await demos.load_contrastive(domain_id=domain_id)
 
+        # THE WORLD DEPARTING IS NOT THE RULE BEING WRONG. A miss nothing
+        # observed tells apart from the act's successes (`_departures`) refuted
+        # the rule it fell under and stayed in every basis after, so in a world
+        # where a right act sometimes fails no rule survived and the act was
+        # never learned. It is what a regularity's miss already was: it leaves
+        # what refutes and what is induced from, and it counts against how often
+        # the rule holds (`_relied_on`), which decides its authority. A miss
+        # something does tell apart still refutes at once.
+        departed = await self._departures(signature_examples, frame=_relevant_frame)
+        judged = [e for e in signature_examples if e.evidence_id not in departed]
+
         # Authority already granted answers to what has been shown since. A rule
         # validated early in a teaching run must not outlive the case that
         # refutes it just because a narrower rule was induced after it.
@@ -5523,12 +5578,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if act is None or act.predicate != predicate or len(act.args) != arity:
                 continue
             try:
-                await self.store.rejudge(held, signature_examples)
+                await self.store.rejudge(held, judged)
+                if held.status is EpistemicStatus.VALIDATED:
+                    reason = _relied_on(signature_examples, departed)
+                    if reason:
+                        await self.store.withhold(held, reason)
             except Exception as e:
                 raise_if_structural(e, "unified_learning_system._judge_signature")
                 logger.info("re-judgement of %s deferred: %s", held.rule_id, e)
 
-        positives = [e for e in signature_examples if e.positive]
+        positives = [e for e in judged if e.positive]
         summary: Dict[str, Any] = {
             "status": "insufficient_evidence",
             "demonstrations": len(signature_examples),
@@ -5554,7 +5613,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         # with no operator. A failure that arrives later is answered by
         # `rejudge`. The basis keeps at least two successes, so with only two
         # nothing is held back and the rule waits, unvalidated, for a third.
-        signature_basis = list(signature_examples)
+        signature_basis = list(judged)
         held_out: List = []
         if sum(1 for e in signature_basis if e.positive) >= 3:
             latest = max(i for i, e in enumerate(signature_basis) if e.positive)
@@ -5587,6 +5646,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             summary["status"] = "effect_without_act"
             summary["detail"] = str(result.rule)
             return summary, None, []
+        rival = await self._absent_condition_rival(result.rule, basis)
+        if rival:
+            summary["status"] = InductionStatus.MULTIPLE_HYPOTHESES.value
+            summary["detail"] = rival
+            return summary, None, []
 
         stored = await self.record(
             result, basis, domain_id=domain_id, rule_kind=rule_kind)
@@ -5595,7 +5659,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         record = stored[0]
         summary["rule_id"] = record.rule_id
 
-        if held_out:
+        unreliable = _relied_on(signature_examples, departed)
+        if unreliable:
+            summary["detail"] = unreliable
+            if record.status is EpistemicStatus.VALIDATED:
+                await self.store.withhold(record, unreliable)
+        elif held_out:
             try:
                 await self.store.validate(record, held_out)
             except Exception as e:
@@ -5647,15 +5716,90 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         from core.learning.demonstration_store import get_demonstration_store
         examples = await get_demonstration_store().load(
             domain_id=domain_id, predicate=predicate, arity=arity)
+        departed = await self._departures(examples)
+        return [e for e in examples if e.evidence_id not in departed]
+
+    async def _departures(self, examples, frame=lambda basis: basis) -> Set[str]:
+        """The misses nothing observed tells apart from the confirmations: the
+        world departing from what it does, not the rule being wrong.
+
+        A miss is put to the confirmations it stands among: can a body explain
+        all of them and exclude it (`separates`' question)? If none can, and,
+        for an act, no condition held in the miss that held in none of the
+        confirmations (a condition that must be absent tells it apart as surely
+        as one that must hold), nothing observed tells it apart. A regularity
+        and an act ask it the same way; an act's demonstrations are cut by its
+        frame first, as its induction's are."""
         positives = [e for e in examples if e.positive]
         if len(positives) < 2 or all(e.positive for e in examples):
-            return examples
-        departed = set()
+            return set()
+        departed: Set[str] = set()
         for negative in (e for e in examples if not e.positive):
-            result = await self.induce_on_thread(_bounded_basis(positives, ()) + [negative])
-            if result.status is InductionStatus.NO_RULE and result.negative_coverage:
-                departed.add(negative.evidence_id)
-        return [e for e in examples if e.evidence_id not in departed]
+            basis = frame(_bounded_basis(positives, ()) + [negative])
+            result = await self.induce_on_thread(basis)
+            if result.status is not InductionStatus.NO_RULE or not result.negative_coverage:
+                continue
+            *confirmations, miss = basis
+            if miss.action is not None and _conditions(miss) - frozenset().union(
+                    *(_conditions(e) for e in confirmations)):
+                continue
+            departed.add(negative.evidence_id)
+        return departed
+
+    async def _absent_condition_rival(self, rule, basis) -> Optional[str]:
+        """A structure needing a condition ABSENT that explains this act's
+        demonstrations at least as well as `rule` and is no larger than it: the
+        evidence does not decide between them, and the rule waits.
+
+        The inducer has no absent condition, so where the world's rule needs one
+        it took whatever else held in every success and not in the near miss: a
+        relation to some other object (RULE-AUTHORITY-02 world 4313: "TOMATAV(y)
+        and y is FEDRA of something" for "TOMATAV(y) and not MIRHI(x)"; 8 of
+        1,393 such worlds acted where the world refuses). The causal structure
+        (`induce_causal_structure`) has one. It is asked only about what tells
+        the demonstrations apart: the rule's own conditions, what held in every
+        success, and what held in a miss and in no success, the only conditions
+        that could be forbidden."""
+        import itertools
+        from core.learning.probabilistic_version_space import StructuralHypothesis
+        if rule.action is None:
+            return None
+        trials = [(_conditions(e), e.positive) for e in basis
+                  if e.action is not None and e.action.predicate == rule.action.predicate]
+        if not any(ok for _, ok in trials) or all(ok for _, ok in trials):
+            return None
+        successes = [c for c, ok in trials if ok]
+        varies = lambda c: any(c not in t for t, _ in trials)
+        required = frozenset(c for c in _rule_conditions(rule) if varies(c))
+        forbiddable = frozenset(c for t, ok in trials if not ok for c in t) - frozenset().union(*successes)
+        requirable = sorted(c for c in frozenset.intersection(*successes) if varies(c))
+        rivals = [StructuralHypothesis(frozenset(r), frozenset(f))
+                  for k in range(1, len(required) + 1)
+                  for f in itertools.combinations(sorted(forbiddable), k)
+                  for j in range(len(required) - k + 1)
+                  for r in itertools.combinations(requirable, j)]
+        if not rivals:
+            return None
+        space = self.induce_causal_structure(
+            [{"conditions": sorted(t), "outcome": ok} for t, ok in trials],
+            hypotheses=[StructuralHypothesis(required, frozenset())] + rivals)
+        # ONLY A RULE THAT LEANS ON SOMETHING THE ACT DOES NOT NAME YIELDS. A
+        # condition that holds in every success and in no miss can be a
+        # coincidence either way, present or absent, and asked of every rule the
+        # question withheld 25 of 48 settled conjunction rules for a condition
+        # that happened to hold in each miss ("nothing needed, with RINFE(0)
+        # absent"). What the act names can bear on it; a relation to something
+        # it does not name is what a distractor is (`_relevant_frame`), and each
+        # of the 8 rules that acted where the world refuses rested on one.
+        unnamed = lambda h: sum("_" in c for c in h.requires | h.forbids)
+        posterior = space.posterior()
+        mine = space.hypotheses[0]
+        for h, p in zip(space.hypotheses[1:], posterior[1:]):
+            if p >= posterior[0] and unnamed(h) < unnamed(mine):
+                return (f"the evidence explains as well a rule needing "
+                        f"{', '.join(sorted(h.requires)) or 'nothing else'} with "
+                        f"{', '.join(sorted(h.forbids))} absent")
+        return None
 
     async def _judge_regularity(self, *, domain_id: str, predicate: str,
                                 arity: int) -> Dict[str, Any]:
@@ -5919,10 +6063,14 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             operators, guards, examples, terminal=terminal,
             max_rules=DEFAULT_MAX_RULES if max_rules is None else max_rules)
 
-    def induce_causal_structure(self, observations):
+    def induce_causal_structure(self, observations, hypotheses=None):
         """Learn which conditions gate an outcome, from trials. Owns
         ProbabilisticVersionSpace (the learner EDU-10/EDU-11 measured). Returns
-        the fitted version space, or None if the trials are unusable."""
+        the fitted version space, or None if the trials are unusable.
+
+        With `hypotheses`, the space holds those structures alone: the rivals a
+        question is about (`_absent_condition_rival`), not every structure over
+        every condition, which is 3^n of them."""
         from itertools import product
 
         from core.learning.probabilistic_version_space import (
@@ -5933,6 +6081,13 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                   and "outcome" in o]
         if not trials:
             return None
+        if hypotheses is not None:
+            space = ProbabilisticVersionSpace(hypotheses=list(hypotheses))
+            for trial in trials:
+                outcome = trial["outcome"]
+                space.observe(frozenset(trial["conditions"]), "unknown" if outcome is None
+                              else "success" if outcome else "failure")
+            return space
 
         conditions: List[str] = []
         for trial in trials:

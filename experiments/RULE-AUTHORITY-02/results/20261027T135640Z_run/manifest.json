@@ -1,0 +1,7 @@
+{
+ "worlds": 300,
+ "seed": 20261026,
+ "worlds_public_sha256": "9fa4ab7c08e76f8918263f10406f517d007af464cd08d1d01cab59136d1ce7e1",
+ "worlds_truth_sha256": "23edbc1a6996a0f27f76dc1121406f4dd54864a5ad4d1fcb6eab8e29145e3707",
+ "generator_sha256": "a9b7115c3ed68abe6c7aa876b504dacf2e078c28bc2c372cd48aeeb254a0e6a9"
+}

@@ -185,12 +185,14 @@ def evidence_class(truth, public, every_family=True):
     n = len(truth["conditions"])
     hidden = truth_table([(set(t["pos"]), set(t["neg"])) for t in truth["rule"]], n)
     pos_mask = neg_mask = 0
-    for o in public["observations"]:
-        if o["action"] is None:
+    for o, seen in zip(public["observations"], truth["observations"]):
+        if o["action"] is None or o["after"] is None:
             continue
         before = [parse(f) for f in o["before"]]
         s = situation_index(truth["conditions"], truth["args"], o["action"], before)
-        if set(o["after"]) != set(o["before"]):
+        # In the noisy arm, what the situations shown settle is what their outcomes would settle were the world
+        # reliable: the rule's own outcome, never the one the noise put in its place.
+        if seen["fired"] if "happened" in seen else set(o["after"]) != set(o["before"]):
             pos_mask |= 1 << s
         else:
             neg_mask |= 1 << s
@@ -211,9 +213,9 @@ def score_world(truth, public, answer):
     rules = [Rule(r) for r in answer["rules"]]
     contradicted = 0
     for r in rules:
-        for o in public["observations"]:
-            if o["action"] is None:
-                continue
+        for o, seen in zip(public["observations"], truth["observations"]):
+            if o["action"] is None or o["after"] is None or seen.get("happened", seen["fired"]) != seen["fired"]:
+                continue        # an act the noise turned is no case against a rule
             verdict = r.judge([parse(f) for f in o["before"]], parse(o["action"]), [parse(f) for f in o["after"]])
             if verdict is False:
                 contradicted += 1
@@ -249,7 +251,7 @@ def score_world(truth, public, answer):
             exact = False
     fired_total = bin(truth_table([(set(t["pos"]), set(t["neg"])) for t in truth["rule"]], n)).count("1")
     successes = sum(1 for o in public["observations"]
-                    if o["action"] is not None and set(o["after"]) != set(o["before"]))
+                    if o["action"] is not None and o["after"] is not None and set(o["after"]) != set(o["before"]))
     return {"rules": len(rules), "contradicted_rules": contradicted, "unsafe_situations": unsafe,
             "wrong_situations": wrong, "situations": 1 << n, "effect_situations": fired_total,
             "effect_situations_authorized": covered, "exact": bool(rules) and exact, "successes": successes}
@@ -303,7 +305,8 @@ def main():
     c6 = sum(1 for w in amb if w["rules"])
     c7 = sum(1 for w in beyond if w["unsafe_situations"] or w["wrong_situations"])
     checks = [
-        {"label": "C1 no rule holding authority is contradicted by any observation shown", "passed": c1 == 0,
+        {"label": "C1 no rule holding authority is contradicted by any observation shown"
+                  + (" that the noise did not turn" if manifest.get("noise") else ""), "passed": c1 == 0,
          "detail": f"{c1} of {total_rules} rules"},
         {"label": "C2 no rule holds authority in a world shown fewer than three successes", "passed": c2 == 0,
          "detail": f"{c2} of {count(lambda w: w['successes'] < 3)} worlds"},

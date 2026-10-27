@@ -1,48 +1,62 @@
 # RULE-AUTHORITY-02: authority to act, benchmarked independently of Lyric
 
-**What it found (2026-10-27, run `20261027T132018Z` on `lyric_bench`, 10,000 worlds, seed 20261026, 415 s): 6 of 7
-checks.** After three fixes made the same afternoon (one in Lyric, two in this benchmark, below), RULE-AUTHORITY-01's
-question holds at ten times its scale, judged by a generator and an evaluator that share no code with Lyric. What
-fails is a rule Lyric cannot express: one that needs a condition to be absent.
+**What it found (2026-10-27, run `20261027T141542Z` on `lyric_bench`, 10,000 worlds, seed 20261026, 559 s): 7 of 7
+checks.** RULE-AUTHORITY-01's question holds at ten times its scale, judged by a generator and an evaluator that
+share no code with Lyric, and where the hidden rule is one Lyric cannot express it does not act on a stand-in.
 
 - **Conjunction worlds** (RULE-AUTHORITY-01's question, settled in the rules a conjunction can say). Where the evidence
   settles the rule (2,509 worlds), no rule acts where the world refuses or predicts a wrong effect; with three or more
-  successes, 1,888 of 2,121 end with exactly the hidden rule (89.0%) and the other 233 with no rule (in 201 of them
-  the success Lyric holds back to confirm a rule would decide it). Where the evidence leaves several rules (723
-  worlds), no rule holds authority.
-- None of the 4,476 rules holding authority is contradicted by anything Lyric was shown, and none holds authority
+  successes, 1,888 of 2,121 end with exactly the hidden rule (89.0%) and the other 233 with no rule (in 201 the
+  success Lyric holds back to confirm a rule would decide it). Where the evidence leaves several rules (723 worlds),
+  no rule holds authority.
+- **Rules no conjunction can say.** Where the evidence settles one (1,393 worlds), Lyric holds no rule in 1,385 and a
+  rule that never acts where the world refuses in 8. The morning's run held an unsafe rule in 8 "one condition absent"
+  worlds, a relation to some other object standing in for the absent condition; none does now.
+- None of the 4,463 rules holding authority is contradicted by anything Lyric was shown, and none holds authority
   after fewer than three successes (1,977 worlds).
-- **C7 fails.** Where the evidence settles a rule no conjunction can say (1,393 worlds), Lyric holds no rule in 1,375
-  and an unsafe one in 8, every one "one condition absent": a relation to some other object that held in every
-  success and not in the near miss stood in for the absent condition (world 4313: "TOMATAV(y) and y is FEDRA of
-  something" for "TOMATAV(y) and not MIRHI(x)"). Lyric's acting learner has no absent condition.
-  `ProbabilisticVersionSpace`, the learner EDU-10 measured under noise, has one, and nothing that acts calls it.
 - **Not a check, the largest number.** Where the evidence points to a rule broader than the hidden one (4,138 worlds),
-  Lyric holds a rule in 2,477, and 2,016 of them act somewhere the world refuses. RULE-AUTHORITY-01 measures the same
+  Lyric holds a rule in 2,474, and 2,015 of them act somewhere the world refuses. RULE-AUTHORITY-01 measures the same
   and calls it by design: Lyric takes the most general rule its evidence supports and narrows it on the next
-  contradiction (3,731 rules lost their authority that way during the run).
+  contradiction (3,592 rules lost their authority that way during the run).
 
 | Check | Result |
 |---|---|
-| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 4,476 rules |
+| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 4,463 rules |
 | C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 1,977 worlds |
 | C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 1,888 exact, 233 no rule, 0 another |
 | C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 2,509 |
 | C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 2,509 |
 | C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 723 |
-| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **fail**, 8 of 1,393 |
+| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 1,393 |
 
 | Family / what the evidence settles | Worlds | Lyric holds a rule | Exact | Unsafe somewhere |
 |---|---|---|---|---|
 | conjunction / settled | 2,509 | 1,888 | 1,888 | 0 |
 | conjunction / several rules | 723 | 0 | 0 | 0 |
 | conjunction / a broader rule | 1,747 | 1,194 | 0 | 1,194 |
-| one condition absent / settled | 981 | 8 | 0 | 8 |
+| one condition absent / settled | 981 | 0 | 0 | 0 |
 | one condition absent / several rules | 601 | 81 | 0 | 81 |
 | one condition absent / a broader rule | 958 | 506 | 0 | 506 |
-| either of two groups / settled | 412 | 10 | 0 | 0 |
+| either of two groups / settled | 412 | 8 | 0 | 0 |
 | either of two groups / several rules | 636 | 12 | 0 | 4 |
-| either of two groups / a broader rule | 1,433 | 777 | 0 | 316 |
+| either of two groups / a broader rule | 1,433 | 774 | 0 | 315 |
+
+**Lyric's authority, changed on 2026-10-27 evening** (`_judge_signature`, from the learning authority's own parts):
+
+1. **The world departing is not the rule being wrong.** A miss of the act that nothing observed tells apart from its
+   successes (`_departures`: the test `_regularity_basis` already put to a regularity's misses, and for an act also
+   "a condition held in the miss and in no success") no longer refutes a rule or stays in what is induced from. It
+   counts against the act: its rules are relied on as a habit is (`relied_on_rate`, at least 80% on at least five
+   attempts), and withheld (`rule_store.withhold`, SUPPORTED, not refuted) until they are. Counted for the act, not
+   for one rule: per rule, a narrower rule validated before the misses came kept its authority (world 3993). A miss
+   something does tell apart still refutes at once. Lyric keeps learning where a right act sometimes fails.
+2. **A condition that must be absent.** The authority's own causal structure (`induce_causal_structure`, the
+   `ProbabilisticVersionSpace` EDU-10 measured) is asked whether a structure with an absent condition explains the
+   demonstrations as well as the learned rule; a rule that leans on more conditions about things the act does not
+   name than that rival waits. Asked of every rule, it withheld 25 of 48 settled conjunction rules on a coincidence.
+
+Tests 46/46; RULE-AUTHORITY-01 on its seed 7/7 with every figure as on 2026-10-01 (`20261027T141452Z`). The noisy arm
+(`--noise`, below) measures the first change.
 
 **Fixed on 2026-10-27, afternoon.**
 
@@ -176,4 +190,5 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | `20261027T013716Z` | 100 | 4/6, scored before the evaluator amendment |
 | `20261027T022228Z` | 10,000 | 3/6 as declared; **4/6** with C3 restated (`evaluation_c3_amended.json`), the morning's figures; on lyric_dev |
 | `20261027T124318Z` | 10,000 | 4/6 on `lyric_bench`, the benchmark's own instance: every world's final rules, status after every act, rules refuted after validation and score identical to `20261027T022228Z`, so sharing lyric_dev did not change the result |
-| `20261027T132018Z` | 10,000 | **6/7** on `lyric_bench`, with the frame fix, the full still world and the two arms: the figures at the top |
+| `20261027T132018Z` | 10,000 | 6/7 on `lyric_bench`, with the frame fix, the full still world and the two arms; C7 failed in 8 worlds |
+| `20261027T141542Z` | 10,000 | **7/7** on `lyric_bench`, with Lyric's departures and absent-condition gate: the figures at the top |

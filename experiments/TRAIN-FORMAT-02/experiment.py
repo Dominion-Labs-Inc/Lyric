@@ -125,11 +125,11 @@ async def store_checks() -> int:
     EV.check("memory reads none of them as a claim about the world",
              all(not (row.metadata or {}).get("facts") for row, _ in held))
     # A word WordNet has (a noun, a verb, ...) is held with its senses; a word it has none of ("for") with its uses
-    # and what it says joining a doing to a thing (checked below).
+    # and what it says joining a doing to a thing ("for", checked below) or a thing to a thing ("of").
     EV.check("memory holds each word's senses, what each means and what it is a kind of; a word WordNet has none of, "
              "its uses and what it says",
-             all(any(s.means and s.kind_of for s in w.senses) if w.senses else (w.used_as and w.joins)
-                 for _, w in held))
+             all(any(s.means and s.kind_of for s in w.senses) if w.senses else
+                 (w.used_as and (w.joins or w.joins_things)) for _, w in held))
 
     # ── each part of reading ──
     forms = agent.word_forms()

@@ -868,6 +868,22 @@ class RuleStore:
         await self._set_status(record, outcome)
         return outcome
 
+    async def withhold(self, record: StoredRule, detail: str) -> Optional[ValidationOutcome]:
+        """Take a rule's authority away without refuting it: SUPPORTED, which is
+        not executable, until validation grants it again.
+
+        For the world departing from a rule (`_departures`), which says how often
+        the rule holds, not that it is wrong. Refuting it would delete what the
+        evidence still supports, and the act would never be learned in a world
+        where a right act sometimes fails."""
+        if record.status is not EpistemicStatus.VALIDATED:
+            return None
+        guard_learning("rule authority withheld")
+        await self.ensure_schema()
+        outcome = ValidationOutcome(EpistemicStatus.SUPPORTED, 0, 0, [], detail)
+        await self._set_status(record, outcome)
+        return outcome
+
     async def _set_status(self, record: StoredRule, outcome: ValidationOutcome):
         previous = record.status
         validated_at = (
