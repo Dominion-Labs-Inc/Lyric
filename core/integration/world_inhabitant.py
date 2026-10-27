@@ -11,6 +11,11 @@ person who sent it, which is the actor everything of theirs is kept under.
     hearing           what a person's device hears while Listening is on, and their wake phrase to set it up ->
                       Lyric's ears on people's devices (`core.perception.live.DeviceEars`)
 
+ITS PEOPLE'S ALLOWANCES. Attached with a running Lyric, the queue takes on work for a person only while the
+allowance the world keeps for their seat lets it (`Allowance`: their month's action minutes, the tasks it runs for
+them a day and at once), answers work refused with why, and keeps in their usage each task it took on and how long
+each job was in flight.
+
 The world's address and the inhabitant's key come from the environment (TET_WORLD_ADDRESS,
 TET_OPERATOR_PRIVATE_KEY). Neither has a default: without them Lyric is not attached to a world, and
 `attach` says so.
@@ -67,6 +72,53 @@ def _tet():
     return serve_messages, Attachment, operator_private_key
 
 
+class Allowance:
+    """Each person's allowance, as the world keeps it (Tet's `platform.usage`), for the queue authority
+    (`QueueAuthority.allowance`): whether work for the person a task is for may be taken on now (`may_take`), and
+    what Lyric used for them (`taken`: a task taken on; `acted`: the seconds a job was in flight). Asked over its own
+    link to the world, not the one turns are pulled on (that one waits); called off Lyric's loop, so one link is
+    held under a lock and opened again when it drops."""
+
+    def __init__(self, address: str, key) -> None:
+        self._address, self._key = address, key
+        self._link = None
+        self._lock = threading.Lock()
+
+    def _ask(self, ask: Callable[[Any], Any]) -> Any:
+        from Tet.walls import LyricClient
+        with self._lock:
+            for attempt in (1, 2):
+                try:
+                    if self._link is None:
+                        self._link = LyricClient(self._address, INHABITANT_PRINCIPAL, self._key)
+                    return ask(self._link)
+                except (ConnectionError, OSError):
+                    self.close_link()
+                    if attempt == 2:
+                        raise
+
+    def may_take(self, task, running: int) -> Optional[str]:
+        """Why work for the person `task` is for may not be taken on now, `running` of theirs already owed; None
+        when it may."""
+        return self._ask(lambda link: link.may_start(task.actor, running))
+
+    def taken(self, task) -> None:
+        """A task taken on for its person: kept in their usage."""
+        self._ask(lambda link: link.used(task.actor, "task", 1, {"task": str(task.id)}))
+
+    def acted(self, actor: str, seconds: float, task_id: str) -> None:
+        """The seconds a job for its person was in flight: kept in their usage."""
+        self._ask(lambda link: link.used(actor, "action", seconds, {"task": task_id}))
+
+    def close_link(self) -> None:
+        if self._link is not None:
+            try:
+                self._link.close()
+            except OSError:
+                pass
+        self._link = None
+
+
 class WorldInhabitant:
     """Lyric's attachment to its world."""
 
@@ -87,6 +139,8 @@ class WorldInhabitant:
         self._passing: Optional[Dict[str, Any]] = None
         self._takes = {"message": self._message, "shared_learning": self._shared_learning, "hearing": self._hearing,
                        "device": self._device}
+        #: Each person's allowance (`Allowance`), held by the running Lyric's queue while attached with one.
+        self._allowance: Optional[Allowance] = None
 
     def attach(self, world_address: Optional[str] = None, key=None) -> None:
         """Start taking what the world holds for Lyric. Called from Lyric's running loop: each thing
@@ -105,6 +159,14 @@ class WorldInhabitant:
                   {intent: self._on_loop(intent) for intent in self._takes}),
             kwargs={"attachment": self._attachment})
         self._thread.start()
+        if self._coordinator is not None:
+            # ITS PEOPLE'S ALLOWANCES. Work for a person is taken on only while their seat allows it, and what it
+            # used is kept in their usage: each task taken on, and how long each job was in flight once it ends.
+            self._allowance = Allowance(address, key if key is not None else operator_private_key())
+            self._coordinator.task_queue.allowance = self._allowance
+            if not getattr(self._coordinator.task_queue, "_usage_kept", False):
+                self._coordinator.task_queue.on_work_ended(self._work_ended)
+                self._coordinator.task_queue._usage_kept = True
         logger.info("Lyric attached to its world at %s as its inhabitant", address)
 
     @property
@@ -125,6 +187,11 @@ class WorldInhabitant:
         # that has gone holds none, and lets go if it ever connects (`serve_messages`).
         if thread is not None and connected:
             await asyncio.get_running_loop().run_in_executor(None, thread.join)
+        if self._allowance is not None:
+            if self._coordinator is not None and self._coordinator.task_queue.allowance is self._allowance:
+                self._coordinator.task_queue.allowance = None
+            self._allowance.close_link()
+            self._allowance = None
         logger.info("Lyric let go of its world")
 
     def holds(self, quiet_for: float) -> Dict[str, float]:
@@ -183,7 +250,25 @@ class WorldInhabitant:
         # in one shared conversation ("api:unsessioned"), so one person's "it" could be what another had said.
         reply = await self._coordinator.handle_user_request(
             text, source="api", metadata={"actor_identity": identity, "conversation_id": f"world:{identity}"})
+        # WORK THEIR ALLOWANCE DID NOT LET LYRIC TAKE ON is answered with why.
+        why = self._coordinator.task_queue.refusal_of(reply["task_id"]) if reply.get("task_id") else None
+        if why and not reply.get("success"):
+            reply = {**reply, "answer": f"{why[0].upper()}{why[1:]}."}
         return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
+
+    async def _work_ended(self, job: Dict[str, Any], task) -> None:
+        """A job for a person ended: the seconds it was in flight are kept in their usage."""
+        allowance, actor = self._allowance, getattr(task, "actor", None)
+        seconds = float(job.get("acting_seconds") or 0)
+        if allowance is None or not actor or seconds <= 0:
+            return
+        from core.agents.autonomous.shared_types import is_substrate_actor
+        if is_substrate_actor(actor):
+            return
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, allowance.acted, actor, seconds, str(task.id))
+        except Exception as error:
+            logger.error("what %s used could not be kept in their usage: %s", actor, error)
 
     async def _shared_learning(self, identity: str, payload: str) -> Dict[str, Any]:
         """Whether what Lyric learns from this person's work goes into shared learning (Context and privacy), for

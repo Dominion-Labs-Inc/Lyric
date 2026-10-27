@@ -103,6 +103,19 @@ class QueuedTask:
     wait_time: float = 0.0
     retry_count: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    #: The seconds it was in flight before its last start (held for its person, or put back to be tried again).
+    acted_before: float = 0.0
+
+    def acting_seconds(self) -> float:
+        """How long it has been in flight, every stretch of it: what the person it is for used of their allowance."""
+        stretch = ((self.completed_at or datetime.now()) - self.started_at).total_seconds() if self.started_at else 0.0
+        return self.acted_before + max(0.0, stretch)
+
+    def stop_acting(self) -> None:
+        """Out of flight (held for its person, or put back): the stretch it was in flight is kept with it."""
+        if self.started_at is not None:
+            self.acted_before += max(0.0, (datetime.now() - self.started_at).total_seconds())
+        self.started_at = None
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -189,6 +202,13 @@ class QueueAuthority:
         #: `on_complete` is for an await-job. A job cancelled is not announced:
         #: whoever cancelled it already knows.
         self._ended_handlers: List[Callable[[Dict[str, Any], Task], Any]] = []
+        #: THE PERSON'S ALLOWANCE, where Lyric works in a world that keeps one (`world_inhabitant`): an object whose
+        #: `may_take(task, running)` says why work for the person a task is for may not be taken on now (their seat's
+        #: month, or how many of theirs are owed already, `running`), or None, and `taken(task)` keeps one taken on.
+        #: Both may wait on the world, so they run off the loop. None: no allowance (no world).
+        self.allowance = None
+        #: Why each job refused for its person's allowance was refused, by id (`refusal_of`).
+        self._refusals: Dict[str, str] = {}
 
         # Admission control (the queue's own metabolism — NOT the Constitution's).
         self.soft_limit = int(self.config.get('soft_limit', 25))
@@ -313,6 +333,12 @@ class QueueAuthority:
         through a restart, but waiting for the person it is for to say go
         ahead before it is ever drawn, as `hold_for_person` holds a job that
         is already running; `resume_task` puts it in the queue."""
+        why = await self._allowance_refuses(task)
+        if why:
+            self._refusals[task.id] = why
+            self.metrics['tasks_deferred'] += 1
+            logger.info("[ALLOWANCE] refused %s for %s: %s", task.id, task.actor, why)
+            return False
         async with self.lock:
             held = self.tasks_by_id.get(task.id)
             if held is not None and held.status in ACTIVE_STATUSES:
@@ -343,6 +369,8 @@ class QueueAuthority:
                         del self.tasks_by_id[task.id]
             return self._already_queued(task.id, "held by another instance")
 
+        if self.allowance is not None and getattr(task, "actor", SUBSTRATE_ACTOR) != SUBSTRATE_ACTOR:
+            asyncio.get_running_loop().run_in_executor(None, self._taken, task)
         async with self.lock:
             self.total_tasks_added += 1
             if held_for_person:
@@ -352,6 +380,35 @@ class QueueAuthority:
             await self.queue.put((-tp.value, self._sequence, queued))
         logger.info("queued %s (priority=%s, depth=%d)", task.id, tp.value, self.queue.qsize())
         return True
+
+    async def _allowance_refuses(self, task: Task) -> Optional[str]:
+        """Why the allowance of the person a new job is for refuses it now, or None: the substrate's own work, a job
+        already owed, and work where there is no allowance are never refused here. One the allowance cannot be asked
+        about is not refused (the world keeps what is used either way)."""
+        actor = getattr(task, "actor", SUBSTRATE_ACTOR)
+        if self.allowance is None or actor == SUBSTRATE_ACTOR:
+            return None
+        held = self.tasks_by_id.get(task.id)
+        if held is not None and held.status in ACTIVE_STATUSES:
+            return None
+        running = sum(1 for each in self.tasks_by_id.values()
+                      if each.task is not None and getattr(each.task, "actor", None) == actor
+                      and each.status in ACTIVE_STATUSES)
+        try:
+            return await asyncio.get_running_loop().run_in_executor(None, self.allowance.may_take, task, running)
+        except Exception as error:
+            logger.error("the allowance for %s could not be asked: %s", actor, error)
+            return None
+
+    def _taken(self, task: Task) -> None:
+        try:
+            self.allowance.taken(task)
+        except Exception as error:
+            logger.error("a job taken on for %s could not be kept in their usage: %s", task.actor, error)
+
+    def refusal_of(self, task_id: str) -> Optional[str]:
+        """Why a job was refused for its person's allowance, or None."""
+        return self._refusals.get(task_id)
 
     def _already_queued(self, task_id: str, where: str) -> bool:
         self.metrics['tasks_already_queued'] += 1
@@ -596,7 +653,7 @@ class QueueAuthority:
             return False
         async with self.lock:
             queued.status = TaskStatus.BLOCKED
-            queued.started_at = None
+            queued.stop_acting()
         await self._persist_queued(queued)
         return True
 
@@ -624,7 +681,7 @@ class QueueAuthority:
             queued.retry_count += 1
             queued.times_requeued += 1
             queued.status = TaskStatus.PENDING
-            queued.started_at = None
+            queued.stop_acting()
             self._sequence += 1
             await self.queue.put((-queued.priority.value, self._sequence, queued))
             self.metrics['tasks_requeued'] += 1
@@ -686,7 +743,8 @@ class QueueAuthority:
                 "completed_at": queued.completed_at.isoformat() if queued.completed_at else None,
                 "result": queued.task.result, "error": queued.error_message,
                 "read": (queued.task.metadata or {}).get("read"),
-                "told_at": (queued.metadata or {}).get("told_at")}
+                "told_at": (queued.metadata or {}).get("told_at"),
+                "acting_seconds": round(queued.acting_seconds(), 3)}
 
     async def work_of(self, actor: str, *, limit: int = 10) -> List[Dict[str, Any]]:
         """The work `actor` asked for, newest first: each job's id, what was
