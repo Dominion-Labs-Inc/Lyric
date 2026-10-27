@@ -2327,9 +2327,11 @@ class RecordWord:
     """One word of a sentence recorded whole (`SentenceRecord`): where it is (`at`, and its characters in the text,
     `start` to `end`), how it is written, its base form, its class (Lyric's names: NOUN, NAME, VERB, AUXILIARY,
     PREPOSITION, ...), the source's part of speech (Penn's), what form it is (a treebank's features: "Tense=Past"),
-    its WordNet sense ("" for none), its category in a categorial grammar as the PMB writes it ("(s:dcl\\np)/np"), its
-    semantic tag (the PMB's), the word it is joined to (`head`, its position; -1 for the sentence's own word) and as
-    what (`relation`, a treebank's: nsubj, obj, det, case, obl, punct, ...), and its VerbNet roles."""
+    its category in a categorial grammar as the PMB writes it ("(s:dcl\\np)/np"), the word it is joined to (`head`,
+    its position; -1 for the sentence's own word) and as what (`relation`, a treebank's: nsubj, obj, det, case, obl,
+    punct, ...). Which sense each word has and what it names is the meaning's (`SentenceRecord.terms`, `facts`), and
+    what a verb's places are its word's record's (`WordRecord`): the PMB's WordNet sense, semantic tag and VerbNet
+    roles of each word, recorded too until 2026-10-26, repeated them and were read by nothing."""
 
     at: int
     form: str
@@ -2339,25 +2341,20 @@ class RecordWord:
     word_class: str
     tag: str = ""
     features: str = ""
-    sense: str = ""
     category: str = ""
-    semtag: str = ""
     head: int = -1
     relation: str = ""
-    roles: Tuple[str, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return {"at": self.at, "form": self.form, "start": self.start, "end": self.end, "lemma": self.lemma,
-                "class": self.word_class, "tag": self.tag, "features": self.features, "sense": self.sense,
-                "category": self.category, "semtag": self.semtag, "head": self.head, "relation": self.relation,
-                "roles": list(self.roles)}
+                "class": self.word_class, "tag": self.tag, "features": self.features, "category": self.category,
+                "head": self.head, "relation": self.relation}
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "RecordWord":
         return cls(int(data["at"]), str(data["form"]), int(data["start"]), int(data["end"]), str(data["lemma"]),
                    str(data["class"]), str(data.get("tag") or ""), str(data.get("features") or ""),
-                   str(data.get("sense") or ""), str(data.get("category") or ""), str(data.get("semtag") or ""),
-                   int(data.get("head", -1)), str(data.get("relation") or ""), tuple(data.get("roles") or ()))
+                   str(data.get("category") or ""), int(data.get("head", -1)), str(data.get("relation") or ""))
 
 
 @dataclass(frozen=True)
@@ -2405,7 +2402,7 @@ _UNSAID_TERMS = frozenset({"?now", "?speaker", "?listener", "?previous", "?there
 @dataclass(frozen=True)
 class SentenceRecord:
     """ONE SENTENCE AS LYRIC IS TAUGHT IT, EVERY LAYER BY WORD POSITION: its words (`RecordWord`: form, base, class,
-    form features, sense, category, semantic tag, the word it is joined to and as what, roles), how its words were
+    form features, category, the word it is joined to and as what), how its words were
     combined (`tree`, the PMB's derivation by word positions: `grammar.Derived.tree`), its names of several words
     (`names`: first and last word, the name), and its meaning in Lyric's meaning language (`act`, `facts`, `asked`),
     each term of it with the words saying it (`terms`: a pronoun's term with the words of what it stands for, "?speaker"
@@ -2561,7 +2558,7 @@ class SentenceRecord:
         (`grammar.Derived`): a name of several words one word, its parts joined by "~", as the PMB writes it."""
         from core.semantics.grammar import Derived
         firsts = {first: (last, name) for first, last, name in self.names}
-        words, categories, tags, lemmas, senses, roles, semantics, spans = [], [], [], [], [], [], [], []
+        words, categories, tags, lemmas, spans = [], [], [], [], []
         k = 0
         while k < len(self.words):
             last = firsts.get(k, (k, ""))[0]
@@ -2571,14 +2568,13 @@ class SentenceRecord:
             categories.append(heading.category)
             tags.append(heading.tag)
             lemmas.append("~".join(w.lemma for w in part))
-            senses.append(heading.sense)
-            roles.append(heading.roles)
-            semantics.append(heading.semtag)
             spans.append((part[0].start, part[-1].end))
             k = last + 1
         document, part_of = self.document()
-        return Derived(self.text, tuple(words), tuple(categories), tuple(tags), tuple(lemmas), tuple(senses),
-                       tuple(roles), tuple(semantics), tuple(spans), self.tree, document, part_of)
+        # A derivation holds a sense, roles and a semantic tag for each word; the grammar reads none of them.
+        none = tuple("" for _ in words)
+        return Derived(self.text, tuple(words), tuple(categories), tuple(tags), tuple(lemmas), none,
+                       tuple(() for _ in words), none, tuple(spans), self.tree, document, part_of)
 
     def taught(self):
         """The sentence and its meaning, each term at the characters of the words saying it, as English's grammar
@@ -2709,9 +2705,7 @@ def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRe
             found = derived.text.find(part, at)
             s = found if found >= 0 else at
             words.append({"form": part, "start": s, "end": s + len(part), "lemma": lemmas[p] or part.lower(),
-                          "tag": derived.tags[k], "sense": derived.senses[k] if p == len(parts) - 1 else "",
-                          "category": derived.categories[k], "semtag": derived.semantics[k],
-                          "roles": tuple(derived.roles[k]) if p == len(parts) - 1 else ()})
+                          "tag": derived.tags[k], "category": derived.categories[k]})
             at = s + len(part)
         if len(parts) > 1:
             names.append((first, len(words) - 1, " ".join(parts).lower()))
@@ -2861,8 +2855,7 @@ def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRe
         facts.append(RecordFact(f.relation, f.subject, f.obj, f.positive, f.condition, f.alternative, f.unasserted,
                                 f.given, tuple(sorted(set(said)))))
     record_words = tuple(RecordWord(k, w["form"], w["start"], w["end"], w["lemma"], w["class"], w["tag"],
-                                    w["features"], w["sense"], w["category"], w["semtag"], head[k], w["relation"],
-                                    w["roles"]) for k, w in enumerate(words))
+                                    w["features"], w["category"], head[k], w["relation"]) for k, w in enumerate(words))
     terms = tuple((t, tuple(sorted(at))) for t, at in term_words.items()
                   if any(t in (f.subject, f.obj) for f in taught.meaning.facts))
     tree = derived.tree

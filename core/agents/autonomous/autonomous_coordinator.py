@@ -20760,6 +20760,10 @@ def _meanings_said(understanding: "Understanding", asked: Any) -> List[Tuple[str
     words, "What is a wall?" was "I don't hold wall yet." (TRAIN-FORMAT-02, lyric_dev2, 2026-10-26)."""
     if not understanding.meanings:
         return []
+    if not tuple(getattr(asked, "asked", ()) or ()):
+        # A YES OR NO ASKS FOR NOTHING to be told what a word means: "Is a wall a structure?" was answered with what a
+        # wall is and "I hold nothing for structure." (lyric_dev2, 2026-10-26). Whether it holds is reasoning's.
+        return []
     facts = list(getattr(asked, "facts", ()) or ())
     asks_meaning = any(f.relation == "instance_of" and str(f.obj) == "mean" for f in facts)
     sentence = str(understanding.sentence or "").lower()

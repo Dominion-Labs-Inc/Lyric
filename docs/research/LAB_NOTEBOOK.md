@@ -80,8 +80,16 @@ the wall." `coat paint`, "Roy painted a picture." `represent paint`, as the hand
 `understand()`; each word read back in its own examples at teaching (46: 22 read, 2 in their sense; the words to
 teach next listed). Found, general: taught language was recalled as knowledge (`memory_filter`): the derivations
 (on main all 8,679, since (52)), the records and what reading taught; "What is a wall?" 148 s -> 0.1 s. Every check
-(40), 13 of 13; TRAIN-FORMAT-01 5 of 5; GRAMMAR-01 383; tests 79 (the 2 old conversation failures as before). Read by
-nothing: the sentence record's `semtag`, `sense`, `roles` (they repeat the terms and the word records).
+(40), 13 of 13; TRAIN-FORMAT-01 5 of 5; GRAMMAR-01 383; tests 79 (the 2 old conversation failures as before). The
+sentence record's `semtag`, `sense`, `roles` repeated the terms and the word records and were read by nothing:
+removed (the owner's yes); the record taught again was the same record read back (memory: already held).
+
+**Reasoning over what the words taught: not sound.** After "Roy painted the wall.": "Is a wall a structure?", "Is paint
+a substance?", "Did Roy coat the wall?" (yes, each, by the records' kinds and senses) and "Is a picture a wall?" (no)
+get no yes or no; "Did Roy make something?" after "Roy painted a picture." none. A word record's kinds reach the
+grammar, not the reasoner's premises; and a chain needs each word in it recorded (`coat` is the record's `to coat`).
+The meanings answer had fired on a yes or no ("Is a wall a structure?" answered with what a wall is): now only where
+something is asked for.
 
 ## 2026-10-26 (56) — One sentence recorded whole, every layer by word position, taught into an instance that held nothing: what Lyric needs to learn from one record (TRAIN-FORMAT-01)
 

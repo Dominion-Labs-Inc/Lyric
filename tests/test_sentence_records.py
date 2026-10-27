@@ -9,12 +9,12 @@ TEXT = "Tom chased a cat."
 
 
 def _record(**changed) -> SentenceRecord:
-    words = (RecordWord(0, "Tom", 0, 3, "tom", "NAME", "NNP", "Number=Sing", "", "n", "PER", 1, "nsubj"),
+    words = (RecordWord(0, "Tom", 0, 3, "tom", "NAME", "NNP", "Number=Sing", "n", 1, "nsubj"),
              RecordWord(1, "chased", 4, 10, "chase", "VERB", "VBD", "Mood=Ind|Tense=Past|VerbForm=Fin",
-                        "chase.v.01", "(s:dcl\\np)/np", "EPS", -1, "root", ("Theme", "Agent")),
-             RecordWord(2, "a", 11, 12, "a", "DETERMINER", "DT", "", "", "np/n", "DIS", 3, "det"),
-             RecordWord(3, "cat", 13, 16, "cat", "NOUN", "NN", "Number=Sing", "cat.n.01", "n", "CON", 1, "obj"),
-             RecordWord(4, ".", 16, 17, ".", "PUNCTUATION", ".", "", "", ".", "NIL", 1, "punct"))
+                        "(s:dcl\\np)/np", -1, "root"),
+             RecordWord(2, "a", 11, 12, "a", "DETERMINER", "DT", "", "np/n", 3, "det"),
+             RecordWord(3, "cat", 13, 16, "cat", "NOUN", "NN", "Number=Sing", "n", 1, "obj"),
+             RecordWord(4, ".", 16, 17, ".", "PUNCTUATION", ".", "", ".", 1, "punct"))
     facts = (RecordFact("instance_of", "?v0", "chase", words=(1,)),
              RecordFact("precedes", "?v0", "?now", words=(1,)),
              RecordFact("done_by", "?v0", "tom", words=(0, 1)),
@@ -53,11 +53,11 @@ def test_each_layer_is_given_as_the_part_of_reading_that_learns_from_it_takes_it
 def test_a_record_whose_layers_do_not_hold_together_is_said_wrong():
     assert any("no word says ?v1" in p for p in _record(terms=(("tom", (0,)), ("?v0", (1,)))).problems())
     circled = list(_record().words)
-    circled[1] = RecordWord(1, "chased", 4, 10, "chase", "VERB", "VBD", "", "", "(s:dcl\\np)/np", "", 3, "root")
+    circled[1] = RecordWord(1, "chased", 4, 10, "chase", "VERB", "VBD", "", "(s:dcl\\np)/np", 3, "root")
     problems = _record(words=tuple(circled)).problems()
     assert any("are the sentence's own" in p for p in problems) and any("circle" in p for p in problems)
     moved = list(_record().words)
-    moved[3] = RecordWord(3, "cat", 12, 15, "cat", "NOUN", "NN", "", "", "n", "", 1, "obj")
+    moved[3] = RecordWord(3, "cat", 12, 15, "cat", "NOUN", "NN", "", "n", 1, "obj")
     assert any("'cat' is not at 12-15" in p for p in _record(words=tuple(moved)).problems())
 
 
