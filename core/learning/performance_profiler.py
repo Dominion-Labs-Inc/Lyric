@@ -47,8 +47,9 @@ class PerformanceMetrics:
     peak_memory_mb: Optional[float]
     memory_delta_mb: float  # Change during execution
 
-    # CPU
-    cpu_percent: float
+    # CPU: the process's share of the whole machine while the call ran, 0 to
+    # 100; None where unmeasured (`profile_function`).
+    cpu_percent: Optional[float]
 
     # Call statistics
     call_count: int = 1
@@ -273,7 +274,16 @@ class PerformanceProfiler:
                 peak_memory = peak / 1024 / 1024
                 tracemalloc.stop()
 
-            cpu_percent = self.process.cpu_percent() if self.enable_cpu_profiling else 0.0
+            # A SHARE OF THE MACHINE, AS THE THRESHOLDS AND THE STORE READ IT.
+            # psutil gives the process's CPU as a share of ONE core, so every
+            # thread of it counts: 1,078% and 1,346% on 14 cores, over calls of
+            # 0.01 ms, and the 0-to-999.99 column refused each (RULE-AUTHORITY-02,
+            # 2026-10-28: 135 metrics lost in one run). A share above the whole
+            # machine is a call shorter than the CPU clock can resolve: unmeasured.
+            cpu_percent = None
+            if self.enable_cpu_profiling:
+                share = self.process.cpu_percent() / (psutil.cpu_count() or 1)
+                cpu_percent = share if share <= 100.0 else None
 
         execution_time_ms = (end_time - start_time) * 1000
         cpu_time_ms = (end_cpu_time - start_cpu_time) * 1000
@@ -344,9 +354,9 @@ class PerformanceProfiler:
             raise failure
 
         logger.info(
-            "Profiled %s.%s: time=%.2fms, memory=%+.3fMB, cpu=%.1f%%",
-            component_name, operation_name, execution_time_ms,
-            memory_delta, cpu_percent)
+            "Profiled %s.%s: time=%.2fms, memory=%+.3fMB, cpu=%s",
+            component_name, operation_name, execution_time_ms, memory_delta,
+            "unmeasured" if cpu_percent is None else f"{cpu_percent:.1f}%")
 
         return result, metrics
 
@@ -536,7 +546,7 @@ class PerformanceProfiler:
                 peak_memory_mb=(None if details.get("peak_memory_mb") is None
                                 else float(details["peak_memory_mb"])),
                 memory_delta_mb=float(details.get("memory_delta_mb") or 0.0),
-                cpu_percent=float(row["cpu_usage"] or 0.0),
+                cpu_percent=(None if row["cpu_usage"] is None else float(row["cpu_usage"])),
                 call_count=1,
                 success=bool(row["success"]),
                 error_message=details.get("error_message"),
@@ -576,7 +586,8 @@ class PerformanceProfiler:
         for op_name, op_metrics in ops_metrics.items():
             avg_time = sum(m.execution_time_ms for m in op_metrics) / len(op_metrics)
             avg_memory = sum(m.memory_used_mb for m in op_metrics) / len(op_metrics)
-            avg_cpu = sum(m.cpu_percent for m in op_metrics) / len(op_metrics)
+            cpu_readings = [m.cpu_percent for m in op_metrics if m.cpu_percent is not None]
+            avg_cpu = sum(cpu_readings) / len(cpu_readings) if cpu_readings else None
 
             # Check for slow execution (>200ms average)
             if avg_time > self.thresholds["execution_time_ms"]["fair"]:
@@ -609,7 +620,7 @@ class PerformanceProfiler:
                 })
 
             # Check for high CPU (>60% average)
-            if avg_cpu > self.thresholds["cpu_percent"]["fair"]:
+            if avg_cpu is not None and avg_cpu > self.thresholds["cpu_percent"]["fair"]:
                 severity = self._calculate_severity(
                     avg_cpu,
                     self.thresholds["cpu_percent"]
