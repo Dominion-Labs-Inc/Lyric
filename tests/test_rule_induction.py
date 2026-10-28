@@ -375,3 +375,25 @@ def test_the_learner_is_invariant_under_predicate_renaming(inducer, kite_discrim
         "the learned rule differs under a bijective renaming, so the learner is "
         "keying on symbol identity rather than relational structure"
     )
+
+
+def test_a_part_held_twice_over_is_reduced_away():
+    """Something JOFIL to something that VEVORMIRs something: two literals joined
+    by a variable of their own. A second copy of that part under other variables
+    says nothing the first does not, and goes; a part that holds an act's thing
+    or adds a predicate stays."""
+    from core.learning.rule_induction import _reduced
+    act = F("SUDOVOR(?X0,?X1)")
+    effects = RuleEffects(add=frozenset({F("HIDRAGA(?X1)")}))
+    body = {act, F("JOFIL(?X2,?X3)"), F("VEVORMIR(?X2,?X4)"),
+            F("JOFIL(?X5,?X6)"), F("VEVORMIR(?X5,?X7)")}
+    assert _reduced(body, effects, act) == {act, F("JOFIL(?X2,?X3)"), F("VEVORMIR(?X2,?X4)")} \
+        or _reduced(body, effects, act) == {act, F("JOFIL(?X5,?X6)"), F("VEVORMIR(?X5,?X7)")}
+
+    anchored = {act, F("JOFIL(?X2,?X3)"), F("VEVORMIR(?X2,?X4)"),
+                F("JOFIL(?X5,?X0)"), F("VEVORMIR(?X5,?X7)")}
+    assert _reduced(anchored, effects, act) == {act, F("JOFIL(?X5,?X0)"), F("VEVORMIR(?X5,?X7)")}
+
+    distinct = {act, F("JOFIL(?X2,?X3)"), F("VEVORMIR(?X2,?X4)"),
+                F("JOFIL(?X5,?X6)"), F("KEMIR(?X5,?X7)")}
+    assert _reduced(distinct, effects, act) == distinct

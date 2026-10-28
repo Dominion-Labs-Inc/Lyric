@@ -774,7 +774,19 @@ def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) ->
     stands in DODRAJO to something. Measured (RULE-AUTHORITY-02, 2026-10-27): a
     thing related by one predicate to three others in each of five
     demonstrations gave twelve such copies, a 16-literal body at the bound, and
-    65,536 subsets for minimization, which never finished; reduced, 4."""
+    65,536 subsets for minimization, which never finished; reduced, 4.
+
+    AND A PART IS REMOVED THE SAME WAY. Literals joined only by variables of
+    their own say together that some such things exist: JOFIL(?X3, ?X4) and
+    VEVORMIR(?X3, ?X11), something JOFIL to something that VEVORMIRs something.
+    Neither literal is removable alone, since ?X3 is in the other. When
+    renaming the part's own variables carries every literal of it onto other
+    literals of the body, the part is held twice over and is removed. Measured
+    (RULE-AUTHORITY-02, 2026-10-28, world 336): four such parts were left in an
+    11-literal body, and matching it against a world state of 62 facts took
+    every way of matching each part, multiplied together, for each of 2,048
+    subsets; that one induction held the process for minutes."""
+    held = set(effects.variables) | (action.variables if action else set())
     kept = set(body)
     while True:
         dropped = None
@@ -782,17 +794,48 @@ def _reduced(body: Set[Fact], effects: "RuleEffects", action: Optional[Fact]) ->
             if literal == action or not literal.variables:
                 continue
             rest = kept - {literal}
-            elsewhere = set().union(effects.variables, action.variables if action else set(),
-                                    *(f.variables for f in rest))
+            elsewhere = set().union(held, *(f.variables for f in rest))
             own = literal.variables - elsewhere
             if not own:
                 continue
             if any(_maps_onto(literal, other, own) for other in rest if other.predicate == literal.predicate):
-                dropped = literal
+                dropped = {literal}
                 break
         if dropped is None:
+            dropped = next((part for part in _parts(kept, held) if len(part) > 1
+                            and _part_maps_onto(sorted(part), kept - part,
+                                                set().union(*(f.variables for f in part)) - held, {})),
+                           None)
+        if dropped is None:
             return kept
-        kept.discard(dropped)
+        kept -= dropped
+
+
+def _parts(body: Set[Fact], held: Set[str]) -> List[Set[Fact]]:
+    """The body's literals grouped by the variables they share that are not `held`."""
+    parts: List[Set[Fact]] = []
+    for literal in sorted(body):
+        joined = [part for part in parts
+                  if (literal.variables - held) & set().union(*(f.variables for f in part))]
+        merged = {literal}.union(*joined)
+        parts = [part for part in parts if part not in joined] + [merged]
+    return parts
+
+
+def _part_maps_onto(part: List[Fact], others: Set[Fact], free: Set[str], bound: Dict[str, str]) -> bool:
+    """Whether a substitution of the variables in `free` alone carries every literal of `part` onto `others`."""
+    if not part:
+        return True
+    literal, *remaining = part
+    for other in others:
+        if other.predicate != literal.predicate or len(other.args) != len(literal.args):
+            continue
+        trial = dict(bound)
+        if all((trial.setdefault(mine, theirs) == theirs) if mine in free else mine == theirs
+               for mine, theirs in zip(literal.args, other.args)):
+            if _part_maps_onto(remaining, others, free, trial):
+                return True
+    return False
 
 
 def _maps_onto(literal: Fact, other: Fact, free: Set[str]) -> bool:
