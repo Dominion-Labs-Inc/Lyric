@@ -265,6 +265,66 @@ def _join(literals: Sequence[Fact], variables: Sequence[str],
     return [rows[key] for key in sorted(rows)]
 
 
+class _OneTerm:
+    """The terms for the variables `ground_rule` grounds once: the first, in
+    the order they rank, under which the act may be taken in the state the
+    problem starts in -- nothing it needs absent holds, and its successes
+    covered the case (`untested_conditions`, as the constitution reads it at
+    the act). Where none may, the first, which the planner refuses as it would
+    any other. Terms no fact names differ in nothing the act could be refused
+    for, so one of them stands for all."""
+
+    def __init__(self, rule: CandidateRule, variables: List[str],
+                 ranked: List[List[str]],
+                 held: Optional[Dict[str, Set[Tuple[str, ...]]]],
+                 successes: Optional[Sequence[FrozenSet[str]]]):
+        self.rule = rule
+        self.variables = variables
+        self.ranked = ranked
+        self.held = held
+        self.successes = [frozenset(s) for s in successes or ()]
+        self.facts = [Fact(predicate, tuple(args))
+                      for predicate, rows in (held or {}).items() for args in rows]
+        self.about: Dict[str, Set[Fact]] = {}
+        for fact in self.facts:
+            for term in set(fact.args):
+                self.about.setdefault(term, set()).add(fact)
+
+    def __call__(self, bindings: Dict[str, str]) -> Dict[str, str]:
+        first = {v: ranked[0] for v, ranked in zip(self.variables, self.ranked)}
+        if not self.variables or self.held is None or not (self.successes or self.rule.absent):
+            return first
+        options = []
+        for ranked in self.ranked:
+            bare = next((t for t in ranked if t not in self.about), None)
+            options.append([t for t in ranked if t in self.about or t == bare])
+        for values in itertools.product(*options):
+            chosen = dict(zip(self.variables, values))
+            if self._may({**bindings, **chosen}):
+                return chosen
+        return first
+
+    def _may(self, bindings: Dict[str, str]) -> bool:
+        from core.reasoning.unification import match_literal
+        from core.learning.unified_learning_system import _by_place, _uncovered
+        action = self.rule.action.substitute(bindings)
+        for literal in self.rule.absent:
+            literal = literal.substitute(bindings)
+            if not literal.variables:
+                if tuple(literal.args) in self.held.get(literal.predicate, set()):
+                    return False
+            elif match_literal(literal, self.facts):
+                return False
+        if self.successes:
+            named = set(action.args)
+            here = {f for term in named for f in self.about.get(term, ())
+                    if set(f.args) <= named}
+            present = frozenset(c for c in _by_place(here, action) if "_" not in c)
+            if _uncovered(present, self.successes):
+                return False
+        return True
+
+
 def ground_rule(
     rule: CandidateRule,
     supply: Dict[Tuple[str, int], Set[str]],
@@ -275,6 +335,8 @@ def ground_rule(
     held: Optional[Dict[str, Set[Tuple[str, ...]]]] = None,
     targets: Optional[Dict[Tuple[str, int], Set[str]]] = None,
     relevant: FrozenSet[str] = frozenset(),
+    successes: Optional[Sequence[FrozenSet[str]]] = None,
+    start: Optional[Dict[str, Set[Tuple[str, ...]]]] = None,
 ) -> Tuple[List[GroundOperator], bool]:
     """Every instantiation of one rule that could ever apply. (operators, truncated).
 
@@ -292,6 +354,10 @@ def ground_rule(
     Enumerating the second would mean inventing candidate answers and letting
     the planner keep whichever reached the goal. Enumerating the third would be
     the same mistake one step earlier.
+
+    `successes` are the act's recorded successes as the conditions of the
+    things it named (`_conditions`), when the caller has them; `start` is what
+    holds where the problem starts (`held` grows with what acts would produce).
     """
     if rule.action is None:
         return [], False
@@ -356,18 +422,36 @@ def ground_rule(
     # of some two hundred things made forty thousand of them, enough to reach
     # the bound and leave the set partial, with every plan the same as from the
     # first.
+    #
+    # THE ONE KEPT IS ONE THE ACT MAY BE TAKEN ON. The same preconditions and
+    # effects are not the same standing: a term something the rule needs absent
+    # holds of is blocked, and one in a case none of the act's successes
+    # covered is sent back by the constitution (Law 2). Kept as the first term
+    # it sorts to, the act in RULE-AUTHORITY-02's world 0 named a thing in
+    # neither relation every success had with its third argument, and every
+    # goal the world allowed went unplanned. So it is chosen per row, from the
+    # state the problem starts in (`_one_term`).
     read_by_outputs = {name for output in rule.outputs for name in output.inputs}
+    spread: List[str] = []
     candidates: List[List[str]] = []
+    once: List[str] = []
+    once_ranked: List[List[str]] = []
     for variable in free:
         pool: Set[str] = set()
         for key in effect_positions[variable]:
             pool |= (targets or {}).get(key, set())
         ranked = sorted(pool or set(universe), key=first_the_goal)
         if not effect_positions[variable] and variable not in read_by_outputs:
-            ranked = ranked[:1]
-        candidates.append(ranked)
+            once.append(variable)
+            once_ranked.append(ranked)
+        else:
+            spread.append(variable)
+            candidates.append(ranked)
     rows.sort(key=lambda row: (-sum(value in relevant for value in row.values()),
                                tuple(sorted(row.items()))))
+    if not all(once_ranked):
+        return [], False
+    choose = _OneTerm(rule, once, once_ranked, start if start is not None else held, successes)
 
     produced = tuple({
         "variable": output.variable,
@@ -382,7 +466,8 @@ def ground_rule(
         if len(operators) >= limit:
             return operators, True
 
-        bindings = {**row, **dict(zip(free, assignment))}
+        bindings = {**row, **dict(zip(spread, assignment))}
+        bindings.update(choose(bindings))
         action = rule.action.substitute(bindings)
         operators.append(GroundOperator(
             name=action.to_formula(),
@@ -411,12 +496,14 @@ def ground_for_problem(
     state: Iterable[Fact],
     goal: Iterable[Fact] = (),
     limit: int = DEFAULT_MAX_OPERATORS,
+    covered: Optional[Dict[Tuple[str, int], Sequence[Sequence[str]]]] = None,
 ) -> GroundingReport:
     """Ground admissible rules over the terms this problem can produce.
 
     `rules` are StoredRule records; each is checked for executability here
     rather than trusted, so a caller cannot widen the gate by passing a
-    candidate.
+    candidate. `covered` is each act's recorded successes, by its predicate and
+    arity, as the conditions of the things it named.
     """
     from core.learning.rule_store import EpistemicStatus
 
@@ -468,10 +555,14 @@ def ground_for_problem(
                     f"supply and no rule asserts; this rule cannot fire in any state "
                     f"the search can reach")
 
+            successes = (covered or {}).get((rule.action.predicate, len(rule.action.args)))
             operators, truncated = ground_rule(rule, supply, report.constants,
                                                rule_id, remaining, invented=invented,
                                                held=held, targets=targets,
-                                               relevant=relevant)
+                                               relevant=relevant,
+                                               successes=[frozenset(s) for s in successes]
+                                               if successes else None,
+                                               start=start)
             built.operators.extend(operators)
             built.rules_used.append(rule_id or str(rule))
             if not operators:
@@ -508,6 +599,7 @@ def ground_for_problem(
     relevant = frozenset(constants_in(goal_facts))
     supply = supply_from(state_facts)
     held = facts_held(state_facts)
+    start = facts_held(state_facts)
     targets = {key: set(terms) for key, terms in supply.items()}
     for key, terms in supply_from(goal_facts).items():
         targets.setdefault(key, set()).update(terms)

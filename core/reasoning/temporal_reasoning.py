@@ -751,15 +751,17 @@ class TemporalReasoningSystem:
                             if fact.args and fact.args[0] not in mentioned]
 
         rules = await get_rule_store().executable_rules(domain_id=domain_id)
-        grounding = ground_for_problem(rules, state_facts, goal_facts)
-        actions = [a for a in grounding.to_actions() if a.get("name") not in set(leaving_out)]
         # WHAT EACH ACT'S SUCCESSES COVERED, so the search plans no step the
         # constitution would send back (Law 2, `untested_conditions`): a route
         # through an act in a case none of its successes covered was refused at
         # the act, planned again on other things, refused again, and in
         # RULE-AUTHORITY-02 read the world thousands of times a minute until
-        # the machine ran out of ports.
+        # the machine ran out of ports. Grounding reads it too: an argument
+        # nothing in the rule constrains is grounded with one term, and that
+        # term is one the successes covered.
         covered = await self._covered_by_successes(domain_id, rules)
+        grounding = ground_for_problem(rules, state_facts, goal_facts, covered=covered)
+        actions = [a for a in grounding.to_actions() if a.get("name") not in set(leaving_out)]
         for action in actions:
             signature = Fact.parse(action["name"])
             sets = covered.get((signature.predicate, len(signature.args)))

@@ -230,3 +230,22 @@ def test_an_incomplete_corpus_yields_an_overgeneral_operator():
     assert "AT" not in {f.predicate for f in rule.preconditions}, (
         "this documents the gap; if induction changes, revisit the corpus"
     )
+
+
+def test_an_argument_nothing_constrains_is_grounded_on_a_thing_the_act_may_be_taken_on():
+    """SHARPEN(?T, ?B) needs only READY(?B), so the tool is grounded once. Every
+    success had a tool that fits the blade or is sharp: the one kept is t2,
+    which fits b, not b itself or the worn t1, cases no success covered and the
+    constitution would send back. A tool something the rule needs absent holds
+    of is passed over the same way."""
+    rule = CandidateRule(body=frozenset({F("SHARPEN(?T,?B)"), F("READY(?B)")}),
+                         effects=RuleEffects(add={F("KEEN(?B)")}), action=F("SHARPEN(?T,?B)"))
+    world = [F("READY(b)"), F("WORN(t1)"), F("FITS(t2,b)")]
+    covered = {("SHARPEN", 2): [["FITS(0,1)", "READY(1)"], ["READY(1)", "SHARP(0)"]]}
+    names = lambda report: [o.name for o in report.operators]
+    assert names(ground_for_problem([stored(rule)], world, [F("KEEN(b)")])) == ["SHARPEN(b, b)"]
+    assert names(ground_for_problem([stored(rule)], world, [F("KEEN(b)")], covered=covered)) == ["SHARPEN(t2, b)"]
+    unworn = CandidateRule(body=rule.body, effects=rule.effects, action=rule.action,
+                           absent=frozenset({F("WORN(?T)")}))
+    world = [F("READY(b)"), F("WORN(b)"), F("FITS(t1,b)")]
+    assert names(ground_for_problem([stored(unworn)], world, [F("KEEN(b)")])) == ["SHARPEN(t1, b)"]

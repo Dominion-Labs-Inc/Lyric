@@ -486,7 +486,8 @@ async def untested_conditions(domain_id: str, action: "Fact", state) -> FrozenSe
     neither: a world that works on either of two groups of conditions gave
     each group's successes one of them, and the rule they shared acted where
     both are missing. The constitution reads this at the gate (Law 2) and sends
-    such an act back to planning, where an experiment can try it."""
+    such an act back to planning, and the planner plans no route through it.
+    Nothing yet directs an experiment at such a case."""
     from core.learning.demonstration_store import get_demonstration_store
     from core.learning.rule_induction import TrainingExample
     examples = await get_demonstration_store().load(
