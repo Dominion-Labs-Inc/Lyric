@@ -6,7 +6,7 @@ For an engineer, and their Claude Code session, picking this work up. Read this 
 to 2026-10-27 (62) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-27)
+## 0. Where it stands (2026-10-28)
 
 **THE BAR IS 95% AND NOTHING IS DONE BEFORE IT IS MET (the owner, 2026-10-26).** Steps landed are "landed,
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
@@ -25,10 +25,11 @@ took, closed words' forms with features, "a"/"an" by the sound after (`_told_apa
    owner's call), and "Is a wall a structure?" and the like read "a" as a noun (`wall angstrom`, step 5's floor).
    Six facts take 26 s. **Main speaks through `Grammar.say` at its next start.**
 2. *Step 5 landed* (lab notebook (65)): Witten-Bell to the uniform; main unchanged (GRAMMAR-01 199/386/488, prose joins
-   68.0%, before and after); the `wall angstrom` readings gone; TRAIN-FORMAT-02 72/75, front door 18/21. The answer to
-   a kind asked of ("What is a wall?") is STAGED in `backups/kind_asked_answer_2026-10-28/` (protected coordinator):
-   run its `apply.sh` once no substrate runs, then TRAIN-FORMAT-02. "Wall is a partition." said first on lyric_dev2
-   until it is taught sentences (its structure view holds one).
+   68.0%, before and after); the `wall angstrom` readings gone. The answer to a kind asked of ("What is a wall?",
+   `_meanings_held`, coordinator) applied once no substrate ran: TRAIN-FORMAT-02 store 73/75, front door **21/21 right,
+   none wrong**. "Wall is a partition." said first on lyric_dev2 until it is taught sentences (its view holds one).
+   **The replies are not English though right** ("The medal were painted.", "Roy paint.", "a artifact", a telling
+   acknowledged "Noted - I'll hold that about paint_9aff42fc."): lab notebook (65), traced in (66).
 3. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
    number not read ("birds" as `bird`); "another" untaught.
 Steps before this, (58) to (61):

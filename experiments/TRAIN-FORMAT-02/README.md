@@ -219,3 +219,9 @@ treebank: the noun's plural "paints".
   cost 30.6 more than "Wall is ...", and "Is a wall a substance?" read `wall angstrom` ("a" now holds WordNet's noun
   senses); "the" before a name costs nothing (`the:name` shares `det`); "birds" reads as `bird`; saying a doing does
   not finish; "a"/"an" is shown in the tests only (no taught noun begins with a vowel sound).
+- **2026-10-28: Kay's index, Carroll's rule, Kay binding, the base rate, a kind asked of** (lab notebook (63) to
+  (65)). The run finishes again (1 minute). Store checks 70, 71, 72, then **73 of 75**; front door 15, 18, then **21 of
+  21 right, none wrong** (`20261028T044251Z`, `044302Z`). Failing: "We made it!" read in another sense than WordNet
+  gives it, and "Wall is a partition." said before "A wall is a partition." (the structure view holds one sentence).
+  **Not right yet:** the replies' English ("Yes. The medal were painted.", "Yes. Roy paint.", "Yes. Wall is a
+  artifact.", "Picture is another representations.", tellings acknowledged with names made inside, "paint_9aff42fc").

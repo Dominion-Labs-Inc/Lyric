@@ -53,8 +53,18 @@ method the literature gives, measured, kept where the measures say.
    fastened the medal with a pin."), so a capitalised bare "Wall" stands as "Roy" did and its join is met, while "a
    wall" as a subject was never met (-4.8). A view of how words join needs sentences: lyric_dev2 learns it when taught
    sentences recorded whole (the set of 50 to 100 waiting), as main learned it from 12,544.
-2. "What is a wall?", "What is paint?", "What is a picture?" unanswered until the staged answer is applied.
-3. "We made it!" (WordNet and SemCor disagree). Six facts take 26 s.
+2. "We made it!" (WordNet and SemCor disagree). Six facts take 26 s.
+
+**Applied** (00:42 on 2026-10-28, when the RULE-AUTHORITY-02 run ended; `apply.sh`: the coordinator's hash as staged
+against, no substrate running): **TRAIN-FORMAT-02** (`results/20261028T044251Z`, `044302Z`): store **73 of 75**, front
+door **21 of 21 right, none wrong**. "What is a wall?" -> "Wall is a partition.", "What is paint?" -> "Coating.",
+"What is a picture?" -> "Picture is another representations.". The two store checks failing: "We made it!" and what is
+said first of a wall.
+
+**What the replies say is not English, though every answer is right** (the same in `032355Z`, before the answer):
+"Yes. The medal were painted.", "Yes. Roy paint.", "Yes. Roy coat the wall." (a past coating said in the base form),
+"Yes. Wall is a artifact.", "Picture is another representations.", "Coating.", and each telling acknowledged with a
+name made inside ("Noted - I'll hold that about paint_9aff42fc.", "Noted - The box."). Traced in (66).
 
 ---
 

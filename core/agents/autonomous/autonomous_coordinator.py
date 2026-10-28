@@ -20811,6 +20811,15 @@ def _meanings_held(understanding: "Understanding", asked: Any) -> List["Answer"]
                            None)
             if nearest is not None:
                 answers.append(Answer(nearest["word"], "isa", (nearest["kind"],), verdict=None))
+    # A KIND ASKED WHAT IT IS A KIND OF, and nothing more ("What is a wall?" read `isa(wall, ?v0) ? ?v0`, as reading
+    # takes "is" before a kind since "be" was taught), is answered as a thing asked to be what a kind is: by the kind
+    # its sense is nearest a kind of. Unanswered, "What is a wall?", "What is paint?" and "What is a picture?" went
+    # without a reply (TRAIN-FORMAT-02, lyric_dev2, 2026-10-28).
+    if len(facts) == 1 and facts[0].relation == "isa" and facts[0].obj in wanted and not is_variable(facts[0].subject):
+        nearest = next((s for s in understanding.meanings.get(facts[0].subject) or () if s["named"] and s["kind"]),
+                       None)
+        if nearest is not None:
+            answers.append(Answer(nearest["word"], "isa", (nearest["kind"],), verdict=None))
     # A MEANING IS A HAPPENING THE WORD "MEAN" NAMES, in any sense of it memory holds (the reader names it by its most
     # used, `mean`, "intend to express"; asked of a word, it is `signify mean`, "denote"): the one word of English
     # this answer is about, as a word recorded whole holds it.
