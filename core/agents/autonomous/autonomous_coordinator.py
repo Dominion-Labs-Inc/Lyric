@@ -3860,6 +3860,7 @@ class Constitution:
             or self._law_1_autonomy(action_name, params, action_class, capabilities)
             or self._law_2_accountability(action_name, params, action_class, capabilities)
             or self._law_2_unread_target(action_name, params, action_class)
+            or self._law_2_untested(action_name)
             or self._law_4_alignment(action_kind, action_name, action_class, intent,
                                      authorised_redirect)
             or self._law_2_transparency(action_kind, action_name, action_class, intent)
@@ -5497,6 +5498,30 @@ class Constitution:
                         f"reading of it: {self.reading.why(path)}. Read it, then plan "
                         f"from what it actually says"))
         return None
+
+    def _law_2_untested(self, action_name: str) -> Optional[Judgment]:
+        """Law 2 — an act resting on a learned rule, where something holds that
+        held in none of the rule's successes, is not one the rule explains.
+
+        A RULE IS AS GOOD AS WHAT IT HAS SEEN. "The door opens with the key" says
+        nothing of a bolted door if no door it opened was bolted, and nothing of a
+        door with neither key nor code if every door it opened had one of them;
+        acting as if it did is acting on an account that does not cover the case
+        (`untested_conditions` says which). Measured (RULE-AUTHORITY-02,
+        2026-10-28, 2,000 worlds): with it, Lyric would take no act any world
+        refuses, against 36 worlds on the rule alone, and acts in 15,519 of the
+        36,061 cases the worlds allow against 18,075. It goes back to planning,
+        not to a refusal: an experiment, which rests on no rule, can try the case
+        and make it one the rule has seen."""
+        resting = self._rests_on()
+        untested = (resting or {}).get("untested") or ()
+        if not untested:
+            return None
+        return Judgment(
+            verdict=Verdict.REPLAN, law_number=2, law_name=self.laws[2].law_name,
+            reason=(f"{action_name} rests on {resting.get('rule_id')}, and none of its "
+                    f"successes covered the case here: {'; '.join(untested)}. An act its "
+                    f"evidence does not cover is not one it explains"))
 
     def _law_2_transparency(self, action_kind: str, action_name: str,
                             action_class: str, intent: "Intent") -> Optional[Judgment]:
@@ -18332,6 +18357,21 @@ The substrate must realign with its constitutional responsibilities immediately.
                 return refuse(
                     f"precondition {literal.substitute(bindings)} does not hold in "
                     f"the observed world")
+        # WHAT THE RULE NEEDS ABSENT IS LOOKED FOR TOO, in the same world: a
+        # binding under which something it needs absent holds is one the rule
+        # does not cover, however its preconditions match.
+        if rule.absent:
+            matched = candidates
+            candidates = [candidate for candidate in matched
+                          if not any(match_literal(literal, before, candidate)
+                                     for literal in rule.absent)]
+            if not candidates:
+                held = next(literal.substitute(candidate) for candidate in matched
+                            for literal in sorted(rule.absent, key=str)
+                            if match_literal(literal, before, candidate))
+                return refuse(
+                    f"{held} holds in the observed world, and {operator_name} "
+                    f"works only where it does not")
         if len(candidates) > 1:
             return refuse(
                 f"{operator_name} matches the observed world in {len(candidates)} "
@@ -18387,7 +18427,9 @@ The substrate must realign with its constitutional responsibilities immediately.
         # judgement say that this act stands on a rule the world has confirmed
         # 133 times, or on one it has confirmed twice.
         from core.learning.rule_store import set_acting_rule, reset_acting_rule
-        _rule_token = set_acting_rule(stored)
+        from core.learning.unified_learning_system import untested_conditions
+        _rule_token = set_acting_rule(
+            stored, untested=await untested_conditions(domain, action, before))
         try:
             with concurrent_execution_guard(domain, names=action.args) as _overlapped:
                 result = await get_tool_registry().execute_tool(

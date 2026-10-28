@@ -35,6 +35,8 @@ from __future__ import annotations
 import contextlib
 import contextvars
 import hashlib
+import heapq
+import itertools
 import json
 import math
 import re
@@ -1809,7 +1811,8 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
 def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
     facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
-    `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`), none for any other piece;
+    `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`; the one spoken of before,
+    `pron`), none for any other piece;
     None for a piece saying nothing a meaning holds (`indefinite`, `finite`, `some`); a thing that is not another of
     its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
@@ -1826,6 +1829,11 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
         return sum(1 for f in facts if not f.positive)
     if kind == "other":
         return sum(1 for f in facts if f.relation == "equals" and not f.positive)
+    if kind == "pron":
+        # A PRONOUN NOT OF ITS OWN SENTENCE IS THE ONE SPOKEN OF BEFORE, once a sentence (`spell_out`: the first such
+        # is `?previous`); one of its own ("himself") says what its sentence says, which saying does not yet bind.
+        own = len(piece) > 3 and piece[3] == "own"
+        return 0 if own else int(any("?previous" in (f.subject, f.obj) for f in facts))
     if kind == "fact":
         return sum(1 for f in facts if f.relation == piece[1])
     return 0
@@ -2625,6 +2633,14 @@ class Grammar:
         budget: Dict[Tuple[str, ...], int] = {}
         chosen: List[Tuple[str, Entry, Dict[Tuple[str, ...], int]]] = []
         empty: List[Tuple[str, Entry]] = []
+        # THE SPEAKER, THE LISTENER AND THE ONE SPOKEN OF BEFORE are said by the words whose category or meaning is
+        # them ("I", "me", "you"; "he", "she", "it", "they": `_piece_says`), as often as the meaning holds them.
+        # Neither was ever offered (the pronouns' piece said nothing saying knew, "I" and "you" carry none), so an
+        # answer of what was told of "he" could not be said, and saying tried every way of saying the rest before it
+        # found none: "He fixed the bicycle with a hacksaw." was still being said after 45 minutes (lyric_dev2,
+        # 2026-10-28).
+        situation = Counter(t for f in meaning.facts for t in (f.subject, f.obj)
+                            if t in ("?speaker", "?listener", "?previous"))
         for word in sorted(self.lexicon.closed):
             for _, entry in self.lexicon.entries((word,), 0):
                 if entry.cls != "GRAMMAR":
@@ -2637,6 +2653,9 @@ class Grammar:
                 if says:
                     budget.update(says)
                     chosen.append((word, entry, {k: 1 for k in says}))
+                elif says is not None and isinstance(cat, Atom) and cat.ref in situation and not entry.sem:
+                    budget[("situation", cat.ref)] = situation[cat.ref]
+                    chosen.append((word, entry, {("situation", cat.ref): 1}))
                 elif says is not None and isinstance(cat, Fn) and not _leaves_as_is(cat):
                     # A WORD SAYING NOTHING ENTERS WHERE SOMETHING NEEDS IT (Carroll, Copestake, Flickinger and
                     # Poznański 1999; Carroll and Oepen 2005): one that leaves what it takes as it was ("the" before a
@@ -2737,6 +2756,10 @@ class Grammar:
             if budget.get(k):
                 chosen.append((word, entry, {k: 1}))
         spending = sorted({k for _, _, spends in chosen for k in spends})
+        if (("?speaker" in situation and ("situation", "?speaker") not in spending)
+                or ("?listener" in situation and ("situation", "?listener") not in spending)
+                or ("?previous" in situation and ("pron",) not in spending)):
+            return []
         qualities = any(f.relation == "has_property" for f in meaning.facts)
 
         def bindings_of(entry: Entry, spends: Mapping[Tuple[str, ...], int]) -> List[Dict[str, Term]]:
@@ -2756,7 +2779,7 @@ class Grammar:
                 return [dict(w) for w in dict.fromkeys(tuple(sorted(w.items())) for w in ways)] or [{}]
             out: List[Dict[str, Term]] = [{}]
             for p in entry.sem:
-                of = {"given": known, "past": before_now, "indefinite": unknown}.get(p[0])
+                of = {"given": known, "past": before_now, "indefinite": unknown, "pron": ("?previous",)}.get(p[0])
                 if of and len(p) > 1 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
                     out = [dict(o, **{p[1]: t}) for o in out for t in of if o.get(p[1], t) == t]
             return out or [{}]
@@ -2789,7 +2812,8 @@ class Grammar:
         # for "A wall is a partition.", lyric_dev2, 2026-10-27).
         Item = Tuple[int, Tuple[int, ...], Sign, Tuple[str, ...], Tuple[int, ...], Tuple]
         held: Dict[Tuple, Item] = {}
-        agenda: List[Item] = []
+        agenda: List[Tuple[int, float, int, Item]] = []
+        pushed = itertools.count()
         none = tuple(0 for _ in spending)
         # A WORD WEIGHED BY THE WORD SAID AFTER IT ("a", "an": `Lexicon._sound_after`) is weighed alone until a word is
         # put after it, then by that word; what ends in one, and what begins with each first sound, is kept apart
@@ -2889,7 +2913,7 @@ class Grammar:
             if key in held and held[key][2].score >= sign.score:
                 return
             held[key] = item = (filled, used, sign, said, order, key)
-            agenda.append(item)
+            heapq.heappush(agenda, (-bin(filled).count("1"), -sign.score, next(pushed), item))
             for u in self._unary(sign):
                 hold(filled, used, u, said, order)
         for k, options in enumerate(places):
@@ -2900,6 +2924,44 @@ class Grammar:
         for at, entry, spends in extra:
             with contextlib.suppress(ValueError, IndexError):
                 hold(0, spends, self._lexical(tokens, at, at + 1, entry, bound_at.get(at)), (tokens[at],), (at,))
+        closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
+        wanted_act = meaning.act
+        target = whole.canonical()
+        sentences: Dict[Tuple[str, ...], Tuple[int, float]] = {}
+        refused: Set[Tuple[str, ...]] = set()
+        # THE SPEAKER'S OWN VERB IS THE VERB, NOT THE FORM IT TOOK (Brennan and Clark 1996: a speaker keeps the other's
+        # term): a verb's form is what its subject and its time make it (contextual inflection, Booij 1996), and the
+        # time is the meaning's, so each of its forms counts as it. A noun's form says how many (inherent inflection),
+        # which the meaning does not hold, so a noun is the speaker's as they wrote it: "Roy made the pictures." of one
+        # picture. Counted as written, the verb a question put in its base form was said so whatever its subject and
+        # time: "Does Roy paint?" answered "Roy paint.", "Did Roy coat the wall?" "Roy coat the wall." (lyric_dev2,
+        # 2026-10-28).
+        own_verbs = {words.lexeme(w, "VERB") for w in named.values()}
+
+        def own(said: Tuple[str, ...], sign: Optional[Sign]) -> int:
+            verbs = {k for p in (sign.pieces if sign is not None else ()) if p[0] == "word" and p[2] == "VERB"
+                     for k in range(p[3], p[4])}
+            return sum(1 for k, w in enumerate(said) if w.lower() in named.values()
+                       or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
+        # MADE BEST FIRST, READ BACK AS SOON AS WHOLE, AND MADE NO FURTHER ONCE ENOUGH ARE SAID (anytime realization,
+        # White 2004; Carroll and Oepen 2005: a realizer builds the most complete, surest first and stops at the first
+        # good ones, never every way of saying it): the agenda takes first what says most of the meaning, then what is
+        # surest; each sentence made whole is read back at once, and making stops once `SAID_AT_MOST` read back to the
+        # meaning. Every sentence was made and then every one read back: told "Roy painted the box for Tom.", "Who did
+        # Roy paint the box for?" took over ten minutes once 238 words were taught, each preposition taught to say
+        # what it joins combined with every other (lyric_dev2, 2026-10-28).
+        state = (self._tokens, self._weighed, self._marking, self._asking)
+
+        def read_back(said: Tuple[str, ...]) -> None:
+            # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
+            # (-32.3), a name it might be (lyric_dev2, 2026-10-27). Reading takes the grammar's state for the
+            # sentence read; the making's is put back.
+            reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))
+            self._tokens, self._weighed, self._marking, self._asking = state
+            if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
+                refused.add(said)
+                return
+            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0)
         # TWO STRETCHES SAYING NOTHING ARE NOT COMBINED (Eisner 1996, normal-form CCG): what both say nothing of the
         # meaning (no word for a thing, nothing spent the meaning holds) combine only with what says something, every
         # sentence built so being built otherwise too, each word taking what says something first: "to" with "be in
@@ -2925,13 +2987,15 @@ class Grammar:
 
         def by_no_shape(cat: Cat) -> bool:
             return (isinstance(cat, Atom) and cat.base in ("conj", "punct")) or (isinstance(cat, Fn) and cat.slash == "&")
-        while agenda:
-            item = agenda.pop()
+        while agenda and len(sentences) < SAID_AT_MOST:
+            item = heapq.heappop(agenda)[-1]
             filled, used, sign, said, order, key = item
             if held[key] is not item:
                 continue
             n = len(done)
             done.append(item)
+            if filled == full and _whole(sign.cat) is not None and said not in sentences and said not in refused:
+                read_back(said)
             offers, (after, before) = _offers(sign.cat), _wants(sign.cat)
             for s in offers:
                 standing[s].append(n)
@@ -2992,45 +3056,6 @@ class Grammar:
                             combined.binding = None
                         combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
-        closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
-        wanted_act = meaning.act
-        target = whole.canonical()
-        sentences: Dict[Tuple[str, ...], Tuple[int, float]] = {}
-        # THE SPEAKER'S OWN VERB IS THE VERB, NOT THE FORM IT TOOK (Brennan and Clark 1996: a speaker keeps the other's
-        # term): a verb's form is what its subject and its time make it (contextual inflection, Booij 1996), and the
-        # time is the meaning's, so each of its forms counts as it. A noun's form says how many (inherent inflection),
-        # which the meaning does not hold, so a noun is the speaker's as they wrote it: "Roy made the pictures." of one
-        # picture. Counted as written, the verb a question put in its base form was said so whatever its subject and
-        # time: "Does Roy paint?" answered "Roy paint.", "Did Roy coat the wall?" "Roy coat the wall." (lyric_dev2,
-        # 2026-10-28).
-        own_verbs = {words.lexeme(w, "VERB") for w in named.values()}
-
-        def own(said: Tuple[str, ...], sign: Optional[Sign]) -> int:
-            verbs = {k for p in (sign.pieces if sign is not None else ()) if p[0] == "word" and p[2] == "VERB"
-                     for k in range(p[3], p[4])}
-            return sum(1 for k, w in enumerate(said) if w.lower() in named.values()
-                       or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
-        # READ BACK BEST FIRST, AND NO MORE THAN ARE SAID (anytime realization, White 2004; Carroll and Oepen 2005: a
-        # realizer ranks what it built and checks the best, never every one): each sentence made whole is read back in
-        # the order its own making ranks it, the speaker's words first, and reading back stops once `SAID_AT_MOST`
-        # have read back to the meaning. Every one was read back: told "Roy painted the box for Tom.", "Who did Roy
-        # paint the box for?" took 380 s, thousands of sentences read back to say the first (lyric_dev2, 2026-10-28).
-        made: Dict[Tuple[str, ...], Sign] = {}
-        for filled, _, sign, said, _, _ in held.values():
-            if filled == full and _whole(sign.cat) is not None and (said not in made or sign.score > made[said].score):
-                made[said] = sign
-
-        def own_said(said: Tuple[str, ...]) -> int:
-            return sum(1 for w in said if w.lower() in named.values() or words.lexeme(w, "VERB") in own_verbs)
-        for said in sorted(made, key=lambda said: (-own_said(said), -made[said].score)):
-            if len(sentences) >= SAID_AT_MOST:
-                break
-            # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
-            # (-32.3), a name it might be (lyric_dev2, 2026-10-27).
-            reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))
-            if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
-                continue
-            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
         return [_written(said, closing) for said in ranked]
 
