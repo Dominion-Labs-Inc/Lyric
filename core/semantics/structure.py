@@ -399,8 +399,12 @@ class _Pairs:
 
     def chance(self, laid: Tuple, h: int, d: int) -> float:
         """How likely word `h` is the head of word `d`: of the pairs met standing so, the share joined, each
-        situation from the least specific up counting as Witten-Bell weighs it (`_chances`)."""
-        chance = 0.0
+        situation from the least specific up counting as Witten-Bell weighs it (`_chances`), down to every word that
+        could head it (the others and the root) alike, as likely as nothing met says: Witten-Bell interpolated to the
+        uniform distribution (Chen and Goodman 1998). From nothing, a pair never met was as unlikely as one never
+        joined (log 1e-12): on a store holding one sentence every join was, and "Wall is a partition." (whose bare
+        "Wall" stood as "Roy" did) was said before "A wall is a partition." (lyric_dev2, 2026-10-28)."""
+        chance = 1.0 / max(len(laid[0]) - 2, 1)
         for at in range(len(self.levels) - 1, -1, -1):
             situation = hash(self._situation(laid, h, d, self.levels[at]))
             n = self._met[at].get(situation, 0)
