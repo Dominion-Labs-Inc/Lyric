@@ -18389,7 +18389,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         from core.learning.rule_store import set_acting_rule, reset_acting_rule
         _rule_token = set_acting_rule(stored)
         try:
-            with concurrent_execution_guard(domain) as _overlapped:
+            with concurrent_execution_guard(domain, names=action.args) as _overlapped:
                 result = await get_tool_registry().execute_tool(
                     binding.tool_name, binding.parameters(action.args))
                 after = binding.observe()

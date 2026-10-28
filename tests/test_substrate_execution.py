@@ -818,6 +818,30 @@ def test_an_act_among_others_is_its_own_where_they_touched_other_things():
     assert asyncio.run(near_miss(False)) is None
 
 
+def test_what_an_act_names_is_what_it_acted_on():
+    """A goal pursuit on o0a and o6b saw a new group arrive while it waited on
+    its own request; what it acted on is still o0a and o6b, not the group the
+    near miss beside it then tried. One that does not say what it names counts
+    as naming everything."""
+    from core.intelligence.effect_verification import (act_window, concurrent_execution_guard,
+                                                       named_by)
+    domain = f"names_{uuid.uuid4().hex[:6]}"
+    offered = frozenset({Fact("LUMA", ("o12b", "o12a"))})
+    window = act_window(domain)
+    with concurrent_execution_guard(domain, names=("o0a", "o6b")) as pursuit:
+        with concurrent_execution_guard(domain, names=("o12a", "o12b")) as near_miss:
+            near_miss.changed(offered, offered)
+            others = near_miss.others_since(window)
+        pursuit.changed(frozenset(), offered)
+    assert named_by(domain, others) == {"o0a", "o6b"}
+
+    window = act_window(domain)
+    with concurrent_execution_guard(domain):
+        with concurrent_execution_guard(domain, names=("o12a", "o12b")) as near_miss:
+            others = near_miss.others_since(window)
+    assert named_by(domain, others) is None
+
+
 def test_a_kind_of_change_names_its_places_and_leaves_the_thing_open():
     """Inbox-to-done and done-to-archive are two kinds of change; two files
     moved inbox-to-done are one."""

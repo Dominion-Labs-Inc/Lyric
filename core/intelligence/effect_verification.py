@@ -37,7 +37,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Dict, FrozenSet, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Optional, Sequence, Tuple
 
 from core.learning.rule_induction import Fact, RuleEffects
 from core.reasoning.unification import match_literal
@@ -86,6 +86,9 @@ _act_touched: Dict[str, Dict[int, Optional[FrozenSet[str]]]] = defaultdict(dict)
 _ACTS_REMEMBERED = 4096
 #: domain -> the numbers of the executions under way in it now.
 _under_way: Dict[str, set] = defaultdict(set)
+#: domain -> each execution's number -> the things its act names; None when it
+#: did not say, which counts as naming everything.
+_act_names: Dict[str, Dict[int, Optional[FrozenSet[str]]]] = defaultdict(dict)
 
 
 class _ActInDomain:
@@ -133,6 +136,27 @@ def act_window(domain_id: Optional[str]) -> ActWindow:
         return ActWindow(_acts_by_domain.get(key, 0), frozenset(_under_way.get(key, ())))
 
 
+def named_by(domain_id: Optional[str], executions: FrozenSet[int]) -> Optional[FrozenSet[str]]:
+    """The things `executions` acted on, by what their acts name; None when one
+    did not say.
+
+    WHAT AN ACT NAMES IS WHAT IT ACTED ON; WHAT IT SAW CHANGE IS NOT ALL ITS OWN.
+    A change read around an act is everything that landed while it ran: in
+    RULE-AUTHORITY-02 the world offered a new group while a goal pursuit on
+    other things waited on its own request, and the pursuit was taken to have
+    touched the new group, whose near miss was then dropped (world 861)."""
+    key = domain_id or "__no_domain__"
+    named: set = set()
+    with _interference_lock:
+        known = _act_names.get(key, {})
+        for number in executions:
+            names = known.get(number)
+            if names is None:
+                return None
+            named |= names
+    return frozenset(named)
+
+
 async def touched_by(domain_id: Optional[str], executions: FrozenSet[int]) -> Optional[FrozenSet[str]]:
     """The terms every one of `executions` was seen to change, once each has
     said; None when one ended without saying or is too old to remember.
@@ -165,14 +189,16 @@ async def touched_by(domain_id: Optional[str], executions: FrozenSet[int]) -> Op
 
 
 @contextlib.contextmanager
-def concurrent_execution_guard(domain_id: Optional[str]):
+def concurrent_execution_guard(domain_id: Optional[str], names: Optional[Iterable[str]] = None):
     """Mark a substrate execution active in `domain_id` for its duration.
 
     Yields the execution (`_ActInDomain`): called, it returns whether another
     execution in the same domain overlapped this one in time -- the value to
     pass as `AttributionContext.external_interference`; told what it changed,
     a reading of the domain can tell what the substrate did there from what
-    the world did (`acts_touched`).
+    the world did (`acts_touched`). `names` are the things the act names
+    (`named_by`); an execution that does not give them counts as naming
+    everything.
     """
     token = uuid.uuid4().hex
     key = domain_id or "__no_domain__"
@@ -183,6 +209,10 @@ def concurrent_execution_guard(domain_id: Optional[str]):
         touched[number] = None
         while len(touched) > _ACTS_REMEMBERED:
             del touched[min(touched)]
+        named = _act_names[key]
+        named[number] = None if names is None else frozenset(names)
+        while len(named) > _ACTS_REMEMBERED:
+            del named[min(named)]
         peers = _active_by_domain[key]
         if peers:
             # We overlap everyone already here, and they overlap us.

@@ -260,7 +260,7 @@ class SubstrateExplorer:
         # ACTION-FUL DEMONSTRATIONS. Try candidates; record what each did.
         tools = await self._tools_()
         from core.intelligence.effect_verification import (
-            act_window, concurrent_execution_guard, touched_by)
+            act_window, concurrent_execution_guard, named_by, touched_by)
         signatures = set()
         for action in propose_actions()[:max_actions]:
             binding = registry.get(domain_id, action.predicate)
@@ -275,12 +275,13 @@ class SubstrateExplorer:
             if s_before is None:
                 continue
             # Under the concurrency guard: if another execution in this domain
-            # touched what this act names or what changed around it, the
-            # before/after cannot be attributed to THIS action -- the
-            # positive/negative label would be wrong -- so the observation is
-            # dropped rather than recorded as a mislabeled demonstration. One
-            # that touched only other things leaves it this act's own
-            # (`touched_by`). Nothing is serialized; the act still runs.
+            # acted on what this act names, or changed what was seen to change
+            # around it, the before/after cannot be attributed to THIS action --
+            # the positive/negative label would be wrong -- so the observation
+            # is dropped rather than recorded as a mislabeled demonstration. One
+            # that acted on other things and changed nothing seen here leaves it
+            # this act's own (`named_by`, `touched_by`). Nothing is serialized;
+            # the act still runs.
             params = binding.parameters(action.args)
             # SAY WHAT THIS ACT IS FOR, so the constitution can judge it as the
             # experiment it is.
@@ -310,7 +311,7 @@ class SubstrateExplorer:
                 reset_acting_intent, set_acting_intent)
             token = set_acting_intent(intent_id)
             refused = None
-            with concurrent_execution_guard(domain_id) as _overlapped:
+            with concurrent_execution_guard(domain_id, names=action.args) as _overlapped:
                 try:
                     outcome = await tools.execute_tool(binding.tool_name, params)
                     refused = _refusal(outcome)
@@ -325,9 +326,20 @@ class SubstrateExplorer:
             interfered = False
             if others and s_after is not None:
                 theirs = await touched_by(domain_id, others)
-                mine = set(action.args).union(
-                    *(f.args for f in frozenset(s_after) ^ frozenset(s_before)))
-                interfered = theirs is None or bool(theirs & mine)
+                acted_on = named_by(domain_id, others)
+                seen = set().union(*(f.args for f in frozenset(s_after) ^ frozenset(s_before)))
+                if theirs is None or acted_on is None:
+                    why = "an execution beside it did not say what it acted on or changed"
+                elif acted_on & set(action.args):
+                    why = f"an execution beside it acted on {sorted(acted_on & set(action.args))}"
+                elif theirs & seen:
+                    why = f"an execution beside it changed {sorted(theirs & seen)}, which was seen to change"
+                else:
+                    why = None
+                interfered = why is not None
+                if interfered:
+                    logger.info("exploration action %s in %s not recorded: %s",
+                                action, domain_id, why)
             if refused is not None:
                 # A REFUSAL IS NOT EVIDENCE ABOUT THE WORLD. The act never ran,
                 # so the world did not move — and recording an unmoved world as

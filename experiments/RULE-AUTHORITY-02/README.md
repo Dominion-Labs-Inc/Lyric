@@ -251,3 +251,5 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | `20261027T225308Z` | 300 | 5/8 on the whole running system, from Lyric's home: worlds 117 and 2, a miss left out of the bounded basis |
 | `20261028T005435Z` | 300 | **8/8** on the whole running system, the same worlds, with `induce_bounded`: the figures at the top |
 | `20261028T023740Z` | 2,000 | 5/8, seed 20261028, 7,438 s: C1, C3, C4 failed by worlds 464 and 746, each a near miss tried milliseconds after a goal pursuit in the same world and dropped as interfered (fixed: `touched_by`). Two earlier attempts on this seed stalled at world 333 (fixed: `_reduced` removes a part held twice over) |
+| `20261028T045214Z` | 2,000 | 8/8 with `touched_by`, but Lyric's log held 135 refused profiler metrics (CPU share of one core over 14 cores; fixed) |
+| `20261028T070503Z` | 2,000 | 5/8, clean log: world 861's near miss dropped because a goal pursuit beside it was taken to have touched the group the world offered while it ran (fixed: `named_by`, what an act names is what it acted on) |
