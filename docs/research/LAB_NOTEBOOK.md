@@ -16,6 +16,86 @@ Conventions:
 
 ---
 
+## 2026-10-28 (66) — What the replies say, made English: a verb the speaker's in any form, a finite verb kept apart until its subject, a determiner and a thing agreeing as the treebanks agree, "another" and "any" given their meanings, the kinds the answers name taught
+
+**Objective** (the owner: the research decides; "not right yet" is work): the replies (65) found right and not English,
+each traced to its cause and fixed by what the literature gives, measured on main and on lyric_dev2.
+
+**Traced and fixed** (each reply to its cause):
+1. *"Roy paint.", "Roy coat the wall.", "Roy did paint the box."* The speaker's own words (`named`) are said first, and
+   were counted by form as written, so the base form a question puts a verb in was said whatever its subject and time.
+   A verb's form is what its subject and time make it (contextual inflection, Booij 1996) and the time is the meaning's:
+   a verb is now the speaker's in any of its forms (`Words.lexeme`, the word a form is of). A noun's form says how many
+   (inherent inflection), which the meaning does not hold: freed too, first, and "Roy made the pictures." was said of
+   one picture, so a noun is the speaker's as written.
+2. *"The medal were painted."* "was" was never built: the chart packs signs by meaning, "was painted" and "were painted"
+   mean the same, and the subject they agree with comes later. A finite verb still taking its subject is now kept
+   apart by the number and person its form is written with most (`taking_subject`; what a later rule weighs may not be
+   packed away, Oepen and Carroll 2000): "is" and "'s" go on alike, "was" and "were" do not.
+3. *"Wall is a artifact.", "What is paint?" "Coating."* The kinds the answers name were never taught: no sound, so no
+   "an"; no number; "coating" unread ("Paint is a coating." read "a" as the noun angstrom, so `isa(paint, coating)` was
+   said by nothing). Taught as words recorded whole: partition, structure, artifact, substance, coating (5 remembered,
+   13 held already, beliefs 2 -> 2, log clean).
+4. *"Pictures are a representations.", "A walls are".* Only a subject and its verb agreed. Two more agreements counted
+   from UD's treebanks as the subjects were (`teaching_sources._agreeing`, by the features subjects share with verbs):
+   the nouns each determiner form was said with (`det`; record layer `nouns`: "a" a singular noun 7,339 times, a plural
+   170), and what a copula said a thing to be with the thing (`nsubj` of a word with `cop`; layer `predicated`: "is" a
+   singular noun of a singular noun 385). Held (`Words.nouns`, `Words.predicated`) and weighed where the two words first
+   stand together, whichever rule joins them (`Grammar._met`; a determiner marked by a piece, `det`, since "is an"
+   composed before "artifacts" went unweighed). **Found:** English says a plural thing is a singular one often ("are":
+   a singular noun of a plural one 70 times, a plural of a plural 54: "Prices are a concern."), so that agreement
+   weighs little, as the treebanks have it.
+5. *"A wall is another artifact."* "another" said nothing in the grammar data and was read as "a". Given its meaning
+   (Heim 1982, Kamp and Reyle 1993; the Parallel Meaning Bank writes "another woman" a woman not the same as a woman,
+   `NEQ`): a thing of the kind, one of it given, the two not one (`other`, `spell_out`). In saying, what "another" says
+   is spent by it (`_said_by_other`, Kay 1996's covered facts): sought for the whole meaning, nothing joined the cat
+   chased to the cat known, and "Tom chased another cat." was never said, every word saying a denial tried instead.
+6. *"Roy fastened the medal with any pin."* "any" said nothing either. The Parallel Meaning Bank writes it only under a
+   denial or a question, and there a plain thing of the kind ("Tom didn't break any laws."); told with neither it is a
+   free choice (Ladusaw 1979). Read as a thing of its kind where a denial, a question or an "if" takes it; otherwise
+   the meaning language has no words for it yet (`npi`). Never offered in saying ("a" says the same).
+7. *"Walls are any artifacts."* What a thing is said to be is a kind only said with "a", bare, known, "another", whose
+   or "no" (Partee 1987: of noun phrases these shift to what is said of a thing; "some", "any", "every" quantify):
+   otherwise an identity with one of the kind, never `isa`.
+8. *"What is paint?" "Coating."* The answer named the word ("paint"), and reading names its sense (`coating paint`);
+   *each telling acknowledged a fact at a time*, the doing by the name made for it ("Noted - I'll hold that about
+   paint_9aff42fc.", "Noted - The box."). Both in the protected coordinator, **staged** (another session's
+   RULE-AUTHORITY-02 run uses it; `backups/replies_said_2026-10-28/`, `apply.sh`): the answer of the sense, and a
+   telling taken in whole said back whole as it was read ("Noted - Roy painted the box."), checked by loading the
+   staged copy ("Paint is a coating."; the four tellings of TRAIN-FORMAT-02 said back whole).
+
+**Tried and dropped:** each grammar word weighed by how likely it is for its use (a generative model's word given its
+category, Collins 1999; ranking realizations by a treebank model, Velldal and Oepen 2005). Half of that model (a noun
+said with a determiner pays nothing for having one, in reading) preferred leaving "a" out ("Walls are partition.");
+with "another" and "any" given their meanings it was needed for nothing. Deleted.
+
+**Measured:**
+- Main's reading **unchanged**: GRAMMAR-01 strict 199, senses aside 386 (42.4%), unnamed 488, facts F1 82.1%, with the
+  agreement (`20261028T053948Z`), with "another" and the predicate rule (`060114Z`), with "any" (`062324Z`: facts
+  precision 83.1 -> 83.2%, recall 81.1 -> 81.0%; one dev sentence given no meaning, "any" told with nothing denying,
+  asking or supposing: the Parallel Meaning Bank's "You can buy stamps at any post office." is every post office
+  possible, "At any rate" an adverb of its own, each read "a" before); prose joins 1,326 of 1,949 (68.0%) with
+  "another" and with "any".
+- lyric_dev2, **TRAIN-FORMAT-02** (`20261028T063756Z`, `063815Z`): store 81 of 83 (the two of (65)); front door **21 of
+  21 right, none wrong**. Said now: "Roy painted the box.", "Yes. The medal was painted.", "Yes. Roy paints.", "Yes.
+  Roy coated the wall.", "Yes. Roy made the picture.", "A wall is a partition.", "Yes. A wall is a structure.", "Yes. A
+  wall is an artifact.", "Yes. Paint is a substance.". **TRAIN-FORMAT-01** 5 of 5.
+- Saying on one store, the code of this morning (`70bb9b75`'s tree) and now: "Roy painted the box for Tom." 9.3 s and
+  10.0 s, "Roy fastened the medal with a pin." 5.1 and 6.3 s, "The medal was painted." 0.3 and 0.4 s, a wall a
+  partition 1.0 and 1.3 s (before "any" was licensed). The front door's answers of five facts take 9.5 to 14.1 s
+  (TRAIN-FORMAT-01 `063920Z`; 8.5 to 11.8 s in (65)), lyric_dev2 holding 18 words to 13.
+- Tests: `test_grammar.py` and `test_sentence_records.py` 66 pass (6 new).
+
+**Not right yet:**
+1. "Picture is a representation." (asked "What is a picture?") and, said with no words of the speaker's, "Walls are a
+   partition." first: the structure view lyric_dev2 learned from one sentence; the sentence set (not approved).
+2. "Coating." and the acknowledgements until the staged coordinator is applied.
+3. "What did Roy fasten?" "Medal." (what an answer of a thing says, bare). "We made it!" not in its sense.
+4. "some" says nothing (the Parallel Meaning Bank: a thing of the kind, as "a"); said before a singular count noun it
+   is not English.
+
+---
+
 ## 2026-10-28 (65) — Step 5: joins never met as likely as every head alike (Witten-Bell to the uniform); how often a noun is said bare, in its record; a kind asked of answered (staged)
 
 **Objective** (the owner: the research decides what reaches the goal, not him): the fixes (64) left open, each by the

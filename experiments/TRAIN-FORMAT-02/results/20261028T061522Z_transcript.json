@@ -1,0 +1,959 @@
+[
+ {
+  "text": "painted",
+  "told": "Roy painted the box.",
+  "read": true,
+  "reply": "Noted - I'll hold that about paint_9aff42fc.\nNoted - The box.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "painted",
+  "asked": "Who painted the box?",
+  "gold": [
+   "Roy"
+  ],
+  "result": "right",
+  "reply": "Roy painted the box.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, box) & instance_of(?v0, paint) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_9aff42fc",
+    "relation": "",
+    "others": [],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:23Z)",
+     "instance_of(box_1, box)",
+     "done_by(?v0, ?v2)",
+     "done_to(?v0, box_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "painted",
+  "asked": "What did Roy paint?",
+  "gold": [
+   "box"
+  ],
+  "result": "right",
+  "reply": "Roy painted the box.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, paint) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_9aff42fc",
+    "relation": "",
+    "others": [],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:24Z)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "painted",
+  "asked": "Did Roy paint the box?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Roy painted the box.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_9aff42fc",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:25Z)",
+     "instance_of(box_1, box)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, box_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "was painted",
+  "told": "The medal was painted by Roy.",
+  "read": true,
+  "reply": "Noted - I'll hold that about paint_7c8db968.\nNoted - I'll hold that about award_decoration_1.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "was painted",
+  "asked": "Who painted the medal?",
+  "gold": [
+   "Roy"
+  ],
+  "result": "right",
+  "reply": "Roy painted the medal.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_7c8db968",
+    "relation": "",
+    "others": [],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:26Z)",
+     "instance_of(award_decoration_1, award decoration)",
+     "done_by(?v0, ?v2)",
+     "done_to(?v0, award_decoration_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "was painted",
+  "asked": "Was the medal painted?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. The medal was painted.",
+  "readings": [
+   [
+    "composed: ask: done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_7c8db968",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:27Z)",
+     "instance_of(award_decoration_1, award decoration)",
+     "done_to(?v0, award_decoration_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "paints",
+  "told": "Roy paints.",
+  "read": true,
+  "reply": "Noted - I'll hold that about paint_2404cbe1.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & instance_of(?v0, paint)"
+   ]
+  ]
+ },
+ {
+  "text": "paints",
+  "asked": "Does Roy paint?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Roy paints.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & instance_of(?v0, paint)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_2404cbe1",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "done_by(?v0, roy)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "paints",
+  "asked": "Who paints?",
+  "gold": [
+   "Roy"
+  ],
+  "result": "right",
+  "reply": "Roy paints.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, ?v1) & instance_of(?v0, paint) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_2404cbe1",
+    "relation": "",
+    "others": [],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "done_by(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "for",
+  "told": "Roy painted the box for Tom.",
+  "read": true,
+  "reply": "Noted - I'll hold that about paint_62bcc3a7.\nNoted - The box.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_for(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "for",
+  "asked": "Who did Roy paint the box for?",
+  "gold": [
+   "Tom"
+  ],
+  "result": "right",
+  "reply": "Roy painted the box for Tom.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_for(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, box) & instance_of(?v0, paint) & precedes(?v0, ?now) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_62bcc3a7",
+    "relation": "",
+    "others": [],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:42Z)",
+     "instance_of(box_1, box)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, box_1)",
+     "done_for(?v0, ?v2)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "for",
+  "asked": "Did Roy paint the box for Tom?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Roy painted the box for Tom.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_for(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, box) & instance_of(?v0, paint) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint_62bcc3a7",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, paint)",
+     "precedes(?v0, 2026-10-28T06:15:57Z)",
+     "instance_of(box_1, box)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, box_1)",
+     "done_for(?v0, tom)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "meanings",
+  "told": "Roy painted the wall.",
+  "read": true,
+  "reply": "Noted - I'll hold that about coat_paint_c60b554a.\nNoted - The wall.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, wall) & instance_of(?v0, coat paint) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "meanings",
+  "asked": "What does paint mean?",
+  "gold": [
+   "painting",
+   "coat"
+  ],
+  "result": "right",
+  "reply": "Make a painting.\nApply paint to; coat with paint.\nMake a painting of.\nA substance used as a coating to protect or decorate a surface (especially a mixture of pigment suspended in a liquid); dries to form a hard coating.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, coating paint) & done_to(?v0, ?v1) & instance_of(?v0, mean) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint",
+    "relation": "means",
+    "others": [
+     "make a painting"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "paint",
+    "relation": "means",
+    "others": [
+     "apply paint to; coat with paint"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "paint",
+    "relation": "means",
+    "others": [
+     "make a painting of"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   },
+   {
+    "about": "paint",
+    "relation": "means",
+    "others": [
+     "a substance used as a coating to protect or decorate a surface (especially a mixture of pigment suspended in a liquid); dries to form a hard coating"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, mean)",
+     "done_by(?v0, coating paint)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "meanings",
+  "asked": "What is paint?",
+  "gold": [
+   "coating"
+  ],
+  "result": "right",
+  "reply": "Coating.",
+  "readings": [
+   [
+    "composed: ask: isa(coating paint, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "paint",
+    "relation": "isa",
+    "others": [
+     "coating"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(coating paint, ?v0)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "meanings",
+  "asked": "What is a wall?",
+  "gold": [
+   "partition"
+  ],
+  "result": "right",
+  "reply": "A wall is a partition.",
+  "readings": [
+   [
+    "composed: ask: isa(wall, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "wall",
+    "relation": "isa",
+    "others": [
+     "partition"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(wall, ?v0)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "meanings",
+  "asked": "What is a picture?",
+  "gold": [
+   "representation"
+  ],
+  "result": "right",
+  "reply": "Picture is a representation.",
+  "readings": [
+   [
+    "composed: ask: isa(picture, ?v0) ? ?v0"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "picture",
+    "relation": "isa",
+    "others": [
+     "representation"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(picture, ?v0)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "kinds",
+  "told": "Roy painted the wall.",
+  "read": true,
+  "reply": "Noted - I'll hold that about coat_paint_c60b554a.\nNoted - The wall.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, wall) & instance_of(?v0, coat paint) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "kinds",
+  "asked": "Is a wall a structure?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. A wall is a structure.",
+  "readings": [
+   [
+    "composed: ask: isa(wall, structure)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "wall",
+    "relation": "isa",
+    "others": [
+     "structure"
+    ],
+    "verdict": true,
+    "support": [
+     "wall isa structure"
+    ],
+    "conclusion": "Walls are structures."
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(wall, structure)"
+    ],
+    "answer": "Proved: wall_structure",
+    "route": null,
+    "steps": [
+     "1. wall_partition  [Given, not needed]",
+     "2. wall_structure  [Premise]",
+     "3. wall_artifact  [Given, not needed]",
+     "4. wall_object_whole  [Given, not needed]",
+     "5. wall_object  [Given, not needed]",
+     "6. wall_physical_entity  [Given, not needed]",
+     "7. wall_entity  [Given, not needed]",
+     "8. structure_artifact  [Given, not needed]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "kinds",
+  "asked": "Is a wall an artifact?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. A wall is an artifact.",
+  "readings": [
+   [
+    "composed: ask: isa(wall, artifact)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "wall",
+    "relation": "isa",
+    "others": [
+     "artifact"
+    ],
+    "verdict": true,
+    "support": [
+     "wall isa artifact"
+    ],
+    "conclusion": "Walls are artifacts."
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(wall, artifact)"
+    ],
+    "answer": "Proved: wall_artifact",
+    "route": null,
+    "steps": [
+     "1. wall_partition  [Given, not needed]",
+     "2. wall_structure  [Given, not needed]",
+     "3. wall_artifact  [Premise]",
+     "4. wall_object_whole  [Given, not needed]",
+     "5. wall_object  [Given, not needed]",
+     "6. wall_physical_entity  [Given, not needed]",
+     "7. wall_entity  [Given, not needed]",
+     "8. artifact_object_whole  [Given, not needed]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "kinds",
+  "asked": "Is paint a substance?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Paint is a substance.",
+  "readings": [
+   [
+    "composed: ask: isa(coating paint, substance)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "coating paint",
+    "relation": "isa",
+    "others": [
+     "substance"
+    ],
+    "verdict": true,
+    "support": [
+     "coating paint isa substance"
+    ],
+    "conclusion": "Paint is a substance."
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(coating paint, substance)"
+    ],
+    "answer": "Proved: coating_paint_substance",
+    "route": null,
+    "steps": [
+     "1. coating_paint_coating  [Given, not needed]",
+     "2. coating_paint_coloring_material  [Given, not needed]",
+     "3. coating_paint_artifact_covering  [Given, not needed]",
+     "4. coating_paint_material  [Given, not needed]",
+     "5. coating_paint_artifact  [Given, not needed]",
+     "6. coating_paint_substance  [Premise]",
+     "7. coating_paint_object_whole  [Given, not needed]",
+     "8. coating_paint_physical_entity_matter  [Given, not needed]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "kinds",
+  "asked": "Did Roy coat the wall?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Roy coated the wall.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, wall) & instance_of(?v0, to coat) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "coat_paint_c60b554a",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, to coat)",
+     "precedes(?v0, 2026-10-28T06:16:11Z)",
+     "instance_of(wall_1, wall)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, wall_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "kinds",
+  "asked": "Did Roy paint a structure?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, coat paint) & instance_of(?v1, structure) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "coat_paint_c60b554a",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, coat paint)",
+     "precedes(?v0, 2026-10-28T06:16:22Z)",
+     "instance_of(?v1, structure)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "kinds of a making",
+  "told": "Roy painted a picture.",
+  "read": true,
+  "reply": "Noted - I'll hold that about represent_paint_63289673.\nNoted - I'll hold that about picture_8dea04d4.",
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, represent paint) & instance_of(?v1, picture) & precedes(?v0, ?now)"
+   ]
+  ]
+ },
+ {
+  "text": "kinds of a making",
+  "asked": "Did Roy make something?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes. Roy made the picture.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, make) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "represent_paint_63289673",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": []
+ },
+ {
+  "text": "kinds of a making",
+  "asked": "Is a picture a representation?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: isa(picture, representation)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "picture",
+    "relation": "isa",
+    "others": [
+     "creation representation"
+    ],
+    "verdict": true,
+    "support": [
+     "picture isa creation representation"
+    ],
+    "conclusion": "picture isa creation representation"
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(picture, creation representation)"
+    ],
+    "answer": "Proved: picture_creation_representation",
+    "route": null,
+    "steps": [
+     "1. picture_creation_representation  [Premise]",
+     "2. picture_artifact_creation  [Given, not needed]",
+     "3. picture_artifact  [Given, not needed]",
+     "4. picture_object_whole  [Given, not needed]",
+     "5. picture_object  [Given, not needed]",
+     "6. picture_physical_entity  [Given, not needed]",
+     "7. picture_entity  [Given, not needed]",
+     "8. representation_cognition_content  [Given, not needed]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "kinds of a making",
+  "asked": "Did Roy paint a representation?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, represent paint) & instance_of(?v1, representation) & precedes(?v0, ?now)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "represent_paint_63289673",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, represent paint)",
+     "precedes(?v0, 2026-10-28T06:16:34Z)",
+     "instance_of(?v1, representation)",
+     "done_by(?v0, roy)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ }
+]

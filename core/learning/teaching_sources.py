@@ -2900,7 +2900,9 @@ class WordForm:
     Pronouncing Dictionary's phones of each way of saying it); of a form the analysts mark nothing apart from another
     form of the word ("a" and "an"), the first sound of the word said after it, how often each (`before`); and of a
     finite form of a verb, the subjects that took it, by their class and the features they share with verbs, how often
-    each (`subjects`: "is" a NOUN `Number=Sing`, "am" a PRONOUN `Number=Sing|Person=1`)."""
+    each (`subjects`: "is" a NOUN `Number=Sing`, "am" a PRONOUN `Number=Sing|Person=1`); of a determiner, the nouns it
+    was said with, by the same (`nouns`: "a" a NOUN `Number=Sing`); of a copula, what it said a thing to be and the
+    thing, each by the same (`predicated`: "are" a NOUN `Number=Plur` of a NOUN `Number=Plur`)."""
 
     form: str
     word_class: str
@@ -2909,6 +2911,8 @@ class WordForm:
     sounds: Tuple[str, ...] = ()
     before: Tuple[Tuple[str, int], ...] = ()
     subjects: Tuple[Tuple[str, str, int], ...] = ()
+    nouns: Tuple[Tuple[str, str, int], ...] = ()
+    predicated: Tuple[Tuple[str, str, str, str, int], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         out: Dict[str, Any] = {"form": self.form, "class": self.word_class, "features": self.features,
@@ -2920,6 +2924,10 @@ class WordForm:
             out["before"] = [list(b) for b in self.before]
         if self.subjects:
             out["subjects"] = [list(s) for s in self.subjects]
+        if self.nouns:
+            out["nouns"] = [list(s) for s in self.nouns]
+        if self.predicated:
+            out["predicated"] = [list(s) for s in self.predicated]
         return out
 
     @classmethod
@@ -2927,7 +2935,9 @@ class WordForm:
         return cls(str(data["form"]), str(data["class"]), str(data.get("features") or ""), int(data.get("count") or 0),
                    tuple(str(s) for s in data.get("sounds") or ()),
                    tuple((str(b[0]), int(b[1])) for b in data.get("before") or ()),
-                   tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("subjects") or ()))
+                   tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("subjects") or ()),
+                   tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("nouns") or ()),
+                   tuple((str(s[0]), str(s[1]), str(s[2]), str(s[3]), int(s[4])) for s in data.get("predicated") or ()))
 
 
 @dataclass(frozen=True)
@@ -3403,7 +3413,7 @@ def _subjects_taking(word: str, treebanks: Sequence[str], cache: Dict[str, Any])
     with verbs are those the treebanks write on most finite verbs taking a subject and on subjects too, by name (number
     and person: "I" `Number=Sing|Person=1`, "walls" `Number=Plur`, "you" `Person=2`); a feature written on both now
     and then is no agreement ("r" for "are" and "u" for "you" both `Abbr=Yes`)."""
-    if "subjects" not in cache:
+    if "subjects" not in cache or "shared" not in cache:
         pairs: List[Tuple[str, str, str, str, str, str]] = []
         on_verbs: Counter = Counter()
         on_subjects: Set[str] = set()
@@ -3433,7 +3443,44 @@ def _subjects_taking(word: str, treebanks: Sequence[str], cache: Dict[str, Any])
             kept = "|".join(f for f in of_features.split("|") if f and f.split("=")[0] in shared)
             held.setdefault(base, {}).setdefault((form, cls, features), Counter())[(of_class, kept)] += 1
         cache["subjects"] = held
+        cache["shared"] = shared
     return cache["subjects"].get(word, {})
+
+
+def _agreeing(word: str, treebanks: Sequence[str], cache: Dict[str, Any]
+              ) -> Tuple[Dict[Tuple[str, str, str], Counter], Dict[Tuple[str, str, str], Counter]]:
+    """WHAT ELSE AGREES IN THE TREEBANKS, as a subject agrees with its verb (`_subjects_taking`), by the features
+    subjects share with verbs (number and person): (form, class, features) of the word -> how often each. Of a
+    determiner, the nouns each form was said with (`det`: "a" a NOUN `Number=Sing`), by their class and those features.
+    Of a copula, what it said a thing to be, with the thing (a subject, `nsubj`, of a word with the copula, `cop`: "A
+    wall is a partition.", "partition" a NOUN `Number=Sing`, "wall" one too), each by class and those features."""
+    if "agreeing" not in cache:
+        _subjects_taking(word, treebanks, cache)
+        shared = cache["shared"]
+
+        def kept(features: str) -> str:
+            return "|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
+        nouns: Dict[str, Dict[Tuple[str, str, str], Counter]] = {}
+        predicated: Dict[str, Dict[Tuple[str, str, str], Counter]] = {}
+        for sentence in _treebank_words(treebanks, cache):
+            subject_of: Dict[int, int] = {}
+            for k, (_, _, _, _, head, relation) in enumerate(sentence):
+                if relation in ("nsubj", "nsubj:pass") and head:
+                    subject_of.setdefault(head - 1, k)
+            for k, (form, base, cls, features, head, relation) in enumerate(sentence):
+                if not head or "Typo=Yes" in features.split("|"):
+                    continue
+                said = sentence[head - 1]
+                if relation == "det":
+                    nouns.setdefault(base, {}).setdefault((form, cls, features), Counter())[
+                        (said[2], kept(said[3]))] += 1
+                elif relation == "cop" and head - 1 in subject_of:
+                    subject = sentence[subject_of[head - 1]]
+                    predicated.setdefault(base, {}).setdefault((form, cls, features), Counter())[
+                        (said[2], kept(said[3]), subject[2], kept(subject[3]))] += 1
+        cache["agreeing"] = (nouns, predicated)
+    nouns, predicated = cache["agreeing"]
+    return nouns.get(word, {}), predicated.get(word, {})
 
 
 def _pronounced(cache: Dict[str, Any]) -> Dict[str, List[List[str]]]:
@@ -3884,6 +3931,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     # written most often with the same features as the other: "a" and "an", "is" and "'s"; not "was" and "were", though
     # "was" is now and then written plural), the first sound of the word said after each.
     subjects = _subjects_taking(word, treebanks, _cache) if not rest else {}
+    nouns, predicated = _agreeing(word, treebanks, _cache) if not rest else ({}, {})
     most: Dict[Tuple[str, str], WordForm] = {}
     for f in forms:
         if (f.form, f.word_class) not in most or f.count > most[(f.form, f.word_class)].count:
@@ -3906,7 +3954,13 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         before=tuple(sorted(before.get((f.form, f.word_class), Counter()).items(), key=lambda x: (-x[1], x[0]))),
         subjects=tuple((c, feats, n) for (c, feats), n in sorted(
             subjects.get((f.form, f.word_class, f.features), Counter()).items(), key=lambda x: (-x[1], x[0])))
-        if "VerbForm=Fin" in f.features.split("|") else ()) for f in forms]
+        if "VerbForm=Fin" in f.features.split("|") else (),
+        nouns=tuple((c, feats, n) for (c, feats), n in sorted(
+            nouns.get((f.form, f.word_class, f.features), Counter()).items(), key=lambda x: (-x[1], x[0])))
+        if f.word_class == "DETERMINER" else (),
+        predicated=tuple(said + (n,) for said, n in sorted(
+            predicated.get((f.form, f.word_class, f.features), Counter()).items(), key=lambda x: (-x[1], x[0])))
+        if f.word_class == "AUXILIARY" else ()) for f in forms]
     kept = {f.word_class for f in forms}
     as_class = {(f.form, f.word_class) for f in forms}
     closed_forms = {f.form for f in forms if f.word_class in _CLOSED_CLASSES}

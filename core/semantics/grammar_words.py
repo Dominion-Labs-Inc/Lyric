@@ -252,12 +252,18 @@ class HeldWords(Words):
         self.hyphened: Counter = Counter()
         #: From words recorded whole (`GrammarView.hold_word`): each form's ways of being said; of forms the analysts
         #: mark nothing apart ("a", "an"), the forms said alike with each and the first sounds said after each; of a
-        #: finite form, its subjects by class and the features they share with verbs; every finite form's together.
+        #: finite form, its subjects by class and the features they share with verbs; every finite form's together;
+        #: of a determiner, the nouns it was said with, and every determiner's together; of what a copula said a thing
+        #: to be (by its class and those features), the things, every such together.
         self.said: Dict[str, Counter] = defaultdict(Counter)
         self.said_alike: Dict[str, Counter] = defaultdict(Counter)
         self.sounds_after: Dict[str, Counter] = defaultdict(Counter)
         self.subjects_of: Dict[str, Counter] = defaultdict(Counter)
         self.every_subject: Counter = Counter()
+        self.nouns_of: Dict[str, Counter] = defaultdict(Counter)
+        self.every_noun: Counter = Counter()
+        self.predicated_of: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+        self.every_predicated: Counter = Counter()
         self._names: Dict[Tuple[str, str], str] = {}
         self._uses: Dict[str, Mapping[str, float]] = {}
         self.sentences = 0
@@ -681,6 +687,14 @@ class HeldWords(Words):
 
     def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
         held = self.every_subject if word is None else self.subjects_of.get(word.lower(), {})
+        return {k: float(n) for k, n in held.items() if n > 0}
+
+    def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        held = self.every_noun if word is None else self.nouns_of.get(word.lower(), {})
+        return {k: float(n) for k, n in held.items() if n > 0}
+
+    def predicated(self, said: Optional[Tuple[str, str]] = None) -> Mapping[Tuple[str, str], float]:
+        held = self.every_predicated if said is None else self.predicated_of.get(said, {})
         return {k: float(n) for k, n in held.items() if n > 0}
 
     def form_features(self, word: str, cls: str) -> Mapping[str, float]:

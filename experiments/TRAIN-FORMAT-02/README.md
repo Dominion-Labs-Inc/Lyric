@@ -225,3 +225,10 @@ treebank: the noun's plural "paints".
   gives it, and "Wall is a partition." said before "A wall is a partition." (the structure view holds one sentence).
   **Not right yet:** the replies' English ("Yes. The medal were painted.", "Yes. Roy paint.", "Yes. Wall is a
   artifact.", "Picture is another representations.", tellings acknowledged with names made inside, "paint_9aff42fc").
+- **2026-10-28, later: the replies made English** (lab notebook (66)). Five kind words the answers name taught
+  (partition, structure, artifact, substance, coating: 18 words); "a", "the" and "be" carry the nouns each determiner
+  was said with and what each copula said things were (`nouns`, `predicated`). Store 81 of 83 (`20261028T063756Z`; the
+  same two), front door 21 of 21 right, none wrong (`063815Z`): "Yes. The medal was painted.", "Yes. Roy paints.",
+  "Yes. Roy coated the wall.", "Yes. Roy made the picture.", "A wall is a partition.", "Yes. A wall is an artifact.",
+  "Yes. Paint is a substance.". Not right yet: "Picture is a representation.", and "Coating." and each telling
+  acknowledged a fact at a time until the staged coordinator is applied.

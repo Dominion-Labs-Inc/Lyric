@@ -44,6 +44,10 @@ class Held(gm.Words):
         w = word.lower()
         return {"NOUN": NOUNS, "VERB": VERBS, "ADJECTIVE": ADJECTIVES}.get(cls, {}).get(w, w)
 
+    def lexeme(self, word: str, cls: str) -> str:
+        # The names above are the words each form is of.
+        return self.name(word, cls)
+
     def verb_forms(self, word: str) -> Mapping[str, float]:
         return FORMS.get(word.lower(), {})
 
@@ -735,8 +739,14 @@ class Sounding(Speaking):
             return every
         return self.SUBJECTS.get(word.lower(), {})
 
+    #: Each form of "be" with its number and person, as its record holds them.
+    BE_FEATURES = {"is": "Number=Sing|Person=3", "'s": "Number=Sing|Person=3", "am": "Number=Sing|Person=1",
+                   "'m": "Number=Sing|Person=1", "are": "Number=Plur|Person=3", "'re": "Person=2"}
+
     def form_features(self, word: str, cls: str):
         w = word.lower()
+        if cls == "AUXILIARY" and w in self.BE_FEATURES:
+            return {"Mood=Ind|" + self.BE_FEATURES[w] + "|Tense=Pres|VerbForm=Fin": 1.0}
         if cls != "NOUN" or (w not in NOUNS and w != "owl"):
             return {}
         return {"Number=Plur" if self.plural(w) else "Number=Sing": 1.0}
@@ -767,6 +777,95 @@ def test_a_subject_agrees_with_its_verb_as_the_subjects_it_took():
     first = gm.tokens_of(said[0], g.lexicon.words)
     assert ("dogs" in [w.lower() for w in first]) == any(w.lower() in ("are", "'re") for w in first), said[:5]
     assert not any(w.lower() in ("am", "'m") for w in first), said[:5]
+
+
+class Agreeing(Sounding):
+    """The words above, with the nouns "a" and "an" were said with, and the things said to be what a copula said they
+    were, as words recorded whole hold them."""
+
+    NOUNS_OF = {"a": {("NOUN", "Number=Sing"): 300.0, ("NOUN", "Number=Plur"): 6.0},
+                "an": {("NOUN", "Number=Sing"): 40.0, ("NOUN", "Number=Plur"): 1.0},
+                "the": {("NOUN", "Number=Sing"): 400.0, ("NOUN", "Number=Plur"): 100.0}}
+    PREDICATED = {("NOUN", "Number=Sing"): {("NOUN", "Number=Sing"): 90.0, ("NOUN", "Number=Plur"): 5.0},
+                  ("NOUN", "Number=Plur"): {("NOUN", "Number=Plur"): 30.0, ("NOUN", "Number=Sing"): 2.0}}
+
+    def nouns(self, word=None):
+        if word is None:
+            every: Dict = {}
+            for held in self.NOUNS_OF.values():
+                for k, n in held.items():
+                    every[k] = every.get(k, 0.0) + n
+            return every
+        return self.NOUNS_OF.get(word.lower(), {})
+
+    def predicated(self, said=None):
+        if said is None:
+            every: Dict = {}
+            for held in self.PREDICATED.values():
+                for k, n in held.items():
+                    every[k] = every.get(k, 0.0) + n
+            return every
+        return self.PREDICATED.get(said, {})
+
+
+def test_a_determiner_agrees_with_its_noun_and_a_thing_with_what_it_is_said_to_be():
+    """A determiner weighed with its noun by the nouns it was said with, and a thing with what it is said to be by the
+    things said to be such (`Grammar._met`), wherever the two first stand together: "a mammals" is read less surely
+    than "a mammal" though "is a" is composed before the noun; "Dogs are a mammal." less surely than "Dogs are
+    mammals."; what is said first of a dog being a mammal agrees throughout."""
+    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
+            for text in ("A dog is a mammal.", "A dog is a mammals.", "Dogs are mammals.", "Dogs are a mammal.")}
+    assert sure["A dog is a mammal."] > sure["A dog is a mammals."] + 1.0, sure
+    assert sure["Dogs are mammals."] > sure["Dogs are a mammal."] + 1.0, sure
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
+    assert said[0] in ("A dog is a mammal.", "Dogs are mammals."), said[:5]
+
+
+def test_a_finite_verb_is_kept_apart_by_its_form_until_its_subject_is_taken():
+    """Saying keeps "is" and "are" apart while their subject is yet to come, as the subject is weighed with the form:
+    a dog being a mammal is said "A dog is a mammal." and "Dogs are mammals.", each form with the subject it agrees
+    with. Packed by meaning alone, one form was kept for every subject ("The medal were painted.", 2026-10-28)."""
+    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
+    assert "A dog is a mammal." in said and "Dogs are mammals." in said, said[:8]
+
+
+def test_the_speakers_verb_is_their_word_in_any_form_and_their_noun_as_they_wrote_it():
+    """The speaker's own words (`named`) are said before others: a verb as any of its forms, its subject and time
+    choosing which ("chase" asked, "chased" said of a chasing before now); a noun as written, its form saying how
+    many ("cat" asked, never "cats" said of one cat)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
+    said = g.say(told, named={"chase": "chase", "cat": "cat"})
+    assert said and "chased" in said[0].split() and "did" not in said[0].split(), said[:5]
+    assert not any("cats" in s for s in said[:said.index("Tom chased a cat.") + 1]), said[:8]
+
+
+def test_another_is_one_of_a_kind_not_one_given_and_is_said_only_so():
+    """"Another" is one of a kind that is not the one of it given (Heim 1982; the Parallel Meaning Bank's `NEQ`):
+    "Tom chased another cat." is a cat chased, a cat known, the two not one, and is said back of that meaning, first;
+    of a dog being a mammal, "another" is never said. Saying nothing, it was read as "a"."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = g.read(gm.tokens_of("Tom chased another cat.", g.lexicon.words)).meaning
+    facts = {(f.relation, f.positive, f.given) for f in told.facts}
+    assert ("equals", False, False) in facts and ("instance_of", True, True) in facts, told.canonical()
+    assert told.canonical() != read(g, "Tom chased a cat.")
+    said = g.say(told)
+    assert said and said[0] == "Tom chased another cat.", said[:5]
+    assert not any("another" in s for s in g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),))))
+
+
+def test_any_is_one_of_a_kind_only_where_denied_asked_or_supposed():
+    """"Any" is read as a thing of its kind where a denial, a question or an "if" takes it (Ladusaw 1979; the
+    Parallel Meaning Bank's "Tom didn't break any laws."), as "a" is; told with none of these, the meaning language
+    has no words for it, so it is never said for "a"."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    assert read(g, "Did Tom chase any cat?") == read(g, "Did Tom chase a cat?")
+    assert g.read(gm.tokens_of("Tom did not chase any cat.", g.lexicon.words)).meaning is not None
+    assert g.read(gm.tokens_of("Tom chased any cat.", g.lexicon.words)).meaning is None
+    told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
+    assert not any("any" in s.split() for s in g.say(told))
 
 
 def test_a_word_saying_nothing_is_said_only_where_something_needs_it():

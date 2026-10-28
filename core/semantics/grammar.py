@@ -222,6 +222,16 @@ def _wants(cat: Cat) -> Tuple[Optional[str], Set[str]]:
     return (_shape(cat.arg) if cat.slash == "/" else None), before
 
 
+def _takes_noun(cat: Cat, ref: Term) -> bool:
+    """Whether a category still takes a noun of this thing (`NP.x/N.x`, "is a" `(S\\NP)/N.x`): what a determiner
+    says which of is yet to come."""
+    while isinstance(cat, Fn):
+        if isinstance(cat.arg, Atom) and cat.arg.base == "N" and cat.arg.ref == ref:
+            return True
+        cat = cat.res
+    return False
+
+
 def _leaves_as_is(cat: Cat) -> bool:
     """Whether a category takes what it makes, the same in every term: `NP.x/NP.x`, `S[F].a/S[F].a`; not
     `S[em].c/S[dcl].c` ("that" making a clause one that is taken)."""
@@ -288,6 +298,10 @@ class Words:
 
     def name(self, word: str, cls: str) -> str:
         """The name of the word as a word of that kind: "took" as a verb is `take`."""
+        return word.lower()
+
+    def lexeme(self, word: str, cls: str) -> str:
+        """The word this one is a form of, as a word of that kind ("paints" `paint`); the word itself where none."""
         return word.lower()
 
     def verb_forms(self, word: str) -> Mapping[str, float]:
@@ -416,6 +430,17 @@ class Words:
         """Of a finite form of a verb ("is", "paints"), how often its subjects were of each class with each of the
         features subjects share with verbs: `("NOUN", "Number=Sing")`, `("PRONOUN", "Number=Sing|Person=1")`; of no
         word, every finite form's together. Nothing where memory holds none."""
+        return {}
+
+    def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        """Of a determiner ("a", "the"), how often the nouns it was said with were of each class with each of those
+        features: `("NOUN", "Number=Sing")`; of no word, every determiner's together. Nothing where memory holds none."""
+        return {}
+
+    def predicated(self, said: Optional[Tuple[str, str]] = None) -> Mapping[Tuple[str, str], float]:
+        """Of what a copula said a thing to be, by its class and those features (`("NOUN", "Number=Sing")`: "a
+        partition"), how often the things it was said of were of each class with each; of nothing, every such thing
+        together. Nothing where memory holds none."""
         return {}
 
     def form_features(self, word: str, cls: str) -> Mapping[str, float]:
@@ -1761,11 +1786,29 @@ def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
     return list(dict.fromkeys(out))
 
 
+def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
+    """THE FACTS "ANOTHER" SAYS IN A MEANING, as `spell_out` makes them of its `other`: of each thing held not to be
+    another thing, where that other is a thing given of the same kind and nothing more is said of it, the denial and
+    what the other is."""
+    out: Set[MeaningFact] = set()
+    for f in meaning.facts:
+        if f.relation != "equals" or f.positive or not (is_variable(f.subject) and is_variable(f.obj)):
+            continue
+        for one, other in ((f.subject, f.obj), (f.obj, f.subject)):
+            of_other = [g for g in meaning.facts if other in (g.subject, g.obj)]
+            kinds = {g.obj for g in meaning.facts if g.relation == "instance_of" and g.subject == one and g.positive}
+            if len(of_other) == 2 and any(g.relation == "instance_of" and g.subject == other and g.given
+                                          and g.positive and g.obj in kinds for g in of_other):
+                out.update(of_other)
+    return out
+
+
 def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
     facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
     `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`), none for any other piece;
-    None for a piece saying nothing a meaning holds (`indefinite`, `finite`)."""
+    None for a piece saying nothing a meaning holds (`indefinite`, `finite`); a thing that is not another of its kind,
+    `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
     if kind in ("indefinite", "finite"):
         return None
@@ -1778,6 +1821,8 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
                    or (f.relation == "instance_of" and not is_variable(f.subject)))
     if kind == "deny":
         return sum(1 for f in facts if not f.positive)
+    if kind == "other":
+        return sum(1 for f in facts if f.relation == "equals" and not f.positive)
     if kind == "fact":
         return sum(1 for f in facts if f.relation == piece[1])
     return 0
@@ -1938,6 +1983,11 @@ class Grammar:
             out.append(i)
             pieces.append(tuple(out))
         pieces.append(("word", entry.name, entry.cls, i, end))
+        # WHICH THING A DETERMINER SAYS WHICH OF, kept so its noun is weighed with it wherever the two first stand
+        # together (`_met`), whichever rule joins them: "is an" composed before "artifacts" was not weighed.
+        if entry.cls == "GRAMMAR" and entry.label == "det" and isinstance(cat, Fn) and isinstance(cat.arg, Atom) \
+                and cat.arg.base == "N":
+            pieces.append(("det", cat.arg.ref, i))
         # Of a noun of several words, the last is the one it is ("credit card": a card).
         head = end - 1 if entry.cls == "NOUN" else i
         return Sign(cat, tuple(pieces), entry.score, i, end, "lex", (), head, entry.label or entry.cls,
@@ -1948,8 +1998,8 @@ class Grammar:
         lc, rc = left.cat, right.cat
 
         def made(cat: Cat, s: Dict[int, Term], rule: str, head: int, weighed: float = 0.0) -> None:
-            out.append(Sign(_apply(cat, s), (), left.score + right.score + weighed, left.start, right.end, rule,
-                            (left, right), head, binding=s))
+            out.append(Sign(_apply(cat, s), (), left.score + right.score + weighed + self._met(left, right, s, rule),
+                            left.start, right.end, rule, (left, right), head, binding=s))
         # A stretch joined by "and" waits for what it is joined to, and nothing else takes it.
         joining = isinstance(rc, Fn) and rc.slash == "&"
         if isinstance(lc, Fn) and lc.slash == "&":
@@ -2089,10 +2139,8 @@ class Grammar:
     def _agreement(self, subject: Sign, doing: Sign) -> float:
         """HOW WELL A SUBJECT AGREES WITH ITS VERB, as a logarithm, never more than nothing: of the subjects the
         doing's finite verb took (`Words.subjects`, as the treebanks' subjects took that form), the share of this
-        subject's class with its features (what form it is, as the forms memory holds say; any features where it holds
-        none), against that share of every finite verb's subjects, with one subject more spread as that share is.
-        Nothing where memory holds no subject of the verb, or the subject is no one word of a class: a noun, a name, a
-        pronoun.
+        subject's class with its features (`_agreed`). Nothing where memory holds no subject of the verb, or the
+        subject is no one word of a class: a noun, a name, a pronoun (`_said_by`).
 
         Nothing compared a subject with its verb: "a wall am" was read as "a wall is", and the first sentence the
         grammar said of a wall being a partition was "Wall'm the the a partition." (lyric_dev2, 2026-10-27)."""
@@ -2102,21 +2150,35 @@ class Grammar:
         if not finite or not 0 <= min(finite) < len(tokens):
             return 0.0
         took = words.subjects(str(tokens[min(finite)]))
-        if not took:
-            return 0.0
-        ref = subject.cat.ref
-        said = [p for p in subject.pieces if p[0] == "word"]
-        at = {p[-1] for p in subject.pieces if p[0] == "kind" and p[1] == ref}
+        found = self._said_by(subject.pieces, subject.cat.ref) if took else None
+        return self._agreed(took, words.subjects(), *found) if found else 0.0
+
+    def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
+        """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
+        name, a pronoun; None where none or more than one."""
+        said = [p for p in pieces if p[0] == "word"]
+        at = {p[-1] for p in pieces if p[0] == "kind" and p[1] == ref}
         found = [(p[2], p[4] - 1) for p in said if p[3] in at and p[2] == "NOUN"] or \
             [(p[2], p[3]) for p in said if p[2] == "NAME" and p[1] == ref] or \
-            ([("PRONOUN", subject.start)] if subject.rule == "lex" and subject.entry == "pron" else [])
-        if len(found) != 1 or not 0 <= found[0][1] < len(tokens):
-            return 0.0
-        cls, k = found[0]
-        every = words.subjects()
-        shared = {f.split("=")[0] for _, features in every for f in features.split("|") if f}
-        forms = {"|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
-                 for features in words.form_features(str(tokens[k]), cls)}
+            [("PRONOUN", p[-1]) for p in pieces if p[0] == "pron" and p[1] == ref]
+        if len(found) != 1 or not 0 <= found[0][1] < len(self._tokens):
+            return None
+        return found[0]
+
+    def _features(self, cls: str, k: int) -> Set[str]:
+        """What form the word at `k` is as a word of the class, as the forms memory holds say, by the features
+        subjects share with verbs (number and person): "walls" `Number=Plur`; none where memory holds none."""
+        shared = {f.split("=")[0] for _, features in self.lexicon.words.subjects() for f in features.split("|") if f}
+        return {"|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
+                for features in self.lexicon.words.form_features(str(self._tokens[k]), cls)}
+
+    def _agreed(self, took: Mapping[Tuple[str, str], float], every: Mapping[Tuple[str, str], float],
+                cls: str, k: int) -> float:
+        """HOW WELL A WORD AGREES WITH WHAT IT IS SAID WITH, as a logarithm, never more than nothing: of the words
+        that other took (`took`: a finite verb's subjects, a determiner's nouns), the share of this word's class with
+        its features (`_features`; any features where memory holds none), against that share of what every such word
+        took (`every`), with one more spread as that share is."""
+        forms = self._features(cls, k)
 
         def matched(held: Mapping[Tuple[str, str], float]) -> float:
             return sum(n for (c, features), n in held.items() if c == cls and (not forms or features in forms))
@@ -2124,6 +2186,69 @@ class Grammar:
         if share <= 0:
             return 0.0
         return min(0.0, math.log((matched(took) + share) / (sum(took.values()) + 1.0) / share))
+
+    def _met(self, left: Sign, right: Sign, s: Dict[int, Term], rule: str) -> float:
+        """AGREEMENT WEIGHED WHERE ITS TWO WORDS FIRST STAND TOGETHER, by whichever rule joins them, as a subject with
+        its verb (`_agreement`), from what the treebanks' words agreeing so took: a determiner with its noun ("a"
+        before a noun, `Words.nouns`), and a thing with what it is said to be (`be`: "Walls are a partition.",
+        `Words.predicated`, of what the copula said a thing to be by its class and features).
+
+        Neither was weighed: "a" before "representations" was read as surely as before "representation", and
+        "Pictures are a representations." was said of a picture being a representation (lyric_dev2, 2026-10-28)."""
+        words, tokens = self.lexicon.words, self._tokens
+        weight = 0.0
+        # A determiner whose noun is still to come (its category still takes the noun) meets it here or later; one
+        # whose noun it already holds was weighed when they met.
+        dets = [(side, p) for side in (left, right) for p in side.pieces
+                if p[0] == "det" and _takes_noun(side.cat, p[1]) and 0 <= p[2] < len(tokens)]
+        dets = [(side, p, took) for side, p in dets for took in [words.nouns(str(tokens[p[2]]))] if took]
+        bes = [(side, p) for side in (left, right) for p in side.pieces if p[0] == "be"]
+        every_predicated = words.predicated() if bes else {}
+        if not dets and not every_predicated:
+            return weight
+        sides = {id(left): (_substitute(left.pieces, s), _substitute(right.pieces, s)),
+                 id(right): (_substitute(right.pieces, s), _substitute(left.pieces, s))}
+        if dets:
+            every_noun = words.nouns()
+            for side, p, took in dets:
+                noun = self._said_by(sides[id(side)][1], _walk(p[1], s))
+                if noun is not None:
+                    weight += self._agreed(took, every_noun, *noun)
+        for side, p in (bes if every_predicated else ()):
+            one, other = sides[id(side)]
+            x, y = _walk(p[1], s), _walk(p[2], s)
+            for a, b in ((one, other), (other, one)):
+                thing, what = self._said_by(a, x), self._said_by(b, y)
+                if thing is None or what is None or self._said_by(b, x) or self._said_by(a, y):
+                    continue
+                took: Counter = Counter()
+                for features in self._features(what[0], what[1]):
+                    took.update(words.predicated((what[0], features)))
+                if took:
+                    weight += self._agreed(took, every_predicated, *thing)
+        return weight
+        sides = (_substitute(left.pieces, s), _substitute(right.pieces, s))
+        every_noun, every_predicated = words.nouns(), words.predicated()
+        for one, other in (sides, sides[::-1]):
+            for p in one:
+                if p[0] == "det" and every_noun and 0 <= p[2] < len(tokens) and self._said_by(one, p[1]) is None:
+                    noun = self._said_by(other, p[1])
+                    took = words.nouns(str(tokens[p[2]])) if noun else {}
+                    if took:
+                        weight += self._agreed(took, every_noun, *noun)
+            for p in one:
+                if p[0] != "be" or not every_predicated:
+                    continue
+                for a, b in ((one, other), (other, one)):
+                    thing, what = self._said_by(a, p[1]), self._said_by(b, p[2])
+                    if thing is None or what is None or self._said_by(b, p[1]) or self._said_by(a, p[2]):
+                        continue
+                    took: Counter = Counter()
+                    for features in self._features(what[0], what[1]):
+                        took.update(words.predicated((what[0], features)))
+                    if took:
+                        weight += self._agreed(took, every_predicated, *thing)
+        return weight
 
     def _coordinate(self, left: Sign, right: Sign) -> Optional[Sign]:
         """Two read alike joined: two things are a group of both ("Ken and Yumi"), two of anything else are both
@@ -2406,6 +2531,15 @@ class Grammar:
         grammar holds says it: then it is not said another way here."""
         if meaning.act not in WHOLE.values() or not meaning.facts:
             return []
+        # WHAT "ANOTHER" SAYS IS ITS OWN (Kay 1996: the facts a word's meaning covers are spent by it): a thing given of
+        # a kind and held not to be the one of that kind said (`spell_out`'s `other`) is said by "another" before the
+        # one, and by no word of its own, so the words are sought for the rest and each sentence read back to the
+        # whole. Sought for the whole, nothing joined the cat chased to the cat known and "Tom chased another cat." was
+        # never said, every word saying a denial and a being tried instead (2026-10-28).
+        whole = meaning
+        covered = _said_by_other(meaning)
+        if covered:
+            meaning = Meaning(meaning.act, tuple(f for f in meaning.facts if f not in covered), meaning.asked)
         wanted = _things_said(meaning)
         if not wanted:
             return []
@@ -2506,7 +2640,7 @@ class Grammar:
                 cat = parse_category(entry.cat)
                 if meaning.act != "ask" and _whole((_comes_to(cat) or [cat])[-1]) == "ask":
                     continue
-                says = _says_of(entry, meaning)
+                says = _says_of(entry, whole if any(p[0] == "other" for p in entry.sem) else meaning)
                 if says:
                     budget.update(says)
                     chosen.append((word, entry, {k: 1 for k in says}))
@@ -2639,6 +2773,8 @@ class Grammar:
         taken = [cat.arg for w in alike for _, e in lexicon.entries((w,), 0)
                  for cat in [parse_category(e.cat)] if isinstance(cat, Fn) and cat.slash == "/"]
 
+        beside_of: Dict[Tuple[str, str], float] = {}
+
         def first_sound(word: str) -> Tuple[str, ...]:
             return tuple(sorted({way.split()[0].rstrip("012") for way in lexicon.words.sounds(word) if way.split()}))
 
@@ -2689,10 +2825,37 @@ class Grammar:
             return all(told.get(p[1]) == time_of.get(p[1]) for p in sign.pieces
                        if p[0] == "finite" and len(p) > 1 and variable(p[1]))
 
+        # A FINITE VERB STILL TAKING ITS SUBJECT is kept apart by its form until the subject is taken: the subject is
+        # weighed with the form (`_agreement`), and what a later rule weighs may not be packed away (Oepen and Carroll
+        # 2000). Packed by meaning alone ("was" and "were" each say `be` before now), the form surer alone was kept and
+        # the other never said: of the medal painted, "The medal were painted." was all there was (lyric_dev2,
+        # 2026-10-28).
+        agreeing: Dict[str, str] = {}
+
+        def taking_subject(sign: Sign) -> str:
+            # Kept apart by what a subject is weighed with: the number and person the form is written with most
+            # ("was", "were"), not the form ("is" and "'s" go on alike).
+            if "NP" not in _wants(sign.cat)[1]:
+                return ""
+            hook = _hook(sign.cat)
+            at = [p[-1] for p in sign.pieces if p[0] == "finite" and p[1] == hook]
+            if not at or not 0 <= min(at) < len(tokens):
+                return ""
+            word = tokens[min(at)]
+            if word not in agreeing:
+                shared = {f.split("=")[0] for _, features in words.subjects() for f in features.split("|") if f}
+                written: Counter = Counter()
+                for cls in ("VERB", "AUXILIARY"):
+                    for features, n in words.form_features(word, cls).items():
+                        written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+                agreeing[word] = max(sorted(written), key=lambda f: written[f]) \
+                    if written and words.subjects(word) else ""
+            return agreeing[word]
+
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
             if not completable(sign) or not timed(sign):
                 return
-            key = (filled, used, _meant(sign, order, tokens)) + (
+            key = (filled, used, _meant(sign, order, tokens), taking_subject(sign)) + (
                 (said[-1] if said[-1] in alike else "",
                  first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
             if key in held and held[key][2].score >= sign.score:
@@ -2784,9 +2947,17 @@ class Grammar:
                 for left, right, words_said, words_order, last, first in (
                         (sign, other, said + other_said, order + other_order, said[-1], other_said[0]),
                         (other, sign, other_said + said, other_order + order, other_said[-1], said[0])):
-                    beside = lexicon._sound_after((last, first), 0) - lexicon._sound_after((last,), 0) \
-                        if last in alike else 0.0
-                    for combined in self._combine(left, right):
+                    combinations = self._combine(left, right)
+                    if not combinations:
+                        continue
+                    if last not in alike:
+                        beside = 0.0
+                    elif (last, first) not in beside_of:
+                        beside = beside_of[(last, first)] = \
+                            lexicon._sound_after((last, first), 0) - lexicon._sound_after((last,), 0)
+                    else:
+                        beside = beside_of[(last, first)]
+                    for combined in combinations:
                         if combined.binding is not None:
                             # As the chart makes a combination's meaning (`chart`, `keep`): its parts' pieces, bound.
                             combined.pieces = _substitute(left.pieces + right.pieces, combined.binding)
@@ -2795,8 +2966,22 @@ class Grammar:
                         hold(filled | other_filled, together, combined, words_said, words_order)
         closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
         wanted_act = meaning.act
-        target = meaning.canonical()
+        target = whole.canonical()
         sentences: Dict[Tuple[str, ...], Tuple[int, float]] = {}
+        # THE SPEAKER'S OWN VERB IS THE VERB, NOT THE FORM IT TOOK (Brennan and Clark 1996: a speaker keeps the other's
+        # term): a verb's form is what its subject and its time make it (contextual inflection, Booij 1996), and the
+        # time is the meaning's, so each of its forms counts as it. A noun's form says how many (inherent inflection),
+        # which the meaning does not hold, so a noun is the speaker's as they wrote it: "Roy made the pictures." of one
+        # picture. Counted as written, the verb a question put in its base form was said so whatever its subject and
+        # time: "Does Roy paint?" answered "Roy paint.", "Did Roy coat the wall?" "Roy coat the wall." (lyric_dev2,
+        # 2026-10-28).
+        own_verbs = {words.lexeme(w, "VERB") for w in named.values()}
+
+        def own(said: Tuple[str, ...], sign: Optional[Sign]) -> int:
+            verbs = {k for p in (sign.pieces if sign is not None else ()) if p[0] == "word" and p[2] == "VERB"
+                     for k in range(p[3], p[4])}
+            return sum(1 for k, w in enumerate(said) if w.lower() in named.values()
+                       or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
         for filled, _, sign, said, _, _ in list(held.values()):
             if filled != full or _whole(sign.cat) is None:
                 continue
@@ -2807,8 +2992,7 @@ class Grammar:
             reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))
             if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
                 continue
-            own = sum(1 for w in said if w.lower() in named.values())
-            sentences[said] = (own, reading.sign.score if reading.sign is not None else 0.0)
+            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
         return [_written(said, closing) for said in ranked]
 
@@ -3458,7 +3642,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         if at_verb is None:
             continue
         before = [p[-1] for p in pieces if p[0] not in ("kind", "every", "indefinite", "bare", "word", "given",
-                                                          "finite", "closing")
+                                                          "finite", "closing", "det")
                   and x in p[1:-1] and isinstance(p[-1], int) and p[-1] < min(at_verb, FIRST_VARIABLE)]
         if before:
             picked.append((min(before + [kinds[x][-1]]), at_verb))
@@ -3504,6 +3688,16 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
     # WHAT AN "IF" SAYS MUST HOLD: every fact of the clause it takes is the condition ("If the valve is closed, the
     # tank is full.": the valve and its being closed).
     conditions = _argument_spans(sign, ("if",)) + picked
+    # "ANY" IS SOME ONE OF A KIND ONLY WHERE A DENIAL, A QUESTION OR AN "IF" TAKES IT (Ladusaw 1979; the Parallel
+    # Meaning Bank writes "Tom didn't break any laws." a law not broken, "Are you allergic to any plants?" a plant
+    # asked of): there it is read as a thing of the kind, as "a" is. Told with nothing of these ("Roy fastened the
+    # medal with any pin."), it says every one of the kind will do, which the meaning language has no words for yet.
+    # Read as "a" there, it was said for "a" (lyric_dev2, 2026-10-28).
+    for p in pieces:
+        if p[0] == "npi" and act != "ask" and not denied and not any(q[0] in ("deny", "deny_arg") for q in pieces) \
+                and not any(start <= p[-1] < end for start, end in conditions):
+            raise ValueError("the meaning language has no words yet for any said where nothing denies, asks or "
+                             "supposes")
     # WHAT A CLAUSE A VERB TAKES SAYS is told as so or not, as the verb was learned to tell it ("knows that": so;
     # "said that": not); WHAT "OR" JOINS are alternatives.
     unasserted: List[Tuple[int, int]] = []
@@ -3612,6 +3806,15 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         if meant != p[2]:
             decided.append(("sense", p[2], "around", None))
         add("instance_of", x, meant, given_=x in given and isinstance(x, int), at=p[-1])
+        # ANOTHER OF A KIND is one of it that is not one given (Heim 1982, Kamp and Reyle 1993; the Parallel Meaning
+        # Bank writes "another woman" a woman not the same as a woman, `NEQ`): "Tom chased another cat." is a cat
+        # chased, a cat known, the two not one. Saying nothing, "another" was read as "a", and "A wall is another
+        # artifact." said of a wall being an artifact (lyric_dev2, 2026-10-28).
+        for q in pieces:
+            if q[0] == "other" and q[1] == x:
+                known = fresh()
+                add("instance_of", known, meant, given_=True, at=q[-1])
+                add("equals", x, known, positive=False, at=q[-1])
     def numeric(t: Term) -> bool:
         """Whether a term is a number, or one of a kind of number."""
         kind = kinds[t][2] if t in kinds else t if isinstance(t, str) and t in kind_of.values() else None
@@ -3777,11 +3980,16 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             # "What is water?": what a kind is a kind of, asked (`isa(water, ?x)`).
             add("isa", x, y, positive=positive, at=at)
             continue
-        if y in generic_be and y not in given:
+        # WHAT A THING IS SAID TO BE IS A KIND ONLY SAID SO: with "a", bare, known, "another", whose, or "no" (Partee
+        # 1987: of noun phrases, these shift to what is said of a thing; "some", "any", "every" quantify and do not).
+        # "A wall is any artifact." was read as a wall being an artifact, and said so (lyric_dev2, 2026-10-28).
+        quantified = any(q[0] == "det" and q[1] == y for q in pieces) and not any(
+            q[0] in ("indefinite", "bare", "given", "other", "poss", "deny_arg") and q[1] == y for q in pieces)
+        if y in generic_be and y not in given and not quantified:
             # "Whales are mammals.": a kind said to be of a kind (`isa(whale, mammal)`).
             how_said, how = "merge", "rule"
         decided.append(("be", ":".join(key), how, None))
-        if how_said == "merge" and y_kind is not None and isinstance(y, int) and y not in asked:
+        if how_said == "merge" and y_kind is not None and isinstance(y, int) and y not in asked and not quantified:
             # "Tom is a gentleman": the gentleman is Tom, what is said of one said of the other.
             facts[:] = [f for f in facts if not (f.relation == "instance_of" and f.subject == term(y))]
             if isinstance(x, str) and not x.startswith("?"):
@@ -4196,8 +4404,10 @@ class GrammarView:
                     if table[use][flag] <= 0:
                         del table[use][flag]
         # HOW EACH FORM IS SAID, which forms are said alike and the first sounds said after each ("a" and "an", each
-        # written most often as the other is), and the subjects each finite form took: what the grammar weighs a form
-        # by beside the word after it, and a subject with its verb (`Lexicon._sound_after`, `Grammar._agreement`).
+        # written most often as the other is), the subjects each finite form took, the nouns each determiner was said
+        # with, and the things said to be what a copula said they were: what the grammar weighs a form by beside the
+        # word after it, a subject with its verb and with what it is said to be, and a determiner with its noun
+        # (`Lexicon._sound_after`, `Grammar._agreement`, `Grammar._determined`).
         if hasattr(words, "said"):
             def counted(table: Dict[Any, Counter], key: Any, what: Any, n: int) -> None:
                 table[key][what] += times * n
@@ -4208,11 +4418,17 @@ class GrammarView:
                 form = f.form.lower()
                 for way in f.sounds:
                     counted(words.said, form, way, 1)
-                for cls, features, n in f.subjects:
-                    counted(words.subjects_of, form, (cls, features), n)
-                    words.every_subject[(cls, features)] += times * n
-                    if words.every_subject[(cls, features)] <= 0:
-                        del words.every_subject[(cls, features)]
+                for table, every, key, layer in (
+                        (words.subjects_of, words.every_subject, None, f.subjects),
+                        (words.nouns_of, words.every_noun, None, f.nouns),
+                        (words.predicated_of, words.every_predicated, "said", f.predicated)):
+                    for agreed in layer:
+                        at, what, n = (tuple(agreed[:2]), tuple(agreed[2:4]), agreed[4]) if key else \
+                            (form, tuple(agreed[:2]), agreed[2])
+                        counted(table, at, what, n)
+                        every[what] += times * n
+                        if every[what] <= 0:
+                            del every[what]
                 if (form, f.word_class) not in most or f.count > most[(form, f.word_class)].count:
                     most[(form, f.word_class)] = f
             alike: Dict[Tuple[str, str], List[str]] = defaultdict(list)

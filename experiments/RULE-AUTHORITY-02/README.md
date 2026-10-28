@@ -250,3 +250,4 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | `20261027T181033Z` | 500 | the whole running system, before the race fix: rules kept authority with refusals on record |
 | `20261027T225308Z` | 300 | 5/8 on the whole running system, from Lyric's home: worlds 117 and 2, a miss left out of the bounded basis |
 | `20261028T005435Z` | 300 | **8/8** on the whole running system, the same worlds, with `induce_bounded`: the figures at the top |
+| `20261028T023740Z` | 2,000 | 5/8, seed 20261028, 7,438 s: C1, C3, C4 failed by worlds 464 and 746, each a near miss tried milliseconds after a goal pursuit in the same world and dropped as interfered (fixed: `touched_by`). Two earlier attempts on this seed stalled at world 333 (fixed: `_reduced` removes a part held twice over) |

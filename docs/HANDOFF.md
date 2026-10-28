@@ -28,10 +28,20 @@ took, closed words' forms with features, "a"/"an" by the sound after (`_told_apa
    68.0%, before and after); the `wall angstrom` readings gone. The answer to a kind asked of ("What is a wall?",
    `_meanings_held`, coordinator) applied once no substrate ran: TRAIN-FORMAT-02 store 73/75, front door **21/21 right,
    none wrong**. "Wall is a partition." said first on lyric_dev2 until it is taught sentences (its view holds one).
-   **The replies are not English though right** ("The medal were painted.", "Roy paint.", "a artifact", a telling
-   acknowledged "Noted - I'll hold that about paint_9aff42fc."): lab notebook (65), traced in (66).
-3. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
-   number not read ("birds" as `bird`); "another" untaught.
+   **The replies are not English though right**: lab notebook (65), traced and fixed in (66).
+3. *The replies made English* (lab notebook (66)): a verb the speaker's in any form, a noun as written; a finite verb
+   kept apart by its number and person until its subject; a determiner with its noun and a thing with what it is said
+   to be weighed as UD's treebanks agree (record layers `nouns`, `predicated`; `Grammar._met`); "another" (a thing not
+   one given, `NEQ`) and "any" (licensed by a denial, a question, an "if") given their meanings; only "a", bare, known,
+   "another", whose, "no" make what a thing is said to be (Partee 1987); the kinds the answers name taught (18 words).
+   Main unchanged (GRAMMAR-01 199/386/488, F1 82.1%; prose joins 68.0%). TRAIN-FORMAT-02 store 81/83, front door
+   21/21; TRAIN-FORMAT-01 5/5. **STAGED for the protected coordinator** (`backups/replies_said_2026-10-28/`, run its
+   `apply.sh` once no substrate runs, then TRAIN-FORMAT-02): the answer of a sense ("What is paint?" "Paint is a
+   coating.", not "Coating.") and a telling said back whole ("Noted - Roy painted the box.", not "Noted - I'll hold
+   that about paint_9aff42fc."). Open: "Picture is a representation." and "Walls are a partition." first (lyric_dev2's
+   structure view holds one sentence; the sentence set is not approved); "Medal." for "What did Roy fasten?".
+4. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
+   number not read ("birds" as `bird`).
 Steps before this, (58) to (61):
 
 **(58) to (61), 2026-10-27: SAID BY THE GRAMMAR IT IS READ BY; WHAT IT SAYS FIRST IS NOT YET ENGLISH.** lyric_dev2 holds 10 words recorded whole (paint, for, wall, picture, coat, make, representation, of, make it,

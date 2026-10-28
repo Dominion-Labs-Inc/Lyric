@@ -411,6 +411,37 @@ def test_a_closed_words_forms_their_sounds_and_the_subjects_each_took_are_held_b
     assert _told_apart([Counter({"W": 400, "P": 300}), Counter({"W": 40, "P": 30})]) == 0.0
 
 
+def test_the_nouns_a_determiner_was_said_with_and_what_a_copula_said_things_were_are_held_by_the_grammar():
+    """A determiner's record holds the nouns each form was said with, and a copula's what each form said a thing to be
+    with the thing, each by class and number: the grammar holds both (`Words.nouns`, `predicated`), every such
+    together, and takes them back whole."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord
+    from core.semantics.grammar_words import HeldWords
+    art = "Definite=Ind|PronType=Art"
+    a = WordRecord("a", (WordForm("a", "DETERMINER", art, 90, nouns=(("NOUN", "Number=Sing", 80),
+                                                                         ("NOUN", "Number=Plur", 2))),), ())
+    be = WordRecord("be", (WordForm(
+        "are", "AUXILIARY", "Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin", 40,
+        subjects=(("NOUN", "Number=Plur", 30),),
+        predicated=(("NOUN", "Number=Plur", "NOUN", "Number=Plur", 12), ("NOUN", "Number=Sing", "NOUN", "Number=Plur", 4))),
+    ), ())
+    for word in (a, be):
+        assert not word.problems(), word.problems()
+        assert WordRecord.from_dict(json.loads(json.dumps(word.to_dict()))) == word
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    words = view.words
+    for word in (a, be):
+        view.hold_word(word)
+    assert words.nouns("a") == {("NOUN", "Number=Sing"): 80.0, ("NOUN", "Number=Plur"): 2.0}
+    assert words.nouns() == words.nouns("a")
+    assert words.predicated(("NOUN", "Number=Plur")) == {("NOUN", "Number=Plur"): 12.0}
+    assert words.predicated() == {("NOUN", "Number=Plur"): 16.0}
+    for word in (a, be):
+        view.drop_word(word)
+    assert not words.nouns() and not words.predicated()
+
+
 def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
     """A noun recorded whole with how often each form was said with nothing before it saying which, and with a word
     that does (`WordRecord.said_alone`): the grammar weighs a kind said bare by it (`Words.noun_alone`), and takes it

@@ -87,12 +87,28 @@
   "any": [
    {
     "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "npi",
+      "x"
+     ]
+    ],
     "use": "det"
    }
   ],
   "another": [
    {
     "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "indefinite",
+      "x"
+     ],
+     [
+      "other",
+      "x"
+     ]
+    ],
     "use": "det"
    }
   ],
