@@ -16,6 +16,90 @@ Conventions:
 
 ---
 
+## 2026-10-27 (62) — Closed words recorded with their forms, sounds and subjects; a subject weighed with its verb, "a" or "an" by the sound after; "be", "a", "the" taught on lyric_dev2; what is said first still not English (TRAIN-FORMAT-02)
+
+**Objective** (the owner's yes to steps 1 to 4 of (61)'s proposal; step 5, a base rate for joins never met, held
+back since it changes main's reading): the word records carry what saying needs to choose English: the forms of closed
+words with their features, how each form is said, which subjects each finite form took; reading weighs a subject with
+its verb and "a"/"an" by the sound after; "be", "a", "the" taught on lyric_dev2 and saying checked again.
+
+**Built:**
+- *The record* (`teaching_sources.WordForm`): `sounds` (CMUdict's phones of each way of saying the form), `before`
+  (the first sound of the word said after it, how often), `subjects` (of a finite form: the subjects that took it, by
+  class and the features they share with verbs, how often). `word_record_of`: the forms of a closed word of a class
+  that takes forms (`_FORMED_CLOSED`: AUX, DET, PRON) as the analysts gave each its base form and features
+  (`_closed_forms`: "is", "am", "'m", "were" of `be`, "an" of `a`); the subjects each finite form took
+  (`_subjects_taking`: a subject's clause's finite verb is the word it depends on, or that word's first finite
+  auxiliary or copula; the features kept are those most finite verbs carry and subjects carry too: number, person);
+  `before` only for forms the analysts mark nothing apart (each written most often with the same features) and only
+  where the sound after tells them apart (`_told_apart`: mutual information over the forms' entropy, less Miller and
+  Madow's chance; "a"/"an" 0.94; "is"/"'s" 0.02, "am"/"'m" 0.04, "are"/"'re" 0.00).
+- *The uses of each form in context* (`WordRecord.used_before_doing`, `used_asking`; `_treebank_uses`): of each use,
+  how often a doing's -ing form came next and how often the sentence asked, as an analysed sentence counts them
+  (`doing_after`, `asking`). A word's uses are counted only where the analysts gave the token as that word.
+- *The grammar* (`Words.sounds`, `said_before`, `subjects`, `form_features`; `HeldWords`, `GrammarView._count_word`):
+  `Lexicon._sound_after` weighs a form by the first sound of the word after it, among the forms said alike, as often as
+  each was said before that sound (where the next word's sounds are held none, as often as each is said);
+  `Grammar._agreement` weighs a subject with its verb's finite form (in `<` and in `>T>B`): of the subjects that form
+  took, the share of this subject's class and features against that share among every finite form's subjects, never
+  more than nothing. `Grammar.say` keeps apart what ends in a word weighed by the next word and what begins with each
+  sound where such a word takes it, and weighs the word by what is put after it.
+- *Taught on lyric_dev2* (`experiments/TRAIN-FORMAT-02/records.jsonl`, 13 words: the 10 rebuilt with the new layers,
+  and "be", "a" (with "an"), "the"; `teach.py --source records`, session `20261028T000556Z`): 12 corrected, 1 held
+  already, 0 refused; beliefs 2 -> 2, domains 2 -> 2; log 3,121 lines, no error, traceback or warning.
+- Tests: `test_grammar.py` 35 (two new: "an owl" said and "a owl" not; "a dog am" and "dogs is" read less surely than
+  "a dog is" and "dogs are", and what is said first agrees); `test_sentence_records.py` 22 (one new: every layer held
+  by the grammar and taken back whole; `_told_apart`). All pass.
+
+**Errors and their causes:**
+- *"Owl'm birds." still first after agreement was weighed:* it was read with "Owl" composed with "'m" before "birds"
+  (`>T>B`), and agreement weighed only `<`. Weighed in both.
+- *"an" never said:* `say` packs what means the same into one, the surest; alone, "a" was surer than "an" (it is said
+  more), so "an" was gone before any noun came beside it. Kept apart until the word after is known.
+- *Saying a wall was a partition took 49.3 s, not 4.3:* "is"/"'s" and "am"/"'m" were weighed by the sound after
+  though it tells them apart by nothing, and every way of saying a thing was kept apart by the sound it began with.
+  Now only where the sound tells (`_told_apart`), and only what such a word takes.
+- *Teaching "be" broke "Roy is painting the medal."* (read `equals(roy, ?e)`, Roy being a painting): the record taught
+  how often "is" is each use out of context (`be:np` 1,671, `be:ng` 306); what tells them apart, a doing's -ing form
+  next (`be:ng` 238 of 306, `be:np` 9 of 1,671), memory counts only from analysed sentences, which lyric_dev2 holds
+  none of. The record carries it now; read right again (`during`, Roy the painter).
+- *The record of "a" held every "and"* (295 before a doing, its `conj` uses): the treebank analyses "and" once as a
+  form of `a`, and a form's uses were counted wherever it was written. The possessive "'s" came into "be" so. Counted
+  only where the analysts gave the token as the word.
+- *Each build of a word was a different record* (so each teaching corrected all of them): NLTK 3.9.2 hands a synset's
+  hypernyms over in set order, which changes with the hash seed ("game", "sport" either way); `kinds_of` now takes them
+  in `WordNetSource._ordered`'s order. Built under hash seeds 1 and 2, "make", "wall", "mean" are the same records.
+
+**Measured on lyric_dev2:**
+- What is said first of `isa(wall, partition)`: "Wall'm the the a partition." before; now **"Wall is the the a
+  partition."**, then "Wall is a partition.", "Wall is the another partition.". The verb agrees; the rest is not
+  English.
+- TRAIN-FORMAT-02's sentences never taught, all read as wanted (printed): "Roy is painting the medal." `during`, done
+  by Roy; "Roy painted the wall." `coat paint`; "Roy painted a picture." `represent paint`; the rest as before.
+- **TRAIN-FORMAT-02 does not finish.** Its reasoning part asks "Did Roy coat the wall?", whose answer is said through
+  `Grammar.say` (`Conversation._asked_of_events`, `derived_reader.say` asking the grammar first since (61)), and saying
+  that doing (`done_by roy`, `done_to` the wall, `coat paint`, past, given) did not finish in 10 minutes **on (61)'s
+  code too** (a worktree at 75d83d34 on the same store): it predates this entry; no TRAIN-FORMAT-02 run since (61) had
+  reached it. Its checks are written only at the end of that part, so this run left no record. Stopped (SIGTERM).
+- TRAIN-FORMAT-01: store and reading checks all held; taught sentence read back exactly; "Did Roy fasten the medal?"
+  right, "Yes. Roy did fasten the medal.", in **316.6 s** (said through the grammar).
+
+**Not right yet** (causes found, not fixed):
+1. *The structure view's floor* (step 5, held back): a join never met scores log(1e-12) = -27.6, and lyric_dev2's view
+   is learned from one sentence. "A wall is a partition." pays it (-30.6 at the subject's join); a capitalised bare
+   "Wall" looks like the name "Roy", whose join it has met, and pays nothing. It also makes "Is a wall a substance?"
+   read `wall angstrom` (a compound noun, -11.8, cheaper than one unmet join) now that "a" is taught with WordNet's
+   noun senses (angstrom, vitamin A), and "Is a picture a wall?" answered "I hold nothing for picture angstrom."
+2. *"the" before a name costs nothing:* its entry (`the:name`, NP/NP) shares the use `det` with "the" before a kind,
+   so "the the a partition" reads, and says, as "a partition". "another" says nothing in reading (untaught).
+3. *Number is not read:* "birds" reads as `bird`, so "An owl is birds." reads to the same meaning as "An owl is a bird.".
+4. *Saying a doing does not finish* (above): `say` pairs every item kept with every other (quadratic), and the items
+   multiply with the grammar words saying nothing ("the" before a name, "another", "some"), each usable as often as
+   there are things.
+5. "a"/"an" by sound is shown in the tests only: no noun taught on lyric_dev2 begins with a vowel sound.
+
+---
+
 ## 2026-10-27 (61) — Said by the grammar it is read by: a meaning said only in sentences its own reading reads back to it; what it says first is not yet English (TRAIN-FORMAT-02)
 
 **Objective** (agreed by the owner after (60)): Lyric speaks with the grammar it reads with. `Grammar.say(meaning)`

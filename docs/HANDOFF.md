@@ -3,7 +3,7 @@
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
 2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
-to 2026-10-27 (61) in `docs/research/LAB_NOTEBOOK.md`.
+to 2026-10-27 (62) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-27)
@@ -12,8 +12,24 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (58) to (61), 2026-10-27): SAID BY THE GRAMMAR IT IS READ BY; WHAT IT SAYS FIRST IS NOT YET
-ENGLISH.** lyric_dev2 holds 10 words recorded whole (paint, for, wall, picture, coat, make, representation, of, make it,
+**LATEST (lab notebook (62), 2026-10-27, evening): STEPS 1 TO 4 OF (61)'S FIX LANDED, MEASURED; STEP 5 HELD BACK BY
+THE OWNER; SAYING A DOING DOES NOT FINISH.** Word records carry each form's sounds, the subjects each finite form
+took, closed words' forms with features, "a"/"an" by the sound after (`_told_apart`), and what follows each use
+(`used_before_doing`, `used_asking`); reading weighs a subject with its verb (`Grammar._agreement`) and "a"/"an"
+(`Lexicon._sound_after`). lyric_dev2 holds 13 words ("be", "a", "the" added). Said first of `isa(wall, partition)`:
+"Wall is the the a partition." (was "Wall'm ..."). **Open, in order:**
+1. *Saying a doing does not finish* (pre-existing since (61), shown on its code): `Grammar.say` pairs every item with
+   every other, and grammar words saying nothing ("the" as `the:name`, "another", "some") multiply the items; so
+   `Conversation._asked_of_events` hangs on "Did Roy coat the wall?" and TRAIN-FORMAT-02 cannot finish; TRAIN-FORMAT-01's
+   "Did Roy fasten the medal?" took 316.6 s. **Main speaks through it at its next start.** How to fix is the owner's
+   call (a design question; no run until then).
+2. *Step 5, the structure view's floor for unmet joins* (owner held back; changes main): makes "A wall is a partition."
+   lose to "Wall is ...", and "Is a wall a substance?" read `wall angstrom`.
+3. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
+   number not read ("birds" as `bird`); "another" untaught.
+Steps before this, (58) to (61):
+
+**(58) to (61), 2026-10-27: SAID BY THE GRAMMAR IT IS READ BY; WHAT IT SAYS FIRST IS NOT YET ENGLISH.** lyric_dev2 holds 10 words recorded whole (paint, for, wall, picture, coat, make, representation, of, make it,
 mean) and one sentence; TRAIN-FORMAT-02 63 of 64 checks, front door 21 of 21; TRAIN-FORMAT-01 5 of 5. Language makes no
 belief and no domain (`_learn_held`, `learn_structure`); the hand-written meaning answer is gone (`_meanings_held`);
 the reasoning owner is handed the words' kinds (`word_kinds`, `_held_premises`); a noun's sense by the things around

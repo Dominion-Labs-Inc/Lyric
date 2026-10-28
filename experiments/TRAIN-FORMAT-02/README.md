@@ -200,3 +200,22 @@ treebank: the noun's plural "paints".
   reach a goal); SemCor's annotators tag "made it" where the clause ends as the verb `make it`, never as that sense of
   `make`. Lyric reads it as SemCor's do. Of all 125 examples, 101 read and 9 with the word in its sense: the rest hold
   words not yet taught, and with nothing around a word known, its sense is its most used.
+- **2026-10-27, evening: closed words, sounds and subjects** (the owner's yes to steps 1 to 4 of lab notebook (61);
+  step 5, a base rate for joins never met, held back). A word record's forms carry how each is said (`sounds`, CMUdict),
+  the first sound said after forms the analysts mark nothing apart where it tells them apart (`before`: "a"/"an"), and
+  the subjects each finite form took (`subjects`); a closed word of a class that takes forms (AUX, DET, PRON) is
+  recorded with every form and its features ("is", "am", "'m", "were" of `be`; "an" of `a`); each use carries how
+  often a doing's -ing form came next and how often in a question (`used_before_doing`, `used_asking`); a word's uses
+  are counted only where the analysts gave the token as that word. Reading weighs a subject with its verb
+  (`Grammar._agreement`) and "a"/"an" by the sound after (`Lexicon._sound_after`). Taught: 13 words (the 10 rebuilt,
+  "be", "a" with "an", "the"), 12 corrected, 1 held already, beliefs 2 -> 2, log clean. Records now build the same
+  under any hash seed (WordNet's kinds taken in one order).
+- **Measured:** what is said first of a wall being a partition: "Wall'm the the a partition." -> **"Wall is the the a
+  partition."** (the verb agrees; the rest is not English). Every sentence never taught reads as wanted, "Roy is
+  painting the medal." among them (broken by teaching "be" until the record carried what follows each use).
+  **The run did not finish:** "Did Roy coat the wall?" is answered through `Grammar.say`, and saying that doing did not
+  finish in 10 minutes, on (61)'s code too (it predates this change); the checks are written only after it, so no
+  record. **Not right yet:** the structure view's floor for joins never met (step 5) makes "A wall is a partition."
+  cost 30.6 more than "Wall is ...", and "Is a wall a substance?" read `wall angstrom` ("a" now holds WordNet's noun
+  senses); "the" before a name costs nothing (`the:name` shares `det`); "birds" reads as `bird`; saying a doing does
+  not finish; "a"/"an" is shown in the tests only (no taught noun begins with a vowel sound).

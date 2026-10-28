@@ -3688,7 +3688,9 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         while frontier:
             nxt = []
             for s in frontier:
-                for h in s.hypernyms() + s.instance_hypernyms():
+                # In one order every time (`WordNetSource._ordered`): in NLTK's set order, "game" and "sport" came
+                # either way, and each build of a word was a different record, corrected at every teaching.
+                for h in WordNetSource._ordered(s.hypernyms() + s.instance_hypernyms()):
                     if h not in seen:
                         seen.add(h)
                         if named(h):
