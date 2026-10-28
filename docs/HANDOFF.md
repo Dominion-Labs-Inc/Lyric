@@ -3,7 +3,7 @@
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
 2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
-to 2026-10-28 (66) in `docs/research/LAB_NOTEBOOK.md`.
+to 2026-10-28 (67) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-28)
@@ -12,7 +12,22 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (63) to (66), 2026-10-28): LYRIC SAYS ITS ANSWERS BY THE GRAMMAR IT READS BY, RIGHT, AND
+**LATEST (lab notebook (67), 2026-10-28, the owner's four open items): three fixed at their causes, one traced to
+two sources that disagree.** (1) "Picture is a representation." / "Walls are a partition." said first: the structure
+view tagged a word memory holds by its capital alone (a one-sentence view: "Roy"), memory held every noun as a name too,
+and records never counted a name use; now a word memory holds is weighed by what memory holds of it
+(`structure._Classes.read`), a recorded word holds its names apart (`held_classes(..., apart)`,
+`MemoryAgent._classes_apart`), and records count names (`_treebank_uses`, a NAME form). Not the sentence set. (2) "What
+did Roy fasten?" "Medal.": the store's `award_decoration` against reading's `award decoration`; `Grammar.say` writes a
+meaning's names as reading does. Now "Roy fastened the medal.". (3) "some": the PMB's meaning (`indefinite`) with its
+own mark (never a kind told of, never what a thing is said to be as a kind), and taught on lyric_dev2 as a word. (4)
+"We made it!": no hand-tagged use says WordNet's `reach.v.07` (SemCor's 8 at a clause end: `make_it` 5, `make` 3, that
+sense none; the gloss corpus tags it `auto`); unchanged, its check fails. Main unchanged (GRAMMAR-01 199/386/488, F1
+82.1; prose joins 68.0%; STRUCTURE-01 within a word). lyric_dev2 (19 words): TRAIN-FORMAT-02 store 82 of 83, front door
+21 of 21; TRAIN-FORMAT-01 5 of 5. **Made worse:** "Yes. A paint is a substance." (was right only because "Paint" was
+read a name); the determined side weighed was tried and taken back (four answers worse on sparse nouns).
+
+**EARLIER (lab notebook (63) to (66), 2026-10-28): LYRIC SAYS ITS ANSWERS BY THE GRAMMAR IT READS BY, RIGHT, AND
 MOSTLY ENGLISH, ON lyric_dev2; ONE CHANGE TO THE PROTECTED COORDINATOR IS STAGED, NOT YET APPLIED.** Classical,
 published methods only (the owner: never an LLM); which fix is taken is decided by the research and the measurements,
 not handed to the owner.
@@ -62,16 +77,20 @@ PYTHONPATH="$PWD" POSTGRES_DATABASE=lyric_dev2 ./venv_lyric/bin/python3 -u exper
 with the run records, and mark (66) and this section applied.
 
 **Open, in order (nothing here is done):**
-1. *Bare subjects said first*: "Picture is a representation."; asked with none of the speaker's words, "Walls are a
-   partition." comes before "A wall is a partition.". lyric_dev2's structure view learned how words join from one
-   sentence. The fix is the 50 to 100 sentence set, which the owner has not approved, so it is not taught.
-2. *A fragment answer*: "What did Roy fasten?" -> "Medal." (the bare noun).
-3. *"some" carries no meaning* in `data/grammar/english.json`, so nothing says it.
-4. *"the" before a name shares the use `det`* (costs nothing; changes main's reading); number not read ("birds" as
-   `bird`).
-5. *Main speaks through `Grammar.say` at its next start* (`derived_reader.say` asks it first), unmeasured there.
-6. *Main's 45,463 per-item language beliefs* (item 4 of (58) to (61) below): the owner's run.
-7. "We made it!" not read in its sense (WordNet and SemCor disagree).
+1. *A mass noun said with "a"*: "Is paint a substance?" "Yes. A paint is a substance.". Needs the determined side
+   weighed (`log P(determined | noun)`, tried in (67)) with a prior a noun seen once can lean on, and what a kind is said
+   to be agreeing with it in number (an ascriptive predicative agrees, Huddleston and Pullum 2002; the treebanks'
+   copulas blend identities, "The problem is the prices."). Without both, "A wall is partition." and "A wall is
+   structures." come first.
+2. *The staged coordinator change* (`backups/replies_said_2026-10-28/`, below): "What is paint?" "Coating.", and each
+   telling acknowledged a fact at a time with names made inside. Apply once no substrate runs.
+3. "We made it!" read `make_it` (`survive.v.02`), as SemCor's usage has it; WordNet files the example under
+   `reach.v.07`. Nothing a person tagged supports that sense; reading it so would take remembering the example.
+4. "Roy painted some picture." still said (third, after "a picture" and "some pictures"): "some" with a singular is
+   mostly a mass noun, and count against mass is not held. Number not read ("birds" as `bird`).
+5. *"the" before a name shares the use `det`* (costs nothing; changes main's reading).
+6. *Main speaks through `Grammar.say` at its next start* (`derived_reader.say` asks it first), unmeasured there.
+7. *Main's 45,463 per-item language beliefs* (item 4 of (58) to (61) below): the owner's run.
 
 **(62), 2026-10-27, evening: steps 1 to 4 of (61)'s fix.** Word records carry each form's sounds, the subjects each
 finite form took, closed words' forms with features, "a"/"an" by the sound after (`_told_apart`), and what follows

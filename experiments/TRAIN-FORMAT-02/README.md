@@ -232,3 +232,12 @@ treebank: the noun's plural "paints".
   "Yes. Roy coated the wall.", "Yes. Roy made the picture.", "A wall is a partition.", "Yes. A wall is an artifact.",
   "Yes. Paint is a substance.". Not right yet: "Picture is a representation.", and "Coating." and each telling
   acknowledged a fact at a time until the staged coordinator is applied.
+- **2026-10-28, later still: the four left open, traced to their causes** (lab notebook (67)). Records rebuilt with how
+  often each form was a name (the treebanks' proper nouns, whose base keeps its capital: "Wall" of Wall Street, "Picture"
+  a title, "A" 15 times) and "some" taught (19 words): 1 remembered, 4 corrected, beliefs 2 -> 2, log clean. Store **82
+  of 83** (`20261028T112229Z`; "We made it!" alone), front door **21 of 21 right, none wrong** (`112253Z`). Said now:
+  "A picture is a representation." (was "Picture is a representation."), and of a wall being a partition, "A wall is a
+  partition." first. A run before it (`111943Z`, 81 of 83) failed the check that each word's senses say what they are
+  a kind of: "some"'s senses are WordNet's adjective and adverb, which WordNet gives no kinds; the check asks it of a
+  noun's or a verb's senses now. **Worse:** "Is paint a substance?" "Yes. A paint is a substance." (was "Paint ...":
+  "Paint", first with a capital, had been read a name, as "Roy").

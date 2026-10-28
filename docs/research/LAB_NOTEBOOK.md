@@ -16,6 +16,79 @@ Conventions:
 
 ---
 
+## 2026-10-28 (67) — The four left open, each traced to its cause: a word memory holds read as a name by its capital, a name written two ways, "some" given its meaning and taught, and "We made it!", whose two sources disagree
+
+**Objective** (the owner: root-cause and fix the four open for days, before anything else): "Picture is a
+representation." and "Walls are a partition." said first; "What did Roy fasten?" "Medal."; "some" with no meaning;
+"We made it!" not read in its sense.
+
+**1. Bare subjects said first. Cause: not the missing sentence set.** Traced on lyric_dev2 by the score each step of
+the reading adds: the whole difference was the subject's join (-0.06 for "Picture is ...", -4.89 for "A picture is
+..."). The structure view tagged "Picture" and "Walls" NAME, while the grammar read them as nouns, so the join was
+weighed as a name subject, met once ("Roy fastened ..."), and a noun subject was never met. Three faults, each general:
+- *The tagger used what memory holds of a word only to bound its classes* (`structure._Classes.read`): among those, the
+  situations of words written like it decided, and on a view of one sentence every word first with a capital was what
+  "Roy" was. A word memory holds is a known word, its own tags weighed as a tagger weighs its lexicon's (Brants 2000,
+  TnT; Daelemans et al. 1996, MBT): memory's counts are now the most specific situation of an unmet word, the endings
+  below them.
+- *Memory held every noun as a noun or a name at the same count* (`structure._HELD_AS`, rightly for WordNet's nouns:
+  "Boston"). A word recorded whole holds its names apart, as the treebanks do: `held_classes(..., apart)`,
+  `MemoryAgent._classes_apart` (the forms a word or sentence record counted).
+- *Records never counted a name use*: UD writes a proper noun's base with its capital, and `_treebank_uses` counted only
+  where the base was the word as written. Now counted ("picture" a name 1 time in 29, "wall" 1 in 21, "a" 15 times in
+  about 8,900), and kept as a NAME form (`word_record_of`; `WordRecord.problems` admits it).
+After: "Picture", "Walls" tagged nouns; "A picture is a representation." -5.82 against "Picture is ..." -7.19; "A wall
+is a partition." -5.92 against "Walls are a partition." -8.80.
+
+**2. "Medal." Cause: a name written two ways.** The answer is told of what the store holds; the kind came back
+`award_decoration` (the store's spelling, `_kind_of`), reading writes `award decoration`. `words_for` finds "medal" for
+both, the grammar made "Roy fastened the medal.", and the read-back compared two spellings of one name as two
+meanings: nothing said, the bare kind listed. `Grammar.say` now writes the meaning's names as reading writes them before
+saying and comparing. TRAIN-FORMAT-01: "What did Roy fasten?" -> "Roy fastened the medal.".
+
+**3. "some".** The Parallel Meaning Bank writes it as "a" (`I drank some wine.`: wine.n.01, nothing else), so in
+`data/grammar/english.json` it is `indefinite` with a mark of its own (`some`), which keeps it from what "a" may also
+be: a kind told of ("Some dogs bark." is some dogs, not dogs) and what a thing is said to be as a kind (Partee 1987).
+**Found:** reading had read it so already (a noun makes its thing whatever the determiner says), and saying put it
+where "a" belongs on lyric_dev2 at HEAD too ("Roy painted some pictures." first, "Roy painted some picture." third, for
+"Roy painted a picture."): lyric_dev2 had never been taught the word, so nothing weighed it. Taught as a word recorded
+whole (its forms, and the nouns it was said with: plural 288, singular 234, mostly mass). After: "Roy painted a
+picture." first, "some pictures" second, "some picture" weighed down (-2.63 against -2.06).
+
+**4. "We made it!". Cause: the two sources disagree, and nothing a person tagged says WordNet's sense.** WordNet files the
+example under `reach.v.07` (lemma "make"). SemCor, the one hand-tagged usage Lyric learns senses from, has "make it" at a
+clause end 8 times: the verb of several words 5 (`survive.v.02` 4, `arrive.v.02` 1), "make" with "it" 3 (`make.v.02`
+2, `make.v.03` 1), `reach.v.07` never. The Princeton gloss corpus tags "made" in the example `auto`: from where the
+example stands, by no person. Lyric reads it `make_it`, `survive.v.02`, as that usage has it. Reading it WordNet's way
+would take remembering the example (no remembered sentences), and the check reads WordNet's own examples, so counting
+them as evidence would make it circular. Not changed; the check fails as before.
+
+**Tried and taken back:** a noun said with a determiner paying for it as a noun said bare does (`log P(determined |
+noun)` from `noun_alone`, the other half of (66)'s observation). Right for "paint" (bare 4, determined 0: "Paint is a
+substance."), wrong for four answers: "partition" was said once in the treebanks, bare, so "A wall is partition."; and
+"A wall is structures.", "A picture is representations.": a plural said to be what a singular is weighs little, since
+the treebanks' copulas blend identities ("The problem is the prices.") with what a thing is. On lyric_dev2 a sparse
+noun's prior is even (`Words.like` comes from analysed sentences, and it holds one).
+
+**Measured:**
+- Main, before (a worktree at 414b836a) and after, the same data: GRAMMAR-01 strict 199, senses aside 386, unnamed 488,
+  F1 82.1% both (`20261028T111052Z`); prose joins 1,326 of 1,949 (68.0%) both; STRUCTURE-01 with memory's word classes
+  dev classes 93.24 -> 93.23%, UAS 78.40 both, LAS 71.78 -> 71.79%, test 93.81 both, LAS 73.30 -> 73.29%, prose read
+  otherwise 2 of 33 both (`20261028T112437Z`).
+- lyric_dev2: **TRAIN-FORMAT-02** store **82 of 83** (`20261028T112229Z`, "We made it!"), front door **21 of 21
+  right, none wrong** (`112253Z`): "A wall is a partition.", "A picture is a representation.". **TRAIN-FORMAT-01** 5
+  of 5 (`20261028T112115Z_2`).
+- Tests: `test_grammar.py`, `test_sentence_records.py`, `test_structure.py` 88 pass (5 new).
+
+**Not right yet:**
+1. "Is paint a substance?" "Yes. A paint is a substance." (was "Yes. Paint is a substance.", right only because "Paint"
+   was read a name). A mass noun needs the determined side weighed with a prior a sparse noun can lean on, and what a
+   kind is said to be agreeing in number with it (Huddleston and Pullum 2002: an ascriptive predicative agrees).
+2. "We made it!" (above). "Roy painted some picture." is still said, third.
+3. The staged coordinator change (`backups/replies_said_2026-10-28/`) still waits: the acknowledgements.
+
+---
+
 ## 2026-10-28 (66) — What the replies say, made English: a verb the speaker's in any form, a finite verb kept apart until its subject, a determiner and a thing agreeing as the treebanks agree, "another" and "any" given their meanings, the kinds the answers name taught
 
 **Objective** (the owner: the research decides; "not right yet" is work): the replies (65) found right and not English,
