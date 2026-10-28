@@ -783,3 +783,14 @@ def test_a_word_saying_nothing_is_said_only_where_something_needs_it():
     assert "Tom chased a cat." in said
     assert not any(" the " in f" {s.lower()} " for s in said), [s for s in said if "the" in s.lower()][:3]
     assert read(g, "The Tom chased a cat.") == told.canonical()
+
+
+def test_a_doing_of_five_facts_is_said_kay_binding():
+    """KAY BINDING: each word put in bound to the meaning's terms ("in" to the chasing and the park), what can never be
+    completed dropped, a word taking what no word can make not offered: "Tom chased a cat in the park." is said, every
+    sentence reading back to it (unbound, it was never said: 131,665 items after 90 s)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = g.read(gm.tokens_of("Tom chased a cat in the park.", g.lexicon.words)).meaning
+    said = g.say(told)
+    assert "Tom chased a cat in the park." in said, said[:6]
+    assert all(read(g, s) == told.canonical() for s in said)

@@ -16,6 +16,56 @@ Conventions:
 
 ---
 
+## 2026-10-28 (64) — Kay binding: each word said bound to the meaning's terms; a doing of five facts said; TRAIN-FORMAT-02 finishes again
+
+**Objective** (the owner's yes, "we can call it kay binding"): the rest of Kay 1996 for `Grammar.say`: each word put in
+bound to the meaning's own terms, and what can never be completed dropped, so a doing of five facts is said.
+
+**Built** (`core/semantics/grammar.py`, `Grammar.say`, `_lexical(bound=)`, `_makes`, `_takes_from`):
+- *Kay binding.* Each word put in is bound where its pieces say which of the meaning's terms: a word for a thing to the
+  one thing of its kind (`own_letter`: the piece naming the word itself), not where the meaning holds two; a verb's event
+  to its doing and its places to what the fact of each place's link holds (`roles_bound`, the link as `spell_out`
+  decides it: `Lexicon.inherited` from the slot, "by" as the subject's, "~" turned round; a place whose link the meaning
+  holds no fact of left open); "the" to each thing given, "a" to each not, a word saying the past to the doing before
+  now (`bindings_of`, one token each way); a preposition to the two its fact joins, either way round.
+- *What can never be completed is dropped* (`completable`): a thing of the meaning inside a stretch and no longer
+  reached from its category, with a fact joining it to another not said there and no variable still reached to say it.
+- *A doing made finite is told at its time* (`timed`): one of the meaning's doings made finite at another time than the
+  meaning holds is dropped ("Tom do chase", for a chasing before now).
+- *A word taking what no word can make is not offered* (`_makes`, `_takes_from`): what the words can make, from the
+  words up (application along each word's spine with what it was bound to carried, composition, a thing raised, what
+  `_unary` reads a stretch as), and a word offered only where all it takes is among it: "be" before a quality and
+  "anybody" for a meaning holding no quality.
+- *Two stretches saying nothing are not combined* (Eisner 1996, normal-form CCG).
+- *The sentences joined are no more than the meaning's doings and what it says of a thing that is no doing*: "if" and
+  "which" were offered twice for "Tom chased a cat in the park.". **This one changes what is said, not only what is
+  tried:** "Tom chased a cat." loses 18 sentences such as "A cat which Tom chased.", a thing with a clause that reading
+  takes for a telling (a reading fault, not fixed); none is English for the telling.
+- Test `test_a_doing_of_five_facts_is_said_kay_binding`; `test_grammar.py` and `test_sentence_records.py` 59 pass.
+
+**Measured** (the test words; every other meaning said the same sentences as before Kay binding):
+- "Tom chased a cat." 15.2 s ((62)) -> 3.0 s ((63)) -> **0.11 s**. "Tom chased a cat in the park." never ((63):
+  131,665 items after 90 s) -> **3.9 s**, 24 sentences, "Tom chased a cat in the park." among them. "The dog chased a
+  cat in the park." (six facts) **26.2 s**.
+- **TRAIN-FORMAT-01** (lyric_dev2, `results/20261028T023818Z`): every check; **5 of 5 right**: 0.3 s, 0.3 s, 0.3 s
+  (316.6, 210.4, 214.9 s in (62)), "What did Roy fasten the medal with?" **11.8 s** (never before), "Did Roy fasten the
+  medal with a pin?" 7.5 s.
+- **TRAIN-FORMAT-02** (`results/20261028T023535Z`, `20261028T023545Z`): **finishes** (1 minute; it had not since (61)).
+  Store checks **71 of 75**; front door **15 of 21 right**, none wrong, 6 not answered (21 of 21 in (60)).
+
+**Not right yet** (each traced; none from Kay binding: the same with and without it on lyric_dev2):
+1. "What is a wall?", "What is paint?", "What is a picture?" are read `isa(wall, ?v0)` (a kind asked of), where in (60)
+   they read the identity of a kind (`equals(?a, ?b) & instance_of(?a, wall)`), which `_meanings_held` answers;
+   teaching "be" (62) moved how "is" reads, and nothing answers a kind asked of from the words' kinds. The answerer is
+   in the coordinator (protected): the owner's call.
+2. "Is a wall a structure?", "Is paint a substance?", "Is a picture a representation?", "Is a picture a wall?" and the
+   premises handed to reasoning: "a" read as a noun (`wall angstrom`), cheaper than the structure view's floor for one
+   unmet join (step 5, held back); "a" holds WordNet's noun senses since (62).
+3. Said first of a wall: "Wall is a partition." (the floor, step 5).
+4. Six facts take 26 s.
+
+---
+
 ## 2026-10-28 (63) — Saying searched as chart generation searches: Kay's index, Carroll's rule for words saying nothing; a doing of four facts said in seconds, of five still never (TRAIN-FORMAT-01, -02)
 
 **Objective** (the owner's yes, after (62) found saying a doing never finished): the classical fixes for chart

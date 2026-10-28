@@ -1895,8 +1895,11 @@ class Grammar:
         self._fresh += 1
         return self._fresh
 
-    def _lexical(self, tokens: Sequence[str], i: int, end: int, entry: Entry) -> Sign:
-        names: Dict[str, Term] = {}
+    def _lexical(self, tokens: Sequence[str], i: int, end: int, entry: Entry,
+                 bound: Optional[Mapping[str, Term]] = None) -> Sign:
+        """A word read as one of its entries; `bound`, each of the entry's variables a meaning's term it is said of
+        (`Grammar.say`, Kay binding), the rest fresh."""
+        names: Dict[str, Term] = dict(bound or {})
 
         def term(t: Optional[str]) -> Optional[Term]:
             if t is None:
@@ -2408,6 +2411,61 @@ class Grammar:
             return []
         words = self.lexicon.words
         named = {str(k).lower(): str(v).lower() for k, v in (named or {}).items()}
+        # KAY BINDING (Kay 1996, "Chart Generation"): each word put in is bound to the meaning's own terms where its
+        # pieces say which (the word for a thing to the thing, "the" to a thing the meaning gives known, "a" to one it
+        # does not, a word saying the past to the doing before now, a preposition to the two its fact joins), so
+        # nothing combines it with what it is not said of: "in" said of the chasing and the park joins no cat. Unbound,
+        # every way of saying each fact was combined with every other, and "Tom chased a cat in the park." was never
+        # said: 131,665 items after 90 s, "if Tom which was in a park 'm" among them (2026-10-28).
+        def variable(t: Any) -> bool:
+            return is_variable(t) and t not in _SITUATION
+        events = {f.subject for f in meaning.facts if f.relation in _HAPPENING_LINKS}
+        of_kind: Dict[Tuple[str, str], Set[Term]] = defaultdict(set)
+        for f in meaning.facts:
+            if f.relation == "instance_of" and variable(f.subject) and not is_variable(f.obj):
+                of_kind[(f.obj, "VERB" if f.subject in events else "NOUN")].add(f.subject)
+            elif f.relation == "has_property" and not is_variable(f.obj):
+                of_kind[(f.obj, "ADVERB" if f.subject in events else "ADJECTIVE")].add(f.subject)
+        known = sorted({f.subject for f in meaning.facts if f.given and variable(f.subject)})
+        unknown = sorted({f.subject for f in meaning.facts if f.relation == "instance_of" and variable(f.subject)
+                          and f.subject not in events} - set(known))
+        before_now = sorted({f.subject for f in meaning.facts if f.relation == "precedes" and f.obj == "?now"
+                             and variable(f.subject)})
+
+        def own_letter(entry: Entry) -> Optional[str]:
+            # The variable of the piece naming the word itself (`kind x @`, `event e @`, `quality x @ q`).
+            return next((p[1] for p in entry.sem if len(p) > 2 and "@" in p[2:] and isinstance(p[1], str)
+                         and _MEANING_VARIABLE.fullmatch(p[1])), None)
+        def roles_bound(entry: Entry, e: str, event: Term) -> List[Dict[str, Term]]:
+            # A VERB'S PLACES, each bound to what the meaning's fact of its link holds, the link as reading decides it
+            # (`spell_out`: `Lexicon.inherited` from the role's slot, "by" as the subject's, "~" turned round), one
+            # way for each; a place whose link the meaning holds no fact of left open (reading skips some roles: an
+            # ability's). A clause it takes must be a doing the meaning holds, not the cat: a frame taking one where
+            # none is, is not offered ("chase" taking a "that" clause, a "to" clause, an -ing clause).
+            ways: List[Dict[str, Term]] = [{e: event}]
+            lexicon = self.lexicon
+            for p in entry.sem:
+                if p[0] != "role" or p[1] != e or len(p) < 4 or not isinstance(p[2], str):
+                    continue
+                slot = p[3]
+                default = lexicon.linking.get(slot)
+                if slot.startswith("pp:"):
+                    default = worded(slot[3:]) if slot[3:].isalpha() else None
+                got, _ = lexicon.inherited("role", entry.name, "VERB", (slot,), default)
+                if slot == "by":
+                    got, _ = lexicon.inherited("role", entry.name, "VERB", ("subject",), lexicon.linking.get("subject"))
+                if not got or got == "same":
+                    continue
+                relation, turned = (got[1:], True) if got.startswith("~") else (got, False)
+                ends = [f.subject if turned else f.obj for f in meaning.facts
+                        if f.relation == relation and (f.obj if turned else f.subject) == event]
+                if ends:
+                    ways = [dict(w, **{p[2]: t}) for w in ways for t in dict.fromkeys(ends) if w.get(p[2], t) == t]
+            for p in entry.sem:
+                if p[0] == "clause" and p[1] == e and len(p) > 2:
+                    ways = [w for w in ways if p[2] not in w or (w[p[2]] in events and w[p[2]] != event)]
+            return ways
+        bound_at: Dict[int, Dict[str, Term]] = {}
         # THE WORDS FOR ITS THINGS, each a place the sentence must fill once, with each word and entry that may fill it.
         tokens: List[str] = []
         places: List[List[Tuple[int, Entry]]] = []
@@ -2416,11 +2474,22 @@ class Grammar:
             if cls == "NAME":
                 written = [" ".join(w[:1].upper() + w[1:] for w in str(concept).split())]
             options: List[Tuple[int, Entry]] = []
+            # Bound only where the meaning holds one thing of the kind: of two cats, either word may be either.
+            of_it = of_kind.get((concept, cls), set())
             for form in written:
                 for _, entry in self.lexicon.entries((form,), 0):
                     if entry.cls == cls:
-                        options.append((len(tokens), entry))
-                        tokens.append(form)
+                        letter = own_letter(entry)
+                        ways: List[Dict[str, Term]] = [{}]
+                        if letter is not None and len(of_it) == 1:
+                            ways = [{letter: next(iter(of_it))}]
+                            if cls == "VERB":
+                                ways = roles_bound(entry, letter, next(iter(of_it)))
+                        for way in ways:
+                            if way:
+                                bound_at[len(tokens)] = way
+                            options.append((len(tokens), entry))
+                            tokens.append(form)
             if not options:
                 return []
             places.append(options)
@@ -2482,7 +2551,13 @@ class Grammar:
             cat = parse_category(entry.cat)
             if not _joins(cat) and not _same_shape(cat.res, cat.arg):
                 making[takes(cat)] |= {_key(c) for c in _comes_to(cat)}
-        budget[("joins",)] = max(clauses - 1, 0)
+        # The sentences a meaning can need are no more than its doings and what it says of a thing that is no doing
+        # (a cat being red, a thing being in a place): "in the park" said of the chasing is no sentence of its own,
+        # though "in" may head one ("was in the park"), and counted so, "if" and "which" were offered twice for "Tom
+        # chased a cat in the park." (2026-10-28).
+        said_of_things = sum(1 for f in meaning.facts if f.subject not in events and f.relation not in _HAPPENING_LINKS
+                             and not (f.relation == "instance_of" and variable(f.subject)))
+        budget[("joins",)] = max(min(clauses, len(events) + said_of_things) - 1, 0)
         grown = Counter(made)
         for _ in range(len(making) + 1):
             for _, entry in empty:
@@ -2500,12 +2575,50 @@ class Grammar:
             if budget.get(k):
                 chosen.append((word, entry, {k: 1}))
         spending = sorted({k for _, _, spends in chosen for k in spends})
+        qualities = any(f.relation == "has_property" for f in meaning.facts)
+
+        def bindings_of(entry: Entry, spends: Mapping[Tuple[str, ...], int]) -> List[Dict[str, Term]]:
+            # A grammar word, one way for each term its pieces may be said of: "the" each thing given, "a" each
+            # thing not, a word saying the past each doing before now; a preposition the two its fact joins, either
+            # way round (a link learned the other way, "~", turns them), and where the meaning holds a quality, its
+            # thing alone (after a quality, "allergic to pollen", it tells of the quality's holder).
+            links = {k[1] for k in spends if k[0] == "fact"}
+            prep = next((p for p in entry.sem if p[0] == "prep"), None)
+            if links and prep is not None:
+                a, b = prep[1], prep[2]
+                ways = []
+                for f in meaning.facts:
+                    if f.relation in links:
+                        ways += [{a: f.subject, b: f.obj}, {a: f.obj, b: f.subject}]
+                        ways += [{b: f.obj}, {b: f.subject}] if qualities else []
+                return [dict(w) for w in dict.fromkeys(tuple(sorted(w.items())) for w in ways)] or [{}]
+            out: List[Dict[str, Term]] = [{}]
+            for p in entry.sem:
+                of = {"given": known, "past": before_now, "indefinite": unknown}.get(p[0])
+                if of and len(p) > 1 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
+                    out = [dict(o, **{p[1]: t}) for o in out for t in of if o.get(p[1], t) == t]
+            return out or [{}]
         extra: List[Tuple[int, Entry, Tuple[int, ...]]] = []
         for word, entry, spends in chosen:
-            extra.append((len(tokens), entry, tuple(spends.get(k, 0) for k in spending)))
-            tokens.append(word)
+            for way in bindings_of(entry, spends):
+                if way:
+                    bound_at[len(tokens)] = way
+                extra.append((len(tokens), entry, tuple(spends.get(k, 0) for k in spending)))
+                tokens.append(word)
         most = tuple(budget[k] for k in spending)
         self._tokens, self._weighed, self._marking, self._asking = tuple(tokens), None, frozenset(), frozenset()
+        # A WORD TAKING WHAT NO WORD HERE CAN MAKE IS NEVER SAID: every word of a sentence has all it takes. What the
+        # words can make is found from the words up (each word, what it makes once what it takes can be made, what
+        # composing two makes, a thing raised to what is said of it, what `_unary` reads a stretch as), and a word is
+        # offered only where all it takes is among it. "be", "been", "being" before a quality and "anybody" waited for
+        # a quality no word of "Tom chased a cat in the park." says (2026-10-28).
+        made_here = self._makes([self._lexical(tokens, at, at + 1, entry, bound_at.get(at))
+                                 for at, entry in [o for options in places for o in options]
+                                 + [(at, entry) for at, entry, _ in extra]])
+        places = [[(at, entry) for at, entry in options if self._takes_from(entry, made_here)] for options in places]
+        if not all(places):
+            return []
+        extra = [(at, entry, spends) for at, entry, spends in extra if self._takes_from(entry, made_here)]
         full = (1 << len(places)) - 1
         # THE CHART, over which words are used, not where they stand: (places filled, what the grammar words spent,
         # what it means and its category (`_meant`)) -> the surest such sign, with its words in order and where each
@@ -2529,7 +2642,56 @@ class Grammar:
         def first_sound(word: str) -> Tuple[str, ...]:
             return tuple(sorted({way.split()[0].rstrip("012") for way in lexicon.words.sounds(word) if way.split()}))
 
+        # WHAT CAN NEVER BE COMPLETED IS DROPPED (Kay 1996): a thing of the meaning said inside a stretch but no longer
+        # reachable from its category ("a cat" taken by "chased": the cat) is joined to nothing more, so each fact
+        # joining it to another thing must already be said there, or be sayable by a piece of it still open.
+        joined: Dict[Term, Set[Term]] = defaultdict(set)
+        for f in meaning.facts:
+            if f.relation not in ("instance_of", "has_property") and variable(f.subject) \
+                    and f.obj not in _SITUATION and f.subject != f.obj:
+                joined[f.subject].add(f.obj)
+                if variable(f.obj):
+                    joined[f.obj].add(f.subject)
+
+        def reachable(cat: Cat) -> Set[Term]:
+            if isinstance(cat, Atom):
+                return {cat.ref} if cat.ref is not None else set()
+            return reachable(cat.res) | reachable(cat.arg)
+
+        def completable(sign: Sign) -> bool:
+            if not joined:
+                return True
+            reach = reachable(sign.cat)
+            within = {t for p in sign.pieces for t in p if isinstance(t, str) and t in joined} - reach
+            # Still open is what its category reaches: a variable inside it no longer reached is bound by nothing.
+            still = {y for y in reach if type(y) is int and y >= FIRST_VARIABLE}
+            for t in within:
+                for u in joined[t]:
+                    if not any(t in p and (u in p or any(y in still for y in p if type(y) is int)) for p in sign.pieces):
+                        return False
+            return True
+
+        # A DOING MADE FINITE IS TOLD AT THE TIME THE WORD MAKING IT FINITE TELLS (`spell_out`: `past` a doing before
+        # now, `now` one now, `future` one after): nothing said after that makes it another, so one of the meaning's
+        # doings made finite at another time than the meaning holds can never be completed ("Tom do chase", for a
+        # chasing before now: "do" makes it finite and tells no time).
+        time_of: Dict[Term, str] = {}
+        for f in meaning.facts:
+            when = {"precedes": "past", "follows": "future", "during": "now"}.get(f.relation)
+            if when and f.obj == "?now" and variable(f.subject):
+                time_of[f.subject] = when
+
+        def timed(sign: Sign) -> bool:
+            told: Dict[Term, str] = {}
+            for p in sign.pieces:
+                if p[0] in ("past", "future", "now") and len(p) > 1:
+                    told.setdefault(p[1], p[0])
+            return all(told.get(p[1]) == time_of.get(p[1]) for p in sign.pieces
+                       if p[0] == "finite" and len(p) > 1 and variable(p[1]))
+
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
+            if not completable(sign) or not timed(sign):
+                return
             key = (filled, used, _meant(sign, order, tokens)) + (
                 (said[-1] if said[-1] in alike else "",
                  first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
@@ -2542,10 +2704,20 @@ class Grammar:
         for k, options in enumerate(places):
             for at, entry in options:
                 with contextlib.suppress(ValueError, IndexError):
-                    hold(1 << k, none, self._lexical(tokens, at, at + 1, entry), (tokens[at],), (at,))
+                    hold(1 << k, none, self._lexical(tokens, at, at + 1, entry, bound_at.get(at)), (tokens[at],),
+                         (at,))
         for at, entry, spends in extra:
             with contextlib.suppress(ValueError, IndexError):
-                hold(0, spends, self._lexical(tokens, at, at + 1, entry), (tokens[at],), (at,))
+                hold(0, spends, self._lexical(tokens, at, at + 1, entry, bound_at.get(at)), (tokens[at],), (at,))
+        # TWO STRETCHES SAYING NOTHING ARE NOT COMBINED (Eisner 1996, normal-form CCG): what both say nothing of the
+        # meaning (no word for a thing, nothing spent the meaning holds) combine only with what says something, every
+        # sentence built so being built otherwise too, each word taking what says something first: "to" with "be in
+        # the park", never "to be" waiting for it. Combined, "to be", "to have been" and "if if" were built for every
+        # way of saying each fact ("Tom chased a cat in the park.", 2026-10-28).
+        content = tuple(k[0] not in ("takes", "joins") for k in spending)
+
+        def says_nothing(filled: int, used: Tuple[int, ...]) -> bool:
+            return not filled and not any(n and c for n, c in zip(used, content))
         # KAY'S INDEX (Kay 1996, chart generation): each item kept is filed under the shapes it stands as (`_offers`) and
         # the shapes it takes after it and before it (`_wants`), so a new one is tried only with those it may combine
         # with, in the order they were kept, each way round. Tried with every item kept, 88% of 1.34 million tries made
@@ -2607,6 +2779,8 @@ class Grammar:
                 together = tuple(a + b for a, b in zip(used, other_used))
                 if any(n > m for n, m in zip(together, most)):
                     continue
+                if says_nothing(filled, used) and says_nothing(other_filled, other_used):
+                    continue
                 for left, right, words_said, words_order, last, first in (
                         (sign, other, said + other_said, order + other_order, said[-1], other_said[0]),
                         (other, sign, other_said + said, other_order + order, other_said[-1], said[0])):
@@ -2637,6 +2811,87 @@ class Grammar:
             sentences[said] = (own, reading.sign.score if reading.sign is not None else 0.0)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
         return [_written(said, closing) for said in ranked]
+
+    @staticmethod
+    def _bare(cat: Cat) -> Cat:
+        """A category without what it is of: its shape and features, nothing it refers to; a feature the grammar's
+        data writes as a variable (`S[F]`) open."""
+        if isinstance(cat, Atom):
+            open_ = isinstance(cat.feat, str) and cat.feat[:1].isupper()
+            return Atom(cat.base, None if open_ else cat.feat, None)
+        return Fn(Grammar._bare(cat.res), cat.slash, Grammar._bare(cat.arg))
+
+    def _makes(self, signs: Sequence[Sign]) -> List[Cat]:
+        """EVERY CATEGORY THESE WORDS CAN MAKE, from the words up (`Grammar.say`): each word's category; what a word
+        makes once what it takes can be made, along its spine; what composing two makes (X/Y with Y/Z: X/Z; Y\\Z
+        with X\\Y: X\\Z); a thing raised to what is said of it (NP with (S\\NP)/Z: S/Z); and what `_unary` reads a
+        stretch of each as, of one word and of more. Of every category its shape and features, not what it is of."""
+        held: Dict[str, Cat] = {}
+
+        def fits(cat: Cat) -> bool:
+            return any(_unify(self._bare(cat), c, {}) for c in held.values())
+
+        def fitting(cat: Cat) -> List[Dict[int, Term]]:
+            # Each way what a word takes is one of what can be made: what its features are bound to so, which what
+            # it makes then carries ("in the park" makes of an S[dcl] doing an S[dcl] one, never any S).
+            out = []
+            for c in list(held.values()):
+                s: Dict[int, Term] = {}
+                if _unify(cat, c, s):
+                    out.append(s)
+            return out
+
+        def add(cat: Cat) -> bool:
+            k = _key(self._bare(cat))
+            if k in held:
+                return False
+            held[k] = self._bare(cat)
+            for length in (1, 2):
+                for u in self._unary(Sign(cat, (), 0.0, 0, length, "lex", (), 0, "")):
+                    add(u.cat)
+            return True
+        for sign in signs:
+            add(sign.cat)
+        grew = True
+        while grew:
+            grew = False
+            for sign in signs:
+                waiting = [self._bare(sign.cat)]
+                while waiting:
+                    cat = waiting.pop()
+                    if isinstance(cat, Fn) and cat.slash in "/\\":
+                        for s in fitting(cat.arg):
+                            made = _apply(cat.res, s)
+                            if add(made):
+                                grew = True
+                                waiting.append(made)
+            for f in list(held.values()):
+                if not isinstance(f, Fn) or f.slash not in "/\\":
+                    continue
+                for g in list(held.values()):
+                    if not isinstance(g, Fn) or g.slash != f.slash:
+                        continue
+                    first, second = (f, g) if f.slash == "/" else (g, f)
+                    s: Dict[int, Term] = {}
+                    if f.slash == "/" and _unify(first.arg, second.res, s):
+                        grew |= add(_apply(Fn(first.res, "/", second.arg), s))
+                    s = {}
+                    if f.slash == "\\" and _unify(second.arg, first.res, s):
+                        grew |= add(_apply(Fn(second.res, "\\", first.arg), s))
+                if isinstance(f.res, Fn) and f.res.slash == "\\" and f.slash == "/" and fits(f.res.arg) \
+                        and isinstance(f.res.res, Atom):
+                    grew |= add(Fn(f.res.res, "/", f.arg))
+        return list(held.values())
+
+    def _takes_from(self, entry: Entry, made: Sequence[Cat]) -> bool:
+        """Whether all a word's entry takes, along its spine, is among what the words can make (`_makes`); a word
+        joining a list or a mark takes by no shape, and is kept."""
+        cat = parse_category(entry.cat)
+        while isinstance(cat, Fn):
+            if cat.slash in "/\\" and not any(_unify(self._bare(cat.arg), c, {}) for c in made):
+                return False
+            cat = cat.res
+        return True
 
     def _said_so(self, cat: Cat) -> float:
         """How often what is said is said as a reading of this category says it, as a logarithm: an order
