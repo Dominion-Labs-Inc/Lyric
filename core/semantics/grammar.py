@@ -2641,8 +2641,43 @@ class Grammar:
                     # the same without it. Offered as often as there are things, "the" said "Wall is the the a
                     # partition." (lyric_dev2, 2026-10-27). Reading still reads it.
                     empty.append((word, entry))
+        # A PREPOSITION SAYS A LINK HERE ONLY WHERE READING IT HERE GIVES THAT LINK (Kay 1996: only what may say part
+        # of the meaning is put in): what the word was taught to say of a doing or a thing, by what the thing it takes
+        # is, and what it said of the very word it follows, as `spell_out` decides it. Offered wherever it ever said
+        # the link, "of" ("a kind of fish": `isa`) was tried for every kind said to be a kind, and "A wall is a
+        # structure." took 198 s, 4,460 sentences with "of" read back and none of them meaning it (lyric_dev2,
+        # 2026-10-28).
+        kind_of_term = {f.subject: f.obj for f in meaning.facts
+                        if f.relation == "instance_of" and variable(f.subject) and not is_variable(f.obj)}
+
+        def read_as(word: str, a: Term, b: Term) -> Optional[str]:
+            kind = "event" if a in events else "thing"
+            time = self.lexicon.time_of(b) or (self.lexicon.time_of(kind_of_term[b]) if b in kind_of_term else None) or "-"
+            if b in kind_of_term:
+                what = [kind_of_term[b]] + words.kinds(kind_of_term[b], "NOUN")
+            elif b in ("?speaker", "?listener"):
+                what = ["person"]
+            elif not isinstance(b, str) or b.startswith("?") or _number(b) is not None:
+                what = []
+            else:
+                what = words.kinds(b, "NOUN") + [NAMED]
+            said, _ = self.lexicon.link("prep", (word, kind, time), worded(word) if word.replace(" ", "").isalpha()
+                                   else None)
+            got, _ = self.lexicon.selected("prep_to", (word, kind), what, said)
+            head = kind_of_term.get(a) if variable(a) else a
+            if head is not None:
+                own, how_own = self.lexicon.link("prep_of", (head, word, time), None)
+                if how_own == "own":
+                    got = own
+            return got
+
+        def says_here(word: str, link: str) -> bool:
+            return any(read_as(word, f.subject, f.obj) == link or read_as(word, f.obj, f.subject) == "~" + link
+                       for f in meaning.facts if f.relation == link)
         for link in sorted({f.relation for f in meaning.facts}):
             for word in self.lexicon.saying(link):
+                if not says_here(word, link):
+                    continue
                 for _, entry in self.lexicon.entries((word,), 0):
                     if entry.cls == "PREPOSITION":
                         budget[("fact", link)] = sum(1 for f in meaning.facts if f.relation == link)
@@ -4385,6 +4420,53 @@ class GrammarView:
                     alone[form][how] += times * n
                     if alone[form][how] <= 0:
                         del alone[form][how]
+        # AND THE REST AN ANALYSED SENTENCE TEACHES OF A WORD (`HeldWords._count`), as its record carries it: each form
+        # written with a capital inside a sentence (`capitalized`), each -ing or participle form's shape (`verb_shapes`),
+        # each noun said of a doing with no preposition (`bare_modifier`), each word said after the verb, as one with it
+        # or apart (`said_together`).
+        name = words.name(word.word, "VERB") if any(s.word_class == "VERB" for s in word.senses) else word.word
+        for table, layer, key_of in (
+                ("written", "capitalized", lambda x: (x[0], ((x[1], x[2]),))),
+                ("shapes", "shapes", lambda x: (x[0], ((x[1], x[2]),))),
+                ("bare", "said_of_doing", lambda x: (x[0], (("modifier", x[1]), ("otherwise", x[2])))),
+                ("particles", "said_after", lambda x: ((name, x[0]), ((True, x[1]), (False, x[2]))))):
+            held = getattr(words, table, None)
+            if held is None:
+                continue
+            for item in getattr(word, layer, ()):
+                key, counts = key_of(item)
+                for what, n in counts:
+                    held[key][what] += times * n
+                    if held[key][what] <= 0:
+                        del held[key][what]
+        # AND WHAT WORDS WRITTEN ALIKE ARE USED AS (`Words.like`, by the last three and two letters), which a word met
+        # seldom or never is read by: counted from every analysed sentence's words (`HeldWords`), and from no word
+        # recorded whole, so on a store taught words recorded whole a word never taught was read as words like it were
+        # used in one sentence (lyric_dev2, 2026-10-28).
+        alike = getattr(words, "alike", None)
+        if alike is not None:
+            def spelled(what: str, form: str, counts: Iterable[Tuple[Any, int]]) -> None:
+                for ending in {form[-3:], form[-2:]}:
+                    for key, n in counts:
+                        alike[(what, ending)][key] += times * n
+                        if alike[(what, ending)][key] <= 0:
+                            del alike[(what, ending)][key]
+            for form, use, n in getattr(word, "used_as", ()):
+                spelled("uses", form, ((use, n),))
+            for form, bare, determined in getattr(word, "said_alone", ()):
+                spelled("alone", form, (("bare", bare), ("determined", determined)))
+            for form, shape, n in getattr(word, "shapes", ()):
+                spelled("shapes", form, ((shape, n),))
+            for form, so, otherwise in getattr(word, "said_of_doing", ()):
+                spelled("bare", form, (("modifier", so), ("otherwise", otherwise)))
+        # WHAT IT SAYS IN WHAT IS MEANT, as sentences taught with their meanings taught it (`WordRecord.means`): each
+        # learned under this grammar's own name for the word as a word of its class ("paint" the noun is `coating
+        # paint` here), as `learn` learns it of a sentence.
+        for table, cls, rest, said, n in getattr(word, "means", ()):
+            held = lexicon.learned[table][(words.name(word.word, cls),) + tuple(rest)]
+            held[said] += times * n
+            if held[said] <= 0:
+                del held[said]
         # AND HOW OFTEN EACH USE HAD A DOING'S -ING FORM NEXT, AND WAS IN A SENTENCE THAT ASKS, as an analysed sentence
         # counts them (`doing_after`, `asking`). Taught only how often "is" is each use, "Roy is painting the medal."
         # was Roy being a painting, `be:np` used 1,671 times to `be:ng`'s 306 (lyric_dev2, 2026-10-27).

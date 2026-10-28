@@ -3087,6 +3087,25 @@ class WordRecord:
     #: a word that does ("the wall", "my wall"): (form, bare, determined), as reading weighs a kind said bare
     #: (`Words.noun_alone`). Untaught, "Wall is a partition." cost no more than "A wall is a partition." (2026-10-28).
     said_alone: Tuple[Tuple[str, int, int], ...] = ()
+    #: AS THE GRAMMAR COUNTS AN ANALYSED SENTENCE (`HeldWords`), what a word's record carries of it: each form written
+    #: with a capital inside a sentence, used as which kind of word (written, kind, how often: "Wall" a NAME, of Wall
+    #: Street; `Words.capitalized`); each -ing or participle form of the verb, standing as a thing, after a thing,
+    #: before one or as a doing (form, shape, how often; `verb_shapes`); each noun form said of a doing with no
+    #: preposition and otherwise (form, so, otherwise; "last week", `bare_modifier`); and each word said right after the
+    #: verb, as one with it and apart (word, as one, apart; "up" in "pick up", `said_together`). The grammar read these
+    #: only from sentences analysed, so a store taught words recorded whole held none of them (lyric_dev2, 2026-10-28).
+    capitalized: Tuple[Tuple[str, str, int], ...] = ()
+    shapes: Tuple[Tuple[str, str, int], ...] = ()
+    said_of_doing: Tuple[Tuple[str, int, int], ...] = ()
+    said_after: Tuple[Tuple[str, int, int], ...] = ()
+    #: WHAT IT SAYS IN WHAT IS MEANT, as a grammar learns it from sentences taught with their meanings (`Grammar.learn`
+    #: over the Parallel Meaning Bank's gold training sentences, `_pmb_meant`): each thing learned of the word as a word
+    #: of a class (`_MEANT_BY`), with the rest of what it was learned beside and what it said, how often: (table,
+    #: class, rest of the key, what it said, how often) — "know" as a VERB, its clause `asserted`; "with" as a
+    #: PREPOSITION joining a doing to a thing, `done_with`. The grammar names the word as it names it (`_count_word`).
+    #: Learned only from sentences taught with meanings, so a store taught words recorded whole held none of it: what
+    #: an adverb, a possessor or a quality says, a verb's clause, a verb said as a link (lyric_dev2, 2026-10-28).
+    means: Tuple[Tuple[str, str, Tuple[Any, ...], Any, int], ...] = ()
 
     def key(self) -> str:
         import hashlib
@@ -3115,7 +3134,11 @@ class WordRecord:
                     "used_before_doing": [list(u) for u in self.used_before_doing],
                     "used_asking": [list(u) for u in self.used_asking]}
                     if self.used_before_doing or self.used_asking else {}) | (
-                    {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {})
+                    {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {}) | {
+                    layer: [list(x) for x in getattr(self, layer)]
+                    for layer in ("capitalized", "shapes", "said_of_doing", "said_after") if getattr(self, layer)} | (
+                    {"means": [[table, cls, list(rest), list(said) if isinstance(said, tuple) else said, n]
+                               for table, cls, rest, said, n in self.means]} if self.means else {})
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
@@ -3129,7 +3152,13 @@ class WordRecord:
                    tuple(int(n) for n in data.get("together") or ()),
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_before_doing") or ()),
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()),
-                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_alone") or ()))
+                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_alone") or ()),
+                   tuple((str(c[0]), str(c[1]), int(c[2])) for c in data.get("capitalized") or ()),
+                   tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("shapes") or ()),
+                   tuple((str(b[0]), int(b[1]), int(b[2])) for b in data.get("said_of_doing") or ()),
+                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_after") or ()),
+                   tuple((str(m[0]), str(m[1]), _held_tuple(m[2]), _held_tuple(m[3]), int(m[4]))
+                         for m in data.get("means") or ()))
 
     def problems(self) -> List[str]:
         """What is wrong with the record, each said: an empty list where it is whole."""
@@ -3164,6 +3193,25 @@ class WordRecord:
             if form not in nouns or min(bare, determined) < 0 or bare + determined <= 0:
                 out.append(f"said alone {bare} and with a word saying which {determined} times written {form!r}, "
                            f"no noun form of the word or never")
+        for capital, kind, n in self.capitalized:
+            if capital.lower() not in written or not capital[:1].isupper() or not kind or n <= 0:
+                out.append(f"written {capital!r} as a {kind!r} {n} times: no form of the word with a capital, or never")
+        verbs = {f.form for f in self.forms if f.word_class == "VERB"}
+        for form, shape, n in self.shapes:
+            if form not in verbs or not shape or n <= 0:
+                out.append(f"the doing {form!r} standing as {shape!r} {n} times: no verb form of the word, or never")
+        things = nouns | {f.form for f in self.forms if f.word_class == "NAME"}
+        for form, so, otherwise in self.said_of_doing:
+            if form not in things or min(so, otherwise) < 0 or so + otherwise <= 0:
+                out.append(f"{form!r} said of a doing {so} times and otherwise {otherwise}: no noun of the word, or never")
+        classes_of = {f.word_class for f in self.forms}
+        for table, cls, rest, said, n in self.means:
+            if cls not in _MEANT_BY.get(table, ()) or cls not in classes_of or n <= 0:
+                out.append(f"means {said!r} in {table!r} as a {cls!r} {n} times: no such table for the class, no form "
+                           f"of the class, or never")
+        for after, one, apart in self.said_after:
+            if not verbs or not after or min(one, apart) < 0 or one + apart <= 0:
+                out.append(f"{after!r} said after the verb {one} times as one and {apart} apart: no verb, or never")
         for link, n in self.joins:
             if not link or n <= 0:
                 out.append(f"joins as {link!r} {n} times")
@@ -3298,6 +3346,7 @@ _PLACE_LINKS = {
 
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
                    ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
+                              Dict[str, Counter], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
                               Dict[str, Counter]]:
     """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
     which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
@@ -3305,11 +3354,15 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     often a doing's -ing form came next, and how often the sentence asked (form -> use -> n each), as the grammar
     weighs a use beside what follows it and in a question (`Words.doing_after`, `asking`); and of each noun form, how
     often it was said with nothing before it saying which and how often with a word that does (`Words.noun_alone`:
-    "bare", "determined"). A WORD IS COUNTED WHERE
+    "bare", "determined"). And as `HeldWords` counts them for the grammar: each form written with a capital inside a
+    sentence, used as which kind of word (`Words.capitalized`: written -> kind -> n); each -ing or participle form of
+    the verb, standing as which shape (`verb_shapes`: a thing, after a thing, before one, a doing); each noun form said
+    of a doing with no preposition, or otherwise (`bare_modifier`); and each word said right after the verb, said
+    with it as one or apart (`said_together`: next word -> True/False -> n). A WORD IS COUNTED WHERE
     THE ANALYSTS GAVE IT AS THIS WORD (its base form): "and" analysed once as a form of `a` brought every "and" into the
     record of "a", 295 of them before a doing, and the possessive "'s" every one into the record of "be"."""
     from core.semantics.grammar import closed_uses
-    from core.semantics.grammar_words import HeldWords, MARKS
+    from core.semantics.grammar_words import _BARE_OF_A_DOING, HeldWords, MARKS, _shape_of
     if "sentences" not in cache:
         sentences, holding = [], {}
         for treebank in treebanks:
@@ -3330,18 +3383,17 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     classes: Dict[Tuple[str, str], int] = {}
     for analysed, bases in zip(held, of_word):
         for w, c, base in zip(analysed.words, analysed.classes, bases):
-            # A NAME'S BASE IS WRITTEN WITH ITS CAPITAL ("Wall" of Wall Street, "Picture" a title, as the analysts
-            # give a proper noun's lemma): it is the word still, used as a name. Counted only where the base was the
-            # word as written, no name was: "picture" was a noun 25 times and never a name, and a reader that took
-            # what memory holds of a noun to be a name as often read "Picture is a representation." with "Picture"
-            # a name (lyric_dev2, 2026-10-28).
-            if w.lower() in written and (base == word or not single or (c == "NAME" and base.lower() == word)):
+            if w.lower() in written and (base == word or not single):
                 classes[(w.lower(), c)] = classes.get((w.lower(), c), 0) + 1
     counted = HeldWords(held, closed_uses(), lambda w, c: w.lower())
     uses: Dict[str, Counter] = {form: Counter() for form in written}
     doing: Dict[str, Counter] = {form: Counter() for form in written}
     asking: Dict[str, Counter] = {form: Counter() for form in written}
     alone: Dict[str, Counter] = {form: Counter() for form in written}
+    capital: Dict[str, Counter] = defaultdict(Counter)
+    shapes: Dict[str, Counter] = defaultdict(Counter)
+    of_doing: Dict[str, Counter] = defaultdict(Counter)
+    after: Dict[str, Counter] = defaultdict(Counter)
     for analysed, bases in zip(held, of_word):
         words, cls, heads, relations = analysed.words, analysed.classes, analysed.heads, analysed.relations
         under: Dict[int, List[int]] = defaultdict(list)
@@ -3359,7 +3411,56 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                                                      for k in under[i]) else "bare"] += 1
             doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
             asking[w.lower()][use] += asks
-    return classes, uses, doing, asking, alone
+            if i > 0 and w[:1].isupper() and words[i - 1] not in ('"', ":", "``"):
+                capital[w][use.split(":")[0]] += 1
+            if cls[i] == "VERB":
+                if w.lower().endswith("ing") or counted._form_of(words, cls, heads, relations, under, i) == "participle":
+                    shapes[w.lower()][_shape_of(relations[i])] += 1
+                if i + 1 < len(words) and cls[i + 1] not in MARKS:
+                    after[words[i + 1].lower()][heads[i + 1] == i + 1 and relations[i + 1] == "compound:prt"] += 1
+            if cls[i] in ("NOUN", "NAME") and not relations[i].startswith("compound"):
+                of_doing[w.lower()]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
+    return classes, uses, doing, asking, alone, capital, shapes, of_doing, after
+
+
+#: WHAT A SENTENCE'S MEANING TEACHES A GRAMMAR OF ONE WORD (`Grammar.learn`), each table by the class of the word its
+#: key begins with: a verb's (its clause told as so or not, `clause`; said as a link, `verb`; its places, `role`; a
+#: preposition after it, `prep_of`), a noun's (`prep_of`; what its possessor is to it, `poss`), an adjective's
+#: (`quality`), an adverb's (`adv`), a preposition's (what it joins, `prep`, `prep_to`; a holder, `holder`). What is
+#: learned of English and of no one word (`be`, a quality by what it is of, a time) is not any word's.
+_MEANT_BY = {"clause": ("VERB",), "verb": ("VERB",), "role": ("VERB",), "prep_of": ("VERB", "NOUN"),
+             "poss": ("NOUN",), "quality": ("ADJECTIVE",), "adv": ("ADVERB",), "prep": ("PREPOSITION",),
+             "prep_to": ("PREPOSITION",), "holder": ("PREPOSITION",)}
+
+
+def _held_tuple(value: Any) -> Any:
+    """A value read back from JSON as it was held: every list a tuple."""
+    return tuple(_held_tuple(v) for v in value) if isinstance(value, list) else value
+
+
+def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
+    """WHAT THE PARALLEL MEANING BANK'S GOLD TRAINING SENTENCES TEACH A GRAMMAR, as main's grammar learns from them
+    (`GrammarView.hold`, `Grammar.learn`, with the PMB's derivations held first, as GRAMMAR-01 learns): the grammar's
+    words held from files (`file_words`, to name a word as that grammar names it), and every thing learned ((table,
+    key, what it said) -> how often), by the name its key begins with. Learned once a process: a few minutes."""
+    if "meant" not in cache:
+        from pathlib import Path
+        from core.semantics import grammar as gm
+        ewt = Path(SYNTAX_DATA) / "UD_English-EWT" / "en_ewt-ud-train.conllu"
+        words = file_words(ewt, gm.closed_uses())
+        view = gm.GrammarView(words, structure=file_structure(ewt))
+        for item in PMBDerivationSource().derived():
+            view.hold_derived(item)
+        for taught in PMBSource.of("gold").taught_sentences():
+            view.hold(taught)
+        view.learn_waiting()
+        by_first: Dict[str, Counter] = defaultdict(Counter)
+        for entries in view._counted.values():
+            for table, key, said in entries:
+                if table in _MEANT_BY and key and isinstance(key[0], str):
+                    by_first[key[0]][(table, tuple(key), said)] += 1
+        cache["meant"] = (words, dict(by_first))
+    return cache["meant"]
 
 
 #: The closed classes whose words UD's English treebanks write in forms of their own, each with its features: "is",
@@ -3915,7 +4016,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     closed_written = _closed_forms(word, treebanks, _cache) if not rest else Counter()
     written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of} | \
         {form for form, _, _ in closed_written}
-    classes, uses_of, doing_of, asking_of, alone_of = _treebank_uses(word, written, treebanks, _cache)
+    classes, uses_of, doing_of, asking_of, alone_of, capital_of, shapes_of, of_doing, after_of = _treebank_uses(
+        word, written, treebanks, _cache)
     forms: List[WordForm] = []
     for cls in sorted(by_class):
         base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
@@ -3930,8 +4032,11 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
         if cls in _CLOSED_CLASSES and form == word and cls not in _FORMED_CLOSED:
             forms.append(WordForm(form, cls, "", n))
-    # AND HOW OFTEN EACH FORM WAS A NAME, as the treebanks used it: what memory holds of the word's classes then holds
-    # its names apart from its nouns (`MemoryAgent._held_word_classes`), as the treebanks do.
+    # AND HOW OFTEN EACH FORM WAS A NAME, as the treebanks used it ("Wall" of Wall Street, "Picture" a title): what
+    # memory holds of the word's classes then holds its names apart from its nouns (`MemoryAgent._held_word_classes`),
+    # as the treebanks do. Counted, and left out of the record with every class WordNet has none of, a noun was held a
+    # name as often as a noun, and "Picture is a representation." was read with "Picture" a name (lyric_dev2,
+    # 2026-10-28).
     for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
         if cls == "NAME":
             forms.append(WordForm(form, cls, "", n))
@@ -3986,6 +4091,31 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     used_asking = tuple((form, use, asking_of[form][use]) for form, use, _ in used_as if asking_of[form][use] > 0)
     said_alone = tuple((form, alone_of[form]["bare"], alone_of[form]["determined"]) for form in sorted(written)
                        if (form, "NOUN") in as_class and sum(alone_of[form].values()) > 0)
+    capitalized = tuple((w, kind, n) for w in sorted(capital_of) for kind, n in sorted(
+        capital_of[w].items(), key=lambda x: (-x[1], x[0])) if n > 0 and w.lower() in written)
+    shapes = tuple((form, shape, n) for form in sorted(shapes_of) for shape, n in sorted(
+        shapes_of[form].items(), key=lambda x: (-x[1], x[0])) if n > 0 and (form, "VERB") in as_class)
+    said_of_doing = tuple((form, of_doing[form]["modifier"], of_doing[form]["otherwise"]) for form in sorted(of_doing)
+                          if ((form, "NOUN") in as_class or (form, "NAME") in as_class)
+                          and sum(of_doing[form].values()) > 0)
+    said_after = tuple((nxt, after_of[nxt][True], after_of[nxt][False]) for nxt in sorted(after_of)
+                       if "VERB" in kept and not rest and sum(after_of[nxt].values()) > 0)
+    means: List[Tuple[str, str, Tuple[Any, ...], Any, int]] = []
+    if not rest:
+        file_named, by_first = _pmb_meant(_cache)
+        taken: Set[Tuple[str, Tuple[Any, ...], Any]] = set()
+        # A key names its first word by name alone (`prep_of`: "pictured on" and "a picture on" both `picture`), so of
+        # the word's classes it is first the one the word is used as most: "picture" a noun 57 times and a verb 4,
+        # "make" a verb. Taken in a fixed order, "a picture of" was the verb's, or "painted by" the noun's.
+        used = Counter()
+        for (_, cls), n in classes.items():
+            used[cls] += n
+        for cls in sorted({c for table in _MEANT_BY.values() for c in table} & kept, key=lambda c: (-used[c], c)):
+            for (table, key, said), n in sorted(by_first.get(file_named.name(word, cls), {}).items(),
+                                                key=lambda x: (-x[1], repr(x[0]))):
+                if cls in _MEANT_BY[table] and (table, key, said) not in taken:
+                    taken.add((table, key, said))
+                    means.append((table, cls, key[1:], said, n))
     joins: Dict[str, int] = {}
     if "PREPOSITION" in kept or "SUBORDINATOR" in kept:
         for function, n in _propbank_joins(_cache).get(word, {}).items():
@@ -4010,7 +4140,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
-                      together, used_before_doing, used_asking, said_alone)
+                      together, used_before_doing, used_asking, said_alone, capitalized, shapes, said_of_doing,
+                      said_after, tuple(means))
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").
@@ -4125,3 +4256,110 @@ class WikidataSource:
             seen.add(key)
             yield TaughtRecord(subject=child, relation="isa", obj=parent,
                                quality=self.quality)
+
+# ── English's grammar held from files ───────────────────────────────────────────────────────────────────────────────
+# What a grammar holds of each word, from UD English EWT's training part and WordNet, read the way main reads them
+# (moved here from GRAMMAR-01's `words.py`, which imports it): the grammar the PMB's gold sentences are learned by
+# when a word record's meanings are counted (`_pmb_meant`), and GRAMMAR-01's. How each word is used is counted by
+# `grammar_words.HeldWords` (`read_conllu`), the forms each word is written in by `word_forms`; what each word's thing
+# is comes from `grammar_words.GraphKnowledge` holding WordNet's links (`isa`, `instance_of`, `defined_with`); a word
+# is named by WordNet's plain form (`morphy`), else as the treebank's lemmas have it. WordNet's links are kept beside
+# the treebank (`grammar_wordnet_links.pkl`, never pushed) once read: about a minute.
+
+_NUMBER_WORDS = {w: i for i, w in enumerate("zero one two three four five six seven eight nine ten eleven twelve thirteen "
+                                       "fourteen fifteen sixteen seventeen eighteen nineteen twenty".split())}
+_NUMBER_WORDS.update({"thirty": 30, "forty": 40, "fifty": 50, "sixty": 60, "seventy": 70, "eighty": 80,
+                      "ninety": 90, "hundred": 100, "thousand": 1000, "million": 10 ** 6, "billion": 10 ** 9, "trillion": 10 ** 12})
+_FILE_UD = {"NOUN": "NOUN", "PROPN": "NAME", "VERB": "VERB", "ADJ": "ADJECTIVE", "ADV": "ADVERB", "NUM": "NUMERAL",
+            "ADP": "PREPOSITION", "AUX": "VERB"}
+
+
+def file_structure(ewt: Path):
+    """The structure view as memory holds it (`structure.StructureView`), from the treebank at `ewt`: which of two
+    readings the grammar reads as surely it keeps (`Grammar._joined`)."""
+    from core.semantics.structure import StructureView
+    view = StructureView()
+    for analysed in read_conllu(str(ewt), "ewt"):
+        view.add(analysed)
+    return view
+
+
+def file_words(ewt: Path, closed):
+    """The words as GRAMMAR-01 holds them (`HeldWords`), from the treebank at `ewt` and WordNet."""
+    import pickle
+    from nltk.corpus import wordnet as wn
+    from core.semantics.grammar_words import GraphKnowledge, HeldWords
+    lemmas: Dict = defaultdict(Counter)
+    endings: Dict = defaultdict(Counter)
+    with open(ewt, encoding="utf-8") as handle:
+        for line in handle:
+            cols = line.rstrip("\n").split("\t")
+            if len(cols) == 10 and cols[0].isdigit() and cols[3] in _FILE_UD:
+                form, lemma, cls = cols[1].lower(), cols[2].lower(), _FILE_UD[cols[3]]
+                lemmas[(form, cls)][lemma] += 1
+                k = 0
+                while k < min(len(form), len(lemma)) and form[k] == lemma[k]:
+                    k += 1
+                endings[(form[-3:], cls)][(len(form) - k, lemma[k:])] += 1
+    by_class = {"NOUN": wn.NOUN, "VERB": wn.VERB, "ADJECTIVE": wn.ADJ, "ADVERB": wn.ADV}
+
+    def name_of(word: str, cls: str) -> str:
+        w = word.lower()
+        if w in _NUMBER_WORDS and cls == "NUMERAL":
+            return str(_NUMBER_WORDS[w])
+        if re.fullmatch(r"-?\d+(\.\d+)?", w):
+            return w
+        got = lemmas.get((w, cls))
+        if cls == "VERB" and got:
+            # A verb's form as the treebank's lemmas have it first ("found": find, "saw": see), as memory names a
+            # verb by the word it is a shape of (`MemoryAgent.name_of`).
+            return got.most_common(1)[0][0]
+        if cls in by_class:
+            found = wn.morphy(w, by_class[cls])
+            if found:
+                return found.replace("_", " ")
+        if got:
+            return got.most_common(1)[0][0]
+        change = endings.get((w[-3:], cls))
+        if change:
+            cut, add = change.most_common(1)[0][0]
+            return w[:len(w) - cut] + add
+        return w
+
+    def classes(word: str) -> Dict[str, float]:
+        """The kinds of word WordNet holds this very word as (a lemma of it, as memory holds the words taught; never
+        through WordNet's own undoing of forms: "giggling" is no verb held, "giggle" is)."""
+        out: Dict[str, float] = {}
+        w = word.lower().replace(" ", "_")
+        for synset in wn.synsets(w):
+            if w not in (l.lower() for l in synset.lemma_names()):
+                continue
+            c = {"n": "NOUN", "v": "VERB", "a": "ADJECTIVE", "s": "ADJECTIVE", "r": "ADVERB"}[synset.pos()]
+            out[c] = out.get(c, 0.0) + 1.0
+        return out
+
+    def names(words: Sequence[str], cls: str) -> Optional[str]:
+        words = [w.lower() for w in words]
+        if cls == "NOUN":
+            words = words[:-1] + [wn.morphy(words[-1], wn.NOUN) or words[-1]]
+        joined = "_".join(words)
+        if wn.synsets(joined, by_class[cls]):
+            return joined.replace("_", " ")
+        return None
+
+    knowledge = GraphKnowledge(classes=classes, names=names)
+    held = ewt.parent.parent / "grammar_wordnet_links.pkl"
+    if held.exists():
+        links = pickle.loads(held.read_bytes())
+    else:
+        links = [(r.subject, r.relation, r.obj) for r in WordNetSource().records()
+                 if r.relation in ("isa", "instance_of", "defined_with")]
+        held.write_bytes(pickle.dumps(links))
+    for subject, relation, obj in links:
+        knowledge.add(subject, relation, obj)
+    from core.semantics.word_forms import HeldForms, forms_from_conllu
+    forms = HeldForms()
+    with open(ewt, encoding="utf-8") as handle:
+        for item in forms_from_conllu(handle, "ud_english_ewt"):
+            forms.hold(item)
+    return HeldWords(read_conllu(str(ewt), "ud_english_ewt"), closed, name_of, knowledge, forms)

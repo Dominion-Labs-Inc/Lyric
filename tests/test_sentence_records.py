@@ -462,6 +462,48 @@ def test_a_word_recorded_with_how_often_it_was_a_name_holds_its_names_apart():
     assert agent._held_word_classes("Boston") == {"NOUN": 3, "NAME": 3}
 
 
+def test_what_an_analysed_sentence_teaches_of_a_word_its_record_carries():
+    """What the grammar reads of a word only from sentences analysed (`HeldWords._count`) is carried by its record:
+    how it is used written with a capital inside a sentence, what its -ing form stands as, how often its noun is said
+    of a doing with no preposition, the words said after its verb as one with it or apart, and what words spelled like
+    it are used as; and what sentences taught with meanings teach of it (`means`: its clause, its places). Each is held
+    by the grammar as a sentence's counts are, and taken back whole."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    pick = WordRecord("pick", (WordForm("pick", "VERB", "VerbForm=Inf", 30), WordForm("picking", "VERB",
+                                                                                     "VerbForm=Ger", 6),
+                               WordForm("pick", "NOUN", "Number=Sing", 4), WordForm("pick", "NAME", "", 1)),
+                      (WordSense("pick.v.01", "VERB", "pick", "select carefully from a group", (), 9),
+                       WordSense("choice.n.02", "NOUN", "pick choice", "the person or thing chosen", (), 2)),
+                      used_as=(("pick", "VERB", 30), ("picking", "VERB", 6), ("pick", "NOUN", 4)),
+                      said_alone=(("pick", 1, 3),), capitalized=(("Pick", "NAME", 1),),
+                      shapes=(("picking", "doing", 5), ("picking", "thing", 1)), said_of_doing=(("pick", 0, 4),),
+                      said_after=(("up", 12, 1), ("the", 0, 9)),
+                      means=(("clause", "VERB", (), "asserted", 2), ("role", "VERB", ("subject",), "done_by", 5)))
+    assert not pick.problems(), pick.problems()
+    assert any("no such table for the class" in p for p in WordRecord(
+        "pick", pick.forms, pick.senses, means=(("adv", "VERB", (), "", 1),)).problems())
+    assert WordRecord.from_dict(json.loads(json.dumps(pick.to_dict()))) == pick
+    assert any("no verb form" in p for p in WordRecord("pick", pick.forms, pick.senses,
+                                                       shapes=(("picks", "doing", 1),)).problems())
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view.hold_word(pick)
+    words = view.words
+    assert words.capitalized("Pick").get("NAME") == 1.0
+    assert words.verb_shapes("picking") == {"doing": 5.0, "thing": 1.0}
+    assert words.bare_modifier("pick") == {"otherwise": 4.0}
+    assert words.said_together(words.name("pick", "VERB"), "up") == (12.0, 1.0)
+    assert words.like("kick", "uses").get("VERB") == 30.0, "words spelled alike, from the record"
+    learned = view.grammar.lexicon.learned
+    assert learned["clause"][(words.name("pick", "VERB"),)]["asserted"] == 2
+    assert learned["role"][(words.name("pick", "VERB"), "subject")]["done_by"] == 5
+    view.drop_word(pick)
+    assert not learned["clause"][(words.name("pick", "VERB"),)]
+    assert not words.verb_shapes("picking") and words.said_together(words.name("pick", "VERB"), "up") == (0.0, 0.0)
+    assert not words.like("kick", "uses").get("VERB")
+
+
 def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
     """A noun recorded whole with how often each form was said with nothing before it saying which, and with a word
     that does (`WordRecord.said_alone`): the grammar weighs a kind said bare by it (`Words.noun_alone`), and takes it

@@ -34,9 +34,11 @@ weighed as a name subject, met once ("Roy fastened ..."), and a noun subject was
 - *Memory held every noun as a noun or a name at the same count* (`structure._HELD_AS`, rightly for WordNet's nouns:
   "Boston"). A word recorded whole holds its names apart, as the treebanks do: `held_classes(..., apart)`,
   `MemoryAgent._classes_apart` (the forms a word or sentence record counted).
-- *Records never counted a name use*: UD writes a proper noun's base with its capital, and `_treebank_uses` counted only
-  where the base was the word as written. Now counted ("picture" a name 1 time in 29, "wall" 1 in 21, "a" 15 times in
-  about 8,900), and kept as a NAME form (`word_record_of`; `WordRecord.problems` admits it).
+- *Records left out every name use*: `_treebank_uses` counted them, but `word_record_of` kept only the classes
+  WordNet has and the closed ones. Now kept as a NAME form ("picture" a name 1 time in 29, "wall" 1 in 21, "a" 15 times
+  in about 8,900; `WordRecord.problems` admits it). (Corrected the same day: this entry first said UD's capitalised
+  proper-noun bases kept them from being counted; `_treebank_words` lowers every base, so they were counted, and the
+  condition added for it did nothing and was taken out.)
 After: "Picture", "Walls" tagged nouns; "A picture is a representation." -5.82 against "Picture is ..." -7.19; "A wall
 is a partition." -5.92 against "Walls are a partition." -8.80.
 

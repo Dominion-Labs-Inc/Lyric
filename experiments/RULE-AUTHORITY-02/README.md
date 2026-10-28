@@ -1,32 +1,38 @@
 # RULE-AUTHORITY-02: authority to act, benchmarked independently of Lyric
 
-**On the whole running system (2026-10-28, run `20261028T005435Z`, 300 worlds, no noise, seed 20261029,
-1,058 s): 8 of 8 checks.** The benchmark was rebuilt so that it measures Lyric, not a harness driving Lyric's parts.
-`boot()` starts the whole system; the worlds are an outside HTTP service (`generator.py serve`) Lyric acts on with
-its own `http_request` tool and reads by looking; it practises through `SubstrateExplorer` on what the world offers,
-pursues six goals per world as tasks on its own queue (validation, the deficit's exploration, the retry), and the
-evaluator reads the world's own log up to the moment each world's answer was taken. G1 is new: Lyric reports no goal
-reached that the world did not reach.
+**On the whole running system (2026-10-28, run `20261028T113002Z`, 2,000 worlds, no noise, seed 20261028,
+8,954 s, clean log): 8 of 8 checks.** The benchmark was rebuilt so that it measures Lyric, not a harness driving
+Lyric's parts. `boot()` starts the whole system; the worlds are an outside HTTP service (`generator.py serve`) Lyric
+acts on with its own `http_request` tool and reads by looking; it practises through `SubstrateExplorer` on what the
+world offers, pursues six goals per world as tasks on its own queue (validation, the deficit's exploration, the
+retry), and the evaluator reads the world's own log up to the moment each world's answer was taken. G1 is new: Lyric
+reports no goal reached that the world did not reach.
 
 | Check | Result |
 |---|---|
-| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 178 rules |
-| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 4 worlds |
-| C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 138 exact, 3 no rule, 0 another, of 141 |
-| C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 142 |
-| C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 142 |
-| C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 5 |
-| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 103 (101 hold no rule) |
-| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 393 reported reached, of 1,800 asked |
+| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 1,044 rules |
+| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 147 worlds |
+| C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 764 exact, 22 no rule, 0 another, of 786 (97.2%) |
+| C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 812 |
+| C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 812 |
+| C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 67 |
+| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 593 (581 hold no rule) |
+| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 2,614 reported reached, of 12,000 asked |
 
-**Fixed since `20261027T225308Z` (the same 300 worlds, byte for byte: 5 of 8).** Worlds 117 and 2 each kept a rule
-with authority after a refusal it applied to. Induction draws on a bounded basis (`_bounded_basis`), which kept the
-first eight misses, and the refusal that tells the needed condition apart came later: world 117's first refusal lacking
-only `LUGORSU(z, x)` was its ninth. `rejudge` refuted the rule on everything, and the next induction, from the same
-eight, recorded it again with authority. Now every miss what was induced applies to joins the basis and induction runs
-again until none is left out (`UnifiedLearningSystem.induce_bounded`, used for acts and for the world's regularities).
-Replayed offline over all 300 worlds, exactly three rules change, each to the hidden rule or one the world never
-refuses (worlds 2, 117, 226). Next: 2,000 worlds on a fresh seed, then the noisy arm.
+This run made 30,993 acts; the four 2,000-world runs before it on the same seed made 34,399 to 36,149 in about
+7,500 s. Another experiment shared the machine and its Postgres server from about 50 minutes in, and the difference
+is Lyric's own background exploration of practice groups (the worlds' practice loop made 14,005 acts in both runs).
+
+**Fixed on the way to it, each found by a run on the same worlds** (the runs table below has every run):
+- A miss the bounded basis left out still refutes (`induce_bounded`): worlds 117 and 2 of the 300.
+- A part of a body held twice over is reduced away (`_reduced`, `_parts`): world 336's induction held the process for
+  minutes and the 2,000-world run stalled at world 333.
+- An exploratory act among others in one world is its own where none of them acted on its things or changed what it
+  saw change (`act_window`, `touched_by`, `named_by`; the coordinator's operator act gives the things it names):
+  refusals dropped as "interfered" in worlds 464, 746 and 861 left rules one condition short with authority.
+- A held rule the evidence has decided against loses its authority (`_outexplained`): world 1168 held "VETO(y, x)"
+  as a stand-in for "LUGAHI(y) absent".
+- The profiler records a call's CPU as a share of the machine (135 metrics refused in one run's log).
 
 **Fixed for the whole-system runs.** In Lyric: a signature's judgements run one at a time and a pending mark is cleared only if
 nothing was recorded since the drain read it (`_judging`, `clear_pending(marked=)`); a variable nothing reads or
@@ -254,3 +260,4 @@ python3 -I experiments/RULE-AUTHORITY-02/evaluator.py --inputs <run>_run --answe
 | `20261028T045214Z` | 2,000 | 8/8 with `touched_by`, but Lyric's log held 135 refused profiler metrics (CPU share of one core over 14 cores; fixed) |
 | `20261028T070503Z` | 2,000 | 5/8, clean log: world 861's near miss dropped because a goal pursuit beside it was taken to have touched the group the world offered while it ran (fixed: `named_by`, what an act names is what it acted on) |
 | `20261028T091824Z` | 2,000 | 7/8, clean log: C7 by world 1168 (a condition that must be absent), whose rule held VETO(y, x) as a stand-in for LUGAHI(y) absent after two successes without VETO (fixed: `_outexplained` withholds a held rule a success lies outside where an absent-condition structure explains every demonstration; over the 2,303 rules held at the end of this run and the last, it withholds only that one) |
+| `20261028T113002Z` | 2,000 | **8/8**, clean log, seed 20261028, 8,954 s: the figures at the top |
