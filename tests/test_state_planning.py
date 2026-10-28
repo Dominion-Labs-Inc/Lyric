@@ -171,3 +171,17 @@ def test_an_operator_does_not_apply_where_what_it_needs_absent_holds():
     anywhere = {**press, "absent": ["ALARM(?X0)"]}
     assert instances(anywhere, {"READY(b1)", "ALARM(hall)"}, None, 0, frozenset()) == []
     assert instances(anywhere, {"READY(b1)"}, None, 0, frozenset()) == [anywhere]
+
+
+def test_the_planner_plans_no_act_in_a_case_its_successes_did_not_cover():
+    """PRESS worked on buttons that were ready and lit, or ready and warm: the
+    search applies it where the button is ready and lit, and not where it is
+    jammed (never in a success) or neither lit nor warm (every success had one),
+    the cases the constitution would send back at the act."""
+    from core.reasoning.temporal_reasoning import TemporalReasoningSystem
+    press = {"name": "PRESS(b1)", "preconditions": ["READY(b1)"], "effects": ["PRESSED(b1)"],
+             "deletes": [], "successes": [["LIT(0)", "READY(0)"], ["READY(0)", "WARM(0)"]]}
+    instances = TemporalReasoningSystem._instances
+    assert instances(press, {"READY(b1)", "LIT(b1)"}, None, 0, frozenset()) == [press]
+    assert instances(press, {"READY(b1)", "LIT(b1)", "JAMMED(b1)"}, None, 0, frozenset()) == []
+    assert instances(press, {"READY(b1)"}, None, 0, frozenset()) == []

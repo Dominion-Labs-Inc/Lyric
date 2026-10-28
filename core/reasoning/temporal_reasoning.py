@@ -753,6 +753,18 @@ class TemporalReasoningSystem:
         rules = await get_rule_store().executable_rules(domain_id=domain_id)
         grounding = ground_for_problem(rules, state_facts, goal_facts)
         actions = [a for a in grounding.to_actions() if a.get("name") not in set(leaving_out)]
+        # WHAT EACH ACT'S SUCCESSES COVERED, so the search plans no step the
+        # constitution would send back (Law 2, `untested_conditions`): a route
+        # through an act in a case none of its successes covered was refused at
+        # the act, planned again on other things, refused again, and in
+        # RULE-AUTHORITY-02 read the world thousands of times a minute until
+        # the machine ran out of ports.
+        covered = await self._covered_by_successes(domain_id, rules)
+        for action in actions:
+            signature = Fact.parse(action["name"])
+            sets = covered.get((signature.predicate, len(signature.args)))
+            if sets:
+                action["successes"] = sets
 
         result = self.plan_for_state_goal(
             goal_formulas,
@@ -1025,7 +1037,9 @@ class TemporalReasoningSystem:
         if not action.get('open') and not outputs:
             return [action] if (all(p in state_facts for p in action['preconditions'])
                                 and not TemporalReasoningSystem._blocked(
-                                    action.get('absent') or (), {}, state_facts, parsed)) else []
+                                    action.get('absent') or (), {}, state_facts, parsed)
+                                and not TemporalReasoningSystem._untested(
+                                    action, action['name'], state_facts, parsed)) else []
 
         patterns = [Fact.parse(p) for p in action['preconditions']]
         state = parsed if parsed is not None else TemporalReasoningSystem._parse(state_facts)
@@ -1071,6 +1085,9 @@ class TemporalReasoningSystem:
                     Fact(f.predicate, tuple(resolved.get(a, a) for a in f.args)).to_formula()
                     for f in TemporalReasoningSystem._parse(conditions)))
 
+            if TemporalReasoningSystem._untested(action, render([action['name']])[0],
+                                                 state_facts, state):
+                continue
             instances.append({
                 **action,
                 'name': render([action['name']])[0],
@@ -1083,6 +1100,41 @@ class TemporalReasoningSystem:
                 'open': False,
             })
         return instances
+
+    @staticmethod
+    async def _covered_by_successes(domain_id: str, rules) -> Dict[Tuple[str, int], List[List[str]]]:
+        """Each executable act's recorded successes, as the conditions of the
+        things it names that held in each (`_conditions`)."""
+        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.unified_learning_system import _conditions, _relevant_frame
+        covered: Dict[Tuple[str, int], List[List[str]]] = {}
+        for stored in rules:
+            act = getattr(stored.rule, "action", None)
+            if act is None or (act.predicate, len(act.args)) in covered:
+                continue
+            examples = await get_demonstration_store().load(
+                domain_id=domain_id, predicate=act.predicate, arity=len(act.args))
+            successes = [e for e in examples if e.positive and e.action is not None]
+            covered[(act.predicate, len(act.args))] = [
+                sorted(c for c in _conditions(e) if "_" not in c)
+                for e in _relevant_frame(successes)] if successes else []
+        return covered
+
+    @staticmethod
+    def _untested(action: Dict[str, Any], name: str, state_facts, parsed) -> bool:
+        """Whether this instance of the act meets a case its successes did not
+        cover, as the constitution reads it at the act (`untested_conditions`)."""
+        sets = action.get('successes')
+        if not sets:
+            return False
+        from core.learning.rule_induction import Fact
+        from core.learning.unified_learning_system import _by_place, _uncovered
+        act = Fact.parse(name)
+        named = set(act.args)
+        state = parsed if parsed is not None else TemporalReasoningSystem._parse(state_facts)
+        here = frozenset(c for c in _by_place([f for f in state if set(f.args) <= named], act)
+                         if "_" not in c)
+        return bool(_uncovered(here, [frozenset(s) for s in sets]))
 
     @staticmethod
     def _blocked(absent, resolved: Dict[str, str], state_facts, parsed) -> bool:
