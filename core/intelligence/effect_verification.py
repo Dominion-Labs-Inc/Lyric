@@ -63,9 +63,11 @@ logger = logging.getLogger(__name__)
 #
 # Domain is a sound over-approximation of "same world": two tasks in different
 # domains observe disjoint facts and cannot interfere. Within one domain it may
-# flag interference between tasks that touched disjoint objects, which only
-# declines to learn from a contradiction rather than inventing one -- the safe
-# direction, matching the module's fail-toward-INDETERMINATE stance.
+# flag interference between tasks that touched disjoint objects. For a rule
+# under judgement that declines to learn from a contradiction rather than
+# inventing one; for an exploratory act it discards a refusal that was the act's
+# own, the counterexample a rule's authority answers to, so exploration asks
+# what the others touched instead (`touched_by`).
 
 _interference_lock = threading.Lock()
 _active_by_domain: Dict[str, set] = defaultdict(set)
@@ -82,6 +84,8 @@ _act_touched: Dict[str, Dict[int, Optional[FrozenSet[str]]]] = defaultdict(dict)
 #: How many executions of a domain are remembered by what they changed; one
 #: older than that counts, again, as having touched everything.
 _ACTS_REMEMBERED = 4096
+#: domain -> the numbers of the executions under way in it now.
+_under_way: Dict[str, set] = defaultdict(set)
 
 
 class _ActInDomain:
@@ -105,6 +109,59 @@ class _ActInDomain:
         terms = frozenset(t for fact in frozenset(after) ^ frozenset(before) for t in fact.args)
         with _interference_lock:
             _act_touched[self._key][self._number] = terms
+
+    def others_since(self, window: "ActWindow") -> FrozenSet[int]:
+        """The other executions in this domain that were under way at some
+        moment from `window` (taken before this execution's world was read)
+        until now."""
+        with _interference_lock:
+            entered = range(window.count + 1, _acts_by_domain[self._key] + 1)
+        return frozenset(window.under_way.union(entered)) - {self._number}
+
+
+@dataclass(frozen=True)
+class ActWindow:
+    """A domain at a moment: how many executions had entered it, and which were
+    under way."""
+    count: int
+    under_way: FrozenSet[int]
+
+
+def act_window(domain_id: Optional[str]) -> ActWindow:
+    key = domain_id or "__no_domain__"
+    with _interference_lock:
+        return ActWindow(_acts_by_domain.get(key, 0), frozenset(_under_way.get(key, ())))
+
+
+async def touched_by(domain_id: Optional[str], executions: FrozenSet[int]) -> Optional[FrozenSet[str]]:
+    """The terms every one of `executions` was seen to change, once each has
+    said; None when one ended without saying or is too old to remember.
+
+    AN ACT AMONG OTHERS IN ONE WORLD IS STILL ITS OWN WHERE NONE OF THEM TOUCHED
+    WHAT IT DID. Any overlap used to drop an exploratory act's outcome, and a
+    refusal dropped is a counterexample lost: in RULE-AUTHORITY-02 a near miss
+    ran a few milliseconds after a goal pursuit in the same world, on other
+    things (worlds 464 and 746), it was never recorded, and the rule it would
+    have refuted kept authority to act where the world refuses. One still under
+    way is waited for: what it changes is known once it ends."""
+    import asyncio
+    key = domain_id or "__no_domain__"
+    while True:
+        touched: set = set()
+        waiting = False
+        with _interference_lock:
+            known = _act_touched.get(key, {})
+            for number in executions:
+                terms = known.get(number)
+                if terms is not None:
+                    touched |= terms
+                elif number in _under_way.get(key, ()):
+                    waiting = True
+                else:
+                    return None
+        if not waiting:
+            return frozenset(touched)
+        await asyncio.sleep(0.01)
 
 
 @contextlib.contextmanager
@@ -132,6 +189,7 @@ def concurrent_execution_guard(domain_id: Optional[str]):
             _overlapped_tokens.add(token)
             _overlapped_tokens.update(peers)
         peers.add(token)
+        _under_way[key].add(number)
 
     try:
         yield _ActInDomain(key, token, number)
@@ -141,6 +199,9 @@ def concurrent_execution_guard(domain_id: Optional[str]):
             if not _active_by_domain[key]:
                 del _active_by_domain[key]
             _overlapped_tokens.discard(token)
+            _under_way[key].discard(number)
+            if not _under_way[key]:
+                del _under_way[key]
 
 
 #: (executions entered so far, whether one is under way) in a domain, at a moment.

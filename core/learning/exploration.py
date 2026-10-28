@@ -259,7 +259,8 @@ class SubstrateExplorer:
 
         # ACTION-FUL DEMONSTRATIONS. Try candidates; record what each did.
         tools = await self._tools_()
-        from core.intelligence.effect_verification import concurrent_execution_guard
+        from core.intelligence.effect_verification import (
+            act_window, concurrent_execution_guard, touched_by)
         signatures = set()
         for action in propose_actions()[:max_actions]:
             binding = registry.get(domain_id, action.predicate)
@@ -269,14 +270,17 @@ class SubstrateExplorer:
             # before and the after speak about the same things: a place this
             # world never looked at says nothing before and something after.
             look_at(domain_id, action.args)
+            window = act_window(domain_id)
             s_before = await observe_world_async(domain_id)
             if s_before is None:
                 continue
             # Under the concurrency guard: if another execution in this domain
-            # overlapped the act, the before/after cannot be attributed to THIS
-            # action -- the positive/negative label would be wrong -- so the
-            # observation is dropped rather than recorded as a mislabeled
-            # demonstration. Nothing is serialized; the act still runs.
+            # touched what this act names or what changed around it, the
+            # before/after cannot be attributed to THIS action -- the
+            # positive/negative label would be wrong -- so the observation is
+            # dropped rather than recorded as a mislabeled demonstration. One
+            # that touched only other things leaves it this act's own
+            # (`touched_by`). Nothing is serialized; the act still runs.
             params = binding.parameters(action.args)
             # SAY WHAT THIS ACT IS FOR, so the constitution can judge it as the
             # experiment it is.
@@ -301,7 +305,7 @@ class SubstrateExplorer:
             # control aimed at an existing file is exactly the case: the act is
             # meant to fail, but it is still aimed at something nobody has read.
             await self._read_targets(tools, params)
-            s_after, interfered = None, False
+            s_after = None
             from core.reasoning.intent_authority import (
                 reset_acting_intent, set_acting_intent)
             token = set_acting_intent(intent_id)
@@ -315,9 +319,15 @@ class SubstrateExplorer:
                     raise_if_structural(e, "exploration.execute_tool")
                     logger.info("exploration action %s raised: %s", action, e)
                 s_after = await observe_world_async(domain_id)
-                interfered = _overlapped()
                 _overlapped.changed(s_before, s_after)
+                others = _overlapped.others_since(window)
             reset_acting_intent(token)
+            interfered = False
+            if others and s_after is not None:
+                theirs = await touched_by(domain_id, others)
+                mine = set(action.args).union(
+                    *(f.args for f in frozenset(s_after) ^ frozenset(s_before)))
+                interfered = theirs is None or bool(theirs & mine)
             if refused is not None:
                 # A REFUSAL IS NOT EVIDENCE ABOUT THE WORLD. The act never ran,
                 # so the world did not move — and recording an unmoved world as

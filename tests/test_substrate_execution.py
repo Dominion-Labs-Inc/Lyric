@@ -785,6 +785,39 @@ def test_what_the_substrate_touched_is_told_apart_per_thing():
     assert acts_touched(domain, told, told) == frozenset()
 
 
+def test_an_act_among_others_is_its_own_where_they_touched_other_things():
+    """A goal pursuit presses o7a while a near miss is tried on o11a in the same
+    world: the near miss's refusal is its own. The pursuit still under way is
+    waited for; one that ends without saying what it changed leaves the near
+    miss unattributable."""
+    from core.intelligence.effect_verification import (act_window, concurrent_execution_guard,
+                                                       touched_by)
+    domain = f"overlap_{uuid.uuid4().hex[:6]}"
+    lit = frozenset({Fact("READY", ("o7a",))})
+    pressed = lit | {Fact("PRESSED", ("o7a",))}
+
+    async def pursuit(says):
+        with concurrent_execution_guard(domain) as act:
+            await asyncio.sleep(0.05)
+            if says:
+                act.changed(lit, pressed)
+
+    async def near_miss(says):
+        window = act_window(domain)
+        running = asyncio.create_task(pursuit(says))
+        await asyncio.sleep(0.01)
+        with concurrent_execution_guard(domain) as act:
+            act.changed(frozenset(), frozenset())
+            others = act.others_since(window)
+        assert others
+        theirs = await touched_by(domain, others)
+        await running
+        return theirs
+
+    assert asyncio.run(near_miss(True)) == {"o7a"}
+    assert asyncio.run(near_miss(False)) is None
+
+
 def test_a_kind_of_change_names_its_places_and_leaves_the_thing_open():
     """Inbox-to-done and done-to-archive are two kinds of change; two files
     moved inbox-to-done are one."""
