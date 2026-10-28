@@ -3463,6 +3463,19 @@ def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
     return cache["meant"]
 
 
+def _base_written(word: str, cls: str, treebanks: Sequence[str], cache: Dict[str, Any]) -> Counter:
+    """How often UD's English treebanks wrote a word as its own base, as a word of this class, with each set of
+    features: "like" as a verb `VerbForm=Inf` and `Mood=Ind|Tense=Pres|VerbForm=Fin`."""
+    if "base_written" not in cache:
+        held: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+        for sentence in _treebank_words(treebanks, cache):
+            for form, base, of_class, features, _, _ in sentence:
+                if form == base:
+                    held[(form, of_class)][features] += 1
+        cache["base_written"] = held
+    return cache["base_written"].get((word, cls), Counter())
+
+
 #: The closed classes whose words UD's English treebanks write in forms of their own, each with its features: "is",
 #: "am", "were" of `be`; "an" of `a`; "me", "my" of `I`.
 _FORMED_CLOSED = frozenset({"AUXILIARY", "DETERMINER", "PRONOUN"})
@@ -4022,7 +4035,14 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     for cls in sorted(by_class):
         base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
         if not any(form == word for form, _ in inflected[cls]):
-            forms.append(WordForm(word, cls, base_features, classes.get((word, cls), 0)))
+            # THE WORD WRITTEN AS ITS BASE IS EVERY FORM THE TREEBANKS USED IT AS, each with its features: "like" the
+            # infinitive and the present ("I like"), as the analysts wrote it. Held only as the infinitive (the forms
+            # of a word count only those written otherwise), "I like disco music." and "You reek of alcohol." were
+            # read as told of the past (lyric_dev2, 2026-10-28).
+            as_base = _base_written(word, cls, treebanks, _cache)
+            for features, n in (sorted(as_base.items(), key=lambda x: (-x[1], x[0])) if as_base else
+                                ((base_features, classes.get((word, cls), 0)),)):
+                forms.append(WordForm(word, cls, features, n))
         for (form, features), n in sorted(inflected[cls].items(), key=lambda x: (-x[1], x[0])):
             forms.append(WordForm(form, cls, features, n))
     # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator; of a class

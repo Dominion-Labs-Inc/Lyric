@@ -45,7 +45,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple
 
 import contextvars
 
@@ -133,7 +133,7 @@ def to_json(rule: CandidateRule) -> Dict[str, Any]:
     def facts(collection):
         return [_fact_json(f) for f in sorted(collection)]
 
-    return {
+    encoded = {
         "schema_version": SCHEMA_VERSION,
         "body": facts(rule.body),
         "add_effects": facts(rule.effects.add),
@@ -146,6 +146,11 @@ def to_json(rule: CandidateRule) -> Dict[str, Any]:
             for o in rule.outputs
         ],
     }
+    # Written only where there is something, so a rule with nothing absent
+    # encodes as it always has.
+    if rule.absent:
+        encoded["absent"] = facts(rule.absent)
+    return encoded
 
 
 def from_json(payload: Dict[str, Any]) -> CandidateRule:
@@ -185,6 +190,7 @@ def from_json(payload: Dict[str, Any]) -> CandidateRule:
         effects=RuleEffects(add=facts("add_effects"), delete=facts("delete_effects")),
         action=action,
         outputs=outputs,
+        absent=facts("absent"),
     )
 
 
@@ -261,6 +267,9 @@ class ActingRule:
     confirmed: int
     contradicted: int
     counterexamples: int
+    #: What holds now, of the things the act names, that held in no success of
+    #: the act: the case its evidence has not covered (`untested_conditions`).
+    untested: Tuple[str, ...] = ()
 
     @property
     def support(self) -> Optional[float]:
@@ -280,10 +289,11 @@ class ActingRule:
         return {"rule_id": self.rule_id, "status": self.status,
                 "confirmed": self.confirmed, "contradicted": self.contradicted,
                 "counterexamples": self.counterexamples,
-                "support": self.support}
+                "support": self.support,
+                "untested": list(self.untested)}
 
 
-def set_acting_rule(record: Optional["StoredRule"]):
+def set_acting_rule(record: Optional["StoredRule"], untested: Iterable[str] = ()):
     """Bind the rule the current act rests on. Returns the reset token."""
     if record is None:
         return _acting_rule.set(None)
@@ -292,7 +302,8 @@ def set_acting_rule(record: Optional["StoredRule"]):
         status=record.status.value,
         confirmed=int(record.positive_root_count or 0),
         contradicted=int(record.negative_root_count or 0),
-        counterexamples=int(record.counterexample_root_count or 0)))
+        counterexamples=int(record.counterexample_root_count or 0),
+        untested=tuple(sorted(untested))))
 
 
 def get_acting_rule() -> Optional["ActingRule"]:

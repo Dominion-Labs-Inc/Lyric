@@ -156,3 +156,18 @@ def test_an_unnamed_action_is_refused(planner):
         ["AT(z,VAULT)"], {"conditions": list(OPEN_WORLD)},
         [{"preconditions": [], "effects": ["AT(z,VAULT)"]}])
     assert result.status is PlanningStatus.INVALID_GOAL
+
+
+def test_an_operator_does_not_apply_where_what_it_needs_absent_holds():
+    """PRESS(b1) works where b1 is ready and not jammed: in a state where b1 is
+    jammed the planner does not apply it, and a free variable in what must be
+    absent means any such fact."""
+    from core.reasoning.temporal_reasoning import TemporalReasoningSystem
+    press = {"name": "PRESS(b1)", "preconditions": ["READY(b1)"], "effects": ["PRESSED(b1)"],
+             "deletes": [], "absent": ["JAMMED(b1)"]}
+    instances = TemporalReasoningSystem._instances
+    assert instances(press, {"READY(b1)"}, None, 0, frozenset()) == [press]
+    assert instances(press, {"READY(b1)", "JAMMED(b1)"}, None, 0, frozenset()) == []
+    anywhere = {**press, "absent": ["ALARM(?X0)"]}
+    assert instances(anywhere, {"READY(b1)", "ALARM(hall)"}, None, 0, frozenset()) == []
+    assert instances(anywhere, {"READY(b1)"}, None, 0, frozenset()) == [anywhere]

@@ -75,6 +75,9 @@ class GroundOperator:
     #: each occurrence yields its own unknown and a value computable from the
     #: terms then in hand is computed rather than deferred.
     outputs: Tuple[Dict[str, Any], ...] = ()
+    #: What must not hold for the operator to apply (`CandidateRule.absent`),
+    #: under its bindings; a variable left in one means "any such fact".
+    absent: Tuple[str, ...] = ()
 
     def to_action(self) -> Dict[str, Any]:
         """The shape TemporalReasoningSystem searches over."""
@@ -88,6 +91,7 @@ class GroundOperator:
             "open": bool(self.open_slots),
             "open_slots": list(self.open_slots),
             "outputs": [dict(o) for o in self.outputs],
+            "absent": list(self.absent),
         }
 
 
@@ -395,6 +399,9 @@ def ground_rule(
             bindings=tuple(sorted(bindings.items())),
             open_slots=tuple(open_slots),
             outputs=produced,
+            absent=tuple(sorted(
+                f.substitute(bindings).to_formula() for f in rule.absent
+            )),
         ))
     return operators, False
 

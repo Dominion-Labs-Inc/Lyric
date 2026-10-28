@@ -1753,6 +1753,9 @@ class Reading:
 
 #: The categories a whole sentence may be read as, and what the speaker wants by each.
 WHOLE = {"S[dcl]": "tell", "S[q]": "ask", "S[wq]": "ask", "S[imp]": "tell", "S": "tell", "NP": "tell"}
+#: How many sentences saying a meaning are read back to it and said (`Grammar.say`), the best its making ranks first:
+#: a reply says the first; the rest are there to compare against.
+SAID_AT_MOST = 8
 #: Punctuation that closes a sentence, and what it says the speaker wants.
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
@@ -3007,11 +3010,21 @@ class Grammar:
                      for k in range(p[3], p[4])}
             return sum(1 for k, w in enumerate(said) if w.lower() in named.values()
                        or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
-        for filled, _, sign, said, _, _ in list(held.values()):
-            if filled != full or _whole(sign.cat) is None:
-                continue
-            if said in sentences:
-                continue
+        # READ BACK BEST FIRST, AND NO MORE THAN ARE SAID (anytime realization, White 2004; Carroll and Oepen 2005: a
+        # realizer ranks what it built and checks the best, never every one): each sentence made whole is read back in
+        # the order its own making ranks it, the speaker's words first, and reading back stops once `SAID_AT_MOST`
+        # have read back to the meaning. Every one was read back: told "Roy painted the box for Tom.", "Who did Roy
+        # paint the box for?" took 380 s, thousands of sentences read back to say the first (lyric_dev2, 2026-10-28).
+        made: Dict[Tuple[str, ...], Sign] = {}
+        for filled, _, sign, said, _, _ in held.values():
+            if filled == full and _whole(sign.cat) is not None and (said not in made or sign.score > made[said].score):
+                made[said] = sign
+
+        def own_said(said: Tuple[str, ...]) -> int:
+            return sum(1 for w in said if w.lower() in named.values() or words.lexeme(w, "VERB") in own_verbs)
+        for said in sorted(made, key=lambda said: (-own_said(said), -made[said].score)):
+            if len(sentences) >= SAID_AT_MOST:
+                break
             # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
             # (-32.3), a name it might be (lyric_dev2, 2026-10-27).
             reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))

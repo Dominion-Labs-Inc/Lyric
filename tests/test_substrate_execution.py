@@ -784,6 +784,28 @@ def test_a_condition_never_seen_unneeded_stays_in_the_rule():
     assert _unshown(ready, seen + [press(6, "READY", worked=True)]) is None
 
 
+def test_a_thing_the_act_names_twice_is_at_both_places():
+    """JOBA(o6a, o6a, o6c) names o6a as x and as y: GORGADO(o6a, o6c) is both
+    GORGADO(x, z) and GORGADO(y, z)."""
+    from core.learning.unified_learning_system import _conditions
+    e = TrainingExample(before=(Fact("GORGADO", ("o6a", "o6c")), Fact("SOLZAVOR", ("o6a",))),
+                        action=Fact("JOBA", ("o6a", "o6a", "o6c")), after=(), positive=False,
+                        evidence_id="j")
+    assert _conditions(e) == {"GORGADO(0,2)", "GORGADO(1,2)", "SOLZAVOR(0)", "SOLZAVOR(1)"}
+
+
+def test_a_case_no_success_covered_is_named():
+    """Every press worked ready, lit or warm, never jammed: a jammed press is
+    untested, and so is one neither lit nor warm, since every success had one
+    of the two. A ready, lit press is a case the successes covered."""
+    from core.learning.unified_learning_system import _uncovered
+    successes = [frozenset({"READY(0)", "LIT(0)"}), frozenset({"READY(0)", "WARM(0)"}),
+                 frozenset({"READY(0)", "LIT(0)", "WARM(0)"})]
+    assert _uncovered(frozenset({"READY(0)", "LIT(0)"}), successes) == []
+    assert any("JAMMED(0)" in why for why in _uncovered(frozenset({"READY(0)", "LIT(0)", "JAMMED(0)"}), successes))
+    assert any("neither LIT(0) nor WARM(0)" in why for why in _uncovered(frozenset({"READY(0)"}), successes))
+
+
 def test_a_stand_in_the_evidence_has_decided_against_loses_authority():
     """A press works where the button is ready and not jammed. Lit happened to
     hold in the first successes and in none of the jammed refusals, so "ready

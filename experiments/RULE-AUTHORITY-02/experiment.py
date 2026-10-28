@@ -192,8 +192,18 @@ async def run_world(public, run_tag, port, coordinator, db, store):
     answered_at = time.time()
     executable = [r for r in await store.executable_rules(domain_id=dom)
                   if r.rule.action is not None and r.rule.action.predicate == public["act"]]
+    # AND WHERE ITS CONSTITUTION LETS IT ACT ON THE RULE: each success of the act, as the conditions of the things it
+    # names that held in it. Law 2 sends an act back to planning where something holds that held in no success, or
+    # where two conditions of which every success held one both do not (`untested_conditions`). The evaluator reads
+    # the rule alone for C1 to C7, and the rule with these for what Lyric would actually do (C8).
+    from core.learning.demonstration_store import get_demonstration_store
+    from core.learning.unified_learning_system import success_conditions
+    shown = await get_demonstration_store().load(domain_id=dom, predicate=public["act"], arity=len(public["args"]))
     rules = [{"body": sorted(str(f) for f in r.rule.body), "add": sorted(str(f) for f in r.rule.effects.add),
-              "delete": sorted(str(f) for f in r.rule.effects.delete)} for r in executable]
+              "delete": sorted(str(f) for f in r.rule.effects.delete),
+              "absent": sorted(str(f) for f in r.rule.absent),
+              "successes": [sorted(str(f) for f in held) for held in success_conditions(r.rule, shown)]}
+             for r in executable]
     all_rules = await store.load(domain_id=dom)
     refuted_late = sum(1 for r in all_rules
                        if r.status.value == "refuted" and "after it was validated" in (r.detail or ""))

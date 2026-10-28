@@ -397,3 +397,28 @@ def test_a_part_held_twice_over_is_reduced_away():
     distinct = {act, F("JOFIL(?X2,?X3)"), F("VEVORMIR(?X2,?X4)"),
                 F("JOFIL(?X5,?X6)"), F("KEMIR(?X5,?X7)")}
     assert _reduced(distinct, effects, act) == distinct
+
+
+def test_a_rule_can_need_a_condition_absent(inducer):
+    """A press works where the button is ready, unless it is jammed: every
+    success was ready and unjammed, the jammed ready buttons were refused, and
+    no conjunction of what held fits. The rule needs JAMMED absent, applies to
+    neither jammed refusal, and still applies to a ready, unjammed button."""
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(F(f"{p}({thing})") for p in held))
+        after = before + ((F(f"PRESSED({thing})"),) if worked else ())
+        return TrainingExample(before=before, action=F(f"PRESS({thing})"), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    examples = ([press(0, "READY", worked=True), press(1, "READY", "LIT", worked=True),
+                 press(2, "READY", worked=True)]
+                + [press(3, "READY", "JAMMED", worked=False), press(4, "READY", "LIT", "JAMMED", worked=False),
+                   press(5, "LIT", worked=False)])
+    result = inducer.induce(examples)
+    assert result.status is InductionStatus.RULE_LEARNED
+    rule = result.rule
+    assert {f.predicate for f in rule.absent} == {"JAMMED"}
+    assert {f.predicate for f in rule.preconditions} == {"READY"}
+    assert not applies(rule, press(6, "READY", "JAMMED", worked=False))
+    assert applies(rule, press(7, "READY", worked=True))
+    assert "¬JAMMED" in str(rule)

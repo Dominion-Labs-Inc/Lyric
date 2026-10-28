@@ -1023,7 +1023,9 @@ class TemporalReasoningSystem:
 
         outputs = action.get('outputs') or ()
         if not action.get('open') and not outputs:
-            return [action] if all(p in state_facts for p in action['preconditions']) else []
+            return [action] if (all(p in state_facts for p in action['preconditions'])
+                                and not TemporalReasoningSystem._blocked(
+                                    action.get('absent') or (), {}, state_facts, parsed)) else []
 
         patterns = [Fact.parse(p) for p in action['preconditions']]
         state = parsed if parsed is not None else TemporalReasoningSystem._parse(state_facts)
@@ -1036,6 +1038,9 @@ class TemporalReasoningSystem:
             # output's inputs name the rule's own variables, and grounding
             # substituted them into the literals but not into the output spec.
             resolved = {**(action.get('bindings') or {}), **bindings}
+            if TemporalReasoningSystem._blocked(action.get('absent') or (), resolved,
+                                                state_facts, state):
+                continue
             produced, deferred = [], []
             undefined = False
 
@@ -1078,6 +1083,28 @@ class TemporalReasoningSystem:
                 'open': False,
             })
         return instances
+
+    @staticmethod
+    def _blocked(absent, resolved: Dict[str, str], state_facts, parsed) -> bool:
+        """Whether something the operator needs absent holds here: a ground
+        literal by membership, one with a variable left in it by any match."""
+        if not absent:
+            return False
+        from core.learning.rule_induction import Fact
+        from core.reasoning.unification import match_literal
+        state = None
+        for text in absent:
+            fact = Fact.parse(text)
+            literal = Fact(fact.predicate, tuple(resolved.get(a, a) for a in fact.args))
+            if not literal.variables:
+                if literal.to_formula() in state_facts:
+                    return True
+                continue
+            if state is None:
+                state = parsed if parsed is not None else TemporalReasoningSystem._parse(state_facts)
+            if match_literal(literal, state):
+                return True
+        return False
 
     @staticmethod
     def _trace(start: FrozenSet[str], actions: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -1328,7 +1355,9 @@ class TemporalReasoningSystem:
     def _action_applicable(self, action: Dict[str, Any], state: Dict[str, Any]) -> bool:
         """Check if action can be applied in current state"""
         preconditions = action.get('preconditions', [])
-        return all(pre in state.get('conditions', []) for pre in preconditions)
+        held = state.get('conditions', [])
+        return (all(pre in held for pre in preconditions)
+                and not self._blocked(action.get('absent') or (), {}, set(held), None))
     
     def _apply_action(self, action: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
         """Apply action effects to state. Deletes resolve before adds, exactly as

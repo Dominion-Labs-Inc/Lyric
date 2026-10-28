@@ -448,17 +448,93 @@ def _conditions(example: "TrainingExample") -> FrozenSet[str]:
     `TOMATAV(1)` for TOMATAV(y) when y is the act's second argument, and
     `FEDRA(1,_)` for FEDRA(y, something it does not name). The terms the causal
     structure is learned over (`induce_causal_structure`), so a condition is the
-    same condition in every demonstration of the act."""
-    place = {a: str(i) for i, a in enumerate(example.action.args)} if example.action else {}
-    return frozenset(f"{f.predicate}({','.join(place.get(a, '_') for a in f.args)})"
-                     for f in example.before)
+    same condition in every demonstration of the act.
+
+    A THING THE ACT NAMES TWICE IS AT BOTH PLACES. JOBA(o6a, o6a, o6c) names o6a
+    as x and as y, so GORGADO(o6a, o6c) is GORGADO(x, z) and GORGADO(y, z). Read
+    at one place only, a success held a condition it seemed to lack: in
+    RULE-AUTHORITY-02 a goal pursued on one thing in two places made a needed
+    condition look unneeded, and a condition that must be absent look like
+    one of the other thing's."""
+    return _by_place(example.before, example.action)
+
+
+def _by_place(facts, action) -> FrozenSet[str]:
+    places: Dict[str, List[str]] = {}
+    for i, a in enumerate(action.args if action is not None else ()):
+        places.setdefault(a, []).append(str(i))
+    return frozenset(f"{f.predicate}({','.join(combo)})"
+                     for f in facts
+                     for combo in itertools.product(*(places.get(a, ["_"]) for a in f.args)))
 
 
 def _rule_conditions(rule: "CandidateRule") -> FrozenSet[str]:
     """A rule's body as `_conditions` reads a demonstration."""
-    place = {a: str(i) for i, a in enumerate(rule.action.args)} if rule.action else {}
-    return frozenset(f"{f.predicate}({','.join(place.get(a, '_') for a in f.args)})"
-                     for f in rule.body)
+    return _by_place(rule.body, rule.action)
+
+
+async def untested_conditions(domain_id: str, action: "Fact", state) -> FrozenSet[str]:
+    """What makes the case an act is about to meet one none of its recorded
+    successes covered, said in words: a condition of the things it names that
+    holds now and held in no success, or two conditions of which every success
+    held one and neither holds now.
+
+    A RULE IS AS GOOD AS WHAT IT HAS SEEN. Where something the act's successes
+    never held holds now, the rule cannot say whether that matters: "the door
+    opens with the key" was never tried on a bolted door. And where every
+    success had one of two things, the act has never been seen to work with
+    neither: a world that works on either of two groups of conditions gave
+    each group's successes one of them, and the rule they shared acted where
+    both are missing. The constitution reads this at the gate (Law 2) and sends
+    such an act back to planning, where an experiment can try it."""
+    from core.learning.demonstration_store import get_demonstration_store
+    from core.learning.rule_induction import TrainingExample
+    examples = await get_demonstration_store().load(
+        domain_id=domain_id, predicate=action.predicate, arity=len(action.args))
+    successes = [e for e in examples if e.positive and e.action is not None]
+    if not successes:
+        return frozenset()
+    state = tuple(state)
+    now = TrainingExample(before=state, action=action, after=state, positive=False,
+                          evidence_id="now")
+    framed = _relevant_frame(successes + [now])
+    named = lambda e: frozenset(c for c in _conditions(e) if "_" not in c)
+    return frozenset(_uncovered(named(framed[-1]), [named(e) for e in framed[:-1]]))
+
+
+def _uncovered(present: FrozenSet[str], successes: List[FrozenSet[str]]) -> List[str]:
+    """Why `present` is a case `successes` did not cover (`untested_conditions`)."""
+    if not successes:
+        return []
+    held = frozenset().union(*successes)
+    always = frozenset.intersection(*successes)
+    why = [f"{c}, which held in no success" for c in sorted(present - held)]
+    sometimes = sorted(held - always)
+    for first, second in itertools.combinations(sometimes, 2):
+        if all(first in s or second in s for s in successes) and first not in present \
+                and second not in present:
+            why.append(f"neither {first} nor {second}, one of which every success held")
+    return why
+
+
+def success_conditions(rule: "CandidateRule", examples) -> List[List["Fact"]]:
+    """Each success of the rule's act, as the conditions of the things the act
+    names that held in it, written over the rule's own variables: the cases
+    its evidence covers, as `untested_conditions` reads them at the act."""
+    from core.learning.rule_induction import Fact
+    if rule.action is None:
+        return []
+    out = []
+    for e in _relevant_frame(list(examples)):
+        if not (e.positive and e.action is not None and e.action.predicate == rule.action.predicate):
+            continue
+        literals = []
+        for condition in sorted(c for c in _conditions(e) if "_" not in c):
+            name, inner = condition.split("(", 1)
+            places = [p for p in inner[:-1].split(",") if p != ""]
+            literals.append(Fact(name, tuple(rule.action.args[int(p)] for p in places)))
+        out.append(literals)
+    return out
 
 
 def _unshown(rule: "CandidateRule", examples) -> Optional[str]:
@@ -5947,7 +6023,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         success, and what held in a miss and in no success, the only conditions
         that could be forbidden."""
         from core.learning.probabilistic_version_space import StructuralHypothesis
-        if rule.action is None:
+        if rule.action is None or rule.absent:
+            # A rule that says what must be absent has answered this question.
             return None
         trials = [(_conditions(e), e.positive) for e in basis
                   if e.action is not None and e.action.predicate == rule.action.predicate]

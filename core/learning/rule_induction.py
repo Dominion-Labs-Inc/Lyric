@@ -348,9 +348,14 @@ class CandidateRule:
     effects: RuleEffects
     action: Optional[Fact] = None
     outputs: Tuple[OutputBinding, ...] = ()
+    #: What must NOT hold for the rule to apply: each literal under the body's
+    #: binding, or, where it names a variable the body does not bind, any fact
+    #: of that shape. "The door opens with the key, unless it is bolted."
+    absent: FrozenSet[Fact] = frozenset()
 
     def __post_init__(self):
         object.__setattr__(self, "outputs", tuple(self.outputs))
+        object.__setattr__(self, "absent", frozenset(self.absent))
         if self.action is not None and self.action not in self.body:
             raise ValueError(
                 f"action {self.action} is not among the rule's preconditions; "
@@ -428,7 +433,8 @@ class CandidateRule:
         typing or richer terms does not mean re-parsing learned cognition out
         of a string it was trapped in.
         """
-        antecedent = " ∧ ".join(f.to_formula() for f in sorted(self.body))
+        antecedent = " ∧ ".join([f.to_formula() for f in sorted(self.body)]
+                                + [f"¬{f.to_formula()}" for f in sorted(self.absent)])
         consequent = " ∧ ".join(f.to_formula() for f in sorted(self.effects.add))
         retracted = " ∧ ".join(f.to_formula() for f in sorted(self.effects.delete))
         rendered = f"{antecedent} → {consequent}" if consequent else antecedent
@@ -590,10 +596,20 @@ def judged_by(rule: CandidateRule, example: TrainingExample) -> Optional[bool]:
     return not contradicted_by(rule, example)
 
 
+def unblocked(rule: CandidateRule, bindings: Dict[str, str], state: Iterable[Fact]) -> bool:
+    """No literal the rule needs absent holds in `state` under `bindings`."""
+    if not rule.absent:
+        return True
+    state = list(state)
+    return not any(match_literal(literal, state, bindings) for literal in rule.absent)
+
+
 def applies(rule: CandidateRule, example: TrainingExample) -> List[RuleEffects]:
     """The effect instances this rule asserts for the example's antecedent."""
     instances = []
     for bindings in match_body(rule.body, example.antecedent):
+        if not unblocked(rule, bindings, example.before):
+            continue
         resolved = resolve_outputs(rule, bindings)
         if resolved is None:
             continue
@@ -652,7 +668,7 @@ class _Generalizer:
 
 def _canonical(
     body: Iterable[Fact], effects: RuleEffects, action: Optional[Fact] = None,
-    outputs: Sequence[OutputBinding] = (),
+    outputs: Sequence[OutputBinding] = (), absent: Iterable[Fact] = (),
 ) -> CandidateRule:
     """Rename variables by first appearance so equal rules compare equal.
 
@@ -688,9 +704,12 @@ def _canonical(
     # so both halves must already have been renamed.
     renamed_outputs = tuple(
         o.substitute({k: v for k, v in order.items()}) for o in outputs)
+    # What must be absent, under the same table once the body has named what it
+    # binds: a variable only an absent literal names is its own "anything".
+    renamed_absent = frozenset(rename(f) for f in sorted(absent))
     return CandidateRule(
         body=renamed_body, effects=renamed_effects, action=renamed_action,
-        outputs=renamed_outputs,
+        outputs=renamed_outputs, absent=renamed_absent,
     )
 
 
@@ -1042,6 +1061,8 @@ class RuleInducer:
 
         surviving = self._minimal_hypotheses(lgg, positives, negatives)
         if not surviving:
+            surviving = self._with_absent(lgg, positives, negatives)
+        if not surviving:
             return InductionResult(
                 status=InductionStatus.NO_RULE,
                 detail=(
@@ -1345,6 +1366,70 @@ class RuleInducer:
                 survivors.append(candidate)
 
         return survivors
+
+    MAX_ABSENT_LITERALS = 3
+
+    def _with_absent(
+        self,
+        lgg: CandidateRule,
+        positives: Sequence[TrainingExample],
+        negatives: Sequence[TrainingExample],
+    ) -> List[CandidateRule]:
+        """Every success's shared conditions, with the fewest conditions ABSENT
+        that exclude every counter-demonstration they do not.
+
+        WHERE NO CONJUNCTION FITS, A RULE NEEDING SOMETHING ABSENT MAY. "The act
+        works where P holds and L does not" covers every success and excludes a
+        near miss that held P and L: no body of conditions says it, and induction
+        found no rule. In RULE-AUTHORITY-02's 2,000 worlds, 388 of them hid such
+        a rule and the evidence settled it, and Lyric held none.
+
+        The body is the generalization itself, everything every success held:
+        nothing in it has been seen to be unneeded (`_unshown`). An absent
+        literal names only things the act names, and held in no success; a
+        relation to something the act does not name is what a distractor is.
+        One smallest set is the rule; several are the evidence not deciding,
+        every one returned so the caller withholds authority."""
+        if lgg.action is None:
+            return []
+        covered = [(e, b) for e in negatives
+                   for b in match_body(lgg.body, e.antecedent)]
+        if not covered:
+            return []
+        named = set(lgg.action.args)
+
+        def lifted(fact: Fact, binding: Dict[str, str]) -> Set[Fact]:
+            # A thing bound to two of the act's variables is at both places.
+            inverse: Dict[str, List[str]] = {}
+            for variable, term in sorted(binding.items()):
+                if variable in named:
+                    inverse.setdefault(term, []).append(variable)
+            if not all(term in inverse for term in fact.args):
+                return set()
+            return {Fact(fact.predicate, combo)
+                    for combo in itertools.product(*(inverse[term] for term in fact.args))}
+
+        in_success = set()
+        for e in positives:
+            for b in match_body(lgg.body, e.antecedent):
+                for fact in e.before:
+                    in_success |= lifted(fact, b)
+        blocking = []
+        for e, b in covered:
+            held = set().union(*(lifted(fact, b) for fact in e.before)) - in_success - set(lgg.body)
+            if not held:
+                return []
+            blocking.append(held)
+        candidates = sorted(set().union(*blocking))
+        for size in range(1, self.MAX_ABSENT_LITERALS + 1):
+            fits = [absent for absent in itertools.combinations(candidates, size)
+                    if all(set(absent) & held for held in blocking)]
+            if fits:
+                rules = [_canonical(lgg.body, lgg.effects, lgg.action, lgg.outputs, absent=absent)
+                         for absent in fits]
+                return [r for r in rules if self._explains(r, positives)
+                        and not self._refuted(r, negatives)]
+        return []
 
     @staticmethod
     def _explains(rule: CandidateRule, positives: Sequence[TrainingExample]) -> bool:

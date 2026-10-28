@@ -65,6 +65,10 @@ def _variables(rule: CandidateRule) -> Tuple[str, ...]:
         for arg in (output.variable, *output.inputs):
             if is_variable(arg) and arg not in seen:
                 seen.append(arg)
+    for fact in sorted(rule.absent, key=str):
+        for arg in fact.args:
+            if is_variable(arg) and arg not in seen:
+                seen.append(arg)
     return tuple(seen)
 
 
@@ -98,6 +102,10 @@ def _render(rule: CandidateRule, mapping: Dict[str, str]) -> Dict[str, Any]:
     if rule.outputs:
         rendered["outputs"] = sorted(
             str(output.substitute(mapping)) for output in rule.outputs)
+    # WHAT MUST BE ABSENT IS PART OF WHAT THE RULE MEANS, and omitted the same
+    # way when there is none, so every rule stored before keeps its fingerprint.
+    if rule.absent:
+        rendered["absent"] = facts(rule.absent)
     return rendered
 
 
