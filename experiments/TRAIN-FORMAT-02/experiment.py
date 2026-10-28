@@ -242,7 +242,9 @@ async def store_checks() -> int:
     # ── saying what the words mean, by the grammar they are read by ──
     from core.semantics.derived_reader import Meaning, MeaningFact
     for better, worse in (("A wall is a partition.", "A wall am a partition."),
-                          ("Walls are partitions.", "Walls is partitions."),
+                          # Of taught words only: "partitions" is none, and was read a quality in one and a thing
+                          # in the other (2026-10-28).
+                          ("Pictures are representations.", "Pictures is representations."),
                           ("A picture is a representation.", "An picture is a representation.")):
         sure = {text: view.read(text) for text in (better, worse)}
         scores = {text: r.sign.score if r.sign is not None else None for text, r in sure.items()}

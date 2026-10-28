@@ -16,6 +16,48 @@ Conventions:
 
 ---
 
+## 2026-10-28 (65) — Step 5: joins never met as likely as every head alike (Witten-Bell to the uniform); how often a noun is said bare, in its record; a kind asked of answered (staged)
+
+**Objective** (the owner: the research decides what reaches the goal, not him): the fixes (64) left open, each by the
+method the literature gives, measured, kept where the measures say.
+
+**Built:**
+- *The structure view's base* (`structure._Pairs.chance`): Witten-Bell interpolated from the least specific situation
+  up now starts from the uniform distribution over the words that could head a word (the others and the root), as
+  Witten-Bell is defined to (Chen and Goodman 1998), not from nothing floored at log 1e-12.
+- *How often a noun form is said with nothing saying which, and with a word that does* (`WordRecord.said_alone`, from
+  `_treebank_uses`, counted as `HeldWords._count` counts `alone`; `GrammarView._count_word` -> `noun_alone`): "wall"
+  bare 1 of 17, "picture" 5 of 22, "walls" 2 of 11. Records rebuilt (only this layer changed), lyric_dev2 taught: 7
+  corrected, 6 held already, beliefs 2 -> 2, no error in its log (its window also holds the other session's
+  RULE-AUTHORITY-02 run, whose warnings it is).
+- *A kind asked what it is a kind of* ("What is a wall?" read `isa(wall, ?v0) ? ?v0` since "be" was taught):
+  answered as a thing asked to be what a kind is, by the nearest kind (`_meanings_held`, the coordinator). **Staged, not
+  applied** (`backups/kind_asked_answer_2026-10-28/`, `apply.sh` checks the original's hash and that no substrate
+  runs): the coordinator is protected and another session's RULE-AUTHORITY-02 run uses it.
+- Tests: `test_how_often_a_noun_is_said_bare_is_held_from_its_record`; 60 pass.
+
+**Measured:**
+- Main's reading **unchanged** by the base: GRAMMAR-01 strict 199, senses aside 386 (42.4%), unnamed 488, facts F1
+  82.1%, before (`20261028T025813Z`) and after (`20261028T030610Z`); prose joins 1,326 of 1,949 (68.0%) both.
+- lyric_dev2: "Is a wall a substance?", "Is a picture a wall?", "Is a wall a structure?" read `isa(wall, substance)`
+  and the like (were `wall angstrom`). **TRAIN-FORMAT-02** (`results/20261028T032344Z`, `032355Z`): store **72 of 75**,
+  front door **18 of 21 right, none wrong** (15 of 21 before). **TRAIN-FORMAT-01** 5 of 5.
+- My check "'Walls are partitions.' read more surely than 'Walls is partitions.'" failed: "partitions" is no taught
+  word, read a quality in one and a thing in the other; corrected to taught words ("Pictures are representations."
+  -2.91 against -4.48). "Walls is pictures." reads "Walls" a name (`equals(walls, ...)`), which agreement does not
+  weigh, and is surer than "Walls are pictures." (-3.88, -4.30): reading may take it so; saying never does (read back,
+  it is not the meaning).
+
+**Not right yet:**
+1. Said first of a wall: "Wall is a partition.". The structure view on lyric_dev2 is learned from one sentence ("Roy
+   fastened the medal with a pin."), so a capitalised bare "Wall" stands as "Roy" did and its join is met, while "a
+   wall" as a subject was never met (-4.8). A view of how words join needs sentences: lyric_dev2 learns it when taught
+   sentences recorded whole (the set of 50 to 100 waiting), as main learned it from 12,544.
+2. "What is a wall?", "What is paint?", "What is a picture?" unanswered until the staged answer is applied.
+3. "We made it!" (WordNet and SemCor disagree). Six facts take 26 s.
+
+---
+
 ## 2026-10-28 (64) — Kay binding: each word said bound to the meaning's terms; a doing of five facts said; TRAIN-FORMAT-02 finishes again
 
 **Objective** (the owner's yes, "we can call it kay binding"): the rest of Kay 1996 for `Grammar.say`: each word put in

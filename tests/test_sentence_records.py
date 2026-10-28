@@ -409,3 +409,25 @@ def test_a_closed_words_forms_their_sounds_and_the_subjects_each_took_are_held_b
     # The sound after tells "a" from "an"; it tells nothing of two forms said before the same sounds as often.
     assert _told_apart([Counter({"W": 400, "P": 300}), Counter({"AW": 60, "AE": 50})]) > 0.9
     assert _told_apart([Counter({"W": 400, "P": 300}), Counter({"W": 40, "P": 30})]) == 0.0
+
+
+def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
+    """A noun recorded whole with how often each form was said with nothing before it saying which, and with a word
+    that does (`WordRecord.said_alone`): the grammar weighs a kind said bare by it (`Words.noun_alone`), and takes it
+    back whole; a count for no noun form of the word is said wrong."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    wall = WordRecord("wall", (WordForm("wall", "NOUN", "Number=Sing", 19), WordForm("walls", "NOUN", "Number=Plur", 11)),
+                      (WordSense("wall.n.01", "NOUN", "wall", "an architectural partition", (("partition.n.01",
+                                                                                              "partition"),), 5),),
+                      said_alone=(("wall", 2, 17), ("walls", 6, 5)))
+    assert not wall.problems(), wall.problems()
+    assert WordRecord.from_dict(json.loads(json.dumps(wall.to_dict()))) == wall
+    assert any("no noun form" in p for p in WordRecord("wall", wall.forms, wall.senses,
+                                                       said_alone=(("walled", 1, 1),)).problems())
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view.hold_word(wall)
+    assert view.words.noun_alone("wall") == {"bare": 2.0, "determined": 17.0}
+    view.drop_word(wall)
+    assert not view.words.noun_alone("wall")

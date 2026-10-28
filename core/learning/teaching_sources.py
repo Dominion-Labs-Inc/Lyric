@@ -3073,6 +3073,10 @@ class WordRecord:
     #: (`Words.doing_after`, `asking`): "is" before "painting" a `be:ng`, never a `be:np`.
     used_before_doing: Tuple[Tuple[str, str, int], ...] = ()
     used_asking: Tuple[Tuple[str, str, int], ...] = ()
+    #: Of each noun form, how often it was said with nothing before it saying which ("walls are"), and how often with
+    #: a word that does ("the wall", "my wall"): (form, bare, determined), as reading weighs a kind said bare
+    #: (`Words.noun_alone`). Untaught, "Wall is a partition." cost no more than "A wall is a partition." (2026-10-28).
+    said_alone: Tuple[Tuple[str, int, int], ...] = ()
 
     def key(self) -> str:
         import hashlib
@@ -3100,7 +3104,8 @@ class WordRecord:
                 "together": list(self.together)} | ({
                     "used_before_doing": [list(u) for u in self.used_before_doing],
                     "used_asking": [list(u) for u in self.used_asking]}
-                    if self.used_before_doing or self.used_asking else {})
+                    if self.used_before_doing or self.used_asking else {}) | (
+                    {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {})
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
@@ -3113,7 +3118,8 @@ class WordRecord:
                    tuple((str(j[0]), tuple(str(x) for x in j[1]), int(j[2])) for j in data.get("joins_things") or ()),
                    tuple(int(n) for n in data.get("together") or ()),
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_before_doing") or ()),
-                   tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()))
+                   tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()),
+                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_alone") or ()))
 
     def problems(self) -> List[str]:
         """What is wrong with the record, each said: an empty list where it is whole."""
@@ -3143,6 +3149,11 @@ class WordRecord:
         for form, use, n in self.used_before_doing + self.used_asking:
             if not 0 < n <= used.get((form, use), 0):
                 out.append(f"used as {use!r} written {form!r} {n} times so, more than it was used so at all")
+        nouns = {f.form for f in self.forms if f.word_class == "NOUN"}
+        for form, bare, determined in self.said_alone:
+            if form not in nouns or min(bare, determined) < 0 or bare + determined <= 0:
+                out.append(f"said alone {bare} and with a word saying which {determined} times written {form!r}, "
+                           f"no noun form of the word or never")
         for link, n in self.joins:
             if not link or n <= 0:
                 out.append(f"joins as {link!r} {n} times")
@@ -3276,12 +3287,15 @@ _PLACE_LINKS = {
 
 
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
-                   ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter]]:
+                   ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
+                              Dict[str, Counter]]:
     """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
     which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
     analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word); and of those, how
     often a doing's -ing form came next, and how often the sentence asked (form -> use -> n each), as the grammar
-    weighs a use beside what follows it and in a question (`Words.doing_after`, `asking`). A WORD IS COUNTED WHERE
+    weighs a use beside what follows it and in a question (`Words.doing_after`, `asking`); and of each noun form, how
+    often it was said with nothing before it saying which and how often with a word that does (`Words.noun_alone`:
+    "bare", "determined"). A WORD IS COUNTED WHERE
     THE ANALYSTS GAVE IT AS THIS WORD (its base form): "and" analysed once as a form of `a` brought every "and" into the
     record of "a", 295 of them before a doing, and the possessive "'s" every one into the record of "be"."""
     from core.semantics.grammar import closed_uses
@@ -3312,6 +3326,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     uses: Dict[str, Counter] = {form: Counter() for form in written}
     doing: Dict[str, Counter] = {form: Counter() for form in written}
     asking: Dict[str, Counter] = {form: Counter() for form in written}
+    alone: Dict[str, Counter] = {form: Counter() for form in written}
     for analysed, bases in zip(held, of_word):
         words, cls, heads, relations = analysed.words, analysed.classes, analysed.heads, analysed.relations
         under: Dict[int, List[int]] = defaultdict(list)
@@ -3324,9 +3339,12 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                 continue
             use = counted.use_of(words, cls, heads, relations, under, asks, i)
             uses[w.lower()][use] += 1
+            if cls[i] == "NOUN" and not relations[i].startswith("compound"):
+                alone[w.lower()]["determined" if any(relations[k] in ("det", "det:poss", "nmod:poss")
+                                                     for k in under[i]) else "bare"] += 1
             doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
             asking[w.lower()][use] += asks
-    return classes, uses, doing, asking
+    return classes, uses, doing, asking, alone
 
 
 #: The closed classes whose words UD's English treebanks write in forms of their own, each with its features: "is",
@@ -3845,7 +3863,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     closed_written = _closed_forms(word, treebanks, _cache) if not rest else Counter()
     written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of} | \
         {form for form, _, _ in closed_written}
-    classes, uses_of, doing_of, asking_of = _treebank_uses(word, written, treebanks, _cache)
+    classes, uses_of, doing_of, asking_of, alone_of = _treebank_uses(word, written, treebanks, _cache)
     forms: List[WordForm] = []
     for cls in sorted(by_class):
         base_features = {"VERB": "VerbForm=Inf", "NOUN": "Number=Sing", "ADJECTIVE": "Degree=Pos"}.get(cls, "")
@@ -3902,6 +3920,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                     if n > 0 and ours(form, use))
     used_before_doing = tuple((form, use, doing_of[form][use]) for form, use, _ in used_as if doing_of[form][use] > 0)
     used_asking = tuple((form, use, asking_of[form][use]) for form, use, _ in used_as if asking_of[form][use] > 0)
+    said_alone = tuple((form, alone_of[form]["bare"], alone_of[form]["determined"]) for form in sorted(written)
+                       if (form, "NOUN") in as_class and sum(alone_of[form].values()) > 0)
     joins: Dict[str, int] = {}
     if "PREPOSITION" in kept or "SUBORDINATOR" in kept:
         for function, n in _propbank_joins(_cache).get(word, {}).items():
@@ -3926,7 +3946,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
-                      together, used_before_doing, used_asking)
+                      together, used_before_doing, used_asking, said_alone)
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").

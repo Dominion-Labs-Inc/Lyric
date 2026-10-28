@@ -1,0 +1,119 @@
+{
+  "experiment": "TRAIN-FORMAT-02",
+  "claim": "a word recorded whole, every form, every sense and how its verb is used, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, sentences never taught that use it are read right, and what they said is answered through the front door",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-10-28T03:23:55.597958+00:00",
+  "duration_seconds": 42.207,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "7799854d98ee4eabd0cfb033528ed8b5871a1624",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev2",
+        "model": "lyric_dev2",
+        "user_context": "lyric_dev2",
+        "learning": "lyric_dev2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 12,
+    "database_verified": "lyric_dev2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 6,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 1.0,
+      "unit": "fraction",
+      "note": "7/7; 95% interval 64.6% to 100.0%"
+    },
+    {
+      "name": "questions answered right",
+      "value": 0.8571,
+      "unit": "fraction",
+      "note": "18/21; 95% interval 65.4% to 95.0%"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.0,
+      "unit": "fraction",
+      "note": "0/21; 95% interval 0.0% to 15.5%"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_dev2",
+      "at": "2026-10-28T03:23:55.634115+00:00"
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": true,
+      "detail": "7/7 = 100.0% (95% interval 64.6% to 100.0%)",
+      "at": "2026-10-28T03:24:36.799514+00:00"
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": true,
+      "detail": "18/21 = 85.7% (95% interval 65.4% to 95.0%)",
+      "at": "2026-10-28T03:24:36.799532+00:00"
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": true,
+      "detail": "0/21 = 0.0% (95% interval 0.0% to 15.5%)",
+      "at": "2026-10-28T03:24:36.799543+00:00"
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-10-28T03:24:36.799552+00:00"
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": true,
+      "detail": "no table written to",
+      "at": "2026-10-28T03:24:37.805060+00:00"
+    }
+  ],
+  "notes": [
+    "reading by English's grammar on: an utterance no taught frame reads is read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)",
+    "an utterance every frame reads only by supposing more than any lesson read as taught is read by the grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)",
+    "taught word: sentences 7/7, questions right 18/21, wrong 0"
+  ]
+}

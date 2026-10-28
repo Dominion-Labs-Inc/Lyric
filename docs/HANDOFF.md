@@ -24,8 +24,11 @@ took, closed words' forms with features, "a"/"an" by the sound after (`_told_apa
    "be" moved how "is" reads; the answerer only answers the identity form; it is in the protected coordinator, the
    owner's call), and "Is a wall a structure?" and the like read "a" as a noun (`wall angstrom`, step 5's floor).
    Six facts take 26 s. **Main speaks through `Grammar.say` at its next start.**
-2. *Step 5, the structure view's floor for unmet joins* (owner held back; changes main): makes "A wall is a partition."
-   lose to "Wall is ...", and "Is a wall a substance?" read `wall angstrom`.
+2. *Step 5 landed* (lab notebook (65)): Witten-Bell to the uniform; main unchanged (GRAMMAR-01 199/386/488, prose joins
+   68.0%, before and after); the `wall angstrom` readings gone; TRAIN-FORMAT-02 72/75, front door 18/21. The answer to
+   a kind asked of ("What is a wall?") is STAGED in `backups/kind_asked_answer_2026-10-28/` (protected coordinator):
+   run its `apply.sh` once no substrate runs, then TRAIN-FORMAT-02. "Wall is a partition." said first on lyric_dev2
+   until it is taught sentences (its structure view holds one).
 3. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
    number not read ("birds" as `bird`); "another" untaught.
 Steps before this, (58) to (61):

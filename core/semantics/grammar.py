@@ -4173,6 +4173,15 @@ class GrammarView:
                 uses[form][use] += times * n
                 if uses[form][use] <= 0:
                     del uses[form][use]
+        # HOW OFTEN EACH NOUN FORM IS SAID WITH NOTHING BEFORE IT SAYING WHICH, AND WITH A WORD THAT DOES, as an analysed
+        # sentence counts it (`noun_alone`): a kind said bare costs as seldom as it is so said.
+        alone = getattr(words, "alone", None)
+        if alone is not None:
+            for form, bare, determined in getattr(word, "said_alone", ()):
+                for how, n in (("bare", bare), ("determined", determined)):
+                    alone[form][how] += times * n
+                    if alone[form][how] <= 0:
+                        del alone[form][how]
         # AND HOW OFTEN EACH USE HAD A DOING'S -ING FORM NEXT, AND WAS IN A SENTENCE THAT ASKS, as an analysed sentence
         # counts them (`doing_after`, `asking`). Taught only how often "is" is each use, "Roy is painting the medal."
         # was Roy being a painting, `be:np` used 1,671 times to `be:ng`'s 306 (lyric_dev2, 2026-10-27).
