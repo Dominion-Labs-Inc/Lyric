@@ -1024,3 +1024,66 @@ def test_a_workspace_task_has_the_substrate_take_it_up():
         id="t_nofs", provenance={"domain_id": "nofs_x", "goal_conditions": ["P(a)"]}))
     assert spec_none is None
     assert "nofs_x" not in explorable_domains()
+
+
+def test_a_goal_waiting_on_what_its_deficit_learns_hears_however_the_learning_ends():
+    """The retry of a goal Lyric did not know how to reach waits for the learning its deficit started: learning that
+    fails still ends the wait."""
+    from types import SimpleNamespace
+    coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+    coord._learning_toward = {}
+
+    async def fails(event):
+        raise RuntimeError("the world could not be read")
+    coord._close_deficit = fails
+
+    async def run():
+        waiting = asyncio.get_running_loop().create_future()
+        coord._learning_toward["g0"] = waiting
+        with pytest.raises(RuntimeError):
+            await coord._react_close_deficit(SimpleNamespace(payload=SimpleNamespace(task_id="g0")))
+        return waiting.done()
+
+    assert asyncio.run(run())
+    assert coord._learning_toward == {}
+
+
+@pytest.mark.parametrize("closes_at, explored", [(None, 3), (2, 2)])
+def test_learning_toward_a_deficit_goes_on_while_the_domain_shows_something_new(monkeypatch, closes_at, explored):
+    """One exploration round left a goal unreached that the next would have taught Lyric to reach (RULE-AUTHORITY-02,
+    world 10): the closure explores again while a round shows a situation not seen before, and ends when the gap
+    closes or a round shows nothing new."""
+    from types import SimpleNamespace
+    import core.integration.universal_domain_master as udm
+    coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+    coord.stats = {}
+    coord._register_deficit_unknown = lambda deficit: None
+    coord.disposition = lambda: SimpleNamespace(should_escalate=False)
+    rounds = []
+
+    async def address_deficit(deficit):
+        rounds.append(deficit.target_predicate)
+        return {"ran": True, "summary": {"acted": 8}}
+    monkeypatch.setattr(udm, "get_universal_domain_master",
+                        lambda: SimpleNamespace(address_deficit=address_deficit))
+
+    async def drain(limit):
+        return None
+    coord.learning = SimpleNamespace(drain_pending_induction=drain)
+
+    async def closed(domain, predicate):
+        return len(rounds) == closes_at
+    coord._deficit_is_closed = closed
+    shows = iter([frozenset(), frozenset({"a"}), frozenset({"a", "b"}), frozenset({"a", "b"})])
+
+    async def shown(domain):
+        return next(shows)
+    coord._situations_shown = shown
+
+    async def emit(event):
+        return None
+    coord.emit = emit
+    event = SimpleNamespace(payload=SimpleNamespace(task_id="g0", deficit={
+        "domain_id": "w10", "deficit_type": "operator_gap", "target_predicate": "GAPI"}))
+    asyncio.run(coord._close_deficit(event))
+    assert len(rounds) == explored

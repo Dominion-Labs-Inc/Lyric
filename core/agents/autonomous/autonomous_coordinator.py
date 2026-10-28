@@ -7261,6 +7261,9 @@ class AutonomousCoordinator:
         #: Fingerprints of work that permanently failed, never re-queued. Read
         #: from the store in `initialize`.
         self._permanently_failed_fps: Set[str] = set()
+        #: The learning a failed task's deficit started (`_react_close_deficit`),
+        #: by task id, which its retry waits for.
+        self._learning_toward: Dict[str, asyncio.Future] = {}
         # Intrinsic exploration queue control
         # Applies only to intrinsic exploration tasks (metadata: intrinsic_kind="exploration").
         # Set to 0 to disable intrinsic exploration entirely.
@@ -12079,6 +12082,37 @@ class AutonomousCoordinator:
                 logger.warning("routing job %s outcome to learning failed: %s", job_id, e)
 
     async def _react_close_deficit(self, event: SelfEvent) -> None:
+        """`_close_deficit`, and then the task that diagnosed it hears that the
+        learning it waits for has ended, however it ended."""
+        try:
+            await self._close_deficit(event)
+        finally:
+            waiting = self._learning_toward.pop(getattr(event.payload, "task_id", None), None)
+            if waiting is not None and not waiting.done():
+                waiting.set_result(None)
+
+    @staticmethod
+    async def _operators_known(domain_id: Optional[str]) -> FrozenSet[str]:
+        """The rules Lyric may act on in a domain: what a retry's attempt changes with."""
+        if not domain_id:
+            return frozenset()
+        from core.learning.rule_store import get_rule_store
+        return frozenset(r.rule_id for r in await get_rule_store().executable_rules(domain_id=domain_id))
+
+    @staticmethod
+    async def _situations_shown(domain_id: str) -> FrozenSet:
+        """Every situation a domain's acts were seen in, with what each did (`_conditions`)."""
+        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.unified_learning_system import _conditions
+        store = get_demonstration_store()
+        shown = set()
+        for predicate, arity in await store.signatures(domain_id=domain_id):
+            for example in await store.load(domain_id=domain_id, predicate=predicate, arity=arity):
+                if example.action is not None:
+                    shown.add((predicate, arity, _conditions(example), example.positive))
+        return frozenset(shown)
+
+    async def _close_deficit(self, event: SelfEvent) -> None:
         """Close a diagnosed epistemic deficit — reactively, model-free, and only
         when it is honestly closeable.
 
@@ -12143,41 +12177,51 @@ class AutonomousCoordinator:
                 else deficit.remedy_reason)
             return
 
-        # (3) Run the learning operation THROUGH the learning authority.
+        # (3) Run the learning operation THROUGH the learning authority, and again
+        # while what it explores shows Lyric a situation it had not seen: one round
+        # left a goal unreached that the next would have taught it to reach
+        # (RULE-AUTHORITY-02, world 10). It ends where the domain shows nothing
+        # new, whether nothing more is offered or what is offered repeats.
         self.stats["deficit_close_attempts"] = self.stats.get("deficit_close_attempts", 0) + 1
-        try:
-            outcome = await get_universal_domain_master().address_deficit(deficit)
-        except Exception as e:
-            raise_if_structural(e, "autonomous_coordinator._react_close_deficit")
-            logger.warning("[DEFICIT] address_deficit for %s in %s raised: %s",
-                           predicate, domain, e)
-            return
-        if not outcome.get("ran"):
-            logger.info("[DEFICIT] %s in %s did not run (%s) — known-unknown left open",
-                        predicate, domain, outcome.get("reason", "no reason given"))
-            return
+        seen = await self._situations_shown(domain) if domain else frozenset()
+        while True:
+            try:
+                outcome = await get_universal_domain_master().address_deficit(deficit)
+            except Exception as e:
+                raise_if_structural(e, "autonomous_coordinator._react_close_deficit")
+                logger.warning("[DEFICIT] address_deficit for %s in %s raised: %s",
+                               predicate, domain, e)
+                return
+            if not outcome.get("ran"):
+                logger.info("[DEFICIT] %s in %s did not run (%s) — known-unknown left open",
+                            predicate, domain, outcome.get("reason", "no reason given"))
+                return
 
-        # A transfer lands a CANDIDATE (RELATION_GAP → CAUSAL_GAP): a hypothesis to
-        # validate, not a finished capability. Honest partial progress — never a
-        # resolved belief.
-        if op is LearningOperation.TRANSFER_RELATION:
-            self.stats["deficits_advanced"] = self.stats.get("deficits_advanced", 0) + 1
-            logger.info("[DEFICIT] transferred a candidate relation for %s in %s; "
-                        "gap advanced to a hypothesis to validate — known-unknown left open",
-                        predicate, domain)
-            return
+            # A transfer lands a CANDIDATE (RELATION_GAP → CAUSAL_GAP): a hypothesis to
+            # validate, not a finished capability. Honest partial progress — never a
+            # resolved belief.
+            if op is LearningOperation.TRANSFER_RELATION:
+                self.stats["deficits_advanced"] = self.stats.get("deficits_advanced", 0) + 1
+                logger.info("[DEFICIT] transferred a candidate relation for %s in %s; "
+                            "gap advanced to a hypothesis to validate — known-unknown left open",
+                            predicate, domain)
+                return
 
-        # Explore only RECORDS and enqueues signatures; draining the always-online
-        # induction is what can turn them into an executable operator. The learning
-        # authority is the single owner of that step.
-        await self.learning.drain_pending_induction(limit=50)
+            # Explore only RECORDS and enqueues signatures; draining the always-online
+            # induction is what can turn them into an executable operator. The learning
+            # authority is the single owner of that step.
+            await self.learning.drain_pending_induction(limit=50)
 
-        # (4) Verify against the world: closed IFF an executable operator now
-        # produces the target predicate.
-        if not await self._deficit_is_closed(domain, predicate):
-            logger.info("[DEFICIT] explored %s in %s but no executable producer yet "
-                        "— known-unknown left open (honest 'not yet')", predicate, domain)
-            return
+            # (4) Verify against the world: closed IFF an executable operator now
+            # produces the target predicate.
+            if await self._deficit_is_closed(domain, predicate):
+                break
+            shown = await self._situations_shown(domain) if domain else frozenset()
+            if not (outcome.get("summary") or {}).get("acted") or shown <= seen:
+                logger.info("[DEFICIT] explored %s in %s but no executable producer yet "
+                            "— known-unknown left open (honest 'not yet')", predicate, domain)
+                return
+            seen = shown
 
         # Genuine closure in the world: announce the competence change.
         self.stats["deficits_closed"] = self.stats.get("deficits_closed", 0) + 1
@@ -15425,10 +15469,19 @@ class AutonomousCoordinator:
                 # Emitted once per task (the flag) so bounded retries don't
                 # re-explore the same gap every attempt.
                 _deficit = result.get("deficit") if isinstance(result, dict) else None
+                _learning = None
+                _known = frozenset()
                 if _deficit and not (task.metadata or {}).get("deficit_closure_emitted"):
                     if task.metadata is None:
                         task.metadata = {}
                     task.metadata["deficit_closure_emitted"] = True
+                    # WHAT LYRIC MAY ACT ON NOW, and the learning this deficit
+                    # starts, which the retry below waits for. Not on the drain
+                    # worker, which runs that learning itself.
+                    _known = await self._operators_known(_deficit.get("domain_id"))
+                    if asyncio.current_task() is not self._reactive_worker:
+                        _learning = asyncio.get_running_loop().create_future()
+                        self._learning_toward[task.id] = _learning
                     await self.emit(SelfEvent(
                         SelfEventType.DEFICIT_DIAGNOSED,
                         payload=DeficitDiagnosed(
@@ -15538,8 +15591,21 @@ class AutonomousCoordinator:
                     # the remaining budget even with nothing new to vary. And a
                     # method the substrate DID change is not a repeat, so it
                     # proceeds on its own merit.
+                    #
+                    # A GOAL LYRIC DID NOT YET KNOW HOW TO REACH waits for the
+                    # learning its deficit started, and what Lyric came to know
+                    # there is what changed about the attempt. Decided at once,
+                    # it was tried again before anything could be learned, or
+                    # never again: in RULE-AUTHORITY-02, 321 goals the world
+                    # allows were stopped seconds before Lyric learned the rule
+                    # that reached them.
+                    _learned = False
+                    if _learning is not None:
+                        await _learning
+                        _learned = await self._operators_known(_deficit.get("domain_id")) != _known
                     _repeat_is_thrash = (_directive.should_replan
                                          and not _changed_method
+                                         and not _learned
                                          and not _directive.should_persist)
                     if _repeat_is_thrash:
                         logger.warning(

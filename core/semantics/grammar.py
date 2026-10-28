@@ -430,8 +430,8 @@ class Words:
 
     def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
         """Of a finite form of a verb ("is", "paints"), how often its subjects were of each class with each of the
-        features subjects share with verbs: `("NOUN", "Number=Sing")`, `("PRONOUN", "Number=Sing|Person=1")`; of no
-        word, every finite form's together. Nothing where memory holds none."""
+        features subjects share with verbs or are marked subjects by: `("NOUN", "Number=Sing")`, `("PRONOUN",
+        "Case=Nom|Number=Sing|Person=1")`; of no word, every finite form's together. Nothing where memory holds none."""
         return {}
 
     def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
@@ -2150,8 +2150,9 @@ class Grammar:
     def _agreement(self, subject: Sign, doing: Sign) -> float:
         """HOW WELL A SUBJECT AGREES WITH ITS VERB, as a logarithm, never more than nothing: of the subjects the
         doing's finite verb took (`Words.subjects`, as the treebanks' subjects took that form), the share of this
-        subject's class with its features (`_agreed`). Nothing where memory holds no subject of the verb, or the
-        subject is no one word of a class: a noun, a name, a pronoun (`_said_by`).
+        subject's class with its features (`_agreed`); of a verb memory holds no subject of, as every finite verb's
+        subjects are (a form no subject was written as, "me", is none). Nothing where memory holds no subject of any
+        verb, or the subject is no one word of a class: a noun, a name, a pronoun (`_said_by`).
 
         Nothing compared a subject with its verb: "a wall am" was read as "a wall is", and the first sentence the
         grammar said of a wall being a partition was "Wall'm the the a partition." (lyric_dev2, 2026-10-27)."""
@@ -2160,9 +2161,9 @@ class Grammar:
         finite = [p[-1] for p in doing.pieces if p[0] == "finite" and p[1] == hook]
         if not finite or not 0 <= min(finite) < len(tokens):
             return 0.0
-        took = words.subjects(str(tokens[min(finite)]))
-        found = self._said_by(subject.pieces, subject.cat.ref) if took else None
-        return self._agreed(took, words.subjects(), *found) if found else 0.0
+        every = words.subjects()
+        found = self._said_by(subject.pieces, subject.cat.ref) if every else None
+        return self._agreed(words.subjects(str(tokens[min(finite)])), every, *found) if found else 0.0
 
     def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
         """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
@@ -2176,27 +2177,45 @@ class Grammar:
             return None
         return found[0]
 
-    def _features(self, cls: str, k: int) -> Set[str]:
+    def _features(self, cls: str, k: int) -> Counter:
         """What form the word at `k` is as a word of the class, as the forms memory holds say, by the features
-        subjects share with verbs (number and person): "walls" `Number=Plur`; none where memory holds none."""
+        subjects share with verbs and mark a subject by (number, person, case): "walls" `Number=Plur`, "me"
+        `Case=Acc|Number=Sing|Person=1`; each with how often the word is that form. None where memory holds none."""
         shared = {f.split("=")[0] for _, features in self.lexicon.words.subjects() for f in features.split("|") if f}
-        return {"|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
-                for features in self.lexicon.words.form_features(str(self._tokens[k]), cls)}
+        out: Counter = Counter()
+        for features, n in self.lexicon.words.form_features(str(self._tokens[k]), cls).items():
+            out["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+        return out
 
     def _agreed(self, took: Mapping[Tuple[str, str], float], every: Mapping[Tuple[str, str], float],
                 cls: str, k: int) -> float:
         """HOW WELL A WORD AGREES WITH WHAT IT IS SAID WITH, as a logarithm, never more than nothing: of the words
         that other took (`took`: a finite verb's subjects, a determiner's nouns), the share of this word's class with
-        its features (`_features`; any features where memory holds none), against that share of what every such word
-        took (`every`), with one more spread as that share is."""
-        forms = self._features(cls, k)
+        each of its forms' features (`_features`), against that share of what every such word took (`every`), with
+        one more spread as that share is; the forms weighed by how often the word is each, a form no such word ever
+        was counting nothing (any features of the class where memory holds no form of the word). Nothing where no
+        such word was of the class with any of the word's forms.
 
-        def matched(held: Mapping[Tuple[str, str], float]) -> float:
-            return sum(n for (c, features), n in held.items() if c == cls and (not forms or features in forms))
-        share = matched(every) / sum(every.values()) if every else 0.0
-        if share <= 0:
+        Its forms weighed alike, "me", written `Case=Nom` 6 times in 942 ("Me and him went"), agreed with "love" as
+        "I" does, and "Me love the moon." was said of the speaker loving the moon (lyric_dev2, 2026-10-28)."""
+        forms = self._features(cls, k)
+        total, seen = sum(every.values()), sum(took.values())
+        if not total:
             return 0.0
-        return min(0.0, math.log((matched(took) + share) / (sum(took.values()) + 1.0) / share))
+
+        def matched(held: Mapping[Tuple[str, str], float], features: Optional[str]) -> float:
+            return sum(n for (c, f), n in held.items() if c == cls and (features is None or f == features))
+        weights: Dict[Optional[str], float] = {f: (n if sum(forms.values()) > 0 else 1.0) for f, n in forms.items()} \
+            if forms else {None: 1.0}
+        agrees = had = 0.0
+        for features, w in weights.items():
+            share = matched(every, features) / total
+            if share > 0:
+                had += w
+                agrees += w * (matched(took, features) + share) / (seen + 1.0) / share
+        if had <= 0:
+            return 0.0
+        return min(0.0, math.log(agrees / sum(weights.values())))
 
     def _met(self, left: Sign, right: Sign, s: Dict[int, Term], rule: str) -> float:
         """AGREEMENT WEIGHED WHERE ITS TWO WORDS FIRST STAND TOGETHER, by whichever rule joins them, as a subject with

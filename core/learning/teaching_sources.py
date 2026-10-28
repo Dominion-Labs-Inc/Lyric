@@ -3047,6 +3047,12 @@ _CLOSED_CLASSES = frozenset({"PREPOSITION", "SUBORDINATOR", "CONJUNCTION", "DETE
                              "PARTICLE", "NUMERAL", "INTERJECTION"})
 
 
+def _pro_form(features: str) -> bool:
+    """A form of an open class standing for a thing said or asked elsewhere, as the analysts mark one (`PronType`):
+    "how" `PronType=Int`, "here" `PronType=Dem`. WordNet gives no sense of such a word; the grammar its meaning."""
+    return any(f.startswith("PronType=") for f in features.split("|"))
+
+
 @dataclass(frozen=True)
 class WordRecord:
     """ONE WORD AS LYRIC IS TAUGHT IT: every way it is written (`forms`), every meaning it has (`senses`: what each
@@ -3167,13 +3173,13 @@ class WordRecord:
             out.append(f"the word {self.word!r} is not written in lowercase, alone")
         if not self.forms:
             out.append("no form")
-        if not self.senses and any(f.word_class in _OPEN_CLASSES for f in self.forms):
+        if not self.senses and any(f.word_class in _OPEN_CLASSES and not _pro_form(f.features) for f in self.forms):
             out.append("no sense")
         classes = {s.word_class for s in self.senses}
         for f in self.forms:
             if f.word_class not in _OPEN_CLASSES | _CLOSED_CLASSES | {"NAME"}:
                 out.append(f"form {f.form!r} of class {f.word_class!r}")
-            elif f.word_class in _OPEN_CLASSES and f.word_class not in classes:
+            elif f.word_class in _OPEN_CLASSES and f.word_class not in classes and not _pro_form(f.features):
                 out.append(f"form {f.form!r} as a {f.word_class.lower()}, which no sense of the word is")
             if any(not s.strip() for s in f.sounds) or any(not s or n <= 0 for s, n in f.before):
                 out.append(f"form {f.form!r}: a way of saying it, or a sound said after it, that is none")
@@ -3531,17 +3537,28 @@ def _subjects_taking(word: str, treebanks: Sequence[str], cache: Dict[str, Any])
     copula ("A wall is a partition.": "wall" depends on "partition", "is" its copula). The features a subject shares
     with verbs are those the treebanks write on most finite verbs taking a subject and on subjects too, by name (number
     and person: "I" `Number=Sing|Person=1`, "walls" `Number=Plur`, "you" `Person=2`); a feature written on both now
-    and then is no agreement ("r" for "are" and "u" for "you" both `Abbr=Yes`)."""
+    and then is no agreement ("r" for "are" and "u" for "you" both `Abbr=Yes`). And the features that mark a subject
+    as one: of the words written with a feature both as a finite verb's subject and as an object (`obj`, `iobj`), most
+    written most often with one value of it as the subject and another as the object (case: "I" `Case=Nom`, "me"
+    `Case=Acc`, both of `I`). Kept to number and person, "me" took a finite verb as "I" does, and "Me loves the moon."
+    was said of the speaker loving the moon (lyric_dev2, 2026-10-28)."""
     if "subjects" not in cache or "shared" not in cache:
         pairs: List[Tuple[str, str, str, str, str, str]] = []
         on_verbs: Counter = Counter()
         on_subjects: Set[str] = set()
+        as_subject: Dict[Tuple[str, str], Counter] = {}
+        as_object: Dict[Tuple[str, str], Counter] = {}
         for sentence in _treebank_words(treebanks, cache):
             under: Dict[int, List[int]] = {}
             for k, (_, _, _, _, head, relation) in enumerate(sentence):
                 if head:
                     under.setdefault(head - 1, []).append(k)
-            for k, (_, _, cls, features, head, relation) in enumerate(sentence):
+            for k, (_, base, _, features, head, relation) in enumerate(sentence):
+                if relation in ("obj", "iobj") and head and "Typo=Yes" not in features.split("|"):
+                    for f in features.split("|"):
+                        if "=" in f:
+                            as_object.setdefault((base, f.split("=")[0]), Counter())[f.split("=")[1]] += 1
+            for k, (_, base, cls, features, head, relation) in enumerate(sentence):
                 if relation not in ("nsubj", "nsubj:pass") or not head:
                     continue
                 h = head - 1
@@ -3556,7 +3573,19 @@ def _subjects_taking(word: str, treebanks: Sequence[str], cache: Dict[str, Any])
                 pairs.append((verb[1], verb[0], verb[2], verb[3], cls, features))
                 on_verbs.update({f.split("=")[0] for f in verb[3].split("|") if f})
                 on_subjects |= {f.split("=")[0] for f in features.split("|") if f}
-        shared = {name for name, n in on_verbs.items() if 2 * n > len(pairs)} & on_subjects
+                if "Typo=Yes" not in features.split("|"):
+                    for f in features.split("|"):
+                        if "=" in f:
+                            as_subject.setdefault((base, f.split("=")[0]), Counter())[f.split("=")[1]] += 1
+        both: Counter = Counter()
+        apart: Counter = Counter()
+        for (base, name), values in as_subject.items():
+            if (base, name) in as_object:
+                both[name] += 1
+                apart[name] += (max(values.items(), key=lambda x: (x[1], x[0]))[0] !=
+                                max(as_object[(base, name)].items(), key=lambda x: (x[1], x[0]))[0])
+        marking = {name for name, n in apart.items() if 2 * n > both[name]}
+        shared = ({name for name, n in on_verbs.items() if 2 * n > len(pairs)} & on_subjects) | marking
         held: Dict[str, Dict[Tuple[str, str, str], Counter]] = {}
         for base, form, cls, features, of_class, of_features in pairs:
             kept = "|".join(f for f in of_features.split("|") if f and f.split("=")[0] in shared)
@@ -4052,6 +4081,14 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
         if cls in _CLOSED_CLASSES and form == word and cls not in _FORMED_CLOSED:
             forms.append(WordForm(form, cls, "", n))
+    # AND AN OPEN CLASS'S PRO-FORMS WORDNET HAS NONE OF, whose meaning the grammar gives (`_pro_form`): "how", "when",
+    # "where", "why" as adverbs, each with the features the analysts wrote on the word as its base ("how"
+    # `PronType=Int` 426 times, `PronType=Rel` 131). Left out with every class WordNet has no sense of, those words had
+    # no record at all, and no question asking how, when, where or why was taught a word of it (lyric_dev2, 2026-10-28).
+    for cls in sorted({c for (form, c) in classes if form == word and c in _OPEN_CLASSES} - by_class):
+        for features, n in sorted(_base_written(word, cls, treebanks, _cache).items(), key=lambda x: (-x[1], x[0])):
+            if _pro_form(features) and "Typo=Yes" not in features.split("|"):
+                forms.append(WordForm(word, cls, features, n))
     # AND HOW OFTEN EACH FORM WAS A NAME, as the treebanks used it ("Wall" of Wall Street, "Picture" a title): what
     # memory holds of the word's classes then holds its names apart from its nouns (`MemoryAgent._held_word_classes`),
     # as the treebanks do. Counted, and left out of the record with every class WordNet has none of, a noun was held a

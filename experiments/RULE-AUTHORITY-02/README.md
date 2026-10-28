@@ -1,25 +1,27 @@
 # RULE-AUTHORITY-02: authority to act, benchmarked independently of Lyric
 
 **On the whole running system (2026-10-28, run `20261028T171857Z`, 2,000 worlds, no noise, seed 20261028, 8,138 s,
-clean log; the 498 worlds it left reaching fewer goals the world allows rerun after a planner fix as `20261028T195002Z`,
-1,809 s, clean log; scored together as `20261028T171857Z_merged`): 9 of 9 checks.** C8 is new: in every world, Lyric
-would take no act the world refuses, judged on the rule together with what its constitution sends back.
+clean log; 691 of its worlds rerun after two fixes that had left goals the world allows unreached, as
+`20261028T195002Z` (498 worlds, 1,809 s) and `20261028T210227Z` (582, 4,085 s), both with clean logs; scored together
+as `20261028T171857Z_retry`): 9 of 9 checks.** C8 is new: in every world, Lyric would take no act the world refuses,
+judged on the rule together with what its constitution sends back.
 
 | Check | Result |
 |---|---|
-| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 1,279 rules |
-| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 126 worlds |
-| C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 718 exact, 49 no rule, 0 another, of 767 (93.6%) |
-| C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 790 |
-| C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 790 |
-| C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 56 |
-| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 567 (241 hold no rule) |
-| C8 every world: Lyric would take no act the world refuses (the rule, with what its constitution sends back to planning) | **pass**, 0 of 2,000 (69 where the rule alone would) |
-| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 2,148 reported reached, of 12,000 asked |
+| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 1,482 rules |
+| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 110 worlds |
+| C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 879 exact, 23 no rule, 0 another, of 902 (97.5%) |
+| C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 915 |
+| C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 915 |
+| C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 42 |
+| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 590 (249 hold no rule) |
+| C8 every world: Lyric would take no act the world refuses (the rule, with what its constitution sends back to planning) | **pass**, 0 of 2,000 (70 where the rule alone would) |
+| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 3,004 reported reached, of 12,000 asked |
 
 **Why C8.** Run `20261028T113002Z` met all eight checks and still left 132 worlds where the rule Lyric held acts
 somewhere the world refuses: 117 whose evidence fits a rule other than the hidden one and 15 it left undecided between
-rules beyond a conjunction, which no check asked about. Four changes in Lyric answer it:
+rules beyond a conjunction, which no check asked about. Three changes in Lyric answer it, and two more undid what the
+first three cost in goals reached:
 
 1. **A rule can need a condition absent** (`CandidateRule.absent`, `RuleInducer._with_absent`). Where no conjunction
    survives the misses, the inducer keeps what every success held and adds the fewest named conditions that held in
@@ -40,17 +42,24 @@ rules beyond a conjunction, which no check asked about. Four changes in Lyric an
    `20261028T113002Z` were rerun with the fix (`20261028T195002Z`, the other worlds not acted on) and merged into the
    run's answers and world log (`20261028T171857Z_merged_run`, by `merge_rerun.py` from the worlds in
    `results/20261028T195002Z_worlds.txt`; every world scored by the same evaluator).
+5. **A goal Lyric could not yet reach waits for what it learns toward it** (`autonomous_coordinator`: `_learning_toward`,
+   `_close_deficit`). A goal failed for want of a rule was retried at once or stopped at once, before the learning its
+   deficit started could finish, and never tried again when the rule came: 321 allowed goals in the merged run (world
+   10's rule waited under `_unshown`). Its retry now waits for that learning and goes ahead when the rules Lyric may
+   act on changed; the learning explores again while each round shows a situation not seen before, and ends where the
+   domain shows nothing new. The 582 worlds of `20261028T171857Z_merged` still reaching fewer allowed goals than
+   `20261028T113002Z` were rerun with it (`20261028T210227Z`) and merged into `20261028T171857Z_retry`.
 
-**What it costs.** Lyric now holds back where its successes did not cover the case: of the 17,444 situations the
-worlds allow where a rule it held applies, it would act in 13,024. It reached 2,028 of the 6,000 goals the world
-allows (2,484 in `20261028T113002Z`): 1,149 in settled conjunction worlds (1,694), none in conjunction worlds whose
-evidence points elsewhere (212, through rules that also act where the world refuses), 446 in settled worlds needing a
-condition absent (85). Of the 727 allowed goals the 498 rerun worlds missed and `20261028T113002Z` reached, 303 were in
-a case no success had covered when tried, 321 were tried before Lyric held a rule in the world and not tried again
-once it did (most while the rule waited under `_unshown`), 99 are in worlds holding no rule at the answer, and 4 are
-not explained. In settled conjunction worlds 49 end with no rule (22): 26 with several rules still fitting, 23 waiting
-to see the act work without a condition every success held. Lyric made 2,154 acts in pursuit of goals and the world
-refused none.
+**What it gains and costs.** Lyric reached 2,849 of the 6,000 goals the world allows, against 2,484 in
+`20261028T113002Z`, whose 3,028 acts in pursuit of goals included 406 the world refused; its 3,009 here include none.
+It holds back where its successes did not cover the case: of the 19,864 situations the worlds allow where a rule it
+held applies, it would act in 14,900. Of the allowed goals `20261028T113002Z` reached, 487 are not reached here (856
+reached here were not there): 364 are in a case no success covered (the law), 67 in worlds working on either of two
+groups where Lyric holds no rule, 3 where the rule it holds does not apply, and 53 in cases the successes it ended with
+cover. In the one of those traced (world 34), the goal's deficit was not learned toward because Lyric's disposition
+escalated it, attributing the failure outside itself; 80 deficits for an act Lyric did not yet know went that way in
+`20261028T210227Z`. Its disposition is one for the whole self, moved by every world's failures, half of them goals the
+world refuses by design.
 
 **Before C8 (run `20261028T113002Z`, 2,000 worlds, no noise, seed 20261028, 8,954 s, clean log; kept as it was): 8 of
 8 checks.** The benchmark was rebuilt so that it measures Lyric, not a harness driving
@@ -323,4 +332,6 @@ python3 ../merge_rerun.py <run> <rerun> <file of world numbers, comma separated>
 | (no folder) | 2,000 | stopped about 20 minutes in: Law 2 sent routes back faster than the planner, unaware of it, could stop proposing them; 818 replans in half an hour exhausted the machine's ports (fixed: the planner plans no act its successes did not cover) |
 | `20261028T171857Z` | 2,000 | 9/9 with C8, clean log, 8,138 s; 1,709 goals the world allows reached, the planner grounding an unconstrained argument on a thing no success covered (fixed: `_OneTerm`) |
 | `20261028T195002Z` | 498 | the worlds of `20261028T171857Z` that reached fewer allowed goals than `20261028T113002Z`, rerun with `_OneTerm`; 1,809 s, clean log. Its own record scores all 2,000, the other 1,502 unanswered |
-| `20261028T171857Z_merged` | 2,000 | **9/9**: `20261028T171857Z` with the 498 rerun worlds' answers and world log, the figures at the top |
+| `20261028T171857Z_merged` | 2,000 | 9/9: `20261028T171857Z` with the 498 rerun worlds' answers and world log; 2,028 allowed goals reached, 321 of those missed tried before Lyric held a rule and never again (fixed: the retry waits for the learning) |
+| `20261028T210227Z` | 582 | the worlds of `20261028T171857Z_merged` still reaching fewer allowed goals than `20261028T113002Z`, rerun with the retry waiting for the learning; 4,085 s, clean log. Its own record scores all 2,000, the other 1,418 unanswered |
+| `20261028T171857Z_retry` | 2,000 | **9/9**: `20261028T171857Z_merged` with the 582 rerun worlds' answers and world log, the figures at the top |

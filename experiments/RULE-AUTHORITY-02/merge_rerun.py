@@ -1,8 +1,13 @@
 """A run with chosen worlds rerun: the first run's answers and world log, each rerun world's taken from the rerun, scored
-by the same evaluator. Writes <BASE>_merged_run/ and <BASE>_merged.json beside the first run."""
+by the same evaluator. Writes <NAME>_run/ and <NAME>.json beside the first run (NAME: <BASE>_merged unless given), and
+NOTES, when given, as what the rerun was."""
 import json, os, shutil, subprocess, sys
 BASE, RERUN, ONLY = sys.argv[1], sys.argv[2], {int(w) for w in open(sys.argv[3]).read().split(",")}
-OUT = f"{BASE}_merged_run"
+NAME = sys.argv[4] if len(sys.argv) > 4 else f"{BASE}_merged"
+NOTES = sys.argv[5] if len(sys.argv) > 5 else (
+    "The worlds of the first run that reached fewer goals the world allows than run 20261028T113002Z, rerun after "
+    "the planner's fix (rule_grounding._OneTerm); every world scored by the same evaluator.")
+OUT = f"{NAME}_run"
 os.makedirs(OUT)
 for name in ("worlds_public.jsonl", "worlds_truth.jsonl", "manifest.json"):
     shutil.copy(f"{BASE}_run/{name}", f"{OUT}/{name}")
@@ -24,7 +29,6 @@ subprocess.run([sys.executable, "-I", "../evaluator.py", "--inputs", OUT, "--ans
 base, again = json.load(open(f"{BASE}.json")), json.load(open(f"{RERUN}.json"))
 json.dump({"experiment": base["experiment"], "base_run": BASE, "rerun": RERUN, "rerun_worlds": sorted(ONLY),
            "duration_seconds": base["duration_seconds"], "rerun_duration_seconds": again["duration_seconds"],
-           "notes": "The worlds of the first run that reached fewer goals the world allows than run 20261028T113002Z, "
-                    "rerun after the planner's fix (rule_grounding._OneTerm); every world scored by the same evaluator.",
+           "notes": NOTES,
            "checks": json.load(open(f"{OUT}/evaluation.json"))["checks"]},
-          open(f"{BASE}_merged.json", "w"), indent=1)
+          open(f"{NAME}.json", "w"), indent=1)
