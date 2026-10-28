@@ -4439,26 +4439,6 @@ class GrammarView:
                     held[key][what] += times * n
                     if held[key][what] <= 0:
                         del held[key][what]
-        # AND WHAT WORDS WRITTEN ALIKE ARE USED AS (`Words.like`, by the last three and two letters), which a word met
-        # seldom or never is read by: counted from every analysed sentence's words (`HeldWords`), and from no word
-        # recorded whole, so on a store taught words recorded whole a word never taught was read as words like it were
-        # used in one sentence (lyric_dev2, 2026-10-28).
-        alike = getattr(words, "alike", None)
-        if alike is not None:
-            def spelled(what: str, form: str, counts: Iterable[Tuple[Any, int]]) -> None:
-                for ending in {form[-3:], form[-2:]}:
-                    for key, n in counts:
-                        alike[(what, ending)][key] += times * n
-                        if alike[(what, ending)][key] <= 0:
-                            del alike[(what, ending)][key]
-            for form, use, n in getattr(word, "used_as", ()):
-                spelled("uses", form, ((use, n),))
-            for form, bare, determined in getattr(word, "said_alone", ()):
-                spelled("alone", form, (("bare", bare), ("determined", determined)))
-            for form, shape, n in getattr(word, "shapes", ()):
-                spelled("shapes", form, ((shape, n),))
-            for form, so, otherwise in getattr(word, "said_of_doing", ()):
-                spelled("bare", form, (("modifier", so), ("otherwise", otherwise)))
         # WHAT IT SAYS IN WHAT IS MEANT, as sentences taught with their meanings taught it (`WordRecord.means`): each
         # learned under this grammar's own name for the word as a word of its class ("paint" the noun is `coating
         # paint` here), as `learn` learns it of a sentence.

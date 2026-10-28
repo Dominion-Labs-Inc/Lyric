@@ -461,6 +461,30 @@ def _rule_conditions(rule: "CandidateRule") -> FrozenSet[str]:
                      for f in rule.body)
 
 
+def _unshown(rule: "CandidateRule", examples) -> Optional[str]:
+    """What a rule leaves out that every success of its act held: a condition
+    the act has never been seen to work without.
+
+    NEVER SEEN TO MATTER IS NOT SEEN NOT TO MATTER. Induction keeps the fewest
+    conditions that exclude every miss, so a condition no miss happened to lack
+    was left out of the rule, and the rule acted where it is missing, which no
+    demonstration had shown: in RULE-AUTHORITY-02's 2,000 worlds, 117 of the 250
+    worlds whose evidence pointed to a broader rule held one acting somewhere the
+    world refuses. A condition leaves the rule's authority only once a success
+    without it has been seen; until then the rule waits for that success."""
+    if rule.action is None:
+        return None
+    seen = [_conditions(e) for e in _relevant_frame(list(examples))
+            if e.positive and e.action is not None and e.action.predicate == rule.action.predicate]
+    if not seen:
+        return None
+    left_out = frozenset.intersection(*seen) - _rule_conditions(rule)
+    if not left_out:
+        return None
+    return (f"it leaves out {', '.join(sorted(left_out))}, which held in every success: "
+            f"the act has not been seen to work without it")
+
+
 def _bears_on(fact: "Fact", anchors, named, changed) -> bool:
     """Whether a fact can bear on a change: it is about a thing the change
     transformed (an anchor), or it says something about one thing the change
@@ -5675,7 +5699,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 await self.store.rejudge(held, judged)
                 if held.status is EpistemicStatus.VALIDATED:
                     reason = (_relied_on(signature_examples, departed)
-                              or self._outexplained(held.rule, judged))
+                              or self._outexplained(held.rule, judged)
+                              or await self._unshown_held(held, judged))
                     if reason:
                         await self.store.withhold(held, reason)
             except Exception as e:
@@ -5745,6 +5770,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         if rival:
             summary["status"] = InductionStatus.MULTIPLE_HYPOTHESES.value
             summary["detail"] = rival
+            return summary, None, []
+        untested = _unshown(result.rule, judged)
+        if untested:
+            summary["status"] = "awaiting_evidence"
+            summary["detail"] = untested
             return summary, None, []
 
         stored = await self.record(
@@ -5955,6 +5985,18 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                         f"{', '.join(sorted(h.requires)) or 'nothing else'} with "
                         f"{', '.join(sorted(h.forbids))} absent")
         return None
+
+    async def _unshown_held(self, held, judged) -> Optional[str]:
+        """`_unshown` of a rule already held, asked only where everything it
+        was induced from is among the demonstrations judged here. A rule taught
+        from demonstrations kept elsewhere would be read against the few acts
+        seen since, and a condition holding in all of those would read as one it
+        never worked without."""
+        from core.learning.rule_store import INDUCTION_ROLES
+        roots = await self.store.evidence_roots(held.rule_id, INDUCTION_ROLES)
+        if not roots or not roots <= {e.evidence_id for e in judged}:
+            return None
+        return _unshown(held.rule, judged)
 
     @staticmethod
     def _outexplained(rule, examples) -> Optional[str]:

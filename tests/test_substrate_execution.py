@@ -760,6 +760,30 @@ def test_a_miss_the_bounded_basis_left_out_still_refutes():
     assert "p11" in {e.evidence_id for e in basis}
 
 
+def test_a_condition_never_seen_unneeded_stays_in_the_rule():
+    """A press worked three times, each time ready and lit; the refusals were
+    all unready. "Ready" alone excludes every refusal, but lit held in every
+    press: the act has not been seen to work unlit, so "ready" alone does not
+    act. Once a press works unlit, it does."""
+    from core.learning.unified_learning_system import _unshown
+    from core.learning.rule_induction import CandidateRule
+
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(Fact(p, (thing,)) for p in held))
+        after = before + ((Fact("PRESSED", (thing,)),) if worked else ())
+        return TrainingExample(before=before, action=Fact("PRESS", (thing,)), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    act = Fact("PRESS", ("?X0",))
+    ready = CandidateRule(body=frozenset({act, Fact("READY", ("?X0",))}),
+                          effects=RuleEffects(add=frozenset({Fact("PRESSED", ("?X0",))})), action=act)
+    seen = ([press(i, "READY", "LIT", worked=True) for i in range(3)]
+            + [press(i, "LIT", worked=False) for i in range(3, 6)])
+
+    assert "LIT(0)" in _unshown(ready, seen)
+    assert _unshown(ready, seen + [press(6, "READY", worked=True)]) is None
+
+
 def test_a_stand_in_the_evidence_has_decided_against_loses_authority():
     """A press works where the button is ready and not jammed. Lit happened to
     hold in the first successes and in none of the jammed refusals, so "ready

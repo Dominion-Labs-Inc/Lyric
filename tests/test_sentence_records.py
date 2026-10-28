@@ -465,9 +465,9 @@ def test_a_word_recorded_with_how_often_it_was_a_name_holds_its_names_apart():
 def test_what_an_analysed_sentence_teaches_of_a_word_its_record_carries():
     """What the grammar reads of a word only from sentences analysed (`HeldWords._count`) is carried by its record:
     how it is used written with a capital inside a sentence, what its -ing form stands as, how often its noun is said
-    of a doing with no preposition, the words said after its verb as one with it or apart, and what words spelled like
-    it are used as; and what sentences taught with meanings teach of it (`means`: its clause, its places). Each is held
-    by the grammar as a sentence's counts are, and taken back whole."""
+    of a doing with no preposition, and the words said after its verb as one with it or apart; and what sentences
+    taught with meanings teach of it (`means`: its clause, its places). Each is held by the grammar as a sentence's
+    counts are, and taken back whole."""
     from core.agents.memory_agent import MemoryAgent
     from core.learning.teaching_sources import WordForm, WordRecord, WordSense
     from core.semantics.grammar_words import HeldWords
@@ -494,14 +494,12 @@ def test_what_an_analysed_sentence_teaches_of_a_word_its_record_carries():
     assert words.verb_shapes("picking") == {"doing": 5.0, "thing": 1.0}
     assert words.bare_modifier("pick") == {"otherwise": 4.0}
     assert words.said_together(words.name("pick", "VERB"), "up") == (12.0, 1.0)
-    assert words.like("kick", "uses").get("VERB") == 30.0, "words spelled alike, from the record"
     learned = view.grammar.lexicon.learned
     assert learned["clause"][(words.name("pick", "VERB"),)]["asserted"] == 2
     assert learned["role"][(words.name("pick", "VERB"), "subject")]["done_by"] == 5
     view.drop_word(pick)
     assert not learned["clause"][(words.name("pick", "VERB"),)]
     assert not words.verb_shapes("picking") and words.said_together(words.name("pick", "VERB"), "up") == (0.0, 0.0)
-    assert not words.like("kick", "uses").get("VERB")
 
 
 def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
