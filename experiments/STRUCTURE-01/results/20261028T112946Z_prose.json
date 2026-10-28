@@ -1,0 +1,2501 @@
+[
+ {
+  "sentence": "Whales are mammals.",
+  "treebank only": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    0,
+    3
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    0,
+    3
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "They live in the ocean.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "case",
+    "det",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "case",
+    "det",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "A whale breathes air through a blowhole.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    7,
+    7,
+    4,
+    4
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "compound",
+    "root",
+    "case",
+    "det",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    3,
+    7,
+    7,
+    3,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "obj",
+    "case",
+    "det",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Whales feed their young with milk.",
+  "treebank only": {
+   "classes": [
+    "NOUN",
+    "VERB",
+    "PRONOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    2,
+    2,
+    6,
+    4,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "obj",
+    "obj",
+    "case",
+    "conj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NOUN",
+    "VERB",
+    "PRONOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    2,
+    2,
+    6,
+    4,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "obj",
+    "obj",
+    "case",
+    "conj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The blue whale is the largest animal on Earth.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    7,
+    7,
+    7,
+    7,
+    0,
+    9,
+    7,
+    7
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    7,
+    7,
+    7,
+    7,
+    0,
+    9,
+    7,
+    7
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Photosynthesis is the process by which plants make food from light.",
+  "treebank only": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "PRONOUN",
+    "NOUN",
+    "VERB",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    7,
+    4,
+    4,
+    8,
+    11,
+    9,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "case",
+    "nmod:poss",
+    "obj",
+    "acl",
+    "obj",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "PRONOUN",
+    "NOUN",
+    "VERB",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    7,
+    4,
+    4,
+    8,
+    11,
+    9,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "case",
+    "nmod:poss",
+    "obj",
+    "acl",
+    "obj",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Plants take in carbon dioxide and water.",
+  "treebank only": {
+   "classes": [
+    "NOUN",
+    "VERB",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "CONJUNCTION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    7,
+    5,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "case",
+    "compound",
+    "obl",
+    "cc",
+    "conj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NOUN",
+    "VERB",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "CONJUNCTION",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    7,
+    5,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "case",
+    "compound",
+    "obl",
+    "cc",
+    "conj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "They release oxygen.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    0,
+    3
+   ],
+   "relations": [
+    "nmod:poss",
+    "compound",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    0,
+    3
+   ],
+   "relations": [
+    "nmod:poss",
+    "compound",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+  "treebank only": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PRONOUN",
+    "NOUN",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    5,
+    5,
+    5,
+    0,
+    7,
+    5,
+    9,
+    7,
+    5
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "nsubj",
+    "acl:relcl",
+    "det",
+    "obj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PRONOUN",
+    "NOUN",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    5,
+    5,
+    5,
+    0,
+    7,
+    5,
+    9,
+    7,
+    5
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "nsubj",
+    "acl:relcl",
+    "det",
+    "obj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Python is a high-level, general-purpose programming language.",
+  "treebank only": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "PUNCTUATION",
+    "NOUN",
+    "PUNCTUATION",
+    "ADJECTIVE",
+    "PUNCTUATION",
+    "NOUN",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    6,
+    6,
+    6,
+    6,
+    4,
+    0,
+    8,
+    10,
+    8,
+    12,
+    12,
+    6,
+    12
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "punct",
+    "root",
+    "punct",
+    "amod",
+    "punct",
+    "compound",
+    "compound",
+    "appos",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "PUNCTUATION",
+    "NOUN",
+    "PUNCTUATION",
+    "ADJECTIVE",
+    "PUNCTUATION",
+    "NOUN",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    6,
+    6,
+    6,
+    6,
+    4,
+    0,
+    8,
+    10,
+    8,
+    12,
+    12,
+    6,
+    12
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "punct",
+    "root",
+    "punct",
+    "amod",
+    "punct",
+    "compound",
+    "compound",
+    "appos",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "NOUN",
+    "NOUN",
+    "NOUN",
+    "NOUN",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    6,
+    6,
+    4,
+    5,
+    6,
+    0,
+    9,
+    9,
+    6,
+    12,
+    12,
+    9,
+    6
+   ],
+   "relations": [
+    "nmod:poss",
+    "compound",
+    "compound",
+    "compound",
+    "compound",
+    "root",
+    "case",
+    "det",
+    "nmod",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "NOUN",
+    "NOUN",
+    "VERB",
+    "NOUN",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    4,
+    0,
+    6,
+    4,
+    9,
+    9,
+    4,
+    12,
+    12,
+    9,
+    4
+   ],
+   "relations": [
+    "nmod:poss",
+    "compound",
+    "nsubj",
+    "root",
+    "compound",
+    "obj",
+    "case",
+    "det",
+    "obl",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Python is dynamically typed and garbage-collected.",
+  "treebank only": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "ADVERB",
+    "VERB",
+    "CONJUNCTION",
+    "NOUN",
+    "PUNCTUATION",
+    "VERB",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    4,
+    8,
+    4,
+    8
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "advmod",
+    "root",
+    "cc",
+    "conj",
+    "punct",
+    "parataxis",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NOUN",
+    "AUXILIARY",
+    "ADVERB",
+    "VERB",
+    "CONJUNCTION",
+    "NOUN",
+    "PUNCTUATION",
+    "VERB",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    4,
+    8,
+    4,
+    8
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "advmod",
+    "root",
+    "cc",
+    "conj",
+    "punct",
+    "parataxis",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "ADJECTIVE",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION",
+    "VERB",
+    "VERB",
+    "PUNCTUATION",
+    "NOUN",
+    "PUNCTUATION",
+    "ADJECTIVE",
+    "CONJUNCTION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    5,
+    2,
+    7,
+    10,
+    8,
+    10,
+    10,
+    15,
+    15,
+    12,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "amod",
+    "compound",
+    "obj",
+    "punct",
+    "advcl",
+    "xcomp",
+    "punct",
+    "obj",
+    "punct",
+    "amod",
+    "cc",
+    "amod",
+    "conj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "ADJECTIVE",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION",
+    "VERB",
+    "VERB",
+    "PUNCTUATION",
+    "NOUN",
+    "PUNCTUATION",
+    "ADJECTIVE",
+    "CONJUNCTION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    5,
+    2,
+    7,
+    10,
+    8,
+    10,
+    10,
+    15,
+    15,
+    12,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "amod",
+    "compound",
+    "obj",
+    "punct",
+    "advcl",
+    "xcomp",
+    "punct",
+    "obj",
+    "punct",
+    "amod",
+    "cc",
+    "amod",
+    "conj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Guido van Rossum began working on Python in the late 1980s.",
+  "treebank only": {
+   "classes": [
+    "NAME",
+    "NOUN",
+    "NOUN",
+    "VERB",
+    "VERB",
+    "PREPOSITION",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    4,
+    0,
+    4,
+    7,
+    5,
+    11,
+    11,
+    11,
+    7,
+    4
+   ],
+   "relations": [
+    "compound",
+    "compound",
+    "nsubj",
+    "root",
+    "xcomp",
+    "case",
+    "obl",
+    "case",
+    "det",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NAME",
+    "NOUN",
+    "NOUN",
+    "VERB",
+    "VERB",
+    "PREPOSITION",
+    "NOUN",
+    "PREPOSITION",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    4,
+    0,
+    4,
+    7,
+    5,
+    11,
+    11,
+    11,
+    7,
+    4
+   ],
+   "relations": [
+    "compound",
+    "compound",
+    "nsubj",
+    "root",
+    "xcomp",
+    "case",
+    "obl",
+    "case",
+    "det",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The function sorted returns a new list.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    3,
+    7,
+    7,
+    4,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "xcomp",
+    "det",
+    "amod",
+    "obj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    3,
+    7,
+    7,
+    4,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "xcomp",
+    "det",
+    "amod",
+    "obj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "It does not change the original list.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "AUXILIARY",
+    "PARTICLE",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    7,
+    7,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "aux",
+    "advmod",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "AUXILIARY",
+    "PARTICLE",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    7,
+    7,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "aux",
+    "advmod",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The argument key is a function that is applied to each element.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PRONOUN",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    6,
+    6,
+    6,
+    0,
+    9,
+    9,
+    6,
+    12,
+    12,
+    9,
+    9
+   ],
+   "relations": [
+    "det",
+    "compound",
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "nsubj:pass",
+    "aux:pass",
+    "acl:relcl",
+    "case",
+    "det",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PRONOUN",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "DETERMINER",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    6,
+    6,
+    6,
+    0,
+    9,
+    9,
+    6,
+    12,
+    12,
+    9,
+    9
+   ],
+   "relations": [
+    "det",
+    "compound",
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "nsubj:pass",
+    "aux:pass",
+    "acl:relcl",
+    "case",
+    "det",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "PRONOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "CONJUNCTION",
+    "PRONOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    12,
+    7,
+    7,
+    7,
+    3,
+    10,
+    10,
+    7,
+    12,
+    0,
+    14,
+    12,
+    17,
+    17,
+    12,
+    19,
+    17,
+    12
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "nmod",
+    "amod",
+    "case",
+    "nmod",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "advmod",
+    "case",
+    "advcl",
+    "cc",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "PRONOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "CONJUNCTION",
+    "PRONOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    12,
+    7,
+    7,
+    7,
+    3,
+    10,
+    10,
+    7,
+    12,
+    0,
+    14,
+    12,
+    17,
+    17,
+    12,
+    19,
+    17,
+    12
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "nmod",
+    "amod",
+    "case",
+    "nmod",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "advmod",
+    "case",
+    "advcl",
+    "cc",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Seven is a prime number.",
+  "treebank only": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    5,
+    5,
+    5,
+    0,
+    5
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    5,
+    5,
+    5,
+    0,
+    5
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "amod",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Every prime number greater than 2 is odd.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "AUXILIARY",
+    "ADJECTIVE",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    8,
+    3,
+    6,
+    4,
+    8,
+    0,
+    8
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "amod",
+    "case",
+    "obl",
+    "cop",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "ADJECTIVE",
+    "PREPOSITION",
+    "NUMERAL",
+    "AUXILIARY",
+    "ADJECTIVE",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    8,
+    3,
+    6,
+    4,
+    8,
+    0,
+    8
+   ],
+   "relations": [
+    "det",
+    "amod",
+    "nsubj",
+    "amod",
+    "case",
+    "obl",
+    "cop",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "If the valve is closed, the tank is full.",
+  "treebank only": {
+   "classes": [
+    "SUBORDINATOR",
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PUNCTUATION",
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "ADJECTIVE",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    3,
+    5,
+    5,
+    0,
+    5,
+    8,
+    10,
+    10,
+    5,
+    10
+   ],
+   "relations": [
+    "mark",
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "punct",
+    "det",
+    "nsubj",
+    "cop",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "SUBORDINATOR",
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PUNCTUATION",
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "ADJECTIVE",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    5,
+    3,
+    5,
+    5,
+    0,
+    5,
+    8,
+    10,
+    10,
+    5,
+    10
+   ],
+   "relations": [
+    "mark",
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "punct",
+    "det",
+    "nsubj",
+    "cop",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The valve is closed.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    4,
+    4,
+    0,
+    4
+   ],
+   "relations": [
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    4,
+    4,
+    0,
+    4
+   ],
+   "relations": [
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The Eiffel Tower was built in 1889.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NAME",
+    "NAME",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "NUMERAL",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    5,
+    5,
+    0,
+    7,
+    5,
+    5
+   ],
+   "relations": [
+    "det",
+    "compound",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "case",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NAME",
+    "NAME",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "NUMERAL",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    3,
+    3,
+    5,
+    5,
+    0,
+    7,
+    5,
+    5
+   ],
+   "relations": [
+    "det",
+    "compound",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "case",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "It is in Paris.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "AUXILIARY",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "case",
+    "root",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "AUXILIARY",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "case",
+    "root",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Paris is the capital of France.",
+  "treebank only": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NAME",
+    "AUXILIARY",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    4,
+    4,
+    0,
+    6,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "cop",
+    "det",
+    "root",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "We propose a new method for detecting anomalies in network traffic.",
+  "treebank only": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    8,
+    8,
+    5,
+    11,
+    11,
+    8,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "case",
+    "compound",
+    "nmod",
+    "case",
+    "compound",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PRONOUN",
+    "VERB",
+    "DETERMINER",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "PREPOSITION",
+    "NOUN",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    0,
+    5,
+    5,
+    2,
+    8,
+    8,
+    5,
+    11,
+    11,
+    8,
+    2
+   ],
+   "relations": [
+    "nsubj",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "case",
+    "compound",
+    "nmod",
+    "case",
+    "compound",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The method learns a model of normal traffic from unlabeled data.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    8,
+    8,
+    3,
+    11,
+    11,
+    8,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "case",
+    "amod",
+    "obj",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    8,
+    8,
+    3,
+    11,
+    11,
+    8,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "case",
+    "amod",
+    "obj",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "treebank only": {
+   "classes": [
+    "PREPOSITION",
+    "NOUN",
+    "PREPOSITION",
+    "NUMERAL",
+    "NOUN",
+    "PUNCTUATION",
+    "PRONOUN",
+    "VERB",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    8,
+    5,
+    5,
+    2,
+    8,
+    8,
+    0,
+    10,
+    8,
+    13,
+    13,
+    10,
+    8
+   ],
+   "relations": [
+    "case",
+    "obl",
+    "case",
+    "nummod",
+    "nmod",
+    "punct",
+    "nsubj",
+    "root",
+    "amod",
+    "obj",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "PREPOSITION",
+    "NOUN",
+    "PREPOSITION",
+    "NUMERAL",
+    "NOUN",
+    "PUNCTUATION",
+    "PRONOUN",
+    "VERB",
+    "ADJECTIVE",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    8,
+    5,
+    5,
+    2,
+    8,
+    8,
+    0,
+    10,
+    8,
+    13,
+    13,
+    10,
+    8
+   ],
+   "relations": [
+    "case",
+    "obl",
+    "case",
+    "nummod",
+    "nmod",
+    "punct",
+    "nsubj",
+    "root",
+    "amod",
+    "obj",
+    "case",
+    "amod",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The server logged a failed login from 10.0.0.5.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "VERB",
+    "NOUN",
+    "PREPOSITION",
+    "NUMERAL",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    6,
+    6,
+    3,
+    8,
+    6,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "VERB",
+    "NOUN",
+    "PREPOSITION",
+    "NUMERAL",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    6,
+    6,
+    3,
+    8,
+    6,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "amod",
+    "obj",
+    "case",
+    "nmod",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The account was locked after five failed attempts.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "NUMERAL",
+    "VERB",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    4,
+    4,
+    0,
+    6,
+    8,
+    8,
+    4,
+    4
+   ],
+   "relations": [
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "case",
+    "nummod",
+    "amod",
+    "nsubj",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "AUXILIARY",
+    "VERB",
+    "PREPOSITION",
+    "NUMERAL",
+    "VERB",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    4,
+    4,
+    0,
+    6,
+    8,
+    8,
+    4,
+    4
+   ],
+   "relations": [
+    "det",
+    "nsubj:pass",
+    "aux:pass",
+    "root",
+    "case",
+    "nummod",
+    "amod",
+    "nsubj",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The attacker used a list of common passwords.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    8,
+    8,
+    3,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "case",
+    "amod",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "DETERMINER",
+    "NOUN",
+    "PREPOSITION",
+    "ADJECTIVE",
+    "NOUN",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    8,
+    8,
+    3,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "det",
+    "obj",
+    "case",
+    "amod",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "The company hired three engineers in May.",
+  "treebank only": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "NUMERAL",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    7,
+    3,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "nummod",
+    "obj",
+    "case",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "DETERMINER",
+    "NOUN",
+    "VERB",
+    "NUMERAL",
+    "NOUN",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    2,
+    3,
+    0,
+    5,
+    3,
+    7,
+    3,
+    3
+   ],
+   "relations": [
+    "det",
+    "nsubj",
+    "root",
+    "nummod",
+    "obj",
+    "case",
+    "obl",
+    "punct"
+   ]
+  }
+ },
+ {
+  "sentence": "Two of them work in Berlin.",
+  "treebank only": {
+   "classes": [
+    "NUMERAL",
+    "PREPOSITION",
+    "PRONOUN",
+    "VERB",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    3,
+    1,
+    0,
+    6,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "case",
+    "nmod",
+    "root",
+    "case",
+    "obl",
+    "punct"
+   ]
+  },
+  "with memory's word classes": {
+   "classes": [
+    "NUMERAL",
+    "PREPOSITION",
+    "PRONOUN",
+    "VERB",
+    "PREPOSITION",
+    "NAME",
+    "PUNCTUATION"
+   ],
+   "heads": [
+    4,
+    3,
+    1,
+    0,
+    6,
+    4,
+    4
+   ],
+   "relations": [
+    "nsubj",
+    "case",
+    "nmod",
+    "root",
+    "case",
+    "obl",
+    "punct"
+   ]
+  }
+ }
+]

@@ -760,6 +760,35 @@ def test_a_miss_the_bounded_basis_left_out_still_refutes():
     assert "p11" in {e.evidence_id for e in basis}
 
 
+def test_a_stand_in_the_evidence_has_decided_against_loses_authority():
+    """A press works where the button is ready and not jammed. Lit happened to
+    hold in the first successes and in none of the jammed refusals, so "ready
+    and lit" was learned; a success unlit lies outside it, and "ready, with
+    jammed absent" explains every press. "Ready and lit" is not the rule. A
+    rule every press lies inside, or one no absent condition outdoes, stays."""
+    from core.learning.unified_learning_system import UnifiedLearningSystem
+    from core.learning.rule_induction import CandidateRule
+
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(Fact(p, (thing,)) for p in held))
+        after = before + ((Fact("PRESSED", (thing,)),) if worked else ())
+        return TrainingExample(before=before, action=Fact("PRESS", (thing,)), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    act = Fact("PRESS", ("?X0",))
+    lit = CandidateRule(body=frozenset({act, Fact("READY", ("?X0",)), Fact("LIT", ("?X0",))}),
+                        effects=RuleEffects(add=frozenset({Fact("PRESSED", ("?X0",))})), action=act)
+    seen = ([press(i, "READY", "LIT", worked=True) for i in range(3)]
+            + [press(i, "READY", "JAMMED", worked=False) for i in range(3, 5)]
+            + [press(5, "LIT", worked=False)])
+    unlit = press(6, "READY", worked=True)
+
+    assert UnifiedLearningSystem._outexplained(lit, seen) is None
+    assert "JAMMED" in UnifiedLearningSystem._outexplained(lit, seen + [unlit])
+    either = seen + [unlit, press(7, "LIT", "JAMMED", worked=True)]
+    assert UnifiedLearningSystem._outexplained(lit, either) is None
+
+
 def test_what_the_substrate_touched_is_told_apart_per_thing():
     """An act that says what it changed names those things, and the world's own
     change of anything else is still the world's; one that does not say, or one

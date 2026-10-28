@@ -442,6 +442,26 @@ def test_the_nouns_a_determiner_was_said_with_and_what_a_copula_said_things_were
     assert not words.nouns() and not words.predicated()
 
 
+def test_a_word_recorded_with_how_often_it_was_a_name_holds_its_names_apart():
+    """A word recorded whole holds how often each form was a name as the treebanks used it ("Wall" of Wall Street):
+    the record is whole with it, memory holds the name as a name, and of the word's ways of writing a noun is no name
+    (`MemoryAgent._held_word_classes`); a word no record holds is a noun or a name, as before."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    wall = WordRecord("wall", (WordForm("wall", "NOUN", "Number=Sing", 19), WordForm("walls", "NOUN", "Number=Plur", 11),
+                               WordForm("wall", "NAME", "", 1)),
+                      (WordSense("wall.n.01", "NOUN", "wall", "an architectural partition", (("partition.n.01",
+                                                                                              "partition"),), 5),))
+    assert not wall.problems(), wall.problems()
+    agent = MemoryAgent()
+    agent._learn_word_record(wall, agent._word_class_index, agent.word_forms())
+    agent.pattern_inventory().word_classes = agent._word_class_index
+    assert agent._held_word_classes("Wall") == {"NOUN": 19, "NAME": 1}
+    assert agent._held_word_classes("Walls") == {"NOUN": 11}
+    agent._word_class_index["boston"] = {"NOUN": 3}
+    assert agent._held_word_classes("Boston") == {"NOUN": 3, "NAME": 3}
+
+
 def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
     """A noun recorded whole with how often each form was said with nothing before it saying which, and with a word
     that does (`WordRecord.said_alone`): the grammar weighs a kind said bare by it (`Words.noun_alone`), and takes it

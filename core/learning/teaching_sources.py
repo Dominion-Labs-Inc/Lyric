@@ -3142,7 +3142,7 @@ class WordRecord:
             out.append("no sense")
         classes = {s.word_class for s in self.senses}
         for f in self.forms:
-            if f.word_class not in _OPEN_CLASSES | _CLOSED_CLASSES:
+            if f.word_class not in _OPEN_CLASSES | _CLOSED_CLASSES | {"NAME"}:
                 out.append(f"form {f.form!r} of class {f.word_class!r}")
             elif f.word_class in _OPEN_CLASSES and f.word_class not in classes:
                 out.append(f"form {f.form!r} as a {f.word_class.lower()}, which no sense of the word is")
@@ -3330,7 +3330,12 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     classes: Dict[Tuple[str, str], int] = {}
     for analysed, bases in zip(held, of_word):
         for w, c, base in zip(analysed.words, analysed.classes, bases):
-            if w.lower() in written and (base == word or not single):
+            # A NAME'S BASE IS WRITTEN WITH ITS CAPITAL ("Wall" of Wall Street, "Picture" a title, as the analysts
+            # give a proper noun's lemma): it is the word still, used as a name. Counted only where the base was the
+            # word as written, no name was: "picture" was a noun 25 times and never a name, and a reader that took
+            # what memory holds of a noun to be a name as often read "Picture is a representation." with "Picture"
+            # a name (lyric_dev2, 2026-10-28).
+            if w.lower() in written and (base == word or not single or (c == "NAME" and base.lower() == word)):
                 classes[(w.lower(), c)] = classes.get((w.lower(), c), 0) + 1
     counted = HeldWords(held, closed_uses(), lambda w, c: w.lower())
     uses: Dict[str, Counter] = {form: Counter() for form in written}
@@ -3924,6 +3929,11 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     # the grammar, and it said "Wall'm the the a partition." (lyric_dev2, 2026-10-27).
     for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
         if cls in _CLOSED_CLASSES and form == word and cls not in _FORMED_CLOSED:
+            forms.append(WordForm(form, cls, "", n))
+    # AND HOW OFTEN EACH FORM WAS A NAME, as the treebanks used it: what memory holds of the word's classes then holds
+    # its names apart from its nouns (`MemoryAgent._held_word_classes`), as the treebanks do.
+    for (form, cls), n in sorted(classes.items(), key=lambda x: (-x[1], x[0])):
+        if cls == "NAME":
             forms.append(WordForm(form, cls, "", n))
     for (form, cls, features), n in sorted(closed_written.items(), key=lambda x: (-x[1], x[0])):
         forms.append(WordForm(form, cls, features, n))

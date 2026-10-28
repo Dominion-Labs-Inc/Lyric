@@ -39,7 +39,7 @@ import json
 import math
 import re
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
@@ -1807,10 +1807,10 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
     facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
     `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`), none for any other piece;
-    None for a piece saying nothing a meaning holds (`indefinite`, `finite`); a thing that is not another of its kind,
-    `other`: a denied `equals`."""
+    None for a piece saying nothing a meaning holds (`indefinite`, `finite`, `some`); a thing that is not another of
+    its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
-    if kind in ("indefinite", "finite"):
+    if kind in ("indefinite", "finite", "some"):
         return None
     if kind == "given":
         return sum(1 for f in facts if f.given)
@@ -2227,28 +2227,6 @@ class Grammar:
                 if took:
                     weight += self._agreed(took, every_predicated, *thing)
         return weight
-        sides = (_substitute(left.pieces, s), _substitute(right.pieces, s))
-        every_noun, every_predicated = words.nouns(), words.predicated()
-        for one, other in (sides, sides[::-1]):
-            for p in one:
-                if p[0] == "det" and every_noun and 0 <= p[2] < len(tokens) and self._said_by(one, p[1]) is None:
-                    noun = self._said_by(other, p[1])
-                    took = words.nouns(str(tokens[p[2]])) if noun else {}
-                    if took:
-                        weight += self._agreed(took, every_noun, *noun)
-            for p in one:
-                if p[0] != "be" or not every_predicated:
-                    continue
-                for a, b in ((one, other), (other, one)):
-                    thing, what = self._said_by(a, p[1]), self._said_by(b, p[2])
-                    if thing is None or what is None or self._said_by(b, p[1]) or self._said_by(a, p[2]):
-                        continue
-                    took: Counter = Counter()
-                    for features in self._features(what[0], what[1]):
-                        took.update(words.predicated((what[0], features)))
-                    if took:
-                        weight += self._agreed(took, every_predicated, *thing)
-        return weight
 
     def _coordinate(self, left: Sign, right: Sign) -> Optional[Sign]:
         """Two read alike joined: two things are a group of both ("Ken and Yumi"), two of anything else are both
@@ -2531,6 +2509,18 @@ class Grammar:
         grammar holds says it: then it is not said another way here."""
         if meaning.act not in WHOLE.values() or not meaning.facts:
             return []
+        # A NAME IS WRITTEN AS READING WRITES IT, its words apart (`award decoration`), as `Words.words_for` finds the
+        # words for it: memory's store writes the same name joined (`award_decoration`), and each sentence said is
+        # read back and kept only where its meaning is this one. Told "Roy fastened the medal with a pin.", "What did
+        # Roy fasten?" was answered with the kind the store held (`award_decoration`): "Roy fastened the medal." was
+        # made and read back `award decoration`, so nothing was said, and the answer was the bare word, "Medal."
+        # (TRAIN-FORMAT-01, lyric_dev2, 2026-10-28).
+        written = {t: t.replace("_", " ") for f in meaning.facts for t in f.terms()
+                   if not is_variable(t) and "_" in t}
+        if written:
+            meaning = Meaning(meaning.act, tuple(replace(f, subject=written.get(f.subject, f.subject),
+                                                         obj=written.get(f.obj, f.obj)) for f in meaning.facts),
+                              tuple(written.get(a, a) for a in meaning.asked))
         # WHAT "ANOTHER" SAYS IS ITS OWN (Kay 1996: the facts a word's meaning covers are spent by it): a thing given of
         # a kind and held not to be the one of that kind said (`spell_out`'s `other`) is said by "another" before the
         # one, and by no word of its own, so the words are sought for the rest and each sentence read back to the
@@ -3613,7 +3603,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         if p[0] == "both" and p[1] in mains:
             mains.add(p[2])
     every = {p[1] for p in pieces if p[0] == "every"}
-    loose = {p[1] for p in pieces if p[0] in ("indefinite", "bare")}
+    # "SOME" IS SOME OF THE KIND, NEVER THE KIND (the Parallel Meaning Bank writes "some" as "a": a thing of the kind,
+    # "I want some potatoes.", "Tom put some rice in a bowl."; never a kind told of, as "a" may say one: "A dog barks."
+    # is dogs, "Some dogs bark." some of them). With nothing of its own, "some" read and was said as nothing.
+    loose = {p[1] for p in pieces if p[0] in ("indefinite", "bare")} - {p[1] for p in pieces if p[0] == "some"}
     finite = {p[1] for p in pieces if p[0] == "finite"}
     subjects: Dict[Term, List[Term]] = defaultdict(list)
     for p in pieces:
@@ -3983,8 +3976,9 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         # WHAT A THING IS SAID TO BE IS A KIND ONLY SAID SO: with "a", bare, known, "another", whose, or "no" (Partee
         # 1987: of noun phrases, these shift to what is said of a thing; "some", "any", "every" quantify and do not).
         # "A wall is any artifact." was read as a wall being an artifact, and said so (lyric_dev2, 2026-10-28).
-        quantified = any(q[0] == "det" and q[1] == y for q in pieces) and not any(
-            q[0] in ("indefinite", "bare", "given", "other", "poss", "deny_arg") and q[1] == y for q in pieces)
+        quantified = any(q[0] == "det" and q[1] == y for q in pieces) and (any(
+            q[0] == "some" and q[1] == y for q in pieces) or not any(
+            q[0] in ("indefinite", "bare", "given", "other", "poss", "deny_arg") and q[1] == y for q in pieces))
         if y in generic_be and y not in given and not quantified:
             # "Whales are mammals.": a kind said to be of a kind (`isa(whale, mammal)`).
             how_said, how = "merge", "rule"
@@ -4070,7 +4064,8 @@ def _be_key(pieces: Sequence[Piece], be: Piece, given: Set[Term], asked: Sequenc
         x[1:] if isinstance(x, str) else "asked" if x in asked else
         # A thing said with "a" or "every", or bare ("A robin is a bird.", "Whales are mammals."): a kind said, what
         # it is said to be learned apart from what a particular thing is said to be ("My father was an engineer.").
-        "kind" if any(q[0] in ("indefinite", "bare", "every") and q[1] == x for q in pieces) else "thing"))
+        "kind" if any(q[0] in ("indefinite", "bare", "every") and q[1] == x for q in pieces)
+        and not any(q[0] == "some" and q[1] == x for q in pieces) else "thing"))
     complement = "given" if y in given else "name" if isinstance(y, str) else "asked" if y in asked else "kind"
     return subject, complement
 

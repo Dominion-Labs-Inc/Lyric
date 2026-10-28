@@ -183,6 +183,9 @@ class MemoryAgent(IMemoryConsolidation):
         #: What each word names, as the sentences recorded whole name it ((word, class) -> names, counted): "medal"
         #: as a noun names `award decoration` (`name_of`).
         self._record_names: Dict[Tuple[str, str], Counter] = {}
+        #: The ways of writing a word whose classes a word or a sentence recorded whole counted, as their analysts did,
+        #: a name apart from a noun (`_held_word_classes`): of these, what memory holds as a noun is no name.
+        self._classes_apart: Set[str] = set()
         #: The words held recorded whole (`teaching_sources.WordRecord`), for English's grammar (`grammar_view`).
         self._grammar_words: List[Any] = []
         #: The memory holding each word recorded whole, by the record (`WordRecord.key`): what reasoning is handed
@@ -2956,7 +2959,7 @@ class MemoryAgent(IMemoryConsolidation):
         derived = await self._derived_memories()
         # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
         self._record_names, self._grammar_words, self._grammar_records = {}, [], []
-        self._word_record_ids = {}
+        self._word_record_ids, self._classes_apart = {}, set()
         for row, word in await self._word_record_memories():
             await give_way()
             self._learn_word_record(word, index, forms)
@@ -6820,9 +6823,10 @@ class MemoryAgent(IMemoryConsolidation):
 
     def _held_word_classes(self, word: str) -> Dict[str, int]:
         """What memory holds of a word's classes, by the treebank's names, from the reader's view as it is now
-        (`structure.held_classes`): the word-class view is rebuilt at each warm, so it is looked up when asked."""
+        (`structure.held_classes`): the word-class view is rebuilt at each warm, so it is looked up when asked. A word
+        recorded whole holds a name apart from a noun (`_classes_apart`)."""
         from core.semantics.structure import held_classes
-        return held_classes(self.pattern_inventory())(word)
+        return held_classes(self.pattern_inventory(), self._classes_apart)(word)
 
     async def remember_analysed(self, analysed, progress: Optional[Callable[[int, int], None]] = None
                                 ) -> Dict[str, Any]:
@@ -7041,6 +7045,7 @@ class MemoryAgent(IMemoryConsolidation):
             bucket = index.setdefault(written, {})
             for cls, n in classes.items():
                 bucket[cls] = bucket.get(cls, 0) + n
+            self._classes_apart.add(written)
         for cls, name in word.names().items():
             for f in word.forms:
                 if f.word_class == cls:
@@ -7074,6 +7079,7 @@ class MemoryAgent(IMemoryConsolidation):
             for written in dict.fromkeys((w.form.lower(), w.lemma.lower())):
                 bucket = index.setdefault(written, {})
                 bucket[w.word_class] = bucket.get(w.word_class, 0) + 1
+                self._classes_apart.add(written)
         said = dict(record.terms)
         for f in record.facts:
             if f.relation != "instance_of" or not f.positive or is_variable(f.obj):

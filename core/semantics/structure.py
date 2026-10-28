@@ -35,7 +35,7 @@ import hashlib
 import math
 from collections import Counter, defaultdict
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import Any, Callable, Collection, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -265,7 +265,12 @@ class _Classes:
              held_classes: Optional[Callable[[str], Mapping[str, int]]] = None) -> Tuple[str, ...]:
         """The class each word is used as here, read left to right, the likeliest `CLASS_BEAM` partial readings kept,
         each by how likely its classes were (`_chances`). A word no sentence held used takes a class memory holds of
-        it, where it holds one (`held_classes`)."""
+        it, where it holds one (`held_classes`), as often as memory holds it so: what memory holds of the word is the
+        word's own, and weighs over how words written like it were used, as a tagger's lexicon gives a word it lists
+        its own tags (Brants 2000; Daelemans et al. 1996), the endings only for a word it lists none of. Taken only to
+        bound the classes, the word's own uses counted for nothing, and on lyric_dev2, holding one sentence, every
+        word written first with a capital was the name "Roy" was: "Picture" a name, though memory held it a noun 25
+        times and a verb 3 (2026-10-28)."""
         beam: List[Tuple[float, Tuple[str, ...]]] = [(0.0, ())]
         for i, word in enumerate(words):
             met = self.met(word)
@@ -276,8 +281,9 @@ class _Classes:
                 chances = _chances(((s, self._known.get(s)) for s in self.situations(words, chosen, i, met=True)),
                                    allowed, CLASS_DOUBT) if met else {}
                 if not chances:
-                    chances = _chances(((s, self._unknown.get(s))
-                                        for s in self.situations(words, chosen, i, met=False)), allowed, CLASS_DOUBT)
+                    chances = _chances(([(("held", word), held)] if held else []) + [
+                        (s, self._unknown.get(s)) for s in self.situations(words, chosen, i, met=False)],
+                        allowed, CLASS_DOUBT)
                 if not chances:
                     chances = {max((n, c) for c, n in held.items())[1] if held else _OPEN_CLASS: 1.0}
                 for cls, chance in sorted(chances.items(), key=lambda kv: (-kv[1], kv[0]))[:CLASS_BEAM]:
@@ -820,23 +826,26 @@ class StructureView:
 #: The word-class view's classes by the treebank's names. A NOUN is the treebank's noun or its name: the view holds no
 #: name apart from a noun (WordNet files "Boston" as a noun), and the situations tell the two apart, as they did
 #: before memory was asked. Held as a noun only, the proper names of the treebank's held-out text (40% of its words
-#: never met) were all read as nouns (2026-10-16 (10)).
+#: never met) were all read as nouns (2026-10-16 (10)). A word recorded whole holds its names apart (`held_classes`).
 _HELD_AS = {"MODAL": ("AUXILIARY",), "COPULA": ("AUXILIARY",), "QUANTIFIER": ("DETERMINER",),
             "NOUN": ("NOUN", "NAME")}
 
 
-def held_classes(inventory: Any) -> Callable[[str], Dict[str, int]]:
+def held_classes(inventory: Any, apart: Collection[str] = ()) -> Callable[[str], Dict[str, int]]:
     """What memory holds of a word's classes, by the treebank's names, for `StructureView.held_classes`: the classes
     the reader's view observed the word in with net evidence for them (`PatternInventory.word_classes`); for a word
     it holds none of, those of the held words it is written as a shape of (`names_of_shape`: "breathes" is `breathe`,
-    by a change learned from the lessons). Empty for a word memory knows nothing of."""
+    by a change learned from the lessons). Empty for a word memory knows nothing of. A way of writing a word whose
+    classes were counted with its names apart (`apart`: a word recorded whole, as the treebanks' analysts count a
+    proper noun apart from a noun) holds a noun as a noun only: "picture" a noun 25 times and a name never was a
+    name 25 times too, and "Picture is a representation." was read with "Picture" a name (lyric_dev2, 2026-10-28)."""
     def of(word: str) -> Dict[str, int]:
         folded = word.casefold()
         for name in [folded] + [n for n in inventory.names_of_shape(folded) if n != folded]:
             counts: Dict[str, int] = {}
             for cls, n in inventory.word_classes.get(name, {}).items():
                 if n > 0:
-                    for named in _HELD_AS.get(cls, (cls,)):
+                    for named in ((cls,) if cls == "NOUN" and name in apart else _HELD_AS.get(cls, (cls,))):
                         counts[named] = counts.get(named, 0) + n
             if counts:
                 return counts

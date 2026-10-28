@@ -81,6 +81,16 @@
   "some": [
    {
     "cat": "NP.x/N.x",
+    "sem": [
+     [
+      "indefinite",
+      "x"
+     ],
+     [
+      "some",
+      "x"
+     ]
+    ],
     "use": "det"
    }
   ],

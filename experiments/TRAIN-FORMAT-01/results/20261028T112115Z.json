@@ -1,0 +1,144 @@
+{
+  "experiment": "TRAIN-FORMAT-01",
+  "claim": "a sentence recorded whole, every layer by word position, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, it is read back as taught, and what it said is answered through the front door",
+  "hypothesis": "every check holds",
+  "started_at": "2026-10-28T11:21:15.260418+00:00",
+  "duration_seconds": 0.476,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "414b836a85e6d50cba6b23141db07eb2f80bc324",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev2",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev2",
+        "model": "lyric_dev2",
+        "user_context": "lyric_dev2",
+        "learning": "lyric_dev2"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 21,
+    "database_verified": "lyric_dev2",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 15,
+    "passed": 15,
+    "failed": 0,
+    "outcome": "PASS"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is on lyric_dev2",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-28T11:21:15.260430+00:00"
+    },
+    {
+      "label": "the store is the one it says",
+      "passed": true,
+      "detail": "lyric_dev2",
+      "at": "2026-10-28T11:21:15.710213+00:00"
+    },
+    {
+      "label": "every record is whole: every layer of every word, the derivation combining every word once, every term of the meaning said by a word of the sentence, every fact with the words saying it",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-10-28T11:21:15.710834+00:00"
+    },
+    {
+      "label": "each record written and read back is the same record",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-28T11:21:15.710933+00:00"
+    },
+    {
+      "label": "memory holds each taught record as one memory, the record as taught",
+      "passed": true,
+      "detail": "1 held",
+      "at": "2026-10-28T11:21:15.712544+00:00"
+    },
+    {
+      "label": "memory reads none of them as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-10-28T11:21:15.712550+00:00"
+    },
+    {
+      "label": "the structure reader holds each record's words, classes and what each is joined to",
+      "passed": true,
+      "detail": "1 analysed",
+      "at": "2026-10-28T11:21:15.712568+00:00"
+    },
+    {
+      "label": "each word's form is held a form of its base (\"fastened\" of fasten)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-28T11:21:15.712586+00:00"
+    },
+    {
+      "label": "memory knows each word's class as the record uses it (the conversation asks it whether a word is known)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-28T11:21:15.712596+00:00"
+    },
+    {
+      "label": "each word names what the record's meaning names it (\"medal\": award decoration)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-28T11:21:15.712617+00:00"
+    },
+    {
+      "label": "English's grammar holds each record's derivation",
+      "passed": true,
+      "detail": "1",
+      "at": "2026-10-28T11:21:15.722109+00:00"
+    },
+    {
+      "label": "what each word takes beside the words around it is counted from the derivation",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-10-28T11:21:15.722122+00:00"
+    },
+    {
+      "label": "'Roy fastened the medal with a pin.' is read back as its taught meaning",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & done_with(?v0, ?v2) & given instance_of(?v1, award decoration) & instance_of(?v0, fasten) & instance_of(?v2, pin) & precedes(?v0, ?now)",
+      "at": "2026-10-28T11:21:15.735305+00:00"
+    },
+    {
+      "label": "English's grammar learned from each record's meaning",
+      "passed": true,
+      "detail": "1 learned",
+      "at": "2026-10-28T11:21:15.735358+00:00"
+    },
+    {
+      "label": "the preposition 'with' was learned as saying done_with",
+      "passed": true,
+      "detail": "[('prep', ('for', 'event', '-'), 'done_for'), ('prep', ('for', 'event', '-'), 'has_purpose'), ('prep', ('for', 'thing', '-'), 'about'), ('prep', ('for', 'thing', '-'), 'word_for'), ('prep', ('for', 'thing', 'point'), 'word_for'), ('prep', ('for', 'thing', 'stretch'), 'word_for'), ('prep', ('of', 'th",
+      "at": "2026-10-28T11:21:15.735997+00:00"
+    }
+  ],
+  "notes": []
+}

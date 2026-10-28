@@ -126,10 +126,12 @@ async def store_checks() -> int:
              all(not (row.metadata or {}).get("facts") for row, _ in held))
     # A word WordNet has (a noun, a verb, ...) is held with its senses; a word it has none of ("for", "the") with its
     # uses, and a preposition with what it says joining a doing to a thing ("for", checked below) or a thing to a
-    # thing ("of"). "the" is no preposition and joins nothing (it was taken for one, 2026-10-28).
-    EV.check("memory holds each word's senses, what each means and what it is a kind of; a word WordNet has none of, "
-             "its uses, and a preposition what it says",
-             all(any(s.means and s.kind_of for s in w.senses) if w.senses else
+    # thing ("of"). "the" is no preposition and joins nothing (it was taken for one, 2026-10-28). WordNet gives kinds
+    # to nouns and verbs only (its adjectives and adverbs are ordered by likeness and opposites, not kinds): "some",
+    # whose senses are WordNet's adjective and adverb, is a kind of nothing (2026-10-28).
+    EV.check("memory holds each word's senses, what each means and, of a noun or a verb, what it is a kind of; a word "
+             "WordNet has none of, its uses, and a preposition what it says",
+             all(any(s.means and (s.kind_of or s.word_class not in ("NOUN", "VERB")) for s in w.senses) if w.senses else
                  (w.used_as and (w.joins or w.joins_things
                                  or not any(f.word_class == "PREPOSITION" for f in w.forms))) for _, w in held))
 

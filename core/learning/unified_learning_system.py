@@ -5674,7 +5674,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             try:
                 await self.store.rejudge(held, judged)
                 if held.status is EpistemicStatus.VALIDATED:
-                    reason = _relied_on(signature_examples, departed)
+                    reason = (_relied_on(signature_examples, departed)
+                              or self._outexplained(held.rule, judged))
                     if reason:
                         await self.store.withhold(held, reason)
             except Exception as e:
@@ -5953,6 +5954,46 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 return (f"the evidence explains as well a rule needing "
                         f"{', '.join(sorted(h.requires)) or 'nothing else'} with "
                         f"{', '.join(sorted(h.forbids))} absent")
+        return None
+
+    @staticmethod
+    def _outexplained(rule, examples) -> Optional[str]:
+        """A held rule some success of its act lies outside, where a structure
+        needing a condition ABSENT, no larger than the rule, explains every
+        demonstration of the act.
+
+        THE EVIDENCE HAS DECIDED, NOT LEFT IT OPEN. `_absent_condition_rival`
+        asks, when a rule is induced, whether such a structure explains the
+        demonstrations as well, and yields only for a rule leaning on something
+        the act does not name, since a condition among its own things can be a
+        coincidence either way. Once a success the rule cannot produce has been
+        seen and the absent-condition structure produces every one, it is no
+        longer either way: RULE-AUTHORITY-02 world 1168 held "VETO(y, x)" for
+        "LUGAHI(y) absent", two successes without VETO did not contradict it,
+        induction from everything found no rule, and it kept authority to act
+        where the world refuses. Its authority is withheld, not refuted."""
+        from core.learning.rule_induction import judged_by
+        if rule.action is None:
+            return None
+        if not any(e.positive and e.action is not None and e.action.predicate == rule.action.predicate
+                   and judged_by(rule, e) is not True for e in examples):
+            return None
+        trials = [(_conditions(e), e.positive) for e in _relevant_frame(list(examples))
+                  if e.action is not None and e.action.predicate == rule.action.predicate]
+        successes = [c for c, ok in trials if ok]
+        if not successes or all(ok for _, ok in trials):
+            return None
+        varies = lambda c: any(c not in t for t, _ in trials)
+        size = sum(1 for c in _rule_conditions(rule) if varies(c))
+        forbiddable = sorted(frozenset(c for t, ok in trials if not ok for c in t) - frozenset().union(*successes))
+        requirable = sorted(c for c in frozenset.intersection(*successes) if varies(c))
+        for k in range(1, size + 1):
+            for forbids in itertools.combinations(forbiddable, k):
+                for j in range(size - k + 1):
+                    for requires in itertools.combinations(requirable, j):
+                        if all((set(requires) <= t and not set(forbids) & t) == ok for t, ok in trials):
+                            return (f"a success lies outside it, and every demonstration is explained by "
+                                    f"{', '.join(requires) or 'nothing else'} with {', '.join(forbids)} absent")
         return None
 
     async def _judge_regularity(self, *, domain_id: str, predicate: str,

@@ -104,6 +104,39 @@ def test_a_word_no_sentence_held_used_takes_a_class_memory_holds_of_it():
     assert view.classes(words)[1:3] == ("NOUN", "VERB")
 
 
+def test_what_memory_holds_of_a_word_weighs_over_how_words_written_like_it_were_used():
+    """A word no sentence held, that memory holds a noun 25 times, a name once and a verb 3 times, is a noun though
+    the one sentence held began with a name ("Roy"): what memory holds of the word is the word's own, as a tagger's
+    lexicon gives a word it lists its own tags (Brants 2000). Taken only to bound the classes, a capital first was a
+    name, as "Roy" was ("Picture is a representation.", lyric_dev2, 2026-10-28)."""
+    view = StructureView()
+    view.add(_analysed("Roy fastened the medal .", ["NAME", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"],
+                       [2, 0, 4, 2, 2], ["nsubj", "root", "det", "obj", "punct"], "t:1"))
+    words = ("Picture", "is", "a", "representation", ".")
+    held = {"picture": {"NOUN": 25, "NAME": 1, "VERB": 3}}
+    view.held_classes = lambda word: held.get(word.lower(), {})
+    assert view.classes(words)[0] == "NOUN"
+    held["picture"] = {"NAME": 25, "NOUN": 1}
+    assert view.classes(words)[0] == "NAME", "a word memory holds a name is one"
+
+
+def test_a_word_recorded_with_its_names_apart_holds_a_noun_as_a_noun():
+    """Of a way of writing a word whose classes were counted with its names apart (a word recorded whole, as the
+    treebanks' analysts count a proper noun apart), what memory holds as a noun is no name; of any other, a noun is
+    still the treebank's noun or its name ("Boston" is a noun in WordNet)."""
+    from core.semantics.structure import held_classes
+
+    class Inventory:
+        word_classes = {"picture": {"NOUN": 25, "NAME": 1, "VERB": 3}, "boston": {"NOUN": 3}}
+
+        @staticmethod
+        def names_of_shape(word):
+            return []
+    of = held_classes(Inventory(), {"picture"})
+    assert of("Picture") == {"NOUN": 25, "NAME": 1, "VERB": 3}
+    assert of("Boston") == {"NOUN": 3, "NAME": 3}
+
+
 def test_what_memory_holds_of_a_word_is_read_through_the_shapes_it_learned():
     """A word memory holds no class of is read as the held word it is a shape of ("breathes" as `breathe`); classes
     without net evidence are no classes; the word-class view's MODAL is the treebank's AUXILIARY, and its NOUN the

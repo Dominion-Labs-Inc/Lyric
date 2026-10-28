@@ -868,6 +868,50 @@ def test_any_is_one_of_a_kind_only_where_denied_asked_or_supposed():
     assert not any("any" in s.split() for s in g.say(told))
 
 
+def test_some_is_a_thing_of_its_kind_and_never_the_kind():
+    """"Some" is a thing of its kind, as "a" is (the Parallel Meaning Bank writes "I want some potatoes." as it writes
+    "a potato"), and never the kind: "Some dogs bark." tells of some dogs, where "Dogs bark." tells of dogs, and what
+    a thing is said to be with "some" is no kind it is of (Partee 1987). In saying, it says nothing a meaning holds,
+    as "a" does."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    assert read(g, "Tom chased some dogs.") == read(g, "Tom chased a dog.")
+    some_dogs = g.read(gm.tokens_of("Some dogs bark.", g.lexicon.words)).meaning
+    assert any(f.relation == "instance_of" and f.obj == "dog" and gm.is_variable(f.subject) for f in some_dogs.facts)
+    assert some_dogs.canonical() != read(g, "Dogs bark.")
+    assert "isa(" not in read(g, "Whales are some mammals.") and "isa(" in read(g, "Whales are mammals.")
+    some = next(e for _, e in g.lexicon.entries(("some", "dogs"), 0) if e.label == "det")
+    assert gm._says_of(some, some_dogs) == {}
+
+
+class Awarding(Speaking):
+    """The words above and "medal", which names a thing whose name is two words (`award decoration`), memory's words
+    for it found however the name is written (`MemoryAgent.words_for`)."""
+
+    def uses(self, word: str) -> Mapping[str, float]:
+        return {"NOUN": 10.0} if word.lower() == "medal" else super().uses(word)
+
+    def name(self, word: str, cls: str) -> str:
+        return "award decoration" if word.lower() == "medal" and cls == "NOUN" else super().name(word, cls)
+
+    def words_for(self, name: str, cls: str):
+        if cls == "NOUN" and name.replace("_", " ") == "award decoration":
+            return ["medal"]
+        return super().words_for(name, cls)
+
+
+def test_a_name_memorys_store_writes_joined_is_said_as_reading_writes_it():
+    """An answer is told of what memory's store holds, a thing's kind named as the store writes it, joined
+    (`award_decoration`); a sentence said is read back to reading's name (`award decoration`). Compared as written,
+    no sentence was the meaning, nothing was said, and "What did Roy fasten?" was answered "Medal." (TRAIN-FORMAT-01,
+    lyric_dev2, 2026-10-28)."""
+    g = gm.Grammar(gm.Lexicon(Awarding()))
+    told = gm.Meaning("tell", (gm.MeaningFact("done_by", "?v0", "tom"), gm.MeaningFact("done_to", "?v0", "?k0"),
+                               gm.MeaningFact("instance_of", "?k0", "award_decoration", given=True),
+                               gm.MeaningFact("instance_of", "?v0", "chase"), gm.MeaningFact("precedes", "?v0", "?now")))
+    said = g.say(told)
+    assert said and said[0] == "Tom chased the medal.", said[:5]
+
+
 def test_a_word_saying_nothing_is_said_only_where_something_needs_it():
     """Of the words saying nothing, one leaving what it takes as it was ("the" before a name, NP.x/NP.x; "then") is
     never needed to say anything, and is not said (`_leaves_as_is`, Carroll et al. 1999); one making what it takes
