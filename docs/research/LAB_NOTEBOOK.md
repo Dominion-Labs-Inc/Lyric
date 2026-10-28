@@ -16,6 +16,57 @@ Conventions:
 
 ---
 
+## 2026-10-28 (63) — Saying searched as chart generation searches: Kay's index, Carroll's rule for words saying nothing; a doing of four facts said in seconds, of five still never (TRAIN-FORMAT-01, -02)
+
+**Objective** (the owner's yes, after (62) found saying a doing never finished): the classical fixes for chart
+generation, changing how `Grammar.say` searches, not what it may say (every sentence still read back to the meaning).
+
+**Built** (`core/semantics/grammar.py`):
+- *Kay's index* (Kay 1996, "Chart Generation"): each item kept is filed under the shapes it stands as (`_offers`:
+  itself and each result along its spine, `_shape`: a category's bases and slashes) and the shapes it takes after and
+  before it (`_wants`); a new item is tried only with those it may combine with, in the order kept, each way round. What
+  combines by no shape (a joining word, a list's second part, a mark) is tried with all; a kind with any one word.
+- *Carroll's rule* (Carroll, Copestake, Flickinger and Poznański 1999; Carroll and Oepen 2005: a word saying nothing
+  enters where something needs it): a word saying nothing that leaves what it takes as it was, every term the same
+  (`_leaves_as_is`: "the" before a name, NP.x/NP.x; "then"), is not offered; "that" (S[em] from S[dcl]) and "to" still
+  are. Reading still reads them.
+- Test: `test_a_word_saying_nothing_is_said_only_where_something_needs_it`. `test_grammar.py` and
+  `test_sentence_records.py`: 57 pass, in 8.9 s (50 to 80 s before).
+
+**Measured:**
+- The index alone, on four test meanings: the same sentences said; for "Tom chased a cat." the same 155,609
+  combinations made, of 0.92 million tries (1.34 million before); 15.2 s -> 13.9 s. Sentences read as surely as each
+  other come in an order that changes with the hash seed, with or without the index (found, not fixed).
+- With Carroll's rule: "Tom chased a cat." 15.2 s -> **3.0 s** (110 sentences said -> 30, "the" before a name gone);
+  a kind said of a kind 2 to 5 s -> 0.2 to 0.4 s. On lyric_dev2 said first of `isa(wall, partition)`: **"Wall is a
+  partition."** ("the the" gone; "A wall is a partition." fourth).
+- **TRAIN-FORMAT-01** (lyric_dev2; `results/20261028T014501Z`): every store and reading check; "Did Roy fasten the
+  medal?" 316.6 s -> **3.9 s**, "Who fastened the medal?" 210.4 s -> **3.7 s**, "What did Roy fasten?" 214.9 s ->
+  **4.2 s**, each right; **"What did Roy fasten the medal with?" not answered in 11 minutes** (21 before), stopped.
+- **TRAIN-FORMAT-02** (`results/20261028T010956Z`): the reasoning part now finishes, so its checks are recorded:
+  **70 of 75**. Front door: 7 answered right (0.1 to 28.6 s each), then stopped after 27 minutes on the question after
+  "Roy painted the box for Tom.". The five failing: (a) my check took every word WordNet has none of for a preposition,
+  and "the" is none: corrected (`experiment.py`), not yet rerun; (b) "We made it!" (WordNet and SemCor disagree, as
+  before); (c) said first "Wall is a partition." (the structure view's floor, step 5); (d) the reasoning owner handed no
+  premise for "Is a wall a structure?" and (e) "Is a picture a wall?" answered of `picture angstrom`: both read "a" as
+  a noun in a compound ("wall a"), cheaper than the structure view's floor for one unmet join; "a" holds WordNet's noun
+  senses since (62). (d) and (e) passed before "a" was taught.
+
+**Why five facts still never finish** ("Tom chased a cat in the park." on the test words: 131,665 items after 90 s,
+still growing): every way of saying each fact is in the bag, and partial items are built that no reading of the
+meaning can complete: "in" is offered as joining a doing (`prep:doing`), a thing (`prep:thing`) and as said of a
+thing (`prep:said`, "was in the park"), and the last brings "is", "was", "'m", "been" and a joining word ("if",
+"which") with it; "did", "have", "been" offer the past other ways. The items sampled: "if Tom which was in a park 'm",
+"the cat another park 'm in". Each word's variables are fresh until the sentence is read back whole; nothing ties
+"in" to the doing its fact is of.
+
+**Next, the owner's call:** Kay's own remedy, the rest of the same paper: each word put in the bag bound to the
+meaning's terms (the fact `word_in(?v0, ?v2)` binds "in" to the chasing and the park), so an item joining "in" to the
+cat cannot be built; and an item whose thing is no longer reachable from its category, with a fact of that thing not
+yet said, is dropped (it can never be completed). Both change only what is tried.
+
+---
+
 ## 2026-10-27 (62) — Closed words recorded with their forms, sounds and subjects; a subject weighed with its verb, "a" or "an" by the sound after; "be", "a", "the" taught on lyric_dev2; what is said first still not English (TRAIN-FORMAT-02)
 
 **Objective** (the owner's yes to steps 1 to 4 of (61)'s proposal; step 5, a base rate for joins never met, held

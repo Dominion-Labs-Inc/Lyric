@@ -124,12 +124,14 @@ async def store_checks() -> int:
              sorted(w.key() for _, w in held) == sorted(w.key() for w in words), f"{len(held)} held")
     EV.check("memory reads none of them as a claim about the world",
              all(not (row.metadata or {}).get("facts") for row, _ in held))
-    # A word WordNet has (a noun, a verb, ...) is held with its senses; a word it has none of ("for") with its uses
-    # and what it says joining a doing to a thing ("for", checked below) or a thing to a thing ("of").
+    # A word WordNet has (a noun, a verb, ...) is held with its senses; a word it has none of ("for", "the") with its
+    # uses, and a preposition with what it says joining a doing to a thing ("for", checked below) or a thing to a
+    # thing ("of"). "the" is no preposition and joins nothing (it was taken for one, 2026-10-28).
     EV.check("memory holds each word's senses, what each means and what it is a kind of; a word WordNet has none of, "
-             "its uses and what it says",
+             "its uses, and a preposition what it says",
              all(any(s.means and s.kind_of for s in w.senses) if w.senses else
-                 (w.used_as and (w.joins or w.joins_things)) for _, w in held))
+                 (w.used_as and (w.joins or w.joins_things
+                                 or not any(f.word_class == "PREPOSITION" for f in w.forms))) for _, w in held))
 
     # ── each part of reading ──
     forms = agent.word_forms()

@@ -18,11 +18,12 @@ took, closed words' forms with features, "a"/"an" by the sound after (`_told_apa
 (`used_before_doing`, `used_asking`); reading weighs a subject with its verb (`Grammar._agreement`) and "a"/"an"
 (`Lexicon._sound_after`). lyric_dev2 holds 13 words ("be", "a", "the" added). Said first of `isa(wall, partition)`:
 "Wall is the the a partition." (was "Wall'm ..."). **Open, in order:**
-1. *Saying a doing does not finish* (pre-existing since (61), shown on its code): `Grammar.say` pairs every item with
-   every other, and grammar words saying nothing ("the" as `the:name`, "another", "some") multiply the items; so
-   `Conversation._asked_of_events` hangs on "Did Roy coat the wall?" and TRAIN-FORMAT-02 cannot finish; TRAIN-FORMAT-01's
-   "Did Roy fasten the medal?" took 316.6 s. **Main speaks through it at its next start.** How to fix is the owner's
-   call (a design question; no run until then).
+1. *Saying a doing of five facts does not finish* (lab notebook (63)). Kay's index and Carroll's rule for words
+   saying nothing landed (owner's yes): four facts in about 4 s (TRAIN-FORMAT-01 316.6 s -> 3.9 s), but "What did
+   Roy fasten the medal with?" and TRAIN-FORMAT-02's question after "Roy painted the box for Tom." still never end:
+   every way of saying each fact is in the bag and nothing ties a word to the meaning's terms. Proposed, waiting on
+   the owner: Kay's binding of each word to the meaning's terms, and dropping items that can never be completed.
+   **Main speaks through `Grammar.say` at its next start.**
 2. *Step 5, the structure view's floor for unmet joins* (owner held back; changes main): makes "A wall is a partition."
    lose to "Wall is ...", and "Is a wall a substance?" read `wall angstrom`.
 3. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
