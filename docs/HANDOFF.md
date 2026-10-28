@@ -1,9 +1,9 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-27)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-28)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
 2026-10-20 (30), and 2026-10-21 (31), (32), 2026-10-22 (34), (35), (36), 2026-10-23 (37) to (43) and 2026-10-24 (44)
-to 2026-10-27 (62) in `docs/research/LAB_NOTEBOOK.md`.
+to 2026-10-28 (66) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
 ## 0. Where it stands (2026-10-28)
@@ -12,36 +12,72 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (62), 2026-10-27, evening): STEPS 1 TO 4 OF (61)'S FIX LANDED, MEASURED; STEP 5 HELD BACK BY
-THE OWNER; SAYING A DOING DOES NOT FINISH.** Word records carry each form's sounds, the subjects each finite form
-took, closed words' forms with features, "a"/"an" by the sound after (`_told_apart`), and what follows each use
-(`used_before_doing`, `used_asking`); reading weighs a subject with its verb (`Grammar._agreement`) and "a"/"an"
-(`Lexicon._sound_after`). lyric_dev2 holds 13 words ("be", "a", "the" added). Said first of `isa(wall, partition)`:
-"Wall is the the a partition." (was "Wall'm ..."). **Open, in order:**
-1. *Kay binding landed* (lab notebook (64), owner's name for it): each word said bound to the meaning's terms, what can
-   never be completed dropped. TRAIN-FORMAT-01 5 of 5 (answers 0.3 to 11.8 s); TRAIN-FORMAT-02 finishes again: store
-   71 of 75, front door 15 of 21, 6 not answered: "What is a wall?" and the like now read `isa(wall, ?v0)` (teaching
-   "be" moved how "is" reads; the answerer only answers the identity form; it is in the protected coordinator, the
-   owner's call), and "Is a wall a structure?" and the like read "a" as a noun (`wall angstrom`, step 5's floor).
-   Six facts take 26 s. **Main speaks through `Grammar.say` at its next start.**
-2. *Step 5 landed* (lab notebook (65)): Witten-Bell to the uniform; main unchanged (GRAMMAR-01 199/386/488, prose joins
-   68.0%, before and after); the `wall angstrom` readings gone. The answer to a kind asked of ("What is a wall?",
-   `_meanings_held`, coordinator) applied once no substrate ran: TRAIN-FORMAT-02 store 73/75, front door **21/21 right,
-   none wrong**. "Wall is a partition." said first on lyric_dev2 until it is taught sentences (its view holds one).
-   **The replies are not English though right**: lab notebook (65), traced and fixed in (66).
-3. *The replies made English* (lab notebook (66)): a verb the speaker's in any form, a noun as written; a finite verb
-   kept apart by its number and person until its subject; a determiner with its noun and a thing with what it is said
-   to be weighed as UD's treebanks agree (record layers `nouns`, `predicated`; `Grammar._met`); "another" (a thing not
-   one given, `NEQ`) and "any" (licensed by a denial, a question, an "if") given their meanings; only "a", bare, known,
-   "another", whose, "no" make what a thing is said to be (Partee 1987); the kinds the answers name taught (18 words).
-   Main unchanged (GRAMMAR-01 199/386/488, F1 82.1%; prose joins 68.0%). TRAIN-FORMAT-02 store 81/83, front door
-   21/21; TRAIN-FORMAT-01 5/5. **STAGED for the protected coordinator** (`backups/replies_said_2026-10-28/`, run its
-   `apply.sh` once no substrate runs, then TRAIN-FORMAT-02): the answer of a sense ("What is paint?" "Paint is a
-   coating.", not "Coating.") and a telling said back whole ("Noted - Roy painted the box.", not "Noted - I'll hold
-   that about paint_9aff42fc."). Open: "Picture is a representation." and "Walls are a partition." first (lyric_dev2's
-   structure view holds one sentence; the sentence set is not approved); "Medal." for "What did Roy fasten?".
-4. *"the" before a name shares the use `det`* (costs nothing; `data/grammar/english.json`, changes main's reading);
-   number not read ("birds" as `bird`).
+**LATEST (lab notebook (63) to (66), 2026-10-28): LYRIC SAYS ITS ANSWERS BY THE GRAMMAR IT READS BY, RIGHT, AND
+MOSTLY ENGLISH, ON lyric_dev2; ONE CHANGE TO THE PROTECTED COORDINATOR IS STAGED, NOT YET APPLIED.** Classical,
+published methods only (the owner: never an LLM); which fix is taken is decided by the research and the measurements,
+not handed to the owner.
+- *Kay binding* ((63), (64); the owner's name for it): `Grammar.say` searches as chart generation does (Kay 1996's
+  index, Carroll's rule for words that say nothing); each word said is bound to the meaning's own terms, and what can
+  never be completed is dropped.
+- *Joins never met* ((65), step 5 of (61)'s fix): Witten-Bell to the uniform (the `wall angstrom` readings gone); how
+  often a noun is said bare is carried by its record (`said_alone`). A kind asked of ("What is a wall?",
+  `_meanings_held`) is answered by the kind its sense is nearest, applied to the coordinator once no substrate ran
+  (19f1848c).
+- *The replies made English* ((66)): a verb is the speaker's word in any form, a noun as they wrote it (Brennan and Clark
+  1996; Booij 1996); a finite verb still taking its subject is kept apart by its number and person (Oepen and Carroll
+  2000); a determiner with its noun and a thing with what it is said to be are weighed as UD's treebanks agree (record
+  layers `nouns`, `predicated`; `Grammar._met`, wherever the two words first stand together); "another" is a thing of
+  a kind not the one given (the PMB's `NEQ`; its facts spent by the word in saying, `_said_by_other`); "any" is a
+  thing of a kind only under a denial, a question or an "if" (Ladusaw 1979); only "a", bare, known, "another", whose
+  and "no" make what a thing is said to be (Partee 1987); partition, structure, artifact, substance and coating
+  taught on lyric_dev2 (18 words, `experiments/TRAIN-FORMAT-02/records.jsonl`). Tried and removed: P(word|use)
+  emission (Collins 1999; Velldal and Oepen 2005), which as half a generative model said "Walls are partition." first.
+
+**Measured now.** Main's reading unchanged by all of it: GRAMMAR-01 strict 199, senses aside 386, unnamed 488, facts
+F1 82.1%; prose joins 1,326 of 1,949 (68.0%). lyric_dev2: TRAIN-FORMAT-02 store 81 of 83, front door 21 of 21 right,
+none wrong; TRAIN-FORMAT-01 5 of 5; `tests/test_grammar.py` and `tests/test_sentence_records.py` 66 pass. Saying is
+10 to 25% slower on the same store; answers of five facts take 9.5 to 14 s. Replies on lyric_dev2: "Yes. The medal
+was painted." (was "were"), "Yes. Roy paints." (was "Roy paint."), "Yes. Roy coated the wall." (was "coat"), "Roy
+painted the box." (was "Roy did paint the box."), "A wall is a partition.", "Yes. A wall is an artifact." (was "Wall
+is a artifact."), "Yes. Paint is a substance.".
+
+**STAGED, NOT YET APPLIED** (`backups/replies_said_2026-10-28/`: `stage/`, `originals.sha256`, `apply.sh`;
+gitignored). It changes `core/agents/autonomous/autonomous_coordinator.py`, which is protected: editing it while a
+substrate runs halts that substrate. Another session's RULE-AUTHORITY-02 run (2,000 worlds, seed 20261028,
+`experiments/RULE-AUTHORITY-02/results/20261028T091824Z_run/`, uncommitted until it ends) is using it. The change:
+"What is paint?" answered by its sense's kind ("Paint is a coating.", now "Coating."); a telling said back whole
+("Noted - Roy painted the box.", now "Noted - I'll hold that about paint_9aff42fc."); "Noted." when nothing can be
+said; "I'll hold that about you." / "... about me." for the listener and the speaker. Tested with the staged copy
+loaded, not yet through a run. The other session's dcbfe527 put its own coordinator line (the learned-operator act
+gives its names) into the staged copy as well and re-hashed it; `shasum -a 256 -c` on `originals.sha256` is OK against
+HEAD. A waiting job of this session applies it when that run ends and then runs TRAIN-FORMAT-02. If the coordinator at
+HEAD still differs from the staged copy, apply it by hand once `pgrep -f RULE-AUTHORITY-02/experiment.py` prints
+nothing:
+```
+sh backups/replies_said_2026-10-28/apply.sh
+PYTHONPATH="$PWD" POSTGRES_DATABASE=lyric_dev2 ./venv_lyric/bin/python3 -u experiments/TRAIN-FORMAT-02/experiment.py
+```
+`apply.sh` prints the coordinator's `OK`, then `applied`. Expected: 21 of 21 right, none wrong; "What is paint?" ->
+"Paint is a coating."; the tellings in the run's `_transcript.jsonl` acknowledged whole. Then commit the coordinator
+with the run records, and mark (66) and this section applied.
+
+**Open, in order (nothing here is done):**
+1. *Bare subjects said first*: "Picture is a representation."; asked with none of the speaker's words, "Walls are a
+   partition." comes before "A wall is a partition.". lyric_dev2's structure view learned how words join from one
+   sentence. The fix is the 50 to 100 sentence set, which the owner has not approved, so it is not taught.
+2. *A fragment answer*: "What did Roy fasten?" -> "Medal." (the bare noun).
+3. *"some" carries no meaning* in `data/grammar/english.json`, so nothing says it.
+4. *"the" before a name shares the use `det`* (costs nothing; changes main's reading); number not read ("birds" as
+   `bird`).
+5. *Main speaks through `Grammar.say` at its next start* (`derived_reader.say` asks it first), unmeasured there.
+6. *Main's 45,463 per-item language beliefs* (item 4 of (58) to (61) below): the owner's run.
+7. "We made it!" not read in its sense (WordNet and SemCor disagree).
+
+**(62), 2026-10-27, evening: steps 1 to 4 of (61)'s fix.** Word records carry each form's sounds, the subjects each
+finite form took, closed words' forms with features, "a"/"an" by the sound after (`_told_apart`), and what follows
+each use (`used_before_doing`, `used_asking`); reading weighs a subject with its verb (`Grammar._agreement`) and
+"a"/"an" (`Lexicon._sound_after`). lyric_dev2 then held 13 words ("be", "a", "the" added).
+
 Steps before this, (58) to (61):
 
 **(58) to (61), 2026-10-27: SAID BY THE GRAMMAR IT IS READ BY; WHAT IT SAYS FIRST IS NOT YET ENGLISH.** lyric_dev2 holds 10 words recorded whole (paint, for, wall, picture, coat, make, representation, of, make it,
@@ -55,7 +91,7 @@ packed by meaning, `_meant`) and keeps only those `read` reads back, as written,
 `derived_reader.say` asks it first, the taught constructions after. lyric_dev2: 4.3 s, 44 sentences read back right
 for `isa(wall, partition)`, but the first said is "Wall'm the the a partition.": reading accepts it, so saying does.
 
-**Open, in order (nothing here is done):**
+**Open then, in order (item 1's fix since landed, (62) to (66)):**
 1. *Saying ranks bad English first.* Causes found (notebook (61)): the structure view scores a join it never met at
    log(1e-12) (`structure._Pairs.chance`, no base distribution); no agreement (word records keep features for open
    classes only, `word_forms.OPEN_CLASSES`, so "is"/"am"/"are" carry none, and reading compares no subject with its
