@@ -3283,6 +3283,29 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         database query timed out waiting behind it."""
         return await asyncio.to_thread(self.induce, examples, target_predicate)
 
+    async def induce_bounded(self, examples, contrastive=(), frame=lambda basis: basis):
+        """Induce from a bounded basis (`_bounded_basis`) that leaves out no miss
+        what was induced applies to. Returns the result and the framed basis.
+
+        A MISS THE BASIS LEFT OUT STILL REFUTES. The basis keeps the first eight
+        misses, and the one that tells a needed condition apart can come later:
+        RULE-AUTHORITY-02 world 117's first refusal lacking only LUGORSU(z, x)
+        was its ninth, so the rule without it was induced from the eight;
+        `rejudge` refuted it on everything, and the next induction, from the
+        same eight, recorded it again with authority. Every miss what was
+        induced applies to joins the basis, and induction runs again until none
+        is left out; each round adds one at least, so it ends."""
+        from core.learning.rule_induction import judged_by
+        chosen = _bounded_basis(examples, contrastive)
+        while True:
+            result = await self.induce_on_thread(frame(chosen))
+            kept = {id(e) for e in chosen}
+            missed = [e for e in examples if not e.positive and id(e) not in kept
+                      and any(judged_by(c, e) is False for c in result.candidates)]
+            if not missed:
+                return result, frame(chosen)
+            chosen = chosen + missed
+
     async def record(self, result, examples, *, domain_id: str,
                      rule_kind: str = "state_transition"):
         """Persist what induction produced, against the demonstrations that
@@ -5690,8 +5713,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             latest = max(i for i, e in enumerate(signature_basis) if e.positive)
             held_out.append(signature_basis.pop(latest))
 
-        basis = _relevant_frame(_bounded_basis(signature_basis, contrastive))
-        result = await self.induce_on_thread(basis)
+        result, basis = await self.induce_bounded(
+            signature_basis, contrastive, frame=_relevant_frame)
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
             return summary, None, []
@@ -5975,7 +5998,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             latest = max(i for i, e in enumerate(basis) if e.positive)
             held_out.append(basis.pop(latest))
 
-        result = await self.induce_on_thread(_bounded_basis(basis, ()))
+        result, _ = await self.induce_bounded(basis)
         summary["status"] = result.status.value
         if result.status not in (InductionStatus.RULE_LEARNED,
                                  InductionStatus.MULTIPLE_HYPOTHESES) or not result.candidates:

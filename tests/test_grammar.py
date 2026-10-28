@@ -767,3 +767,19 @@ def test_a_subject_agrees_with_its_verb_as_the_subjects_it_took():
     first = gm.tokens_of(said[0], g.lexicon.words)
     assert ("dogs" in [w.lower() for w in first]) == any(w.lower() in ("are", "'re") for w in first), said[:5]
     assert not any(w.lower() in ("am", "'m") for w in first), said[:5]
+
+
+def test_a_word_saying_nothing_is_said_only_where_something_needs_it():
+    """Of the words saying nothing, one leaving what it takes as it was ("the" before a name, NP.x/NP.x; "then") is
+    never needed to say anything, and is not said (`_leaves_as_is`, Carroll et al. 1999); one making what it takes
+    another thing ("that" making a clause one that is taken, "to" a doing one that follows a verb) still may be. Read,
+    "the" before a name is read as before."""
+    assert gm._leaves_as_is(gm.parse_category("NP.x/NP.x")) and gm._leaves_as_is(gm.parse_category("S[F].a/S[F].a"))
+    assert not gm._leaves_as_is(gm.parse_category("S[em].c/S[dcl].c"))
+    assert not gm._leaves_as_is(gm.parse_category("(S[to].e\\NP.x)/(S[b].e\\NP.x)"))
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
+    said = g.say(told)
+    assert "Tom chased a cat." in said
+    assert not any(" the " in f" {s.lower()} " for s in said), [s for s in said if "the" in s.lower()][:3]
+    assert read(g, "The Tom chased a cat.") == told.canonical()

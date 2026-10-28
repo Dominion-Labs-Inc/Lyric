@@ -193,6 +193,41 @@ def _same_shape(c1: Cat, c2: Cat) -> bool:
     return isinstance(c2, Fn) and c1.slash == c2.slash and _same_shape(c1.res, c2.res) and _same_shape(c1.arg, c2.arg)
 
 
+def _shape(cat: Cat) -> str:
+    """A category's shape, its terms and features aside: what two categories must share to be one (`_unify`)."""
+    if isinstance(cat, Atom):
+        return cat.base
+    return f"({_shape(cat.res)}{cat.slash}{_shape(cat.arg)})"
+
+
+def _offers(cat: Cat) -> Set[str]:
+    """The shapes a stretch of this category stands as to what combines with it: itself, and each result along its
+    spine, as composition takes one (X/Y with Y/Z, Y\\Z with X\\Y, X/Y with (Y/Z)/W)."""
+    out = {_shape(cat)}
+    while isinstance(cat, Fn):
+        cat = cat.res
+        out.add(_shape(cat))
+    return out
+
+
+def _wants(cat: Cat) -> Tuple[Optional[str], Set[str]]:
+    """The shapes a stretch of this category takes: after it (X/Y: Y), and before it (X\\Y: Y; and a phrase still
+    taking what follows that takes what comes before it, (X\\Y)/Z: Y, as a thing raised to a verb taking what follows
+    it and a preposition left without its thing combine with what is before them)."""
+    if not isinstance(cat, Fn):
+        return None, set()
+    before = {_shape(cat.arg)} if cat.slash == "\\" else set()
+    if isinstance(cat.res, Fn) and cat.res.slash == "\\":
+        before.add(_shape(cat.res.arg))
+    return (_shape(cat.arg) if cat.slash == "/" else None), before
+
+
+def _leaves_as_is(cat: Cat) -> bool:
+    """Whether a category takes what it makes, the same in every term: `NP.x/NP.x`, `S[F].a/S[F].a`; not
+    `S[em].c/S[dcl].c` ("that" making a clause one that is taken)."""
+    return isinstance(cat, Fn) and show(cat.res) == show(cat.arg)
+
+
 # ── signs: a stretch of words read, its category and its meaning ──────────────────────────────────────────────────
 
 #: A piece of meaning: (what it says, its terms ..., the word that said it). What each says is spelled out in the
@@ -2406,7 +2441,12 @@ class Grammar:
                 if says:
                     budget.update(says)
                     chosen.append((word, entry, {k: 1 for k in says}))
-                elif says is not None and isinstance(parse_category(entry.cat), Fn):
+                elif says is not None and isinstance(cat, Fn) and not _leaves_as_is(cat):
+                    # A WORD SAYING NOTHING ENTERS WHERE SOMETHING NEEDS IT (Carroll, Copestake, Flickinger and
+                    # Poznański 1999; Carroll and Oepen 2005): one that leaves what it takes as it was ("the" before a
+                    # name, NP.x/NP.x; "then", S[F].a/S[F].a) is needed by nothing, whatever it is said with meaning
+                    # the same without it. Offered as often as there are things, "the" said "Wall is the the a
+                    # partition." (lyric_dev2, 2026-10-27). Reading still reads it.
                     empty.append((word, entry))
         for link in sorted({f.relation for f in meaning.facts}):
             for word in self.lexicon.saying(link):
@@ -2506,14 +2546,61 @@ class Grammar:
         for at, entry, spends in extra:
             with contextlib.suppress(ValueError, IndexError):
                 hold(0, spends, self._lexical(tokens, at, at + 1, entry), (tokens[at],), (at,))
+        # KAY'S INDEX (Kay 1996, chart generation): each item kept is filed under the shapes it stands as (`_offers`) and
+        # the shapes it takes after it and before it (`_wants`), so a new one is tried only with those it may combine
+        # with, in the order they were kept, each way round. Tried with every item kept, 88% of 1.34 million tries made
+        # nothing, and the trying was two thirds of the time ("Tom chased a cat.", 15.2 s); a doing of five facts was
+        # never said ("Did Roy coat the wall?", lyric_dev2, 2026-10-28). What combines by no shape (a joining word, a
+        # list's second part, a mark) is tried with all; a kind with any one word, as a name may follow it ("named").
         done: List[Item] = []
+        standing: Dict[str, List[int]] = defaultdict(list)
+        taking_after: Dict[str, List[int]] = defaultdict(list)
+        taking_before: Dict[str, List[int]] = defaultdict(list)
+        kinds: List[int] = []
+        lexical: List[int] = []
+        unshaped: List[int] = []
+
+        def by_no_shape(cat: Cat) -> bool:
+            return (isinstance(cat, Atom) and cat.base in ("conj", "punct")) or (isinstance(cat, Fn) and cat.slash == "&")
         while agenda:
             item = agenda.pop()
             filled, used, sign, said, order, key = item
             if held[key] is not item:
                 continue
+            n = len(done)
             done.append(item)
-            for other_item in done:
+            offers, (after, before) = _offers(sign.cat), _wants(sign.cat)
+            for s in offers:
+                standing[s].append(n)
+            if after is not None:
+                taking_after[after].append(n)
+            for s in before:
+                taking_before[s].append(n)
+            noun = isinstance(sign.cat, Atom) and sign.cat.base == "N"
+            if noun:
+                kinds.append(n)
+            if sign.rule == "lex":
+                lexical.append(n)
+            if by_no_shape(sign.cat):
+                unshaped.append(n)
+            if by_no_shape(sign.cat):
+                partners: Iterable[int] = range(n + 1)
+            else:
+                found = set(unshaped)
+                for s in offers:
+                    found.update(taking_before[s])
+                    found.update(taking_after[s])
+                if after is not None:
+                    found.update(standing[after])
+                for s in before:
+                    found.update(standing[s])
+                if noun:
+                    found.update(lexical)
+                if sign.rule == "lex":
+                    found.update(kinds)
+                partners = sorted(found)
+            for j in partners:
+                other_item = done[j]
                 other_filled, other_used, other, other_said, other_order, other_key = other_item
                 if filled & other_filled or held[other_key] is not other_item:
                     continue

@@ -735,6 +735,31 @@ def test_a_success_nothing_it_held_explains_is_the_world_departing():
     assert _leaks(worked + [leak] + lit, {"p5"}, lambda basis: basis) == set()
 
 
+def test_a_miss_the_bounded_basis_left_out_still_refutes():
+    """A press works where the button is ready and lit. The first eight refusals
+    were of buttons only lit, which READY alone tells apart; the ninth was ready
+    and not lit. Induced from the first eight alone, the rule needs no LIT."""
+    from core.learning.unified_learning_system import UnifiedLearningSystem, _bounded_basis
+
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(Fact(p, (thing,)) for p in held))
+        after = before + ((Fact("PRESSED", (thing,)),) if worked else ())
+        return TrainingExample(before=before, action=Fact("PRESS", (thing,)), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    examples = ([press(i, "READY", "LIT", worked=True) for i in range(3)]
+                + [press(i, "LIT", worked=False) for i in range(3, 11)]
+                + [press(11, "READY", worked=False)])
+    learning = UnifiedLearningSystem.__new__(UnifiedLearningSystem)
+    learning._inducer = None
+
+    capped = asyncio.run(learning.induce_on_thread(_bounded_basis(examples, ())))
+    assert "LIT" not in {f.predicate for f in capped.rule.body}
+    result, basis = asyncio.run(learning.induce_bounded(examples))
+    assert {"READY", "LIT"} <= {f.predicate for f in result.rule.body}
+    assert "p11" in {e.evidence_id for e in basis}
+
+
 def test_what_the_substrate_touched_is_told_apart_per_thing():
     """An act that says what it changed names those things, and the world's own
     change of anything else is still the world's; one that does not say, or one
