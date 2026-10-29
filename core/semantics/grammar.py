@@ -331,6 +331,11 @@ class Words:
         """How often the verb is used in each frame (`intransitive`, `transitive`, `ditransitive`, `to`, `that`)."""
         return {}
 
+    def known_words(self, words: Sequence[str]) -> Mapping[str, str]:
+        """Each kind of word memory knows these words as one word of, with the name it knows them under: "credit
+        card" a thing, "fed up" a quality, "kind of" an adverb. Nothing where it knows them as none."""
+        return {}
+
     def known_name(self, words: Sequence[str]) -> Optional[str]:
         """The name memory knows these words as together ("credit card", "phone number"), or None."""
         return None
@@ -1120,7 +1125,8 @@ class Lexicon:
         if i + 1 >= len(tokens) or not tokens[i + 1].isalpha():
             return 0.0
         name = self.words.name(tokens[i], "VERB")
-        if not self.words.known_verb([name, tokens[i + 1].lower()]):
+        if not (self.words.known_verb([tokens[i].lower(), tokens[i + 1].lower()])
+                or self.words.known_verb([name, tokens[i + 1].lower()])):
             return 0.0
         if self.words.said_together(name, tokens[i + 1]) == self.words.said_together(
                 name, tokens[i + 1], ends=i + 2 >= len(tokens) or not any(ch.isalnum() for ch in tokens[i + 2])):
@@ -1530,7 +1536,12 @@ class Lexicon:
         if i + 1 < n and tokens[i].isalpha() and tokens[i + 1].isalpha() and tokens[i + 1][:1].islower():
             verb = self._evidence(tokens, i).get("VERB")
             name = self.words.name(tokens[i], "VERB") if verb is not None else ""
-            together = self.words.known_verb([name, tokens[i + 1].lower()]) if verb is not None else None
+            # ASKED UNDER THE WORDS AS WRITTEN, which is how a verb of several words is held ("grow up", "grew up",
+            # "stand for"), as well as under the verb's name, which is the thing's and not the word's ("grow"
+            # `cultivate grow`, "show" `to show`): asked under the name alone, "Where did Golda Meir grow up?" read
+            # no whole (lyric_dev2, 2026-10-29).
+            together = (self.words.known_verb([tokens[i].lower(), tokens[i + 1].lower()])
+                        or self.words.known_verb([name, tokens[i + 1].lower()])) if verb is not None else None
             if together:
                 particle = self._said_as_one(tokens, i, name)[0]
                 # IN THE FRAMES IT IS HELD TO BE USED IN, where any are: "make it" is never said of a thing, and
@@ -1556,17 +1567,31 @@ class Lexicon:
                     for t in self.templates.get("NOUN", ()):
                         out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN", name,
                                                  score, "compound")))
-        # Words memory knows as one thing: "credit card", "bus stop", "prime number"; as sure as its words are,
-        # each used as it is used most.
+        # WORDS MEMORY KNOWS AS ONE WORD, of each kind it holds them as: a thing ("credit card", "bus stop"), a
+        # quality ("fed up", "in love"), an adverb ("kind of", "in vain"); as sure as its words are, each used as it
+        # is used most. A verb of several words is read by the verb and its particle above, which says the form and
+        # the frame too. Asked as written and with the last word as the word it is a form of, which is the spelling
+        # a word of several words is held under ("gold medals" `gold medal`, "sleeping pills" `sleeping pill`).
         for length in (3, 2):
-            if i + length <= n and all(t.isalpha() and t[:1].islower() for t in tokens[i:i + length]):
-                known = self.words.known_name([t.lower() for t in tokens[i:i + length]])
-                if known:
-                    score = sum(max(self._evidence(tokens, k).values(), default=-20.0) for k in range(i, i + length))
-                    for t in self.templates.get("NOUN", ()):
-                        out.append((i + length, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN",
-                                                      known, score, "known together")))
-                    break
+            # THE FIRST WORD MAY BE CAPITALISED ("Easter egg", "At last, we arrived"): a run whose later words are
+            # written lowercase is no name of several words, which the capitalised run reads (`_name_runs`).
+            if i + length > n or not all(t.isalpha() for t in tokens[i:i + length]) \
+                    or not all(t[:1].islower() for t in tokens[i + 1:i + length]):
+                continue
+            said = [t.lower() for t in tokens[i:i + length]]
+            held = dict(self.words.known_words(said))
+            base = self.words.lexeme(said[-1], "NOUN")
+            if base and base != said[-1]:
+                for cls, name in self.words.known_words(said[:-1] + [base]).items():
+                    held.setdefault(cls, name)
+            if not held:
+                continue
+            score = sum(max(self._evidence(tokens, k).values(), default=-20.0) for k in range(i, i + length))
+            for cls, known in held.items():
+                for t in self.templates.get(cls, ()):
+                    out.append((i + length, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls,
+                                                  known, score, "known together")))
+            break
         return out
 
     def _number_runs(self, tokens: Sequence[str]) -> List[Tuple[int, int]]:

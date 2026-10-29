@@ -58,11 +58,16 @@ class Knowledge:
     def capitalized(self, word: str) -> Mapping[str, float]:
         return {}
 
+    def known_words(self, words: Sequence[str]) -> Mapping[str, str]:
+        """EACH KIND OF WORD MEMORY HOLDS THESE WORDS AS ONE WORD OF, with the name it holds them under: "credit
+        card" a thing, "fed up" a quality, "kind of" an adverb, "pass away" a verb. Nothing where it holds none."""
+        return {}
+
     def known_name(self, words: Sequence[str]) -> Optional[str]:
-        return None
+        return self.known_words(words).get("NOUN")
 
     def known_verb(self, words: Sequence[str]) -> Optional[str]:
-        return None
+        return self.known_words(words).get("VERB")
 
     def classes(self, word: str) -> Mapping[str, float]:
         """The kinds of word memory holds the word as, for a word no sentence held used."""
@@ -90,10 +95,10 @@ class GraphKnowledge(Knowledge):
     """What memory holds of things, held in this process: each thing's links (`isa`, `instance of`, `defined with`)
     as the store holds them (`add`), what is held of word classes and names asked of `classes`, `names`.
 
-    `known_name(words)` and `known_verb(words)` ask `names(words, cls)` (memory's names of several words)."""
+    `known_words(words)` asks `names(words)` (each kind of word memory holds several words as, with its name)."""
 
     def __init__(self, classes: Optional[Callable[[str], Mapping[str, float]]] = None,
-                 names: Optional[Callable[[Sequence[str], str], Optional[str]]] = None):
+                 names: Optional[Callable[[Sequence[str]], Mapping[str, str]]] = None):
         self._isa: Dict[str, List[str]] = defaultdict(list)
         self._instance: Dict[str, List[str]] = defaultdict(list)
         self._defined: Dict[str, List[str]] = defaultdict(list)
@@ -184,11 +189,8 @@ class GraphKnowledge(Knowledge):
             out["NOUN"] = float(len(self._isa[c]))
         return out
 
-    def known_name(self, words: Sequence[str]) -> Optional[str]:
-        return self._names(words, "NOUN") if self._names is not None else None
-
-    def known_verb(self, words: Sequence[str]) -> Optional[str]:
-        return self._names(words, "VERB") if self._names is not None else None
+    def known_words(self, words: Sequence[str]) -> Mapping[str, str]:
+        return dict(self._names(words)) if self._names is not None else {}
 
     def classes(self, word: str) -> Mapping[str, float]:
         return dict(self._classes(word)) if self._classes is not None else {}
@@ -721,6 +723,9 @@ class HeldWords(Words):
             if of_class == cls:
                 out[features] += n
         return {f: float(n) for f, n in out.items() if n > 0}
+
+    def known_words(self, words: Sequence[str]) -> Mapping[str, str]:
+        return self.knowledge.known_words(words)
 
     def known_name(self, words: Sequence[str]) -> Optional[str]:
         return self.knowledge.known_name(words)

@@ -7135,7 +7135,7 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is None:
             from core.semantics.grammar import GrammarView, closed_uses
             from core.semantics.grammar_words import GraphKnowledge, HeldWords
-            knowledge = GraphKnowledge(classes=self._net_word_classes, names=self._held_name)
+            knowledge = GraphKnowledge(classes=self._net_word_classes, names=self._held_names)
             for subject, relation, target in self._grammar_links:
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
@@ -7202,26 +7202,32 @@ class MemoryAgent(IMemoryConsolidation):
         reader was handed the reader's class names (MODAL, not the treebank's AUXILIARY; NOUN and never NAME)."""
         return {cls: float(n) for cls, n in self.word_classes(word).items() if n > 0}
 
-    def _held_name(self, words: Sequence[str], word_class: str) -> Optional[str]:
-        """The name memory holds these words by together ("credit card", "pass away"), as a word of that class; None
-        where it holds none."""
+    def _held_names(self, words: Sequence[str]) -> Dict[str, str]:
+        """EACH KIND OF WORD MEMORY HOLDS THESE WORDS AS ONE WORD OF, with the name it holds them under: "credit
+        card" a thing, "fed up" a quality, "kind of" an adverb, "pass away" a verb. A name is a thing's word, the
+        grammar reading a name of several words of its own (`Grammar._name_runs`). Nothing where it holds none."""
+        out: Dict[str, str] = {}
         view = self.pattern_inventory()
         for lexical in view.lexicals_with_words(tuple(w.lower() for w in words), loose=True):
             value = lexical.value
             if " " not in value.replace("_", " ").strip():
                 continue
-            classes = self.word_classes(value)
-            if not classes or any(word_class in (c, "NOUN" if c == "NAME" else c) and n > 0
-                                  for c, n in classes.items()):
-                return value.replace("_", " ")
-        # WORDS HELD TOGETHER AS A WORD OF THE CLASS: a verb of several words is taught as one ("'look up' is used
+            # A phrase memory holds with no class of its own answers as the words it is read as do.
+            classes = self.word_classes(value) or {"NOUN": 1.0, "VERB": 1.0}
+            for word_class, n in classes.items():
+                if n > 0:
+                    out.setdefault("NOUN" if word_class == "NAME" else word_class, value.replace("_", " "))
+        # WORDS HELD TOGETHER AS A WORD OF THE CLASS: a word of several words is taught as one ("'look up' is used
         # as a verb.", `WordNetSource._word_classes`), and no fact says it in words of its own.
         together = " ".join(w.lower() for w in words)
-        if len(words) > 1 and self.word_classes(together).get(word_class, 0) > 0:
-            # Named as a word recorded whole names it ("make it", `overcome survive`), as its senses and frames are
-            # held under (`GrammarView.hold_word`).
-            return self.recorded_name(together, word_class) or together
-        return None
+        if len(words) > 1:
+            for word_class, n in self.word_classes(together).items():
+                if n > 0:
+                    # Named as a word recorded whole names it ("make it", `overcome survive`), as its senses and
+                    # frames are held under (`GrammarView.hold_word`).
+                    out.setdefault("NOUN" if word_class == "NAME" else word_class,
+                                   self.recorded_name(together, word_class) or together)
+        return out
 
     def _hold_taught(self, view, item) -> None:
         """A sentence held with its taught meaning, folded into the composer's view and English's grammar."""

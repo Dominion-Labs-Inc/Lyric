@@ -2,8 +2,8 @@
 
 Three scripts, files only, no store, each building the grammar as GRAMMAR-01 does (about three minutes). They answer
 what is wrong, not whether a change helped; nothing in Lyric was changed for them. Lab notebook 2026-10-26 (51). The
-two since (`verb_places.py`, `participles.py`) ask what the PMB's gold says of a kind of word, against each way of
-deciding it; they build no grammar and take about a minute.
+three since (`verb_places.py`, `participles.py`, `several_words.py`) ask what the PMB's gold says of a kind of word,
+against each way of deciding it; they build no grammar and take about a minute.
 
 | Script | What it measures |
 |---|---|
@@ -13,6 +13,7 @@ deciding it; they build no grammar and take about a minute.
 | `categories.py dev/standard` | each held-out word: the gold category, the categories the grammar lists and derives (`Grammar._unary`) for it, the one its reading uses |
 | `verb_places.py train` | each place of each verb of a split's gold documents, named as the grammar names it, against the link the PMB gives its role: by what word records gave before, by the VerbNet frames of the gold sense, of the word, and of WordNet's most used sense |
 | `participles.py train` | each word of a split's gold documents written as a participle or an -ing form, standing where either a quality or a doing may stand: what the gold says it is, and of the gold's qualities how many each way of deciding catches, and of what it calls qualities how many are ones |
+| `several_words.py train` | every concept of a split's gold documents whose words are several, by shape (a name, a noun, a verb, a quality, an adverb) and by whether the language has them as one word: how many each way of deciding catches, and of every run of words the sentences say how many of those each way calls one concept are ones; and the link the gold makes where a name stands right before a thing |
 
 From 2026-10-26 (52) `taught_fit.py` and `categories.py` hold the training derivations first, as GRAMMAR-01 and main do
 (`PMBDerivationSource`, `GrammarView.hold_derived`): taught sentences read back 414 -> 424 of 1,000; held-out words in
@@ -80,6 +81,37 @@ documents' places), by the verb: a Patient for "injure" and "soak", a Theme alon
 who does it) for "speak" and "elect". `done_to` whatever else is said, which the reader says, is right 49% of the
 time; "done_to where a doer is said with it, else done_by" 56.5%; the frames, asked for the place as the active names
 it, 29.6% (asked so they answer for the Agent's place, not for the one affected).
+
+**`several_words.py`** (2026-10-29, lab notebook (79)): of the 9,552 gold train documents, 1,586 concepts are one
+word of several — 420 a name ("New York", "Second World War", "Leaning Tower of Pisa"), 747 a thing ("hair dryer",
+"peace treaty", "red wine"), 238 a verb ("split up", "picked up", "ran into"), 105 an adverb ("in vain", "out of the
+blue"), 76 a quality ("fed up", "in love", "out of print"). WordNet spells **every one** of the 1,166 that are not
+names as one word, in one of three spellings (as written 97.8% of the things, the last word as its base 11.7%, run
+together 8.8%), so memory taught from WordNet holds them all; the names it spells 45.5% of, and a capitalised run
+catches 77.6%. Of the 44,993 runs of two words the sentences say only 3.7% are one concept, against which: WordNet
+as written calls 1,852 one and 58.6% are, the last word's base 122 and 81.1% are, run together 753 and 14.1% are, a
+capitalised run 487 and 61.2% are. A further 663 concepts cover several words without being one word of the language,
+the annotation lumping an adverb or a preposition into a span ("Call again." `call.v.03`, "insured with"
+`insure.v.03`, "ten o'clock" `time.n.08`).
+
+Two things about the gold's spelling, not the language's, hid most of the verbs: a verb's particle is marked as a word
+of the sentence's grammar, so "filled *out*" left one word behind, and a verb of several words carries its form on the
+first word where WordNet spells the base ("filled out" `fill_out.v.03`, "fell in love" `fall_in_love.v.01`). Counted
+without either, verbs of several words are 31; with the particle counted back in, 60; with the first word's verb as a
+spelling too, 238. Memory needs neither correction, holding the forms of a word of several words as it holds a word's
+("grew up" under `grow up`, `WordRecord.forms`).
+
+**A name of several words (79):** 252 of the gold's 420 (60.0%) are runs whose words the treebank writes as something
+other than a name ("the European Constitution": "European" an adjective, "Constitution" a noun); only 74 (17.6%) have
+every word written as a name. And a capitalised run is as likely to be one name either way — of the two-word runs it
+calls one, 59.1% are where the words are written otherwise against 68.5% where they are written as names. The grammar
+scores a run as sure as each of its words is held a name (`Lexicon._together`), which is why "the European
+Constitution" is offered at -4.97 against -0.35 for "European" an adjective and "Constitution" a noun, and loses. Of
+each word inside a capitalised run (4,214) the gold makes a name of 50.9%, a thing of 16.5%, a doing of 5.2%.
+
+**A name right before a thing (79)**, 1,574 places: 44.1% one concept or no two things, 44.3% no link at all between
+them, then `comes_from` 3.9%, `has_member` 3.1%, `part_of` 1.5%, `owned_by` 1.5%, `creates` 0.8% ("Do you like IKEA
+furniture?"), `located_in` 0.3%. No link is the commonest reading, and the reader's `received_by` is none of them.
 
 **`participles.py`** (2026-10-29, lab notebook (78)): of the words written as a participle or an -ing form in the
 9,552 gold train documents, what the gold says where either a quality or a doing may stand, and what each way of

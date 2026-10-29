@@ -170,6 +170,23 @@ sense read that best fits the places said (`Lexicon.framed`), where no taught se
 now, 85.4% by the most used sense's frames, 86.5% by the gold sense's). lyric_dev2 re-taught its verbs: the 77 46 (F1
 82.1%); main 40 (79.9%), unchanged.
 
+**Several words that are one word (2026-10-29, lab notebook (79)).** `several_words_test.json`: the 101 dev
+documents whose gold makes one concept of several words that is not a name (61 things, 25 verbs, 11 qualities, 9
+adverbs). Research first: `diagnostics/several_words.py` over the 9,552 train documents — 1,586 concepts are one word
+of several (420 a name, 747 a thing, 238 a verb, 105 an adverb, 76 a quality), and WordNet spells every one of the
+1,166 that are not names as one word, so memory taught from WordNet holds them all; against that, of the 44,993 runs
+of two words the sentences say only 3.7% are one concept. Built: `Lexicon._together` asks memory what it holds
+several words as (`Words.known_words`, `MemoryAgent._held_names`: each kind of word, with its name, in place of the
+two questions asked of one class each) and offers that kind's entries, so a quality ("fed up"), an adverb ("in
+vain") and a thing are read as one word and not a thing alone; a verb of several words is asked for under the words
+as written, where it is held, and not only under the verb's name, which is the thing's ("grow" `cultivate grow`, so
+"Where did Golda Meir grow up?" read no whole); a run may open with a capital ("Easter egg", "At last, we arrived");
+and it is asked with the last word as the word it is a form of ("gold medals" `gold medal`). By their words on
+lyric_dev2, the 75 words taught and the rule: the several-words set 13 of 87 to 44 of 101, the 77 49 to 50, hyphen 6
+to 5 (the one loss is the measure's naming of a sense, not the reading), every other set unmoved. Found, not fixed: a
+name of several words, which the grammar scores as sure as each of its words is held a name although the gold says a
+capitalised run is one name 59% of the time whatever its words are usually written as.
+
 **Participles (2026-10-29, lab notebook (78)).** `participle_test.json`: the 18 dev documents whose gold says a
 quality by a word written as a participle or an -ing form, standing where either a quality or a doing may stand. A
 participle says a quality where memory holds the word as an adjective, which is a word of its own in WordNet

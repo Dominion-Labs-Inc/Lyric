@@ -16,6 +16,143 @@ Conventions:
 
 ---
 
+## 2026-10-29 (79) — Several words that are one word: read as whatever kind memory holds them as
+
+**Objective.** The 77's next group by size as (78) counted it: a noun or name of several words (6 of the 28 left).
+
+**Research first** (`GRAMMAR-01/diagnostics/several_words.py`, files only: every concept of the PMB's 9,552 gold
+train documents whose own words are several — the words of its span no tighter span covers and the line does not mark
+as words of the grammar — against every run of words the sentences say, which is what a way of deciding must not call
+one concept). Two kinds are told apart, because only the first is a word of the language: one the line names with a
+`Name` of several words or WordNet's own sense spells as one of its lemmas, and one the annotation lumps ("Call
+again." `call.v.03`, "insured with" `insure.v.03`, "ten o'clock" `time.n.08`: 663 of them, not counted below).
+
+| one word of several | of them | a capitalised run catches | WordNet spells it so |
+|---|---|---|---|
+| a name ("New York", "Second World War") | 420 | 77.6% | 45.5% |
+| a thing ("hair dryer", "red wine") | 747 | 0% | **100%** |
+| a verb ("split up", "picked up", "ran into") | 238 | 0% | **100%** |
+| an adverb ("in vain", "out of the blue") | 105 | 0% | **100%** |
+| a quality ("fed up", "in love") | 76 | 0% | **100%** |
+
+WordNet spells every one of the 1,166 that are not names as one word, in one of three spellings (as written 97.8% of
+the things, the last word as its base 11.7%, run together 8.8%) — so **memory taught from WordNet holds them all**,
+and what `GraphKnowledge.known_name` asks for is there to be had. Against that, of the 44,993 runs of two words the
+sentences say only 3.7% are one concept: WordNet as written calls 1,852 one and 58.6% are, the last word's base 122
+and 81.1% are, run together 753 and 14.1% are, a capitalised run 487 and 61.2% are.
+
+The verbs were counted 31 at first and 238 once two things were put right, both of them the gold's spelling and not
+the language's: a verb's particle is marked as a word of the sentence's grammar, so "filled *out*" left one word
+behind, and a verb of several words carries its form on the first word where WordNet spells the base ("filled out"
+`fill_out.v.03`, "fell in love" `fall_in_love.v.01`). Memory needs neither correction, holding the forms of a word of
+several words as it holds a word's ("grew up" under `grow up`, `WordRecord.forms`).
+
+**Cause.** Read on lyric_dev2, the six of (78)'s count are not one thing and only three of them are this group:
+"prime minister" is held as one word already, its entry the surest at the word (-0.35), and the sentence fails on
+"Who is the Hungarian prime minister?" read as a request; "IKEA furniture" is a name right before a thing; "Phobos
+and Deimos" names in a list after a colon. Of the three that are:
+
+- **The words were missing, and the rule offered a thing alone.** "I like disco music." already reads one concept of
+  both words, by the rule for a noun before a noun, and names it by its words ("disco music") because memory holds no
+  record of the word; the gold's name is `disco` (`disco_music.n.01`). And a quality, an adverb or a verb of several
+  words was never offered at all: `Lexicon._together`'s "words memory knows as one thing" made a NOUN entry and
+  nothing else, so "fed up", "in vain", "at last" were read as their words apart.
+- **The verb of several words was asked for under the wrong word.** The verb-and-particle rule asks memory
+  `known_verb([the verb's name, the particle])`, and a verb's name is the thing's and not the word's: "grow" is
+  `cultivate grow`, "show" is `to show`, so `known_verb(['cultivate grow', 'up'])` is nothing where
+  `known_verb(['grow', 'up'])` is `grow up`. It worked only where a verb's name happens to be the word ("let up").
+  That is why "Where did Golda Meir grow up?" read no whole at all.
+- **A run opening with a capital was never asked for.** The rule wanted every word of the run written lowercase, so
+  "Easter egg" and "At last, we arrived in California." were not asked of memory, which holds both.
+
+**Built.** `Lexicon._together` asks memory what it holds several words as (`Words.known_words`, `Knowledge`,
+`MemoryAgent._held_names`: each kind of word memory holds them as, with the name it holds them under, in place of the
+two questions `known_name`/`known_verb` asked of one class each) and offers that kind's entries — a thing, a quality,
+an adverb, as sure as its words are. A verb of several words is still read by the verb and its particle, which says
+the form and the frame too, and that is asked under the words as written as well as under the verb's name. The run
+may open with a capital, its later words lowercase telling it from a name of several words. And it is asked with the
+last word as the word it is a form of ("gold medals" `gold medal`, "sleeping pills" `sleeping pill`), the spelling of
+the best precision measured (81.1%).
+
+**Taught** (lyric_dev2): the 75 words of several words the set says that it held no record of, recorded whole
+(`word_record_of`): 48 things, 8 adverbs, 4 qualities, 7 verbs and the rest several kinds. None refused; no concept,
+belief or domain made. Word records 484 -> 559.
+
+**Measured** (lyric_dev2, all eight sets in one run, by their words with pronouns as unknowns). The new set is
+`several_words_test.json`, the 101 dev documents whose gold makes one concept of several words that is not a name:
+61 things, 25 verbs, 11 qualities, 9 adverbs.
+
+| by their words, lyric_dev2 | the store and code of (78) | the 75 words taught | and the rule |
+|---|---|---|---|
+| several words (new) | 13 of 87 (F1 45.6%) | 37 of 101 (60.1%) | **44 of 101 (65.6%)** |
+| the 77 | 49 (F1 84.1%) | 50 (84.6%) | 50 (84.6%) |
+| hyphen (15) | 6 | 6 | 5 |
+| degree 13 / denial 6 / kind of 5 / clock 6 / participle 9 | | the same | the same |
+
+The set grew from 87 documents to 101 when the gold's spelling of a verb of several words was put right, so the first
+column is the smaller set; measured on the 87 with the words taught and the rule in its first form it was 38 (62.5%).
+The rule alone, before the words were taught, moved nothing at all on any set, which is the point of the two columns:
+lyric_dev2 held a record for one of these 76 words ("prime minister"), and a rule that asks memory what it holds
+several words as has nothing to answer until memory holds them.
+
+Eight sentences became right by the rule — "I'm fed up.", "I'm fed up with math.", "Is Tom all right?", "You are in
+love with him.", "Tom never quarrels with his wife in public.", "At last, we arrived in California.", "I'm painting
+an Easter egg.", "I waited for hours, but she didn't show up." — and one became wrong: **"Tom took off his
+bullet-proof vest."** It now reads "took off" as one verb, which the gold does too (`take_off.v.06`), and names it
+`take off` where the gold's sense is named `undress take off`: the reading picks another sense of the verb of several
+words. The measure cannot reconcile them, because a thing is named by the word of the sentence it is a sense of
+(`named_by_their_words`) and the sentence says "took off" while the lemma is `take_off` — `words_of_sentence` counts
+every two and three words side by side as written and not the word they are a form of. Before the change the reading
+read "took" alone, named it `undress take off` and read "off" as a preposition saying nothing, which the measure
+scored right. The reading is better and the score is worse.
+
+**Found, not fixed.** A name of several words. 252 of the gold's 420 (60.0%) are runs whose words the treebank writes
+as something other than a name ("the European Constitution": "European" an adjective 26 times, "Constitution" a
+noun); only 74 (17.6%) have every word written as a name. And a capitalised run is as likely to be one name either
+way — of the two-word runs it calls one, 59.1% are where the words are written otherwise against 68.5% where they are
+written as names, against a 3.7% base rate. The grammar scores a run as sure as each of its words is held a name, so
+"the European Constitution" is offered at -4.97 against -0.35 for the two words apart, and loses. What the
+measurement does not give is a score to put in its place that is not a constant of its own, so nothing was built.
+
+A verb of several words WordNet spells as one word: "fist fighting" is `fistfight.v.01`, lemma `fistfight`, so no
+spelling of the two words finds it, and running the words together calls 753 two-word runs one concept of which only
+14.1% are.
+
+A quality of several words beginning with a preposition is offered and outscored: "I've fallen in love with you."
+offers "in love" (`enamored`, -0.52) against "in" a preposition (-0.19) and "love" a thing (-0.34).
+
+A name right before a thing ("Do you like IKEA furniture?", the gold `creates`): of 1,574 such places the gold makes
+44.1% one concept or no two things, 44.3% no link at all, then `comes_from` 3.9%, `has_member` 3.1%, `part_of` 1.5%,
+`owned_by` 1.5%, `creates` 0.8%. No link is the commonest reading; the reader's `received_by` is none of them.
+
+**Where it stands.** The 77 by their words: lyric_dev2 50 of 77 (65%), main 40 (52%, not re-run);
+the bar is 95%. Several words that are one word of the language read as one word of the kind memory holds them as,
+where memory holds them — which, the measurement says, is every one of the 1,166 that are not names, once it is
+taught them. Names of several words are left as they were, and are the biggest single thing known and not built.
+
+**The 77's 27 left, counted by cause** (each sentence under the one thing that would have to change):
+
+| | |
+|---|---|
+| single cases | 9: "Ain't", "off duty", "novel-based", a gerund with a possessive, a fronted "By whom", "kind of" with what is asked, "since" with the sense of "took", "including", and the quoted pair that reads no whole |
+| which link a word says | 5: a verb's place 3 ("Nobody called him." `received_by`, "Our bus collided with a truck." the Co-Theme, "Caesar falls" `done_to`), a possessive 1 ("Boeing's headquarters" `part_of`), a time with "at" 1 |
+| the reading says more than the gold | 2: a past said ("You reek of alcohol."), a name equated with the name said of it |
+| a place or people's adjective | 2: "a Norwegian town" `part_of`, "a Lesbian poet" from Lesbos |
+| the one participant said to do it | 2: the horse ridden, the tennis played |
+| several words that are one word | 2: "fist fighting", "European Constitution" |
+| a bare plural | 1: "Are anal fissures curable?" read as the kind itself |
+| a name right before a thing | 1: "Do you like IKEA furniture?" |
+| names in a list after a colon | 1: "Mars has two moons: Phobos and Deimos." |
+| a question read as a request | 1: "Who is the Hungarian prime minister?" |
+| what a later word refers to | 1: "Tom chased the mugger and caught him." |
+
+(78) counted this group 6 and it is 2: three of its six were other things, and "disco music" is right now.
+
+Next by size: single cases aside, which link a word says — five sentences, three of them a verb's place, which
+`verb_places.py` already measures and (77) left at 81.8% for objects and 42% for a passive's subject.
+
+---
+
 ## 2026-10-29 (78) — Participles: a quality where memory holds the word as one, and an Experiencer beside a doer is what it is done to
 
 **Objective.** The 77's next group by size (lab notebook (77)): participles read as passives or verbs ("Is the dog

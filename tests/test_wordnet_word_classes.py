@@ -30,11 +30,15 @@ def test_a_verb_of_several_words_is_a_verb_and_no_other_words_of_several_are_sta
     assert {("research", "NOUN"), ("research", "VERB"), ("look up", "VERB")} <= stated
 
 
-def test_words_held_together_as_a_verb_are_the_verb_the_grammar_asks_for():
-    index = {"look up": {"VERB": 1}}
+def test_words_held_together_are_a_word_of_every_class_they_are_held_as():
+    """What memory holds several words as together, each kind of word under the name it is held by: the grammar
+    offers a word of several words as every kind it is held as, a thing ("credit card"), a quality ("fed up"), an
+    adverb ("in vain"), and not as a thing alone (`Grammar._together`, lab notebook (79))."""
+    index = {"look up": {"VERB": 1}, "fed up": {"ADJECTIVE": 2}, "credit card": {"NOUN": 3, "NAME": 1}}
     agent = SimpleNamespace(pattern_inventory=PatternInventory,
                             word_classes=lambda word: dict(index.get(word, {})),
                             recorded_name=lambda word, cls: None)
-    assert MemoryAgent._held_name(agent, ["look", "up"], "VERB") == "look up"
-    assert MemoryAgent._held_name(agent, ["look", "up"], "NOUN") is None
-    assert MemoryAgent._held_name(agent, ["look", "down"], "VERB") is None
+    assert MemoryAgent._held_names(agent, ["look", "up"]) == {"VERB": "look up"}
+    assert MemoryAgent._held_names(agent, ["fed", "up"]) == {"ADJECTIVE": "fed up"}
+    assert MemoryAgent._held_names(agent, ["credit", "card"]) == {"NOUN": "credit card"}
+    assert MemoryAgent._held_names(agent, ["look", "down"]) == {}

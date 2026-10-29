@@ -9,13 +9,14 @@ from core.semantics import grammar as gm
 
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
-         "shirt": "shirt", "account": "account", "park": "park"}
+         "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
          "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain"}
 #: "chained" is held as a verb's participle and as an adjective of its own, as memory holds a word WordNet gives both
 #: (`chain.v.01`, `chained.s.01`).
-ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy", "chained": "chained"}
+ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy", "chained": "chained",
+              "fed": "fed"}
 PREPOSITIONS = ("in", "on", "from")
 FORMS = {"chased": {"past": 5.0, "participle": 1.0}, "barked": {"past": 5.0}, "unbuttoned": {"past": 2.0},
          "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0},
@@ -27,8 +28,17 @@ FRAMES = {"chase": {"transitive": 9.0}, "chain": {"transitive": 9.0}, "bark": {"
           "fall": {"intransitive": 9.0}}
 
 
+#: Words memory holds as one word of several ("'fed up' is used as an adjective.", `WordNetSource._word_classes`),
+#: each under the name it is held by and the kind of word it is held as.
+KNOWN = {("fed", "up"): {"ADJECTIVE": "disgusted"}, ("at", "last"): {"ADVERB": "finally"},
+         ("credit", "card"): {"NOUN": "credit card"}}
+
+
 class Held(gm.Words):
     """A few words, as memory would hold them."""
+
+    def known_words(self, words: Sequence[str]) -> Mapping[str, str]:
+        return KNOWN.get(tuple(w.lower() for w in words), {})
 
     def uses(self, word: str) -> Mapping[str, float]:
         w = word.lower()
@@ -1071,3 +1081,20 @@ def test_a_verbs_place_is_what_its_frame_says_by_the_places_said_with_it():
     lexicon.learned["role"][("fall", "subject")]["done_by"] += 1
     assert lexicon.taught_role("fall", "subject") and not lexicon.taught_role("chase", "subject")
     assert read(g, "The dog fell.").startswith("tell: done_by(?v0, ?v1)")
+
+
+def test_words_memory_knows_as_one_word_are_read_as_the_kind_it_knows_them_as(grammar):
+    """Several words memory holds as one word are read as one, of whatever kind it holds them as: a thing ("credit
+    card"), a quality ("fed up", `fed_up.a.01`, named `disgusted`), an adverb ("at last", `at_last.r.01`). Of the
+    PMB's gold train documents, 1,166 concepts are one word of several that is not a name — 747 things, 238 verbs,
+    105 adverbs, 76 qualities — and WordNet spells every one of them as one word, so memory taught from it holds them
+    all (`GRAMMAR-01/diagnostics/several_words.py`); lab notebook (79). The quality and the adverb were read as
+    their words apart until then, the rule offering a thing alone."""
+    assert read(grammar, "The dog is fed up.") == (
+        "tell: given instance_of(?v0, dog) & has_property(?v0, disgusted)")
+    assert read(grammar, "The dog barked at last.") == (
+        "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_property(?v0, finally) & "
+        "instance_of(?v0, bark) & precedes(?v0, ?now)")
+    assert read(grammar, "The dog chased a credit card.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "instance_of(?v2, credit card) & precedes(?v0, ?now)")

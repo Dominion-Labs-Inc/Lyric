@@ -4,8 +4,8 @@ memory holds on the store POSTGRES_DATABASE names, as it is after a warm. Reads 
 WORDS_TEST names the sets of dev documents to read alone, one file or several separated by commas
 (`taught_words_test.json`: 100 drawn whose words are all among the 228 it lists, 77 of them with a gold meaning;
 `degree_test.json`, `denial_test.json`, `hyphenated_test.json`, `kind_of_test.json`, `clock_test.json`,
-`participle_test.json`, each the dev documents of one thing said). Every set is read in one run, each document once,
-and scored on its own and on all of them together. RESULTS_OUT, a file each reading is written to. Scored strict,
+`participle_test.json`, `several_words_test.json`, each the dev documents of one thing said). Every set is read in
+one run, each document once, and scored on its own and on all of them together. RESULTS_OUT, a file each reading is written to. Scored strict,
 senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
 `pronouns_as_unknowns`), and kinds aside with pronouns as unknowns. From the Lyric folder:
 
@@ -86,10 +86,12 @@ async def main():
 
     def kinds_aside(m):
         # Every kind a thing is named as set aside, in the gold and the reading alike: what is left is how the
-        # sentence's things are linked, by which links, when, and what is asked.
-        return Meaning(m.act, tuple(MeaningFact(f.relation, f.subject, "_" if f.relation in ("instance_of", "isa")
-                                                and not is_variable(f.obj) else f.obj, f.positive, f.condition,
-                                                f.alternative, f.unasserted, f.given) for f in m.facts), m.asked)
+        # sentence's things are linked, by which links, when, and what is asked. Two facts the kinds told apart are
+        # one once they are set aside ("eighteen gold medals", a medal of gold), and a meaning says a fact once.
+        return Meaning(m.act, tuple(dict.fromkeys(
+            MeaningFact(f.relation, f.subject, "_" if f.relation in ("instance_of", "isa")
+                        and not is_variable(f.obj) else f.obj, f.positive, f.condition,
+                        f.alternative, f.unasserted, f.given) for f in m.facts)), m.asked)
     senses_named = {}
     for synset, name in sense_names.items():
         senses_named.setdefault(name, []).append(synset)
