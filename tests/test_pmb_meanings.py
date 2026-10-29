@@ -123,3 +123,8 @@ def test_what_a_thing_is_said_not_to_be_is_denied_of_it_with_its_qualities(tmp_p
     facts = set(pm.meaning_of(doc, _name).meaning.facts)
     assert {F("isa", "edison", "student", False), F("has_property", "edison", "bright", False)} <= facts
     assert not any(f.relation == "instance_of" for f in facts), facts
+
+
+def test_the_pmbs_clock_of_24_hours_says_the_half_of_the_day():
+    """"07:15" is a morning's, as "7:15 a.m." is; read as a clock written bare, it was `7:15`."""
+    assert [pm._date({"ClockTime": c}) for c in ("07:15", "18:30", "00:00")] == ["7:15 a.m.", "6:30 p.m.", "12:00 a.m."]

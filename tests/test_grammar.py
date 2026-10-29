@@ -571,6 +571,17 @@ def test_a_kind_of_a_kind_is_the_kind_said_and_no_thing_of_its_own(grammar):
     assert "instance_of(?v2, cat)" in read(grammar, "The dog chased a cat.")
 
 
+def test_a_time_of_the_clock_is_one_time_its_half_of_the_day_where_its_words_say_it(grammar):
+    # "six o'clock", "8:00", "7:15 a.m.", "5 p.m.": one time each, as times are written (`literals`).
+    times = {"The dog barked at six o'clock.": "6:00", "The dog barked at 8:00.": "8:00",
+             "The dog barked at 7:15 a.m.": "7:15 a.m.", "The dog barked at 5 p.m.": "5:00 p.m."}
+    for text, written in times.items():
+        tokens = gm.tokens_of(text, grammar.lexicon.words)
+        at = tokens.index("at") + 1
+        assert grammar.lexicon._clock_time(tokens, at) == (len(tokens) - 1, written), text
+    assert grammar.lexicon._clock_time(gm.tokens_of("Six dogs barked.", grammar.lexicon.words), 0) is None
+
+
 def test_what_a_thing_is_said_not_to_be_is_denied_with_its_qualities(grammar):
     # "Tom is not a happy dog.": no happy dog, so not happy either; said of Tom, the quality was told as so.
     assert "not has_property(?v0, happy)" in read(grammar, "Tom is not a happy dog.")

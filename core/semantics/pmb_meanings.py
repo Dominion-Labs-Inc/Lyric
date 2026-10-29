@@ -332,6 +332,12 @@ def _date(said: Mapping[str, str]) -> Optional[str]:
     from core.semantics.literals import classify_literal
     year, month, day, clock = (said.get(k) for k in ("YearOfCentury", "MonthOfYear", "DayOfMonth", "ClockTime"))
     if clock and not (year or month or day):
+        # The PMB's clock is of 24 hours ("07:15", "18:30"): it says the half of the day, always. Read as a clock
+        # written bare, "07:15" was `7:15` where "7:15 a.m." is `7:15 a.m.`.
+        m = re.fullmatch(r"(\d{1,2}):(\d{2})", clock)
+        if m and int(m.group(1)) < 24:
+            hour = int(m.group(1))
+            clock = f"{hour % 12 or 12}:{m.group(2)} {'a.m.' if hour < 12 else 'p.m.'}"
         literal = classify_literal(clock)
         return literal.canonical if literal is not None and literal.kind == "time" else None
     if year and not (month or day or clock):

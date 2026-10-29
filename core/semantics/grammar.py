@@ -1426,6 +1426,16 @@ class Lexicon:
             for t in self.templates.get("NUMERAL", ()):
                 out.append((end, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NUMERAL", str(value),
                                        score, t.get("label", ""))))
+        # A TIME OF THE CLOCK ("6:30", "7:15 a.m.", "5 p.m.", "six o'clock") is one time, written as times are
+        # (`literals.classify_literal`): its half of the day where its words say it, never where they do not. Read
+        # word by word, "six o'clock" was six and a thing called o'clock, and "8:00" the number 8.
+        clock = self._clock_time(tokens, i)
+        if clock is not None:
+            end, written = clock
+            for t in self.templates.get("NUMERAL", ()):
+                if t.get("use") == "NUMERAL:alone":
+                    out.append((end, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NUMERAL", written,
+                                           0.0, "time")))
         # A preposition of several words ("in front of", "to the left of"), read as one.
         for words, cls in self.phrases.items():
             parts = words.split()
@@ -1516,6 +1526,36 @@ class Lexicon:
                     i += 1
             self._numbers_of = (key, runs)
         return self._numbers_of[1]
+
+    def _clock_time(self, tokens: Sequence[str], i: int) -> Optional[Tuple[int, str]]:
+        """The time of the clock said from word i ("6:30", "7:15 a.m.", "5 p.m.", "six o'clock"), as times are written
+        (`literals.classify_literal`), and the word after it; None where none is said."""
+        from core.semantics.literals import classify_literal
+        word = tokens[i]
+        hour: Optional[str] = None
+        end = i + 1
+        if re.fullmatch(r"\d{1,2}:\d{2}", word):
+            hour = word
+        else:
+            number = self._number_words(tokens, i)
+            value = number[1] if number is not None else _number(word) if _number(word) is not None \
+                else self.numbers.get(word.lower())
+            if value is not None and float(value) == int(float(value)) and 1 <= int(float(value)) <= 12:
+                hour, end = str(int(float(value))), number[0] if number is not None else i + 1
+        if hour is None:
+            return None
+        after = tokens[end].lower().rstrip(".") if end < len(tokens) else ""
+        if after in ("a.m", "p.m", "am", "pm"):
+            literal = classify_literal(f"{hour} {after[0]}.m.")
+            end += 1
+        elif after in ("o'clock", "o’clock", "oclock"):
+            literal = classify_literal(f"{hour}:00" if ":" not in hour else hour)
+            end += 1
+        elif ":" in hour:
+            literal = classify_literal(hour)
+        else:
+            return None
+        return (end, literal.canonical) if literal is not None and literal.kind == "time" else None
 
     def hyphened(self, tokens: Sequence[str]) -> List[Tuple[int, int, Optional[str]]]:
         """WORDS JOINED BY HYPHENS ("state-of-the-art", "novel-based", "33-year-old"): where each run starts and ends,

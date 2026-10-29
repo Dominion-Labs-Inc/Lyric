@@ -16,6 +16,44 @@ Conventions:
 
 ---
 
+## 2026-10-29 (76) — Times of the clock: written as the treebanks write them, read as one time, their half of the day where the words say it
+
+**Objective** (the last of the gaps counted by size). 13 dev documents say a time of the clock, 9 with a gold meaning
+("I'll return at 6:30.", "We'll eat at six o'clock.", "The train departs at 7:15 a.m."). Neither store read one.
+
+**Causes, from the root.** (1) The sentence's pieces: "o'clock" was "o" and a "'clock" that was its owner's (an
+apostrophe began a piece before any letters, as before a clitic), "8:00" the number 8, a colon and 00; UD's EWT and GUM
+write "o'clock" and "H:MM" one word each. (2) Reading had no time of several words. (3) The gold: the PMB's clock is of 24
+hours, and its "07:15" was written bare (`7:15`) where the reader writes "7:15 a.m."; and the annotators chose the half
+of the day no word says ("at six" 18:00, "awakened at five o'clock" 05:00).
+
+**Built.** (1) `sentence_machine._spans`: an apostrophe begins a piece only before a word a treebank writes apart
+(`_CLITICS`: s, d, m, t, ll, re, ve; "o'clock", "O'Brien" one word), and a colon between an hour and two digits joins
+them. (2) `Lexicon._clock_time`: "6:30", "7:15 a.m.", "5 p.m.", "six o'clock" one time each, written as
+`literals.classify_literal` writes times, its half of the day only where the words say it. (3) `pmb_meanings._date`: the
+PMB's 24-hour clock written with its half of the day ("07:15" `7:15 a.m.`). (4) The measure, by their words: a time's
+half of the day set aside where the sentence's words do not say it, as a word's sense is (strict and kinds aside keep
+it). Tests: the pieces; the time of several words; the PMB's clock.
+
+**Measured** (all six sets, one run each; lyric_dev2 taught the clock set's 9 untaught words, "Bob" and "Heather" left
+out, names).
+
+| by their words | lyric_dev2 before | after | main before | after |
+|---|---|---|---|---|
+| clock set (9) | 0 (F1 49.4%) | 6 (91.8%) | 0 (41.1%) | 5 (81.0%) |
+| the 77 | 43 (81.0%) | 44 (81.5%) | 40 (79.9%) | 40 (79.9%) |
+| hyphen / degree / denial / kind of | 6 / 12 / 6 / 5 | the same | 4 / 13 / 4 / 6 | the same |
+
+Nothing right became wrong. Still wrong: "He came back at 5 o'clock." (lyric_dev2) and "We'll eat at six o'clock." (main):
+the time is read, but the structure view, weighing which word of it joins the doing, prefers "o'clock" a thing; "The
+train departs at 7:15 a.m." (no future said); main's "I was awakened at five o'clock." (a state, the time lost), and
+"The chicken is pecking at Tom." now `during(tom)` (wrong before, `located_in`).
+
+**The gaps counted (71) are each met by a rule now.** On the 77, by their words: lyric_dev2 44 (57%), main 40 (52%);
+the bar is 95%.
+
+---
+
 ## 2026-10-29 (75) — "A kind of": the kind said, no thing of its own; a grammar word of several words joined as the grammar joins it
 
 **Objective** (the next gap by size). "What kind of flowers do you like?", "I like this kind of apple.": the gold says the

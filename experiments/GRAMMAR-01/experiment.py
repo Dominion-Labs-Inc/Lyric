@@ -23,6 +23,7 @@ The Parallel Meaning Bank: University of Groningen, annotations ODC-BY 1.0 (Abzi
 """
 import json
 import random
+import re
 import sys
 import time
 from collections import Counter, defaultdict
@@ -112,7 +113,13 @@ def named_by_their_words(meaning, words, senses_named):
     a verb's places wrong where the word was read right (2026-10-28)."""
     from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
 
+    # A TIME OF THE CLOCK BY ITS WORDS: its half of the day only where the sentence says it ("7:15 a.m."); "at six"
+    # is 6:00, the PMB's 18:00 its annotators' (2026-10-29).
+    halved = any(w.rstrip(".") in ("a.m", "p.m", "am", "pm") for w in words)
+
     def of(t):
+        if not halved and re.fullmatch(r"\d{1,2}:\d{2} [ap]\.m\.", t):
+            return t.split()[0]
         if is_variable(t) or t.replace(".", "").isdigit():
             return t
         said = sorted({lemma.name().lower().replace("_", " ") for synset in senses_named.get(t, ())

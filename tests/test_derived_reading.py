@@ -71,6 +71,10 @@ def no_memory_up(monkeypatch):
     ("There are twenty-one dogs.", ["There", "are", "twenty", "-", "one", "dogs", "."]),
     ("It rained on 2026-09-29.", ["It", "rained", "on", "2026-09-29", "."]),
     ("COVID-19 is a disease.", ["COVID-19", "is", "a", "disease", "."]),
+    # One word where the treebanks write one: "o'clock", "O'Brien", a time of the clock.
+    ("We'll eat at six o'clock.", ["We", "'ll", "eat", "at", "six", "o'clock", "."]),
+    ("O'Brien left at 8:00.", ["O'Brien", "left", "at", "8:00", "."]),
+    ("The ratio is 3:1.", ["The", "ratio", "is", "3", ":", "1", "."]),
 ])
 def test_a_sentence_splits_into_its_pieces_with_nothing_lost(text, pieces):
     form = form_of(text)

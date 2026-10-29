@@ -201,6 +201,10 @@ _HYPHENS = frozenset("-")
 #: the writing only says where they join. At the edge of a word it is a mark.
 _APOSTROPHES = frozenset("'\u2019")
 
+#: What a treebank writes as a word of its own after an apostrophe ("'s", "'ll", "n't" written "'t" here); any other
+#: word an apostrophe is in is one word ("o'clock").
+_CLITICS = frozenset({"s", "d", "m", "t", "ll", "re", "ve"})
+
 
 #: Marks written as one, two characters that are one sign: `<=` is ≤, `!=` is ≠.
 _TWO_MARKS = frozenset({"<=", ">=", "==", "!=", "->", "**"})
@@ -250,6 +254,17 @@ def _spans(text: str) -> List[Tuple[int, int]]:
                 elif (text[i] in _JOINERS and i + 1 < n and text[i + 1].isalnum()
                       and text[i - 1].isalnum()):
                     i += 1
+                elif (text[i] in _APOSTROPHES and i + 1 < n and text[i + 1].isalpha() and text[i - 1].isalpha()
+                      and (re.match(r"[A-Za-z]+", text[i + 1:]).group().lower() not in _CLITICS)):
+                    # An apostrophe begins a piece only before a word a treebank writes apart ("We'll", "it's",
+                    # "don't"): "o'clock" and "O'Brien" are one word each, and split, "six o'clock" was "o" and a
+                    # "'clock" that was its owner's (UD's EWT and GUM write "o'clock" one word, 2026-10-29).
+                    i += 1
+                elif (text[i] == ":" and text[i - 1].isdigit() and text[i + 1:i + 3].isdigit()
+                      and not text[i + 3:i + 4].isalnum() and text[start:i].isdigit() and i - start <= 2):
+                    # A TIME OF THE CLOCK is one piece ("6:30", "8:00"), as the treebanks write it: split, "at 8:00"
+                    # was the number 8, a colon and 00.
+                    i += 3
                 elif (text[i] == "," and text[i - 1].isdigit() and text[i + 1:i + 4].isdigit()
                       and len(text[i + 1:i + 4]) == 3 and not text[i + 4:i + 5].isdigit()
                       and text[start:i].replace(",", "").isdigit()):

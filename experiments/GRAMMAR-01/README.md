@@ -158,3 +158,8 @@ their words: lyric_dev2 the 77 42 (F1 80.2%), denials 6 of 13; main 39 (79.1%), 
 
 **"A kind of" (2026-10-29, lab notebook (75)).** `kind_of_test.json`: the 10 dev documents with "kind of" and a gold
 meaning. By their words: lyric_dev2 5 of 10, the 77 43 (F1 81.0%); main 6 of 10, the 77 40 (79.9%).
+
+**Times of the clock (2026-10-29, lab notebook (76)).** `clock_test.json`: the 9 dev documents saying a time of the clock
+with a gold meaning. By their words a time's half of the day is set aside where the sentence's words do not say it
+(the PMB's annotators chose it: "at six" 18:00). Clock set: lyric_dev2 6 of 9, main 5; the 77: lyric_dev2 44 (F1
+81.5%), main 40 (79.9%).
