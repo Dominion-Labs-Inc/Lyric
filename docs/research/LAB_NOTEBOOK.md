@@ -16,7 +16,7 @@ Conventions:
 
 ---
 
-## 2026-10-29 (82) — Main measured against the sandbox: the class lessons are worth 150 facts, and the sandbox's lead is what was taught into it
+## 2026-10-29 (82) — Main measured for the first time: it matches the hand-taught sandbox, and nothing here measures what the class lessons did
 
 **Objective.** (81) taught `lyric_db` the classes it was missing (1,107 pairs written, 93,155 to 94,262 `word_class`
 rows: 450 qualities and 657 adverbs of several words, the 2,776 verbs already held). (80) had measured lyric_dev2
@@ -40,6 +40,23 @@ gold, same 3,981 facts, same 48 concepts the sense table has no name for:
 sentence records**; lyric_dev2 was hand-taught 559 and 6,137 over four sessions. What main has in their place is
 94,262 stated word classes and 12,544 analysed sentences, and that alone matches a store taught by hand for the
 test, with better facts.
+
+**What this is not, stated plainly because the first version of this entry got it wrong.** This is `lyric_db`
+against `lyric_dev2` — two stores — and **not a before and after of (81)'s lessons.** Main was measured only after
+the lessons were taught, so nothing in these runs isolates what the 1,107 pairs did. Where a before and after on
+main does exist it is **flat**: the taught_words set stood at 40 of 77 by their words in (76) and (77) and was
+unchanged through (79), and it stands at **40 of 77** now, after the 1,107 pairs and after the rules of (78) and
+(79) besides. (81)'s own clean before and after, on lyric_dev2, was flat too: 120 right of 231, 119 as the lessons
+were first written, 120 with the pronoun rule. **No measurement on either store shows these lessons improved
+reading**, and the +150 facts below is a difference between stores, not a gain from teaching.
+
+**Why they cannot show up here, which was knowable before the run.** A quality or an adverb of several words — the
+whole of what (81) added, the verbs being held already and the nouns excluded — occurs **25 times in the 911-document
+dev split** (12 qualities, 13 adverbs). The measure scores 3,981 facts, so reading all 25 perfectly is 0.6% of the
+budget, against the 39 false facts the `equals` defect below throws on the same split: **the noise is larger than the
+largest possible signal.** What (81) bought is a floor and not a score — before it main held no entry for "fed up" as
+a quality at all, so (79)'s reading was unreachable whatever main was taught. That claim stands; a measured gain was
+never available at this size.
 
 **Where the 150 facts are**, by the link said (recall; main's missed count against the gold's total):
 
@@ -91,13 +108,14 @@ and 507 (55.7%) are, so a wrong sentence is still missing most of itself (2.25 f
 took 150 facts off the top without moving where the remaining distance is.** The order of work (80) set stands:
 which word takes which is next.
 
-**Found, not fixed: the vocabulary floor has a cost, and it is `equals`.** On the same 231 documents main reads
+**Found, not fixed: a vocabulary has a cost, and it is `equals`** (a difference between the stores, as above, and not an effect of (81)'s lessons, which added no single words and none of these). On the same 231 documents main reads
 `equals` **20 times where the gold says 9** and gets 5 right (P 25.0%), where lyric_dev2 reads it 9 times and gets 6
 (P 66.7%); over the whole split it is read 72 times for a gold of 33 (P 20.8%), the worst precision of any link of
 real volume. The sample shows the shape: "He's an ex-con." reads `equals(?previous, con) & isa(con, ex)`, a
 hyphenated word main holds no entry for split into two words it now holds classes for. More words held means more
-words readable as *something*, and a word read as the wrong something makes two false facts instead of none. This
-is the first measured cost of a lesson that is otherwise worth 150 facts, and it is 39 false facts over the split.
+words readable as *something*, and a word read as the wrong something makes two false facts instead of none. Neither
+"ex" nor "con" is a word of several words, so this is what main's larger vocabulary costs in general and not what
+(81) cost: 39 false facts over the split, against the 25 facts the lessons could at most have won.
 
 **Also found.** Main's `isa` is identical to the sandbox's on the sets (gold 17, read 23, right 11 on both), so the
 `equals` loss is not a general hyphen defect but specific to what main holds. `owned_by` is read 94 times for a gold
@@ -108,12 +126,23 @@ untouched by any rule built so far.
 `lyric_db`. The denominators match (80) exactly (911 documents, 3,981 facts, 4,220 concepts named by the sense
 table and 48 not), so the two measurements are the same measurement.
 
-**Where it stands.** Main: the whole dev split 465 of 911 (51.0%), facts 77.2%; the 77 by their words 40 (52%).
+**Where it stands.** Main: the whole dev split 465 of 911 (51.0%), facts 77.2%; the 77 by their words 40 (52%),
+the same 40 as before the lessons.
 lyric_dev2: 465 of 911 (51.0%), facts 73.4%; the 77 50 (65%). The bar is 95%. Next, largest first: which word takes
 which (`prose_joins.py` 68.0% of content words joined as the analysis by hand does, Lyric's own structure view 72.5%
 on the same test), then a verb's places, then which kind a thing is. Three changes are measured, costed and waiting
 on the owner's word: `_together`'s window past three words (4 of the dev split's 13 adverbs of several words), the
-58,597 nouns of several words, and the word-record layer on main (3,919 records six minutes, 9,387 fourteen).
+58,597 nouns of several words, and the word-record layer on main (3,919 records six minutes, 9,387 fourteen). **The
+last of those is the one worth measuring next of the three**, because senses cost main 20 points of whole sentences
+where the class lessons could at most have won 0.6% of the budget, and unlike today it has a clean before.
+
+**A defect in the reporting, found by the owner asking whether anything was learned.** `teach.py`'s `snapshot()`
+counts concepts, relations, beliefs, domains, memberships, statements, words recorded and sentences recorded — eight
+things, and **word classes are not one of them** — so a classes-only pass writes 1,107 rows and the run's "the
+substrate:" table reports zeros in every column. `WordNetClassesSource.records()` yields nothing by design, so the
+pass is honest; the report is blind. The only line that carries the work is `word classes` in the pass report, and
+the proof had to come from counting rows in the database by hand. A pass that writes to memory should say so in the
+snapshot it prints.
 
 ---
 

@@ -218,13 +218,17 @@ all the files-only reader reads "I'm fed up with math.", "At last, we arrived in
 print." and "Tom is kind of tall." right, and splits "All of a sudden it rained.", the rule asking memory for runs of
 three words and two where 4 of the dev split's 13 adverbs of several words are longer.
 
-**Main's first baseline against the sandbox (2026-10-29, lab notebook (82)).** With the class lessons laid on
+**Main's first baseline (2026-10-29, lab notebook (82)); two stores, not a before and after.** With the class lessons laid on
 `lyric_db` (94,262 stated word classes, **0 word records, 0 sentence records**, 12,544 analysed sentences), main was
 measured with the error budget over the whole dev split and over the eight sets, reads only. On the split, by their
 words with pronouns as unknowns: **465 right whole of 911 (51.0%), facts 3,072 of 3,981 (77.2%)**, against
 lyric_dev2's **465 (51.0%) and 2,922 (73.4%)** from (80) — the same measure and the same denominators, so the same
 whole-sentence count to the document and **150 more facts right** from a store with none of the sandbox's hand-taught
-559 word records and 6,137 sentence records. Strict 201 (22.1%), senses aside 384 (42.2%), kinds aside 359 (39.4%),
+559 word records and 6,137 sentence records. Main was measured only after (81)'s lessons were taught, so nothing here
+isolates what they did; where a before and after on main exists it is flat (the taught_words set 40 of 77 by their words
+in (76) and (77), unchanged through (79), 40 now), (81)'s clean before and after on lyric_dev2 was flat too (120 of
+231, 119, 120), and a quality or an adverb of several words occurs 25 times in the 911 documents against a 3,981-fact
+measure, less than the 39 false facts the `equals` defect throws. The lessons bought a floor, not a score. Strict 201 (22.1%), senses aside 384 (42.2%), kinds aside 359 (39.4%),
 read no whole 19. The 150 facts are three links — `instance_of` 80.2% to 84.3% (+56), `done_by` 73.5% to 79.6%
 (+38), `precedes` 78.7% to 88.1% (+35) — which is what a stated class decides at once. **On the eight sets main is
 behind** (by their words 104 of 231 against 120; facts 774 of 1,060 against 795) and behind on exactly the two sets
