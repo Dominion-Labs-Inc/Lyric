@@ -217,3 +217,26 @@ which holds none of it; the owner's `--source wordnet-classes` run on lyric_db i
 all the files-only reader reads "I'm fed up with math.", "At last, we arrived in California.", "The book is out of
 print." and "Tom is kind of tall." right, and splits "All of a sudden it rained.", the rule asking memory for runs of
 three words and two where 4 of the dev split's 13 adverbs of several words are longer.
+
+**Main's first baseline against the sandbox (2026-10-29, lab notebook (82)).** With the class lessons laid on
+`lyric_db` (94,262 stated word classes, **0 word records, 0 sentence records**, 12,544 analysed sentences), main was
+measured with the error budget over the whole dev split and over the eight sets, reads only. On the split, by their
+words with pronouns as unknowns: **465 right whole of 911 (51.0%), facts 3,072 of 3,981 (77.2%)**, against
+lyric_dev2's **465 (51.0%) and 2,922 (73.4%)** from (80) — the same measure and the same denominators, so the same
+whole-sentence count to the document and **150 more facts right** from a store with none of the sandbox's hand-taught
+559 word records and 6,137 sentence records. Strict 201 (22.1%), senses aside 384 (42.2%), kinds aside 359 (39.4%),
+read no whole 19. The 150 facts are three links — `instance_of` 80.2% to 84.3% (+56), `done_by` 73.5% to 79.6%
+(+38), `precedes` 78.7% to 88.1% (+35) — which is what a stated class decides at once. **On the eight sets main is
+behind** (by their words 104 of 231 against 120; facts 774 of 1,060 against 795) and behind on exactly the two sets
+whose words were taught here by hand in (79) — taught_words 40 against 50, several_words 38 against 45 — while level
+or ahead on every set that was a rule change (degree 13 = 13, participle 9 = 9, kind_of 6 against 5), ahead with
+senses set aside (91 against 90, facts F1 80.1% against 76.2%), and reading four more wholes (229 of 231 against
+225). **The sets measure what was taught into the sandbox; the split measures the reader**, and they are not the same
+number. Senses cost main 20 points of whole sentences (22.1% against 42.2%) where the sandbox's 559 word records
+cost it 9.6 on the same sets, which prices the word-record layer main holds none of. The budget's shape is unchanged:
+main's five commonest links hold 594 of its 909 missed facts (65.3%) against the sandbox's 69.4%, and a wrong
+sentence still misses 2.25 of its 4.4 facts. Found, not fixed: the floor's one cost is `equals`, read 20 times on the
+231 documents where the gold says 9 (P 25.0%) against the sandbox's 9 read and 6 right (P 66.7%), and 72 for a gold
+of 33 over the split (P 20.8%) — "He's an ex-con." reads `equals(?previous, con) & isa(con, ex)`, a hyphenated word
+main holds no entry for split into two words it now holds classes for, so a word read as the wrong something makes
+two false facts instead of none.

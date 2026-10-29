@@ -16,6 +16,107 @@ Conventions:
 
 ---
 
+## 2026-10-29 (82) — Main measured against the sandbox: the class lessons are worth 150 facts, and the sandbox's lead is what was taught into it
+
+**Objective.** (81) taught `lyric_db` the classes it was missing (1,107 pairs written, 93,155 to 94,262 `word_class`
+rows: 450 qualities and 657 adverbs of several words, the 2,776 verbs already held). (80) had measured lyric_dev2
+over the whole dev split and set the order of work from its error budget. So: measure main the same way, and find
+out what the real store scores when nothing about it is hand-taught for the test.
+
+**Measured** (`on_store.py`, reads only, `POSTGRES_DATABASE=lyric_db`; two passes, each its own warm — 205s and
+175s; the eight sets read in 114s, the whole split in 130s). Against (80)'s lyric_dev2 figures, same measure, same
+gold, same 3,981 facts, same 48 concepts the sense table has no name for:
+
+| the whole dev split, 911 documents | lyric_dev2 (80) | lyric_db (main) |
+|---|---|---|
+| whole right, by their words, pronouns as unknowns | **465 (51.0%)** | **465 (51.0%)** |
+| facts right | 2,922 of 3,981 (73.4%) | **3,072 of 3,981 (77.2%)** |
+| strict | — | 201 (22.1%), F1 47.4% |
+| senses aside | — | 384 (42.2%), F1 82.6% |
+| kinds aside | — | 359 (39.4%), F1 81.2% |
+| read no whole | — | 19 of 911 |
+
+**The same whole-sentence count to the document, and 150 more facts right.** Main holds **0 word records and 0
+sentence records**; lyric_dev2 was hand-taught 559 and 6,137 over four sessions. What main has in their place is
+94,262 stated word classes and 12,544 analysed sentences, and that alone matches a store taught by hand for the
+test, with better facts.
+
+**Where the 150 facts are**, by the link said (recall; main's missed count against the gold's total):
+
+| the link said | gold | dev2 (80) | main | facts moved |
+|---|---|---|---|---|
+| `instance_of` (which kind a thing is) | 1,366 | 80.2% | **84.3%** (214 missed) | +56 |
+| `done_by` | 627 | 73.5% | **79.6%** (128) | +38 |
+| `precedes` | 371 | 78.7% | **88.1%** (44) | +35 |
+| `during` | 111 | 78.4% | **87.4%** | +10 |
+| `has_property` | 313 | 69.6% | **72.8%** (85) | +10 |
+| `done_to` | 451 | 72.3% | 72.7% (123) | +2 |
+| `located_in` | 73 | 57.5% | 56.2% | −1 |
+| `comes_from` | 27 | 14.8% | 11.1% | −1 |
+| `part_of` | 52 | 53.8% | 46.2% | −4 |
+
+Three links carry 129 of the 150, and they are the three a stated class decides at once: knowing "flunk" is a verb
+fixes which kind the thing is, who does it and that it happened before now, in one.
+
+**Finding 1: the eight sets have stopped being a comparison between stores.** Main is *behind* on them:
+
+| the eight sets, 231 documents | lyric_dev2 | lyric_db (main) |
+|---|---|---|
+| strict | 68 (29.4%), F1 58.9% | 46 (19.9%), F1 47.2% |
+| senses aside | 90 (39.0%), F1 76.2% | **91 (39.4%), F1 80.1%** |
+| kinds aside | 89 (38.5%), F1 80.3% | 74 (32.0%), F1 77.9% |
+| by their words, pronouns as unknowns | **120 (51.9%), F1 75.1%** | 104 (45.0%), F1 72.8% |
+| kinds aside, pronouns as unknowns | 111 (48.1%), F1 80.3% | 92 (39.8%), F1 77.9% |
+| read whole | 225 of 231 | **229 of 231** |
+| facts right | 795 of 1,060 (75.0%) | 774 of 1,060 (73.0%) |
+
+Set by set, by their words, main against lyric_dev2: taught_words 40 against **50**, several_words 38 against
+**45**, denial 4 against 6, hyphenated 5 against 6, clock 5 against 6 — and then degree 13 = 13, participle 9 = 9,
+kind_of **6** against 5. **Main loses on exactly the two sets whose words were taught into lyric_dev2 by hand in
+(79), and is level or ahead on every set that was a rule change.** The sets measure the sandbox's teaching; the
+whole split measures the reader. Both numbers are honest and they are not the same number. Where senses are set
+aside main is already ahead on these documents (91 against 90, facts F1 80.1% against 76.2%), and it reads four
+more wholes than the sandbox does — the vocabulary floor of (81) showing as fewer refusals.
+
+**Finding 2: senses cost main 20 points of whole sentences, and that prices the word-record layer.** Strict 22.1%
+against senses-aside 42.2% on the whole split, and 19.9% against 39.4% on the sets. On the same sets lyric_dev2,
+holding 559 word records, loses 9.6 points to senses (29.4% against 39.0%) where main loses 19.5. Main's structure
+is as good or better; what it cannot do is say *which* sense. This is the first measured price of the word-record
+layer main holds none of, and (81) measured its cost at 0.09s a record after the first.
+
+**Finding 3: the budget's shape did not change.** Main's five commonest links hold **594 of its 909 missed facts
+(65.3%)**, against lyric_dev2's 69.4% — the same five, in the same order, at 72% to 88% where 99% is wanted. Errors
+still cascade: a sentence says 4.4 facts, 77.2% each would give 32.2% of sentences right if they were decided apart,
+and 507 (55.7%) are, so a wrong sentence is still missing most of itself (2.25 facts of 4.4). **The vocabulary floor
+took 150 facts off the top without moving where the remaining distance is.** The order of work (80) set stands:
+which word takes which is next.
+
+**Found, not fixed: the vocabulary floor has a cost, and it is `equals`.** On the same 231 documents main reads
+`equals` **20 times where the gold says 9** and gets 5 right (P 25.0%), where lyric_dev2 reads it 9 times and gets 6
+(P 66.7%); over the whole split it is read 72 times for a gold of 33 (P 20.8%), the worst precision of any link of
+real volume. The sample shows the shape: "He's an ex-con." reads `equals(?previous, con) & isa(con, ex)`, a
+hyphenated word main holds no entry for split into two words it now holds classes for. More words held means more
+words readable as *something*, and a word read as the wrong something makes two false facts instead of none. This
+is the first measured cost of a lesson that is otherwise worth 150 facts, and it is 39 false facts over the split.
+
+**Also found.** Main's `isa` is identical to the sandbox's on the sets (gold 17, read 23, right 11 on both), so the
+`equals` loss is not a general hyphen defect but specific to what main holds. `owned_by` is read 94 times for a gold
+of 73 over the split (P 58.5%) and `received_by` 31 for 16 (P 25.8%) — both precision, not recall, and both
+untouched by any rule built so far.
+
+**Verified.** Both passes under `./venv_lyric/bin/python3` against real Postgres, reads only, nothing written to
+`lyric_db`. The denominators match (80) exactly (911 documents, 3,981 facts, 4,220 concepts named by the sense
+table and 48 not), so the two measurements are the same measurement.
+
+**Where it stands.** Main: the whole dev split 465 of 911 (51.0%), facts 77.2%; the 77 by their words 40 (52%).
+lyric_dev2: 465 of 911 (51.0%), facts 73.4%; the 77 50 (65%). The bar is 95%. Next, largest first: which word takes
+which (`prose_joins.py` 68.0% of content words joined as the analysis by hand does, Lyric's own structure view 72.5%
+on the same test), then a verb's places, then which kind a thing is. Three changes are measured, costed and waiting
+on the owner's word: `_together`'s window past three words (4 of the dev split's 13 adverbs of several words), the
+58,597 nouns of several words, and the word-record layer on main (3,919 records six minutes, 9,387 fourteen).
+
+---
+
 ## 2026-10-29 (81) — The vocabulary floor: the class lessons state a quality and an adverb of several words
 
 **Objective.** (80) put the vocabulary floor first in the order of work, and (79) built a reading for several words
