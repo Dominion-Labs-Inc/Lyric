@@ -16,6 +16,42 @@ Conventions:
 
 ---
 
+## 2026-10-29 (71) — The gaps by size over the whole dev set; a place's adjective weighed by the place; the 77's words actually taught
+
+**Objective** (agreed: the reading gaps (70) found, largest first, each a rule). Counted over all 1,194 PMB dev
+documents, not the 77: a nationality's or place's adjective 56 (fewer once language names, "speak French", are set
+apart), words joined by a hyphen 23, degree 17, "nothing" / "nobody" / "not a" 16, "kind of" 15, clock times 13,
+"by whom" 1. The 77's "questions" were five different things ("kind of" twice, a role noun, an untaught "prime
+minister", a fronted "by whom").
+
+**What the PMB says of a place's adjective before a word** (all 7,019 gold training meanings, 72 cases): the thing
+`comes_from` the place 47 ("an Algerian author", "a Japanese song", "British soldiers"), `part_of` 6, `located_in` 4;
+the rest language names. Reading already asks which link an adjective says (`quality`, learned per adjective and per
+what memory holds it to be of; "a British novelist" in its comment), but WordNet gives adjectives no kinds, so one never
+seen ("Norwegian") said `has_property`, and one that said a link said it to itself (`comes_from(?v0, dutch)`).
+
+**Built.** A sense's record says what the adjective is of and what that is a kind of (`WordSense.pertains_to`, from
+WordNet's pertainyms); the grammar holds it defined with that thing, and the thing's kinds (`_count_word`), as memory
+holds "British" defined with the United Kingdom (`GraphKnowledge.kinds`). A quality saying a link says it to what it is
+of (`Words.defined`): "the Dutch people" `comes_from(?v0, netherlands)`, gold's. Test: an adjective weighed by what it
+is of, a link learned for "country" its link, taken back whole.
+
+**Found: the 77 were not all taught.** Drawn by their lowercase words, the capitalised ones counted as names: "Dutch",
+"Norwegian", "Hungarian", "Lesbian", "European", "Russian", places, and "colleague", "suit", "poet", "minister", "arm",
+"clock", number words had no record. Built and taught (45 of 56; names no source knows left out), and the 14 place
+adjectives of the training sentences (59 remembered, none refused).
+
+**Measured** (77, lyric_dev2): read whole 74 to 76; by their words 35 to 36 (F1 75.7 to 77.0%); kinds aside 33 to 34
+(77.2 to 78.2%); real senses 18 to 19. Gained: "The suit's custom-made.", "I got some money from an ATM."; lost: "I love
+hard-boiled eggs." (now read in the sense "hard-bitten"). "Bergen is a Norwegian town." now `comes_from(bergen,
+norway)` (gold `part_of`: 6 of the 72; what a place's adjective says of a place against a person is not yet learned
+by what the thing is); the Dutch sentence wrong only for "the European Constitution", one name to the PMB. Main
+unchanged on every measure, no reading moved.
+
+**Next:** words joined by a hyphen (23), degree (17), denials (16), "kind of" (15), clock times (13).
+
+---
+
 ## 2026-10-28 (70) — The comparison made like with like: a pronoun as an unknown, a sense by its word; lyric_dev2 ahead of main on both; what is left is reading's own
 
 **Objective** (agreed with the owner): score the 77 so the errors left are reading's own, not the two conventions
