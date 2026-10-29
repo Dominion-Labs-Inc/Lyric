@@ -169,3 +169,16 @@ sense read that best fits the places said (`Lexicon.framed`), where no taught se
 `diagnostics/verb_places.py`, each verb place of the PMB's 9,552 train documents against the PMB's link (objects 80.8%
 now, 85.4% by the most used sense's frames, 86.5% by the gold sense's). lyric_dev2 re-taught its verbs: the 77 46 (F1
 82.1%); main 40 (79.9%), unchanged.
+
+**Participles (2026-10-29, lab notebook (78)).** `participle_test.json`: the 18 dev documents whose gold says a
+quality by a word written as a participle or an -ing form, standing where either a quality or a doing may stand. A
+participle says a quality where memory holds the word as an adjective, which is a word of its own in WordNet
+(`chained.s.01`, `developed.a.02`): lyric_dev2 held "chain" and not "chained", so every entry was the verb's; its 18
+such words are taught now. Research first: `diagnostics/participles.py` over the 9,552 train documents — after a form
+of "be" an -ed word is a quality 27% of the time and before a noun 68%, an adjective sense spelled as the word catches
+95% of the gold's qualities and the treebank's adjective uses say whether it is one here. Built: an Experiencer said
+beside a doer is what the happening is done to (`pmb_meanings.happening_link`, in the conversion and in VerbNet's
+frames; the PMB's gold writes it so in every one of the 45 documents saying both), so "I've been stung by a hornet."
+is done to the speaker and done by the hornet. By their words on lyric_dev2: the 77 46 to 49 (F1 82.1% to 84.1%),
+degree 12 to 13 of 20, the participle set 9 of 18, every other set unmoved, nothing lost. `on_store.py` now takes
+several sets at once (`WORDS_TEST` separated by commas) and scores each on its own.

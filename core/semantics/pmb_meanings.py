@@ -31,7 +31,7 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple
+from typing import Callable, Dict, Iterable, Iterator, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple
 
 from core.semantics.derived_reader import Meaning, MeaningFact
 from core.semantics.grammar import Derived, _number
@@ -62,6 +62,23 @@ HAPPENING_ROLES = {
 }
 #: The roles naming who does a happening: where none is said, its Theme does it.
 DOERS = frozenset({"Agent", "Experiencer", "Co-Agent", "Causer", "Creator", "Consumer", "Pivot"})
+
+
+def happening_link(role: str, roles: Iterable[str]) -> Optional[str]:
+    """THE LINK A HAPPENING'S ROLE MAKES, beside the roles said with it (`HAPPENING_ROLES`).
+
+    A Theme is who does a happening where no role said does ("Let's go.": done by us), as "The dog barks." is done
+    by the dog. An Experiencer is who does it where none else does ("I envy you.", "Mary bores me."); said beside a
+    doer it is what the happening is done to ("The tiger licked him.", "She pinched him.", "I was stung by a bee."),
+    which is how the PMB's gold writes it in every one of the 45 documents saying both (against 766 saying an
+    Experiencer alone). Both said done_by, a passive had two doers and nothing done to it: "I've been stung by a
+    hornet." was stung by the speaker and by the hornet (lyric_dev2, 2026-10-29)."""
+    said = list(roles)
+    if role == "Theme" and not any(r in DOERS for r in said):
+        return "done_by"
+    if role == "Experiencer" and any(r in DOERS and r != "Experiencer" for r in said):
+        return "done_to"
+    return HAPPENING_ROLES.get(role)
 #: A thing's roles, and the link each makes from the thing to what fills it.
 THING_ROLES = {
     "PartOf": "part_of", "Part": "has_part", "MadeOf": "made_of", "Material": "made_of", "Owner": "owned_by",
@@ -638,16 +655,13 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                         else:
                             gaps.append("manner:sense")
                     continue
-                if role == "Theme" and not any(r in roles for r in DOERS):
-                    # THE ONE WHO GOES, COMES, ARRIVES: a happening's only participant, its Theme, does it ("Let's
-                    # go.": done by us), as "The dog barks." is done by the dog.
-                    add("done_by", here, there, k)
-                    continue
                 if part(concepts[other]) in ("a", "s", "r"):
                     # A ROLE FILLED BY A QUALITY ("dyed my hair blonde": the hair comes to be blond) is said by the
                     # quality's own line of what has it; the quality is no thing the happening is done to.
                     continue
-                link = HAPPENING_ROLES.get(role)
+                # WHO DOES IT AND WHAT IT IS DONE TO, beside the roles said with it (`happening_link`): a Theme alone
+                # does it, an Experiencer beside a doer is what it is done to.
+                link = happening_link(role, roles)
                 if link is None:
                     gaps.append(f"role:{role}")
                     continue

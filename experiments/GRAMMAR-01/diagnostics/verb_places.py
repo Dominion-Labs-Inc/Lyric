@@ -1,6 +1,6 @@
 """WHAT EACH PLACE OF A VERB SAYS, against the PMB's gold (2026-10-29, lab notebook (77)): each place of each verb of
 the PMB's gold documents of a split (the role written on the verb's line, linked as the PMB's meanings link it,
-`pmb_meanings.HAPPENING_ROLES`, a Theme alone who does it), named as the grammar names it (the thing before the verb its
+`pmb_meanings.happening_link`, a Theme alone who does it), named as the grammar names it (the thing before the verb its
 subject; after it, one thing its object, two the `second` and the object; one after a preposition `pp:` it), and the
 link each way gives it:
 
@@ -13,7 +13,9 @@ link each way gives it:
   nothing.
 
 The place is found from the text: the argument's words before the verb's, its subject; a preposition between, or
-marked on the verb's line, a `pp:`. A verb after a form of "be" or "get" is set apart as passive. From the Lyric folder:
+marked on the verb's line, a `pp:`. A verb after a form of "be" or "get" is set apart as passive, and its places are
+counted a second way (`as the active`), each named as the active says it: its subject the verb's object, its "by" the
+subject. From the Lyric folder:
 
     ./venv_lyric/bin/python3 experiments/GRAMMAR-01/diagnostics/verb_places.py train
 """
@@ -35,8 +37,8 @@ BE = {"was", "were", "is", "are", "be", "been", "being", "am", "'s", "get", "got
 WORD = re.compile(r"[A-Za-z']+")
 
 
-def gold_link(role: str, doers: bool):
-    return "done_by" if role == "Theme" and not doers else pm.HAPPENING_ROLES.get(role)
+def gold_link(role: str, roles):
+    return pm.happening_link(role, roles)
 
 
 _propbank: dict = {}
@@ -169,7 +171,7 @@ def main(split: str) -> None:
                 args.append((role, cs[j]))
             if not args:
                 continue
-            doers = any(r in pm.DOERS for r, _ in c.roles)
+            roles_said = [r for r, _ in c.roles]
             marked = [w.lower().strip(".,?!") for w in c.marked if w.lower().strip(".,?!") in PREPS]
             after = sorted([a for a in args if a[1].span[0] >= ve], key=lambda a: a[1].span[0])
             bare = [a for a in after if not any(w in PREPS for w in WORD.findall(d.text[ve:a[1].span[0]].lower()))
@@ -187,11 +189,16 @@ def main(split: str) -> None:
                     slot = f"pp:{p}" if p else ("object" if len(bare) < 2 or bare[-1][1] is o else "second")
                 placed.append((slot, role))
             slots = [s for s, _ in placed]
+            # A PASSIVE SAYS THE SAME PLACES AS THE ACTIVE, differently placed: its subject is the verb's object (its
+            # `second` where another thing is said after it, as the grammar's entry takes them: "He was given a
+            # book."), its "by" the subject. Counted as a second way of reading a passive's places.
+            active = {"subject": "second" if bare else "object", "pp:by": "subject"}
+            as_active = [active.get(x, x) for x in slots] if passive else slots
             senses = [x for x in wn.synsets(lemma, "v") if any(l.name().lower() == lemma for l in x.lemmas())]
             most_used = max(senses, key=lambda x: sum(l.count() for l in x.lemmas() if l.name().lower() == lemma)
                             ).name() if senses else c.sense
             for slot, role in placed:
-                gold = gold_link(role, doers)
+                gold = gold_link(role, roles_said)
                 if gold is None:
                     continue
                 a = now(lemma, slot)
@@ -201,15 +208,36 @@ def main(split: str) -> None:
                 mu = framed(frames(lemma, most_used)[0], slots, slot, a)
                 s = stats[("passive:" if passive else "") + ("pp" if slot.startswith("pp:") else slot)]
                 s["n"] += 1
+                s[f"gold:{gold}"] += 1
                 s["now"] += a == gold
                 s["sense"] += (b if b is not None else a) == gold
                 s["sense, word"] += (b if b is not None else w if w is not None else a) == gold
                 s["most used sense"] += (mu if mu is not None else a) == gold
-    print(f"{n_docs} documents ({split}); each verb place linked as the PMB links it, by:")
+                if passive and slot == "subject":
+                    # LYRIC'S OWN CONVENTION, read of the sentence: what the happening is done to where a doer is
+                    # said with it ("I was stung by a bee."), who does it where none is ("The phone rang.",
+                    # "The treaty will be signed tomorrow."), as `pmb_meanings.happening_link` says a role.
+                    s["a doer said"] += ("done_to" if "pp:by" in slots else "done_by") == gold
+                if not passive or slot not in active:
+                    continue
+                here = active[slot]
+                a2 = now(lemma, here)
+                b2 = framed(by_sense, as_active, here, a2)
+                w2 = framed(every, as_active, here, a2)
+                mu2 = framed(frames(lemma, most_used)[0], as_active, here, a2)
+                s = stats[f"as the active: {slot if not slot.startswith('pp:') else 'pp'}"]
+                s["n"] += 1
+                s["now"] += a2 == gold
+                s["sense"] += (b2 if b2 is not None else a2) == gold
+                s["sense, word"] += (b2 if b2 is not None else w2 if w2 is not None else a2) == gold
+                s["most used sense"] += (mu2 if mu2 is not None else a2) == gold
+    print(f"{n_docs} documents ({split}); each verb place, what the PMB links it as, and how often each way says so:")
     for kind, s in sorted(stats.items(), key=lambda x: -x[1]["n"]):
         n = s["n"]
-        print(f"  {kind:16} {n:5}  " + "  ".join(f"{way} {s[way] / n:6.1%}" for way in
-                                                 ("now", "sense", "sense, word", "most used sense")))
+        said = sorted(((k[5:], m) for k, m in s.items() if k.startswith("gold:")), key=lambda x: -x[1])
+        print(f"  {kind:24} {n:5}  gold: " + ", ".join(f"{link} {m / n:.0%}" for link, m in said[:3]))
+        print(" " * 33 + "  ".join(f"{way} {s[way] / n:6.1%}" for way in
+                                   ("now", "sense", "sense, word", "most used sense", "a doer said") if way in s))
 
 
 if __name__ == "__main__":

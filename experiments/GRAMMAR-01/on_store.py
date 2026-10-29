@@ -1,10 +1,13 @@
 """GRAMMAR-01's measure (the PMB's held-out dev sentences, scored by GRAMMAR-01's own functions) read by the reader
 memory holds on the store POSTGRES_DATABASE names, as it is after a warm. Reads only; nothing is written to the store.
 
-WORDS_TEST names a list of dev documents to read alone (`taught_words_test.json`: 100 drawn whose words are all
-among the 228 it lists, 77 of them with a gold meaning); RESULTS_OUT, a file each reading is written to. Scored
-strict, senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns
-(`named_by_their_words`, `pronouns_as_unknowns`), and kinds aside with pronouns as unknowns. From the Lyric folder:
+WORDS_TEST names the sets of dev documents to read alone, one file or several separated by commas
+(`taught_words_test.json`: 100 drawn whose words are all among the 228 it lists, 77 of them with a gold meaning;
+`degree_test.json`, `denial_test.json`, `hyphenated_test.json`, `kind_of_test.json`, `clock_test.json`,
+`participle_test.json`, each the dev documents of one thing said). Every set is read in one run, each document once,
+and scored on its own and on all of them together. RESULTS_OUT, a file each reading is written to. Scored strict,
+senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
+`pronouns_as_unknowns`), and kinds aside with pronouns as unknowns. From the Lyric folder:
 
     WORDS_TEST=experiments/GRAMMAR-01/taught_words_test.json POSTGRES_DATABASE=lyric_dev2 \
         ./venv_lyric/bin/python3 experiments/GRAMMAR-01/on_store.py
@@ -45,9 +48,11 @@ async def main():
             return sense_names.get(wn.synset(sense)) or None
         except Exception:
             return None
-    dev = []
+    dev, doc_ids = [], []
     import json as _json
-    only = {d for d, _ in _json.load(open(os.environ["WORDS_TEST"]))["drawn"]} if os.environ.get("WORDS_TEST") else None
+    sets = [(Path(f.strip()).stem.replace("_test", ""), {d for d, _ in _json.load(open(f.strip()))["drawn"]})
+            for f in (os.environ.get("WORDS_TEST") or "").split(",") if f.strip()]
+    only = set().union(*(ids for _, ids in sets)) if sets else None
     for doc_id in pm.split_ids(pmb / "split" / "en" / "dev" / "standard.sbn"):
         if only is not None and doc_id not in only:
             continue
@@ -60,6 +65,7 @@ async def main():
                                    document.concepts[k].marked) for k, how in at if document.concepts[k].span))
                         for t, at in said.anchors.items())
         dev.append((document.text, tokens, said.meaning, gm.align_by_anchors(tokens, document.text, anchors)))
+        doc_ids.append(doc_id)
     t1 = time.time()
     readings = [view.grammar.read(tokens) for _, tokens, _, _ in dev]
     print(f"read {len(dev)} PMB dev sentences in {time.time() - t1:.0f}s", flush=True)
@@ -97,29 +103,38 @@ async def main():
                                                                    in zip(dev, sentence_words)]),
                         ("kinds aside, pronouns as unknowns", [kinds_aside(g01.pronouns_as_unknowns(m))
                                                                for _, _, m, _ in dev])):
-        right = tp = fp = fn = 0
-        for r, want, ws in zip(readings, wanted, sentence_words):
-            w = g01.grounded(want, is_variable)
-            if r.meaning is None:
-                fn += sum(w.values())
-                continue
-            got = kinds_aside(r.meaning) if way == "kinds aside" else as_words(r.meaning, ws) \
-                if way.startswith("by their words") else kinds_aside(g01.pronouns_as_unknowns(r.meaning)) \
-                if way == "kinds aside, pronouns as unknowns" else r.meaning
-            right += got.canonical() == want.canonical()
-            g = g01.grounded(got, is_variable)
-            tp += sum((g & w).values()); fp += sum((g - w).values()); fn += sum((w - g).values())
-        p, rc = tp / max(tp + fp, 1), tp / max(tp + fn, 1)
-        print(f"  {way}: whole right {right} ({right / len(dev):.1%}); facts P {p:.1%} R {rc:.1%} "
-              f"F1 {2 * p * rc / max(p + rc, 1e-9):.1%}")
+        def scored(which):
+            # Of the documents `which` names, how many readings are the meaning wanted whole, and the facts' P, R, F1.
+            right = tp = fp = fn = 0
+            for doc_id, r, want, ws in zip(doc_ids, readings, wanted, sentence_words):
+                if doc_id not in which:
+                    continue
+                w = g01.grounded(want, is_variable)
+                if r.meaning is None:
+                    fn += sum(w.values())
+                    continue
+                got = kinds_aside(r.meaning) if way == "kinds aside" else as_words(r.meaning, ws) \
+                    if way.startswith("by their words") else kinds_aside(g01.pronouns_as_unknowns(r.meaning)) \
+                    if way == "kinds aside, pronouns as unknowns" else r.meaning
+                right += got.canonical() == want.canonical()
+                g = g01.grounded(got, is_variable)
+                tp += sum((g & w).values()); fp += sum((g - w).values()); fn += sum((w - g).values())
+            n = sum(d in which for d in doc_ids)
+            p, rc = tp / max(tp + fp, 1), tp / max(tp + fn, 1)
+            return (f"whole right {right} of {n} ({right / max(n, 1):.1%}); facts P {p:.1%} R {rc:.1%} "
+                    f"F1 {2 * p * rc / max(p + rc, 1e-9):.1%}")
+        print(f"  {way}: {scored(set(doc_ids))}")
+        for name, ids in sets if len(sets) > 1 else ():
+            print(f"      {name}: {scored(ids)}")
     if os.environ.get("RESULTS_OUT"):
-        _json.dump([{"text": text, "gold": a.canonical(), "read": r.meaning.canonical() if r.meaning else r.why,
+        _json.dump([{"text": text, "sets": [name for name, ids in sets if doc_id in ids],
+                     "gold": a.canonical(), "read": r.meaning.canonical() if r.meaning else r.why,
                      "right": r.meaning is not None and r.meaning.canonical() == a.canonical(),
                      "gold_words": as_words(m, ws).canonical(),
                      "read_words": as_words(r.meaning, ws).canonical() if r.meaning else r.why,
                      "right_words": r.meaning is not None and as_words(r.meaning, ws).canonical()
                      == as_words(m, ws).canonical()}
-                    for (text, _, m, _), r, a, ws in zip(dev, readings, aside, sentence_words)],
+                    for (text, _, m, _), r, a, ws, doc_id in zip(dev, readings, aside, sentence_words, doc_ids)],
                    open(os.environ["RESULTS_OUT"], "w"), indent=1)
     why = Counter((r.why or "?") if r.meaning is None else "meaning" for r in readings)
     print("  no meaning, why:", why.most_common(6))

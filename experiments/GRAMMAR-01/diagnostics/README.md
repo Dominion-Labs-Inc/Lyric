@@ -1,7 +1,9 @@
 # Why the grammar reads badly: the diagnostics (2026-10-25/26)
 
 Three scripts, files only, no store, each building the grammar as GRAMMAR-01 does (about three minutes). They answer
-what is wrong, not whether a change helped; nothing in Lyric was changed for them. Lab notebook 2026-10-26 (51).
+what is wrong, not whether a change helped; nothing in Lyric was changed for them. Lab notebook 2026-10-26 (51). The
+two since (`verb_places.py`, `participles.py`) ask what the PMB's gold says of a kind of word, against each way of
+deciding it; they build no grammar and take about a minute.
 
 | Script | What it measures |
 |---|---|
@@ -9,6 +11,8 @@ what is wrong, not whether a change helped; nothing in Lyric was changed for the
 | `every_reading.py train/gold 1000` | every reading the grammar can build of each (a chart keeping every distinct reading, not the surest of each category), whether one gives the taught meaning, why not; and the chosen reading checked word by word against the PMB 4.0.0 gold CCG derivation |
 | `prose_joins.py [N] [--without-structure]` | of N (200) sentences of published prose analysed by hand and held out (UD English PUD), how many content words the chosen reading joins to the word the analysis joins them to |
 | `categories.py dev/standard` | each held-out word: the gold category, the categories the grammar lists and derives (`Grammar._unary`) for it, the one its reading uses |
+| `verb_places.py train` | each place of each verb of a split's gold documents, named as the grammar names it, against the link the PMB gives its role: by what word records gave before, by the VerbNet frames of the gold sense, of the word, and of WordNet's most used sense |
+| `participles.py train` | each word of a split's gold documents written as a participle or an -ing form, standing where either a quality or a doing may stand: what the gold says it is, and of the gold's qualities how many each way of deciding catches, and of what it calls qualities how many are ones |
 
 From 2026-10-26 (52) `taught_fit.py` and `categories.py` hold the training derivations first, as GRAMMAR-01 and main do
 (`PMBDerivationSource`, `GrammarView.hold_derived`): taught sentences read back 414 -> 424 of 1,000; held-out words in
@@ -66,4 +70,22 @@ on PMB5's standard test (sentences of five words on average), 5 to 44 on its lon
 **`verb_places.py`** (2026-10-29, lab notebook (77)): each place of each verb of the PMB's gold documents of a split,
 named as the grammar names it, against the link the PMB gives its role: by what word records gave before (PropBank's
 function tags over the word's senses), by the VerbNet frames of the gold sense (else the word's, else before), and of
-WordNet's most used sense. Train: objects 80.8%, 86.5%, 85.4%; subjects 90.7%, 92.7%, 92.0%.
+WordNet's most used sense. Train: objects 80.8%, 86.5%, 85.4%; subjects 90.7%, 92.7%, 92.0%. With the Experiencer
+rule of (78) (an Experiencer beside a doer what it is done to), objects 81.8% and 86.8%, subjects unmoved; it prints
+each place's own gold links, and of a passive's places a second reading as the active names them (`as the active`: its
+subject the verb's object, its "by" the subject) and Lyric's own convention (`a doer said`).
+
+**A passive's subject (78):** the PMB links it `done_to` 49% of the time, `done_by` 42% (678 of the train
+documents' places), by the verb: a Patient for "injure" and "soak", a Theme alone (which the meaning language reads as
+who does it) for "speak" and "elect". `done_to` whatever else is said, which the reader says, is right 49% of the
+time; "done_to where a doer is said with it, else done_by" 56.5%; the frames, asked for the place as the active names
+it, 29.6% (asked so they answer for the Agent's place, not for the one affected).
+
+**`participles.py`** (2026-10-29, lab notebook (78)): of the words written as a participle or an -ing form in the
+9,552 gold train documents, what the gold says where either a quality or a doing may stand, and what each way of
+deciding catches. After a form of "be" an -ed word is a quality 27% of the time (179 of 664), before a noun 68% (27 of
+40), after "be" an -ing word 2% (13 of 614). An adjective sense spelled as the word (WordNet) catches 95.5% of the
+qualities after "be" and 96.3% before a noun, and calls a quality rightly 36.6% and 89.7% of the time; how often the
+treebank writes the word as an adjective catches 57.0% and 66.7%, rightly 74.5% and 94.7%. So the sense says whether
+the word may be a quality and the word's uses say whether it is one here, which is what the grammar does with a word
+memory holds: the entry is offered because memory holds the class, and weighed by how often the word is used that way.

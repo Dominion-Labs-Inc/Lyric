@@ -12,13 +12,16 @@ NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "wh
          "shirt": "shirt", "account": "account", "park": "park"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
-         "began": "begin", "working": "work", "work": "work", "fell": "fall"}
-ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy"}
+         "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain"}
+#: "chained" is held as a verb's participle and as an adjective of its own, as memory holds a word WordNet gives both
+#: (`chain.v.01`, `chained.s.01`).
+ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy", "chained": "chained"}
 PREPOSITIONS = ("in", "on", "from")
 FORMS = {"chased": {"past": 5.0, "participle": 1.0}, "barked": {"past": 5.0}, "unbuttoned": {"past": 2.0},
          "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0},
-         "fell": {"past": 5.0}}
-FRAMES = {"chase": {"transitive": 9.0}, "bark": {"intransitive": 9.0}, "fly": {"intransitive": 9.0},
+         "fell": {"past": 5.0}, "chained": {"participle": 4.0, "past": 2.0}}
+FRAMES = {"chase": {"transitive": 9.0}, "chain": {"transitive": 9.0}, "bark": {"intransitive": 9.0},
+          "fly": {"intransitive": 9.0},
           "unbutton": {"transitive": 9.0}, "lock": {"transitive": 9.0}, "kick": {"transitive": 9.0},
           "sleep": {"intransitive": 9.0}, "begin": {"ing": 6.0, "to": 3.0}, "work": {"intransitive": 9.0},
           "fall": {"intransitive": 9.0}}
@@ -98,6 +101,21 @@ def test_whom_asks_who_a_thing_was_done_to_never_who_did_it(grammar):
     # (done_by(?v0, ?v1) beside done_by(?v0, cyrus)), "whom" held as a subject (UNDERSTANDS-PROSE-02, 2026-10-22).
     assert [entry["use"] for entry in grammar.lexicon.closed["whom"]] == ["wh:object"]
     assert read(grammar, "Whom did the dog chase?") == read(grammar, "What did the dog chase?")
+
+
+def test_a_participle_says_a_quality_where_memory_holds_the_word_as_an_adjective(grammar):
+    """A word spelled as a verb's participle says a quality of the thing where memory holds the word as an adjective
+    too ("Is the dog chained?", `chained.s.01`); where a doer is said with it, the passive; and a word memory holds
+    only as the verb's form says the passive whatever stands with it ("The valve is locked."). Of the words written as
+    a participle the PMB's gold says a quality, 95% are of a word WordNet holds as an adjective
+    (`GRAMMAR-01/diagnostics/participles.py`); lab notebook (78)."""
+    assert read(grammar, "Is the dog chained?") == (
+        "ask: given instance_of(?v0, dog) & has_property(?v0, chained)")
+    assert read(grammar, "The dog was chained by a cat.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, dog) & instance_of(?v0, chain) & "
+        "instance_of(?v1, cat) & precedes(?v0, ?now)")
+    assert read(grammar, "The valve is locked.") == (
+        "tell: done_to(?v0, ?v1) & given instance_of(?v1, valve) & instance_of(?v0, lock)")
 
 
 def test_an_inverted_passive_question(grammar):

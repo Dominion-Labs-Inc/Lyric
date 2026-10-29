@@ -128,3 +128,27 @@ def test_what_a_thing_is_said_not_to_be_is_denied_of_it_with_its_qualities(tmp_p
 def test_the_pmbs_clock_of_24_hours_says_the_half_of_the_day():
     """"07:15" is a morning's, as "7:15 a.m." is; read as a clock written bare, it was `7:15`."""
     assert [pm._date({"ClockTime": c}) for c in ("07:15", "18:30", "00:00")] == ["7:15 a.m.", "6:30 p.m.", "12:00 a.m."]
+
+
+def test_an_experiencer_beside_a_doer_is_what_the_happening_is_done_to(tmp_path):
+    """"I was stung by a bee.": the Experiencer is the one stung, the Agent the bee, as every one of the PMB's gold
+    documents saying both writes it. Said to do it, as an Experiencer alone does ("I envy you."), the stinging had
+    two doers and nothing done to it."""
+    doc = _document(tmp_path, "I was stung by a bee.", [
+        ("person.n.01 EQU speaker", "I", (0, 1)), ("time.n.08 TPR now", "was", (2, 5)),
+        ("sting.v.02 Experiencer -2 Time -1 Agent +1", "stung *by*", (6, 14)),
+        ("bee.n.01", "*a* bee *.*", (15, 21))])
+    facts = set(pm.meaning_of(doc, _name).meaning.facts)
+    assert {F("done_to", "?v2", "?speaker"), F("done_by", "?v2", "?v3")} <= facts, facts
+    assert F("done_by", "?v2", "?speaker") not in facts
+
+
+def test_an_experiencer_alone_is_who_does_the_happening(tmp_path):
+    """"Mary bores me.": the Experiencer is who experiences it, the Stimulus what it is done to, as the lessons say
+    a happening's doer; no doer is said beside it."""
+    doc = _document(tmp_path, "Mary bores me.", [
+        ('female.n.02 Name "Mary"', "Mary", (0, 4)),
+        ("bore.v.01 Stimulus -1 Time +1 Experiencer +2", "bores", (5, 10)),
+        ("time.n.08 EQU now", "", None), ("person.n.01 EQU speaker", "me *.*", (11, 14))])
+    facts = set(pm.meaning_of(doc, _name).meaning.facts)
+    assert {F("done_by", "?v1", "?speaker"), F("done_to", "?v1", "mary")} <= facts, facts

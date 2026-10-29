@@ -136,7 +136,8 @@ def test_a_verbs_place_is_linked_only_where_its_function_and_preposition_agree()
 def test_a_verbnet_frames_places_are_linked_as_the_pmb_links_their_roles():
     """Each place of a VerbNet frame, as the grammar names it and the PMB links the role VerbNet gives it
     (`_frame_places`): "at" a Patient's after "swat"; of two things after the verb the first the `second`; a Theme
-    with no role of the frame doing it does the happening ("The bus collided with a truck.")."""
+    with no role of the frame doing it does the happening ("The bus collided with a truck."); an Experiencer beside a
+    doer is what it is done to ("The tiger licked him.")."""
     import xml.etree.ElementTree as ET
     from core.learning.teaching_sources import _frame_places
 
@@ -149,6 +150,10 @@ def test_a_verbnet_frames_places_are_linked_as_the_pmb_links_their_roles():
     assert places('<NP value="Theme"/>', "<VERB/>", '<PREP value="against into"/>', '<NP value="Location"/>') == (
         ("pp:against", "located_in"), ("pp:into", "located_in"), ("subject", "done_by"))
     assert places('<NP value="Patient"/>', "<VERB/>") == (("subject", "done_to"),), "the one dying it is done to"
+    assert places('<NP value="Agent"/>', "<VERB/>", '<NP value="Experiencer"/>') == (
+        ("object", "done_to"), ("subject", "done_by")), "the one licked it is done to"
+    assert places('<NP value="Experiencer"/>', "<VERB/>", '<NP value="Stimulus"/>') == (
+        ("object", "done_to"), ("subject", "done_by")), "who experiences it does it, no doer said beside it"
     assert places('<NP value="Agent"/>', "<VERB/>", '<NP value="Attribute"/>') == (("subject", "done_by"),), \
         "a role with no link Lyric holds says nothing"
 

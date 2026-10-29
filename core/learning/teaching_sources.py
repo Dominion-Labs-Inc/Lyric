@@ -3484,13 +3484,14 @@ _VERBNET_AS_PMB = {"Initial_Location": "Source", "Trajectory": "Path"}
 
 def _frame_places(frame: Any) -> Tuple[Tuple[str, str], ...]:
     """WHAT EACH PLACE OF A VERBNET FRAME SAYS, as the grammar names the place and the PMB links the role VerbNet gives
-    it (`pmb_meanings.HAPPENING_ROLES`): the thing before the verb its `subject`; of the things after it, one its
+    it (`pmb_meanings.happening_link`): the thing before the verb its `subject`; of the things after it, one its
     `object`, two the `second` and the `object` ("give him a book", as the grammar's entry takes them); one after a
     preposition `pp:` it ("at", or `pp:*` where the frame names none). A Theme is who does a happening where no role
-    of the frame does it ("NP:Theme V", "The bus collided with a truck."), as the PMB's meanings say it. A role with no
-    link Lyric holds (`Attribute`, `Extent`) says nothing. The frame's places as `NP V PP` written in its syntax:
+    of the frame does it ("NP:Theme V", "The bus collided with a truck."), and an Experiencer beside a doer is what
+    it is done to ("NP:Agent V NP:Experiencer", "The tiger licked him."), as the PMB's meanings say them. A role with
+    no link Lyric holds (`Attribute`, `Extent`) says nothing. The frame's places as `NP V PP` written in its syntax:
     "NP:Agent VERB LEX:at NP:Patient" ("Paula swatted at the fly") is `subject` done_by, `pp:at` done_to."""
-    from core.semantics.pmb_meanings import DOERS, HAPPENING_ROLES
+    from core.semantics.pmb_meanings import happening_link
     said = [(el.tag, str(el.get("value") or "")) for el in (frame.find("SYNTAX") if frame.find("SYNTAX") is not None
                                                             else ())]
     verb = next((k for k, (tag, _) in enumerate(said) if tag == "VERB"), None)
@@ -3517,10 +3518,9 @@ def _frame_places(frame: Any) -> Tuple[Tuple[str, str], ...]:
     elif len(bare) >= 2:
         roles["second"], roles["object"] = bare[0], bare[1]
     roles = {slot: _VERBNET_AS_PMB.get(r.lstrip("?"), r.lstrip("?")) for slot, r in roles.items()}
-    done = any(r in DOERS for r in roles.values())
     out = []
     for slot, role in roles.items():
-        link = "done_by" if role == "Theme" and not done else HAPPENING_ROLES.get(role)
+        link = happening_link(role, roles.values())
         if link:
             out.append((slot, link))
     return tuple(sorted(out))
