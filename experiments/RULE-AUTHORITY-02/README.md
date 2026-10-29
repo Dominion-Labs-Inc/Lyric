@@ -1,22 +1,25 @@
 # RULE-AUTHORITY-02: authority to act, benchmarked independently of Lyric
 
-**On the whole running system (2026-10-28, run `20261028T171857Z`, 2,000 worlds, no noise, seed 20261028, 8,138 s,
-clean log; 691 of its worlds rerun after two fixes that had left goals the world allows unreached, as
-`20261028T195002Z` (498 worlds, 1,809 s) and `20261028T210227Z` (582, 4,085 s), both with clean logs; scored together
-as `20261028T171857Z_retry`): 9 of 9 checks.** C8 is new: in every world, Lyric would take no act the world refuses,
-judged on the rule together with what its constitution sends back.
+**On the whole running system, combined from four runs on the same 2,000 worlds (2026-10-28, no noise, seed
+20261028): 9 of 9 checks.** One run of all 2,000 (`20261028T171857Z`, 8,138 s), then reruns of the worlds each left
+short, each by a later version of Lyric with the fixes below: 498 (`20261028T195002Z`, fix 4), 582
+(`20261028T210227Z`, fix 5) and 482 (`20261028T225341Z`, fixes 6 to 8), every log clean. Each world's figures are from
+the last run it was in (1,116 from the first run, 884 from a rerun), merged by `merge_rerun.py` into
+`20261028T171857Z_cases` and scored by the same evaluator. **No single version of Lyric ran all 2,000 worlds;** the
+1,116 not rerun ran without fixes 4 to 8. C8 is new: in every world, Lyric would take no act the world refuses, judged
+on the rule together with what its constitution sends back.
 
 | Check | Result |
 |---|---|
-| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 1,482 rules |
-| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 110 worlds |
+| C1 no rule holding authority is contradicted by any observation shown | **pass**, 0 of 1,894 rules |
+| C2 no rule holds authority in a world shown fewer than three successes | **pass**, 0 of 109 worlds |
 | C3 settled conjunction worlds, three or more successes: every world ends exact or with no rule, and most end exact | **pass**, 879 exact, 23 no rule, 0 another, of 902 (97.5%) |
 | C4 settled conjunction worlds: no rule authorizes an act the world refuses | **pass**, 0 of 915 |
 | C5 settled conjunction worlds: no rule predicts a wrong effect | **pass**, 0 of 915 |
 | C6 conjunction worlds the evidence leaves undecided: no rule holds authority | **pass**, 0 of 42 |
-| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 590 (249 hold no rule) |
-| C8 every world: Lyric would take no act the world refuses (the rule, with what its constitution sends back to planning) | **pass**, 0 of 2,000 (70 where the rule alone would) |
-| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 3,004 reported reached, of 12,000 asked |
+| C7 settled worlds whose rule no conjunction can say: no rule acts where the world refuses or predicts a wrong effect | **pass**, 0 of 644 (46 hold no rule) |
+| C8 every world: Lyric would take no act the world refuses (the rule, with what its constitution sends back to planning) | **pass**, 0 of 2,000 (62 where the rule alone would) |
+| G1 Lyric reports no goal reached that the world did not reach | **pass**, 0 of 3,953 reported reached, of 12,000 asked |
 
 **Why C8.** Run `20261028T113002Z` met all eight checks and still left 132 worlds where the rule Lyric held acts
 somewhere the world refuses: 117 whose evidence fits a rule other than the hidden one and 15 it left undecided between
@@ -68,16 +71,22 @@ first three cost in goals reached:
    induced from confirms it; two ways of cases equally few leave authority waiting. This is how "either of two groups
    of conditions" is now said.
 
-**What it gains and costs.** Lyric reached 2,849 of the 6,000 goals the world allows, against 2,484 in
-`20261028T113002Z`, whose 3,028 acts in pursuit of goals included 406 the world refused; its 3,009 here include none.
-It holds back where its successes did not cover the case: of the 19,864 situations the worlds allow where a rule it
-held applies, it would act in 14,900. Of the allowed goals `20261028T113002Z` reached, 487 are not reached here (856
-reached here were not there): 364 are in a case no success covered (the law), 67 in worlds working on either of two
-groups where Lyric holds no rule, 3 where the rule it holds does not apply, and 53 in cases the successes it ended with
-cover. In the one of those traced (world 34), the goal's deficit was not learned toward because Lyric's disposition
-escalated it, attributing the failure outside itself; 80 deficits for an act Lyric did not yet know went that way in
-`20261028T210227Z`. Its disposition is one for the whole self, moved by every world's failures, half of them goals the
-world refuses by design.
+**What it gains and costs, combined as above.** Lyric reached 3,711 of the 6,000 goals the world allows (2,849 before
+the last rerun), against 2,484 in the single run `20261028T113002Z`, whose 3,028 acts in pursuit of goals included 406
+the world refused; its 3,959 here include none. It holds back where its successes did not cover the case: of the
+27,108 situations the worlds allow where a rule it held applies, it would act in 24,532. 1,464 worlds end with exactly
+the hidden rule (1,247 before the last rerun, 764 in `20261028T113002Z`); of the 644 settled worlds whose rule no
+conjunction can say, 598 hold a rule (cases and absent conditions), against 341 of 590 before. Of the allowed goals
+`20261028T113002Z` reached, 107 are not reached here (1,337 reached here were not there): 24 in a case no success
+covered (the law), 12 in worlds working on either of two groups that hold no rule, 8 where the rule held does not
+apply in the goal's situation, and 63 in cases the successes Lyric ended with cover, not yet traced (58 in worlds a
+rerun ran).
+
+The fixes before the last rerun, kept as found: of the 487 allowed goals `20261028T171857Z_retry` missed that
+`20261028T113002Z` reached, 364 were the law, 67 either-of-two-groups worlds with no rule, 3 where the rule did not
+apply and 53 covered by the final successes; in the one traced (world 34), the goal's deficit was not learned toward
+because Lyric's disposition, one for the whole self and moved by every world's failures, escalated it (80 such
+deficits in `20261028T210227Z`). Fix 6 answers that, 7 the law's cases, 8 the either-of-two-groups worlds.
 
 **Before C8 (run `20261028T113002Z`, 2,000 worlds, no noise, seed 20261028, 8,954 s, clean log; kept as it was): 8 of
 8 checks.** The benchmark was rebuilt so that it measures Lyric, not a harness driving
@@ -352,4 +361,6 @@ python3 ../merge_rerun.py <run> <rerun> <file of world numbers, comma separated>
 | `20261028T195002Z` | 498 | the worlds of `20261028T171857Z` that reached fewer allowed goals than `20261028T113002Z`, rerun with `_OneTerm`; 1,809 s, clean log. Its own record scores all 2,000, the other 1,502 unanswered |
 | `20261028T171857Z_merged` | 2,000 | 9/9: `20261028T171857Z` with the 498 rerun worlds' answers and world log; 2,028 allowed goals reached, 321 of those missed tried before Lyric held a rule and never again (fixed: the retry waits for the learning) |
 | `20261028T210227Z` | 582 | the worlds of `20261028T171857Z_merged` still reaching fewer allowed goals than `20261028T113002Z`, rerun with the retry waiting for the learning; 4,085 s, clean log. Its own record scores all 2,000, the other 1,418 unanswered |
-| `20261028T171857Z_retry` | 2,000 | **9/9**: `20261028T171857Z_merged` with the 582 rerun worlds' answers and world log, the figures at the top |
+| `20261028T171857Z_retry` | 2,000 | 9/9: `20261028T171857Z_merged` with the 582 rerun worlds' answers and world log; 2,849 allowed goals reached |
+| `20261028T225341Z` | 482 | the worlds of `20261028T171857Z_retry` still reaching fewer allowed goals than `20261028T113002Z`, and its worlds working on either of two groups whose evidence settles the rule that held none, rerun with fixes 6 to 8; 15,456 s, clean log. With all its practice in the world at once, 562 of its 4,789 groundings hit the 5,000-operator bound (median 94), the goal's terms grounded first; not yet traced against the 63 goals above. Its own record scores all 2,000, the other 1,518 unanswered |
+| `20261028T171857Z_cases` | 2,000 | **9/9**, combined: `20261028T171857Z_retry` with the 482 rerun worlds' answers and world log, the figures at the top |

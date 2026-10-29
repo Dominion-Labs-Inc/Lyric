@@ -4577,6 +4577,12 @@ class GrammarView:
                 for _, kind in sense.kind_of:
                     if kind:
                         (knowledge.add if times > 0 else knowledge.discard)(sense.concept, "isa", kind)
+                # An adjective is weighed by what it is of, as one memory holds defined with a thing ("British", the
+                # United Kingdom; `GraphKnowledge.kinds`): "Norwegian" by Norway and what Norway is a kind of.
+                for _, of, kinds in getattr(sense, "pertains_to", ()):
+                    (knowledge.add if times > 0 else knowledge.discard)(sense.concept, "defined_with", of)
+                    for kind in kinds:
+                        (knowledge.add if times > 0 else knowledge.discard)(of, "isa", kind)
         # HOW EACH FORM IS USED, as an analysed sentence counts it (`form_uses`): which of the grammar's entries a form
         # is read with, how often ("for" a preposition 1,885 times, a `sub` 231).
         uses = getattr(words, "form_uses", None)

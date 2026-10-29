@@ -3010,10 +3010,18 @@ class WordSense:
     #: other word where the relation is the word's own) — "paint" `derivationally_related_forms` "painter".
     key: str = ""
     related: Tuple[Tuple[str, str, str, str], ...] = ()
+    #: WHAT AN ADJECTIVE IS OF, AND WHAT THAT IS A KIND OF (WordNet's pertainyms: "Norwegian" of Norway, a European
+    #: country): (the sense, Lyric's name for it, everything it is a kind of, nearest first). WordNet gives an
+    #: adjective no kinds, so reading weighs one by what it is of, as it weighs one memory holds defined with a thing
+    #: (`GrammarView._count_word`): a link learned of "an Algerian author" (`comes_from`) is then the link of "a
+    #: Norwegian town", never seen.
+    pertains_to: Tuple[Tuple[str, str, Tuple[str, ...]], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return ({"key": self.key} if self.key else {}) | ({"related": [list(r) for r in self.related]}
-                                                          if self.related else {}) | {
+                                                          if self.related else {}) | (
+            {"pertains_to": [[sense, name, list(kinds)] for sense, name, kinds in self.pertains_to]}
+            if self.pertains_to else {}) | {
             "id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
                 "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
@@ -3030,7 +3038,8 @@ class WordSense:
                    tuple(WordPlace.from_dict(p) for p in data.get("places") or ()),
                    tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()),
                    tuple(int(c) for c in data.get("covers") or ()), str(data.get("key") or ""),
-                   tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in data.get("related") or ()))
+                   tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in data.get("related") or ()),
+                   tuple((str(p[0]), str(p[1]), tuple(str(k) for k in p[2])) for p in data.get("pertains_to") or ()))
 
 
 @dataclass(frozen=True)
@@ -4147,10 +4156,13 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                         for rel in _WORDNET_LEMMA_RELATIONS for other in getattr(lemma, rel)()) + tuple(
             (rel, other.name(), named(other), "") for rel in _WORDNET_SENSE_RELATIONS
             for other in WordNetSource._ordered(getattr(s, rel)()))
+        pertains_to = tuple(dict.fromkeys((other.synset().name(), named(other.synset()), tuple(
+            n for _, n in kinds_of(other.synset()))) for other in lemma.pertainyms() if named(other.synset())))
         senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds, lemma.count(),
                                 tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames,
                                 covers=(tuple(covered[c] for c in [s.name()] + [k for k, _ in kinds])
-                                        if cls == "NOUN" else ()), key=lemma.key(), related=related))
+                                        if cls == "NOUN" else ()), key=lemma.key(), related=related,
+                                pertains_to=pertains_to))
     # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
     # the class's roles may be filled with.
     classes_of: Dict[str, Set[str]] = {}

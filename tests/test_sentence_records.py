@@ -536,3 +536,29 @@ def test_a_record_made_from_its_sources_carries_every_column_of_them_or_says_why
     without = WordRecord("wall", wall.forms, wall.senses, covered=tuple(c for c in every if c[:2] != ("UD", "HEAD")))
     assert any("HEAD" in p and "neither carried" in p for p in without.problems()), without.problems()
     assert WordRecord.from_dict(json.loads(json.dumps(wall.to_dict()))) == wall
+
+
+def test_an_adjective_is_weighed_by_what_it_is_of_and_what_that_is_a_kind_of():
+    """WordNet gives an adjective no kinds; its record says what it is of and what that is a kind of
+    (`WordSense.pertains_to`), and the grammar holds the adjective defined with it (`GrammarView._count_word`), as
+    memory holds "British" defined with the United Kingdom: "Norwegian" is weighed by Norway, a European country, a
+    country, so a link learned of a country's adjective ("an Algerian author", `comes_from`) is the link of
+    "Norwegian", never seen; taken back whole."""
+    from collections import Counter
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import GraphKnowledge, HeldWords
+    norwegian = WordRecord("norwegian", (WordForm("norwegian", "ADJECTIVE", "Degree=Pos", 3),), (
+        WordSense("norwegian.a.01", "ADJECTIVE", "norway", "of or relating to Norway",
+                  pertains_to=(("norway.n.01", "norway", ("european country", "country")),)),))
+    assert not norwegian.problems(), norwegian.problems()
+    assert WordRecord.from_dict(json.loads(json.dumps(norwegian.to_dict()))) == norwegian
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of, GraphKnowledge()))
+    words, lexicon = view.words, view.grammar.lexicon
+    assert lexicon.inherited("quality", "norway", "ADJECTIVE", (), "has_property")[0] == "has_property"
+    view.hold_word(norwegian)
+    assert words.kinds("norway", "ADJECTIVE")[:3] == ["norway", "european country", "country"]
+    lexicon.learned["quality"][("country",)] = Counter({"comes_from": 3})
+    assert lexicon.inherited("quality", "norway", "ADJECTIVE", (), "has_property")[0] == "comes_from"
+    view.drop_word(norwegian)
+    assert words.kinds("norway", "ADJECTIVE") == []
