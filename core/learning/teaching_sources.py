@@ -4770,14 +4770,18 @@ def file_words(ewt: Path, closed):
             out[c] = out.get(c, 0.0) + 1.0
         return out
 
-    def names(words: Sequence[str], cls: str) -> Optional[str]:
-        words = [w.lower() for w in words]
-        if cls == "NOUN":
-            words = words[:-1] + [wn.morphy(words[-1], wn.NOUN) or words[-1]]
-        joined = "_".join(words)
-        if wn.synsets(joined, by_class[cls]):
-            return joined.replace("_", " ")
-        return None
+    def names(words: Sequence[str]) -> Dict[str, str]:
+        """Each kind of word WordNet holds these words as one word of, with the name it holds them under, as memory
+        answers it (`MemoryAgent._held_names`): the words as written, and for a thing the last word as its base
+        ("gold medals" `gold medal`)."""
+        said = [w.lower() for w in words]
+        out: Dict[str, str] = {}
+        for cls, part in by_class.items():
+            mine = said[:-1] + [wn.morphy(said[-1], wn.NOUN) or said[-1]] if cls == "NOUN" else said
+            joined = "_".join(mine)
+            if wn.synsets(joined, part):
+                out[cls] = joined.replace("_", " ")
+        return out
 
     knowledge = GraphKnowledge(classes=classes, names=names)
     held = ewt.parent.parent / "grammar_wordnet_links.pkl"
