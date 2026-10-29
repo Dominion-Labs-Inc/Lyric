@@ -4,9 +4,10 @@ memory holds on the store POSTGRES_DATABASE names, as it is after a warm. Reads 
 WORDS_TEST names the sets of dev documents to read alone, one file or several separated by commas
 (`taught_words_test.json`: 100 drawn whose words are all among the 228 it lists, 77 of them with a gold meaning;
 `degree_test.json`, `denial_test.json`, `hyphenated_test.json`, `kind_of_test.json`, `clock_test.json`,
-`participle_test.json`, `several_words_test.json`, each the dev documents of one thing said). Every set is read in
-one run, each document once, and scored on its own and on all of them together. RESULTS_OUT, a file each reading is written to. Scored strict,
-senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
+`participle_test.json`, `several_words_test.json`, each the dev documents of one thing said); unset, every dev
+document with a gold meaning. Every set is read in one run, each document once, and scored on its own and on all of
+them together, and the error budget printed by the link each fact says. RESULTS_OUT, a file each reading is written
+to. Scored strict, senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
 `pronouns_as_unknowns`), and kinds aside with pronouns as unknowns. From the Lyric folder:
 
     WORDS_TEST=experiments/GRAMMAR-01/taught_words_test.json POSTGRES_DATABASE=lyric_dev2 \
@@ -48,7 +49,7 @@ async def main():
             return sense_names.get(wn.synset(sense)) or None
         except Exception:
             return None
-    dev, doc_ids = [], []
+    dev, doc_ids, unnamed = [], [], Counter()
     import json as _json
     sets = [(Path(f.strip()).stem.replace("_test", ""), {d for d, _ in _json.load(open(f.strip()))["drawn"]})
             for f in (os.environ.get("WORDS_TEST") or "").split(",") if f.strip()]
@@ -64,6 +65,9 @@ async def main():
         anchors = tuple((t, tuple((document.concepts[k].span[0], document.concepts[k].span[1], how,
                                    document.concepts[k].marked) for k, how in at if document.concepts[k].span))
                         for t, at in said.anchors.items())
+        for c in document.concepts:
+            if pm._SENSE.match(c.sense):
+                unnamed["no name" if sense_name(c.sense) is None else "named"] += 1
         dev.append((document.text, tokens, said.meaning, gm.align_by_anchors(tokens, document.text, anchors)))
         doc_ids.append(doc_id)
     t1 = time.time()
@@ -128,6 +132,40 @@ async def main():
         print(f"  {way}: {scored(set(doc_ids))}")
         for name, ids in sets if len(sets) > 1 else ():
             print(f"      {name}: {scored(ids)}")
+    # THE ERROR BUDGET, the headline way: of the facts the gold says, how many the reading says, by the link each
+    # says. A sentence is right only where every one of its facts is, so what a decision costs is what a sentence
+    # costs: a share p of facts right is about p to the power of the facts a sentence says.
+    budget: dict = {}
+    per_sentence, facts_right, facts_said = Counter(), 0, 0
+    for r, (_, _, m, _), ws in zip(readings, dev, sentence_words):
+        want = g01.grounded(as_words(m, ws), is_variable)
+        got = g01.grounded(as_words(r.meaning, ws), is_variable) if r.meaning is not None else Counter()
+        for key, n in want.items():
+            budget.setdefault(key[0], Counter())["gold"] += n
+        for key, n in got.items():
+            budget.setdefault(key[0], Counter())["read"] += n
+        for key, n in (got & want).items():
+            budget.setdefault(key[0], Counter())["right"] += n
+        facts_right += sum((got & want).values())
+        facts_said += sum(want.values())
+        per_sentence[(sum((got & want).values()), sum(want.values()))] += 1
+    print(f"\n  the error budget by the link said, {len(dev)} documents "
+          f"({unnamed['named']} of the gold's concepts named by a sense of the measure's table, "
+          f"{unnamed['no name']} it has no name for):")
+    print(f"      {'link':22} {'gold':>6} {'read':>6} {'right':>6}   {'P':>6} {'R':>6} {'F1':>6}")
+    for link, c in sorted(budget.items(), key=lambda x: -x[1]["gold"]):
+        p = c["right"] / max(c["read"], 1)
+        rc = c["right"] / max(c["gold"], 1)
+        print(f"      {link:22} {c['gold']:6} {c['read']:6} {c['right']:6}   {p:6.1%} {rc:6.1%} "
+              f"{2 * p * rc / max(p + rc, 1e-9):6.1%}")
+    whole = sum(n for (right, said), n in per_sentence.items() if right == said and said)
+    share = facts_right / max(facts_said, 1)
+    says = facts_said / max(len(dev), 1)
+    print(f"      facts right {facts_right} of {facts_said} ({share:.1%}); a sentence says {says:.1f} of them, "
+          f"so {share ** says:.1%} of sentences would be right were they decided apart, and {whole} "
+          f"({whole / max(len(dev), 1):.1%}) are")
+    print("      sentences by how many of their facts are right: " + ", ".join(
+        f"{right}/{said}: {n}" for (right, said), n in sorted(per_sentence.items(), key=lambda x: -x[1])[:10]))
     if os.environ.get("RESULTS_OUT"):
         _json.dump([{"text": text, "sets": [name for name, ids in sets if doc_id in ids],
                      "gold": a.canonical(), "read": r.meaning.canonical() if r.meaning else r.why,

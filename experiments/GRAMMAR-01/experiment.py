@@ -136,8 +136,12 @@ def named_by_their_words(meaning, words, senses_named):
 
 def words_of_sentence(tokens):
     """A sentence's words as `named_by_their_words` asks for them: each word lowered, each of its bases as WordNet
-    gives them, every two and three words side by side ("disco music"), and words joined by hyphens as one word in
-    each of its spellings ("bullet-proof", `bulletproof`, "bullet proof": `Lexicon.hyphened`)."""
+    gives them, every two and three words side by side ("disco music") and the word each such run is a form of
+    ("took off" `take off`, "dairy products" `dairy product`, "fell in love" `fall in love`), and words joined by
+    hyphens as one word in each of its spellings ("bullet-proof", `bulletproof`, "bullet proof":
+    `Lexicon.hyphened`). A word of several words is a word of the sentence as a word of one is: named by its words
+    only as written, a thing the gold says by one ("took off" `take_off.v.06`) could be named by no word of the
+    sentence, and the reading was scored wrong for naming another sense of the same words (2026-10-29)."""
     from nltk.corpus import wordnet as wn
     low = [str(t).lower() for t in tokens]
     out = set(low)
@@ -154,7 +158,16 @@ def words_of_sentence(tokens):
             if base:
                 out.add(base.replace("_", " "))
     for n in (2, 3):
-        out.update(" ".join(low[k:k + n]) for k in range(len(low) - n + 1))
+        for k in range(len(low) - n + 1):
+            said = low[k:k + n]
+            out.add(" ".join(said))
+            for pos in ("v", "n", "a"):
+                base = wn.morphy(said[0], pos)
+                if base and base != said[0]:
+                    out.add(" ".join([base] + said[1:]))
+                base = wn.morphy(said[-1], pos)
+                if base and base != said[-1]:
+                    out.add(" ".join(said[:-1] + [base]))
     return out
 
 

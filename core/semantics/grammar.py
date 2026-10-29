@@ -1563,7 +1563,10 @@ class Lexicon:
                 if second is not None and tokens[i].lower() not in self.closed:
                     score = estimate(first, self.words.like(tokens[i], "uses"),
                                      set(first) | {"NOUN:compound"})["NOUN:compound"] + second
-                    name = f"{tokens[i].lower()} {self.words.name(tokens[i + 1], 'NOUN')}"
+                    # NAMED BY ITS OWN WORDS, the second as the word it is a form of ("dairy products" `dairy
+                    # product`): named by the second word's name instead, "cell phone" was `cell telephone`, which
+                    # is no thing's name and no words of the sentence (2026-10-29).
+                    name = f"{tokens[i].lower()} {self.words.lexeme(tokens[i + 1], 'NOUN')}"
                     for t in self.templates.get("NOUN", ()):
                         out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN", name,
                                                  score, "compound")))
