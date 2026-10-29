@@ -133,7 +133,8 @@ class WorldInhabitant:
 
     def __init__(self, coordinator=None) -> None:
         #: The running Lyric, whose front door takes a person's turn. None when only the appraisal
-        #: authority is attached: a message is then refused, by name, never answered by something else.
+        #: authority is attached, which then takes from the world ONLY what it can answer without a running
+        #: Lyric (`_takes`): a person's turn waits in the world for a Lyric that can take it.
         self._coordinator = coordinator
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._thread: Optional[threading.Thread] = None
@@ -146,8 +147,13 @@ class WorldInhabitant:
         #: During a handover, the instance that still holds some people's conversations: where their turns
         #: are passed, with the door's key ({"to", "key", "people"}). None otherwise.
         self._passing: Optional[Dict[str, Any]] = None
-        self._takes = {"message": self._message, "shared_learning": self._shared_learning, "hearing": self._hearing,
-                       "device": self._device}
+        #: WHAT IT TAKES FROM THE WORLD. A person's turn, what their device hears and what it reports all need
+        #: the running Lyric behind them; whether their work goes into shared learning is the learning
+        #: authority's, which stands without it. So the appraisal authority attached alone takes that one only,
+        #: and leaves the rest for a Lyric that can answer them.
+        self._takes = {"shared_learning": self._shared_learning}
+        if coordinator is not None:
+            self._takes.update({"message": self._message, "hearing": self._hearing, "device": self._device})
         #: Each person's allowance (`Allowance`), held by the running Lyric's queue while attached with one.
         self._allowance: Optional[Allowance] = None
 

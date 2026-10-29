@@ -564,6 +564,13 @@ def test_a_doing_is_the_head_of_what_a_thing_raised_over_it_takes(grammar):
     assert gm._takes_its_head(gm.parse_category("S/(S\\NP)")) and not gm._takes_its_head(gm.parse_category("NP/N"))
 
 
+def test_a_kind_of_a_kind_is_the_kind_said_and_no_thing_of_its_own(grammar):
+    # "this kind of cat": a kind of cat (the PMB's `InstanceOf`), no cat and no "kind"; asked, the kind is asked.
+    assert "isa(?v2, cat)" in read(grammar, "The dog chased this kind of cat.")
+    assert read(grammar, "What kind of cat did the dog chase?").endswith("isa(?v2, cat) & precedes(?v0, ?now) ? ?v2")
+    assert "instance_of(?v2, cat)" in read(grammar, "The dog chased a cat.")
+
+
 def test_what_a_thing_is_said_not_to_be_is_denied_with_its_qualities(grammar):
     # "Tom is not a happy dog.": no happy dog, so not happy either; said of Tom, the quality was told as so.
     assert "not has_property(?v0, happy)" in read(grammar, "Tom is not a happy dog.")

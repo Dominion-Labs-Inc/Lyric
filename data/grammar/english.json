@@ -5502,6 +5502,16 @@
       "@"
      ]
     ]
+   },
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "subkind",
+      "x"
+     ]
+    ],
+    "label": "a kind of"
    }
   ],
   "sort of": [
@@ -5514,6 +5524,16 @@
       "@"
      ]
     ]
+   },
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "subkind",
+      "x"
+     ]
+    ],
+    "label": "a kind of"
    }
   ],
   "even though": [
@@ -5540,6 +5560,30 @@
       "-"
      ]
     ]
+   }
+  ],
+  "kinds of": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "subkind",
+      "x"
+     ]
+    ],
+    "label": "a kind of"
+   }
+  ],
+  "sorts of": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "subkind",
+      "x"
+     ]
+    ],
+    "label": "a kind of"
    }
   ]
  },

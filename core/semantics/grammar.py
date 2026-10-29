@@ -2588,11 +2588,16 @@ class Grammar:
         sign.word = at
         of = joined.word if joined.word >= 0 else joined.head
         weighed, tokens = self._weighed, self._tokens
+        several = not joined.kids and joined.end - joined.start > 1 and any(
+            p[0] == "word" and p[2] == "GRAMMAR" for p in joined.pieces)
         if weighed is None or not (0 <= at < len(tokens) and 0 <= of < len(tokens)) or at == of \
-                or not any(ch.isalnum() for ch in str(tokens[of])) or of in self._marking:
+                or not any(ch.isalnum() for ch in str(tokens[of])) or of in self._marking or several:
             # A word that only marks another is joined as the grammar joins it: "did" takes its doer first in "Where
             # did Gandhi study?", the treebanks join it to "study", and the join the structure view made unlikely
-            # (-6.2) decided the question was what Gandhi studied (GRAMMAR-01 dev, 2026-10-26).
+            # (-6.2) decided the question was what Gandhi studied (GRAMMAR-01 dev, 2026-10-26). So is a grammar word
+            # of several words ("kind of", "no one"), which no treebank reads as one: "kind", to them the head of
+            # "kind of flowers", weighed as joined to "flowers", and "What kind of flowers" asked a kind and a flower
+            # (2026-10-29).
             return
         sign.score += float(weighed[at + 1, of + 1])
 
@@ -4060,8 +4065,15 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             add("during", e, "?now", at=at)
         if e in denied:
             add("has_property", e, "false", at=at)
+    # A KIND OF A KIND: "this kind of apple", "What kind of flowers": the thing is a kind of apple, the apple the kind
+    # said, no apple of its own and no "kind" (the PMB's `InstanceOf`: "kind of", "kinds of", "sort of", "sorts of", 47
+    # times). Read as a noun and "of", a kind and an apple were two things, the one a kind of the other.
+    subkinds = {p[1] for p in pieces if p[0] == "subkind"}
     for x, p in kinds.items():
         if x in events:
+            continue
+        if x in subkinds and not isinstance(x, str):
+            add("isa", x, p[2], at=p[-1])
             continue
         if isinstance(x, str):
             if not x.startswith("?") and x not in kind_of.values() and _number(x) is None:
@@ -4272,7 +4284,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             # "Whales are mammals.": a kind said to be of a kind (`isa(whale, mammal)`).
             how_said, how = "merge", "rule"
         decided.append(("be", ":".join(key), how, None))
-        if how_said == "merge" and y_kind is not None and isinstance(y, int) and y not in asked and not quantified:
+        # A KIND OF A KIND SAID OF A THING is no merging: "This is a kind of watermelon." is one, a kind of watermelon,
+        # never a watermelon (`equals`, as the PMB says it).
+        if how_said == "merge" and y_kind is not None and isinstance(y, int) and y not in asked and not quantified \
+                and y not in subkinds:
             # "Tom is a gentleman": the gentleman is Tom, what is said of one said of the other.
             facts[:] = [f for f in facts if not (f.relation == "instance_of" and f.subject == term(y))]
             if isinstance(x, str) and not x.startswith("?"):
