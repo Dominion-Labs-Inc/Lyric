@@ -106,8 +106,25 @@ at all ("It's a riveting story.", the sense having no name of its own).
 
 **Where it stands.** The 77 by their words: lyric_dev2 49 (64%), main 40 (52%); the bar is 95%. Participles standing
 where a quality may stand read as qualities where memory holds the word as an adjective, which is what the
-measurement says decides them. Next by size, from the participle set's rest and the 77's: what a later word refers to
-(4 of the 77), names of several words (5), then the single cases.
+measurement says decides them.
+
+**The 77's 28 left, counted by cause** (this run, each sentence under the one thing that would have to change):
+
+| | |
+|---|---|
+| a noun or name of several words | **6**: "disco music", "IKEA furniture" (the gold says IKEA makes it), "fist fighting", "European Constitution" and "prime minister" split into a kind, "Phobos and Deimos" after a colon |
+| which link a word says | 5: a verb's place 3 ("Nobody called him." `received_by`, "Our bus collided with a truck." the Co-Theme, "Caesar falls" `done_to`), a possessive 1 ("Boeing's headquarters" `part_of`), a time with "at" 1 (the gold links nothing) |
+| the reading says more than the gold | 3: a past said ("You reek of alcohol."), a name equated with the name said of it, a thing given |
+| a place or people's adjective | 2: "a Norwegian town" `part_of`, "a Lesbian poet" from Lesbos |
+| the one participant said to do it | 2: the horse ridden, the tennis played |
+| a bare plural | 2: "Are anal fissures curable?" read as the kind itself, "Two people are…" read as a condition |
+| what a later word refers to | 1: "Tom chased the mugger and caught him." |
+| single cases | 7: "Ain't", "off duty", "novel-based", a gerund with a possessive, a fronted "By whom", "kind of" with what is asked, "since" with the sense of "took", and the quoted pair that reads no whole |
+
+Next by size: nouns and names of several words. Two of its six look like the measure's naming and not the reading
+("disco music" is read as one thing, as the gold has it, and named by its two words where the gold names it by
+"disco"), so the research comes first — how often a noun or name of several words is one concept of the gold, and
+how it is named — before either half is built.
 
 ---
 
