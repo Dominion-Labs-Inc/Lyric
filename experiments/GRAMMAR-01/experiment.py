@@ -85,6 +85,64 @@ def senses_aside(meaning, at, names):
         return meaning
 
 
+def pronouns_as_unknowns(meaning):
+    """The meaning with the one spoken of before (`?previous`, what Lyric reads "he", "she", "this" as) an unknown,
+    as the PMB writes a pronoun: a thing its sentence does not say what it is. Compared as written, "He fixed it."
+    read `done_by(?v0, ?previous)` was wrong against `done_by(?v0, ?v1)`, the most common difference between what
+    main read and the PMB's gold (175 of 525, 2026-10-28)."""
+    from core.semantics.derived_reader import Meaning, MeaningFact
+    if not any("?previous" in (f.subject, f.obj) for f in meaning.facts):
+        return meaning
+    taken = {t for f in meaning.facts for t in (f.subject, f.obj)}
+    unknown = next(f"?v{k}" for k in range(len(taken) + 1, 10 * len(taken) + 100) if f"?v{k}" not in taken)
+
+    def of(t):
+        return unknown if t == "?previous" else t
+    return Meaning(meaning.act, tuple(MeaningFact(f.relation, of(f.subject), of(f.obj), f.positive, f.condition,
+                                                  f.alternative, f.unasserted, f.given) for f in meaning.facts),
+                   tuple(of(a) for a in meaning.asked))
+
+
+def named_by_their_words(meaning, words, senses_named):
+    """The meaning with each thing it names by a sense (a kind, a quality) named by the word of the sentence it is a
+    sense of (`words`: the sentence's words and each one's bases; `senses_named`: Lyric's name -> the WordNet senses
+    it names): `misinform lie` and `lie` both "lie" in "You lied to me!", `foodstuff egg` and `egg` "egg". Which sense
+    of the word is meant is set aside, in the gold and the reading alike; a name no word of the sentence is a sense
+    of is kept. `senses_aside` names a word by its first sense instead, and counted a sense chosen from what fills
+    a verb's places wrong where the word was read right (2026-10-28)."""
+    from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
+
+    def of(t):
+        if is_variable(t) or t.replace(".", "").isdigit():
+            return t
+        said = sorted({lemma.name().lower().replace("_", " ") for synset in senses_named.get(t, ())
+                       for lemma in synset.lemmas()} & words)
+        return said[0] if said else t
+    try:
+        return Meaning(meaning.act, tuple(dict.fromkeys(
+            MeaningFact(f.relation, of(f.subject), of(f.obj), f.positive, f.condition, f.alternative, f.unasserted,
+                        f.given)
+            for f in meaning.facts)), meaning.asked)
+    except ValueError:
+        return meaning
+
+
+def words_of_sentence(tokens):
+    """A sentence's words as `named_by_their_words` asks for them: each word lowered, each of its bases as WordNet
+    gives them, and every two and three words side by side ("disco music")."""
+    from nltk.corpus import wordnet as wn
+    low = [str(t).lower() for t in tokens]
+    out = set(low)
+    for w in low:
+        for pos in ("n", "v", "a", "r"):
+            base = wn.morphy(w, pos)
+            if base:
+                out.add(base.replace("_", " "))
+    for n in (2, 3):
+        out.update(" ".join(low[k:k + n]) for k in range(len(low) - n + 1))
+    return out
+
+
 def main() -> int:
     from experiments._evidence import RunRecord
     from nltk.corpus import wordnet as wn

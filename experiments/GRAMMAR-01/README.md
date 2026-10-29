@@ -127,3 +127,13 @@ silver sentences too (22 times the data) 16.7% / 36.4% / 44.0%, F1 82.3%. Learne
 lessons, scratch, 2026-10-21) the grammar read 20.4% / 40.6% / 50.7%: where the lessons and the PMB say one thing two
 ways (`isa(rice, food)` against `equals`; `located_at` against `located_in`) the dev set holds the PMB's way. The
 lessons, held out, read right whole: 23.9%; learned from: 31.8%.
+
+**On a store, with the comparison's conventions aligned (2026-10-28, lab notebook (70)).** `on_store.py` reads the dev
+sentences with the reader a store holds after a warm (read only); `taught_words_test.json` lists 100 dev documents
+whose words are all among 228 (77 with a gold meaning), taught to lyric_dev2 as words recorded whole. Two comparisons
+added beside the others, applied alike to the gold and the reading: `pronouns_as_unknowns` (Lyric reads "he", "it",
+"this" as the one spoken of before, `?previous`; the PMB writes an unknown) and `named_by_their_words` (a kind or
+quality named by the word of the sentence it is a sense of, so which sense was chosen is set aside; `senses_aside`
+takes a word's first sense and counted a sense chosen from a verb's places wrong). On the 77: main (12,544 UD
+sentences) 33 by their words (F1 73.7%), 29 kinds aside (76.1%); lyric_dev2 (245 words recorded whole, 6,137 PMB
+sentences recorded whole) 35 (75.7%), 33 (77.2%).

@@ -16,6 +16,40 @@ Conventions:
 
 ---
 
+## 2026-10-28 (70) — The comparison made like with like: a pronoun as an unknown, a sense by its word; lyric_dev2 ahead of main on both; what is left is reading's own
+
+**Objective** (agreed with the owner): score the 77 so the errors left are reading's own, not the two conventions
+(69) found: Lyric reads "he", "it", "this" as the one spoken of before (`?previous`), the PMB writes an unknown; and
+senses aside took a word's first sense name, so a sense chosen from what fills a verb's places counted wrong.
+
+**Built** (`experiments/GRAMMAR-01/experiment.py`, beside the comparisons that were, which are unchanged):
+`pronouns_as_unknowns`; `named_by_their_words` (each kind or quality named by the word of the sentence it is a sense
+of, `words_of_sentence`: the words, their WordNet bases, two and three side by side), applied alike to the gold and the
+reading. The store measure kept in the repo: `on_store.py`, `taught_words_test.json`.
+
+**Measured** (same code, both stores read only):
+
+| 77 held-out PMB dev sentences | main | lyric_dev2 |
+|---|---|---|
+| by their words, pronouns as unknowns | 33, F1 73.7% | **35, F1 75.7%** |
+| kinds aside, pronouns as unknowns | 29, F1 76.1% | **33, F1 77.2%** |
+| (as before) strict / senses aside / kinds aside | 15 / 26 / 22 | 18 / 23 / 26 |
+
+**What lyric_dev2 reads wrong, by their words (42), grouped:** questions (5: "Who is John Lennon's wife?", "Who is
+the Hungarian prime minister?" read as a request, "By whom ...", "What kind of ...", "What's your favorite kind of
+..."); a nationality's or place's adjective (4: the PMB's `comes_from` or `part_of` the country); words joined by a
+hyphen or written together (4: "custom-made", "novel-based", "fist fighting", "o'clock"); degree (3: "very smooth",
+"totally indifferent", "really thrilling"); a participle as a quality (3: "chained", "developed", "thrilling");
+denial by "nothing" or "not a" (2); one each: "I've been stung" read active, "reek" read as past, "pecking at Tom" as a
+time, "since" as a sense of "take off", "Mars has two moons: Phobos and Deimos.", a generic plural ("Are anal fissures
+curable?"), an apposition, a gerund subject, and verbs the PMB gives a patient ("fall", "pass away"), "collide with",
+an organisation's possession (`part_of`).
+
+**Next:** these by size, each a rule of English read as it is said, measured on the 77 and on GRAMMAR-01's whole dev
+set; then saying scored by the reader.
+
+---
+
 ## 2026-10-28 (69) — The word record complete by construction: every column of every source it is made from, or why not; reading on the 77 unmoved, its errors grouped by cause
 
 **Objective** (the owner: fix the broader picture, not each error): the record was built a layer at a time as

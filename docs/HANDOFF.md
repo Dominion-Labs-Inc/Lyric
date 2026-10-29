@@ -12,7 +12,9 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (69), 2026-10-28, night): THE WORD RECORD COMPLETE BY CONSTRUCTION.** `_RECORD_COLUMNS` names
+**LATEST (lab notebook (70), 2026-10-28, night): THE COMPARISON MADE LIKE WITH LIKE.** A pronoun compared as an unknown, a sense by the word it is a sense of (`experiments/GRAMMAR-01`: `pronouns_as_unknowns`, `named_by_their_words`; `on_store.py`, `taught_words_test.json`). On the 77: lyric_dev2 35 / 33 against main 33 / 29 (by their words / kinds aside). lyric_dev2's 42 left, grouped: questions 5, nationality adjectives 4, hyphened words 4, degree 3, participles as qualities 3, denials 2, singles. Next: those by size.
+
+**EARLIER (lab notebook (69), 2026-10-28, night): THE WORD RECORD COMPLETE BY CONSTRUCTION.** `_RECORD_COLUMNS` names
 every column of every source a record is made from, with the layer carrying it or why none does; a record says what it
 carried (`covered`) and one leaving a column unsaid is refused. New layers: joins and relations as the structure reader
 counts them (learned by `StructureView.hold_joins`), fine tags, enhanced relations, MISC (STREUSLE, GUM), WordNet keys
