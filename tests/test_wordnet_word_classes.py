@@ -1,7 +1,10 @@
-"""WordNet states every class it holds a word in, and each verb of several words; a verb held so is one to the grammar.
+"""WordNet states every class it holds a word in, and each verb, quality and adverb of several words; held so, the
+grammar reads the words as one word of that kind.
 
 Taught one class each, the class tagged most, "research" was no verb and "Research photosynthesis." read as
 nothing; no verb of several words was held, and "Look up photosynthesis." read as nothing (lyric_dev, 2026-10-24).
+Stated for verbs alone, main held nothing at all for "fed up", "in vain" or "at last" (lyric_db, 2026-10-29): a
+noun of several words is named by its facts, where a quality has no fact to be named in.
 WordNet is read from NLTK's data; a stand-in memory agent holds the classes; nothing touches a store.
 """
 
@@ -21,13 +24,24 @@ def test_a_word_is_every_class_wordnet_holds_it_in_the_most_tagged_first():
     assert classes["right-handed"] == ("ADJECTIVE",) and classes["state-of-the-art"] == ("ADJECTIVE",)
 
 
-def test_a_verb_of_several_words_is_a_verb_and_no_other_words_of_several_are_stated():
+def test_a_verb_a_quality_or_an_adverb_of_several_words_is_stated_and_a_noun_is_not():
     classes = WordNetSource()._word_classes()
     for verb in ("look up", "find out", "sign up"):
         assert classes[verb] == ("VERB",), (verb, classes.get(verb))
-    assert "credit card" not in classes, "a noun of several words is held through its facts' words"
+    for quality in ("fed up", "in love", "out of print"):
+        assert classes[quality] == ("ADJECTIVE",), (quality, classes.get(quality))
+    for adverb in ("kind of", "in vain", "at last"):
+        assert classes[adverb] == ("ADVERB",), (adverb, classes.get(adverb))
+    assert "credit card" not in classes, "a noun of several words is named by its facts' words"
+    # A QUALITY'S OR AN ADVERB'S WORDS HOLD NO PRONOUN ("to it" `thereto`), which stands for whatever was spoken of;
+    # taught with the rest the 80 of them cost a sentence of GRAMMAR-01's 231 (lyric_dev2, 2026-10-29). A verb's may
+    # be frozen into the verb, and the verbs are stated as they have been since (73).
+    for held in ("to it", "on it", "as it is", "in his own right", "one hundred"):
+        assert held not in classes, held
+    assert classes["get it"] == ("VERB",), classes.get("get it")
     stated = set(WordNetClassesSource().word_classes())
-    assert {("research", "NOUN"), ("research", "VERB"), ("look up", "VERB")} <= stated
+    assert {("research", "NOUN"), ("research", "VERB"), ("look up", "VERB"),
+            ("fed up", "ADJECTIVE"), ("in vain", "ADVERB")} <= stated
 
 
 def test_words_held_together_are_a_word_of_every_class_they_are_held_as():

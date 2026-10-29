@@ -199,3 +199,21 @@ frames; the PMB's gold writes it so in every one of the 45 documents saying both
 is done to the speaker and done by the hornet. By their words on lyric_dev2: the 77 46 to 49 (F1 82.1% to 84.1%),
 degree 12 to 13 of 20, the participle set 9 of 18, every other set unmoved, nothing lost. `on_store.py` now takes
 several sets at once (`WORDS_TEST` separated by commas) and scores each on its own.
+
+**The vocabulary floor (2026-10-29, lab notebook (81)).** The reading (79) built was unreachable on main: the class
+lessons stated a word of several words only where it was a verb (`WordNetSource._word_classes`), on the reason that a
+noun of several words is named by its facts — true of "credit card", false of "disco music", and impossible for a
+quality or an adverb, neither having a fact to be named in. Main held nothing at all for "fed up", "in vain" or "at
+last". The lessons state a verb, a quality and an adverb of several words now, a noun's words still named by its
+facts, and none whose words hold a pronoun: taught whole to lyric_dev2 (1,187 pairs, 1,142 words) they lost a
+sentence to WordNet's "to it" (`thereto.r.01`), and a pronoun stands for whatever was spoken of, so words holding one
+are not one word. Research first, `diagnostics/several_classes.py`: this vocabulary calls 63 runs of the dev split
+one word and 27 are one concept (43%), 637 of the train split and 233 (37%), the rest words the grammar reads
+otherwise ("a lot", "out of", "used to", "at all", "kind of"), which the grammar weighs an entry against rather than
+taking it. Measured over the eight sets on lyric_dev2 by their words: 120 right whole of 231 and facts F1 75.0%
+before, 119 and 74.9% as the lessons were first written, 120 and 75.1% with the pronoun rule — nothing lost, and
+nothing gained either, because the 75 words these sets need were taught here by hand in (79). The floor is for main,
+which holds none of it; the owner's `--source wordnet-classes` run on lyric_db is what lays it. With no teaching at
+all the files-only reader reads "I'm fed up with math.", "At last, we arrived in California.", "The book is out of
+print." and "Tom is kind of tall." right, and splits "All of a sudden it rained.", the rule asking memory for runs of
+three words and two where 4 of the dev split's 13 adverbs of several words are longer.

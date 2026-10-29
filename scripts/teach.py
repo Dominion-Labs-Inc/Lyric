@@ -38,8 +38,9 @@ So this starts the substrate and teaches it while it is running:
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
              wordnet-usage: how often WordNet's words were met naming each sense (SemCor), and nothing else, for a
              store that holds the words
-             wordnet-classes: every class WordNet holds each word in ("research" a noun and a verb), and nothing
-             else, for a store taught each word only the one class it was tagged in most
+             wordnet-classes: every class WordNet holds each word in ("research" a noun and a verb), and each verb,
+             quality and adverb of several words ("look up", "fed up", "in vain"), and nothing else, for a store
+             taught each word only the one class it was tagged in most
              listening: what the listener's evidence is worth, counted on the English lessons (data/lessons), whose
              meanings say which reading was meant; nothing else is taught
              treebank: how the words of a sentence go together, from sentences analysed by hand (the English Web

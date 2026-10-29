@@ -16,6 +16,92 @@ Conventions:
 
 ---
 
+## 2026-10-29 (81) — The vocabulary floor: the class lessons state a quality and an adverb of several words
+
+**Objective.** (80) put the vocabulary floor first in the order of work, and (79) built a reading for several words
+that are one word of whatever kind memory holds them as. The owner asked what main holds and whether it has to be
+re-taught. So: find what main lacks, and make the lessons state it.
+
+**What main holds.** Not a re-teach — a layer it was never taught. `lyric_db` holds 0 word records, 0 sentence
+records, 12,544 analysed sentences, 8,679 derivations, 9,874 taught sentences, 148,843 links. Word by word, the
+class lessons of (73) did their job: "chained" and "developed" are held as adjectives (a second class on a single
+word), "grow up" and "take off" as verbs of several words, and "credit card" and "prime minister" arrive through the
+words of their facts. But main holds **nothing at all** for "fed up", "in vain", "at last" or "disco music".
+
+**The cause, one line.** `WordNetSource._word_classes` stated a word of several words only where it was a verb:
+
+```python
+if len(parts) > 1 and word_class != "VERB":
+    continue
+```
+
+The reason given was that a noun of several words is said with its facts ("A credit card is a card."), which name
+it. Main proves that half-true: it works for "credit card", fails for "disco music", and **can never work for a
+quality or an adverb**, because neither has a fact to be named in. So (79)'s reading of a quality or an adverb of
+several words was unreachable on main, whatever it was taught.
+
+**Built.** The lessons state a verb, a quality and an adverb of several words; a noun's words are still named by its
+facts. WordNet holds 2,776 verbs of letters, 483 qualities and 704 adverbs, against 58,597 nouns — fifty times the
+qualities and adverbs together, whose own measurement this is not.
+
+**The error the first version made, and its cause.** Taught to lyric_dev2 whole (1,187 pairs, 1,142 words, all told,
+none skipped), the lessons **lost a sentence**: GRAMMAR-01's eight sets 120 right whole of 231 to 119, the 77 50 to
+49. The cause was one word. WordNet holds "to it" as a lemma of `thereto.r.01`, so "I'm totally indifferent to it."
+read `instance_of(?v2, to it)`. A pronoun stands for whatever was spoken of, so words holding one are not one word,
+which means the same wherever it is said — and WordNet holds 33 such qualities and 47 such adverbs ("on it", "under
+it", "as it is", "in his own right", and 22 of them "one hundred" and the numbers built on it, which the grammar
+reads as the number they are). The lessons state none of them now. Said of the lessons and not of the reading,
+because a noun of several words may hold a pronoun and keep its own word ("coal mine", "gold mine"), and a verb's
+"it" can be frozen into the verb ("get it" is to understand, "call it a day"): the 43 verbs WordNet holds so have
+been stated since (73) and are left exactly as they were, so this states more and nothing less.
+
+**Research** (`GRAMMAR-01/diagnostics/several_classes.py`, new, files only): what this vocabulary calls one word and
+how many of them are. Over the 1,194 dev documents it calls 63 runs of two or three words one word and 27 are one
+concept (43%), qualities 14 of 22 and adverbs 13 of 41; over the 9,552 train documents 637 runs and 233 (37%). It is
+noisy, and what it calls wrongly most is a handful of words the grammar reads otherwise: "a lot" 45, "out of" 42,
+"used to" 37, "at all" 29, "kind of" 28, "a few" 20. What keeps that honest is that the grammar **weighs** an entry
+against the words apart and does not take it — "kind of" before a noun is the grammar's own (`subkind`, (75)), and
+of the 10 dev runs of "kind of" counted wrong here the kind_of set moved not at all.
+
+**Measured** (lyric_dev2, 231 documents over the eight sets, 559 word records; the run with the pronoun words hidden
+at the asking, because a stated class cannot be taken back and they were taught before the rule was found):
+
+| by their words, pronouns as unknowns | right whole | facts F1 |
+|---|---|---|
+| before the lessons | 120 of 231 (51.9%) | 75.0% |
+| the lessons as first written | 119 of 231 (51.5%) | 74.9% |
+| the lessons with the pronoun rule | 120 of 231 (51.9%) | 75.1% |
+
+Every set at or above where it was, nothing lost, `precedes` one more fact right and `instance_of` four fewer wrong,
+against three more `has_property` facts read and none more right. **On this store the lessons change nothing**, and
+that is what they should: the 75 words these sets need were taught to lyric_dev2 by hand in (79), so the lessons add
+only the vocabulary beyond them. The floor they lay is for main, which holds none of it.
+
+**The capability without any teaching at all** (the files-only reader, WordNet as its word memory, which is what
+main becomes once the lessons are run): "I'm fed up with math." `has_property(?speaker, fed up)`, "At last, we
+arrived in California." `has_property(?v0, at last)`, "The book is out of print." `has_property(?v0, out of print)`,
+"Tom is kind of tall." `has_property(?v0, kind of)`. Four of five right with nothing taught. The fifth is the rule's
+window: it asks memory for runs of three words and two, so "All of a sudden it rained." splits into `all` and `of a
+sudden`. That is 4 of the dev split's 13 adverbs of several words, and its own measured change.
+
+**The dev split's reach**, for what this is worth against what is left (`several_words.py dev`, 1,194 documents):
+168 names of several words, 79 nouns, 31 verbs, **12 qualities, 13 adverbs**. The qualities and adverbs are 25
+concepts, and WordNet spells every one of them; the 79 nouns it spells 98.7% of and states none of.
+
+**The cost of a word record, measured** (the other layer main holds none of): the first costs 446s because the
+sources load, each after it **0.09s**. So 3,919 records (the treebank's words said five times or more) is six
+minutes of building, 9,387 (every treebank word WordNet knows) fourteen minutes, and all 147,306 WordNet lemmas
+under four hours. This is cheaper than it was thought by two orders of magnitude, so the vocabulary is not the
+obstacle the sizing was expected to show.
+
+**Where it stands.** lyric_dev2's 231 documents 120 right whole (51.9%), the 77 50 of 77 (65%), facts F1 75.1%; the
+bar 95%. Main unchanged and unmeasured against this: the owner runs `--source wordnet-classes` on lyric_db (additive,
+a class taught already is not taught again), and then main is measured with the error budget for the first honest
+baseline of the real store. After that the order of (80) stands: which word takes which (`prose_joins.py` 68.0%, the
+structure view 72.5% on the same test), then a verb's places, then which kind a thing is.
+
+---
+
 ## 2026-10-29 (80) — The error budget: where the distance to the bar actually is
 
 **Objective.** Nine sessions have closed one error group each and moved the 77 from 35 right to 50. The owner asked

@@ -478,6 +478,35 @@ class WordNetSource:
         (`grammar.Lexicon._together`), held none of WordNet's 2,829, and "Look up photosynthesis." read as nothing
         (lyric_dev, 2026-10-24).
 
+        AND SO IS A QUALITY OR AN ADVERB OF SEVERAL WORDS: "fed up", "in love", "out of print", "kind of", "in
+        vain", "at last". Nothing else teaches one, and unlike a noun's words nothing else can: a noun of several
+        words is named by its facts ("A credit card is a card."), which hold its words together, where a quality
+        has no such fact to be named in. Main held "grow up" and "take off" from these lessons, "credit card" and
+        "prime minister" through the facts, and nothing at all for "fed up", "in vain", "at last" or "disco music"
+        (lyric_db, 2026-10-29), so the grammar's reading of several words as one word of whatever kind memory holds
+        them as (`grammar.Lexicon._together`) could offer a thing there and never a quality or an adverb. WordNet
+        holds 483 qualities and 704 adverbs of several words of letters, of which 450 and 657 are stated here.
+
+        A NOUN'S WORDS ARE STILL NOT STATED HERE: there are 58,597 of them, fifty times the qualities and adverbs
+        together, and the ones a store is taught the facts of are named by them already. Whether the rest are worth
+        a vocabulary of that size is its own measurement, which this is not.
+
+        AND NOT A QUALITY OR AN ADVERB WHOSE WORDS HOLD A PRONOUN ("to it" `thereto`, "on it", "under it", "as it
+        is", "in his own right"): a pronoun stands for whatever was spoken of, so words holding one are not one
+        word, which means the same wherever it is said. WordNet holds 33 such qualities and 47 such adverbs, and
+        taught with the rest they cost a sentence of the 231 GRAMMAR-01's sets hold — "I'm totally indifferent to
+        it." read "to it" as `thereto` (lyric_dev2, 2026-10-29) — where of the 63 runs the dev split's sentences say
+        that the rest of them call one word, 27 are one concept. Most of the 80 are words no reading wants: 22 are
+        "one hundred" and the numbers built on it, which the grammar reads as the number they are, and "in that",
+        "in this", "on that", "to that", "that much", "one time" say what their words say. A few real ones go with
+        them — "one by one", "one after another", "on the one hand", "in his own right", "one and only" — because
+        the grammar reads "one", "that" and "this" as pronouns as well as otherwise.
+
+        Said of the lessons and not of the reading, because a word of several words that holds a pronoun may still be
+        one elsewhere: a noun keeps its own word ("coal mine", "gold mine"), named by its facts and not stated here,
+        and a verb's "it" can be frozen into the verb ("get it" is to understand, "call it a day"). The 43 verbs
+        WordNet holds so have been stated since (73) and are left as they were, so this states more and nothing less.
+
         Worked out once for the source: WordNet reads each tagged count from its files, and a pass asks for the
         classes more than once.
         """
@@ -486,6 +515,8 @@ class WordNetSource:
         from collections import defaultdict
         from nltk.corpus import wordnet as wn
 
+        from core.semantics import grammar as gm
+        pronouns = {word for word, uses in gm.closed_uses().items() if "pron" in uses}
         weight: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
         for synset in wn.all_synsets():
             word_class = _POS_CLASS.get(synset.pos())
@@ -498,8 +529,11 @@ class WordNetSource:
                 # WordNet's 5,093 such words were never taught, and main held none of them as a word (2026-10-29).
                 if not parts or not all(re.fullmatch(r"[a-z]+(?:-[a-z]+)*", part) for part in parts):
                     continue
-                if len(parts) > 1 and word_class != "VERB":
-                    continue
+                if len(parts) > 1:
+                    # A VERB, A QUALITY OR AN ADVERB OF SEVERAL WORDS IS STATED; A NOUN'S WORDS ARE NAMED BY ITS
+                    # FACTS, AND A QUALITY'S OR AN ADVERB'S WORDS HOLD NO PRONOUN.
+                    if word_class == "NOUN" or (word_class != "VERB" and any(p in pronouns for p in parts)):
+                        continue
                 # 0.01: a sense carrying no tagged occurrences still counts a little.
                 weight[word][word_class] += lemma.count() + 0.01
 
@@ -1913,7 +1947,9 @@ class WordNetUsageSource:
 class WordNetClassesSource:
     """Every class WordNet holds each word in (`WordNetSource.word_classes`), and nothing else, for a store that holds
     the words: one taught each word the one class it was tagged in most, and "research" was no verb
-    (`WordNetSource._word_classes`). A class taught already is not taught again (`learn_word_classes`)."""
+    (`WordNetSource._word_classes`). A verb, a quality and an adverb of several words are stated with them ("look up",
+    "fed up", "in vain"), where a noun's words are named by its facts. A class taught already is not taught again
+    (`learn_word_classes`)."""
 
     name: str = "wordnet"
     quality: float = 0.9

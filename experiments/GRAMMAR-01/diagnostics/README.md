@@ -121,3 +121,19 @@ qualities after "be" and 96.3% before a noun, and calls a quality rightly 36.6% 
 treebank writes the word as an adjective catches 57.0% and 66.7%, rightly 74.5% and 94.7%. So the sense says whether
 the word may be a quality and the word's uses say whether it is one here, which is what the grammar does with a word
 memory holds: the entry is offered because memory holds the class, and weighed by how often the word is used that way.
+
+**`several_classes.py`** (2026-10-29, lab notebook (81)): what the class lessons' qualities and adverbs of several
+words call one word, and how many of them are. Over the 1,194 dev documents the lessons call 63 runs of two or three
+words one word and 27 of them are one concept (43%): qualities 14 of 22 (64%), adverbs 13 of 41 (32%), and of the 27
+the gold makes 21 a quality or an adverb. "kind of" alone is 10 of the misses, where the grammar's own `subkind`
+rule reads "kind of" before a noun (lab notebook (75)), so a run counted wrong here is a run the grammar is offered
+and does not take. Over the 9,552 train documents it calls 637 runs one word and 233 are (37%), qualities 109 of 234
+and adverbs 124 of 403; what it calls wrongly most is a handful of words the grammar reads otherwise — "a lot" 45,
+"out of" 42, "at all" 29, "kind of" 28, "used to" 37, "on the table" 22, "a few" 20, "a little" 15, "by no means" 14.
+So this vocabulary is noisy, and what keeps it honest is that the grammar weighs an entry rather than taking it: on
+the store the whole of it moved GRAMMAR-01's 231 documents not at all (120 right whole before and after) and the
+facts from F1 75.0% to 75.1%.
+
+The words whose words hold a pronoun are not counted because the lessons do not state them: taught
+with the rest, WordNet's 33 such qualities and 47 such adverbs cost a sentence of GRAMMAR-01's 231 — "I'm totally
+indifferent to it." read "to it" as `thereto` — and `--with-pronouns` counts them as the lessons were first written.
