@@ -16,6 +16,39 @@ Conventions:
 
 ---
 
+## 2026-10-29 (75) — "A kind of": the kind said, no thing of its own; a grammar word of several words joined as the grammar joins it
+
+**Objective** (the next gap by size). "What kind of flowers do you like?", "I like this kind of apple.": the gold says the
+thing a kind of the kind said, `isa(?v1, flower)`, no flower and no "kind" (the PMB writes "kind of" one line, `entity.n.01
+InstanceOf`: "kind of", "kinds of", "sort of", "sorts of", 47 times; "type of" never). 10 dev documents with a gold
+meaning, 30 training; "kind of" before a quality is a degree ("kind of creepy", 28), which reading had.
+
+**Reading had** "kind" a noun and "of" a link: a kind and a flower, the one a kind of the other.
+
+**Built.** The grammar's words "kind of", "kinds of", "sort of", "sorts of" before a noun (`N/N`, `subkind`): the thing is
+written `isa(x, apple)`, never `instance_of`. **Found:** the entry was offered and never chosen: the structure view, from
+UD where "kind" heads "kind of flowers", weighed "kind" joined to "flowers" as unlikely. A grammar word of several words
+is joined as the grammar joins it, as a word that only marks another is (`_joined`). And a kind of a kind said of a thing
+is no merging ("This is a kind of watermelon.": `equals`, as the PMB says it, never a watermelon). Test: a kind of a kind
+the kind said, asked as a kind.
+
+**Measured** (all five sets, one run each; lyric_dev2 taught the set's 4 untaught words first).
+
+| by their words | lyric_dev2 before | after | main before | after |
+|---|---|---|---|---|
+| "kind of" set (10) | 1 (F1 33.3%) | 5 (65.8%) | 1 (36.2%) | 6 (69.1%) |
+| the 77 | 42 (80.2%) | 43 (81.0%) | 39 (79.1%) | 40 (79.9%) |
+| hyphen / degree / denial | 6 / 12 / 6 | 6 / 12 / 6 | 4 / 13 / 4 | 4 / 13 / 4 |
+
+Nothing right became wrong. Still wrong: "I'm feeling kind of tired." (main: "tired" a kind; the degree's), "What kind of
+inhaler do you use?" (lyric_dev2: "do" a doing), "What's your favorite kind of apple?" (the gold's `has_property(?listener,
+favored)`), "What kind of movie is it? Is it popular?" (two questions).
+
+**Next:** clock times (13; the gold's 24-hour times written from the annotators' morning or evening, "at six" 18:00 and
+"at five o'clock" 05:00, and "07:15" `7:15` where the reader writes "7:15 a.m.").
+
+---
+
 ## 2026-10-29 (74) — Denials: a doing heads what a thing raised over it takes; what a thing is said not to be is denied with its qualities
 
 **Objective** (the next gap by size). "Nobody", "nothing", "no one", "none", "no", "not a": 13 dev documents, 146

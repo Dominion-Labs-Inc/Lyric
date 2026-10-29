@@ -155,3 +155,6 @@ counted after its WordNet word classes were taught whole.
 "nothing", "not a"). Each set is now read in one run of all four together and scored per set (the gold made afresh by
 the conversion of the day, `pmb_meanings`, which now says a thing said not to be a kind denied with its qualities). By
 their words: lyric_dev2 the 77 42 (F1 80.2%), denials 6 of 13; main 39 (79.1%), 4 of 13.
+
+**"A kind of" (2026-10-29, lab notebook (75)).** `kind_of_test.json`: the 10 dev documents with "kind of" and a gold
+meaning. By their words: lyric_dev2 5 of 10, the 77 43 (F1 81.0%); main 6 of 10, the 77 40 (79.9%).
