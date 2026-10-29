@@ -137,3 +137,10 @@ quality named by the word of the sentence it is a sense of, so which sense was c
 takes a word's first sense and counted a sense chosen from a verb's places wrong). On the 77: main (12,544 UD
 sentences) 33 by their words (F1 73.7%), 29 kinds aside (76.1%); lyric_dev2 (245 words recorded whole, 6,137 PMB
 sentences recorded whole) 35 (75.7%), 33 (77.2%).
+
+**Words joined by hyphens (2026-10-29, lab notebook (72)).** `hyphenated_test.json` lists the 25 dev documents with a
+word joined by a hyphen (15 with a gold meaning), their words taught to lyric_dev2. `words_of_sentence` counts a
+hyphened word as a word of the sentence in each of its spellings ("bullet-proof", `bulletproof`, "bullet proof"), so
+"by their words" sets its sense aside as it does any word's; the 77 by it: lyric_dev2 37 (F1 77.3%) before the rule,
+37 (77.7%) after; main 33 (73.7%) before, 32 (73.0%) after (main holds no hyphened word: lab notebook (72)). The hyphen
+set: lyric_dev2 4 (56.7%) to 7 (80.0%); main 3 (53.6%) to 1 (59.7%).

@@ -17,6 +17,8 @@ def test_a_word_is_every_class_wordnet_holds_it_in_the_most_tagged_first():
     assert classes["research"] == ("NOUN", "VERB"), classes["research"]
     assert classes["plan"] == ("VERB", "NOUN"), classes["plan"]
     assert classes["explain"] == ("VERB",), classes["explain"]
+    # A word of letters joined by hyphens is a word: none of WordNet's 5,093 was taught (2026-10-29).
+    assert classes["right-handed"] == ("ADJECTIVE",) and classes["state-of-the-art"] == ("ADJECTIVE",)
 
 
 def test_a_verb_of_several_words_is_a_verb_and_no_other_words_of_several_are_stated():
@@ -31,7 +33,8 @@ def test_a_verb_of_several_words_is_a_verb_and_no_other_words_of_several_are_sta
 def test_words_held_together_as_a_verb_are_the_verb_the_grammar_asks_for():
     index = {"look up": {"VERB": 1}}
     agent = SimpleNamespace(pattern_inventory=PatternInventory,
-                            word_classes=lambda word: dict(index.get(word, {})))
+                            word_classes=lambda word: dict(index.get(word, {})),
+                            recorded_name=lambda word, cls: None)
     assert MemoryAgent._held_name(agent, ["look", "up"], "VERB") == "look up"
     assert MemoryAgent._held_name(agent, ["look", "up"], "NOUN") is None
     assert MemoryAgent._held_name(agent, ["look", "down"], "VERB") is None

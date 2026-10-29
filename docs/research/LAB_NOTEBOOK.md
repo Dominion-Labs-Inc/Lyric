@@ -16,6 +16,68 @@ Conventions:
 
 ---
 
+## 2026-10-29 (72) — Words joined by hyphens: one word where memory holds it in some spelling, its words where it holds none; main never taught WordNet's 5,093
+
+**Objective** (the next gap by size, 23 dev documents). What the PMB's gold makes of a word joined by hyphens, and a
+rule that reads it so.
+
+**What the gold says.** Of the 124 such words of its gold training meanings, 103 are one concept: a word WordNet holds
+as written ("T-shirt", "man-made", "well-known"), with its parts together ("pick-up" `pickup`, "window-sills"
+`windowsill`, "semi-final" `semifinal`) or apart ("roller-skate" `roller_skate`), a number ("twenty-seven", "five-thirty"
+05:30), a name ("Ben-Hur"); 21 are their words ("ex-Senator", "13-year-old", "fashion-conscious"). Numbers and names
+aside, WordNet holding the word in some spelling tells which: 57 of the 58 it holds are one word, 16 of the 22 it holds
+in none are their words (dev: 12 of 14, 4 of 5). The misses are words WordNet holds under another name ("gas-hog",
+`gas_guzzler`) and two the PMB splits though WordNet holds them ("ex-wife", "drug-trafficking").
+
+**What reading did.** Two words around a hyphen were always made one word, named as written, whether memory held it or
+not (so "novel-based" was a quality, `has_property(film, novel-based)`); three or more ("state-of-the-art") were
+nothing, and the sentence was not read; and a record took WordNet's senses only as written, so "bullet-proof",
+"ice-cream", "waste-water", "north-eastern", "button-hole" had none.
+
+**Built.** `Lexicon.hyphened`: a run of words joined by hyphens, of any length, is one word where memory holds it in
+some spelling (`Words.spelled`: as written, parts together, parts apart; `HeldWords.spelled` asks the sentences held,
+the word classes memory holds and the forms), named by that spelling; where it holds none, the hyphens are marks and
+the words are read as written apart. Numbers' and names' hyphens are read as before. `word_record_of` takes WordNet's
+senses in every spelling ("bullet-proof": `bulletproof`, `armored bulletproof`, `incontestable unassailable`). Tests:
+one word, four parts, and one held in no spelling read as its words; memory's spellings.
+
+**The measure** counted a sentence's hyphened word as no word of it, so "by their words" could not set the sense of
+"bullet-proof" aside. Its words now include each joined word in each spelling (`words_of_sentence`); every figure here
+is scored by it, saved readings parsed back and scored again.
+
+**Measured.** lyric_dev2 taught the words of the 25 dev documents with a hyphen (90, then the 16 hyphened ones the new
+converter builds and "traffic"; none refused). Before and after on the same store (before: the last commit's code in a
+worktree, its ignored data linked in; without `data/` its sense names differed and it scored 35 where it was 36).
+
+| | before | after |
+|---|---|---|
+| dev2, hyphen set (15 with gold): read whole | 12 | 15 |
+| by their words, pronouns as unknowns | 4 (F1 56.7%) | 7 (80.0%) |
+| kinds aside, pronouns as unknowns | 3 (63.0%) | 5 (81.3%) |
+| dev2, the 77: by their words | 37 (77.3%) | 37 (77.7%) |
+| kinds aside | 34 (78.2%) | 34 (78.6%) |
+| main, hyphen set: by their words | 3 (53.6%) | 1 (59.7%) |
+| main, the 77: by their words | 33 (73.7%) | 32 (73.0%) |
+
+Gained on dev2: "We use really state-of-the-art equipment.", "I thanked her, and stuck the rose in my button-hole."
+whole; "a novel-based film" now a basing, a film and a novel, as the gold. Still wrong: "bullet-proof" in the sense
+`incontestable unassailable` (WordNet's first adjective sense of `bulletproof`; by their words the same word), "chocolate
+ice-cream" (gold one concept, `chocolate_ice_cream`), "ex-con" and "ex-wife" (the gold's "ex-" is a time before now).
+
+**Found: main holds no word joined by a hyphen.** Main got worse: "right-handed", "left-handed", "custom-made",
+"hard-boiled" are now read as their words. Its 75,833 word classes told hold not one hyphened word ("bulletproof", yes):
+WordNet's class lessons kept only words of letters (`WordNetSource._word_classes`), and dropped all 5,093. Before, main
+read them right only because every two words around a hyphen were made one, held or not. The lessons now keep a word of
+letters joined by hyphens (85,372 words, 5,099 hyphened); main has them only once taught (`--source wordnet-classes`, a
+write to lyric_db: his yes).
+
+Also fixed: `test_wordnet_word_classes`' stand-in agent had no `recorded_name`, which `_held_name` asks since word
+records (failing at the last commit too).
+
+**Next:** main's hyphened word classes (his yes); then degree (17), denials (16), "kind of" (15), clock times (13).
+
+---
+
 ## 2026-10-29 (71) — The gaps by size over the whole dev set; a place's adjective weighed by the place; the 77's words actually taught
 
 **Objective** (agreed: the reading gaps (70) found, largest first, each a rule). Counted over all 1,194 PMB dev

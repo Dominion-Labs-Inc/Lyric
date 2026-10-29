@@ -494,7 +494,9 @@ class WordNetSource:
             for lemma in synset.lemmas():
                 word = lemma.name().replace("_", " ").strip().lower()
                 parts = word.split()
-                if not parts or not all(part.isalpha() for part in parts):
+                # A WORD OF LETTERS MAY BE JOINED BY HYPHENS ("right-handed", "state-of-the-art"): kept only of letters,
+                # WordNet's 5,093 such words were never taught, and main held none of them as a word (2026-10-29).
+                if not parts or not all(re.fullmatch(r"[a-z]+(?:-[a-z]+)*", part) for part in parts):
                     continue
                 if len(parts) > 1 and word_class != "VERB":
                     continue
