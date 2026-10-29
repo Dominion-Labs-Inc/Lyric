@@ -195,6 +195,17 @@ def _same_shape(c1: Cat, c2: Cat) -> bool:
     return isinstance(c2, Fn) and c1.slash == c2.slash and _same_shape(c1.res, c2.res) and _same_shape(c1.arg, c2.arg)
 
 
+def _takes_its_head(fn: Cat) -> bool:
+    """Whether a function is headed by what it takes, as CCGbank heads them (Hockenmaier and Steedman 2007): a
+    modifier (`X/X`: "very", "red"), or a thing raised over what takes it (`S/(S\\NP)`, `(S\\NP)\\((S\\NP)/NP)`:
+    "nothing" as the doer or what is done to): the doing is the head, the thing joined to it. Headed by the raised
+    thing, "They suspected nothing." joined "They" to "nothing", which the structure view rightly made unlikely, and
+    read "nothing" a thing; a raised "nothing" was headed so only where the tagger called it a pronoun (`_asking`),
+    as main's did and lyric_dev2's did not (2026-10-29)."""
+    return isinstance(fn, Fn) and (_same_shape(fn.res, fn.arg) or (isinstance(fn.arg, Fn)
+                                                                   and _same_shape(fn.res, fn.arg.res)))
+
+
 def _shape(cat: Cat) -> str:
     """A category's shape, its terms and features aside: what two categories must share to be one (`_unify`)."""
     if isinstance(cat, Atom):
@@ -2118,26 +2129,27 @@ class Grammar:
         if isinstance(lc, Fn) and lc.slash == "/":
             s: Dict[int, Term] = {}
             if _unify(lc.arg, rc, s):
-                made(lc.res, s, ">", right.head if _same_shape(lc.res, lc.arg) else left.head)
+                made(lc.res, s, ">", right.head if _takes_its_head(lc) else left.head)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
             if _unify(rc.arg, lc, s):
-                made(rc.res, s, "<", left.head if _same_shape(rc.res, rc.arg) else right.head,
+                made(rc.res, s, "<", left.head if _takes_its_head(rc) else right.head,
                      self._agreement(left, right) if _verb_phrase(rc) and isinstance(lc, Atom) else 0.0)
         # Composition: X/Y Y/Z => X/Z; Y\Z X\Y => X\Z.
         if isinstance(lc, Fn) and lc.slash == "/" and isinstance(rc, Fn) and rc.slash == "/":
             s = {}
             if _unify(lc.arg, rc.res, s):
-                made(Fn(lc.res, "/", rc.arg), s, ">B", left.head)
+                made(Fn(lc.res, "/", rc.arg), s, ">B", right.head if _takes_its_head(lc) else left.head)
             elif isinstance(rc.res, Fn) and rc.res.slash == "/":
                 # X/Y (Y/Z)/W => (X/Z)/W: "Did you give him" before what was given.
                 s = {}
                 if _unify(lc.arg, rc.res.res, s):
-                    made(Fn(Fn(lc.res, "/", rc.res.arg), "/", rc.arg), s, ">B2", left.head)
+                    made(Fn(Fn(lc.res, "/", rc.res.arg), "/", rc.arg), s, ">B2",
+                         right.head if _takes_its_head(lc) else left.head)
         if isinstance(lc, Fn) and lc.slash == "\\" and isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
             if _unify(rc.arg, lc.res, s):
-                made(Fn(rc.res, "\\", lc.arg), s, "<B", right.head)
+                made(Fn(rc.res, "\\", lc.arg), s, "<B", left.head if _takes_its_head(rc) else right.head)
         # Y/Z X\Y => X/Z, only for what modifies a verb's phrase from after it: "was not a student" ("not" taking
         # "was" before its complement), as categorial grammars of English allow it and nothing else.
         if isinstance(lc, Fn) and lc.slash == "/" and isinstance(rc, Fn) and rc.slash == "\\" and right.crossing \
@@ -3806,6 +3818,11 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                     denied.add(q[1])
                 elif q[0] in ("fact", "be") and p[1] in q[1:4]:
                     denied.add(q[-2] if q[0] == "fact" else q[3])
+    # WHAT A THING IS SAID NOT TO BE, ITS QUALITIES WITH IT: "Edison was not a bright student." is no student and not
+    # bright, as the PMB's gold says it; said of Edison once the student was Edison, he was said to be bright.
+    for p in pieces:
+        if p[0] == "be" and p[3] in denied:
+            denied.update(q[3] for q in pieces if q[0] == "quality" and q[1] == p[2])
 
     # WHOM A PRONOUN STANDS FOR. "his", "her", "its", "their" before a thing are the nearest one before them that
     # they may be ("Tom unbuttoned his shirt": Tom's; "The man robbed her of her bag": hers); a pronoun nothing

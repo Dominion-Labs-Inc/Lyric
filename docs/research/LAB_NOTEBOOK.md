@@ -16,6 +16,51 @@ Conventions:
 
 ---
 
+## 2026-10-29 (74) — Denials: a doing heads what a thing raised over it takes; what a thing is said not to be is denied with its qualities
+
+**Objective** (the next gap by size). "Nobody", "nothing", "no one", "none", "no", "not a": 13 dev documents, 146
+training. The gold says each as the lessons do: the doing is denied (`has_property(?v0, false)`), the one who did
+nothing an unknown. Reading had the rule (`deny_arg`); on main most of these read right already.
+
+**Found: the head of what a raised thing takes.** On lyric_dev2 "They suspected nothing." read "nothing" as a thing:
+the words' own weights chose the grammar's "nothing" (-0.01 against -7.6 as a noun), but "suspected nothing", "nothing"
+raised over the doing (`(S\NP)\((S\NP)/NP)`), was headed by "nothing", so "They" was weighed as joined to "nothing" and
+lost 8.9. A raised word was headed so on main only because its tagger, learned from UD, calls "nothing" a pronoun
+(`_joined`'s `_asking`); lyric_dev2's, learned from the PMB's sentences, does not. **Fixed by shape, not by tag**
+(`_takes_its_head`, as CCGbank heads them, Hockenmaier and Steedman 2007): a function headed by what it takes, a
+modifier (`X/X`) or a thing raised over what takes it (`S/(S\NP)`, `(S\NP)\((S\NP)/NP)`), in application and composition
+alike. Also "who" raised over a question: "Who is John Lennon's wife?" now asks the wife.
+
+**What a thing is said not to be.** "Edison was not a bright student." read Edison bright, the denial only on the kind.
+The gold kept the student apart (`instance_of(?v0, student) & not has_property(?v0, bright)`): the conversion merges a
+kind said of a thing with the thing ("Bergen is a Norwegian town.": 35 of 39 training meanings say such qualities of the
+thing), but not under a negation, where a noun's line holds, so a separate student was said to exist. **Conversion**
+(`pmb_meanings`): a thing said not to be a kind is denied with its qualities, said of the one it is said of (`not
+isa(edison, student) & not has_property(edison, bright)`); its lines found once every line said to be one is (a role's
+line is its person's). **Reader**: a denied "be" denies the qualities said within what it says the thing is. Two training
+sentence records were built with the old conversion (lyric_dev2 holds them as they were). Tests: a raised "nothing" leaves
+the doing the head; a denied predicate's quality denied; the conversion's.
+
+**Measured** on all four sets in one run each (149 documents; the gold made by today's conversion for before and after
+alike; lyric_dev2 taught the denial set's 17 untaught words first; before: the code of (73) in a worktree).
+
+| by their words | lyric_dev2 before | after | main before | after |
+|---|---|---|---|---|
+| the 77 | 39 (F1 79.1%) | 42 (80.2%) | 38 (78.8%) | 39 (79.1%) |
+| denial set (13) | 3 (63.9%) | 6 (72.1%) | 3 (63.4%) | 4 (65.0%) |
+| hyphen set (15) | 6 (77.6%) | 6 (77.6%) | 4 (62.2%) | 4 (60.3%) |
+| degree set (20) | 12 (78.4%) | 12 (78.4%) | 13 (83.9%) | 13 (83.1%) |
+
+Gained (lyric_dev2): "They suspected nothing.", "Who is John Lennon's wife?", "Edison was not a bright student.",
+"Nobody's taking a bath right now." ("bath right" no longer a thing); main: "Edison". Nothing right became wrong. Worse
+though wrong before: main's "Wal-Mart has violated state regulations." now "has" as owning (the hyphen set's F1).
+Still wrong in the denial set: "Nobody called him." (the gold's `received_by` for the one called, a verb's link), "None
+of us will help you." (`member_of`), "No ship is unsinkable.".
+
+**Next:** "kind of" (15), clock times (13).
+
+---
+
 ## 2026-10-29 (73) — Main taught every class WordNet holds its words in; a degree word read as one: the derivations had counted every "very" as an adverb of a doing
 
 **Main's word classes** (the owner's run, `--source wordnet-classes` on lyric_db, after (72)). 93,155 pairs stated,

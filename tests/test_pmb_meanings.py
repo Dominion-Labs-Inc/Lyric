@@ -110,3 +110,16 @@ def test_what_a_thing_is_said_to_be_is_said_of_it_alone(tmp_path):
         ('male.n.02 Name "Tom"', "Tom", (0, 3)), ("be.v.01 Theme -1 Time +1 Co-Theme +2", "is", (4, 6)),
         ("time.n.08 EQU now", "", None), ("gentleman.n.01", "*a* gentleman *.*", (7, 19))])
     assert pm.meaning_of(doc, _name).meaning.facts == (F("isa", "tom", "gentleman"),)
+
+
+def test_what_a_thing_is_said_not_to_be_is_denied_of_it_with_its_qualities(tmp_path):
+    """"Edison was not a bright student.": no student and not bright, said of Edison, as "Bergen is a Norwegian town."
+    says what is said of the town of Bergen; kept apart, the student was another thing, said to be one."""
+    doc = _document(tmp_path, "Edison was not a bright student.", [
+        ('male.n.02 Name "Edison"', "Edison", (0, 6)), ("NEGATION <1", "", None),
+        ("be.v.01 Theme -1 Time +1 Co-Theme +3", "was *not*", (7, 14)), ("time.n.08 TPR now", "", None),
+        ("bright.a.03 AttributeOf +2", "*a* bright", (15, 23)), ("person.n.01 Role +1", "student *.*", (24, 32)),
+        ("student.n.01", "", None)])
+    facts = set(pm.meaning_of(doc, _name).meaning.facts)
+    assert {F("isa", "edison", "student", False), F("has_property", "edison", "bright", False)} <= facts
+    assert not any(f.relation == "instance_of" for f in facts), facts

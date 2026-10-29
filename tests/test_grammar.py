@@ -554,6 +554,22 @@ def test_a_derivations_words_are_named_as_the_grammars_entries_name_them():
     assert lexicon.uses_derived(smooth)[3] == ("ADVERB:degree", "")
 
 
+def test_a_doing_is_the_head_of_what_a_thing_raised_over_it_takes(grammar):
+    # "nothing" after a verb is raised over the doing (`(S\NP)\((S\NP)/NP)`): the doing heads what they make, as a
+    # modifier's does, and "The dog" is joined to "chased", never to "nothing" (`_takes_its_head`).
+    tokens = gm.tokens_of("The dog chased nothing.", grammar.lexicon.words)
+    reading = grammar.read(tokens)
+    assert reading.sign.head == 2 and "has_property(?v0, false)" in reading.meaning.canonical()
+    assert all(s.head == 2 for s in grammar.chart(tokens)[(2, 4)].values() if str(s.cat).startswith("(S[dcl]"))
+    assert gm._takes_its_head(gm.parse_category("S/(S\\NP)")) and not gm._takes_its_head(gm.parse_category("NP/N"))
+
+
+def test_what_a_thing_is_said_not_to_be_is_denied_with_its_qualities(grammar):
+    # "Tom is not a happy dog.": no happy dog, so not happy either; said of Tom, the quality was told as so.
+    assert "not has_property(?v0, happy)" in read(grammar, "Tom is not a happy dog.")
+    assert "& has_property(?v0, happy)" in read(grammar, "Tom is a happy dog.")
+
+
 def test_a_degree_word_grades_the_quality_or_the_doings_quality_it_is_said_of():
     # "very happy": a degree of happiness, the dog's, that is very (the PMB's and the lessons' way); "barked very
     # loudly": a degree of the barking's loudness.

@@ -535,6 +535,8 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
     #: The terms of lines that only say what a thing is ("a gentleman" in "Tom is a gentleman."): the kind is said
     #: of the thing, and the line holds nothing of its own (the lessons: `isa(tom, boy)`).
     predicated: Set[str] = set()
+    #: Of a thing said NOT to be a kind ("a bright student"), the line of the one it is said of (`Edison`).
+    denied_of: Dict[int, int] = {}
     for k, c in enumerate(concepts):
         if c.sense.startswith("?") or c.sense == "time.n.08":
             continue
@@ -593,6 +595,7 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                                 who = term_of(subject)
                                 add("isa" if not who.startswith("?") else "instance_of", who, kind_name, k)
                                 predicated.add(term_of(other))
+                                denied_of[other] = subject
                             else:
                                 # "Bergen is a Norwegian town.": the town is Bergen, and what is said of the town is
                                 # said of Bergen (`isa(bergen, town)`, `part_of(bergen, norway)`), as the lessons say
@@ -710,6 +713,17 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
         add("has_property", term_of(k), "false", k)
     if gaps:
         return Said(None, tuple(sorted(set(gaps))))
+    # WHAT A THING IS SAID NOT TO BE, ITS QUALITIES WITH IT: "Edison was not a bright student." is no student and not
+    # bright, as "Bergen is a Norwegian town." says what is said of the town of Bergen. Kept apart, the student was
+    # another thing, said to be one, and bright not (2 of the 4 gold training meanings that kept a kind said of a thing
+    # apart with qualities; the other 35 say them of the thing).
+    # Every line that is the thing, each by the term it was written with (a role's line is its person's: "bright"
+    # is said of `student.n.01`, the role of the `person.n.01` said to be).
+    denied_terms = {term[j]: term_of(w) for o, w in denied_of.items() for j in range(n)
+                    if j in term and root(j) == root(o)}
+    predicated |= set(denied_terms)
+    facts = [f.renamed({f.subject: denied_terms[f.subject]}) if f.subject in denied_terms
+             and f.relation != "instance_of" else f for f in facts]
     held = Counter(t for f in facts for t in f.terms())
     facts = [f for f in facts if not (f.relation == "instance_of" and f.subject in predicated
                                       and held[f.subject] == 1)]

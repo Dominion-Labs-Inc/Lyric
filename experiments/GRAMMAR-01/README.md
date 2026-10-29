@@ -150,3 +150,8 @@ degree ("very smooth"), their words taught to lyric_dev2. A derivation's word is
 category is most exactly (`_exactness`): "very" had been counted an adverb of a doing in every derivation. Degree set:
 lyric_dev2 1 to 12 by their words, main 2 to 13; the 77: lyric_dev2 37 to 39 (F1 78.9%), main 35 to 38 (78.7%), main
 counted after its WordNet word classes were taught whole.
+
+**Denials (2026-10-29, lab notebook (74)).** `denial_test.json`: the 13 dev documents denying a thing ("nobody",
+"nothing", "not a"). Each set is now read in one run of all four together and scored per set (the gold made afresh by
+the conversion of the day, `pmb_meanings`, which now says a thing said not to be a kind denied with its qualities). By
+their words: lyric_dev2 the 77 42 (F1 80.2%), denials 6 of 13; main 39 (79.1%), 4 of 13.
