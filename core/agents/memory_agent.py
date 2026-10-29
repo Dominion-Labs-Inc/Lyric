@@ -2962,7 +2962,7 @@ class MemoryAgent(IMemoryConsolidation):
         self._word_record_ids, self._classes_apart = {}, set()
         for row, word in await self._word_record_memories():
             await give_way()
-            self._learn_word_record(word, index, forms)
+            self._learn_word_record(word, index, forms, structure)
             self._grammar_words.append(word)
             self._word_record_ids[word.key()] = row.memory_id
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
@@ -7035,12 +7035,13 @@ class MemoryAgent(IMemoryConsolidation):
                             r["read"], r["in_sense"], ",".join(r["unknown"]))
         return held
 
-    def _learn_word_record(self, word, index: Dict[str, Dict[str, int]], forms) -> None:
+    def _learn_word_record(self, word, index: Dict[str, Dict[str, int]], forms, structure) -> None:
         """What a word recorded whole says of it, into memory's views: each form a form of the word (`forms`), the
         classes each form is used as (`index`, the word classes memory holds), what the word names as each class
-        (`_record_names`)."""
+        (`_record_names`), how it is joined in sentences (`structure`, `StructureView.hold_joins`)."""
         for item in word.forms_held():
             forms.hold(item)
+        structure.hold_joins(word.joined_as, word.related_as)
         for written, classes in word.classes().items():
             bucket = index.setdefault(written, {})
             for cls, n in classes.items():
@@ -7053,7 +7054,7 @@ class MemoryAgent(IMemoryConsolidation):
 
     def _hold_word_record(self, word) -> None:
         """A word recorded whole, each layer handed to the part of reading that learns from it."""
-        self._learn_word_record(word, self._word_class_index, self.word_forms())
+        self._learn_word_record(word, self._word_class_index, self.word_forms(), self.structure_view())
         self._grammar_words.append(word)
         if self._grammar_view is not None:
             self._grammar_view.hold_word(word)
@@ -7063,6 +7064,7 @@ class MemoryAgent(IMemoryConsolidation):
         key = word.key()
         self._grammar_words = [w for w in self._grammar_words if w.key() != key]
         self._word_record_ids.pop(key, None)
+        self.structure_view().hold_joins(word.joined_as, word.related_as, times=-1)
         if self._grammar_view is not None:
             self._grammar_view.drop_word(word)
 

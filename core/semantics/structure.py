@@ -319,18 +319,26 @@ class _Pairs:
               "far", "side")
     GROUPED_LEVELS = LEVELS[:3] + ("groups", "head group", "dependent group", "coarse groups") + LEVELS[3:]
 
-    def __init__(self, sentences: Iterable["Analysed"], groups: Optional[Callable[[Sequence[str]], Sequence]] = None
-                 ) -> None:
+    #: The situations of the relations a word recorded whole carries (`hold_joins`), by the place each has among a
+    #: pair's (`_relation_situations`): both words; the dependent's word; the head's word.
+    RELATION_LEVELS = ("words", "dependent word", "head word")
+
+    def __init__(self, sentences: Iterable["Analysed"], groups: Optional[Callable[[Sequence[str]], Sequence]] = None,
+                 held: Optional[Mapping[str, Mapping[Tuple, Sequence[int]]]] = None,
+                 held_said: Optional[Mapping[str, Mapping[Tuple, Mapping[str, int]]]] = None) -> None:
+        """Counted from the sentences given, and from what words recorded whole say of how they were joined in
+        sentences not given (`held`: level -> situation -> (met, joined); `held_said`: level -> situation ->
+        relation -> how often), each at the levels that name its word."""
         self._groups = groups
         self.levels = self.GROUPED_LEVELS if groups is not None else self.LEVELS
-        held = [(self.laid(a.words, a.classes, groups(a.words) if groups is not None else None), a.heads,
-                 a.relations) for a in sentences]
+        held_sentences = [(self.laid(a.words, a.classes, groups(a.words) if groups is not None else None), a.heads,
+                           a.relations) for a in sentences]
         self._met: List[Dict[int, int]] = []
         self._joined: List[Dict[int, int]] = []
         for level in self.levels:
             met: Dict[int, int] = defaultdict(int)
             joined: Dict[int, int] = defaultdict(int)
-            for laid, heads, _ in held:
+            for laid, heads, _ in held_sentences:
                 for d in range(1, len(heads) + 1):
                     head = heads[d - 1]
                     for h in range(len(heads) + 1):
@@ -341,13 +349,41 @@ class _Pairs:
                                 joined[situation] += 1
             self._met.append({s: n for s, n in met.items() if n >= KEPT_UNJOINED or s in joined})
             self._joined.append(dict(joined))
-        said: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in self._relation_situations(held[0][0], 0, 1)
-                                            ] if held else []
-        for laid, heads, relations in held:
+        said: List[Dict[Tuple, Counter]] = [defaultdict(Counter) for _ in range(6 + (groups is not None))]
+        for laid, heads, relations in held_sentences:
             for d, head in enumerate(heads, 1):
                 for level, situation in zip(said, self._relation_situations(laid, head, d)):
                     level[situation][relations[d - 1]] += 1
         self._said = [dict(level) for level in said]
+        self.hold([(level, situation, n, joined_so) for level, situations in (held or {}).items()
+                   for situation, (n, joined_so) in situations.items()],
+                  [(level, situation, relation, n) for level, situations in (held_said or {}).items()
+                   for situation, relations in situations.items() for relation, n in relations.items()])
+
+    def hold(self, joined: Iterable[Tuple[str, Tuple, int, int]], said: Iterable[Tuple[str, Tuple, str, int]],
+             times: int = 1) -> None:
+        """What a word recorded whole says of how it was joined (`StructureView.hold_joins`), counted where the
+        sentences' counts are, at the levels naming the word; `times` -1 takes it back."""
+        for level, situation, met, n in joined:
+            if level not in self.levels:
+                continue
+            at, key = self.levels.index(level), hash(situation)
+            self._met[at][key] = self._met[at].get(key, 0) + times * met
+            if self._met[at][key] <= 0:
+                del self._met[at][key]
+            if n:
+                self._joined[at][key] = self._joined[at].get(key, 0) + times * n
+                if self._joined[at][key] <= 0:
+                    del self._joined[at][key]
+        grouped = self._groups is not None
+        for level, situation, relation, n in said:
+            if level not in self.RELATION_LEVELS:
+                continue
+            at = self.RELATION_LEVELS.index(level) + (grouped and level != "words")
+            counted = self._said[at].setdefault(situation, Counter())
+            counted[relation] += times * n
+            if counted[relation] <= 0:
+                del counted[relation]
 
     @staticmethod
     def laid(words: Sequence[str], classes: Sequence[str], groups: Optional[Sequence[Tuple[str, str]]] = None
@@ -510,6 +546,35 @@ class StructureView:
         #: groups nothing, and the situations are as they were (`experiments/GROUPS-01`).
         self.grouping: Optional[Grouping] = None
         self._grouped: Dict[Tuple[str, ...], Tuple[Tuple[str, str], ...]] = {}
+        #: How the words recorded whole were joined in the sentences their records counted (`hold_joins`), at the
+        #: levels of a pair that name the word: level -> situation -> [met, joined]; and as what: level ->
+        #: situation -> relation -> how often.
+        self._held_joins: Dict[str, Dict[Tuple, List[int]]] = {}
+        self._held_said: Dict[str, Dict[Tuple, Counter]] = {}
+
+    def hold_joins(self, joined: Iterable[Tuple[str, Tuple, int, int]], said: Iterable[Tuple[str, Tuple, str, int]],
+                   times: int = 1) -> None:
+        """WHAT A WORD RECORDED WHOLE SAYS OF HOW IT WAS JOINED (`WordRecord.joined_as`, `related_as`): each situation
+        it stood in as one of a pair (`_Pairs._situation`, at a level naming the word), how often two words stood so
+        and how often they were joined; and as what. Counted as the sentences held are; `times` -1 takes a record
+        back (recorded otherwise since). A store taught words recorded whole and few sentences joined every two words
+        alike: "a blue hat" was read as one kind, "blue hat" (lyric_dev2, 2026-10-28)."""
+        joined, said = tuple(joined), tuple(said)
+        for level, situation, met, n in joined:
+            held = self._held_joins.setdefault(level, {}).setdefault(situation, [0, 0])
+            held[0] += times * met
+            held[1] += times * n
+            if held[0] <= 0:
+                del self._held_joins[level][situation]
+        for level, situation, relation, n in said:
+            counted = self._held_said.setdefault(level, {}).setdefault(situation, Counter())
+            counted[relation] += times * n
+            if counted[relation] <= 0:
+                del counted[relation]
+        # Counted into the pairs worked out, where they are: worked out again from every sentence for each word
+        # taught, teaching 245 words to a store holding 6,137 sentences ran for over ten minutes (2026-10-28).
+        if self._ready and self._pairs is not None:
+            self._pairs.hold(joined, said, times)
 
     def __len__(self) -> int:
         return len(self._held)
@@ -616,7 +681,7 @@ class StructureView:
                 for level, situation in zip(steps, situations):
                     level[situation][step] += 1
         self._steps = [dict(level) for level in steps]
-        self._pairs = _Pairs(both, groups)
+        self._pairs = _Pairs(both, groups, self._held_joins, self._held_said)
         self._ready = True
 
     @staticmethod

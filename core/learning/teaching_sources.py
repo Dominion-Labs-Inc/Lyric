@@ -3005,9 +3005,16 @@ class WordSense:
     #: says the sense is meant (Resnik 1995, the information a shared kind carries): "a second coat of paint", the
     #: coat a coating, as paint is. Which sense a sentence means is chosen by them (`Lexicon.thing_sense_of`).
     covers: Tuple[int, ...] = ()
+    #: WordNet's key for the word in this sense ("paint%2:35:00::"), and every other way WordNet relates it
+    #: (`_WORDNET_LEMMA_RELATIONS`, `_WORDNET_SENSE_RELATIONS`): (relation, the other sense, Lyric's name for it, the
+    #: other word where the relation is the word's own) — "paint" `derivationally_related_forms` "painter".
+    key: str = ""
+    related: Tuple[Tuple[str, str, str, str], ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
-        return {"id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
+        return ({"key": self.key} if self.key else {}) | ({"related": [list(r) for r in self.related]}
+                                                          if self.related else {}) | {
+            "id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
                 "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
                 "places": [p.to_dict() for p in self.places],
@@ -3022,7 +3029,8 @@ class WordSense:
                    str(data.get("use") or ""), str(data.get("verbnet") or ""),
                    tuple(WordPlace.from_dict(p) for p in data.get("places") or ()),
                    tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()),
-                   tuple(int(c) for c in data.get("covers") or ()))
+                   tuple(int(c) for c in data.get("covers") or ()), str(data.get("key") or ""),
+                   tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in data.get("related") or ()))
 
 
 @dataclass(frozen=True)
@@ -3048,6 +3056,39 @@ class WordUse:
 _OPEN_CLASSES = frozenset({"NOUN", "VERB", "ADJECTIVE", "ADVERB"})
 _CLOSED_CLASSES = frozenset({"PREPOSITION", "SUBORDINATOR", "CONJUNCTION", "DETERMINER", "PRONOUN", "AUXILIARY",
                              "PARTICLE", "NUMERAL", "INTERJECTION"})
+
+
+#: The ways WordNet relates a word in a sense to another word in a sense (`Lemma`) and a sense to another sense
+#: (`Synset`), each kept in the word's record (`WordSense.related`). Not kept: a sense's narrower senses
+#: (`hyponyms`, `instance_hyponyms`) and a domain's members, which each narrower word's and each member's own record
+#: says of itself (`kind_of`, its domains).
+_WORDNET_LEMMA_RELATIONS = ("antonyms", "derivationally_related_forms", "pertainyms")
+_WORDNET_SENSE_RELATIONS = ("also_sees", "similar_tos", "entailments", "causes", "verb_groups", "attributes",
+                            "part_meronyms", "substance_meronyms", "member_meronyms", "part_holonyms",
+                            "substance_holonyms", "member_holonyms", "topic_domains", "region_domains", "usage_domains")
+
+#: EVERY COLUMN OF EVERY SOURCE A WORD'S RECORD IS MADE FROM, and the layer that carries it, or why none does. A record
+#: made from its sources says how much it carried of each (`WordRecord.covered`), and one that leaves a column out is
+#: refused (`problems`): a word recorded whole carries everything said of it, never only what a sentence was found
+#: to need. Built a layer at a time as sentences failed, the record missed how each word is joined, its case, its
+#: fine tag, everything STREUSLE and GUM say of it, WordNet's relations but kinds, PropBank's aliases and VerbNet's
+#: frames, each found only when a sentence was read wrong or said wrong (2026-10-28).
+_RECORD_COLUMNS: Dict[Tuple[str, str], str] = {
+    ("UD", "ID"): "joined_as", ("UD", "FORM"): "forms", ("UD", "LEMMA"): "word", ("UD", "UPOS"): "forms",
+    ("UD", "XPOS"): "tags", ("UD", "FEATS"): "forms", ("UD", "HEAD"): "joined_as", ("UD", "DEPREL"): "related_as",
+    ("UD", "DEPS"): "enhanced", ("UD", "MISC"): "misc",
+    ("WordNet", "synset"): "senses", ("WordNet", "definition"): "senses", ("WordNet", "examples"): "senses",
+    ("WordNet", "hypernyms"): "senses", ("WordNet", "lemma count"): "senses", ("WordNet", "verb frames"): "senses",
+    ("WordNet", "lemma key"): "senses", ("WordNet", "relations"): "senses",
+    ("WordNet", "hyponyms"): "not here: each narrower sense's record says what it is a kind of",
+    ("WordNet", "domain members"): "not here: each member's record says its domain",
+    ("PropBank", "roleset"): "rolesets", ("PropBank", "roles"): "senses, uses", ("PropBank", "aliases"): "rolesets",
+    ("PropBank", "FrameNet"): "rolesets", ("PropBank", "examples"): "senses, uses (the prepositions they begin with)",
+    ("VerbNet", "members"): "senses", ("VerbNet", "restrictions"): "senses", ("VerbNet", "frames"): "verbnet_frames",
+    ("CMUdict", "phones"): "forms", ("SemCor", "tags"): "senses", ("STREUSLE", "SNACS"): "joins_things",
+    ("PMB", "meaning"): "means",
+    ("PMB", "derivation"): "not here: each PMB sentence is recorded whole (`SentenceRecord`) and taught after the words; "
+                           "counted here too, every sentence of it would count twice"}
 
 
 def _pro_form(features: str) -> bool:
@@ -3115,6 +3156,26 @@ class WordRecord:
     #: Learned only from sentences taught with meanings, so a store taught words recorded whole held none of it: what
     #: an adverb, a possessor or a quality says, a verb's clause, a verb said as a link (lyric_dev2, 2026-10-28).
     means: Tuple[Tuple[str, str, Tuple[Any, ...], Any, int], ...] = ()
+    #: EVERYTHING ELSE THE TREEBANKS' ANALYSTS WROTE OF IT (`_record_joins`): each form's fine tag (form, class, tag,
+    #: how often); how it was joined, as the structure reader counts two words of a sentence, at the levels naming
+    #: the word (level, situation, how often met, how often joined) and as what (level, situation, relation, how
+    #: often), which `StructureView.hold_joins` learns; its enhanced relations (form, relation, how often); what the
+    #: last column says of the word (form, key, value, how often: a supersense, the parts it is made of, the kind of
+    #: thing it names). "a blue hat" was read as one kind, "blue hat", where nothing said how the words join
+    #: (lyric_dev2, 2026-10-28).
+    tags: Tuple[Tuple[str, str, str, int], ...] = ()
+    joined_as: Tuple[Tuple[str, Tuple[Any, ...], int, int], ...] = ()
+    related_as: Tuple[Tuple[str, Tuple[Any, ...], str, int], ...] = ()
+    enhanced: Tuple[Tuple[str, str, int], ...] = ()
+    misc: Tuple[Tuple[str, str, str, int], ...] = ()
+    #: Every PropBank sense of it (id, what it means, the words it is said as with their classes, the FrameNet frames
+    #: its places link to), and each VerbNet frame of the classes it is a member of (class, primary and secondary
+    #: description, example).
+    rolesets: Tuple[Tuple[str, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]], ...] = ()
+    verbnet_frames: Tuple[Tuple[str, str, str, str], ...] = ()
+    #: How much it carried of each column of each source it is made from (`_RECORD_COLUMNS`): (source, column, how
+    #: many). Empty only for a record made by hand.
+    covered: Tuple[Tuple[str, str, int], ...] = ()
 
     def key(self) -> str:
         import hashlib
@@ -3147,7 +3208,12 @@ class WordRecord:
                     layer: [list(x) for x in getattr(self, layer)]
                     for layer in ("capitalized", "shapes", "said_of_doing", "said_after") if getattr(self, layer)} | (
                     {"means": [[table, cls, list(rest), list(said) if isinstance(said, tuple) else said, n]
-                               for table, cls, rest, said, n in self.means]} if self.means else {})
+                               for table, cls, rest, said, n in self.means]} if self.means else {}) | {
+                    layer: [list(x) for x in getattr(self, layer)]
+                    for layer in ("tags", "joined_as", "related_as", "enhanced", "misc", "verbnet_frames", "covered")
+                    if getattr(self, layer)} | (
+                    {"rolesets": [[r, means, [list(a) for a in aliases], list(frames)]
+                                  for r, means, aliases, frames in self.rolesets]} if self.rolesets else {})
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "WordRecord":
@@ -3167,7 +3233,19 @@ class WordRecord:
                    tuple((str(b[0]), int(b[1]), int(b[2])) for b in data.get("said_of_doing") or ()),
                    tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_after") or ()),
                    tuple((str(m[0]), str(m[1]), _held_tuple(m[2]), _held_tuple(m[3]), int(m[4]))
-                         for m in data.get("means") or ()))
+                         for m in data.get("means") or ()),
+                   tags=tuple((str(t[0]), str(t[1]), str(t[2]), int(t[3])) for t in data.get("tags") or ()),
+                   joined_as=tuple((str(j[0]), _held_tuple(j[1]), int(j[2]), int(j[3]))
+                                   for j in data.get("joined_as") or ()),
+                   related_as=tuple((str(r[0]), _held_tuple(r[1]), str(r[2]), int(r[3]))
+                                    for r in data.get("related_as") or ()),
+                   enhanced=tuple((str(e[0]), str(e[1]), int(e[2])) for e in data.get("enhanced") or ()),
+                   misc=tuple((str(m[0]), str(m[1]), str(m[2]), int(m[3])) for m in data.get("misc") or ()),
+                   rolesets=tuple((str(r[0]), str(r[1]), tuple((str(a[0]), str(a[1])) for a in r[2]),
+                                   tuple(str(f) for f in r[3])) for r in data.get("rolesets") or ()),
+                   verbnet_frames=tuple((str(v[0]), str(v[1]), str(v[2]), str(v[3]))
+                                        for v in data.get("verbnet_frames") or ()),
+                   covered=tuple((str(c[0]), str(c[1]), int(c[2])) for c in data.get("covered") or ()))
 
     def problems(self) -> List[str]:
         """What is wrong with the record, each said: an empty list where it is whole."""
@@ -3213,6 +3291,17 @@ class WordRecord:
         for form, so, otherwise in self.said_of_doing:
             if form not in things or min(so, otherwise) < 0 or so + otherwise <= 0:
                 out.append(f"{form!r} said of a doing {so} times and otherwise {otherwise}: no noun of the word, or never")
+        if self.covered:
+            held = {(source, column) for source, column, _ in self.covered}
+            for source, column in _RECORD_COLUMNS:
+                if (source, column) not in held:
+                    out.append(f"{source}'s {column}: neither carried nor said why not")
+            for source, column, n in self.covered:
+                if (source, column) not in _RECORD_COLUMNS or n < 0:
+                    out.append(f"{source}'s {column} carried {n} times: no column a record is made from, or never")
+        for _, _, met, joined in self.joined_as:
+            if not 0 <= joined <= met:
+                out.append(f"joined {joined} times of {met} met: more than met, or never")
         classes_of = {f.word_class for f in self.forms}
         for table, cls, rest, said, n in self.means:
             if cls not in _MEANT_BY.get(table, ()) or cls not in classes_of or n <= 0:
@@ -3516,6 +3605,113 @@ def _treebank_words(treebanks: Sequence[str], cache: Dict[str, Any]
                     sentences.append(sentence)
         cache["treebank_words"] = sentences
     return cache["treebank_words"]
+
+
+def _treebank_rows(treebanks: Sequence[str], cache: Dict[str, Any]) -> Tuple[List[List[List[str]]], Dict[str, List[int]]]:
+    """UD's English treebanks' sentences as `_treebank_words` reads them, each word with all ten of its columns as the
+    analysts wrote them; and of each base form (lowered), the sentences holding it."""
+    if "treebank_rows" not in cache:
+        sentences: List[List[List[str]]] = []
+        for treebank in treebanks:
+            for path in TreebankSource.of(treebank)._paths():
+                sentence: List[List[str]] = []
+                with open(path, encoding="utf-8") as handle:
+                    for line in handle:
+                        if not line.strip():
+                            if sentence:
+                                sentences.append(sentence)
+                            sentence = []
+                            continue
+                        cols = line.rstrip("\n").split("\t")
+                        if line.startswith("#") or len(cols) != 10 or not cols[0].isdigit():
+                            continue
+                        sentence.append(cols)
+                if sentence:
+                    sentences.append(sentence)
+        holding: Dict[str, List[int]] = defaultdict(list)
+        for k, sentence in enumerate(sentences):
+            for base in dict.fromkeys(cols[2].lower() for cols in sentence):
+                holding[base].append(k)
+        cache["treebank_rows"] = (sentences, dict(holding))
+    return cache["treebank_rows"]
+
+
+#: WHAT THE TREEBANKS' LAST COLUMN (MISC) SAYS OF A WORD, kept in its record: how it is written beside the next
+#: (`SpaceAfter`), STREUSLE's annotations of EWT (the supersense of a noun, verb or preposition, the preposition's
+#: relation, the expression of several words it is in, the construction it stands in, a temporal adjunct), GUM's (the
+#: parts it is made of, `MSeg`; a negation; the kind of thing it names, `Entity`), and the form meant where it was
+#: mistyped. GUM's discourse, PDTB, XML, bridging and split antecedents are said of the text, not the word, and are not
+#: kept; nor are EWT's places of a preposition's governor and object (`PRel[gov]`, `PRel[obj]`), said in `joined_as`.
+_MISC_OF_THE_WORD = frozenset({"SpaceAfter", "Supersense", "Supersense[coding]", "Supersense[scene]",
+                               "PRel[config]", "MWECat", "MWELemma", "MWELen", "Cxn", "CxnElt", "CorrectForm",
+                               "TemporalNPAdjunct", "MSeg", "Negation", "Entity"})
+
+
+def _record_joins(word: str, treebanks: Sequence[str], cache: Dict[str, Any]
+                  ) -> Tuple[Counter, Dict[Tuple[str, Tuple], List[int]], Counter, Counter, Counter]:
+    """WHAT THE TREEBANKS' ANALYSTS WROTE OF EACH USE OF A WORD BEYOND ITS FORM, CLASS AND FEATURES (the word as each
+    sentence's base form): its fine tag (XPOS: (form, class, tag) -> how often); how it was joined (HEAD, DEPREL, by
+    ID), as the structure reader counts two words of a sentence (`structure._Pairs`): each situation it stood in as one
+    of a pair at the levels naming it (as the dependent, "dependent word", with every other word of the sentence as the
+    head it might have had; as the head, "head word", with every word it might have taken; both words, "words", where
+    it is the dependent), how often met and how often joined, kept as the reader keeps them (joined, or met
+    `KEPT_UNJOINED` times or more); as what each was joined at the same levels ((level, situation, relation) -> how
+    often); its enhanced relations (DEPS: (form, relation) -> how often); and what the last column says of the word
+    (`_MISC_OF_THE_WORD`: (form, key, value) -> how often; GUM's `Entity` by the kind it names)."""
+    from core.semantics.structure import KEPT_UNJOINED, _Pairs
+    sentences, holding = _treebank_rows(treebanks, cache)
+    tags: Counter = Counter()
+    joined: Dict[Tuple[str, Tuple], List[int]] = defaultdict(lambda: [0, 0])
+    said: Counter = Counter()
+    enhanced: Counter = Counter()
+    misc: Counter = Counter()
+    for k in holding.get(word, ()):
+        sentence = sentences[k]
+        forms = [cols[1] for cols in sentence]
+        classes = [_UD_CLASS.get(cols[3], "OTHER") for cols in sentence]
+        heads = [int(cols[6]) if cols[6].isdigit() else 0 for cols in sentence]
+        relations = [cols[7] for cols in sentence]
+        laid = _Pairs.laid(forms, classes)
+        n = len(sentence)
+        for at, cols in enumerate(sentence):
+            if cols[2].lower() != word or "Typo=Yes" in cols[5].split("|"):
+                continue
+            form = cols[1].lower()
+            tags[(form, classes[at], cols[4])] += 1
+            if cols[8] != "_":
+                for arc in cols[8].split("|"):
+                    enhanced[(form, arc.split(":", 1)[1] if ":" in arc else arc)] += 1
+            if cols[9] != "_":
+                for kv in cols[9].split("|"):
+                    key, _, value = kv.partition("=")
+                    if key == "Entity":
+                        for kind in re.findall(r"\(\d+-([a-z]+)", value):
+                            misc[(form, key, kind)] += 1
+                    elif key in _MISC_OF_THE_WORD:
+                        misc[(form, key, value)] += 1
+            d = at + 1
+            for h in range(n + 1):
+                if h == d:
+                    continue
+                for level in ("dependent word", "words"):
+                    held = joined[(level, _Pairs._situation(laid, h, d, level))]
+                    held[0] += 1
+                    held[1] += heads[at] == h
+            for other in range(1, n + 1):
+                if other != d:
+                    held = joined[("head word", _Pairs._situation(laid, d, other, "head word"))]
+                    held[0] += 1
+                    held[1] += heads[other - 1] == d
+            # As what: a pair's situations, ungrouped, are both words, the dependent's word, the head's word, then
+            # the classes alone (`_Pairs._relation_situations`).
+            situations = _Pairs._relation_situations(laid, heads[at], d)
+            said[("words", situations[0], relations[at])] += 1
+            said[("dependent word", situations[1], relations[at])] += 1
+            for other in range(1, n + 1):
+                if heads[other - 1] == d:
+                    said[("head word", _Pairs._relation_situations(laid, d, other)[2], relations[other - 1])] += 1
+    kept = {key: held for key, held in joined.items() if held[1] > 0 or held[0] >= KEPT_UNJOINED}
+    return tags, kept, said, enhanced, misc
 
 
 def _closed_forms(word: str, treebanks: Sequence[str], cache: Dict[str, Any]) -> Counter:
@@ -3947,10 +4143,14 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
         kinds = kinds_of(s)
+        related = tuple((rel, other.synset().name(), named(other.synset()), other.name().lower())
+                        for rel in _WORDNET_LEMMA_RELATIONS for other in getattr(lemma, rel)()) + tuple(
+            (rel, other.name(), named(other), "") for rel in _WORDNET_SENSE_RELATIONS
+            for other in WordNetSource._ordered(getattr(s, rel)()))
         senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds, lemma.count(),
                                 tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames,
                                 covers=(tuple(covered[c] for c in [s.name()] + [k for k, _ in kinds])
-                                        if cls == "NOUN" else ())))
+                                        if cls == "NOUN" else ()), key=lemma.key(), related=related))
     # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
     # the class's roles may be filled with.
     classes_of: Dict[str, Set[str]] = {}
@@ -3959,6 +4159,26 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         class_ids = verbnet.classids(lemma_name)
     except Exception:
         class_ids = []
+    # EACH CLASS'S FRAMES, the ways its verbs are said ("NP V NP PP.instrument"), with those of the classes it is
+    # part of: (the class whose frame it is, its primary and secondary description, its example).
+    verbnet_frames: List[Tuple[str, str, str, str]] = []
+    for cid in class_ids:
+        up = cid
+        while up:
+            try:
+                frames_of = verbnet.vnclass(up).find("FRAMES")
+            except Exception:
+                break
+            for frame in (frames_of.findall("FRAME") if frames_of is not None else ()):
+                described = frame.find("DESCRIPTION")
+                example = frame.find("EXAMPLES/EXAMPLE")
+                held = (up, str(described.get("primary") or "") if described is not None else "",
+                        str(described.get("secondary") or "") if described is not None else "",
+                        (example.text or "").strip() if example is not None else "")
+                if held not in verbnet_frames:
+                    verbnet_frames.append(held)
+            parent = up.rsplit("-", 1)[0]
+            up = parent if parent != up and re.search(r"-\d", parent) else ""
     for cid in class_ids:
         vc = verbnet.vnclass(cid)
         for member in vc.iter("MEMBER"):
@@ -4017,6 +4237,16 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                         restricted.append((r, named(wn.synset(_RESTRICTED_AS[r]))))
         return WordPlace(arg, who, function, prepositions, bare, tuple(dict.fromkeys(slots)), fills,
                          tuple(dict.fromkeys(restricted)))
+    # EVERY PROPBANK SENSE OF THE WORD, as its frame file gives it: (its id, what it means, the words it is said as with
+    # their classes, the FrameNet frames its places are linked to) — paint.01 said as "painting" a noun too.
+    propbank: List[Tuple[str, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]]] = []
+    if frame_file.exists() and not rest:
+        for roleset in ET.parse(frame_file).iter("roleset"):
+            if str(roleset.get("id", "")).startswith(lemma_name + "."):
+                propbank.append((str(roleset.get("id")), str(roleset.get("name") or ""),
+                                 tuple((str(a.text or "").strip(), str(a.get("pos") or "")) for a in roleset.iter("alias")),
+                                 tuple(sorted({str(r.get("class")) for r in roleset.iter("rolelink")
+                                               if r.get("resource") == "FrameNet"}))))
     joined: Dict[str, Set[str]] = {}
     for rid, _, _, linked in rolesets:
         joined[rid] = {sense for cid in linked for sense in classes_of.get(cid, ())}
@@ -4029,8 +4259,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             continue
         rid, means, roles, linked = min(mine, key=lambda r: (len(joined[r[0]]), rolesets.index(r)))
         cid = next((c for c in sorted(linked) if s.id in classes_of.get(c, ())), "")
-        senses[k] = WordSense(s.id, s.word_class, s.concept, s.means, s.kind_of, s.used, s.examples, s.frames, rid,
-                              means, cid, tuple(place_of(role, said, linked) for role, said in roles))
+        senses[k] = dataclasses.replace(s, roleset=rid, use=means, verbnet=cid,
+                                        places=tuple(place_of(role, said, linked) for role, said in roles))
     # WHAT EACH SENSE WAS SEEN USED WITH (SemCor).
     seen = _semcor_seen(lemma_name, _cache)
     for k, s in enumerate(senses):
@@ -4188,6 +4418,41 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             took = wn.synset(synset) if synset else None
             what = (((named(took),) if named(took) else ()) + tuple(n for _, n in kinds_of(took))) if took else ()
             joins_things[(link, what)] += k
+    tags, joined_so, said_so, enhanced, misc = _record_joins(word, treebanks, _cache) if not rest else (
+        Counter(), {}, Counter(), Counter(), Counter())
+    layers = dict(
+        tags=tuple(k + (n,) for k, n in sorted(tags.items(), key=lambda x: (-x[1], x[0]))),
+        joined_as=tuple((level, situation, held[0], held[1]) for (level, situation), held in sorted(
+            joined_so.items(), key=lambda x: (-x[1][1], -x[1][0], repr(x[0])))),
+        related_as=tuple(k + (n,) for k, n in sorted(said_so.items(), key=lambda x: (-x[1], repr(x[0])))),
+        enhanced=tuple(k + (n,) for k, n in sorted(enhanced.items(), key=lambda x: (-x[1], x[0]))),
+        misc=tuple(k + (n,) for k, n in sorted(misc.items(), key=lambda x: (-x[1], x[0]))),
+        rolesets=tuple(propbank), verbnet_frames=tuple(verbnet_frames))
+    carried = {
+        ("UD", "ID"): len(layers["joined_as"]), ("UD", "FORM"): len({f.form for f in forms}),
+        ("UD", "LEMMA"): int(bool(_treebank_rows(treebanks, _cache)[1].get(word))),
+        ("UD", "UPOS"): len({c for (_, c) in classes}), ("UD", "XPOS"): len(layers["tags"]),
+        ("UD", "FEATS"): len({f.features for f in forms if f.features}), ("UD", "HEAD"): len(layers["joined_as"]),
+        ("UD", "DEPREL"): len(layers["related_as"]), ("UD", "DEPS"): len(layers["enhanced"]),
+        ("UD", "MISC"): len(layers["misc"]),
+        ("WordNet", "synset"): len(senses), ("WordNet", "definition"): sum(bool(s.means) for s in senses),
+        ("WordNet", "examples"): sum(len(s.examples) for s in senses),
+        ("WordNet", "hypernyms"): sum(len(s.kind_of) for s in senses),
+        ("WordNet", "lemma count"): sum(s.used for s in senses), ("WordNet", "verb frames"): sum(
+            len(s.frames) for s in senses), ("WordNet", "lemma key"): sum(bool(s.key) for s in senses),
+        ("WordNet", "relations"): sum(len(s.related) for s in senses), ("WordNet", "hyponyms"): 0,
+        ("WordNet", "domain members"): 0,
+        ("PropBank", "roleset"): len(propbank), ("PropBank", "roles"): sum(len(s.places) for s in senses) + sum(
+            len(u.places) for u in uses), ("PropBank", "aliases"): sum(len(r[2]) for r in propbank),
+        ("PropBank", "FrameNet"): sum(len(r[3]) for r in propbank),
+        ("PropBank", "examples"): sum(len(p.prepositions) for s in senses for p in s.places),
+        ("VerbNet", "members"): sum(bool(s.verbnet) for s in senses),
+        ("VerbNet", "restrictions"): sum(len(p.restricted) for s in senses for p in s.places),
+        ("VerbNet", "frames"): len(verbnet_frames),
+        ("CMUdict", "phones"): sum(bool(f.sounds) for f in forms),
+        ("SemCor", "tags"): sum(len(s.seen_with) for s in senses),
+        ("STREUSLE", "SNACS"): len(joins_things), ("PMB", "meaning"): len(means), ("PMB", "derivation"): 0}
+    layers["covered"] = tuple((source, column, n) for (source, column), n in carried.items())
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
                       tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "
@@ -4201,7 +4466,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
                       together, used_before_doing, used_asking, said_alone, capitalized, shapes, said_of_doing,
-                      said_after, tuple(means))
+                      said_after, tuple(means), **layers)
 
 
 #: Prepositions as PropBank's examples begin an argument with them ("in oils", "by the playwright").

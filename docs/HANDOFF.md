@@ -12,7 +12,16 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (68), 2026-10-28, late): THE STANDARD'S TWO LAYERS TAUGHT ON lyric_dev2 READ BETTER THAN MAIN
+**LATEST (lab notebook (69), 2026-10-28, night): THE WORD RECORD COMPLETE BY CONSTRUCTION.** `_RECORD_COLUMNS` names
+every column of every source a record is made from, with the layer carrying it or why none does; a record says what it
+carried (`covered`) and one leaving a column unsaid is refused. New layers: joins and relations as the structure reader
+counts them (learned by `StructureView.hold_joins`), fine tags, enhanced relations, MISC (STREUSLE, GUM), WordNet keys
+and relations, PropBank aliases and FrameNet, VerbNet frames. lyric_dev2 taught the 245 rebuilt. Reading on the 77
+unmoved (18 / 23 / 26): its errors are the pronoun convention (about 12 of 51), sense naming, and real gaps (participle
+as quality, degree, "nothing"/"nobody", generic plurals, nationality adjectives, "o'clock", hyphens). Next: the measure's
+conventions, then those gaps by size, then saying scored by the reader.
+
+**EARLIER (lab notebook (68), 2026-10-28, late): THE STANDARD'S TWO LAYERS TAUGHT ON lyric_dev2 READ BETTER THAN MAIN
 ON THE STRUCTURE AND ON REAL SENSES.** lyric_dev2 holds 245 words recorded whole and 6,137 PMB gold training sentences
 recorded whole (`record_of_pmb`; built with scratch scripts, not in the repo: rebuild with `word_record_of` /
 `record_of_pmb`, teach with `scripts/teach.py --source records`, words first). On 77 held-out PMB dev sentences of

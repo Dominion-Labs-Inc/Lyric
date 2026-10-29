@@ -338,3 +338,27 @@ def test_memory_keeps_word_forms_and_reads_a_word_by_them():
     assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1
     warmed = asyncio.run(agent._word_form_memories())
     assert warmed.bases_of("hired") == ["hire"]
+
+
+def test_how_a_word_recorded_whole_was_joined_weighs_its_joins_and_is_taken_back():
+    """What a word's record says of how it was joined in sentences no sentence held here holds
+    (`StructureView.hold_joins`, `WordRecord.joined_as`) weighs a join of the word as those sentences would, and a
+    record taken back takes it with it: "blue" before "hat" is joined to it more surely once a record says an
+    adjective before a noun was joined to it every time it was met so."""
+    from core.semantics.structure import _Pairs
+    view = StructureView()
+    view.add(Analysed(("Roy", "sleeps", "."), ("NAME", "VERB", "PUNCTUATION"), (2, 0, 2), ("nsubj", "root", "punct")))
+    laid = _Pairs.laid(("She", "wears", "a", "blue", "hat", "."),
+                       ("PRONOUN", "VERB", "DETERMINER", "ADJECTIVE", "NOUN", "PUNCTUATION"))
+
+    def blue_to_hat() -> float:
+        view._work_out()
+        return view._pairs.chance(laid, 5, 4)
+    before = blue_to_hat()
+    joined = (("dependent word", _Pairs._situation(laid, 5, 4, "dependent word"), 12, 12),)
+    said = (("dependent word", _Pairs._relation_situations(laid, 5, 4)[1], "amod", 12),)
+    view.hold_joins(joined, said)
+    assert blue_to_hat() > before + 0.3, (before, blue_to_hat())
+    assert view._pairs.relation(laid, 5, 4) == "amod"
+    view.hold_joins(joined, said, times=-1)
+    assert blue_to_hat() == pytest.approx(before)

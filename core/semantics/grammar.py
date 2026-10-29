@@ -1953,6 +1953,9 @@ class Grammar:
         self.lexicon = lexicon
         self._fresh = FIRST_VARIABLE
         self._tokens: Tuple[str, ...] = ()
+        #: What agreement is weighed by, worked out once for the words being read or said (`_features`,
+        #: `_agreement`): the features subjects agree by, every verb's subjects, each verb's, each word's forms.
+        self._agreeing: Dict[Any, Any] = {}
         #: The sentences memory holds analysed, as the structure reader reads them (`structure.StructureView`): which
         #: of two readings read as surely the chart keeps (`_joined`). None where none is held.
         self.structure: Optional[Any] = None
@@ -2175,9 +2178,16 @@ class Grammar:
         finite = [p[-1] for p in doing.pieces if p[0] == "finite" and p[1] == hook]
         if not finite or not 0 <= min(finite) < len(tokens):
             return 0.0
-        every = words.subjects()
+        if "every" not in self._agreeing:
+            self._agreeing["every"] = words.subjects()
+        every = self._agreeing["every"]
         found = self._said_by(subject.pieces, subject.cat.ref) if every else None
-        return self._agreed(words.subjects(str(tokens[min(finite)])), every, *found) if found else 0.0
+        if not found:
+            return 0.0
+        verb = ("took", str(tokens[min(finite)]))
+        if verb not in self._agreeing:
+            self._agreeing[verb] = words.subjects(verb[1])
+        return self._agreed(self._agreeing[verb], every, *found)
 
     def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
         """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
@@ -2199,10 +2209,16 @@ class Grammar:
         """What form the word at `k` is as a word of the class, as the forms memory holds say, by the features
         subjects share with verbs and mark a subject by (number, person, case): "walls" `Number=Plur`, "me"
         `Case=Acc|Number=Sing|Person=1`; each with how often the word is that form. None where memory holds none."""
-        shared = {f.split("=")[0] for _, features in self.lexicon.words.subjects() for f in features.split("|") if f}
+        if (cls, k) in self._agreeing:
+            return self._agreeing[(cls, k)]
+        if "shared" not in self._agreeing:
+            self._agreeing["shared"] = {f.split("=")[0] for _, features in self.lexicon.words.subjects()
+                                        for f in features.split("|") if f}
+        shared = self._agreeing["shared"]
         out: Counter = Counter()
         for features, n in self.lexicon.words.form_features(str(self._tokens[k]), cls).items():
             out["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+        self._agreeing[(cls, k)] = out
         return out
 
     def _agreed(self, took: Mapping[Tuple[str, str], float], every: Mapping[Tuple[str, str], float],
@@ -2419,7 +2435,7 @@ class Grammar:
         """Every reading of every stretch the grammar allows, one of each category, the surest."""
         n = len(tokens)
         self._tokens = tuple(tokens)
-        self._weighed, self._marking, self._asking = None, frozenset(), frozenset()
+        self._weighed, self._marking, self._asking, self._agreeing = None, frozenset(), frozenset(), {}
         if self.structure is not None and len(self.structure) and n:
             classes, self._weighed = self.structure.joins(tuple(str(t) for t in tokens))
             self._marking = frozenset(i for i, c in enumerate(classes) if c in MARKING)
@@ -2878,6 +2894,7 @@ class Grammar:
                 tokens.append(word)
         most = tuple(budget[k] for k in spending)
         self._tokens, self._weighed, self._marking, self._asking = tuple(tokens), None, frozenset(), frozenset()
+        self._agreeing = {}
         # A WORD TAKING WHAT NO WORD HERE CAN MAKE IS NEVER SAID: every word of a sentence has all it takes. What the
         # words can make is found from the words up (each word, what it makes once what it takes can be made, what
         # composing two makes, a thing raised to what is said of it, what `_unary` reads a stretch as), and a word is
@@ -3069,14 +3086,14 @@ class Grammar:
         # each preposition taught to say what it joins combined with every other (lyric_dev2, 2026-10-28). Taken by
         # what says most of the meaning first, the first made were one way of saying it in all its forms: of a dog
         # being a mammal, "A dog is mammals." and "A dogs is a mammal." were said, never "Dogs are mammals.".
-        state = (self._tokens, self._weighed, self._marking, self._asking)
+        state = (self._tokens, self._weighed, self._marking, self._asking, self._agreeing)
 
         def read_back(said: Tuple[str, ...]) -> None:
             # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
             # (-32.3), a name it might be (lyric_dev2, 2026-10-27). Reading takes the grammar's state for the
             # sentence read; the making's is put back.
             reading = self.read((said[0][:1].upper() + said[0][1:],) + said[1:] + (closing,))
-            self._tokens, self._weighed, self._marking, self._asking = state
+            self._tokens, self._weighed, self._marking, self._asking, self._agreeing = state
             if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
                 refused.add(said)
                 return

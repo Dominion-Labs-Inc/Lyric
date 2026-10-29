@@ -147,7 +147,7 @@ def test_memory_learns_a_words_forms_classes_and_names_and_the_grammar_its_frame
     from core.semantics.word_forms import HeldForms
     agent, index, forms = MemoryAgent(), {}, HeldForms()
     word = _word()
-    agent._learn_word_record(word, index, forms)
+    agent._learn_word_record(word, index, forms, agent.structure_view())
     assert forms.bases_of("painted") == ["paint"] and index["paints"] == {"VERB": 1}
     assert agent.name_of("paint", "VERB") == "paint" and agent.name_of("paint", "NOUN") == "coating paint"
     view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
@@ -295,7 +295,7 @@ def test_a_nouns_sense_is_the_one_the_things_around_it_bear_on():
         WordSense("coating.n.01", "NOUN", "coating", "a thin layer covering something",
                   (("covering.n.02", "artifact covering"),), 1, covers=(76, 1675))))
     agent, forms = MemoryAgent(), HeldForms()
-    agent._learn_word_record(coat, {}, forms)
+    agent._learn_word_record(coat, {}, forms, agent.structure_view())
     view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
     view.hold_word(coat)
     lexicon = view.grammar.lexicon
@@ -344,7 +344,7 @@ def test_a_verb_of_several_words_is_read_as_one_where_the_clause_ends_after_it()
     assert not make_it.problems(), make_it.problems()
     assert WordRecord("make it", make_it.forms, make_it.senses, together=(10, 91)).problems(), "four counts, or none"
     agent, forms = MemoryAgent(), HeldForms()
-    agent._learn_word_record(make_it, {}, forms)
+    agent._learn_word_record(make_it, {}, forms, agent.structure_view())
     words = HeldWords((), gm.closed_uses(), agent.name_of, forms=forms)
     view = gm.GrammarView(words)
     view.hold_word(make_it)
@@ -454,7 +454,7 @@ def test_a_word_recorded_with_how_often_it_was_a_name_holds_its_names_apart():
                                                                                               "partition"),), 5),))
     assert not wall.problems(), wall.problems()
     agent = MemoryAgent()
-    agent._learn_word_record(wall, agent._word_class_index, agent.word_forms())
+    agent._learn_word_record(wall, agent._word_class_index, agent.word_forms(), agent.structure_view())
     agent.pattern_inventory().word_classes = agent._word_class_index
     assert agent._held_word_classes("Wall") == {"NOUN": 19, "NAME": 1}
     assert agent._held_word_classes("Walls") == {"NOUN": 11}
@@ -522,3 +522,17 @@ def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
     assert view.words.noun_alone("wall") == {"bare": 2.0, "determined": 17.0}
     view.drop_word(wall)
     assert not view.words.noun_alone("wall")
+
+
+def test_a_record_made_from_its_sources_carries_every_column_of_them_or_says_why_not():
+    """A word recorded from its sources says how much it carried of each column of each (`WordRecord.covered`,
+    `_RECORD_COLUMNS`), and one that leaves a column unsaid is refused: a record carries everything said of its
+    word, never only what a sentence was found to need."""
+    from core.learning.teaching_sources import _RECORD_COLUMNS, WordForm, WordRecord, WordSense
+    every = tuple((source, column, 1) for source, column in _RECORD_COLUMNS)
+    wall = WordRecord("wall", (WordForm("wall", "NOUN", "Number=Sing", 20),),
+                      (WordSense("wall.n.01", "NOUN", "wall", "an architectural partition"),), covered=every)
+    assert not wall.problems(), wall.problems()
+    without = WordRecord("wall", wall.forms, wall.senses, covered=tuple(c for c in every if c[:2] != ("UD", "HEAD")))
+    assert any("HEAD" in p and "neither carried" in p for p in without.problems()), without.problems()
+    assert WordRecord.from_dict(json.loads(json.dumps(wall.to_dict()))) == wall

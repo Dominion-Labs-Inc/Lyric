@@ -16,6 +16,53 @@ Conventions:
 
 ---
 
+## 2026-10-28 (69) — The word record complete by construction: every column of every source it is made from, or why not; reading on the 77 unmoved, its errors grouped by cause
+
+**Objective** (the owner: fix the broader picture, not each error): the record was built a layer at a time as
+sentences failed (forms, senses, uses, subjects, capitals, shapes, meanings, names, then case and pro-forms in (68)).
+Make it carry everything its sources say of the word, checked.
+
+**Built** (`teaching_sources`): `_RECORD_COLUMNS` names every column of every source a word's record is made from
+(UD's ten; WordNet's synset, definition, examples, hypernyms, counts, frames, keys, relations, hyponyms, domain
+members; PropBank's rolesets, roles, aliases, FrameNet links, examples; VerbNet's members, restrictions, frames;
+CMUdict; SemCor; STREUSLE; the PMB's meaning and derivation) with the layer carrying it or why none does (a sense's
+narrower senses and a domain's members are said by each of those words' records; the PMB's derivation by the sentence
+records, which counted again here would count every PMB sentence twice). A record made from its sources says how much
+of each it carried (`covered`), and `problems` refuses one leaving a column unsaid. New layers: each form's fine tag
+(`tags`); how it was joined, as the structure reader counts two words of a sentence (`joined_as`: situation, met,
+joined, at the levels naming the word, kept as the reader keeps them) and as what (`related_as`); enhanced relations;
+what MISC says of the word (`_MISC_OF_THE_WORD`: STREUSLE's supersenses, preposition relations, expressions of several
+words and constructions; GUM's morph segmentation, negation, entity kind; spacing); each sense's WordNet key and
+relations (`_WORDNET_LEMMA_RELATIONS`, `_WORDNET_SENSE_RELATIONS`); PropBank's rolesets with aliases and FrameNet
+frames; VerbNet's frames up each class's chain. "paint": 22 KB, every column accounted for, read back the same. The
+structure view learns a record's joins (`StructureView.hold_joins`, `_Pairs.hold`), counted in place where the pairs
+are worked out: worked out again from 6,137 sentences for each word taught, teaching ran over ten minutes.
+Agreement's tables are worked out once a reading (`Grammar._agreeing`): weighed at every subject since (68), each word's
+forms looked up again at every join made a boot learning 6,137 sentences take minutes.
+
+**Taught** lyric_dev2 the 245 rebuilt (28 MB; "be" 2.7 MB of join situations): none refused.
+
+**Measured** (77 held-out PMB dev sentences, as (68)): right with real senses 18 (F1 53.1%, was 53.8%), senses aside 23
+(67.0%), kinds aside 26 (77.2%). Two readings changed, neither right ("They suspected nothing." now "nothing" a thing;
+"at night" `located_in`). **The record's missing columns were not what this test's errors come from.** Of the 51 wrong
+with kinds aside: about 12 the pronoun convention alone (the PMB writes "he", "it", "this" as an unknown; Lyric as the
+one spoken of before, `?previous`: main's largest class of misses, 175 of 525, too); several sense names ("lie" against
+`misinform lie`, "egg" against `foodstuff egg`: the measure's senses aside takes a word's first sense name, and the
+sense chosen from the places differs); the rest real reading gaps: a participle as a quality ("Is the dog chained?"),
+degree ("very smooth"), "nothing" and "nobody" as denials, generic plurals ("Are anal fissures curable?"), a
+nationality's adjective ("a Norwegian town"), "o'clock", hyphened words, "Ain't".
+
+**Saying** after: "They mended the bike with a hacksaw." 0.4 s, "I love the moon." 4.3 s, "He wears a blue hat." 5.8 s.
+
+**Tests:** sentence records, structure 47 of 47 (a record's joins weigh a join and are taken back; a record leaving a
+column unsaid is refused); grammar 44 of 44.
+
+**Next:** the measure's two conventions (a pronoun read as the one spoken of compared as an unknown; senses aside taken
+from the meaning's names), so the errors left are reading's own; then the gaps above by size; saying scored by the
+reader's own weighing (agreed with the owner).
+
+---
+
 ## 2026-10-28 (68) — The standard's two layers taught on lyric_dev2 (245 words, 6,137 PMB sentences): its reading beats main's on the structure and on real senses; the record's gaps found and filled; saying fast and English again
 
 **Objective** (the owner): read how well Lyric reads and understands from the standard (words recorded whole, then
