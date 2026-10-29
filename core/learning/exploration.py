@@ -200,6 +200,47 @@ class SubstrateExplorer:
                 logger.info("exploration could not read %s before acting: %s",
                             target, e)
 
+    @staticmethod
+    async def _unsure_first(domain_id: str, candidates: List[Fact]) -> List[Fact]:
+        """The acts on offer, those that test what Lyric is unsure of first.
+
+        WHAT IT HAS NOT SEEN WORK IS WHAT IT PRACTISES. An act whose successes
+        never covered the case it would meet here -- something holds that held
+        in no success, a condition every success had is missing, or neither of
+        two conditions one of which every success had holds -- is where a rule
+        Lyric holds may be wrong, and where its constitution keeps it from
+        acting (Law 2). Tried in the order offered, a world offering much
+        practice taught cases already covered while those waited
+        (RULE-AUTHORITY-02). Otherwise the order offered stands."""
+        if len(candidates) < 2:
+            return candidates
+        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.unified_learning_system import (
+            _by_place, _conditions, _relevant_frame, _uncovered)
+        for action in candidates:
+            look_at(domain_id, action.args)
+        world = await observe_world_async(domain_id)
+        if world is None:
+            return candidates
+        store = get_demonstration_store()
+        covered: Dict[Tuple[str, int], List[frozenset]] = {}
+        for predicate, arity in {(a.predicate, len(a.args)) for a in candidates}:
+            successes = [e for e in await store.load(domain_id=domain_id, predicate=predicate, arity=arity)
+                         if e.positive and e.action is not None]
+            covered[(predicate, arity)] = [frozenset(c for c in _conditions(e) if "_" not in c)
+                                           for e in _relevant_frame(successes)] if successes else []
+
+        def unsure(action: Fact) -> bool:
+            sets = covered.get((action.predicate, len(action.args)))
+            if not sets:
+                return False
+            named = set(action.args)
+            here = frozenset(c for c in _by_place([f for f in world if set(f.args) <= named], action)
+                             if "_" not in c)
+            return bool(_uncovered(here, sets)) or bool(frozenset.intersection(*sets) - here)
+
+        return sorted(candidates, key=lambda action: not unsure(action))
+
     async def explore(
         self, domain_id: str, propose_actions: ProposeActions, *,
         max_actions: int = 8, reinduce: bool = False,
@@ -262,7 +303,7 @@ class SubstrateExplorer:
         from core.intelligence.effect_verification import (
             act_window, concurrent_execution_guard, named_by, touched_by)
         signatures = set()
-        for action in propose_actions()[:max_actions]:
+        for action in (await self._unsure_first(domain_id, list(propose_actions())))[:max_actions]:
             binding = registry.get(domain_id, action.predicate)
             if binding is None:
                 continue

@@ -1610,7 +1610,19 @@ class UniversalDomainMaster:
         # genuine constraint of the world, and no learning operation would help.
         # Absent that proof, structural sufficiency is UNKNOWN (deficient but
         # unlocalised), never "impossible".
-        if chosen.deficit_type is DeficitType.UNKNOWN_GAP and unreachable_proof:
+        # NOT YET SEEN WORK HERE: the producing operator is there, and the
+        # planner left out the acts that would use it because none of their
+        # successes covered this case. That is a hypothesis unvalidated where it
+        # is needed -- learned toward by trying such a case, never impossible.
+        untested = list(getattr(outcome, "untested", None) or ())
+        if chosen.deficit_type is DeficitType.UNKNOWN_GAP and untested:
+            chosen = EpistemicDeficit(
+                domain_id, DeficitType.CAUSAL_GAP,
+                target_predicate=chosen.target_predicate,
+                evidence={"untested": untested,
+                          "note": "an operator produces it, and none of its successes "
+                                  "covered the case here"})
+        elif chosen.deficit_type is DeficitType.UNKNOWN_GAP and unreachable_proof:
             chosen = EpistemicDeficit(
                 domain_id, DeficitType.WORLD_PREVENTS,
                 target_predicate=chosen.target_predicate,

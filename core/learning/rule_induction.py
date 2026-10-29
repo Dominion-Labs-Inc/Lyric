@@ -463,11 +463,27 @@ class InductionResult:
     #: When several hypotheses stand, the case that would eliminate one of them.
     #: An undetermined induction is not a dead end: it is a stated request.
     deciding_request: Optional[str] = None
+    #: A rule given as cases (`RuleInducer._by_cases`): the successes each case
+    #: explains, beside its rule in `candidates`. Every case is the rule; none
+    #: alone is.
+    cases: List[List["TrainingExample"]] = field(default_factory=list)
 
     @property
     def rule(self) -> Optional[CandidateRule]:
         """The learned rule, and only when the evidence determined one."""
         return self.candidates[0] if self.status is InductionStatus.RULE_LEARNED else None
+
+
+def _by_place(facts, action) -> FrozenSet[str]:
+    """Facts read by the places of the things an act names in it: `TOMATAV(1)`
+    for TOMATAV(y) when y is the act's second argument, `FEDRA(1,_)` for FEDRA(y,
+    something it does not name), and a thing it names twice at both places."""
+    places: Dict[str, List[str]] = {}
+    for i, a in enumerate(action.args if action is not None else ()):
+        places.setdefault(a, []).append(str(i))
+    return frozenset(f"{f.predicate}({','.join(combo)})"
+                     for f in facts
+                     for combo in itertools.product(*(places.get(a, ["_"]) for a in f.args)))
 
 
 # --------------------------------------------------------------------------
@@ -921,7 +937,10 @@ class RuleInducer:
         self,
         examples: Sequence[TrainingExample],
         target_predicate: Optional[str] = None,
+        cases: bool = False,
     ) -> InductionResult:
+        """`cases`: where no rule fits, a rule given as cases may (`_by_cases`);
+        asked by a caller that records and validates each case."""
         guard_learning("rule induction")
 
         positives = [e for e in examples if e.positive]
@@ -1062,6 +1081,10 @@ class RuleInducer:
         surviving = self._minimal_hypotheses(lgg, positives, negatives)
         if not surviving:
             surviving = self._with_absent(lgg, positives, negatives)
+        if not surviving and cases:
+            by_cases = self._by_cases(positives, negatives, target_predicate)
+            if by_cases is not None:
+                return by_cases
         if not surviving:
             return InductionResult(
                 status=InductionStatus.NO_RULE,
@@ -1430,6 +1453,86 @@ class RuleInducer:
                 return [r for r in rules if self._explains(r, positives)
                         and not self._refuted(r, negatives)]
         return []
+
+    def _by_cases(
+        self,
+        positives: Sequence[TrainingExample],
+        negatives: Sequence[TrainingExample],
+        target_predicate: Optional[str],
+    ) -> Optional[InductionResult]:
+        """The act working in any of a few cases, each a conjunction, where no
+        one rule fits.
+
+        WHERE ONE CONJUNCTION CANNOT SAY IT, SEVERAL MAY. "The act works where
+        P holds, or where Q and R do" covers successes that share nothing a
+        miss lacks: no body says it, nor one needing something absent, and
+        induction found no rule. A quarter of RULE-AUTHORITY-02's worlds hid
+        such a rule, and Lyric held none in them.
+
+        A case is what the successes it explains all held, of the things the
+        act names (`_by_place`), and no miss held. The most general cases, the
+        fewest that together explain every success, are the rule; each is then
+        induced as a rule of its own from the successes it explains and every
+        miss. A case explains two successes at least, as any rule is induced
+        from two. Two ways of cases equally few are the evidence not deciding,
+        and authority waits, as for two rules."""
+        if any(e.action is None for e in positives) or len(positives) < 4:
+            return None
+        acts = {e.action.predicate for e in positives}
+        if len(acts) != 1:
+            return None
+
+        def named(example: TrainingExample) -> FrozenSet[str]:
+            return frozenset(c for c in _by_place(example.before, example.action) if "_" not in c)
+
+        held = [named(e) for e in positives]
+        misses = [named(e) for e in negatives
+                  if e.action is not None and e.action.predicate in acts]
+        cores = set(held)
+        fresh = set(held)
+        while fresh:
+            grown = {a & b for a in fresh for b in cores} - cores
+            cores |= grown
+            fresh = grown
+        explains = {core: frozenset(i for i, h in enumerate(held) if core <= h)
+                    for core in cores if not any(core <= m for m in misses)}
+        explains = {core: who for core, who in explains.items() if len(who) >= 2}
+        general = [core for core in explains if not any(other < core for other in explains)]
+        everyone = frozenset(range(len(positives)))
+        fits: List[Tuple[FrozenSet[str], ...]] = []
+        for k in range(2, len(general) + 1):
+            fits = [combo for combo in itertools.combinations(sorted(general, key=sorted), k)
+                    if frozenset().union(*(explains[core] for core in combo)) == everyone]
+            if fits:
+                break
+        if not fits:
+            return None
+        if len(fits) > 1:
+            return InductionResult(
+                status=InductionStatus.MULTIPLE_HYPOTHESES,
+                positive_coverage=len(positives),
+                supporting_evidence=self._ids(positives),
+                detail=(f"the successes fall into {len(fits[0])} cases in {len(fits)} ways "
+                        f"equally few; a success separating them would decide"))
+        groups = [[positives[i] for i in sorted(explains[core])] for core in fits[0]]
+        rules = []
+        for group in groups:
+            learned = self.induce(list(group) + list(negatives), target_predicate)
+            if learned.status is not InductionStatus.RULE_LEARNED:
+                return InductionResult(
+                    status=InductionStatus.MULTIPLE_HYPOTHESES,
+                    positive_coverage=len(positives),
+                    supporting_evidence=self._ids(positives),
+                    detail=f"a case of {len(group)} successes is not decided: {learned.detail}")
+            rules.append(learned.rule)
+        return InductionResult(
+            status=InductionStatus.RULE_LEARNED,
+            candidates=rules,
+            cases=groups,
+            positive_coverage=len(positives),
+            supporting_evidence=self._ids(positives),
+            contradicting_evidence=self._ids(negatives),
+            detail=f"either of {len(rules)} cases")
 
     @staticmethod
     def _explains(rule: CandidateRule, positives: Sequence[TrainingExample]) -> bool:

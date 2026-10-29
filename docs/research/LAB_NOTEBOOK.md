@@ -16,6 +16,81 @@ Conventions:
 
 ---
 
+## 2026-10-28 (68) — The standard's two layers taught on lyric_dev2 (245 words, 6,137 PMB sentences): its reading beats main's on the structure and on real senses; the record's gaps found and filled; saying fast and English again
+
+**Objective** (the owner): read how well Lyric reads and understands from the standard (words recorded whole, then
+sentences) against main (sentences only, for months); fill the record's gaps; make saying fast.
+
+**Measured, 77 held-out PMB dev sentences made of taught words** (the scratch measure of (67), GRAMMAR-01's scoring,
+read only; both stores read with the same code):
+
+| | main (12,544 UD sentences, no word records) | lyric_dev2, words only (245) | lyric_dev2, words + 6,137 PMB sentence records |
+|---|---|---|---|
+| structure right (every kind set aside) | 22, F1 76.1% | — | **26, F1 77.9%** |
+| right with real senses | 15, F1 46.2% | 16, F1 49.0% | **18, F1 53.8%** |
+| right, senses aside | **26, F1 76.7%** | 24, F1 64.4% | 23, F1 67.7% |
+
+"Senses aside" puts the reading's word names into the gold; once sentence records choose a verb's sense from what fills
+its places, the word keeps its first sense's name ("misinform lie") and the meaning the chosen one ("lie"), so a right
+reading counts wrong there (3 of lyric_dev2's 5 losses). "Kinds aside" sets every kind aside in both. Ten new sentences
+of taught words: all read whole; "a blue hat" now `has_property(hat, blue)` (was one kind, `blue hat`: every join cost
+the same floor on a store of one analysed sentence, so the fewest joins won).
+
+**The record's gaps, each found by a sentence and fixed in the converter (`teaching_sources`):**
+- *Case.* A subject keeps the features that mark it one: of the words written with a feature both as a finite verb's
+  subject and as an object, most written most often with one value as the subject and another as the object
+  (`_subjects_taking`: Case only; number, person, mood, tense and VerbForm as before). "me" took a finite verb as "I".
+- *Pro-forms.* An open class's form the analysts mark `PronType` ("how", "when", "where", "why") is recorded though
+  WordNet has no sense of it (`_pro_form`); "how" was refused ("no form"), and no question word had a record.
+- *The present of a verb spelled as its base* ((67)'s `_base_written`, now built): "love" `Person=1|Tense=Pres` 48 times,
+  its subjects `Case=Nom`. A verb never written so ("fix", "reek") needs nothing: reading's `_forms` reads a base-spelled
+  verb as base or present, and agreement compares a verb with no subjects of its own with every verb's.
+
+**The sentence layer.** `record_of_pmb` built 6,137 of the PMB 5.1.0 gold training documents (790 have no 4.0.0
+derivation, 35 several sentences, 57 refused). Two faults found building it, both of the data's conversion:
+- *A role's line was said by no word* (`pmb_meanings.meaning_of`): "the teacher" is `person.n.01` with `Role`
+  `teacher.n.01`, the role's line without words, so the kind "teacher" was anchored nowhere (every occupation and family
+  noun). Now said by the words of the thing it is the role of; and a time's line says the date it holds ("1939").
+  This also aligns GRAMMAR-01's senses-aside for those kinds.
+- *The record's check compared the derivation's leaves with its own places* (`SentenceRecord.problems`): a derivation
+  counts a name of several words as one word, so every sentence with one before its last word was refused.
+Taught through the one teaching path (words, then sentences; 75 s, none refused).
+
+**Saying.** Four faults, in order found:
+- *Agreement weighed a word's forms alike* (`Grammar._agreed`): "me", written `Case=Nom` 6 times in 942, agreed as
+  "I". Forms now weighed by how often the word is each; a form no subject ever was counts nothing; a verb with no
+  subjects of its own is compared with every verb's.
+- *"I", "me", "you" were no subject to agreement* (`_said_by`): grammar words standing for the speaker or hearer carry no
+  pronoun piece. Now found.
+- *Packed by meaning, "I" and "me" were one* (the chart keeps the surest of what means the same): kept apart by their
+  case (`standing_as`). Kept apart by number and person too, every thing's every form was built with every other's:
+  1.9 s to over ten minutes; by case alone, as fast as before.
+- *Made best first by how much of the meaning was said* ((67)'s anytime saying), the first eight made were one way of
+  saying it in every form ("A dog is mammals.", "A dogs is a mammal.", never "Dogs are mammals."). Now A* (Klein and
+  Manning 2003): each item's score with the most the rest of the meaning can add, every join and agreement only weighing
+  down.
+- *Every grammar word offered was free*: a preposition offered for a link, a determiner, "if", "although", "anybody", a
+  modal each scored about nothing, so A* built each with every other ("She wears a blue hat.": 70,000 makings, over ten
+  minutes). Each is now as sure as it is said for what it says (Belz 2008): a preposition by its share of every way the
+  link was said, a verb's place saying it bare among them (`Lexicon.said_with`: `done_to` by "for" 92, as an object
+  3,813); a word saying a piece against the surest saying the same; a word saying nothing against the surest of its use.
+  Pronouns and "I"/"you" are left to who they stand for and to agreement (charged by how often each is used, "It mended
+  the bike" was said). Tried and taken back on the way: each word's share of all its use's uses ("He mended the bike
+  with hacksaw.": a determiner then cost more than none).
+After (lyric_dev2): "He fixed the bicycle with a hacksaw." → "He mended the bike with a hacksaw." 0.4 s; "I love the
+moon." → "I love the moon." 5.3 s; "She wears a blue hat." → "He wears a blue hat." 6.6 s (who "she" is the meaning does
+not hold).
+
+**Tests:** grammar, sentence records, PMB meanings 78 of 78 (`test_a_or_an...`: "an bird" said after "a bird" or never,
+as saying now stops once it has said enough).
+
+**Open:** "at night" read `located_in` (no gold training sentence says it); the scratch measure's senses-aside should
+take a word's name from the meaning, not its first sense; saying's pronoun for the one spoken of ("he", "it") is not
+chosen by who it is (the verb's places restrict their doers: VerbNet, in the record); words left out of the records
+(names no treebank uses); the full PMB dev set on lyric_dev2 needs its words taught first.
+
+---
+
 ## 2026-10-28 (67) — The four left open, each traced to its cause: a word memory holds read as a name by its capital, a name written two ways, "some" given its meaning and taught, and "We made it!", whose two sources disagree
 
 **Objective** (the owner: root-cause and fix the four open for days, before anything else): "Picture is a

@@ -2541,7 +2541,10 @@ class SentenceRecord:
                     if not isinstance(kid, str):
                         walk(kid)
         walk(self.tree)
-        if sorted(leaves) != list(range(n)) and sorted(leaves) != sorted(self._derived_positions()):
+        # The derivation counts its words as `derived` gives them, a name of several words one: "Did you bring a hair
+        # dryer?" is six. Compared with the record's places, every sentence with such a name before its last word
+        # was refused.
+        if sorted(leaves) != list(range(len(self._derived_positions()))):
             out.append("the derivation does not combine every word once")
         aligned = dict(self.terms)
         for f in self.facts:

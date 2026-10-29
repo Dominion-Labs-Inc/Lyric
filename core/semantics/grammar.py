@@ -816,6 +816,20 @@ class Lexicon:
             counted[link.split("_", 1)[1].replace("_", " ")] += 1
         return [w for w, _ in counted.most_common()]
 
+    def said_with(self, link: str) -> Tuple[Counter, float]:
+        """HOW OFTEN A LINK WAS SAID WITH EACH WORD, AND WITH NONE, as what was taught says it: by a preposition of a
+        doing or a thing (`prep`), after the very word it follows (`prep_of`), after a quality (`holder`); and by no
+        word of its own, as a verb's place (`role`: the object `done_to`), a quality, an adverb or a possessive says
+        it. Each saying counted once (`prep_to` counts one again for each kind its thing is)."""
+        words: Counter = Counter()
+        for table, at in (("prep", 0), ("prep_of", 1), ("holder", 0)):
+            for key, links in self.learned[table].items():
+                if links.get(link, 0) > 0 and len(key) > at:
+                    words[key[at]] += links[link]
+        bare = float(sum(links.get(link, 0) for table in ("role", "quality", "adv", "poss")
+                         for links in self.learned[table].values()))
+        return words, bare
+
     def sense_of(self, name: str, fillers: Mapping[str, str]) -> str:
         """THE SENSE OF A VERB A SENTENCE MEANS, by what fills its places (`fillers`: slot -> the thing's name): each
         sense weighed by how often it is used, and, for each place filled, by how many of the things it was seen used
@@ -2167,12 +2181,16 @@ class Grammar:
 
     def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
         """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
-        name, a pronoun; None where none or more than one."""
+        name, a pronoun (a grammar word standing for the speaker or the hearer, "I", "me", "you", among them); None
+        where none or more than one. Without those, nothing weighed "me" as a subject, and "Me loves the moon." was
+        said of the speaker loving it (lyric_dev2, 2026-10-28)."""
         said = [p for p in pieces if p[0] == "word"]
         at = {p[-1] for p in pieces if p[0] == "kind" and p[1] == ref}
         found = [(p[2], p[4] - 1) for p in said if p[3] in at and p[2] == "NOUN"] or \
             [(p[2], p[3]) for p in said if p[2] == "NAME" and p[1] == ref] or \
-            [("PRONOUN", p[-1]) for p in pieces if p[0] == "pron" and p[1] == ref]
+            [("PRONOUN", p[-1]) for p in pieces if p[0] == "pron" and p[1] == ref] or \
+            [("PRONOUN", p[3]) for p in said if ref in ("?speaker", "?listener") and p[2] == "GRAMMAR"
+             and p[4] - p[3] == 1]
         if len(found) != 1 or not 0 <= found[0][1] < len(self._tokens):
             return None
         return found[0]
@@ -2660,6 +2678,36 @@ class Grammar:
         # 2026-10-28).
         situation = Counter(t for f in meaning.facts for t in (f.subject, f.obj)
                             if t in ("?speaker", "?listener", "?previous"))
+        # EACH GRAMMAR WORD AS SURELY AS IT IS SAID FOR WHAT IT SAYS (lexical choice by how often a word is used so,
+        # Belz 2008): a word saying a piece against the surest word saying the same ("some" 612 of the determiners'
+        # uses against "a" 8,848); a word saying nothing, its share of the uses of words used as it is, said or not;
+        # a preposition, of every way the link it is offered for was said, a verb's place saying it bare among them
+        # (`Lexicon.said_with`: "for" 92 times `done_to`, an object 3,813). Who a pronoun, "I" or "you" stands for
+        # decides it, and agreement with what it is said with: how often each is used does not. Offered as though
+        # each were sure, every word that might say a piece was built with every other ("under", "towards", "if",
+        # "although", "anybody" put into 70,000 makings of "She wears a blue hat."), none of them said, for over ten
+        # minutes; and "some" was said before "a" (lyric_dev2, 2026-10-28).
+        use_of = {(word, e["cat"]): e["use"] for word, held in self.lexicon.closed.items() for e in held
+                  if isinstance(e, Mapping) and "use" in e and "cat" in e}
+        of_use: Dict[str, Tuple[float, int]] = {}
+
+        def share_of(word: str, entry: Entry) -> Optional[float]:
+            use = use_of.get((word, entry.cat))
+            if use is None:
+                return None
+            if use not in of_use:
+                held = [words.uses(w).get(use, 0.0) for w in {w for (w, _), e in use_of.items() if e == use}]
+                of_use[use] = (sum(held), len(held))
+            total, n = of_use[use]
+            return math.log((words.uses(word).get(use, 0.0) + 0.5) / (total + 0.5 * max(n, 1)))
+        links_said: Dict[str, Tuple[Counter, float]] = {}
+
+        def said_for(word: str, link: str, entry: Entry) -> Entry:
+            if link not in links_said:
+                links_said[link] = self.lexicon.said_with(link)
+            held, bare = links_said[link]
+            share = (held.get(word, 0) + 0.5) / (sum(held.values()) + bare + 0.5 * (len(held) + 1))
+            return replace(entry, score=entry.score + math.log(share))
         for word in sorted(self.lexicon.closed):
             for _, entry in self.lexicon.entries((word,), 0):
                 if entry.cls != "GRAMMAR":
@@ -2682,6 +2730,25 @@ class Grammar:
                     # the same without it. Offered as often as there are things, "the" said "Wall is the the a
                     # partition." (lyric_dev2, 2026-10-27). Reading still reads it.
                     empty.append((word, entry))
+        surest: Dict[Tuple[str, ...], float] = {}
+        shares = {(word, entry.cat): share_of(word, entry) for word, entry, _ in chosen}
+        by_whom = {"situation", "pron"}
+        for word, entry, spends in chosen:
+            share = shares[(word, entry.cat)]
+            if share is not None and not any(k[0] in by_whom for k in spends):
+                for k in spends:
+                    surest[k] = max(surest.get(k, share), share)
+        chosen = [(word, entry if shares[(word, entry.cat)] is None or any(k[0] in by_whom for k in spends) else
+                   replace(entry, score=entry.score + shares[(word, entry.cat)] - max(surest[k] for k in spends)),
+                   spends) for word, entry, spends in chosen]
+        surest_of_use: Dict[str, float] = {}
+        for word, entry in empty:
+            share, use = share_of(word, entry), use_of.get((word, entry.cat))
+            if share is not None:
+                surest_of_use[use] = max(surest_of_use.get(use, share), share)
+        empty = [(word, entry if share_of(word, entry) is None else replace(
+            entry, score=entry.score + share_of(word, entry) - surest_of_use[use_of[(word, entry.cat)]]))
+            for word, entry in empty]
         # A PREPOSITION SAYS A LINK HERE ONLY WHERE READING IT HERE GIVES THAT LINK (Kay 1996: only what may say part
         # of the meaning is put in): what the word was taught to say of a doing or a thing, by what the thing it takes
         # is, and what it said of the very word it follows, as `spell_out` decides it. Offered wherever it ever said
@@ -2722,7 +2789,7 @@ class Grammar:
                 for _, entry in self.lexicon.entries((word,), 0):
                     if entry.cls == "PREPOSITION":
                         budget[("fact", link)] = sum(1 for f in meaning.facts if f.relation == link)
-                        chosen.append((word, entry, {("fact", link): 1}))
+                        chosen.append((word, said_for(word, link, entry), {("fact", link): 1}))
         # WHAT THE SENTENCE MAKES, so a word saying nothing is said only as often as what it takes is: each phrase the
         # words for its things and the grammar words saying something come to ("paint" a doing, "is" a doing of a
         # thing), each once a place or as often as what it says; and how many sentences of their own they head.
@@ -2831,9 +2898,22 @@ class Grammar:
         # for "A wall is a partition.", lyric_dev2, 2026-10-27).
         Item = Tuple[int, Tuple[int, ...], Sign, Tuple[str, ...], Tuple[int, ...], Tuple]
         held: Dict[Tuple, Item] = {}
-        agenda: List[Tuple[int, float, int, Item]] = []
+        agenda: List[Tuple[float, int, int, Item]] = []
         pushed = itertools.count()
         none = tuple(0 for _ in spending)
+        # THE MOST EACH PLACE STILL TO BE SAID CAN ADD: the surest of its words alone. Nothing made adds to how surely
+        # a word is read (a join, agreement, a word put beside it each weigh it down), so what is made is never surer
+        # than it and these together, and what is made first is made best first (A*: Klein and Manning 2003).
+        best_at: List[float] = []
+        for options in places:
+            scores = []
+            for at, entry in options:
+                with contextlib.suppress(ValueError, IndexError):
+                    scores.append(self._lexical(tokens, at, at + 1, entry, bound_at.get(at)).score)
+            best_at.append(max(scores, default=-1e9))
+
+        def to_come(filled: int) -> float:
+            return sum(s for k, s in enumerate(best_at) if not filled >> k & 1)
         # A WORD WEIGHED BY THE WORD SAID AFTER IT ("a", "an": `Lexicon._sound_after`) is weighed alone until a word is
         # put after it, then by that word; what ends in one, and what begins with each first sound, is kept apart
         # until then. Packed by meaning alone, "a" was surer alone than "an" and "an" was never said: "A owl is a
@@ -2922,17 +3002,35 @@ class Grammar:
                 agreeing[word] = max(sorted(written), key=lambda f: written[f]) \
                     if written and words.subjects(word) else ""
             return agreeing[word]
+        case_of: Dict[Tuple[str, int], str] = {}
+
+        def standing_as(sign: Sign) -> str:
+            # A THING IS KEPT APART BY ITS CASE, the one form where it stands decides ("I" and "me", "he" and "him"):
+            # the case its word is written with most. Packed by meaning alone, the speaker was said as whichever of
+            # "I" and "me" was surer before any verb took it, and "Me love the moon." was said of the speaker loving
+            # it; kept apart by number and person too, every thing's every form was built with every other's, and "He
+            # fixed the bicycle with a hacksaw." went from 1.9 s to over ten minutes (lyric_dev2, 2026-10-28).
+            if not isinstance(sign.cat, Atom) or sign.cat.base != "NP" or not words.subjects():
+                return ""
+            found = self._said_by(sign.pieces, sign.cat.ref)
+            if found is None:
+                return ""
+            if found not in case_of:
+                forms = self._features(*found)
+                most = max(sorted(forms), key=lambda f: forms[f]) if forms else ""
+                case_of[found] = next((f for f in most.split("|") if f.startswith("Case=")), "")
+            return case_of[found]
 
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
             if not completable(sign) or not timed(sign):
                 return
-            key = (filled, used, _meant(sign, order, tokens), taking_subject(sign)) + (
+            key = (filled, used, _meant(sign, order, tokens), taking_subject(sign), standing_as(sign)) + (
                 (said[-1] if said[-1] in alike else "",
                  first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
             if key in held and held[key][2].score >= sign.score:
                 return
             held[key] = item = (filled, used, sign, said, order, key)
-            heapq.heappush(agenda, (-bin(filled).count("1"), -sign.score, next(pushed), item))
+            heapq.heappush(agenda, (-(sign.score + to_come(filled)), -bin(filled).count("1"), next(pushed), item))
             for u in self._unary(sign):
                 hold(filled, used, u, said, order)
         for k, options in enumerate(places):
@@ -2964,11 +3062,13 @@ class Grammar:
                        or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
         # MADE BEST FIRST, READ BACK AS SOON AS WHOLE, AND MADE NO FURTHER ONCE ENOUGH ARE SAID (anytime realization,
         # White 2004; Carroll and Oepen 2005: a realizer builds the most complete, surest first and stops at the first
-        # good ones, never every way of saying it): the agenda takes first what says most of the meaning, then what is
-        # surest; each sentence made whole is read back at once, and making stops once `SAID_AT_MOST` read back to the
-        # meaning. Every sentence was made and then every one read back: told "Roy painted the box for Tom.", "Who did
-        # Roy paint the box for?" took over ten minutes once 238 words were taught, each preposition taught to say
-        # what it joins combined with every other (lyric_dev2, 2026-10-28).
+        # good ones, never every way of saying it): the agenda takes first what is surest with the most the rest of
+        # the meaning can add (`to_come`); each sentence made whole is read back at once, and making stops once
+        # `SAID_AT_MOST` read back to the meaning. Every sentence was made and then every one read back: told "Roy
+        # painted the box for Tom.", "Who did Roy paint the box for?" took over ten minutes once 238 words were taught,
+        # each preposition taught to say what it joins combined with every other (lyric_dev2, 2026-10-28). Taken by
+        # what says most of the meaning first, the first made were one way of saying it in all its forms: of a dog
+        # being a mammal, "A dog is mammals." and "A dogs is a mammal." were said, never "Dogs are mammals.".
         state = (self._tokens, self._weighed, self._marking, self._asking)
 
         def read_back(said: Tuple[str, ...]) -> None:

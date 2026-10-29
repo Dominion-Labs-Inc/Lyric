@@ -90,6 +90,8 @@ class World:
         self.offered = 0
         #: How far into what it offers the world goes: the first practice, then everything.
         self.limit = len(self.practice)
+        #: What it offered that Lyric has not tried yet.
+        self.untried = []
 
     def look(self):
         """What holds in the world now, or None when it cannot be read."""
@@ -101,13 +103,17 @@ class World:
             return None
 
     def parameters(self, args):
+        named = [str(a) for a in args]
+        self.untried = [a for a in self.untried if [str(t) for t in a.args] != named]
         return {"url": f"{self.base}/act", "method": "POST",
-                "data": dict(zip(self.public["args"], (str(a) for a in args)))}
+                "data": dict(zip(self.public["args"], named))}
 
     def propose(self):
-        """The acts the world lets Lyric practise, those not yet offered first: its first practice, then more of the
-        same kind whenever Lyric explores again, whose things the world brings as it offers them."""
-        batch = self.offerable[self.offered:self.limit][:MAX_ACTIONS]
+        """The acts the world lets Lyric practise that Lyric has not tried: its first practice, then, once Lyric
+        explores again, all the more it has, whose things the world brings as it offers them. Which Lyric tries
+        first is Lyric's (`SubstrateExplorer._unsure_first`); offered in batches in a fixed order, the world chose
+        for it."""
+        batch = self.offerable[self.offered:self.limit]
         arriving = self.offered + len(batch) - max(self.offered, len(self.practice))
         if arriving > 0:
             request = urllib.request.Request(f"{self.base}/offer", data=json.dumps({"count": arriving}).encode(),
@@ -115,7 +121,8 @@ class World:
             with urllib.request.urlopen(request) as answer:
                 answer.read()
         self.offered += len(batch)
-        return batch
+        self.untried += batch
+        return list(self.untried)
 
     def register(self):
         from core.learning.exploration import register_explorable_domain
@@ -155,10 +162,13 @@ async def run_world(public, run_tag, port, coordinator, db, store):
     dom = f"ra02_{run_tag}_{public['world']}"
     world = World(public, port, dom).register()
     practice = []
-    while world.offered < len(world.practice):
+    while world.offered < len(world.practice) or world.untried:
+        left = (world.offered, len(world.untried))
         cycle = await SubstrateExplorer().explore(dom, world.propose, max_actions=MAX_ACTIONS)
         practice.append({k: cycle.get(k, 0) for k in ("acted", "positive", "negative", "contrastive", "refused",
                                                        "interfered")})
+        if (world.offered, len(world.untried)) == left:
+            break
     world.limit = len(world.offerable)
     await learned(db, dom)
 

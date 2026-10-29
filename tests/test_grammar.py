@@ -758,7 +758,9 @@ def test_a_or_an_is_said_as_the_word_after_it_is_said():
     g = gm.Grammar(gm.Lexicon(Sounding()))
     said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "owl", "bird"),)))
     assert said and said[0].startswith("An owl "), said[:5]
-    assert said.index("An owl is a bird.") < said.index("An owl is an bird."), said[:8]
+    # Saying stops once it has said enough (`SAID_AT_MOST`): "an bird", less sure, is said after "a bird" or never.
+    assert "An owl is an bird." not in said or said.index("An owl is a bird.") < said.index("An owl is an bird."), \
+        said[:8]
     assert not any(s.startswith("A owl ") for s in said), said[:8]
     sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
             for text in ("An owl is a bird.", "A owl is a bird.")}

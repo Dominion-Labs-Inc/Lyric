@@ -49,6 +49,24 @@ first three cost in goals reached:
    act on changed; the learning explores again while each round shows a situation not seen before, and ends where the
    domain shows nothing new. The 582 worlds of `20261028T171857Z_merged` still reaching fewer allowed goals than
    `20261028T113002Z` were rerun with it (`20261028T210227Z`) and merged into `20261028T171857Z_retry`.
+6. **Each world is judged on its own failures** (`AppraisalSystem.state_for`, `disposition(domain=)`). Lyric's
+   disposition was one for the whole self, moved by every world's failures, half of them goals the worlds refuse by
+   design; a new world's first gap then read as a blocker outside Lyric, and it did not learn toward it (world 34; 80
+   deficits in `20261028T210227Z`). The appraisal now also keeps each domain's own state from the updates about it,
+   the goal path's updates say which domain they concern, and the deficit's closure and the retry read that domain's.
+7. **Lyric practises first what it has not seen work** (`SubstrateExplorer._unsure_first`). Of the acts on offer,
+   those whose successes never covered the case they would meet are tried first. The world after the goals offers all
+   the practice it has instead of eight at a time in a fixed order (`World.propose`; the same acts, Lyric choosing
+   which to try), and a goal the law left unplanned is no longer read as one the world forbids: the planner names the
+   acts it left out for want of evidence (`PlanningOutcome.untested`), the outcome is "not established", and the gap
+   is one to learn toward (`CAUSAL_GAP`), not impossible. Its retry goes ahead when the learning showed Lyric a
+   situation not seen before, as well as when its rules changed.
+8. **A rule can be given as cases** (`RuleInducer._by_cases`, `_judge_cases`). Where no rule fits, nor one needing a
+   condition absent, the act may work in any of a few cases: the most general sets of conditions the successes they
+   explain all held and no miss held, the fewest that together explain every success. Each case is induced as a rule
+   of its own from its successes and every miss, recorded against them, and holds authority once a success it was not
+   induced from confirms it; two ways of cases equally few leave authority waiting. This is how "either of two groups
+   of conditions" is now said.
 
 **What it gains and costs.** Lyric reached 2,849 of the 6,000 goals the world allows, against 2,484 in
 `20261028T113002Z`, whose 3,028 acts in pursuit of goals included 406 the world refused; its 3,009 here include none.

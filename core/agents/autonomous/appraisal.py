@@ -1093,6 +1093,14 @@ class AppraisalSystem:
         self._sharing: set = set()
         #: The last update's own appraisal, before blending (see `update`).
         self.last_appraised: Optional[AppraisalState] = None
+        #: EACH DOMAIN JUDGED ON ITS OWN. The same updates, blended per domain
+        #: they concern (`about_domain`), read by a judgement about one domain
+        #: (`state_for`): whether a gap there can be closed from here is a
+        #: question about that world, not about every other world's failures.
+        #: In RULE-AUTHORITY-02 the goals worlds refuse by design moved the one
+        #: state until a new world's first gap read as an outside blocker, and
+        #: Lyric did not learn toward it. Held in this process; not the world's.
+        self._by_domain: Dict[str, AppraisalState] = {}
 
     @property
     def current_state(self) -> Optional[AppraisalState]:
@@ -1103,6 +1111,12 @@ class AppraisalSystem:
     @current_state.setter
     def current_state(self, state: Optional[AppraisalState]) -> None:
         self._state = state
+
+    def state_for(self, domain: str) -> Optional[AppraisalState]:
+        """How one domain stands NOW, from the updates about it alone; None
+        until something there has been appraised."""
+        state = self._by_domain.get(domain)
+        return None if state is None else _faded(state)
 
     async def join_world(self, db) -> None:
         """Hold the world's appraisal from now on: take what its row holds, and
@@ -1285,6 +1299,9 @@ class AppraisalSystem:
             self._sharing.add(task)
             task.add_done_callback(self._sharing.discard)
         self._state = _onto(self._state, incoming)
+        if incoming.about_domain:
+            self._by_domain[incoming.about_domain] = _onto(
+                self._by_domain.get(incoming.about_domain), incoming)
         state = self.current_state
         self.history.append(state.to_dict())
         if len(self.history) > self.HISTORY_MAX:

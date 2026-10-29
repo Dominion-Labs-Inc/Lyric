@@ -172,6 +172,10 @@ class PlanningOutcome:
     route: Any = None
     grounding: Any = None
     world: List[Any] = field(default_factory=list)
+    #: Acts that apply where the search starts and were left out because none
+    #: of their successes covered the case there (`_untested`): what Lyric
+    #: would have to see work before it acts there.
+    untested: List[str] = field(default_factory=list)
 
     @property
     def found(self) -> bool:
@@ -785,13 +789,31 @@ class TemporalReasoningSystem:
             status = PlanningStatus.INDETERMINATE
             reason = (f"{result.reason}; but grounding was truncated, so unreached is "
                       f"not unreachable")
+        # NOR IS IT WHERE ACTS WERE LEFT OUT FOR WANT OF EVIDENCE. An act its
+        # successes never covered here is one Lyric has not seen work in this
+        # case, not one the world forbids: read as a proof, it made the domain
+        # authority call the goal impossible, and nothing was learned toward it.
+        untested: List[str] = []
+        if status is PlanningStatus.UNREACHABLE:
+            held = {f.to_formula() for f in state_facts}
+            untested = sorted(
+                action["name"] for action in actions
+                if action.get("successes")
+                and self._instances({**action, "successes": None}, held, None, 0, frozenset())
+                and not self._instances(action, held, None, 0, frozenset()))
+            if untested:
+                status = PlanningStatus.INDETERMINATE
+                reason = (f"{result.reason}; but {len(untested)} act(s) that apply here were "
+                          f"left out, none of their successes covering the case, so "
+                          f"unreached is not unreachable")
         return PlanningOutcome(
             status, reason=reason, goal_conditions=list(result.goal_conditions),
             grounding_complete=grounding.complete,
             operators_considered=len(grounding.operators),
             route=result if status is PlanningStatus.PLAN_FOUND else None,
             grounding=grounding,
-            world=sorted(state_facts, key=str))
+            world=sorted(state_facts, key=str),
+            untested=untested)
 
     def plan_for_state_goal(
         self,

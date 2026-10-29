@@ -459,13 +459,7 @@ def _conditions(example: "TrainingExample") -> FrozenSet[str]:
     return _by_place(example.before, example.action)
 
 
-def _by_place(facts, action) -> FrozenSet[str]:
-    places: Dict[str, List[str]] = {}
-    for i, a in enumerate(action.args if action is not None else ()):
-        places.setdefault(a, []).append(str(i))
-    return frozenset(f"{f.predicate}({','.join(combo)})"
-                     for f in facts
-                     for combo in itertools.product(*(places.get(a, ["_"]) for a in f.args)))
+from core.learning.rule_induction import _by_place  # noqa: E402  (its one owner)
 
 
 def _rule_conditions(rule: "CandidateRule") -> FrozenSet[str]:
@@ -3370,11 +3364,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                 producer=f"clause_classifier:{name}")
         return Naming(str(instance_id), str(labels[cls]), evidence)
 
-    def induce(self, examples, target_predicate: Optional[str] = None):
+    def induce(self, examples, target_predicate: Optional[str] = None, cases: bool = False):
         """Learn a rule from demonstrations. The world is the only teacher here."""
-        return self.inducer.induce(examples, target_predicate=target_predicate)
+        return self.inducer.induce(examples, target_predicate=target_predicate, cases=cases)
 
-    async def induce_on_thread(self, examples, target_predicate: Optional[str] = None):
+    async def induce_on_thread(self, examples, target_predicate: Optional[str] = None,
+                               cases: bool = False):
         """`induce` on a worker thread, for the coroutines that learn.
 
         Induction is CPU work with no await in it. On the event loop, one long
@@ -3382,9 +3377,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         (RULE-AUTHORITY-02), a world whose demonstrations related one thing to
         several others held the loop for minutes, and every other worker's
         database query timed out waiting behind it."""
-        return await asyncio.to_thread(self.induce, examples, target_predicate)
+        return await asyncio.to_thread(self.induce, examples, target_predicate, cases)
 
-    async def induce_bounded(self, examples, contrastive=(), frame=lambda basis: basis):
+    async def induce_bounded(self, examples, contrastive=(), frame=lambda basis: basis,
+                             cases: bool = False):
         """Induce from a bounded basis (`_bounded_basis`) that leaves out no miss
         what was induced applies to. Returns the result and the framed basis.
 
@@ -3399,7 +3395,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         from core.learning.rule_induction import judged_by
         chosen = _bounded_basis(examples, contrastive)
         while True:
-            result = await self.induce_on_thread(frame(chosen))
+            result = await self.induce_on_thread(frame(chosen), cases=cases)
             kept = {id(e) for e in chosen}
             missed = [e for e in examples if not e.positive and id(e) not in kept
                       and any(judged_by(c, e) is False for c in result.candidates)]
@@ -5817,10 +5813,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             held_out.append(signature_basis.pop(latest))
 
         result, basis = await self.induce_bounded(
-            signature_basis, contrastive, frame=_relevant_frame)
+            signature_basis, contrastive, frame=_relevant_frame, cases=True)
         summary["status"] = result.status.value
         if result.status is not InductionStatus.RULE_LEARNED:
             return summary, None, []
+        if result.cases:
+            return await self._judge_cases(
+                result, basis, held_out, summary, signature_examples=signature_examples,
+                departed=departed, domain_id=domain_id, predicate=predicate,
+                rule_kind=rule_kind)
         # NOTHING OF A PERSON IS LEFT IN IT (docs/research/SEPARATION_MAP.md
         # §10.2 and §11.6). An operator induced only from people's work, holding a
         # constant every one of them supplied, holds their particulars: it waits
@@ -5875,6 +5876,71 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         promoted = [r for r in await self.store.executable_rules(domain_id=domain_id)
                     if r.rule_id == record.rule_id]
+        summary["executable"] = bool(promoted)
+        summary["status"] = "operator_executable" if promoted else "operator_candidate"
+        return summary, (promoted[0] if promoted else None), basis
+
+    async def _judge_cases(self, result, basis, held_out, summary, *, signature_examples,
+                           departed, domain_id: str, predicate: str, rule_kind: str):
+        """A rule given as cases (`RuleInducer._by_cases`), judged as one rule is,
+        case by case. Each must name the act, hold nothing of a person, and keep
+        every condition the successes it explains all held (`_unshown`); each is
+        recorded against those successes and every miss, and holds authority once
+        a success it was not induced from confirms it: the held-out one now, a
+        later one at a later judgement."""
+        from core.learning.demonstration_store import get_demonstration_store
+        from core.learning.rule_induction import judged_by
+        misses = [e for e in basis if not e.positive]
+        for rule, group in zip(result.candidates, result.cases):
+            acted = getattr(rule, "action", None)
+            if acted is None or acted.predicate != predicate:
+                summary["status"] = "effect_without_act"
+                summary["detail"] = str(rule)
+                return summary, None, []
+            case_basis = list(group) + misses
+            owners = await get_demonstration_store().owners(
+                [e.evidence_id for e in case_basis if e.evidence_id])
+            residue = _operator_residue(rule, case_basis, owners)
+            if residue:
+                summary["status"] = "awaiting_lift"
+                summary["residue"] = residue
+                return summary, None, []
+            untested = _unshown(rule, group)
+            if untested:
+                summary["status"] = "awaiting_evidence"
+                summary["detail"] = untested
+                return summary, None, []
+
+        records = []
+        for rule, group in zip(result.candidates, result.cases):
+            stored = await self.record(
+                InductionResult(status=InductionStatus.RULE_LEARNED, candidates=[rule],
+                                detail=result.detail),
+                list(group) + misses, domain_id=domain_id, rule_kind=rule_kind)
+            records += stored[:1]
+        if not records:
+            return summary, None, []
+        summary["rule_id"] = records[0].rule_id
+        summary["cases"] = [r.rule_id for r in records]
+
+        unreliable = _relied_on(signature_examples, departed)
+        if unreliable:
+            summary["detail"] = unreliable
+            for record in records:
+                if record.status is EpistemicStatus.VALIDATED:
+                    await self.store.withhold(record, unreliable)
+        elif held_out:
+            for record in records:
+                if judged_by(record.rule, held_out[0]) is not True:
+                    continue
+                try:
+                    await self.store.validate(record, held_out)
+                except Exception as e:
+                    raise_if_structural(e, "unified_learning_system._judge_cases")
+                    logger.info("validation of %s deferred: %s", record.rule_id, e)
+
+        executable = {r.rule_id for r in await self.store.executable_rules(domain_id=domain_id)}
+        promoted = [r for r in records if r.rule_id in executable]
         summary["executable"] = bool(promoted)
         summary["status"] = "operator_executable" if promoted else "operator_candidate"
         return summary, (promoted[0] if promoted else None), basis

@@ -12,7 +12,20 @@ The previous handoff (2026-10-01) is in git history.
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
 
-**LATEST (lab notebook (67), 2026-10-28, the owner's four open items): three fixed at their causes, one traced to
+**LATEST (lab notebook (68), 2026-10-28, late): THE STANDARD'S TWO LAYERS TAUGHT ON lyric_dev2 READ BETTER THAN MAIN
+ON THE STRUCTURE AND ON REAL SENSES.** lyric_dev2 holds 245 words recorded whole and 6,137 PMB gold training sentences
+recorded whole (`record_of_pmb`; built with scratch scripts, not in the repo: rebuild with `word_record_of` /
+`record_of_pmb`, teach with `scripts/teach.py --source records`, words first). On 77 held-out PMB dev sentences of
+taught words: structure right 26 (main 22), right with real senses 18 (main 15), senses aside 23 (main 26, a measure
+that counts lyric_dev2's chosen senses wrong). Record gaps filled: case on subjects (`_subjects_taking`), pro-forms
+("how", `_pro_form`), the base-spelled present. Data conversion: a PMB role's line said by its person's words, dates
+anchored (`pmb_meanings`); the record's derivation check counted a name of several words as several. Saying: agreement
+weighs a word's forms by how often (`_agreed`), "I"/"me" are subjects (`_said_by`) kept apart by case
+(`standing_as`), A* with each grammar word as sure as it is said (`Lexicon.said_with`): the three probes 0.4-6.6 s,
+English. Open: "at night"; the measure's senses-aside; the pronoun for the one spoken of; the full PMB dev set needs its
+words taught.
+
+**EARLIER (lab notebook (67), 2026-10-28, the owner's four open items): three fixed at their causes, one traced to
 two sources that disagree.** (1) "Picture is a representation." / "Walls are a partition." said first: the structure
 view tagged a word memory holds by its capital alone (a one-sentence view: "Roy"), memory held every noun as a name too,
 and records never counted a name use; now a word memory holds is weighed by what memory holds of it

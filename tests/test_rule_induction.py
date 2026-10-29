@@ -422,3 +422,28 @@ def test_a_rule_can_need_a_condition_absent(inducer):
     assert not applies(rule, press(6, "READY", "JAMMED", worked=False))
     assert applies(rule, press(7, "READY", worked=True))
     assert "¬JAMMED" in str(rule)
+
+
+def test_a_rule_can_be_given_as_cases(inducer):
+    """A press works on a lit button, or on one that is warm and ready: the successes share nothing a refusal lacks,
+    so no rule fits, nor one needing something absent. Asked for cases, induction gives the act's two, each a rule
+    of its own from the successes it explains; not asked, none."""
+    def press(i, *held, worked):
+        thing = f"b{i}"
+        before = tuple(sorted(F(f"{p}({thing})") for p in held))
+        after = before + ((F(f"PRESSED({thing})"),) if worked else ())
+        return TrainingExample(before=before, action=F(f"PRESS({thing})"), after=tuple(sorted(after)),
+                               positive=worked, evidence_id=f"p{i}")
+    examples = ([press(0, "LIT", worked=True), press(1, "LIT", "DUSTY", worked=True),
+                 press(2, "WARM", "READY", worked=True), press(3, "WARM", "READY", "DUSTY", worked=True)]
+                + [press(4, "WARM", worked=False), press(5, "READY", "DUSTY", worked=False),
+                   press(6, "DUSTY", worked=False)])
+    assert inducer.induce(examples).status is InductionStatus.NO_RULE
+    result = inducer.induce(examples, cases=True)
+    assert result.status is InductionStatus.RULE_LEARNED
+    assert sorted(sorted(f.predicate for f in rule.preconditions) for rule in result.candidates) == [
+        ["LIT"], ["READY", "WARM"]]
+    assert sorted(len(group) for group in result.cases) == [2, 2]
+    lit, warm = sorted(result.candidates, key=lambda rule: len(rule.preconditions))
+    assert applies(lit, press(7, "LIT", worked=True)) and not applies(lit, press(8, "WARM", "READY", worked=True))
+    assert applies(warm, press(9, "WARM", "READY", worked=True)) and not applies(warm, press(10, "WARM", worked=False))

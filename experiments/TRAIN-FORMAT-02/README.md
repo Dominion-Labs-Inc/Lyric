@@ -241,3 +241,10 @@ treebank: the noun's plural "paints".
   a kind of: "some"'s senses are WordNet's adjective and adverb, which WordNet gives no kinds; the check asks it of a
   noun's or a verb's senses now. **Worse:** "Is paint a substance?" "Yes. A paint is a substance." (was "Paint ...":
   "Paint", first with a capital, had been read a name, as "Roy").
+- **2026-10-28, late: the standard's two layers on lyric_dev2** (lab notebook (68)). 245 words recorded whole (the 77
+  held-out PMB dev sentences' words, "how", "when", "where", "why", and "growl", "approach", "spin"; "fermilab" and
+  "yumi" left out, no form) rebuilt with each subject's case, pro-forms and the base-spelled present: 7 remembered, 84
+  corrected, 155 already, none refused. Then 6,137 PMB gold training sentences recorded whole (`record_of_pmb`): 5,937
+  remembered, none refused, 75 s. On the 77 sentences, read with the same code as main: structure right 26 of 77 (main
+  22), right with real senses 18 (main 15; words alone 16), senses aside 23 (main 26). Saying the three probes: "He
+  mended the bike with a hacksaw." 0.4 s, "I love the moon." 5.3 s, "He wears a blue hat." 6.6 s.

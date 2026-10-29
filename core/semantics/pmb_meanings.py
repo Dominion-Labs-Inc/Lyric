@@ -749,13 +749,21 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
     used = {t for f in facts for t in f.terms()}
     anchors: Dict[str, Set[Tuple[int, str]]] = {}
     for k, c in enumerate(concepts):
-        if c.sense.startswith("?") or c.sense == "time.n.08":
+        # A time's line says the date it holds ("in 1939": `during(?v1, 1939)`); a time no words say (the tense's)
+        # says nothing.
+        if c.sense.startswith("?") or (c.sense == "time.n.08" and k not in dates):
             continue
+        # A ROLE'S LINE has no words of its own ("the teacher": `person.n.01` with `Role` `teacher.n.01`): what it
+        # says is said by the words of the thing it is the role of. Anchored at its own line, the kind "teacher" was
+        # said by no word, and 7 of the first 33 gold training sentences recorded whole were refused (2026-10-28).
+        lines = [k] if c.span else [j for j, other in enumerate(concepts)
+                                    if other.span and j != k and final(j) == final(k)] or [k]
         said = [(final(k), "head"), (name_of(c.sense) or "", "head"), (f"?q{k}", "marked"), (f"?d{k}", "head"),
-                (f"?s{k}", "head")]
+                (f"?s{k}", "head"), (dates.get(k, ""), "head")]
         for t, how in said:
             if t and t in used:
-                anchors.setdefault(t, set()).add((k, how))
+                for at in lines:
+                    anchors.setdefault(t, set()).add((at, how))
     try:
         return Said(Meaning(act, tuple(facts), asked_now if act == "ask" else ()), (),
                     {t: tuple(sorted(at)) for t, at in anchors.items()})

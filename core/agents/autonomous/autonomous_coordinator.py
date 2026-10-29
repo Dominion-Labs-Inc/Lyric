@@ -11478,8 +11478,11 @@ class AutonomousCoordinator:
                     p.environment_id, len(entries), files, dirs, learned)
 
     def disposition(self, *, slots_available: Optional[int] = None,
-                    queue_pressure: Optional[str] = None):
+                    queue_pressure: Optional[str] = None,
+                    domain: Optional[str] = None):
         """How my disposition applies to the situation now — a BehavioralDirective.
+        Asked about one domain, it reads that domain's own appraisal
+        (`AppraisalSystem.state_for`): a world is judged on its own failures.
 
         The arbiter reads appraisal's pressures; the substrate surfaces the
         decision the faculties already make. A None appraisal yields the neutral
@@ -11509,8 +11512,9 @@ class AutonomousCoordinator:
                     queue_pressure = queue.pressure()
             except Exception as error:
                 logger.debug("acting capacity unreadable for disposition: %s", error)
+        appraisal = self._appraisal()
         return self.arbiter.decide(
-            self._appraisal().current_state,
+            appraisal.state_for(domain) if domain else appraisal.current_state,
             slots_available=slots_available, queue_pressure=queue_pressure)
 
     def _effective_max_parallel(self) -> int:
@@ -12099,6 +12103,14 @@ class AutonomousCoordinator:
         from core.learning.rule_store import get_rule_store
         return frozenset(r.rule_id for r in await get_rule_store().executable_rules(domain_id=domain_id))
 
+    async def _known_in(self, domain_id: Optional[str]) -> tuple:
+        """What a retry's attempt changes with: the rules Lyric may act on in a
+        domain, and the situations its acts were seen in there, which decide
+        the cases its constitution lets it act in (Law 2)."""
+        if not domain_id:
+            return (frozenset(), frozenset())
+        return (await self._operators_known(domain_id), await self._situations_shown(domain_id))
+
     @staticmethod
     async def _situations_shown(domain_id: str) -> FrozenSet:
         """Every situation a domain's acts were seen in, with what each did (`_conditions`)."""
@@ -12162,8 +12174,9 @@ class AutonomousCoordinator:
         # (1) Belief authority: register the ignorance (idempotent per domain+question).
         unknown_id = self._register_deficit_unknown(deficit)
 
-        # (2) Disposition + closeability gate. Appraisal owns the call; we consume it.
-        directive = self.disposition()
+        # (2) Disposition + closeability gate. Appraisal owns the call; we consume it,
+        # as it stands for this domain.
+        directive = self.disposition(domain=domain)
         self_closeable = op in (
             LearningOperation.LEARN_OPERATOR, LearningOperation.VALIDATE_CAUSE,
             LearningOperation.PROBE, LearningOperation.ACHIEVE_PREREQUISITE,
@@ -13575,7 +13588,8 @@ class AutonomousCoordinator:
         self.appraisal.update(outcome_quality=evaluated.outcome_quality,
                               intrinsic_reward=evaluated.intrinsic_reward,
                               outcome_class=verdict.get("outcome_class"),
-                              concerns=f"task {task.id}")
+                              concerns=f"task {task.id}",
+                              concerns_domain=(getattr(task, "provenance", None) or {}).get("domain_id"))
         valence = getattr(self.appraisal.last_appraised, "valence", None)
         people = getattr(self.appraisal.current_state, "people_reward", None)
         felt = (valence if valence is None or people is None
@@ -15470,15 +15484,16 @@ class AutonomousCoordinator:
                 # re-explore the same gap every attempt.
                 _deficit = result.get("deficit") if isinstance(result, dict) else None
                 _learning = None
-                _known = frozenset()
+                _known: tuple = ()
                 if _deficit and not (task.metadata or {}).get("deficit_closure_emitted"):
                     if task.metadata is None:
                         task.metadata = {}
                     task.metadata["deficit_closure_emitted"] = True
-                    # WHAT LYRIC MAY ACT ON NOW, and the learning this deficit
-                    # starts, which the retry below waits for. Not on the drain
-                    # worker, which runs that learning itself.
-                    _known = await self._operators_known(_deficit.get("domain_id"))
+                    # WHAT LYRIC MAY ACT ON NOW, and what it has seen there,
+                    # and the learning this deficit starts, which the retry
+                    # below waits for. Not on the drain worker, which runs that
+                    # learning itself.
+                    _known = await self._known_in(_deficit.get("domain_id"))
                     if asyncio.current_task() is not self._reactive_worker:
                         _learning = asyncio.get_running_loop().create_future()
                         self._learning_toward[task.id] = _learning
@@ -15506,8 +15521,11 @@ class AutonomousCoordinator:
                     # the arbiter's verdict (below, to steer the self-directed
                     # diagnostic) and records it for attribution. A neutral/absent
                     # appraisal yields a neutral directive (both False), preserving
-                    # the prior behaviour exactly.
-                    _directive = self.disposition()
+                    # the prior behaviour exactly. Work in a domain is judged on
+                    # that domain's own failures.
+                    _directive = self.disposition(domain=(
+                        (_deficit or {}).get("domain_id")
+                        or (getattr(task, "provenance", None) or {}).get("domain_id")))
 
                     # FAILURE CONTEXT: Record exactly WHY this attempt failed so the
                     # next execution has concrete error information rather than retrying
@@ -15602,7 +15620,7 @@ class AutonomousCoordinator:
                     _learned = False
                     if _learning is not None:
                         await _learning
-                        _learned = await self._operators_known(_deficit.get("domain_id")) != _known
+                        _learned = await self._known_in(_deficit.get("domain_id")) != _known
                     _repeat_is_thrash = (_directive.should_replan
                                          and not _changed_method
                                          and not _learned
@@ -17702,6 +17720,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 try:
                     self.appraisal.update(
                         outcome_quality=0.0, self_initiated=self_initiated,
+                        concerns_domain=domain_id,
                         **deficit.appraisal_signals(),
                     )
                 except Exception as e:
@@ -18214,6 +18233,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 self.appraisal.update(
                     outcome_quality=1.0 if reconciled["matched_aim"] else 0.0,
                     self_initiated=self_initiated,
+                    concerns_domain=domain_id,
                     intent_outcome=reconciled)
             except Exception as e:
                 logger.debug("disposition not updated from the reconciled "

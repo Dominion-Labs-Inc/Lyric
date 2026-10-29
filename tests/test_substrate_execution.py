@@ -1058,7 +1058,7 @@ def test_learning_toward_a_deficit_goes_on_while_the_domain_shows_something_new(
     coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
     coord.stats = {}
     coord._register_deficit_unknown = lambda deficit: None
-    coord.disposition = lambda: SimpleNamespace(should_escalate=False)
+    coord.disposition = lambda **asked: SimpleNamespace(should_escalate=False)
     rounds = []
 
     async def address_deficit(deficit):
@@ -1087,3 +1087,59 @@ def test_learning_toward_a_deficit_goes_on_while_the_domain_shows_something_new(
         "domain_id": "w10", "deficit_type": "operator_gap", "target_predicate": "GAPI"}))
     asyncio.run(coord._close_deficit(event))
     assert len(rounds) == explored
+
+
+def test_a_world_is_judged_on_its_own_failures():
+    """Goals the worlds refuse by design moved the one appraisal until a new world's first gap read as an outside
+    blocker, and Lyric did not learn toward it (RULE-AUTHORITY-02, world 34). Asked about one domain, the disposition
+    reads that domain's own failures: the refused world escalates, the world that only lacks an operator does not."""
+    from core.agents.autonomous.appraisal import AppraisalSystem
+    from core.agents.autonomous.behavior_arbiter import BehaviorArbiter
+    from core.integration.universal_domain_master import DeficitType, EpistemicDeficit
+
+    async def run():
+        appraisal = AppraisalSystem()
+        for _ in range(6):
+            refused = EpistemicDeficit(domain_id="w_refused", deficit_type=DeficitType.WORLD_PREVENTS,
+                                       target_predicate="P")
+            appraisal.update(outcome_quality=0.0, action_success_rate=0.0, concerns_domain="w_refused",
+                             **refused.appraisal_signals())
+        gap = EpistemicDeficit(domain_id="w_new", deficit_type=DeficitType.OPERATOR_GAP, target_predicate="Q")
+        appraisal.update(outcome_quality=0.0, concerns_domain="w_new", **gap.appraisal_signals())
+        arbiter = BehaviorArbiter()
+        decide = lambda state: arbiter.decide(state, slots_available=1, queue_pressure="nominal")
+        return (decide(appraisal.current_state).should_escalate,
+                decide(appraisal.state_for("w_refused")).should_escalate,
+                decide(appraisal.state_for("w_new")).should_escalate,
+                appraisal.state_for("w_unseen"))
+
+    whole_self_escalates, refused_escalates, new_escalates, unseen = asyncio.run(run())
+    assert whole_self_escalates, "the case this answers: the whole self reads the new world's gap as an outside blocker"
+    assert refused_escalates and not new_escalates
+    assert unseen is None
+
+
+def test_the_explorer_tries_first_what_it_has_not_seen_work(monkeypatch):
+    """Of the acts on offer, those whose successes never covered the case they would meet are tried first: PRESS
+    worked only on buttons that were ready and lit, so an unlit button and a jammed one come before a lit one."""
+    import core.learning.demonstration_store as demonstration_store
+    import core.learning.exploration as exploration
+    from types import SimpleNamespace
+    from core.learning.rule_induction import Fact, TrainingExample
+    success = TrainingExample(before=(Fact.parse("READY(s1)"), Fact.parse("LIT(s1)")), action=Fact.parse("PRESS(s1)"),
+                              after=(Fact.parse("READY(s1)"), Fact.parse("LIT(s1)"), Fact.parse("PRESSED(s1)")),
+                              positive=True, evidence_id="s1")
+
+    async def load(**asked):
+        return [success]
+    monkeypatch.setattr(demonstration_store, "get_demonstration_store", lambda: SimpleNamespace(load=load))
+    world = frozenset(Fact.parse(f) for f in ("READY(b1)", "LIT(b1)", "READY(b2)", "READY(b3)", "LIT(b3)",
+                                              "JAMMED(b3)"))
+
+    async def observe(domain_id):
+        return world
+    monkeypatch.setattr(exploration, "observe_world_async", observe)
+    monkeypatch.setattr(exploration, "look_at", lambda domain_id, args: None)
+    offered = [Fact.parse("PRESS(b1)"), Fact.parse("PRESS(b2)"), Fact.parse("PRESS(b3)")]
+    order = asyncio.run(exploration.SubstrateExplorer._unsure_first("buttons", offered))
+    assert [str(a) for a in order] == ["PRESS(b2)", "PRESS(b3)", "PRESS(b1)"]
