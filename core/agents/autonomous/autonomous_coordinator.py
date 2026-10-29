@@ -7264,6 +7264,11 @@ class AutonomousCoordinator:
         #: The learning a failed task's deficit started (`_react_close_deficit`),
         #: by task id, which its retry waits for.
         self._learning_toward: Dict[str, asyncio.Future] = {}
+        #: The learning under way in each domain (`_react_close_deficit`).
+        self._learning_in: Dict[str, int] = {}
+        #: Goals given up for want of what Lyric did not yet know, by domain, with
+        #: what it knew there then (`_await_knowledge`, `_revisit_awaiting`).
+        self._awaiting_knowledge: Dict[str, Dict[str, tuple]] = {}
         # Intrinsic exploration queue control
         # Applies only to intrinsic exploration tasks (metadata: intrinsic_kind="exploration").
         # Set to 0 to disable intrinsic exploration entirely.
@@ -12088,12 +12093,78 @@ class AutonomousCoordinator:
     async def _react_close_deficit(self, event: SelfEvent) -> None:
         """`_close_deficit`, and then the task that diagnosed it hears that the
         learning it waits for has ended, however it ended."""
+        domain = getattr(event.payload, "domain", None)
         try:
             await self._close_deficit(event)
         finally:
             waiting = self._learning_toward.pop(getattr(event.payload, "task_id", None), None)
             if waiting is not None and not waiting.done():
                 waiting.set_result(None)
+            if self._learning_in.get(domain, 0) > 0:
+                self._learning_in[domain] -= 1
+        await self._revisit_awaiting(domain)
+
+    def learning_in(self, domain: str) -> bool:
+        """Whether learning a goal there started is still under way."""
+        return self._learning_in.get(domain, 0) > 0
+
+    async def _await_knowledge(self, task, result) -> None:
+        """A goal given up for want of what Lyric can learn waits for it.
+
+        GIVEN UP IS NOT GONE. A goal stopped because Lyric did not yet know how
+        -- no rule, or none whose successes covered the case -- was closed for
+        good, and what Lyric learned seconds later, from its next goal or the
+        practice that followed, never came back to it (RULE-AUTHORITY-02: 38
+        goals the world allows, each reached by a rule Lyric held at the end).
+        It is kept with what Lyric knew there when it gave up, and drawn again
+        once that changes (`_revisit_awaiting`).
+
+        "The world prevents it" is kept too. It is proved over the rules Lyric
+        holds, and Lyric cannot tell a goal the world refuses from one whose
+        case it has not learned yet: world 1382's goal was given up so when the
+        rule for the act's first case did not reach it, and the rule for its
+        second, learned a minute later, was never tried on it. Only a gap that
+        needs what Lyric cannot supply from here (a concept, a tool, a way to
+        look) waits for nothing it could learn."""
+        deficit = result.get("deficit") if isinstance(result, dict) else None
+        if not isinstance(deficit, dict) or not deficit.get("domain_id"):
+            return
+        from core.integration.universal_domain_master import (
+            EpistemicDeficit, LearningOperation)
+        if EpistemicDeficit.from_dict(deficit).operation not in (
+                LearningOperation.LEARN_OPERATOR, LearningOperation.VALIDATE_CAUSE,
+                LearningOperation.PROBE, LearningOperation.ACHIEVE_PREREQUISITE,
+                LearningOperation.DISENGAGE):
+            return
+        domain = deficit["domain_id"]
+        self._awaiting_knowledge.setdefault(domain, {})[task.id] = await self._known_in(domain)
+
+    async def _revisit_awaiting(self, domain: Optional[str]) -> None:
+        """Draw again each goal given up there for want of knowledge, once what
+        Lyric knows there has changed since. Each is drawn once per change, and
+        one that fails again waits for the next."""
+        waiting = self._awaiting_knowledge.get(domain) if domain else None
+        if not waiting:
+            return
+        known = await self._known_in(domain)
+        from .shared_types import description_fingerprint
+        for task_id, then in list(waiting.items()):
+            if then == known:
+                continue
+            del waiting[task_id]
+            queued = self.task_queue.tasks_by_id.get(task_id)
+            task = getattr(queued, "task", None)
+            if task is None:
+                continue
+            task.retry_count = 0
+            if task.metadata is None:
+                task.metadata = {}
+            task.metadata.pop("deficit_closure_emitted", None)
+            task.metadata["revisits"] = task.metadata.get("revisits", 0) + 1
+            self._permanently_failed_fps.discard(description_fingerprint(task.description))
+            if await self.task_queue.revisit(task_id):
+                logger.info("↩️ Task %s drawn again: what Lyric knows in %s changed since "
+                            "it was given up", task_id, domain)
 
     @staticmethod
     async def _operators_known(domain_id: Optional[str]) -> FrozenSet[str]:
@@ -13923,6 +13994,9 @@ class AutonomousCoordinator:
     #: reaches ~0.72, so a single signal NEVER completes — DONE demands
     #: CORROBORATION (>= 2 independent grounded confirmations) of EVERY expected
     #: outcome, and a real failure of any one holds the task below the bar.
+    #: Caution raises the bar no higher than two strong confirmations reach
+    #: (`_corroborated`, 0.975): toward 0.99 it asked for a third that a goal in
+    #: the world cannot have.
     COMPLETION_ACCEPT = 0.95
     COMPLETION_ACCEPT_MAX = 0.99
 
@@ -14387,7 +14461,9 @@ class AutonomousCoordinator:
         nothing fresh has looked."""
         posterior = float(task.metadata["completion_posterior"])
         caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
-        accept = self.COMPLETION_ACCEPT + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution
+        accept = min(self.COMPLETION_ACCEPT
+                     + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution,
+                     self._corroborated())
         if posterior + 1e-9 >= accept:
             return True, posterior, []
         # WHAT THE WORK ITSELF REPORTED COMES FIRST. A task whose every path
@@ -14404,20 +14480,38 @@ class AutonomousCoordinator:
             f"completion belief {posterior:.2f} < acceptance {accept:.2f} — "
             f"goal not yet grounded-confident (needs corroboration)"]
 
-    def _acceptance_band(self) -> Tuple[float, float]:
+    def _acceptance_band(self, domain: Optional[str] = None) -> Tuple[float, float]:
         """(verification_intensity, accept) — THE SAME BAND as `_decide_completion`.
 
         One standard for all epistemic state, and it has to be reachable from
         more than one place to actually BE one: recognition computed this inline
         while sensation had no acceptance decision at all, so the substrate held
         a defensible standard for what it recognised and none for what it saw.
+        Asked about one domain, the caution is that domain's own.
         """
-        vi = float(self.disposition().verification_intensity)          # [0.5, 1.0]
+        vi = float(self.disposition(domain=domain).verification_intensity)  # [0.5, 1.0]
         verify_bar = 0.85 * max(0.0, min(1.0, (vi - 0.5) / 0.5))
         caution = (verify_bar / 0.85) if verify_bar > 0 else 0.0
-        accept = (self.COMPLETION_ACCEPT
-                  + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution)
+        accept = min(self.COMPLETION_ACCEPT
+                     + (self.COMPLETION_ACCEPT_MAX - self.COMPLETION_ACCEPT) * caution,
+                     self._corroborated())
         return vi, accept
+
+    @classmethod
+    def _corroborated(cls) -> float:
+        """The most caution may ask: the belief two independent strong
+        confirmations give from the prior (0.15 -> 0.724 -> 0.975).
+
+        DONE DEMANDS CORROBORATION, AND CAUTION CANNOT DEMAND WHAT NO EVIDENCE
+        GIVES. Raised toward 0.99, the bar asked for a third confirmation that a
+        goal in the world cannot have -- what the act reported and a fresh look
+        at the world are its two -- so in a world whose own failures raised its
+        caution, a goal the world reached and Lyric saw was never done
+        (RULE-AUTHORITY-02 worlds 1044 and 1725: 0.975 against 0.98). Caution
+        still asks more of weaker evidence, up to this."""
+        from core.reasoning.bayesian_uncertainty import evidence_step, log_odds_of, probability_of
+        return probability_of(log_odds_of(cls.COMPLETION_PRIOR)
+                              + 2 * evidence_step(cls._EV_EFFECT, True))
 
     async def record_finding(self, *, faculty: str, finding: str,
                              holds: bool, experiment: str, run: str,
@@ -15198,9 +15292,15 @@ class AutonomousCoordinator:
             # certainty bar when in deep doubt. This is what discharges doubt —
             # meeting the raised bar accumulates the evidence that, through the
             # outcome→appraisal path, lifts confidence and lowers doubt again.
+            #
+            # Work in a domain carries THAT domain's doubt: the whole self's,
+            # moved by every world's failures, set a bar one fresh look at a
+            # reached goal could not meet (RULE-AUTHORITY-02 world 1725: the
+            # world added the goal, Lyric saw it, 0.97 against 0.98).
             _verify_bar = 0.0
             try:
-                _vi = float(self.disposition().verification_intensity)  # [0.5, 1.0]
+                _vi, _ = self._acceptance_band(
+                    domain=(getattr(task, "provenance", None) or {}).get("domain_id"))
                 _verify_bar = 0.85 * max(0.0, min(1.0, (_vi - 0.5) / 0.5))
             except Exception as _vbe:
                 logger.debug(f"verification bar unavailable (no appraisal yet?): {_vbe}")
@@ -15394,6 +15494,9 @@ class AutonomousCoordinator:
             if is_complete:
                 await self.task_queue.mark_completed(task.id, result)
                 await self.conclude_pursuit(task, result, completed=True)
+                # A goal reached there may be what another waited to know.
+                await self._revisit_awaiting(
+                    (getattr(task, "provenance", None) or {}).get("domain_id"))
                 self.stats["tasks_completed"] += 1
                 logger.info(f"✅ Task completed: {task.id} (confidence: {confidence:.2f})")
 
@@ -15494,6 +15597,8 @@ class AutonomousCoordinator:
                     # below waits for. Not on the drain worker, which runs that
                     # learning itself.
                     _known = await self._known_in(_deficit.get("domain_id"))
+                    _in = _deficit.get("domain_id")
+                    self._learning_in[_in] = self._learning_in.get(_in, 0) + 1
                     if asyncio.current_task() is not self._reactive_worker:
                         _learning = asyncio.get_running_loop().create_future()
                         self._learning_toward[task.id] = _learning
@@ -15701,6 +15806,7 @@ class AutonomousCoordinator:
                                     f"retries: {issues_str}")
                         await self.task_queue.mark_failed(task.id, _why)
                         await self.conclude_pursuit(task, result, completed=False)
+                        await self._await_knowledge(task, result)
 
                         # DEDUP: Permanently block this fingerprint so it is never re-queued
                         try:
@@ -15733,6 +15839,7 @@ class AutonomousCoordinator:
                         f"Validation failed: {issues_str}"
                     )
                     await self.conclude_pursuit(task, result, completed=False)
+                    await self._await_knowledge(task, result)
                     # The work's own failure, not the substrate's: an ERROR is a
                     # system failure (`failure_events`), and an honest outcome is not one.
                     logger.warning(f"❌ Task failed: {task.id} - Issues: {issues_str}")

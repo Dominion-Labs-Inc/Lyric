@@ -302,6 +302,11 @@ class Words:
         """The name of the word as a word of that kind: "took" as a verb is `take`."""
         return word.lower()
 
+    def spelled(self, word: str) -> Optional[str]:
+        """How memory holds words joined by hyphens as one word ("bullet-proof"): as written, with its parts together
+        (`bulletproof`) or apart (`ice cream`); None where it holds it in none of these."""
+        return word.lower()
+
     def lexeme(self, word: str, cls: str) -> str:
         """The word this one is a form of, as a word of that kind ("paints" `paint`); the word itself where none."""
         return word.lower()
@@ -780,6 +785,7 @@ class Lexicon:
         self.together: Dict[str, Mapping[str, Any]] = self.grammar.get("together", {})
         self._runs_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
         self._numbers_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
+        self._hyphened_of: Tuple[Tuple[str, ...], List[Tuple[int, int, Optional[str]]]] = ((), [])
         #: The words heard as names though written lowercase ("the function sorted"), and how often: a name heard is
         #: one when said again ("Does sorted return a new list?").
         self.heard: Counter = Counter()
@@ -1421,17 +1427,17 @@ class Lexicon:
                 score = sum(self._evidence(tokens, k).get("NAME", -20.0) for k in range(start, end)
                             if tokens[k][:1].isupper())
                 out.append((end, self._name_entry([t for t in tokens[start:end] if t != "-"], score)))
-        # Words joined by a hyphen are one word ("bullet-proof").
-        if i + 2 < n and tokens[i + 1] == "-" and tokens[i].isalpha() and tokens[i + 2].isalpha() \
-                and tokens[i + 2][:1].islower() and not (self._is_number(tokens[i]) and self._is_number(tokens[i + 2])):
-            # No name: a name joined by a hyphen is capitalised throughout ("Coca-Cola", a name of several words), and
-            # "Python-based" is used as words joined by a hyphen are.
-            joined = f"{tokens[i]}-{tokens[i + 2]}".lower()
-            for cls, p in self._evidence([joined], 0, (_beside(tokens, i - 1), _beside(tokens, i + 3))).items():
+        # Words joined by hyphens are one word where memory holds them as one ("bullet-proof", `bulletproof`;
+        # "state-of-the-art"), as written (`hyphened`).
+        for start, end, joined in self.hyphened(tokens):
+            if start != i or joined is None:
+                continue
+            # No name: a name joined by a hyphen is capitalised throughout ("Coca-Cola", a name of several words).
+            for cls, p in self._evidence([joined], 0, (_beside(tokens, i - 1), _beside(tokens, end))).items():
                 name = self.words.name(joined, cls) if cls != "NAME" else joined.lower()
                 for t in self.templates.get(cls, ()) if cls != "VERB" else ():
-                    out.append((i + 3, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
-                                             t.get("label", ""))))
+                    out.append((end, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
+                                           t.get("label", ""))))
         # A verb and the word after it that memory knows together as one verb ("passed away", "let up"), as often as
         # the second is said with a verb so.
         if i + 1 < n and tokens[i].isalpha() and tokens[i + 1].isalpha() and tokens[i + 1][:1].islower():
@@ -1489,6 +1495,30 @@ class Lexicon:
                     i += 1
             self._numbers_of = (key, runs)
         return self._numbers_of[1]
+
+    def hyphened(self, tokens: Sequence[str]) -> List[Tuple[int, int, Optional[str]]]:
+        """WORDS JOINED BY HYPHENS ("state-of-the-art", "novel-based", "33-year-old"): where each run starts and ends,
+        and how memory holds it as one word (`Words.spelled`), None where it holds no such word. Held, it is that one
+        word; held in none of its spellings, it is its words, the hyphens no mark between them, as the PMB's gold
+        reads them: of the 80 such words of its training sentences (numbers and names aside), 57 of the 58 WordNet
+        holds in some spelling are one word, and 16 of the 22 it holds in none are their words ("a novel-based film",
+        "a 33-year-old"). A number's words ("forty-eight") and a name's ("Coca-Cola") are read as a number's and a
+        name's are."""
+        key = tuple(tokens)
+        if self._hyphened_of[0] != key:
+            runs: List[Tuple[int, int, Optional[str]]] = []
+            n, i = len(tokens), 0
+            while i < n:
+                end = i + 1
+                while end + 1 < n and tokens[end] == "-" and tokens[end - 1].isalnum() and tokens[end + 1].isalnum() \
+                        and not tokens[end + 1][:1].isupper() \
+                        and not (self._is_number(tokens[end - 1]) and self._is_number(tokens[end + 1])):
+                    end += 2
+                if end > i + 1:
+                    runs.append((i, end, self.words.spelled("-".join(tokens[i:end:2]))))
+                i = end
+            self._hyphened_of = (key, runs)
+        return self._hyphened_of[1]
 
     def _number_name(self, word: str) -> Optional[str]:
         """A number word's value, as the grammar's numbers give it ("seven": 7)."""
@@ -2464,10 +2494,14 @@ class Grammar:
                 cell[k] = sign
                 return True
             return False
+        apart = {k for start, end, joined in self.lexicon.hyphened(tokens) if joined is None
+                 for k in range(start + 1, end, 2)}
         for i, t in enumerate(tokens):
-            if not any(ch.isalnum() for ch in t) and t not in ("'s", "'") and not isinstance(t, Joining):
-                # A hyphen joining two words is no mark between them: read only with the words it joins ("high-level",
-                # never "high" and "level": "a high-level, general-purpose programming language" was two things).
+            if not any(ch.isalnum() for ch in t) and t not in ("'s", "'") and (not isinstance(t, Joining) or i in apart):
+                # A hyphen joining two words is no mark between them: read only with the words it joins where memory
+                # holds them as one word ("high-level", never "high" and "level": "a high-level, general-purpose
+                # programming language" was two things); where it holds none, they are read as written apart
+                # ("a novel-based film", `Lexicon.hyphened`).
                 keep(Sign(Atom("punct", t, None), (), 0.0, i, i + 1, "lex", (), i, "punct"))
             for end, entry in self.lexicon.entries(tokens, i):
                 try:

@@ -192,6 +192,27 @@ async def run_world(public, run_tag, port, coordinator, db, store):
                       "seconds": round(time.perf_counter() - began, 2)})
         await learned(db, dom)
 
+    # LYRIC IS DONE WITH THE WORLD'S GOALS when nothing it learns there is under way and no goal it gave up for want of
+    # knowledge has been drawn again (`AutonomousCoordinator._revisit_awaiting`); each goal is reported as it ended.
+    from core.agents.autonomous.shared_types import TaskStatus
+    ids = [f"ra02_{run_tag}_{public['world']}_g{k}" for k in range(len(goals))]
+    while True:
+        await learned(db, dom)
+        owed = [q for q in (coordinator.task_queue.tasks_by_id.get(i) for i in ids)
+                if q is not None and q.status in (TaskStatus.PLANNED, TaskStatus.PENDING, TaskStatus.IN_PROGRESS,
+                                                  TaskStatus.AWAITING_VERIFICATION)]
+        if not owed and not coordinator.learning_in(dom):
+            break
+        await asyncio.sleep(0.05)
+    for goal, task_id in zip(goals, ids):
+        queued = coordinator.task_queue.tasks_by_id.get(task_id)
+        if queued is None:
+            continue
+        result = (queued.task.result if queued.task is not None else None) or {}
+        goal.update({"success": result.get("success") is True, "task_status": queued.status.value,
+                     "task_error": str(queued.error_message or "")[:200],
+                     "revisits": queued.task.metadata.get("revisits", 0) if queued.task is not None else 0})
+
     # THE ANSWER IS WHAT LYRIC HOLDS NOW, and the world is retired with it: its act is unbound, so nothing Lyric
     # still has in hand for it (a deferred reaction to a goal it could not reach) acts there after this. The
     # evaluator judges these rules on what Lyric had seen by this moment.

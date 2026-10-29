@@ -583,6 +583,16 @@ class HeldWords(Words):
                 return literal.canonical
         return self._name(word, cls)
 
+    def spelled(self, word: str) -> Optional[str]:
+        parts = word.lower().split("-")
+        for spelled in dict.fromkeys(("-".join(parts), "".join(parts), " ".join(parts))):
+            # Held as a word: a sentence held used it, memory holds it as a word of a class, or it is a form of one
+            # ("window-sills", of `windowsill`).
+            if self.form_uses.get(spelled) or self.knowledge.classes(spelled) or any(
+                    self.lexeme(spelled, c) != spelled for c in ("NOUN", "VERB", "ADJECTIVE", "ADVERB")):
+                return spelled
+        return None
+
     def verb_forms(self, word: str) -> Mapping[str, float]:
         """How often the word is each form of its verb: as the forms memory holds say (their features), else as the
         sentences held use it."""

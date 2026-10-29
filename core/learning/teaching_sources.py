@@ -4124,6 +4124,11 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     # one inflected ("made it").
     lemma_name = word.replace(" ", "_")
     head, *rest = word.split(" ")
+    # A WORD JOINED BY A HYPHEN is one WordNet may write with its parts together or apart: "bullet-proof" is its
+    # `bulletproof`, "semi-final" `semifinal`, "ice-cream" `ice_cream`. Taken only as written, 9 of the 16 such words
+    # of the PMB's dev sentences had no sense (2026-10-29).
+    spellings = (lemma_name,) + ((lemma_name.replace("-", ""), lemma_name.replace("-", "_"))
+                                 if "-" in lemma_name.strip("-") else ())
 
     def of_the_word(example: str, pos: str) -> bool:
         # A SENSE'S EXAMPLE IS ONE OF THIS WORD where the word is written in it, in any form: WordNet gives a sense's
@@ -4143,12 +4148,12 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         _cache["covers"] = covered
     covered = _cache["covers"]
 
-    synsets = [s for s in wn.synsets(lemma_name) if any(l.name().lower() == lemma_name for l in s.lemmas())
-               and named(s)]
+    synsets = [s for s in dict.fromkeys(s for spelled in spellings for s in wn.synsets(spelled))
+               if any(l.name().lower() in spellings for l in s.lemmas()) and named(s)]
     senses: List[WordSense] = []
     for s in synsets:
         cls = _WORDNET_CLASS[s.pos()]
-        lemma = next(l for l in s.lemmas() if l.name().lower() == lemma_name)
+        lemma = next(l for l in s.lemmas() if l.name().lower() in spellings)
         frames = tuple(dict.fromkeys(f for f in (_frame_named(VERB_FRAME_STRINGS[k]) for k in lemma.frame_ids()
                                                   if 0 < k < len(VERB_FRAME_STRINGS)) if f)) if cls == "VERB" else ()
         kinds = kinds_of(s)

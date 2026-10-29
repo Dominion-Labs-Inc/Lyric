@@ -129,11 +129,19 @@ def named_by_their_words(meaning, words, senses_named):
 
 def words_of_sentence(tokens):
     """A sentence's words as `named_by_their_words` asks for them: each word lowered, each of its bases as WordNet
-    gives them, and every two and three words side by side ("disco music")."""
+    gives them, every two and three words side by side ("disco music"), and words joined by hyphens as one word in
+    each of its spellings ("bullet-proof", `bulletproof`, "bullet proof": `Lexicon.hyphened`)."""
     from nltk.corpus import wordnet as wn
     low = [str(t).lower() for t in tokens]
     out = set(low)
-    for w in low:
+    for i in range(len(low)):
+        end = i + 1
+        while end + 1 < len(low) and low[end] == "-" and low[end - 1].isalnum() and low[end + 1].isalnum():
+            end += 2
+        if end > i + 1:
+            parts = low[i:end:2]
+            out.update(("-".join(parts), "".join(parts), " ".join(parts)))
+    for w in list(out):
         for pos in ("n", "v", "a", "r"):
             base = wn.morphy(w, pos)
             if base:

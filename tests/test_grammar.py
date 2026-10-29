@@ -109,6 +109,27 @@ def test_a_denied_happening(grammar):
         "& precedes(?v0, ?now)")
 
 
+def test_words_joined_by_hyphens_are_one_word_where_memory_holds_one_and_their_words_where_it_holds_none():
+    # Held as one in some spelling: "bullet-proof" as `bulletproof`, "state-of-the-art" as written. Held in none:
+    # "happy-red" is "happy" and "red", where it was a word nothing names (`Lexicon.hyphened`).
+    whole = {"bulletproof": "ADJECTIVE", "state-of-the-art": "ADJECTIVE"}
+
+    class Hyphened(Held):
+        def uses(self, word: str) -> Mapping[str, float]:
+            return {whole[word.lower()]: 10.0} if word.lower() in whole else super().uses(word)
+
+        def spelled(self, word: str) -> Optional[str]:
+            w = word.lower()
+            return next((s for s in (w, w.replace("-", "")) if s in whole), None)
+    g = gm.Grammar(gm.Lexicon(Hyphened()))
+    barked = ("tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & {} & instance_of(?v0, bark) & "
+              "precedes(?v0, ?now)")
+    assert read(g, "The bullet-proof dog barked.") == barked.format("has_property(?v1, bulletproof)")
+    assert read(g, "The state-of-the-art dog barked.") == barked.format("has_property(?v1, state-of-the-art)")
+    assert read(g, "The happy-red dog barked.") == read(g, "The happy red dog barked.") == barked.format(
+        "has_property(?v1, happy) & has_property(?v1, red)")
+
+
 def test_his_is_the_one_before_it(grammar):
     assert read(grammar, "Tom unbuttoned his shirt.") == (
         "tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, unbutton) & instance_of(?v1, shirt) & "
@@ -446,6 +467,15 @@ def test_a_kind_memory_takes_in_is_known_at_once():
     words.hear_kind("Harvard", "instance_of", "university")
     assert words.kinds("harvard", "NOUN") == ["university", "institution"]
     assert gm.Words().hear_kind("Harvard", "instance_of", "university") is None
+
+
+def test_words_joined_by_hyphens_are_held_as_memory_spells_them():
+    from core.semantics.grammar_words import GraphKnowledge, HeldWords
+    held = {"bulletproof": {"ADJECTIVE": 1.0}, "ice cream": {"NOUN": 1.0}, "know-how": {"NOUN": 1.0}}
+    words = HeldWords((), gm.closed_uses(), lambda word, cls: word.lower(),
+                      GraphKnowledge(classes=lambda w: held.get(w.lower(), {})))
+    assert [words.spelled(w) for w in ("bullet-proof", "ice-cream", "Know-how", "novel-based")] == [
+        "bulletproof", "ice cream", "know-how", None]
 
 
 def _derived(pairs: Sequence[Tuple[str, str]], tags: Sequence[str], tree=(), said_in: str = "",

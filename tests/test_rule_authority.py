@@ -426,3 +426,19 @@ async def test_a_confirmed_rule_does_not_ask_for_replanning():
     assert result["success"] is True
     assert state.attribution == "success"
     assert get_behavior_arbiter().decide(state).should_replan is False
+
+
+@pytest.mark.asyncio
+async def test_a_case_the_rule_says_nothing_about_takes_nothing_from_it(locked):
+    """A rule validated by what exercised it stays validated when a held-out case it does not apply to is put to it:
+    a rule for one of an act's two cases lost its authority to a success of the other (RULE-AUTHORITY-02, world
+    1262)."""
+    from core.learning.rule_induction import TrainingExample
+    world, store, stored = locked
+    assert stored.status is EpistemicStatus.VALIDATED
+    elsewhere = TrainingExample(
+        before=(Fact.parse("AT(q, CELLAR)"),), action=Fact.parse("SBMOVE(q, CELLAR, ATTIC)"),
+        after=(Fact.parse("AT(q, ATTIC)"),), positive=True, evidence_id=f"elsewhere_{uuid4().hex[:8]}")
+    outcome = await store.validate(stored, [elsewhere])
+    assert outcome.status is EpistemicStatus.VALIDATED
+    assert stored.status is EpistemicStatus.VALIDATED

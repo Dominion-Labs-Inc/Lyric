@@ -249,3 +249,43 @@ def test_an_argument_nothing_constrains_is_grounded_on_a_thing_the_act_may_be_ta
                            absent=frozenset({F("WORN(?T)")}))
     world = [F("READY(b)"), F("WORN(b)"), F("FITS(t1,b)")]
     assert names(ground_for_problem([stored(unworn)], world, [F("KEEN(b)")])) == ["SHARPEN(t1, b)"]
+
+
+def test_grounding_back_from_the_goal_keeps_what_the_planner_keeps(move_rule):
+    """Grounded back from the goal, the operators are those the planner's own relevance keeps from everything
+    grounded forward: the two moves of the route and any other that bears on it, no plan lost."""
+    forward = ground_for_problem([stored(move_rule)], WORLD, GOAL)
+    toward = ground_for_problem([stored(move_rule)], WORLD, GOAL, toward=GOAL)
+    kept = TemporalReasoningSystem._relevant([g.to_formula() for g in GOAL], forward.to_actions())
+    assert sorted(a["name"] for a in kept) == sorted(o.name for o in toward.operators)
+    assert {"MOVE(z, HALL, LAB)", "MOVE(z, LAB, VAULT)"} <= {o.name for o in toward.operators}
+    result = TemporalReasoningSystem().plan_for_state_goal(
+        [g.to_formula() for g in GOAL], {"conditions": [f.to_formula() for f in WORLD]}, toward.to_actions())
+    assert result.status is PlanningStatus.PLAN_FOUND and len(result.steps) == 2
+
+
+def test_grounding_back_from_the_goal_pairs_only_what_the_goal_names():
+    """PRESS(?A, ?B) needs only READY(?A) and LIT(?B): grounded forward over sixty ready things and sixty lit ones it
+    is every pair, 3,600 operators; back from the goal PRESSED(r7, l3), the one that reaches it."""
+    rule = CandidateRule(body=frozenset({F("PRESS(?A,?B)"), F("READY(?A)"), F("LIT(?B)")}),
+                         effects=RuleEffects(add={F("PRESSED(?A,?B)")}), action=F("PRESS(?A,?B)"))
+    world = [F(f"READY(r{i})") for i in range(60)] + [F(f"LIT(l{i})") for i in range(60)]
+    goal = [F("PRESSED(r7,l3)")]
+    assert len(ground_for_problem([stored(rule)], world, goal).operators) == 3600
+    toward = ground_for_problem([stored(rule)], world, goal, toward=goal)
+    assert [o.name for o in toward.operators] == ["PRESS(r7, l3)"] and not toward.truncated
+
+
+def test_grounding_back_from_the_goal_keeps_each_rule_of_an_act():
+    """An act given as two cases has two rules and one name: back from the goal, each is its own operator, and the one
+    whose condition holds plans the goal (RULE-AUTHORITY-02 world 646, where the first by name was kept and its
+    condition did not hold)."""
+    act = F("PRESS(?A)")
+    lit = CandidateRule(body=frozenset({act, F("LIT(?A)")}), effects=RuleEffects(add={F("PRESSED(?A)")}), action=act)
+    warm = CandidateRule(body=frozenset({act, F("WARM(?A)")}), effects=RuleEffects(add={F("PRESSED(?A)")}), action=act)
+    world, goal = [F("WARM(b1)")], [F("PRESSED(b1)")]
+    report = ground_for_problem([stored(lit, rule_id="lit"), stored(warm, rule_id="warm")], world, goal, toward=goal)
+    assert [(o.rule_id, o.name) for o in report.operators] == [("warm", "PRESS(b1)")]
+    result = TemporalReasoningSystem().plan_for_state_goal(
+        [g.to_formula() for g in goal], {"conditions": [f.to_formula() for f in world]}, report.to_actions())
+    assert result.status is PlanningStatus.PLAN_FOUND

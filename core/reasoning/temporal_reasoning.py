@@ -727,6 +727,7 @@ class TemporalReasoningSystem:
         # underneath, because that is the fact an operator's effects touch.
         goal_formulas: List[str] = []
         goal_facts: List[Fact] = []
+        denies = False
         for condition in (goal_conditions or []):
             text = str(condition).strip()
             core, negated = text, False
@@ -735,6 +736,7 @@ class TemporalReasoningSystem:
                     core, negated = core[len(marker):].strip(), True
                     break
             fact = Fact.parse(core)
+            denies = denies or negated
             goal_facts.append(fact)
             goal_formulas.append(f"¬{fact.to_formula()}" if negated
                                  else fact.to_formula())
@@ -764,7 +766,8 @@ class TemporalReasoningSystem:
         # nothing in the rule constrains is grounded with one term, and that
         # term is one the successes covered.
         covered = await self._covered_by_successes(domain_id, rules)
-        grounding = ground_for_problem(rules, state_facts, goal_facts, covered=covered)
+        grounding = ground_for_problem(rules, state_facts, goal_facts, covered=covered,
+                                       toward=None if denies else goal_facts)
         actions = [a for a in grounding.to_actions() if a.get("name") not in set(leaving_out)]
         for action in actions:
             signature = Fact.parse(action["name"])

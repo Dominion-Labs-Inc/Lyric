@@ -733,6 +733,26 @@ class QueueAuthority:
         await self._persist_queued(queued)
         return True
 
+    async def revisit(self, task_id: str) -> bool:
+        """Draw a failed job again, with its attempts starting over: what it
+        lacked may now be known (`AutonomousCoordinator._revisit_awaiting`). Its
+        record is kept and it is PENDING again. False for a job that has not
+        failed."""
+        queued = self.tasks_by_id.get(task_id)
+        if queued is None or queued.status != TaskStatus.FAILED:
+            return False
+        async with self.lock:
+            queued.retry_count = 0
+            queued.status = TaskStatus.PENDING
+            queued.completed_at = None
+            queued.error_message = None
+            queued.stop_acting()
+            self._sequence += 1
+            await self.queue.put((-queued.priority.value, self._sequence, queued))
+            self.metrics['tasks_revisited'] = self.metrics.get('tasks_revisited', 0) + 1
+        await self._persist_queued(queued)
+        return True
+
     def active_tasks(self) -> List[Task]:
         """The work still owed: every job queued, in flight, or waiting
         (ACTIVE_STATUSES). The one answer to "what is active?" — whether a given

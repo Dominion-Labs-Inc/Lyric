@@ -821,6 +821,17 @@ class RuleStore:
                 EpistemicStatus.VALIDATED, confirmed, 0, held_out_roots,
                 f"confirmed by {confirmed} independent observation(s)",
             )
+        elif record.status is EpistemicStatus.VALIDATED:
+            # WHAT SAYS NOTHING ABOUT A RULE TAKES NOTHING FROM IT. A rule already
+            # confirmed by what exercised it lost its authority here to a held-out
+            # case it does not apply to: in RULE-AUTHORITY-02 world 1262, a rule
+            # for one of the act's two cases was demoted because the latest
+            # success held back was of the other, and a goal it reached went
+            # unplanned until a later success restored it.
+            return ValidationOutcome(
+                record.status, 0, 0, held_out_roots,
+                "independent evidence supplied but none exercised the rule; "
+                "it stays validated by what did")
         else:
             outcome = ValidationOutcome(
                 EpistemicStatus.SUPPORTED, 0, 0, held_out_roots,

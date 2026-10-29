@@ -1032,6 +1032,8 @@ def test_a_goal_waiting_on_what_its_deficit_learns_hears_however_the_learning_en
     from types import SimpleNamespace
     coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
     coord._learning_toward = {}
+    coord._learning_in = {}
+    coord._awaiting_knowledge = {}
 
     async def fails(event):
         raise RuntimeError("the world could not be read")
@@ -1143,3 +1145,64 @@ def test_the_explorer_tries_first_what_it_has_not_seen_work(monkeypatch):
     offered = [Fact.parse("PRESS(b1)"), Fact.parse("PRESS(b2)"), Fact.parse("PRESS(b3)")]
     order = asyncio.run(exploration.SubstrateExplorer._unsure_first("buttons", offered))
     assert [str(a) for a in order] == ["PRESS(b2)", "PRESS(b3)", "PRESS(b1)"]
+
+
+def test_a_goal_given_up_for_want_of_knowledge_is_drawn_again_once_lyric_knows_more():
+    """A goal stopped because Lyric did not yet know how, or because the rules it held proved it out of reach, waits
+    with what Lyric knew in its world then, and is drawn again once that changes; one that needs what Lyric cannot
+    supply from here is not kept (RULE-AUTHORITY-02: goals reached by a rule Lyric held at the end, learned after they
+    were given up)."""
+    from types import SimpleNamespace
+    coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+    coord._awaiting_knowledge = {}
+    coord._permanently_failed_fps = set()
+    known = {"w": ("rules-1",)}
+
+    async def known_in(domain):
+        return known[domain]
+    coord._known_in = known_in
+    drawn = []
+
+    async def revisit(task_id):
+        drawn.append(task_id)
+        return True
+    tasks = {name: SimpleNamespace(task=SimpleNamespace(retry_count=1, metadata={"deficit_closure_emitted": True},
+                                                        description=f"bring about {name}"))
+             for name in ("g0", "g1", "g2")}
+    coord.task_queue = SimpleNamespace(tasks_by_id=tasks, revisit=revisit)
+    gap = {"domain_id": "w", "deficit_type": "operator_gap", "target_predicate": "P"}
+    prevented = {"domain_id": "w", "deficit_type": "world_prevents", "target_predicate": "P"}
+    unnamed = {"domain_id": "w", "deficit_type": "concept_gap", "target_predicate": "P"}
+
+    async def run():
+        await coord._await_knowledge(SimpleNamespace(id="g0"), {"deficit": gap})
+        await coord._await_knowledge(SimpleNamespace(id="g1"), {"deficit": unnamed})
+        await coord._await_knowledge(SimpleNamespace(id="g2"), {"deficit": prevented})
+        await coord._revisit_awaiting("w")
+        first = list(drawn)
+        known["w"] = ("rules-2",)
+        await coord._revisit_awaiting("w")
+        return first
+
+    assert asyncio.run(run()) == []
+    assert drawn == ["g0", "g2"]
+    assert tasks["g0"].task.retry_count == 0 and tasks["g0"].task.metadata == {"revisits": 1}
+    assert coord._awaiting_knowledge == {"w": {}}
+
+
+def test_caution_asks_no_more_than_corroboration_gives():
+    """DONE demands two independent strong confirmations; caution raises the bar toward that and no further. Raised
+    toward 0.99, a goal the world reached and Lyric saw, confirmed by what the act reported and a fresh look, was never
+    done in a cautious world (RULE-AUTHORITY-02 worlds 1044 and 1725, 0.975 against 0.98)."""
+    from types import SimpleNamespace
+    from core.reasoning.bayesian_uncertainty import evidence_step, log_odds_of, probability_of
+    two = probability_of(log_odds_of(AutonomousCoordinator.COMPLETION_PRIOR)
+                         + 2 * evidence_step(AutonomousCoordinator._EV_EFFECT, True))
+    coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+    task = SimpleNamespace(metadata={"completion_posterior": two, "completion_outcomes": []})
+    done, _, issues = coord._decide_completion(task, {}, verify_bar=0.85)
+    assert done, issues
+    one = probability_of(log_odds_of(AutonomousCoordinator.COMPLETION_PRIOR)
+                         + evidence_step(AutonomousCoordinator._EV_EFFECT, True))
+    task = SimpleNamespace(metadata={"completion_posterior": one, "completion_outcomes": []})
+    assert not coord._decide_completion(task, {}, verify_bar=0.0)[0]

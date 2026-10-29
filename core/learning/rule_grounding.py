@@ -491,19 +491,157 @@ def ground_rule(
     return operators, False
 
 
+def _admissible(rules: Sequence[Any]) -> List[Tuple[Optional[str], CandidateRule]]:
+    """The rules that may become operators: validated, and naming an act."""
+    from core.learning.rule_store import EpistemicStatus
+    out = []
+    for stored in rules:
+        status = getattr(stored, "status", None)
+        rule = getattr(stored, "rule", stored)
+        if (status is None or status is EpistemicStatus.VALIDATED) and rule.action is not None:
+            out.append((getattr(stored, "rule_id", None), rule))
+    return out
+
+
+def _toward_fits(rules: Sequence[Any], toward: Sequence[Fact]) -> bool:
+    """Whether grounding back from the goal finds every operator forward
+    grounding would use: the goal names its things, no act computes a value,
+    and every variable of a rule is bound by its act, its effects or a condition
+    no rule changes."""
+    if not toward or any(f.variables for f in toward):
+        return False
+    admissible = _admissible(rules)
+    produced = {e.predicate for _, rule in admissible for e in rule.effects.add}
+    for _, rule in admissible:
+        if rule.outputs:
+            return False
+        bound = set(rule.action.variables) | set(rule.effects.variables)
+        for fact in rule.preconditions:
+            if fact.predicate not in produced:
+                bound |= set(fact.variables)
+        if any(not fact.variables <= bound for fact in rule.preconditions):
+            return False
+    return True
+
+
+def _ground_toward(rules, toward, held, start, supply, targets, relevant, covered,
+                   constants, limit) -> "GroundingReport":
+    """Only the operators that bear on the goal, found back from it.
+
+    GROUNDED FORWARD, A RULE WAS ENUMERATED OVER EVERYTHING ITS CONDITIONS HOLD
+    OF, whatever the goal. Two arguments each held by its own condition paired
+    every thing holding one with every thing holding the other: in
+    RULE-AUTHORITY-02, where a world offers all its practice at once, 562
+    groundings reached the 5,000-operator bound, the planner then kept only the
+    few the goal could use (`TemporalReasoningSystem._relevant`), and the goal's
+    own reason for failing was reported as the bound.
+
+    Back from the goal, an effect that is a fact the goal or a step toward it
+    wants binds the rule's variables there; the rest are drawn as forward
+    grounding draws them (`ground_rule`), joined only over conditions no rule
+    changes, which hold now or never. A condition some rule can bring about is
+    left to the steps that would bring it: where it does not hold, it is wanted
+    in turn. The operators are those the planner's own relevance keeps
+    (`_relevant`), so no plan is lost; `_toward_fits` says where this holds."""
+    from core.reasoning.unification import unify
+    admissible = _admissible(rules)
+    built = GroundingReport(constants=list(constants))
+    for stored in rules:
+        rule = getattr(stored, "rule", stored)
+        rule_id = getattr(stored, "rule_id", None)
+        if (rule_id, rule) not in admissible:
+            built.rules_skipped[rule_id or str(rule)] = "not executable or names no act"
+    produced = {e.predicate for _, rule in admissible for e in rule.effects.add}
+    holding = {Fact(predicate, tuple(args)).to_formula()
+               for predicate, rows in held.items() for args in rows}
+    operators: Dict[Tuple[Optional[str], str], GroundOperator] = {}
+    used: Set[str] = set()
+    wanted = list(toward)
+    asked: Set[str] = set()
+    while wanted:
+        fact = wanted.pop()
+        if fact.to_formula() in asked:
+            continue
+        asked.add(fact.to_formula())
+        for rule_id, rule in admissible:
+            successes = (covered or {}).get((rule.action.predicate, len(rule.action.args)))
+            for effect in rule.effects.add:
+                binding = unify(effect, fact, {})
+                if binding is None:
+                    continue
+                fixed = CandidateRule(
+                    body=frozenset(f.substitute(binding) for f in rule.body),
+                    effects=rule.effects.substitute(binding),
+                    action=rule.action.substitute(binding),
+                    absent=frozenset(f.substitute(binding) for f in rule.absent))
+                static = CandidateRule(
+                    body=frozenset({fixed.action} | {f for f in fixed.preconditions
+                                                     if f.predicate not in produced}),
+                    effects=fixed.effects, action=fixed.action, absent=fixed.absent)
+                found, truncated = ground_rule(
+                    static, supply, constants, rule_id, limit - len(operators),
+                    held=held, targets=targets, relevant=relevant,
+                    successes=[frozenset(s) for s in successes] if successes else None,
+                    start=start)
+                for partial in found:
+                    full = {**binding, **dict(partial.bindings)}
+                    name = rule.action.substitute(full).to_formula()
+                    # One act, one operator PER RULE: two rules for an act's two
+                    # cases give it the same name and different conditions, and
+                    # keeping the first by name kept one whose condition did not
+                    # hold in place of one whose did (RULE-AUTHORITY-02 world
+                    # 646). A condition no rule changes either holds now or never.
+                    if (rule_id, name) in operators or any(
+                            f.predicate not in produced
+                            and f.substitute(full).to_formula() not in holding
+                            for f in rule.preconditions if not f.substitute(full).variables):
+                        continue
+                    operator = GroundOperator(
+                        name=name,
+                        preconditions=tuple(sorted(f.substitute(full).to_formula()
+                                                   for f in rule.preconditions)),
+                        effects=tuple(sorted(f.substitute(full).to_formula()
+                                             for f in rule.effects.add)),
+                        deletes=tuple(sorted(f.substitute(full).to_formula()
+                                             for f in rule.effects.delete)),
+                        rule_id=rule_id,
+                        bindings=tuple(sorted(full.items())),
+                        absent=tuple(sorted(f.substitute(full).to_formula()
+                                            for f in rule.absent)))
+                    operators[(rule_id, name)] = operator
+                    used.add(rule_id or str(rule))
+                    wanted += [Fact.parse(p) for p in operator.preconditions if p not in holding]
+                if truncated or len(operators) >= limit:
+                    built.truncated = True
+                    logger.warning(
+                        "grounding hit the %d-operator bound; the operator set is "
+                        "partial and an UNREACHABLE verdict from it is not a proof",
+                        limit)
+                    built.operators = list(operators.values())
+                    built.rules_used = sorted(used)
+                    return built
+    built.operators = list(operators.values())
+    built.rules_used = sorted(used)
+    return built
+
+
 def ground_for_problem(
     rules: Sequence[Any],
     state: Iterable[Fact],
     goal: Iterable[Fact] = (),
     limit: int = DEFAULT_MAX_OPERATORS,
     covered: Optional[Dict[Tuple[str, int], Sequence[Sequence[str]]]] = None,
+    toward: Optional[Sequence[Fact]] = None,
 ) -> GroundingReport:
     """Ground admissible rules over the terms this problem can produce.
 
     `rules` are StoredRule records; each is checked for executability here
     rather than trusted, so a caller cannot widen the gate by passing a
     candidate. `covered` is each act's recorded successes, by its predicate and
-    arity, as the conditions of the things it named.
+    arity, as the conditions of the things it named. `toward` is the facts the
+    goal asks to hold, when it asks nothing to be absent: given, and where no
+    act computes a value, only the operators that bear on them are grounded
+    (`_ground_toward`).
     """
     from core.learning.rule_store import EpistemicStatus
 
@@ -603,26 +741,31 @@ def ground_for_problem(
     targets = {key: set(terms) for key, terms in supply.items()}
     for key, terms in supply_from(goal_facts).items():
         targets.setdefault(key, set()).update(terms)
-    report_body = build(supply, held, targets)
-    for _ in range(DEFAULT_CLOSURE_PASSES):
-        produced = [Fact.parse(effect)
-                    for operator in report_body.operators for effect in operator.effects
-                    if not operator.open_slots]
-        new = [f for f in produced if tuple(f.args) not in held.get(f.predicate, set())]
-        if not new:
-            break
-        for fact in new:
-            held.setdefault(fact.predicate, set()).add(tuple(fact.args))
-        for key, terms in supply_from(new).items():
-            supply.setdefault(key, set()).update(terms)
-            targets.setdefault(key, set()).update(terms)
-        report_body = build(supply, held, targets)
+    if toward and not invented and _toward_fits(rules, toward):
+        report_body = _ground_toward(
+            rules, toward, held, start, supply, targets, relevant, covered,
+            report.constants, limit)
     else:
-        report_body.closure_converged = False
-        logger.warning(
-            "the producible-term closure did not settle in %d pass(es); the "
-            "operator set may be missing consumers of terms produced late, so "
-            "UNREACHABLE from it is not a proof", DEFAULT_CLOSURE_PASSES)
+        report_body = build(supply, held, targets)
+        for _ in range(DEFAULT_CLOSURE_PASSES):
+            produced = [Fact.parse(effect)
+                        for operator in report_body.operators for effect in operator.effects
+                        if not operator.open_slots]
+            new = [f for f in produced if tuple(f.args) not in held.get(f.predicate, set())]
+            if not new:
+                break
+            for fact in new:
+                held.setdefault(fact.predicate, set()).add(tuple(fact.args))
+            for key, terms in supply_from(new).items():
+                supply.setdefault(key, set()).update(terms)
+                targets.setdefault(key, set()).update(terms)
+            report_body = build(supply, held, targets)
+        else:
+            report_body.closure_converged = False
+            logger.warning(
+                "the producible-term closure did not settle in %d pass(es); the "
+                "operator set may be missing consumers of terms produced late, so "
+                "UNREACHABLE from it is not a proof", DEFAULT_CLOSURE_PASSES)
 
     report_body.constants = report.constants
     report = report_body
