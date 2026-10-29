@@ -3018,12 +3018,17 @@ class WordSense:
     #: (`GrammarView._count_word`): a link learned of "an Algerian author" (`comes_from`) is then the link of "a
     #: Norwegian town", never seen.
     pertains_to: Tuple[Tuple[str, str, Tuple[str, ...]], ...] = ()
+    #: THE VERBNET CLASSES THE SENSE IS A MEMBER OF, as VerbNet lists its WordNet key (or, where no class names any
+    #: sense of the word, the classes listing the word alone): their frames say what each of its places is
+    #: (`WordRecord.frames_said`).
+    verbnet_classes: Tuple[str, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return ({"key": self.key} if self.key else {}) | ({"related": [list(r) for r in self.related]}
                                                           if self.related else {}) | (
             {"pertains_to": [[sense, name, list(kinds)] for sense, name, kinds in self.pertains_to]}
-            if self.pertains_to else {}) | {
+            if self.pertains_to else {}) | (
+            {"verbnet_classes": list(self.verbnet_classes)} if self.verbnet_classes else {}) | {
             "id": self.id, "class": self.word_class, "concept": self.concept, "means": self.means,
                 "kind_of": [list(k) for k in self.kind_of], "used": self.used, "examples": list(self.examples),
                 "frames": list(self.frames), "roleset": self.roleset, "use": self.use, "verbnet": self.verbnet,
@@ -3041,7 +3046,8 @@ class WordSense:
                    tuple((str(w[0]), str(w[1]), tuple(w[2]), int(w[3])) for w in data.get("seen_with") or ()),
                    tuple(int(c) for c in data.get("covers") or ()), str(data.get("key") or ""),
                    tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in data.get("related") or ()),
-                   tuple((str(p[0]), str(p[1]), tuple(str(k) for k in p[2])) for p in data.get("pertains_to") or ()))
+                   tuple((str(p[0]), str(p[1]), tuple(str(k) for k in p[2])) for p in data.get("pertains_to") or ()),
+                   tuple(str(c) for c in data.get("verbnet_classes") or ()))
 
 
 @dataclass(frozen=True)
@@ -3181,9 +3187,9 @@ class WordRecord:
     misc: Tuple[Tuple[str, str, str, int], ...] = ()
     #: Every PropBank sense of it (id, what it means, the words it is said as with their classes, the FrameNet frames
     #: its places link to), and each VerbNet frame of the classes it is a member of (class, primary and secondary
-    #: description, example).
+    #: description, example, what each of its places says: `_frame_places`).
     rolesets: Tuple[Tuple[str, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]], ...] = ()
-    verbnet_frames: Tuple[Tuple[str, str, str, str], ...] = ()
+    verbnet_frames: Tuple[Tuple[str, str, str, str, Tuple[Tuple[str, str], ...]], ...] = ()
     #: How much it carried of each column of each source it is made from (`_RECORD_COLUMNS`): (source, column, how
     #: many). Empty only for a record made by hand.
     covered: Tuple[Tuple[str, str, int], ...] = ()
@@ -3254,7 +3260,8 @@ class WordRecord:
                    misc=tuple((str(m[0]), str(m[1]), str(m[2]), int(m[3])) for m in data.get("misc") or ()),
                    rolesets=tuple((str(r[0]), str(r[1]), tuple((str(a[0]), str(a[1])) for a in r[2]),
                                    tuple(str(f) for f in r[3])) for r in data.get("rolesets") or ()),
-                   verbnet_frames=tuple((str(v[0]), str(v[1]), str(v[2]), str(v[3]))
+                   verbnet_frames=tuple((str(v[0]), str(v[1]), str(v[2]), str(v[3]),
+                                         tuple((str(p[0]), str(p[1])) for p in (v[4] if len(v) > 4 else ())))
                                         for v in data.get("verbnet_frames") or ()),
                    covered=tuple((str(c[0]), str(c[1]), int(c[2])) for c in data.get("covered") or ()))
 
@@ -3402,6 +3409,24 @@ class WordRecord:
                     out[(slot, link)] = out.get((slot, link), 0) + 1
         return out
 
+    def frames_said(self) -> Dict[str, Counter]:
+        """WHAT EACH PLACE OF ITS VERB SAYS, BY THE PLACES SAID WITH IT (VerbNet's frames, as the PMB's roles are; Boxer
+        gives a verb's roles by the frame its category is, Bos 2008): for each verb sense (its name), the places of
+        each frame of the classes it is a member of and of the classes those are part of; for the word (""), of every
+        frame of its classes. Each frame's places as `_frame_places` says them -> how many frames say just those.
+        Linked by the place alone, whatever was said with it, a verb's object was linked as the PMB links it 80.8% of
+        the time over the PMB's 9,552 train sentences; by the frames of the sense the PMB gives, 86.5%; of WordNet's
+        most used sense of the word, 85.4% (`GRAMMAR-01/diagnostics/verb_places.py`, 2026-10-29)."""
+        out: Dict[str, Counter] = defaultdict(Counter)
+        for cls, _, _, _, places in self.verbnet_frames:
+            if not places:
+                continue
+            out[""][places] += 1
+            for s in self.senses:
+                if s.word_class == "VERB" and any(c == cls or c.startswith(cls + "-") for c in s.verbnet_classes):
+                    out[s.concept][places] += 1
+        return dict(out)
+
     def prepositions(self) -> Dict[Tuple[str, str], int]:
         """What a preposition after its verb says, as its places say it: (preposition, link) -> how many say it."""
         out: Dict[Tuple[str, str], int] = {}
@@ -3451,6 +3476,54 @@ _PLACE_LINKS = {
     ("PRP", "for"): ("pp:for", "has_purpose"), ("PNC", "for"): ("pp:for", "has_purpose"),
     **{("TMP", p): (f"pp:{p}", "during") for p in ("during", "in", "on", "at")},
 }
+
+#: VerbNet's roles the PMB names otherwise (its roles are VerbNet's, `--roles verbnet`): VerbNet 3's `Initial_Location`
+#: the PMB's `Source`, its `Trajectory` the PMB's `Path`.
+_VERBNET_AS_PMB = {"Initial_Location": "Source", "Trajectory": "Path"}
+
+
+def _frame_places(frame: Any) -> Tuple[Tuple[str, str], ...]:
+    """WHAT EACH PLACE OF A VERBNET FRAME SAYS, as the grammar names the place and the PMB links the role VerbNet gives
+    it (`pmb_meanings.HAPPENING_ROLES`): the thing before the verb its `subject`; of the things after it, one its
+    `object`, two the `second` and the `object` ("give him a book", as the grammar's entry takes them); one after a
+    preposition `pp:` it ("at", or `pp:*` where the frame names none). A Theme is who does a happening where no role
+    of the frame does it ("NP:Theme V", "The bus collided with a truck."), as the PMB's meanings say it. A role with no
+    link Lyric holds (`Attribute`, `Extent`) says nothing. The frame's places as `NP V PP` written in its syntax:
+    "NP:Agent VERB LEX:at NP:Patient" ("Paula swatted at the fly") is `subject` done_by, `pp:at` done_to."""
+    from core.semantics.pmb_meanings import DOERS, HAPPENING_ROLES
+    said = [(el.tag, str(el.get("value") or "")) for el in (frame.find("SYNTAX") if frame.find("SYNTAX") is not None
+                                                            else ())]
+    verb = next((k for k, (tag, _) in enumerate(said) if tag == "VERB"), None)
+    if verb is None:
+        return ()
+    roles: Dict[str, str] = {}
+    before = [v for tag, v in said[:verb] if tag == "NP"]
+    if before:
+        roles["subject"] = before[-1]
+    pending: List[str] = []
+    bare: List[str] = []
+    for tag, v in said[verb + 1:]:
+        if tag == "PREP" or (tag == "LEX" and v.lower() in _PREPOSITIONS_WRITTEN):
+            pending = [p for p in re.split(r"[ |]+", v.lower()) if p] or ["*"]
+        elif tag == "NP":
+            if pending:
+                for p in pending:
+                    roles[f"pp:{p}"] = v
+                pending = []
+            else:
+                bare.append(v)
+    if len(bare) == 1:
+        roles["object"] = bare[0]
+    elif len(bare) >= 2:
+        roles["second"], roles["object"] = bare[0], bare[1]
+    roles = {slot: _VERBNET_AS_PMB.get(r.lstrip("?"), r.lstrip("?")) for slot, r in roles.items()}
+    done = any(r in DOERS for r in roles.values())
+    out = []
+    for slot, role in roles.items():
+        link = "done_by" if role == "Theme" and not done else HAPPENING_ROLES.get(role)
+        if link:
+            out.append((slot, link))
+    return tuple(sorted(out))
 
 
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
@@ -4179,8 +4252,9 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     except Exception:
         class_ids = []
     # EACH CLASS'S FRAMES, the ways its verbs are said ("NP V NP PP.instrument"), with those of the classes it is
-    # part of: (the class whose frame it is, its primary and secondary description, its example).
-    verbnet_frames: List[Tuple[str, str, str, str]] = []
+    # part of: (the class whose frame it is, its primary and secondary description, its example, what each of its
+    # places says, `_frame_places`).
+    verbnet_frames: List[Tuple[str, str, str, str, Tuple[Tuple[str, str], ...]]] = []
     for cid in class_ids:
         up = cid
         while up:
@@ -4193,16 +4267,24 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 example = frame.find("EXAMPLES/EXAMPLE")
                 held = (up, str(described.get("primary") or "") if described is not None else "",
                         str(described.get("secondary") or "") if described is not None else "",
-                        (example.text or "").strip() if example is not None else "")
+                        (example.text or "").strip() if example is not None else "", _frame_places(frame))
                 if held not in verbnet_frames:
                     verbnet_frames.append(held)
             parent = up.rsplit("-", 1)[0]
             up = parent if parent != up and re.search(r"-\d", parent) else ""
+    # A CLASS LISTING THE WORD WITH NO WORDNET SENSE ("pass_away", a member of `die-42.4-1`) says no sense is its
+    # member: where no class names any sense of the word, it is the class of each. Given to each sense no class
+    # names where others are named, "call" was a member of `initiate_communication-37.4.2-1` as "predict" and
+    # "postpone" (PMB train, `GRAMMAR-01/diagnostics/verb_places.py`: objects 85.8% linked as the PMB links them,
+    # 86.5% without; 2026-10-29).
+    keyless: List[str] = []
     for cid in class_ids:
         vc = verbnet.vnclass(cid)
         for member in vc.iter("MEMBER"):
             if member.get("name") != lemma_name:
                 continue
+            if not (member.get("wn") or "").split() and cid not in keyless:
+                keyless.append(cid)
             for key in (member.get("wn") or "").split():
                 try:
                     classes_of.setdefault(cid, set()).add(wn.lemma_from_key(key.lstrip("?") + "::").synset().name())
@@ -4266,6 +4348,12 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                                  tuple((str(a.text or "").strip(), str(a.get("pos") or "")) for a in roleset.iter("alias")),
                                  tuple(sorted({str(r.get("class")) for r in roleset.iter("rolelink")
                                                if r.get("resource") == "FrameNet"}))))
+    for k, s in enumerate(senses):
+        if s.word_class == "VERB":
+            member = tuple(sorted(cid for cid, ids in classes_of.items() if s.id in ids)) or (
+                tuple(keyless) if not classes_of else ())
+            if member:
+                senses[k] = dataclasses.replace(s, verbnet_classes=member)
     joined: Dict[str, Set[str]] = {}
     for rid, _, _, linked in rolesets:
         joined[rid] = {sense for cid in linked for sense in classes_of.get(cid, ())}

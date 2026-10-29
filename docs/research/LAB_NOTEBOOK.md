@@ -16,6 +16,77 @@ Conventions:
 
 ---
 
+## 2026-10-29 (77) — A verb's places by its frame: what each place says, by the places said with it, as VerbNet's frames say
+
+**Objective.** The 77's remaining errors counted again by cause (lyric_dev2, 33 wrong): which link a verb's place says
+was the largest group ("Nobody called him." `received_by`, "Our bus collided with a truck." `done_to`, "Our colleague's
+mother passed away." `done_to`, "The chicken is pecking at Tom." `done_to`), then participles read as passives or
+verbs (4), what a later word refers to (4), names of several words (5), single cases (13).
+
+**Cause.** A verb's place was linked by the place alone (`learned["role"][(verb, slot)]`): its word's PropBank places
+(function tags, `_PLACE_LINKS`) summed over all its senses, and what sentences taught said, whatever else was said with
+it. The PMB's roles are VerbNet's (`--roles verbnet`; Boxer gives a verb's roles by the VerbNet frame its category is,
+Bos 2008), and VerbNet says them by the frame: "pass away" `die-42.4-1` "NP:Patient V"; "peck" `chew-39.2-1` "NP V
+PP-Conative" ("at" the Patient).
+
+**Research first** (`GRAMMAR-01/diagnostics/verb_places.py`: each place of each verb of the PMB's 9,552 gold train
+documents, named as the grammar names it, against the link the PMB's conversion gives its role):
+
+| linked as the PMB links it | now | frames of the gold sense, else now | of WordNet's most used sense |
+|---|---|---|---|
+| subject (6,455) | 90.7% | 92.7% | 92.0% |
+| object (3,639) | 80.8% | 86.5% | 85.4% |
+| first of two objects (243) | 39.9% | 87.7% | 83.5% |
+| after a preposition (2,121) | 12.3% | 45.1% (with the word's frames) | 37.7% |
+
+By the place alone, whatever was said with it, VerbNet's frames did worse than now (objects 42.3%): the frame is the
+unit. The word's frames over all its senses do worse than now for subject and objects (its senses disagree: "call" a
+Topic, a Theme, a Recipient), better after a preposition. A class listing the word with no sense ("call" in
+`initiate_communication-37.4.2-1`) given to each sense no class names cost objects 0.7 points; given only where no
+class names any sense of the word ("pass away"), it is right.
+
+**Built.** (1) The word record (`word_record_of`): each VerbNet frame with what each of its places says
+(`_frame_places`: the role VerbNet gives it, linked as `pmb_meanings.HAPPENING_ROLES` links it, a Theme alone who does
+it; VerbNet's `Initial_Location` and `Trajectory` the PMB's `Source` and `Path`), and each verb sense's VerbNet classes
+(`verbnet_classes`). `WordRecord.frames_said`: each sense's frames (its classes' and those they are part of), and the
+word's. (2) The grammar holds them (`Lexicon.frames_said`) and links a place by them (`Lexicon.framed`): of the frames
+of the sense read (`sense_of`, now decided before the places are linked), those giving the most of the places said, the
+fewest besides; after a preposition saying no time, else the word's frames; a tie goes to the link it had.
+(3) **What sentences taught said of the very verb's place stands over its frames** (`Lexicon.taught_role`; the share of
+the role table its word's PropBank places said is kept apart, `place_links`). Found in the first run: "Who did Maurice
+Papon torture?" became Papon tortured, VerbNet's one class of "torture" being one of feelings (`amuse-31.1`,
+"NP:Stimulus V NP:Experiencer"), where lyric_dev2 was taught "You tortured a prisoner."; and "She attends school at
+night." lost its object (VerbNet's "attend" takes a Goal, `has_purpose`), where it was taught "How many people attended
+the meeting?". Tests: a frame's places as the PMB links them; the frames held by sense, linked by, taken back; reading
+by them, and a taught sentence standing over them.
+
+**Taught** (lyric_dev2): every verb it held (187) recorded again with the frames, and the four verbs of several words
+the sets' gold uses that it did not hold ("pass away", "go out", "pass up", "take off"): 152 corrected, 4 new, 35 the
+same. Main holds no word records (its words were taught otherwise): its readings are unchanged, word for word.
+
+**Measured** (all six sets, one run each; "before" is the code of c41ad563 in a worktree on the same store).
+
+| by their words | lyric_dev2, old store | store taught | rule | main before | after |
+|---|---|---|---|---|---|
+| the 77 | 44 (F1 81.5%) | 45 (81.8%) | 46 (82.1%) | 40 (79.9%) | 40 (79.9%) |
+| degree set (20) | 12 (78.4%) | 12 (84.1%) | 12 (84.1%) | 13 | 13 |
+| hyphen / denial / kind of / clock | 6 / 6 / 5 / 6 | the same | the same | 4 / 4 / 6 / 5 | the same |
+
+Teaching the store: "Our colleague's mother passed away." right ("pass away" held, its one place done to her), "He
+passed up her offer." in its sense. The rule: "The chicken is pecking at Tom." right. Nothing right became wrong.
+Changed and still wrong: "Our bus collided with a truck." (`done_with` to `done_by`: VerbNet's class of crashing has no
+"with"; the PMB's annotators wrote a Co-Theme), "He came back at 5 o'clock." ("o'clock" still a thing, `moves_to`).
+
+**Found, not fixed.** PropBank's `check.xml` and `rend.xml` (propbank-frames c66e0cc) are not well formed:
+`word_record_of("check")` fails on them.
+
+**Where it stands.** The 77 by their words: lyric_dev2 46 (60%), main 40 (52%); the bar is 95%. On the 9,552 train
+documents the rule moves a verb's object from 80.8% to 85.4% to 86.5% (as the sense read is right); on the 77, one
+sentence. Next: participles read as passives or verbs ("Is the dog chained?", "Israel is a developed country.",
+"Riding a horse is really thrilling.", "I've been stung by a hornet.").
+
+---
+
 ## 2026-10-29 (76) — Times of the clock: written as the treebanks write them, read as one time, their half of the day where the words say it
 
 **Objective** (the last of the gaps counted by size). 13 dev documents say a time of the clock, 9 with a gold meaning

@@ -62,3 +62,8 @@ about 40% of sentences right, what is measured.
 **Published, on this kind of data:** Boxer, the rule-based CCG with a parser trained on 40,000 hand-annotated
 sentences that made the PMB's meanings, 74.3 (PMB 2.1.0, van Noord et al. 2018); neural parsers 83.6 then, 89 to 92
 on PMB5's standard test (sentences of five words on average), 5 to 44 on its long texts (61 words).
+
+**`verb_places.py`** (2026-10-29, lab notebook (77)): each place of each verb of the PMB's gold documents of a split,
+named as the grammar names it, against the link the PMB gives its role: by what word records gave before (PropBank's
+function tags over the word's senses), by the VerbNet frames of the gold sense (else the word's, else before), and of
+WordNet's most used sense. Train: objects 80.8%, 86.5%, 85.4%; subjects 90.7%, 92.7%, 92.0%.

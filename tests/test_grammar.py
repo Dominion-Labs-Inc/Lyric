@@ -12,14 +12,16 @@ NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "wh
          "shirt": "shirt", "account": "account", "park": "park"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
-         "began": "begin", "working": "work", "work": "work"}
+         "began": "begin", "working": "work", "work": "work", "fell": "fall"}
 ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy"}
 PREPOSITIONS = ("in", "on", "from")
 FORMS = {"chased": {"past": 5.0, "participle": 1.0}, "barked": {"past": 5.0}, "unbuttoned": {"past": 2.0},
-         "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0}}
+         "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0},
+         "fell": {"past": 5.0}}
 FRAMES = {"chase": {"transitive": 9.0}, "bark": {"intransitive": 9.0}, "fly": {"intransitive": 9.0},
           "unbutton": {"transitive": 9.0}, "lock": {"transitive": 9.0}, "kick": {"transitive": 9.0},
-          "sleep": {"intransitive": 9.0}, "begin": {"ing": 6.0, "to": 3.0}, "work": {"intransitive": 9.0}}
+          "sleep": {"intransitive": 9.0}, "begin": {"ing": 6.0, "to": 3.0}, "work": {"intransitive": 9.0},
+          "fall": {"intransitive": 9.0}}
 
 
 class Held(gm.Words):
@@ -1026,3 +1028,28 @@ def test_a_doing_of_five_facts_is_said_kay_binding():
     said = g.say(told)
     assert "Tom chased a cat in the park." in said, said[:6]
     assert all(read(g, s) == told.canonical() for s in said)
+
+
+def test_a_verbs_place_is_what_its_frame_says_by_the_places_said_with_it():
+    """A verb's places linked as the frames of the sense read say, by the places said with it (`Lexicon.framed`,
+    VerbNet's frames, as the PMB's roles are): falling is done to the one falling ("NP:Patient V"); "in" after
+    "chase" where to, as the frame said with a thing chased and "in" says; a verb no frame is held of by the
+    grammar's own links; and what a sentence taught said of the verb's place stands over its frames."""
+    g = gm.Grammar(gm.Lexicon(Held()))
+    lexicon = g.lexicon
+    assert read(g, "The dog fell.") == (
+        "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, fall) & precedes(?v0, ?now)")
+    lexicon.sense_used["fall"]["fall"] = 3
+    lexicon.frames_said["fall"]["fall"][(("subject", "done_to"),)] = 1
+    assert read(g, "The dog fell.") == (
+        "tell: done_to(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, fall) & precedes(?v0, ?now)")
+    lexicon.sense_used["chase"]["chase"] = 3
+    lexicon.frames_said["chase"]["chase"][(("object", "done_to"), ("pp:in", "moves_to"), ("subject", "done_by"))] = 1
+    lexicon.frames_said["chase"]["chase"][(("object", "done_to"), ("subject", "done_by"))] = 1
+    assert read(g, "The dog chased the cat in the park.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & given instance_of(?v2, cat) & "
+        "given instance_of(?v3, park) & instance_of(?v0, chase) & moves_to(?v0, ?v3) & precedes(?v0, ?now)")
+    assert "word_in(?v0, ?v2)" in read(g, "The dog barked in the park.")
+    lexicon.learned["role"][("fall", "subject")]["done_by"] += 1
+    assert lexicon.taught_role("fall", "subject") and not lexicon.taught_role("chase", "subject")
+    assert read(g, "The dog fell.").startswith("tell: done_by(?v0, ?v1)")

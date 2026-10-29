@@ -163,3 +163,9 @@ meaning. By their words: lyric_dev2 5 of 10, the 77 43 (F1 81.0%); main 6 of 10,
 with a gold meaning. By their words a time's half of the day is set aside where the sentence's words do not say it
 (the PMB's annotators chose it: "at six" 18:00). Clock set: lyric_dev2 6 of 9, main 5; the 77: lyric_dev2 44 (F1
 81.5%), main 40 (79.9%).
+
+**A verb's places by its frame (2026-10-29, lab notebook (77)).** A verb's place linked by the VerbNet frame of the
+sense read that best fits the places said (`Lexicon.framed`), where no taught sentence said it. Research first:
+`diagnostics/verb_places.py`, each verb place of the PMB's 9,552 train documents against the PMB's link (objects 80.8%
+now, 85.4% by the most used sense's frames, 86.5% by the gold sense's). lyric_dev2 re-taught its verbs: the 77 46 (F1
+82.1%); main 40 (79.9%), unchanged.

@@ -133,6 +133,57 @@ def test_a_verbs_place_is_linked_only_where_its_function_and_preposition_agree()
     assert _PLACE_LINKS[("PAG", "by")] == ("by", "done_by") and _PLACE_LINKS[("PPT", "")] == ("object", "done_to")
 
 
+def test_a_verbnet_frames_places_are_linked_as_the_pmb_links_their_roles():
+    """Each place of a VerbNet frame, as the grammar names it and the PMB links the role VerbNet gives it
+    (`_frame_places`): "at" a Patient's after "swat"; of two things after the verb the first the `second`; a Theme
+    with no role of the frame doing it does the happening ("The bus collided with a truck.")."""
+    import xml.etree.ElementTree as ET
+    from core.learning.teaching_sources import _frame_places
+
+    def places(*said: str) -> tuple:
+        return _frame_places(ET.fromstring("<FRAME><SYNTAX>" + "".join(said) + "</SYNTAX></FRAME>"))
+    assert places('<NP value="Agent"/>', "<VERB/>", '<LEX value="at"/>', '<NP value="Patient"/>') == (
+        ("pp:at", "done_to"), ("subject", "done_by"))
+    assert places('<NP value="Agent"/>', "<VERB/>", '<NP value="Recipient"/>', '<NP value="Theme"/>') == (
+        ("object", "done_to"), ("second", "received_by"), ("subject", "done_by"))
+    assert places('<NP value="Theme"/>', "<VERB/>", '<PREP value="against into"/>', '<NP value="Location"/>') == (
+        ("pp:against", "located_in"), ("pp:into", "located_in"), ("subject", "done_by"))
+    assert places('<NP value="Patient"/>', "<VERB/>") == (("subject", "done_to"),), "the one dying it is done to"
+    assert places('<NP value="Agent"/>', "<VERB/>", '<NP value="Attribute"/>') == (("subject", "done_by"),), \
+        "a role with no link Lyric holds says nothing"
+
+
+def test_a_verbs_frames_are_held_by_sense_and_say_each_place_by_the_places_said_with_it():
+    """A verb recorded with its VerbNet frames and each sense's classes (`WordRecord.frames_said`): a sense's frames
+    are its classes' and those they are part of; the word's every frame. The grammar holds them (`frames_said`),
+    links a place by them (`Lexicon.framed`), and takes them back whole."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    conative = (("pp:at", "done_to"), ("subject", "done_by"))
+    hit = (("object", "done_to"), ("subject", "done_by"))
+    peck = WordRecord("peck", (WordForm("peck", "VERB", "VerbForm=Inf", 3),),
+                      (WordSense("peck.v.01", "VERB", "peck", "eat by pecking at", (), 2,
+                                 verbnet_classes=("chew-39.2-1",)),
+                       WordSense("nag.v.01", "VERB", "nag", "bother persistently", (), 1)),
+                      verbnet_frames=(("chew-39.2", "NP V PP-Conative", "", "Cynthia nibbled at the carrot.", conative),
+                                      ("swat-18.2", "NP V NP", "", "Paula swatted the fly.", hit)))
+    assert not peck.problems(), peck.problems()
+    assert WordRecord.from_dict(json.loads(json.dumps(peck.to_dict()))) == peck
+    said = peck.frames_said()
+    assert said["peck"] == {conative: 1}, "chew-39.2-1 is part of chew-39.2; swat-18.2 is no class of the sense"
+    assert said[""] == {conative: 1, hit: 1} and "nag" not in said
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view.hold_word(peck)
+    lexicon, name = view.grammar.lexicon, view.words.name("peck", "VERB")
+    assert lexicon.framed(name, "peck", ["subject", "pp:at"], "pp:at") == "done_to"
+    assert lexicon.framed(name, "nag", ["subject", "pp:at"], "pp:at") == "done_to", "after a preposition, the word's"
+    assert lexicon.framed(name, "nag", ["subject", "object"], "object") is None, "its object, the sense's frames alone"
+    assert not lexicon.taught_role(name, "subject"), "what its PropBank places say is no sentence taught"
+    view.drop_word(peck)
+    assert not any(lexicon.frames_said[name].values())
+
+
 def test_a_wordnet_frame_is_named_as_the_grammar_names_frames():
     from core.learning.teaching_sources import _frame_named
     assert _frame_named("Somebody %s something") == "transitive"
