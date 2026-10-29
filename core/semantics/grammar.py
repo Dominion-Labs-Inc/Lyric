@@ -332,6 +332,10 @@ class Words:
         """What memory holds the word's thing to be a kind of, nearest first."""
         return []
 
+    def defined(self, name: str) -> List[str]:
+        """What a thing held as a kind of nothing (an adjective's sense) is defined with: "Norwegian" Norway."""
+        return []
+
     def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
         """Whether the thing is a person: True, False where memory holds what it is and a person is not among it, None
         where it holds nothing of it (`grammar_words.Knowledge.is_person`)."""
@@ -4144,8 +4148,11 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 add("state_of", state, x, positive=q not in denied, at=at)
             else:
                 got, how = lexicon.inherited("quality", name, "ADJECTIVE", (), "has_property")
-                decided.append(("quality", name, how, add(got or "has_property", x, name, positive=q not in denied,
-                                                          at=at)))
+                # A quality saying a link to what it is of says it to that thing ("the Dutch people": from the
+                # Netherlands); said to the adjective, "The Dutch people approve ..." was `comes_from(?v0, dutch)`.
+                of = lexicon.words.defined(name) if got and got != "has_property" else []
+                decided.append(("quality", name, how, add(got or "has_property", x, of[0] if of else name,
+                                                          positive=q not in denied, at=at)))
         elif what == "count":
             _, x, n = p[:3]
             add("has_count", x, n, at=at)

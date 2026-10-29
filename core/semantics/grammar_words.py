@@ -41,6 +41,11 @@ class Knowledge:
         and what that is a kind of."""
         return []
 
+    def defined(self, name: str) -> List[str]:
+        """What a thing held as a kind of nothing (an adjective's sense) is defined with, as memory holds it: "British"
+        the United Kingdom, "Norwegian" Norway."""
+        return []
+
     def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
         """Whether the thing is a person: True; False where memory holds what it is and a person is not among it;
         None where memory holds nothing of what it is. `particular`: one thing called by this name ("Bill"), judged
@@ -102,6 +107,9 @@ class GraphKnowledge(Knowledge):
         if table is not None:
             table[_concept(subject)].append(_concept(obj))
             self._kinds = {}
+
+    def defined(self, name: str) -> List[str]:
+        return [_plain(w) for w in self._defined.get(_concept(name), [])]
 
     def discard(self, subject: str, relation: str, obj: str) -> None:
         """A link taken back (a word recorded otherwise since): once, as it was added once."""
@@ -715,6 +723,9 @@ class HeldWords(Words):
 
     def kinds(self, name: str, cls: str) -> List[str]:
         return self.knowledge.kinds(name, cls)
+
+    def defined(self, name: str) -> List[str]:
+        return self.knowledge.defined(name)
 
     def is_person(self, name: str, particular: bool = False) -> Optional[bool]:
         return self.knowledge.is_person(name, particular)
