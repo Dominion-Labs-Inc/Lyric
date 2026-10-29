@@ -5657,6 +5657,18 @@
     ],
     "label": "adv:degree",
     "use": "ADVERB:degree"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/((S[F].e\\NP.x)\\(S[F].e\\NP.x))",
+    "sem": [
+     [
+      "degree",
+      "e",
+      "@"
+     ]
+    ],
+    "label": "adv:degree of a doing's",
+    "use": "ADVERB:degree"
    }
   ],
   "PREPOSITION": [

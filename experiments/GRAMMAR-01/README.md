@@ -144,3 +144,9 @@ hyphened word as a word of the sentence in each of its spellings ("bullet-proof"
 "by their words" sets its sense aside as it does any word's; the 77 by it: lyric_dev2 37 (F1 77.3%) before the rule,
 37 (77.7%) after; main 33 (73.7%) before, 32 (73.0%) after (main holds no hyphened word: lab notebook (72)). The hyphen
 set: lyric_dev2 4 (56.7%) to 7 (80.0%); main 3 (53.6%) to 1 (59.7%).
+
+**Degree (2026-10-29, lab notebook (73)).** `degree_test.json` lists the 20 dev documents whose gold says a quality's
+degree ("very smooth"), their words taught to lyric_dev2. A derivation's word is now named by the grammar's entry its
+category is most exactly (`_exactness`): "very" had been counted an adverb of a doing in every derivation. Degree set:
+lyric_dev2 1 to 12 by their words, main 2 to 13; the 77: lyric_dev2 37 to 39 (F1 78.9%), main 35 to 38 (78.7%), main
+counted after its WordNet word classes were taught whole.

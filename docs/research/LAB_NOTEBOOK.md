@@ -16,6 +16,50 @@ Conventions:
 
 ---
 
+## 2026-10-29 (73) — Main taught every class WordNet holds its words in; a degree word read as one: the derivations had counted every "very" as an adverb of a doing
+
+**Main's word classes** (the owner's run, `--source wordnet-classes` on lyric_db, after (72)). 93,155 pairs stated,
+those held skipped: it added the 5,099 hyphened words and also what the 2026-10-24 lessons (a word is every class
+WordNet holds it in; verbs of several words) were never taught to main: about 4,000 second classes of words held
+("abuse" a noun), 2,800 verbs of several words ("look up"), 2,500 words held in no class ("aboveboard"). Main after it
+(the code of (72)): the 77 by their words 35 (F1 76.7%), kinds aside 31, from 33 and 29 before (72); the hyphen set 5
+of 15, from 3. Gained "We're dieting." (`diet`, not `die`) and "I didn't flunk."; none lost.
+
+**Degree** (the next gap by size). The gold says a quality's degree as the lessons do: "very smooth" is a degree of
+smoothness, the sea's, that is very (`has_degree`, `instance_of`, `has_property` of the degree). 20 dev documents, 195
+training ("very" 100, "rather" 28, "extremely" 11). The grammar had the entry (`adv:degree`), and the treebank's uses
+weigh it ("very" 610 uses as a degree on lyric_dev2, 15 otherwise), yet "very" was read as an adverb of the doing,
+which says nothing, and dropped: the evidence beside its neighbours (`_in_context`) is the hand-made derivations', and
+they had counted all 81 of "very"'s as an adverb of a doing. A derivation's word is named by the grammar's entry its
+category is alike to; taken in the order written, `adv:before`'s `(S[F]\NP)/(S[F]\NP)` (a feature left open) took
+"very"'s `(s:adj\np)/(s:adj\np)` before the degree's `S[adj]`. **Root fix:** the entry it is most exactly
+(`_exactness`: the features written as they are), for a kind of word's entries and the grammar's own words alike. And
+an entry for a degree word grading an adverb after a doing ("She runs very fast": a degree of the running's quality,
+`adv:degree of a doing's`, the same use), the nearest adverb after it graded. Tests: "very" in a derivation is a
+degree; "very happy" and "barked very loudly" graded.
+
+**Measured** (before: the code of (72) in a worktree; lyric_dev2 taught the degree set's 30 untaught words first;
+"'s", "isn", "t", pieces of "isn't" the word list split, left out).
+
+| | before | after |
+|---|---|---|
+| lyric_dev2, degree set (20): by their words | 1 (F1 30.9%) | 12 (78.4%) |
+| kinds aside | 0 (38.9%) | 9 (81.8%) |
+| lyric_dev2, the 77: by their words | 37 (77.7%) | 39 (78.9%) |
+| kinds aside | 34 (78.6%) | 36 (79.8%) |
+| main, degree set: by their words | 2 (37.0%) | 13 (83.9%) |
+| main, the 77: by their words | 35 (76.7%) | 38 (78.7%) |
+| kinds aside | 31 (76.1%) | 32 (77.8%) |
+
+Nothing right became wrong on either. Still wrong: "Lambs are very cute." ("Lambs" opening the sentence a name), "Ain't
+that cute?" ("that" now a degree, "that cute"; wrong before too), a degree before "carefully", "loudly", "much" still
+dropped, "He speaks English very well." graded on English (before: "well" a dug well). No PMB gold sentence grades an
+adverb; those are probes, not measured.
+
+**Next:** denials (16), "kind of" (15), clock times (13).
+
+---
+
 ## 2026-10-29 (72) — Words joined by hyphens: one word where memory holds it in some spelling, its words where it holds none; main never taught WordNet's 5,093
 
 **Objective** (the next gap by size, 23 dev documents). What the PMB's gold makes of a word joined by hyphens, and a

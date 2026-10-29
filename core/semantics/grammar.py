@@ -598,6 +598,16 @@ def _atoms(cat: Cat) -> List[Atom]:
     return [cat] if isinstance(cat, Atom) else _atoms(cat.res) + _atoms(cat.arg)
 
 
+def _exactness(said: Cat, cat: Cat) -> int:
+    """Of a category a derivation gives and one the grammar writes that are alike (`_alike`), how many of the
+    derivation's features the grammar's writes as they are (`S[adj]`), not leaves open (`S[F]`): of the entries a
+    category is alike to, the one it is most exactly is its use. Taken in the order they are written, "very"'s
+    `(s:adj\\np)/(s:adj\\np)` was an adverb of a doing (`S[F]`), never the degree written for it (`S[adj]`): the 81
+    derivations of "very" on lyric_dev2 were each counted against its 610 uses as a degree, and "The sea was very
+    smooth." lost the "very" (2026-10-29)."""
+    return sum(1 for a, b in zip(_atoms(said), _atoms(cat)) if a.feat is not None and a.feat == b.feat)
+
+
 def _without_taken(cat: Cat) -> Cat:
     """A category a derivation gives a word taking a phrase of a preposition (`PP`) or a particle (`PR`), as the
     grammar says it: taking neither, the preposition read as telling of what it joins and the particle read with the
@@ -1307,10 +1317,10 @@ class Lexicon:
             ways += [_said_of_a_thing(said), _without_taken(said)]
         ways += [c for c in (_clause_taken(w) for w in ways) if c is not None]
         for way in ways:
-            for e in closed:
-                cat = self._category(e["cat"])
-                if _alike(way, cat) or _alike(way, _raised_thing(cat)):
-                    return e["use"], ""
+            alike = [(e, cat) for e, cat in ((e, self._category(e["cat"])) for e in closed)
+                     if _alike(way, cat) or _alike(way, _raised_thing(cat))]
+            if alike:
+                return max(alike, key=lambda ec: _exactness(way, ec[1]))[0]["use"], ""
         kind = _TAGGED.get(derived.tags[k])
         got = self._use_of_kind(kind, ways) if kind else None
         if got is None and kind != "PREPOSITION":
@@ -1335,9 +1345,9 @@ class Lexicon:
                         if any(_alike(way, self._category(t["cat"])) for t in templates):
                             return "VERB", frame
                 continue
-            for t in self.templates.get(cls, ()):
-                if _alike(way, self._category(t["cat"])):
-                    return t.get("use", cls), ""
+            alike = [t for t in self.templates.get(cls, ()) if _alike(way, self._category(t["cat"]))]
+            if alike:
+                return max(alike, key=lambda t: _exactness(way, self._category(t["cat"]))).get("use", cls), ""
             made = {"ADJECTIVE": (("N/N", "ADJECTIVE:before"), ("N\\N", "ADJECTIVE")),
                     "NOUN": (("N", "NOUN"), ("N/N", "NOUN:compound")), "NAME": (("N", "NAME"),),
                     "NUMERAL": (("N", "NUMERAL:alone"),)}.get(cls, ())
@@ -4126,7 +4136,19 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         elif what == "adv":
             _, e, name = p[:3]
             got, how = lexicon.link("adv", (name,), lexicon.linking.get("adverb"))
-            decided.append(("adv", name, how, add(got, e, name, at=at) if got else None))
+            # "She runs very fast": a degree of the doing's quality, as "very smooth" is a quality's; each degree
+            # word grades the nearest of the doing's adverbs after it.
+            after = [d[-1] for d in pieces if d[0] == "adv" and d[1] == e]
+            grading = [d[2] for d in degrees.get(e, ())
+                       if min((a for a in after if a > d[-1]), default=None) == at]
+            if got == "has_property" and grading:
+                held = fresh()
+                decided.append(("adv", name, how, add("has_degree", e, held, at=at)))
+                add("instance_of", held, name, at=at)
+                for d in grading:
+                    add("has_property", held, d, at=at)
+            else:
+                decided.append(("adv", name, how, add(got, e, name, at=at) if got else None))
         elif what == "prop":
             _, x, name = p[:3]
             add("has_property", x, name, at=at)

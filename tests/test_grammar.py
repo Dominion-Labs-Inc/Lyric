@@ -547,6 +547,29 @@ def test_a_derivations_words_are_named_as_the_grammars_entries_name_them():
                       ("Burt~Lancaster", "n")], ["PRP$", "NN", "VBD", "RP", "NNP"])
     assert lexicon.uses_derived(uncle) == [("det", ""), ("NOUN", ""), ("VERB", "intransitive"), ("PARTICLE", ""),
                                            None]
+    # Named by the entry its category is most exactly: "very" before a quality (`S[adj]`) is a degree, never the
+    # adverb of a doing whose `S[F]` is alike to it too (`_exactness`).
+    smooth = _derived([("The", "np/n"), ("sea", "n"), ("was", "(s:dcl\\np)/(s:adj\\np)"),
+                       ("very", "(s:adj\\np)/(s:adj\\np)"), ("smooth", "s:adj\\np")], ["DT", "NN", "VBD", "RB", "JJ"])
+    assert lexicon.uses_derived(smooth)[3] == ("ADVERB:degree", "")
+
+
+def test_a_degree_word_grades_the_quality_or_the_doings_quality_it_is_said_of():
+    # "very happy": a degree of happiness, the dog's, that is very (the PMB's and the lessons' way); "barked very
+    # loudly": a degree of the barking's loudness.
+    class Graded(Held):
+        def uses(self, word: str) -> Mapping[str, float]:
+            w = word.lower()
+            if w == "very":
+                return {"ADVERB:degree": 50.0, "ADVERB": 2.0}
+            return {"ADVERB": 10.0} if w == "loudly" else super().uses(word)
+    g = gm.Grammar(gm.Lexicon(Graded()))
+    assert read(g, "The dog is very happy.") == (
+        "tell: given instance_of(?v0, dog) & has_degree(?v0, ?v1) & has_property(?v1, very) & instance_of(?v1, happy)")
+    assert read(g, "The dog barked very loudly.") == (
+        "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & has_degree(?v0, ?v2) & has_property(?v2, very) & "
+        "instance_of(?v0, bark) & instance_of(?v2, loudly) & precedes(?v0, ?now)")
+    assert "has_property(?v0, loudly)" in read(g, "The dog barked loudly.")
 
 
 def test_a_words_category_is_chosen_beside_the_words_around_it():
