@@ -16,6 +16,77 @@ Conventions:
 
 ---
 
+## 2026-10-29 (80) — The error budget: where the distance to the bar actually is
+
+**Objective.** Nine sessions have closed one error group each and moved the 77 from 35 right to 50. The owner asked
+what it would take to reach the bar. Closing groups one at a time cannot answer that, because it never says how much
+of the distance each group is. So: take the false errors out of the measure, then measure the whole of it.
+
+**The measure's false errors.** Two, both found by reading the group's remaining failures in (79), both of them the
+measure or the reader naming a thing and not the reading being wrong:
+
+- A word of several words was not a word of the sentence. `words_of_sentence` counted every run of two and three
+  words **as written** and not the word the run is a form of, where it counts a word of one that way and a hyphened
+  word in each of its spellings ((72)). So a thing the gold says by a word of several words could be named by no
+  word of the sentence at all: "Tom took off his bullet-proof vest." has the gold's `take_off.v.06` (named `undress
+  take off`) against the reading's `take_off.v.02` (named `take off`), and the sentence says neither — it says "took
+  off". The reading read "took off" as one verb, which the gold does too, and was scored wrong for it.
+- A compound was named by the first word and the second's **sense name**: "cell phone" was `cell telephone`, which
+  is no thing's name and no words of the sentence. Named by its own words now, the second as the word it is a form
+  of ("dairy products" `dairy product`).
+
+Of the eight sets one sentence changed and none was lost. The records and the measure's sense table were checked
+against each other over the 163 senses of the words taught this week and agree on every one, so this was not a
+record defect; and of the gold's 4,268 concepts the table has no name at all for 48 (1.1%), which is the measure's
+own floor.
+
+**Measured** (`on_store.py` now prints the error budget; lyric_dev2, the whole dev split, 911 documents with a gold
+meaning, read by their words with pronouns as unknowns): 465 right whole (51.0%), facts 2,922 of 3,981 (73.4%).
+
+| the link said | gold | missed | recall | of all missed | cumulative |
+|---|---|---|---|---|---|
+| `instance_of` (which kind a thing is) | 1,366 | 270 | 80.2% | 25.5% | 25.5% |
+| `done_by` | 627 | 166 | 73.5% | 15.7% | 41.2% |
+| `done_to` | 451 | 125 | 72.3% | 11.8% | 53.0% |
+| `has_property` | 313 | 95 | 69.6% | 9.0% | 61.9% |
+| `precedes` | 371 | 79 | 78.7% | 7.5% | 69.4% |
+| `located_in` | 73 | 31 | 57.5% | 2.9% | 72.3% |
+| `creates` | 32 | 25 | 21.9% | 2.4% | 74.7% |
+| `part_of` | 52 | 24 | 53.8% | 2.3% | 77.0% |
+| `during` | 111 | 24 | 78.4% | 2.3% | 79.2% |
+| `comes_from` | 27 | 23 | 14.8% | 2.2% | 81.4% |
+
+**Three findings, and they change what to work on.**
+
+1. **The five commonest links hold 69% of every missed fact**, and none of them is exotic: which kind a thing is,
+   who does it, what it is done to, what quality it has, that it happened before now. Each is at 70% to 80% where
+   99% is wanted.
+2. **The links the last nine sessions built rules for are rounding error.** `comes_from` is 27 facts of 3,981,
+   `creates` 32, `part_of` 52, `state_of` 14, `received_by` 16 — together under 5% of the budget. Every one was a
+   real defect and worth fixing; none of them was ever going to move the bar.
+3. **Errors cascade; they are not near misses.** A wrong sentence is missing **2.37 of the 4.4 facts it says**. Were
+   the facts decided apart, 73.4% each would give 25.9% of sentences right; 55.8% are right, so the facts of a
+   sentence stand or fall together. One structural decision — which word takes which — carries two or three facts,
+   which is why the whole-sentence figure is so much better than chance and why a wrong sentence is wrong about most
+   of itself.
+
+**What the ceilings say about the bar.** Taking the best way measured for each place (`verb_places.py`, (77)): a
+verb's subject 92.7%, its object 86.8%, a second object 89.7%, a preposition's link 45.1%, a passive's subject ~44%
+(the gold itself split 49/42), a passive's "by" 8.8%. Lifting `instance_of`, `has_property` and `precedes` to 90-95%
+and the places to those ceilings gives about 3,364 of 3,981 facts, 84.5%, which at the correlation observed here is
+roughly three sentences in four. **Hitting every ceiling we have measured does not reach 95%.** The bar needs
+evidence the reader does not have yet, and the plainest candidate is how little it has read: 12,544 sentences is a
+small thing to count "what goes with what" from.
+
+**Where it stands.** The 77 by their words 50 (65%); the whole dev split 465 of 911 (51.0%), facts 73.4%; the bar
+95%. The order of work the budget gives, largest first: the vocabulary floor (the owner's WordNet class lessons,
+which end the "no entry offered" family the last four sessions each chipped at), then which word takes which
+(`prose_joins.py`: 68.0% of content words joined as the analysis by hand does, Lyric's own structure view 72.5% on
+the same test), then a verb's places, then which kind a thing is. The small links are done being worth a session
+each.
+
+---
+
 ## 2026-10-29 (79) — Several words that are one word: read as whatever kind memory holds them as
 
 **Objective.** The 77's next group by size as (78) counted it: a noun or name of several words (6 of the 28 left).
