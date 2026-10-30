@@ -66,6 +66,16 @@ def _json_value(value: Any) -> Any:
     return json.loads(value) if isinstance(value, str) else value
 
 
+def _of_memory(entry: Any, memory_id: Optional[str]) -> Any:
+    """One observation of a belief, with the memory it is of: the belief's own where the row left it out, which is
+    how it is stored when the two are the same (`MemoryAgent.hold_belief`). An observation naming another memory
+    keeps it, and one stored before this is unchanged."""
+    made = _json_value(entry)
+    if isinstance(made, dict) and memory_id and made.get("memory_id") is None:
+        made = dict(made, memory_id=memory_id)
+    return made
+
+
 class _KeylessWrites:
     """The memory database, behind a guard that keeps keys out of it: every
     statement's parameters are cleaned of the substrate's keys before they reach
@@ -3834,7 +3844,14 @@ class MemoryAgent(IMemoryConsolidation):
 
         `claim` is written twice, as the claim and as `belief_text`, and the
         posterior as `confidence`: labels and a legacy mirror, not knowledge.
-        `log_odds` is how strongly it is held; the posterior is read from it."""
+        `log_odds` is how strongly it is held; the posterior is read from it.
+
+        THE MEMORY AN OBSERVATION IS OF IS NOT WRITTEN TWICE: where it is the
+        memory the belief itself names, the key is left out of the row and put
+        back when the evidence is read (`belief_evidence`,
+        `every_belief_evidence`), so what reads evidence sees it either way.
+        Of main's 2,182,499 evidence rows, 2,158,285 (98.9%) named the memory
+        their belief already named, at 52 bytes of 345 a row (2026-10-30)."""
         return await self._memory_db().execute_query(
             """
             WITH held AS (
@@ -3860,7 +3877,10 @@ class MemoryAgent(IMemoryConsolidation):
                 RETURNING update_count
             ), added AS (
                 INSERT INTO unified.belief_evidence (belief_id, supports, entry)
-                SELECT $1, (made.value->>'supports')::boolean, made.value->'entry'
+                SELECT $1, (made.value->>'supports')::boolean,
+                       CASE WHEN made.value->'entry'->>'memory_id' IS NOT DISTINCT FROM $2
+                            THEN (made.value->'entry') - 'memory_id'
+                            ELSE made.value->'entry' END
                 FROM held, jsonb_array_elements($15::jsonb) WITH ORDINALITY AS made(value, n)
                 ORDER BY made.n
             )
@@ -3873,25 +3893,29 @@ class MemoryAgent(IMemoryConsolidation):
         )
 
     async def belief_evidence(self, belief_id: str) -> Tuple[List[Any], List[Any]]:
-        """One belief's evidence as stored: the observations for it and against it, each in the order made."""
+        """One belief's evidence as stored: the observations for it and against it, each in the order made. The
+        memory an observation is of is put back where the row left it out, being the belief's own (`hold_belief`)."""
         rows = await self._memory_db().execute_query(
-            "SELECT supports, entry FROM unified.belief_evidence WHERE belief_id = $1 ORDER BY seq",
+            "SELECT e.supports, e.entry, b.memory_id FROM unified.belief_evidence e "
+            "LEFT JOIN unified.beliefs b ON b.belief_id = e.belief_id "
+            "WHERE e.belief_id = $1 ORDER BY e.seq",
             (belief_id,), fetch_all=True) or []
         for_it: List[Any] = []
         against: List[Any] = []
         for row in rows:
-            (for_it if row["supports"] else against).append(_json_value(row["entry"]))
+            (for_it if row["supports"] else against).append(_of_memory(row["entry"], row["memory_id"]))
         return for_it, against
 
     async def every_belief_evidence(self) -> Dict[str, Tuple[List[Any], List[Any]]]:
         """Every belief's evidence as stored, by belief: what the beliefs are loaded with."""
         rows = await self._memory_db().execute_query(
-            "SELECT belief_id, supports, entry FROM unified.belief_evidence ORDER BY seq",
+            "SELECT e.belief_id, e.supports, e.entry, b.memory_id FROM unified.belief_evidence e "
+            "LEFT JOIN unified.beliefs b ON b.belief_id = e.belief_id ORDER BY e.seq",
             fetch_all=True) or []
         evidence: Dict[str, Tuple[List[Any], List[Any]]] = {}
         for row in rows:
             for_it, against = evidence.setdefault(row["belief_id"], ([], []))
-            (for_it if row["supports"] else against).append(_json_value(row["entry"]))
+            (for_it if row["supports"] else against).append(_of_memory(row["entry"], row["memory_id"]))
         return evidence
 
     async def settle_belief_evidence(self, store: Optional[str] = None) -> Dict[str, int]:

@@ -170,3 +170,47 @@ def test_learning_a_belief_is_no_change_in_its_domain():
     assert system.domain_belief_changes["tools"] == [] and system.domain_volatility["tools"] == 0.01
     system.observe_claim("a flerm 0 is a glomph", "tools", supports=False, quality=0.9, observation="l1:b")
     assert len(system.domain_belief_changes["tools"]) == 1
+
+
+def test_the_memory_an_observation_is_of_is_not_stored_twice():
+    """`MemoryAgent.hold_belief` leaves `memory_id` out of an evidence row where it is the memory the belief itself
+    names, and the reads put it back (`_of_memory`), so what reads evidence sees it either way. On main 2,158,285 of
+    2,182,499 evidence rows named the memory their belief already named, at 52 bytes of 345 a row (2026-10-30)."""
+    import asyncio
+    from core.agents.memory_agent import MemoryAgent, _of_memory
+
+    # Left out because it is the belief's own: put back on the way out.
+    assert _of_memory({"source": "taught", "quality": 0.95}, "mem_1") == {
+        "source": "taught", "quality": 0.95, "memory_id": "mem_1"}
+    # An observation of ANOTHER memory keeps the one it names, and one stored before this is unchanged.
+    assert _of_memory({"memory_id": "mem_2"}, "mem_1")["memory_id"] == "mem_2"
+    # A belief naming no memory leaves the row as it is, and the text a driver hands back is read as JSON.
+    assert _of_memory({"source": "read"}, None) == {"source": "read"}
+    assert _of_memory('{"source": "read"}', "mem_1") == {"source": "read", "memory_id": "mem_1"}
+    # Nothing but a mapping is touched.
+    assert _of_memory(None, "mem_1") is None
+
+    rows = [{"belief_id": "b1", "supports": True, "entry": {"source": "taught"}, "memory_id": "mem_1"},
+            {"belief_id": "b1", "supports": False, "entry": {"memory_id": "mem_9"}, "memory_id": "mem_1"},
+            {"belief_id": "b2", "supports": True, "entry": {"source": "read"}, "memory_id": None}]
+
+    class Store:
+        def __init__(self):
+            self.asked = []
+
+        async def execute_query(self, sql, *args, **kw):
+            self.asked.append(sql)
+            if "e.belief_id = $1" in sql:
+                return [r for r in rows if r["belief_id"] == args[0][0]]
+            return rows
+    store = Store()
+    agent = MemoryAgent.__new__(MemoryAgent)
+    agent._memory_db = lambda: store  # type: ignore[method-assign]
+    for_it, against = asyncio.run(agent.belief_evidence("b1"))
+    assert for_it == [{"source": "taught", "memory_id": "mem_1"}], for_it
+    assert against == [{"memory_id": "mem_9"}], against
+    every = asyncio.run(agent.every_belief_evidence())
+    assert every["b1"][0] == [{"source": "taught", "memory_id": "mem_1"}], every["b1"]
+    assert every["b2"][0] == [{"source": "read"}], every["b2"]
+    # The memory is read beside the row, never guessed: both reads join the belief it belongs to.
+    assert all("unified.beliefs" in sql for sql in store.asked), store.asked

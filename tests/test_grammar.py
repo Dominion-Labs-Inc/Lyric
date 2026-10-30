@@ -1098,3 +1098,35 @@ def test_words_memory_knows_as_one_word_are_read_as_the_kind_it_knows_them_as(gr
     assert read(grammar, "The dog chased a credit card.") == (
         "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
         "instance_of(?v2, credit card) & precedes(?v0, ?now)")
+
+
+def test_saying_keeps_how_surely_each_sentence_it_says_reads_back():
+    """`Grammar.say`'s `how_surely`: a sentence is kept where it reads back to exactly the meaning, which asks whether
+    and never how surely, so the number reading already made at the deciding place was thrown away. Each sentence said
+    now carries the share of its whole readings which is the meaning asked for (`Reading.sure`), the sentence said
+    first at the head, and a sentence nothing else can be read from stands above one of several readings."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    told = gm.Meaning("tell", (gm.MeaningFact("isa", "owl", "bird"),))
+    how_surely: dict = {}
+    said = g.say(told, how_surely=how_surely)
+    assert said, "nothing said, so there is nothing to be sure of"
+    # Every sentence said is reported, in the order they are said, and no other.
+    assert list(how_surely) == said, (list(how_surely)[:4], said[:4])
+    # A share of the whole readings is a share: never outside it, and never nothing where a sentence was said.
+    assert all(0.0 < sure <= 1.0 for sure in how_surely.values()), how_surely
+    # It is the reading's own number, not one made here: reading the sentence back says the same.
+    for text in said[:3]:
+        assert abs(g.read(gm.tokens_of(text, g.lexicon.words)).sure - how_surely[text]) < 1e-9, text
+    # Asked for nothing, nothing is filled, and saying is unchanged.
+    assert g.say(told) == said
+
+
+def test_how_surely_is_not_filled_where_nothing_is_said():
+    """Nothing said is not something said unsurely: `how_surely` is emptied, and `why` says why instead."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    how_surely: dict = {"left": 0.5}
+    why: dict = {}
+    assert g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "griffin", "mammal"),)),
+                 why=why, how_surely=how_surely) == []
+    assert how_surely == {}, how_surely
+    assert why.get("why"), why

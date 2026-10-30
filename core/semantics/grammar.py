@@ -2752,7 +2752,8 @@ class Grammar:
 
     # ── saying a meaning ──
     def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
-            why: Optional[Dict[str, Any]] = None) -> List[str]:
+            why: Optional[Dict[str, Any]] = None,
+            how_surely: Optional[Dict[str, float]] = None) -> List[str]:
         """EVERY SENTENCE THIS GRAMMAR SAYS A MEANING WITH, the surest read first: the grammar a sentence is read by,
         used the other way (one grammar for reading and saying, Shieber 1988; chart generation, Kay 1996). The words
         for its things (`Words.words_for`: memory's words for each, every form held), and the grammar's own words whose
@@ -2766,13 +2767,24 @@ class Grammar:
         `Reading.missing`); saying returned the same empty list for seven different reasons, and half of what the
         grammar reads right it says nothing for (lab notebook (86)), so which reason it is was unknowable from
         outside. Measured, not reported: a meaning it cannot say exhausts the whole agenda, 267 s to say nothing of
-        "Your arm's broken." (lyric_dev2, 2026-10-29)."""
+        "Your arm's broken." (lyric_dev2, 2026-10-29).
+
+        `how_surely`, a dict, is filled with HOW SURE IT IS OF EACH SENTENCE IT SAYS: the share of every whole reading
+        of that sentence which is the meaning asked for (`Reading.sure`), the sentence said first at its head. A
+        sentence is kept only where it reads back to exactly the meaning, which asks whether and never how surely, so
+        one the grammar barely preferred and one it could not misread left looking the same: "Yourself'm vain." was
+        kept with the standing of a sentence said well, every alternative reading of it unasked. Reading keeps how
+        sure it is of what it reads and teaches from what it read as much as it was sure (`_learn_from_reading`);
+        saying computed the same number at the very place it decided and threw it away (2026-10-30)."""
         def give_up(reason: str, **of: Any) -> List[str]:
             """Nothing said, and why. The reason is the first thing that stopped it, never a guess after the fact."""
             if why is not None:
                 why.clear()
                 why.update(of)
                 why["why"] = reason
+            # Nothing said is not something said unsurely: what was asked how surely is emptied, never left standing.
+            if how_surely is not None:
+                how_surely.clear()
             return []
         if meaning.act not in WHOLE.values() or not meaning.facts:
             return give_up("no act a sentence says, or no fact to say", act=meaning.act, facts=len(meaning.facts))
@@ -3306,7 +3318,10 @@ class Grammar:
             if reading.meaning is None or reading.meaning.act != wanted_act or reading.meaning.canonical() != target:
                 refused.add(said)
                 return
-            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0)
+            # HOW SURELY IT READS BACK, kept beside whether it does: a sentence with one reading says the meaning and
+            # nothing else, where one of several says it only as surely as that reading is taken (`Reading.sure`).
+            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0,
+                               reading.sure)
         # TWO STRETCHES SAYING NOTHING ARE NOT COMBINED (Eisner 1996, normal-form CCG): what both say nothing of the
         # meaning (no word for a thing, nothing spent the meaning holds) combine only with what says something, every
         # sentence built so being built otherwise too, each word taking what says something first: "to" with "be in
@@ -3402,6 +3417,9 @@ class Grammar:
                         combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
+        if how_surely is not None:
+            how_surely.clear()
+            how_surely.update({_written(said, closing): sentences[said][2] for said in ranked})
         if not sentences and why is not None:
             # SEARCHED AND FOUND NOTHING, which is two different things: no whole sentence was ever made, or some were
             # and reading took every one of them to mean something else. The second is the grammar disagreeing with
@@ -5157,11 +5175,13 @@ class GrammarView:
         return reading
 
     def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
-            why: Optional[Dict[str, Any]] = None) -> List[str]:
+            why: Optional[Dict[str, Any]] = None,
+            how_surely: Optional[Dict[str, float]] = None) -> List[str]:
         """A meaning said by the grammar it is read by (`Grammar.say`), after learning from what is waiting: every
-        sentence that reads back to exactly it, the surest first. `why` is filled with why nothing was said."""
+        sentence that reads back to exactly it, the surest first. `why` is filled with why nothing was said, and
+        `how_surely` with how sure it is of each sentence it says."""
         self.learn_waiting()
-        return self.grammar.say(meaning, named, why)
+        return self.grammar.say(meaning, named, why, how_surely)
 
     def _learn_from_reading(self, sentence: str, tokens: Sequence[str], reading: Reading, named: List[str]) -> None:
         """READING TEACHES, as a book teaches its reader (`reading_teaches`): how the sentence's reading used each of its
