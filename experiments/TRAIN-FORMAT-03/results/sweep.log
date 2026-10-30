@@ -1,0 +1,63 @@
+main, read only. forms for 53 base words, 11,295 subjects over 19 verbs, 0 things after a verb.
+the PMB's gold training sentences: 400 read, 120 of what reads right said back.
+
+== READING, over 400 sentences ==
+    241  read, but not the meaning it is annotated with
+     79  read nothing: the grammar reads no whole
+     22  read nothing: the grammar reads no whole; no word held for tom
+      7  read exactly the meaning
+      5  read nothing: no whole reading
+      2  read nothing: the grammar reads no whole; no word held for now
+      1  read nothing: the grammar reads no whole; no word held for owe
+      1  read nothing: the grammar reads no whole; no word held for freud
+      1  read nothing: the grammar reads no whole; no word held for drank
+      1  read nothing: the grammar reads no whole; no word held for book
+      1  read nothing: the grammar reads no whole; no word held for took, memorize
+      1  read nothing: the grammar reads no whole; no word held for tiny
+      1  read nothing: the grammar reads no whole; no word held for box
+      1  read nothing: the grammar reads no whole; no word held for piano
+      1  read nothing: the grammar reads no whole; no word held for foot
+      1  read nothing: the grammar reads no whole; no word held for liisa
+      1  read nothing: the grammar reads no whole; no word held for ichiro
+      1  read nothing: the grammar reads no whole; no word held for window
+      1  read nothing: the grammar reads no whole; no word held for tom, understood
+      1  read nothing: the grammar reads no whole; no word held for tom, also
+      1  read nothing: the grammar reads no whole; no word held for tidy
+      1  read nothing: the grammar reads no whole; no word held for movie
+      1  read nothing: the grammar reads no whole; no word held for laura, prairie
+      1  read nothing: the grammar reads no whole; no word held for pacino
+      1  read nothing: the grammar reads no whole; no word held for john
+      1  read nothing: the grammar reads no whole; no word held for money
+      1  read nothing: the grammar reads no whole; no word held for hacksaw
+      1  read nothing: the grammar reads no whole; no word held for took
+      1  read nothing: the grammar reads no whole; no word held for joe
+      1  read nothing: the grammar reads no whole; no word held for gas, hog
+      1  read nothing: the grammar reads no whole; no word held for tom, took
+      1  read nothing: the grammar reads no whole; no word held for roy
+      1  read nothing: the grammar reads no whole; no word held for tom, sign
+      1  read nothing: the grammar reads no whole; no word held for also
+      1  read nothing: the grammar reads no whole; no word held for toy
+      1  read nothing: the grammar reads no whole; no word held for ask
+      1  read nothing: the grammar reads no whole; no word held for beautiful
+      1  read nothing: the grammar reads no whole; no word held for lag
+      1  read nothing: the grammar reads no whole; no word held for sea
+      1  read nothing: the grammar reads no whole; no word held for padalecki, born
+      1  read nothing: the grammar reads no whole; no word held for tom, riverbank
+      1  read nothing: the grammar reads no whole; no word held for dog
+      1  read nothing: the grammar reads no whole; no word held for las, vegas, mgm
+      1  read nothing: the grammar reads no whole; no word held for enjoy
+      1  read nothing: the grammar reads no whole; no word held for atm
+      1  read nothing: the grammar reads no whole; no word held for egg
+      1  read nothing: the grammar reads no whole; no word held for boy, mud
+      1  read nothing: the grammar reads no whole; no word held for job, also
+      1  read nothing: the grammar reads no whole; no word held for vcr, low
+      1  read nothing: the grammar reads no whole; no word held for palm
+
+== SAYING, over 7 of them ==
+      4  said back word for word
+      2  said nothing: made whole and reading took them to mean something else
+      1  said back otherwise
+
+== SAID BACK OTHERWISE, the first 40 ==
+  Tom has a daughter.
+      -> Tom have daughter.

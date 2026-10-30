@@ -1706,3 +1706,39 @@ def test_a_thing_stands_after_a_verb_only_as_its_form_says_it_may():
                     (("role", "e", "tom", "subject", 0), ("word", "misled", "VERB", 0, 1)), 0.0, 0, 1, "lex", head=0)
     tom = gm.Sign(gm.parse_category("NP.tom"), (("word", "Tom", "NAME", 1, 2),), 0.0, 1, 2, "lex", head=1)
     assert any(s.rule == ">" for s in g._combine(named, tom)), '"Tom misled Tom." is all there is to say'
+
+
+def test_a_thing_no_word_names_is_said_by_a_pronoun():
+    """`_things_said`, `Grammar._pronouns`: a thing standing in a place of a happening and in nothing else -- no
+    kind, no name, nothing said of it -- is what reading gives for a pronoun it cannot bind, the one spoken of
+    before being one a sentence. Left out of what the sentence must say, nothing had to say it and the words for the
+    rest were made into sentences saying less than the meaning, so "She misled her." was said back as nothing at all
+    (lyric_db, 2026-10-30).
+
+    The pronouns that may say such a thing are those whose category stands for a thing the sentence says and whose
+    whole meaning is standing for it: never "I", "you" or "we", whose category fixes whom they stand for, and never
+    a word that says anything else of its thing."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    #: "She misled her.", as reading gives it: nothing whatever is said of the thing it was done to.
+    lonely = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                              F("done_by", "?v0", "?previous"), F("done_to", "?v0", "?v1")))
+    assert ("?v1", "PRONOUN") in gm._things_said(lonely), gm._things_said(lonely)
+    #: A thing with a kind of its own is said by the word for that kind, as it always was.
+    known = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                             F("done_by", "?v0", "?previous"), F("done_to", "?v0", "?v1"),
+                             F("instance_of", "?v1", "dog")))
+    assert not [k for k in gm._things_said(known) if k[1] == "PRONOUN"], gm._things_said(known)
+    assert ("dog", "NOUN") in gm._things_said(known)
+    #: And a group the speaker is one of is said by "we", a fact of the meaning saying it.
+    ours = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                            F("done_by", "?v0", "?previous"), F("done_to", "?v0", "?v1"),
+                            F("has_member", "?v1", "?speaker")))
+    assert not [k for k in gm._things_said(ours) if k[1] == "PRONOUN"], gm._things_said(ours)
+
+    grammar = gm.Grammar(gm.Lexicon(Held()))
+    said = {word for word, _, _ in grammar._pronouns()}
+    assert {"he", "him", "they", "them", "it", "himself", "themselves"} <= said, sorted(said)
+    assert not said & {"i", "me", "myself", "you", "we", "us", "ourselves"}, sorted(said)
+    own = {word for word, _, own in grammar._pronouns() if own}
+    assert own == {"himself", "herself", "itself", "themselves"}, sorted(own)

@@ -2051,6 +2051,16 @@ def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
         for t in terms:
             if not is_variable(t) and t not in _SITUATION:
                 out.append(((t, "NUMERAL" if _number(str(t)) is not None else "NAME"), t))
+    # A THING NO WORD NAMES AT ALL IS SAID BY A PRONOUN, and must still be said: a thing standing in a place of a
+    # happening and in nothing else -- no kind, no name, nothing said of it -- which is what reading gives for a
+    # pronoun it cannot bind, the one spoken of before being one a sentence (`spell_out`). Left out of what the
+    # sentence must say, nothing had to say it and the words for the rest were made into sentences that say less
+    # than the meaning: "She misled her." was said back as nothing at all (lyric_db, 2026-10-30).
+    for t in sorted({t for f in meaning.facts if f.relation in _HAPPENING_LINKS
+                     for t in (f.subject, f.obj) if is_variable(t) and t not in _SITUATION}):
+        if t in events or any(f.relation not in _HAPPENING_LINKS and t in (f.subject, f.obj) for f in meaning.facts):
+            continue
+        out += [((t, "PRONOUN"), t)] * stands.get(t, 1)
     # A doing is said once however many places it fills of another: a word for it says the whole of it.
     said: Dict[Tuple[str, str], int] = {}
     for key, term in out:
@@ -2480,6 +2490,32 @@ class Grammar:
         if verb not in self._agreeing:
             self._agreeing[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
         return standing + self._agreed(self._agreeing[verb], every, *found)
+
+    def _pronouns(self) -> List[Tuple[str, Entry, bool]]:
+        """EVERY PRONOUN OF THE GRAMMAR THAT MAY SAY A THING OF THE MEANING, each with whether it is one of its own
+        sentence ("himself"): those whose category stands for a thing the sentence says and whose whole meaning is
+        standing for it -- "he", "him", "they", "them", "it", "himself", "themselves". Never "I", "you" or "we",
+        whose category fixes whom they stand for, and never a word that says anything else of its thing.
+
+        What a thing is said by where memory holds no word for it (`_things_said`'s "PRONOUN") and where a thing
+        stands in a place it has already filled ("Tom misled himself."). Saying reached a pronoun only for the
+        speaker, the listener and the one spoken of before, so a thing of the sentence could never be said by one:
+        "She misled her." was said back as nothing, and "Tom misled himself." as "Tom misled Tom." (lyric_db,
+        2026-10-30)."""
+        if "pronouns" not in self._agreeing:
+            out: List[Tuple[str, Entry, bool]] = []
+            for word in sorted(self.lexicon.closed):
+                for _, entry in self.lexicon.entries((word,), 0):
+                    cat = parse_category(entry.cat)
+                    if entry.cls != "GRAMMAR" or not isinstance(cat, Atom) or cat.base != "NP" \
+                            or not isinstance(cat.ref, str) or not _MEANING_VARIABLE.fullmatch(cat.ref):
+                        continue
+                    said = [p for p in entry.sem if p[0] == "pron"]
+                    if not said or len(said) != len(entry.sem):
+                        continue
+                    out.append((word, entry, len(said[0]) > 3 and said[0][3] == "own"))
+            self._agreeing["pronouns"] = out
+        return self._agreeing["pronouns"]
 
     def _stands_as_written(self, doing: Sign, thing: Sign, taking: Cat, s: Mapping[int, Term]) -> bool:
         """WHETHER A THING STANDING AFTER A VERB IS WRITTEN AS THE PLACE ASKS: a thing said by a pronoun of its own
@@ -3214,13 +3250,35 @@ class Grammar:
         # THE WORDS FOR ITS THINGS, each a place the sentence must fill once, with each word and entry that may fill it.
         tokens: List[str] = []
         places: List[List[Tuple[int, Entry]]] = []
+        said_already: Set[Tuple[str, str]] = set()
         for concept, cls in wanted:
-            written = words.words_for(concept, cls) or []
+            # A THING SAID A SECOND TIME, standing in a place of its happening it has already filled.
+            again = (concept, cls) in said_already
+            said_already.add((concept, cls))
+            written = [] if cls == "PRONOUN" else words.words_for(concept, cls) or []
             if cls == "NAME":
                 written = [" ".join(w[:1].upper() + w[1:] for w in str(concept).split())]
             options: List[Tuple[int, Entry]] = []
             # Bound only where the meaning holds one thing of the kind: of two cats, either word may be either.
             of_it = of_kind.get((concept, cls), set())
+            # SAID BY A PRONOUN: a thing no word of memory's names by one standing for it ("She misled her."), and a
+            # thing standing in a place it has already filled by one of its own sentence ("Tom misled himself.") --
+            # which is the second place, the first being said by the word for the thing as it always was.
+            if cls == "PRONOUN" or again:
+                thing = concept if cls in ("PRONOUN", "NAME", "NUMERAL") else \
+                    next(iter(of_it)) if len(of_it) == 1 else None
+                for word, entry, own in (self._pronouns() if thing is not None else ()):
+                    if own is not again:
+                        continue
+                    if pronoun_number(word) and cls == "NAME":
+                        # A NAME IS ONE THING, so a pronoun pointing to many cannot say it: reading binds a pronoun
+                        # of its own sentence by whether it may be a person or a thing and not by how many, so
+                        # "Tom misled themselves." reads back to the very meaning and would be said.
+                        continue
+                    ref = parse_category(entry.cat).ref
+                    bound_at[len(tokens)] = {str(ref): thing}
+                    options.append((len(tokens), entry))
+                    tokens.append(word)
             for form in written:
                 for _, entry in self.lexicon.entries((form,), 0):
                     if entry.cls == cls:

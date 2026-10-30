@@ -229,3 +229,18 @@ and the same meaning with another term in the second place is said back exactly.
 halves a fix would need are there; what is missing is saying asking whether the thing after the verb is the thing
 before it, and being able to spend a term twice when it is. **A capability, left to the owner.** Not urgent to a
 teach: a taught sentence carries its meaning from the record, not from reading.
+
+## The account before the teach (notebook (95))
+
+Chasing single sentences stopped here, because the whole account was taken at last and it says the grammar is not
+what is holding main back. **Main holds forms for 39 base words** (53 with the stated closed classes) against the
+3,703 the notebook records of it, **subjects of 19 verbs**, **no object counts at all**, and 53 MB on disk: it was
+reset and holds only the small confirmation run. **Over 400 of the PMB's gold training sentences, read only: 7 read
+exactly the meaning they are annotated with.** 241 read to another meaning, 79 read nothing with the grammar
+reaching no whole, and **66 read nothing for want of a word memory does not hold** — `dog`, `book`, `box`, `piano`,
+`window`, `money`, `egg`, and the names `tom` (22 of the 66 on its own), `john`, `joe`, `roy`, `pacino`, `freud`.
+Nothing is wrong with the grammar in those 66. Of the 7 that read right, 4 said back word for word.
+
+So the next thing is the full teach, and the 241 are the measure to take after it, not before. `sweep.log` holds
+the run; `sweep.py` in the session scratchpad holds how it was taken, and it is cheap to take again on a taught
+store.

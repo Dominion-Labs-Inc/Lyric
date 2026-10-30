@@ -16,6 +16,81 @@ Conventions:
 
 ---
 
+## 2026-10-30 (95) — Everything accounted for before a teach: main reads 7 of 400 real sentences, and why
+
+**Objective.** The owner: *"this needs to be fixed ... and I clearly said earlier that we were to account for
+everything before teaching and we fucking wiped the entire database and all of its stores and started teaching and
+here we the fuck are. We are spending all fucking day fixing errors."* He is right about the process. (90) to (94)
+found defects **one at a time**, each from a handful of sentences, when what he asked for was the whole account
+first. This entry is that account, and it changes what is worth doing next.
+
+**WHAT MAIN ACTUALLY HOLDS.** Asked of the agent by the same path every measurement in (90) to (94) used:
+
+| | main today | what (87) records of main |
+|---|---|---|
+| base words with forms held | **39** (53 with the stated closed classes) | 3,703 |
+| verbs a subject was held of | **19** | — |
+| subjects verbs took | 11,295 | 11,295 |
+| things that stood after a verb | **0** | 0 (fills on a teach) |
+| `lyric_db` on disk | **53 MB**, 0 tables in `public`, the language memory in `unified` | ~1–2 GB |
+
+So main was reset and holds **only the small confirmation run** the owner authorised, not the taught store (87)
+measured. Every "on main today" number in (90) to (94) was measured against that. **The defects found were real and
+each has a guard test, but the store they were measured in holds almost nothing**, and that was not said plainly
+enough at the time.
+
+**THE ACCOUNT, over 400 of the PMB's gold training sentences** (`sweep.log`, read only, the stated closed-class
+forms held over main as before):
+
+| reading | of 400 |
+|---|---|
+| read exactly the meaning it is annotated with | **7** |
+| read, but not that meaning | 241 |
+| read nothing, the grammar reaching no whole | 79 |
+| read nothing, **for want of a word memory does not hold** | 66 |
+| read nothing, no whole reading | 5 |
+
+Of the 7 that read right, **4 said back word for word**, 1 otherwise, 2 said nothing.
+
+**The 66 are ordinary vocabulary**: `dog`, `book`, `box`, `piano`, `window`, `money`, `egg`, `movie`, `foot`,
+`palm`, `sea`, `toy`, and the names `tom` (22 of the 66 on its own), `john`, `joe`, `roy`, `liisa`, `ichiro`,
+`pacino`, `freud`. Nothing is wrong with the grammar in those 66. **Memory has not been taught the words.**
+
+**SO THE DOMINANT CAUSE IS AN UNTAUGHT STORE, not the grammar.** The reflexive work of (94) is sound and moved six
+sentences; it moved them in a store that reads 1.75% of real sentences. **No more single sentences should be chased
+before the full teach runs.** The 241 that read to another meaning are the real measure of reading, and they cannot
+be read as a measure of anything until the words are there.
+
+**THE TWO ITEMS (94) LEFT OPEN, both built on as far as they go.**
+
+**A thing no word names is now said.** `_things_said` left out a thing standing in a place of a happening and in
+nothing else -- no kind, no name, nothing said of it -- which is exactly what reading gives for a pronoun it cannot
+bind, the one spoken of before being one a sentence. Nothing had to say it, so the words for the rest were made
+into sentences saying less than the meaning, and **`She misled her.` was said back as nothing at all; it is now
+said back as a sentence** (`They misled he.`). A new `_pronouns` gathers the grammar's pronouns that may say a
+thing of the meaning -- those whose category stands for a thing the sentence says and whose whole meaning is
+standing for it, never `I`, `you` or `we` -- and a place may be said by one.
+
+**And a thing standing in a place it has already filled may now be said by a pronoun of its own sentence**, which
+is what `Tom misled himself.` asks for. **It is reachable and it is not chosen**, and the reason is worth stating
+exactly: **nothing in the system knows Tom is masculine.** `grammar_words.py` holds no gender at all; the meaning
+carries none either; memory holds `Gender=Masc` on the WORD `himself` and nothing on the THING `tom`. Offered
+`himself`, `herself` and `themselves`, reading binds all three to Tom (its search asks whether the antecedent may
+be a person or a thing, never which gender or how many), so all three read back to the very meaning and the choice
+would be **a guess at a person's gender**. It is left saying `Tom misled Tom.`, which asserts nothing false, with
+one guard added: **a pronoun pointing to many things may not say a name**, so `Tom misled themselves.` cannot be
+said. Finishing it needs a name's gender and number **in memory**, from the annotation that already carries it.
+
+**The same missing thing accounts for three more of the remaining failures**, which (92) recorded as "right in case
+and number and not the sentence given": `He is intelligent.` is said `They're intelligent.`, `This stinks.` is said
+`He stinks.`, and `She misled her.` is said `They misled he.` -- all of them the one spoken of before carrying no
+number and no gender. It is one root cause, not three defects.
+
+**Verified.** 69 grammar tests pass, 202 across reading, word forms, the teaching path, composition, the sentence
+records and the prose reader's determiners. Read only throughout: nothing written to any store, and no teach run.
+
+---
+
 ## 2026-10-30 (94) — Saying says a thing twice, and a reflexive stands only where it is the subject again
 
 **Objective.** The owner, on (93) having put the reflexive to him as a decision: *"Of course it starts asking. I

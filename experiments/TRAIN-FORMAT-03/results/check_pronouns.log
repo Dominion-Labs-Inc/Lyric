@@ -1,0 +1,30 @@
+  Myself wash myself.          REFUSED
+  Themselves are intelligent.  REFUSED
+  I misled me.                 read: tell: done_by(?v0, ?speaker) & done_to(?v0, ?speaker) & inst
+  They misled ourselves.       read: tell: done_by(?v0, ?previous) & done_to(?v0, ?previous) & ha
+
+== WHAT IT READS AND SAYS BACK ==
+  They misled themselves.      -> 'They misled themselves.'   SAME
+  We misled ourselves.         -> 'We misled ourselves.'   SAME
+  I misled myself.             -> 'I misled myself.'   SAME
+  They misled us.              -> 'They misled us.'   SAME
+  Tom misled Tom.              -> 'Tom misled Tom.'   SAME
+  Tom misled himself.          -> 'Tom misled Tom.'
+  She misled her.              -> 'They misled he.'
+  They misled me.              -> 'They misled i.'
+  We misled them.              -> 'We misled he.'
+  This sparkles.               -> 'He sparkles.'
+  They sparkle.                -> 'They sparkle.'   SAME
+  I am intelligent.            -> 'I am intelligent.'   SAME
+  We are intelligent.          -> "We're intelligent."
+  You are intelligent.         -> "You're intelligent."
+  They are intelligent.        -> "They're intelligent."
+  Nobody is intelligent.       -> 'Nothing is intelligent.'
+  The person stinks.           -> 'The person stinks.'   SAME
+  The people stink.            -> 'The people stink.'   SAME
+  This stinks.                 -> 'He stinks.'
+  He is intelligent.           -> "They're intelligent."
+  You lied to me!              -> 'To i you lied.'
+  I washed myself.             -> 'I washed myself.'   SAME
+
+said back exactly: 10 of 22
