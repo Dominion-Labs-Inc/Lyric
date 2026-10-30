@@ -136,3 +136,42 @@ nothing to weigh it by -- which is the same finding as (2) above, now with a nam
 `--source closed-classes` is taught again, a live write and the owner's to start, so this store still says
 `This am intelligent.` for a third-person meaning. Run through the real `_agreed` against this store's own subject
 counts, every stated form picks the right copula (`this` → `is` 0.00, `am` -5.76; `these` → `are` 0.00, `is` -3.00).
+
+## A sixth and seventh way, and a measurement that needed no teach (2026-10-30, lab notebook (91))
+
+**The forms can be measured without being taught.** `ClosedClassSource.word_forms()` yields nothing but `WordForms`
+records and `HeldForms.hold` is pure in-memory, so holding the stated paradigm on a live read-only view of this store
+is a faithful stand-in for teaching it: the same objects, the same reader, the same `say`, and nothing written. This
+store holds forms for 39 words; the 77 stated forms over them bring it to 53.
+`results/check_raised_subject.log` is that run, each sentence said before and after the forms are held.
+
+| given | before the stated forms | after |
+| --- | --- | --- |
+| `Nobody is intelligent.` | `Nothing am intelligent.` | **`Nothing is intelligent.`** |
+| `I am intelligent.` | `I am intelligent.` | `I am intelligent.` |
+| `The person stinks.` | `The person stinks.` | `The person stinks.` |
+| `The people stink.` | `The people stink.` | `The people stink.` |
+
+**Both changes are necessary and neither suffices.** The weighing below makes agreement apply to a denying subject at
+all; the stated forms give `nothing` the number agreement needs. With the weighing in and the forms held out, the
+same meaning still says `Nothing am intelligent.`, which makes the closed-class teach load-bearing rather than
+bookkeeping — the first output that moves only when the stated forms are there.
+
+**What was wrong.** The words that deny are stated **already raised** (`nothing`, `nobody`, `none`:
+`S[F].e/(S[F].e\NP.x)`), so they take their verb's phrase rather than being taken by it, and agreement was weighed
+only at the two rules where a subject is *taken*, both of which require the subject to be one category and not a
+function. While `Nothing am intelligent.` was built agreement was asked 58 times and `am` was not one of the
+questions. Weighing forward application alone changed nothing, because the cheapest derivation composes the subject
+with the copula before the copula takes its adjective (`>B`, -0.084) instead of applying to the finished phrase
+(`>`, -5.839 with the penalty in): **the unweighed route was the cheap one, and only `am` was ever offered to
+`nothing` among the copula's finite forms.** Both rules now weigh it.
+
+**Withdrawn from the section above.** Its before/after rows for `He is intelligent.` and the demonstratives compared
+strings against a meaning that cannot distinguish them: `he`, `she`, `they`, `this`, `these` and `that` all read to
+`has_property(?previous, intelligent)`, carrying no number, person or gender. The ungrammatical outputs are gone;
+the sentence identity was never recoverable by any fix to saying.
+
+**Still open here.** `Someone is intelligent.` is said back as `Anybody intelligent.`, a sentence with no verb which
+**reading takes back to the meaning asked for** (`results/check_offered_back.log` holds every whole offered to
+reading and what reading made of it) — reading being too permissive, not saying. `Everybody is intelligent.` says
+`Person is intelligent.`

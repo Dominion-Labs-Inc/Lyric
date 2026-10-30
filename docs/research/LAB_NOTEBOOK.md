@@ -16,6 +16,101 @@ Conventions:
 
 ---
 
+## 2026-10-30 (91) — A sixth and seventh way, found by asking what it would take to know the fix was right
+
+**Objective.** The owner, on (90)'s two open items: "What does it need for me to decide that if that's the correct
+fix implemented." The shape of a technical fix is not his to decide, so the answer was a measurement rather than a
+question — and making it properly **withdrew one of (90)'s claims, found a sixth and seventh instance of the same
+defect, and turned the closed-class teach from confirmed-by-arithmetic into load-bearing**.
+
+### A way to measure a teach without teaching
+
+(90) could not confirm the demonstratives end to end because their forms reach memory only when the closed classes
+are taught, which is a live write. **It does not need one.** `ClosedClassSource.word_forms()` yields nothing but
+`WordForms` records and `HeldForms.hold` is pure in-memory, so holding the stated paradigm on a live read-only view
+of main is a faithful stand-in: the same objects, the same reader, the same `say`, and nothing written. Main holds
+forms for **39 words**; the 77 stated forms over them bring it to **53**. Every measurement below is that stand-in on
+main, read only, with each sentence said before and after the forms are held so the forms are the only difference.
+
+### A claim of (90) withdrawn: those sentences were never recoverable
+
+(90) reported a before/after table of sentences said back, and **it compared strings against meanings that cannot
+tell those strings apart**. `He is intelligent.`, `She is intelligent.`, `They are intelligent.`,
+`This is intelligent.`, `These are intelligent.` and `That is intelligent.` all read to one and the same meaning:
+
+    has_property(?previous, intelligent)
+
+No number, no person, no gender — `he`, `she`, `they`, `this`, `these` and `that` all collapse to "the thing talked
+about before". So `They're intelligent.` is not a wrong answer to that meaning, it is one of six right ones, and **no
+fix to saying can return the sentence it was given, because the distinction is gone at reading.** (90)'s rows for
+those sentences measured the wrong thing. What its fixes did achieve stands and is narrower than it claimed: **the
+ungrammatical outputs are gone; sentence identity was never on offer.**
+
+### The sixth and seventh: a subject that takes its verb instead of being taken by it
+
+`Nobody is intelligent.` was said back as **`Nothing am intelligent.`**, and the cause is the same mistake as the
+five — *no evidence scored as perfect agreement* — in two more rules.
+
+The grammar states the words that deny **already raised** (`data/grammar/english.json`): `nothing`, `nobody` and
+`none` are `S[F].e/(S[F].e\NP.x)`, so they **take** their verb's phrase rather than being taken by it. Agreement was
+weighed at the two rules where a subject is taken, and **both ask the subject to be one category and not a
+function**, so a raised subject was never weighed at all: while `Nothing am intelligent.` was built, agreement was
+asked 58 times and `am` was not one of the questions. Forward application now weighs it, and `_subject_ref` asks for
+the term of the place a raised subject leaves open rather than the term of the sentence it makes.
+
+**That alone changed nothing, and the reason is the seventh.** Of the copula's finite forms **only `am` was ever
+offered to `nothing`**, because the cheapest derivation does not take the verb's whole phrase at all: it **composes
+the subject with the copula before the copula has taken its adjective** (`>B`, -0.084) rather than applying to the
+finished phrase (`>`, -5.839, the -5.756 agreement penalty included). The unweighed route was the cheap one. The
+codebase already records this exact trap for an atomic subject one rule away — "`Owl'm birds.` was read so, `Owl'm`
+composed before `birds`, and agreement weighed only the other way of reading it" — which is why `>T>B` carries the
+weighing and plain `>B` did not. Both now do, and a guard asserts **the two routes to the same sentence score
+identically**, so the unweighed one cannot be the cheapest again.
+
+**Measured on main:** `Nobody is intelligent.` → **`Nothing is intelligent.`**
+
+### The closed-class teach is load-bearing, not bookkeeping
+
+With the weighing in and the stated forms held out, the same meaning still says `Nothing am intelligent.`: `nothing`
+has no number for agreement to use. **Both changes are necessary and neither suffices.** (90) called the stated
+demonstratives and indefinites confirmed by arithmetic and not end to end; this is the first output that needs them,
+and it moves only when they are there.
+
+### Three diagnoses of mine, each measured and each wrong
+
+Recorded because each was plausible from the code and false against the running system.
+
+1. **That `am` had no held subjects and `_subjects_like` had a hole** — that `am`, being the only English form saying
+   `Number=Sing|Person=1`, could borrow from no other form and fell back to scoring perfectly. **False.** Main holds
+   **315** subjects of `am` in one kind, and it scores **-5.756** against every subject but `i`, which gets **0.000**.
+   Against `nothing` it correctly prefers `is` (0.000) to `am` (-5.756). Agreement was right all along; it was not
+   being consulted.
+2. **That a derived sign's `pieces` are empty when agreement reads them**, pieces being made only once the chart
+   keeps a sign. **False.** Measured at every call: pieces were present every time, and the finite verb found equals
+   the finite verb reachable in the sign's parts in every case.
+3. **That the finite verb's hook did not match the verb phrase's** and the lookup missed. **False.** Where a finite
+   piece was carried the hooks matched; the combinations scoring nothing carried no finite verb because they were
+   adjective phrases, which is correct.
+
+### Still open
+
+- **`Someone is intelligent.` is said back as `Anybody intelligent.`** — a sentence with no verb, which **reading
+  takes back to the meaning asked for**, so saying is entitled to it. That is reading being too permissive, not
+  saying.
+- **`Everybody is intelligent.` is said back as `Person is intelligent.`** — a bare noun standing as a subject.
+- The two (90) left: **an object's case is weighed by nothing** (`They misled me.` → `They misled i.`), whose fix in
+  kind is a fourth counted table and **writes nothing until a teach runs, so it belongs before the full re-teach**;
+  and **a word memory holds no form of cannot be weighed at all** (`This sparkles.` → `They sparkles.`).
+
+### Verification
+
+63 grammar tests pass (one added, guarding both rules), 160 across reading, word forms and the teaching path
+unchanged, flake8 identical at 35 findings on both changed files before and after. Every measurement above is main,
+read only; nothing was written to any store. `experiments/TRAIN-FORMAT-03/results/check_raised_subject.log` and
+`check_offered_back.log` hold the runs.
+
+---
+
 ## 2026-10-30 (90) — Five ways agreement scored no evidence as perfect agreement, and the one that had been masking the rest
 
 **Objective.** The owner: "ok so fix whats still open." What was open was the second half of (89): saying was still

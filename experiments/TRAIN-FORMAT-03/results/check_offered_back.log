@@ -1,0 +1,21 @@
+asked for: MeaningFact(relation='has_property', subject='?v0', obj='intelligent', positive=False, condition=False, alternative=False, unasserted=False, given=False)
+
+said: ['Nothing am intelligent.', 'Anybody intelligent not.', 'Being intelligent not.', 'Not being intelligent.', 'Being not intelligent.', 'Anybody not intelligent.']
+
+16 sentences were made whole and offered to reading:
+  'Anybody intelligent .'                meant MeaningFact(relation='has_property', subject='?v0', obj='intelligent', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Anybody intelligent not .'            TAKEN BACK
+  'Anybody not intelligent .'            TAKEN BACK
+  'Be intelligent .'                     meant MeaningFact(relation='has_property', subject='?listener', obj='intelligent', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Be intelligent not .'                 meant MeaningFact(relation='has_property', subject='?listener', obj='intelligent', positive=False, condition=False, alternative=False, unasserted=False, given=False)
+  'Be not intelligent .'                 meant MeaningFact(relation='has_property', subject='?listener', obj='intelligent', positive=False, condition=False, alternative=False, unasserted=False, given=False)
+  'Being intelligent .'                  meant MeaningFact(relation='has_property', subject='?v0', obj='intelligent', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Being intelligent not .'              TAKEN BACK
+  'Being not intelligent .'              TAKEN BACK
+  'Not be intelligent .'                 meant MeaningFact(relation='has_property', subject='?listener', obj='intelligent', positive=False, condition=False, alternative=False, unasserted=False, given=False)
+  'Not being intelligent .'              TAKEN BACK
+  "Nothing 'd be intelligent ."          meant MeaningFact(relation='has_property', subject='?v0', obj='hypothetical', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Nothing am intelligent .'             TAKEN BACK
+  'Nothing might be intelligent .'       meant MeaningFact(relation='has_property', subject='?v0', obj='possible', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Nothing must be intelligent .'        meant MeaningFact(relation='has_property', subject='?v0', obj='necessary', positive=True, condition=False, alternative=False, unasserted=False, given=False)
+  'Nothing should be intelligent .'      meant MeaningFact(relation='has_property', subject='?v0', obj='advisable', positive=True, condition=False, alternative=False, unasserted=False, given=False)

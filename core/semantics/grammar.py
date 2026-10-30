@@ -2296,7 +2296,14 @@ class Grammar:
         if isinstance(lc, Fn) and lc.slash == "/":
             s: Dict[int, Term] = {}
             if _unify(lc.arg, rc, s):
-                made(lc.res, s, ">", right.head if _takes_its_head(lc) else left.head)
+                # A SUBJECT ALREADY RAISED AGREES WITH ITS VERB AS ANY OTHER SUBJECT DOES. The words that deny are
+                # stated raised (`nothing`, `nobody`, `none`: `S/(S\NP)`), so they take their verb's phrase by this
+                # rule and were weighed by neither of the two that ask for a subject, both of which ask the subject
+                # to be one category and not a function. Saying was free of a sixth way to score no evidence as
+                # perfect agreement: of nobody being intelligent, "Nothing am intelligent." was said, "am" never
+                # once asked how well it agreed with "nothing" (lyric_db, 2026-10-30).
+                made(lc.res, s, ">", right.head if _takes_its_head(lc) else left.head,
+                     self._agreement(left, right) if _raised_subject(lc) and _verb_phrase(rc) else 0.0)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
             if _unify(rc.arg, lc, s):
@@ -2306,7 +2313,14 @@ class Grammar:
         if isinstance(lc, Fn) and lc.slash == "/" and isinstance(rc, Fn) and rc.slash == "/":
             s = {}
             if _unify(lc.arg, rc.res, s):
-                made(Fn(lc.res, "/", rc.arg), s, ">B", right.head if _takes_its_head(lc) else left.head)
+                # A RAISED SUBJECT AGREES WITH ITS VERB WHERE IT IS COMPOSED WITH IT TOO, before the verb has taken
+                # what else it takes, as a subject raised by the rule above does (`>T>B`). Weighed where the subject
+                # TAKES its verb and not where it is composed with it, the copula's only unweighed form was the one
+                # said: of nobody being intelligent, "Nothing am intelligent." was composed for -0.084 while taking
+                # the same verb's whole phrase cost -5.839, and no other form of the copula was ever offered to
+                # "nothing" at all (lyric_db, 2026-10-30).
+                made(Fn(lc.res, "/", rc.arg), s, ">B", right.head if _takes_its_head(lc) else left.head,
+                     self._agreement(left, right) if _raised_subject(lc) and _verb_phrase(rc.res) else 0.0)
             elif isinstance(rc.res, Fn) and rc.res.slash == "/":
                 # X/Y (Y/Z)/W => (X/Z)/W: "Did you give him" before what was given.
                 s = {}
@@ -2404,7 +2418,8 @@ class Grammar:
         if "every" not in self._agreeing:
             self._agreeing["every"] = words.subjects()
         every = self._agreeing["every"]
-        found = self._said_by(subject.pieces, subject.cat.ref) if every else None
+        ref = _subject_ref(subject.cat)
+        found = self._said_by(subject.pieces, ref) if every and ref is not None else None
         if not found:
             return 0.0
         verb = ("took", str(tokens[min(finite)]))
@@ -4012,6 +4027,24 @@ class Grammar:
 def _verb_phrase(cat: Cat) -> bool:
     return isinstance(cat, Fn) and cat.slash == "\\" and isinstance(cat.res, Atom) and cat.res.base == "S" \
         and isinstance(cat.arg, Atom) and cat.arg.base == "NP"
+
+
+def _raised_subject(cat: Cat) -> bool:
+    """WHETHER THE CATEGORY IS A SUBJECT ALREADY RAISED to what is said of it, `S/(S\\NP)`: how the grammar states the
+    words that deny ("nothing", "nobody", "none"), which take their verb's phrase rather than being taken by it.
+    The sentence is the same sentence either way, but the rule that joins it is forward application, not backward,
+    so every weighing that asks for a subject and a verb must ask this as well as `_verb_phrase`."""
+    return isinstance(cat, Fn) and cat.slash == "/" and isinstance(cat.res, Atom) and cat.res.base == "S" \
+        and _verb_phrase(cat.arg)
+
+
+def _subject_ref(cat: Cat) -> Optional[Term]:
+    """THE TERM OF THE THING STANDING AS A SUBJECT: its own, or, where the subject is already raised, the term of the
+    place it leaves open for itself, which is not the term of the sentence it makes (`_raised_subject`). None where
+    the category is neither."""
+    if _raised_subject(cat):
+        return cat.arg.arg.ref
+    return cat.ref if isinstance(cat, Atom) else None
 
 
 def _hook(cat: Cat) -> Optional[Term]:

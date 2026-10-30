@@ -1353,3 +1353,78 @@ def test_the_one_grammar_word_a_thing_is_said_by_is_found_whatever_the_thing_is(
     assert said_by([("word", "we", "GRAMMAR", 0, 1), ("word", "are", "GRAMMAR", 1, 2)], "?speaker") is None
     # A NOUN IS STILL THE NOUN, not the determiner before it.
     assert said_by([("word", "the", "GRAMMAR", 0, 1), ("word", "dog", "NOUN", 1, 2), ("kind", 7, 1)], 7) == ("NOUN", 1)
+
+
+def test_a_subject_already_raised_is_weighed_against_its_verb_like_any_other():
+    """`Grammar._combine`, `_raised_subject`, `_subject_ref`: the words that deny are stated raised to what is said
+    of them (`nothing`, `nobody`, `none`: `S/(S\\NP)`), so they take their verb's phrase by forward application.
+    Agreement was weighed at the two rules where a subject is TAKEN, both of which ask the subject to be one
+    category rather than a function, so a raised subject was never weighed against its verb at all -- the sixth way
+    saying scored no evidence as perfect agreement.
+
+    Of nobody being intelligent, "Nothing am intelligent." was said, and agreement was asked 58 times while that
+    sentence was built without "am" being one of the questions (lyric_db, 2026-10-30)."""
+
+    class Few(Held):
+        """The copula's forms, as the subjects of a taught store take them."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Number=Sing"): 900.0, ("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 800.0,
+                     ("NOUN", "Number=Sing"): 2900.0}
+            if word is None:
+                return every
+            return {"is": {("PRONOUN", "Number=Sing"): 400.0, ("NOUN", "Number=Sing"): 1100.0},
+                    "am": {("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 315.0}}.get(word, {})
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("is", "am")
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls == "PRONOUN":
+                return {"nothing": {"Number=Sing|PronType=Ind": 1.0},
+                        "i": {"Case=Nom|Number=Sing|Person=1": 1.0}}.get(word.lower(), {})
+            return {"is": {"Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin": 229.0},
+                    "am": {"Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin": 326.0}}.get(word.lower(), {})
+
+    #: A word that denies, as the grammar states it, and the phrase of a copula that has taken its adjective.
+    raised = gm.parse_category("S[dcl].e/(S[dcl].e\\NP.x)")
+    phrase = gm.parse_category("S[dcl].e\\NP.x")
+
+    assert gm._raised_subject(raised) and not gm._raised_subject(phrase)
+    assert not gm._raised_subject(gm.parse_category("NP.x/N.x")), "a determiner takes a noun, not a verb's phrase"
+    # ITS OWN TERM IS THE PLACE IT LEAVES OPEN, never the term of the sentence it makes.
+    assert gm._subject_ref(raised) == gm._subject_ref(gm.parse_category("NP.x"))
+    assert gm._subject_ref(raised) != gm._subject_ref(gm.parse_category("S[dcl].e"))
+
+    def said_with(subject: str, verb: str) -> float:
+        """What the rule weighs joining the subject, stated raised, to the phrase its verb heads."""
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
+        left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
+        right = gm.Sign(phrase, (("finite", raised.res.ref, 1),), 0.0, 1, 3, ">")
+        made = [s for s in g._combine(left, right) if s.rule == ">"]
+        assert made, "the raised subject takes the phrase by forward application"
+        return made[0].score
+
+    def composed_with(subject: str, verb: str) -> float:
+        """What the rule weighs composing the subject with its verb, before the verb has taken its adjective: the
+        other way the same sentence is built, and the way that was cheapest while it went unweighed."""
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
+        taking = gm.parse_category("(S[dcl].e\\NP.x)/(S[adj].e\\NP.x)")
+        left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
+        right = gm.Sign(taking, (("finite", taking.res.res.ref, 1),), 0.0, 1, 2, "lex")
+        made = [s for s in g._combine(left, right) if s.rule == ">B"]
+        assert made, "the raised subject composes with the verb that still wants its adjective"
+        return made[0].score
+
+    # THE FORM THAT AGREES IS PREFERRED, where before neither was weighed and both scored the same.
+    assert said_with("nothing", "is") > said_with("nothing", "am") + 1.0, \
+        (said_with("nothing", "is"), said_with("nothing", "am"))
+    assert said_with("i", "am") > said_with("i", "is") + 1.0, \
+        (said_with("i", "am"), said_with("i", "is"))
+    # AND BY EITHER WAY OF BUILDING THE SAME SENTENCE, so that the one left unweighed is not the cheapest.
+    assert composed_with("nothing", "is") > composed_with("nothing", "am") + 1.0, \
+        (composed_with("nothing", "is"), composed_with("nothing", "am"))
+    assert composed_with("nothing", "is") == pytest.approx(said_with("nothing", "is")), \
+        "the same subject and verb are weighed the same whichever rule joins them"

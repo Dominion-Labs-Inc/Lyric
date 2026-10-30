@@ -1,0 +1,19 @@
+main, read only. 39 words held forms, 77 stated forms held over them in memory, 53 words now
+given                    before the stated forms    after                     
+I am intelligent.        'I am intelligent.'        'I am intelligent.'            sure 1.000->1.000  of 1->1
+You are intelligent.     "You're intelligent."      "You're intelligent."          sure 1.000->1.000  of 1->1
+He is intelligent.       'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+She is intelligent.      'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+They are intelligent.    'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+We are intelligent.      "We're intelligent."       "We're intelligent."           sure 1.000->1.000  of 1->1
+This is intelligent.     'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+These are intelligent.   'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+That is intelligent.     'This am intelligent.'     "They're intelligent."     moved  sure 1.000->1.000  of 8->8
+Everybody is intelligent. 'Person is intelligent.'   'Person is intelligent.'       sure 1.000->1.000  of 1->1
+Nobody is intelligent.   'Nothing am intelligent.'  'Nothing is intelligent.'  moved  sure 1.000->1.000  of 6->6
+Someone is intelligent.  'Anybody intelligent.'     'Anybody intelligent.'         sure 1.000->1.000  of 2->2
+The person stinks.       'The person stinks.'       'The person stinks.'           sure 0.266->0.266  of 3->3
+The people stink.        'The people stink.'        'The people stink.'            sure 0.143->0.143  of 8->8
+This stinks.             'He stinks.'               'He stinks.'                   sure 1.000->1.000  of 8->8
+
+said back exactly: 3 of 15 before, 3 of 15 after
