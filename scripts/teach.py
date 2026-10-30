@@ -172,28 +172,60 @@ class _Passes:
         return [f"{name}: {line}" for name, report in self.reports for line in report.lines()]
 
 
-async def _count(db, sql, params=()):
-    row = await db.execute_query(sql, params, fetch_one=True)
-    return int(row["n"]) if row else 0
+# THE SCHEMAS MEMORY IS HELD IN. Everything learned is in one of them, so counting all of their tables counts
+# everything learned, whatever it is called and whenever it was added.
+_MEMORY_SCHEMAS = ("unified", "memory_hot", "memory_cold")
+
+
+def what_moved(before, after):
+    """The kinds and tables whose counts this run changed, kinds first and tables after, each in name order.
+
+    A kind written for the first time is in `after` and not in `before`, so it is counted from nothing rather than
+    passed over: that is the case the old snapshot could not report at all.
+    """
+    return sorted(
+        (k for k in set(before) | set(after) if after.get(k, 0) != before.get(k, 0)),
+        key=lambda k: (k.startswith("table: "), k))
 
 
 async def snapshot(db):
-    """What the substrate holds. Read from the DATABASE, never from counters."""
-    return {
-        "concepts": await _count(db, "SELECT COUNT(*) n FROM unified.concepts"),
-        "relations": await _count(db, "SELECT COUNT(*) n FROM unified.concept_relations"),
-        "beliefs": await _count(db, "SELECT COUNT(*) n FROM unified.beliefs"),
-        "domains": await _count(db, "SELECT COUNT(*) n FROM unified.domains"),
-        "memberships": await _count(db, "SELECT COUNT(*) n FROM unified.concept_domains"),
-        # Taught statements (`admitted_proposition`): counted as "words" until 2026-10-26, which they are not.
-        "statements": await _count(
-            db, "SELECT COUNT(*) n FROM memory_hot.memory_hot "
-                "WHERE tags @> '[\"admitted_proposition\"]'::jsonb"),
-        "words recorded": await _count(
-            db, "SELECT COUNT(*) n FROM memory_hot.memory_hot WHERE tags @> '[\"word_record\"]'::jsonb"),
-        "sentences recorded": await _count(
-            db, "SELECT COUNT(*) n FROM memory_hot.memory_hot WHERE tags @> '[\"sentence_record\"]'::jsonb"),
-    }
+    """What the substrate holds, counted from the DATABASE and never from counters.
+
+    EVERY KIND, ASKED OF THE STORE AND NOT LISTED HERE. Each kind of memory is counted under the tag it is held
+    by, hot and cold alike, and each table of the schemas memory lives in is counted as well. A list written here
+    goes stale the moment a new kind of learning is taught: this counted eight things until 2026-10-29, and word
+    classes were not one of them, so the owner's `--source wordnet-classes` run wrote 1,107 of them and the run
+    reported zeros in every column. A kind added later is counted without this function being touched again.
+    """
+    held = {}
+
+    # EVERY KIND OF MEMORY, BY THE TAG IT IS HELD UNDER. Hot and cold together, so a memory tiered between the two
+    # is not read as one that went missing.
+    rows = await db.execute_query(
+        "SELECT tag, COUNT(*) n FROM ("
+        "  SELECT jsonb_array_elements_text(tags) tag FROM memory_hot.memory_hot"
+        "  UNION ALL"
+        "  SELECT jsonb_array_elements_text(tags) tag FROM memory_cold.memory_cold"
+        ") t GROUP BY tag", fetch_all=True) or []
+    for row in rows:
+        held[f"memory: {row['tag']}"] = int(row["n"])
+
+    # AND EVERY TABLE MEMORY IS HELD IN, named by the store's own catalogue. Only the tables holding rows
+    # themselves (`relkind = 'r'`), so a partitioned table is counted in its parts and not twice over.
+    tables = await db.execute_query(
+        "SELECT n.nspname s, c.relname t FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace "
+        "WHERE c.relkind = 'r' AND n.nspname = ANY($1) ORDER BY 1, 2",
+        (list(_MEMORY_SCHEMAS),), fetch_all=True) or []
+    if tables:
+        # One question for all of them: 340 tables counted exactly in 1.2s on the main store (2026-10-29), where
+        # one question each would be 340 round trips. The names are the catalogue's own, quoted as identifiers.
+        counted = " UNION ALL ".join(
+            f'SELECT \'{row["s"]}.{row["t"]}\' t, COUNT(*) n FROM "{row["s"]}"."{row["t"]}"'
+            for row in tables)
+        for row in await db.execute_query(counted, fetch_all=True) or []:
+            held[f"table: {row['t']}"] = int(row["n"])
+
+    return held
 
 
 async def competence(db, domain: str):
@@ -391,10 +423,19 @@ async def main() -> int:
 
     for line in report.lines():
         print(f"  {line}")
+    # WHAT THE RUN CHANGED, AND NOTHING IT DID NOT. Every kind and every table is counted (`snapshot`), and the
+    # ones that moved are the ones printed, kinds first and tables after; a kind this run was the first to write
+    # has no count before it and is shown from nothing. Silence here means the store holds what it held, which is
+    # a result and not an empty report.
     print("\n  the substrate:")
-    for k in before:
-        print(f"    {k:14} {before[k]:>10,} -> {after[k]:>10,} "
-              f"({after[k] - before[k]:+,})")
+    moved = what_moved(before, after)
+    width = max((len(k) for k in moved), default=0)
+    for k in moved:
+        was, now = before.get(k, 0), after.get(k, 0)
+        print(f"    {k:{width}} {was:>12,} -> {now:>12,} ({now - was:+,})")
+    if not moved:
+        print("    nothing moved: every kind of memory and every table it is held in holds what it held before")
+    print(f"    ({len(after):,} counted, {sum(1 for v in after.values() if v):,} of them holding anything)")
 
     extra = [
         f"reacted for {settled:.0f}s after the last fact was taught",

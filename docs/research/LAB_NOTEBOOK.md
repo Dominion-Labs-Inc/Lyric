@@ -16,6 +16,64 @@ Conventions:
 
 ---
 
+## 2026-10-29 (83) — A teaching run reports everything it wrote: the snapshot asks the store what it holds instead of naming eight things
+
+**Objective.** The owner's point, said again and taken as the standing requirement: the work is to standardize
+teaching and learning so that it does what it is meant to, because **everything is going to be re-taught**. What is
+currently in a database is beside that point. A re-teach that cannot be verified from the run's own report is not a
+re-teach anyone can trust, and (82) had just shown a run writing 1,107 word classes and reporting zeros in every
+column.
+
+**The defect, and its cause.** `scripts/teach.py`'s `snapshot()` named eight things — concepts, relations, beliefs,
+domains, memberships, taught statements, words recorded, sentences recorded — each as its own `COUNT(*)`. Word
+classes were not among them, and neither were language patterns (628,380 held), `said_of` (28,792), analysed,
+argued, taught and derived sentences (12,544, 10,495, 9,874, 8,679), word forms (3,703), `heard_after` (108,300) or
+thirty-odd other kinds. The cause is the shape and not the omission: **a list of kinds written in the reporting
+script goes stale the moment a kind of learning is added**, and nothing makes it fail when it does. It had gone
+stale silently, so a classes-only pass was honest in its pass report (`word classes: {'told': 1107, ...}`) and
+blind in its substrate table, and the only way to prove the work was to count rows in the database by hand.
+
+**Built: the store is asked what it holds.** `snapshot()` now counts, in two questions,
+
+- **every kind of memory under the tag it is held by**, hot and cold together (`memory_hot` and `memory_cold`, so a
+  memory tiered between them is not read as one that went missing), and
+- **every table of the schemas memory is held in** (`unified`, `memory_hot`, `memory_cold`), named from the store's
+  own catalogue, counting only tables holding rows themselves (`relkind = 'r'`), so a partitioned table is counted
+  in its parts and not twice over.
+
+On the main store that is **387 things — 47 kinds of memory and 340 tables — counted exactly in 0.73s**, of which 95
+hold anything. A kind of learning added later is counted with nothing here touched again. The five tables the old
+snapshot reported are all still counted and so are its three tags, so nothing it said was lost: it said eight things
+of 387.
+
+**And the report shows what moved.** The run printed all eight rows whether they moved or not; it now prints the
+kinds and tables whose counts the run changed, kinds first and tables after (`what_moved`), and where none moved it
+says so in words — "nothing moved: every kind of memory and every table it is held in holds what it held before" —
+which is a result and not an empty table. A kind the store held **none** of before the run is in the after and not
+in the before, so it is reported from nothing: that is the case the old snapshot could not report at all, and it is
+the case every first re-teach of a kind will be.
+
+**The other half of the same defect, guarded and not rewritten.** `Report.lines()` in `core/learning/teaching.py`
+is also a hand-written list, of 17 lines over a dataclass of 24 fields. Checked: it names **all 24**, so a pass does
+report everything it did today. What it lacked was anything to keep that true, so a field added without a line would
+be learning performed and not reported — the same defect in the same place. A test now holds the property instead of
+the report being rebuilt, which keeps the labels a reader of a run actually reads.
+
+**Verified** (`tests/test_teach_snapshot.py`, 6 pass, `./venv_lyric/bin/python3`): every tag the store answers with
+is counted, including one whose name appears nowhere in the code; the five tables the old snapshot reported are all
+still counted; cold memory is in the question asked; a kind written for the first time is shown from nothing; what
+held still is not reported; kinds sort before tables; nothing taught moves nothing; and every field of a pass report
+reaches the lines it prints. The new `snapshot()` was also run against `lyric_db` itself, reads only, and returned
+the 387 counts above with `word_class` at 94,262 — the number (82) had to count by hand.
+
+**Removed.** `_count`, the one-row helper the eight questions used, now that nothing calls it.
+
+**What this is for.** It is not a measurement and it moves no reading score. It is the instrument the re-teach will
+be read through: whatever is taught next, the run says what memory gained, by kind, in its own words, without anyone
+having to know in advance which kinds to ask about.
+
+---
+
 ## 2026-10-29 (82) — Main measured for the first time: it matches the hand-taught sandbox, and nothing here measures what the class lessons did
 
 **Objective.** (81) taught `lyric_db` the classes it was missing (1,107 pairs written, 93,155 to 94,262 `word_class`
