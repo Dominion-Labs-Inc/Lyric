@@ -618,3 +618,34 @@ def test_an_adjective_is_weighed_by_what_it_is_of_and_what_that_is_a_kind_of():
     assert lexicon.inherited("quality", "norway", "ADJECTIVE", (), "has_property")[0] == "comes_from"
     view.drop_word(norwegian)
     assert words.kinds("norway", "ADJECTIVE") == []
+
+
+def test_what_a_verb_took_as_an_object_reaches_the_words_layer_from_a_word_record():
+    """The path a real teach takes, which the read-only stand-in bypassed: a form record carrying what stood after
+    the verb (`WordForm.objects`) -> `GrammarView.hold_word` -> `Words.objects_of` and `every_object`, which is what
+    `Grammar._object_agreement` asks. Counted but never carried, the table would fill only in the probe that wrote
+    it by hand and would still be empty after the re-teach (lyric_db, 2026-10-30)."""
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import WordForm, WordRecord, WordSense
+    from core.semantics.grammar_words import HeldWords
+    misled = WordRecord(
+        "mislead",
+        (WordForm("misled", "VERB", "Tense=Past|VerbForm=Fin", 7,
+                  objects=(("PRONOUN", "Case=Acc|Number=Sing|Person=1", 4), ("NOUN", "Number=Sing", 3))),
+         WordForm("mislead", "VERB", "VerbForm=Inf", 2)),
+        (WordSense("mislead.v.01", "VERB", "mislead", "lead someone in the wrong direction", (), 5),))
+    assert not misled.problems(), misled.problems()
+    # The layer is written and read back the same, a record made before it being the same record.
+    assert WordRecord.from_dict(json.loads(json.dumps(misled.to_dict()))) == misled
+    assert WordForm.from_dict(json.loads(json.dumps(
+        WordForm("mislead", "VERB", "VerbForm=Inf", 2).to_dict()))).objects == ()
+
+    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view.hold_word(misled)
+    assert dict(view.words.objects("misled")) == {("PRONOUN", "Case=Acc|Number=Sing|Person=1"): 4.0,
+                                                  ("NOUN", "Number=Sing"): 3.0}
+    assert dict(view.words.objects()) == dict(view.words.objects("misled")), "every verb's, there being one"
+    assert not view.words.objects("mislead"), "the form that took nothing took nothing"
+    # AND IT IS GIVEN BACK, as every other counted table is, so a word dropped leaves none of it behind.
+    view.drop_word(misled)
+    assert not view.words.objects("misled") and not view.words.objects()
