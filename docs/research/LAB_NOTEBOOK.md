@@ -16,6 +16,92 @@ Conventions:
 
 ---
 
+## 2026-10-30 (89) — Reading says what it does not hold, and the ungrammatical saying traced through three wrong diagnoses to one right one
+
+**Objective.** The owner, on the two defects (88) found and I had parked: "why would we leave saying ungrammatical
+and why would we leave out empty for words that I've never been seen before?" Both before anything else. Both are
+reading-side, which is why they outrank the build cost.
+
+### (2) DOUBT ABOUT A WORD NEVER SEEN — fixed
+
+`Reading.unheld` carries the words of a sentence memory does not hold, each once, in the order first met, filled by
+one new function `words_not_held`. Where a sentence reads no whole, `why` now names them, so "the grammar cannot
+join these words" and "nobody taught this word" stop arriving as the same silent failure.
+
+**The question was already written in the codebase and asked in one place only**: `GrammarView.review_word` worked
+out the unknown words of a taught word's own examples, for the teaching report. `Grammar.read` never asked. So the
+fix was to lift it into one authority rather than write a second — and doing that exposed a latent crash: it reached
+for `words.closed`, which belongs to `Lexicon` and not to `Words`, so it would have raised on any words object but
+the one it happened to be called with. It now asks the lexicon for its own words and `Words.uses` for memory's.
+
+**`Reading.sure` was deliberately left alone.** It means the reading's share of every whole reading — sureness about
+STRUCTURE — and `_learn_from_reading` weights what reading teaches by it. Lowering it for unheld words would have
+quietly corrupted learning while looking like a confidence fix. Doubt is reported beside it, named for what it is.
+
+### (1) UNGRAMMATICAL SAYING — one measured fix, and three diagnoses of mine disproved in order
+
+The defect: on a store of ten words, "I am intelligent." was said back as **"I is intelligent."**, the only sentence
+offered, at `how_surely` 1.000.
+
+**Diagnosis 1, mine, wrong: `data/grammar/english.json` gives the pronouns identical entries.** True as a fact
+(`i`/`me`/`myself` are all `NP.?speaker`, `use: pron`) but not the cause, and I dropped it too early — it turns out
+to be the nearest thing to the remaining cause.
+
+**Diagnosis 2, mine, wrong: `am` is missing as a copula verb.** The word record for `be` holds `am` only as
+AUXILIARY and never as VERB, which is real — UD tags copulas AUX. But that is not the store saying consults: `am` has
+**117 attested `be:adj` uses and 315 recorded first-person-nominative subjects**. It was available the whole time. I
+had checked the wrong table and reported it as the root cause.
+
+**Built anyway, and kept, because it is right on its own terms:** `CLOSED_PARADIGM`, 59 forms over 11 lexemes with
+their features, offered through the `word_forms` layer — the copula, `do`/`does`, `have`/`has`, and every pronoun's
+case. Pronoun case was genuinely stated nowhere. `CLOSED_CLASSES` also listed `having` but neither `doing` nor
+`done`, now closed, and a guard holds the two stated tables to agreeing. Stated rather than inferred for the reason
+the file already gives for the closed classes: nobody discovers them from a corpus, and running the reader's learned
+endings backwards writes "washs".
+
+**Diagnosis 3, mine, wrong: the keep-apart machinery is gated shut.** `taking_subject` and `standing_as` both return
+"" unless `words.subjects()` holds something, and the comment above them records this exact bug being fixed once
+before for "was"/"were" ("what a later rule weighs may not be packed away", Oepen and Carroll 2000). Measured, the
+gate is **open**: 30 entries, and `subjects('am')` is exactly `('PRONOUN', 'Case=Nom|Number=Sing|Person=1')` 315
+times.
+
+**THE FIX THAT MEASURED: A FORM SAYING NOTHING OF A FEATURE WAS WEIGHED AS EVIDENCE OF HAVING NONE.** Every pronoun
+is held **twice** on a taught store — once as stated, and once under the base a sentence recorded whole gives it,
+the PMB lemmatising "I" as `speaker` and "they" as `person`, **with no features at all** — one each. `standing_as`
+takes the case the word is written with most, and `max` over a tie took the featureless one, so case resolved to
+*nothing*: every pronoun packed with every other and only the most often written survived. `Grammar._features` now
+drops the featureless forms where any form of the word as that class states features, and `taking_subject` does the
+same for a verb's person and number. Measured: "They are intelligent." went from "Him is intelligent." to correct.
+
+**THE EVIDENCE THAT EXPLAINS WHICH PRONOUN WORKS.** Said of each person, before the fix and after, the only one
+right is "You are intelligent." — and "you" is the one pronoun of English with no case to get wrong.
+
+**A CHANGE MADE AND REVERTED, recorded because the reasoning stands.** `_agreed` returns 0.0 — neutral, no
+information — for a feature set appearing in no verb's subjects anywhere. But `Case=Acc` appearing as no subject of
+any verb is the strongest evidence there is that an accusative pronoun is not a subject: it is the same error as (2),
+absence of evidence read as absence of information, in a second place. Smoothing it like every other count here
+changed **nothing measurable**, because the real blocker is upstream, so it is out rather than left in a core scorer
+unmeasured.
+
+**WHERE IT ACTUALLY STOPS, and it is not agreement.** For a `?speaker` meaning saying builds **exactly one** whole
+sentence; for a `?previous` one it builds eight. Agreement can rank candidates and cannot rank one. The situation
+terms get a budget of one word (`budget[("situation", cat.ref)]`), and `i`, `me` and `myself` carry the identical
+category `NP.?speaker`, so they compete for a single slot and all but one is discarded before any verb is attached.
+That is diagnosis 1 after all. The next step is to make the speaker's three words distinguishable where they
+compete, not ranked after the fact.
+
+### How each result was verified
+
+184 tests pass — the reading suite's 126 unchanged, the grammar's 58 plus one new guard for the featureless forms
+(all four of its cases, including that a word held only featureless is untouched), and two new guards for
+`Reading.unheld`; 18 more across word forms and the teaching path, with a new guard holding `CLOSED_PARADIGM` and
+`CLOSED_CLASSES` to agreeing. Everything else was measured on `lyric_db` itself through the real path: the closed
+classes re-taught with the paradigm (11 word-form records held, 1.0 s, 13 s reacting), then reading and saying each
+person, read only, and direct probes of `Words.subjects`, `Words.form_features` and `Words._forms_of`.
+
+
+---
+
 ## 2026-10-30 (88) — Main re-taught from nothing, words first: composition is real from ten words, and two things that do not work
 
 **Objective.** Every store was wiped to zero that morning on the owner's word — main's 1,482,206 memories,

@@ -53,9 +53,15 @@ async def main():
                 print(f"    READ: nothing -- {whole}; why {reading.why or '?'}"
                       f"{'; read as far as ' + str(reading.missing[:2]) if reading.missing else ''}"
                       f"  [{time.time() - at:.1f}s]", flush=True)
+                if reading.unheld:
+                    print(f"    HOLDS NO WORD FOR {', '.join(reading.unheld)}", flush=True)
                 continue
             print(f"    READ  sure {reading.sure:.3f}  {reading.meaning.canonical()}  [{time.time() - at:.1f}s]",
                   flush=True)
+            if reading.unheld:
+                # What memory does not hold of the sentence it just read confidently (`Reading.unheld`): sureness is
+                # about structure, so this is the only thing that says the words were never seen.
+                print(f"    HOLDS NO WORD FOR {', '.join(reading.unheld)}", flush=True)
             at = time.time()
             how_surely: dict = {}
             why: dict = {}

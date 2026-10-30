@@ -102,3 +102,47 @@ def test_each_reason_in_not_a_lesson_still_names_something():
         everywhere |= set(vars(cls))
     stale = sorted(set(NOT_A_LESSON) - everywhere)
     assert not stale, f"NOT_A_LESSON excuses methods no source has: {stale}"
+
+
+def test_the_closed_classes_state_their_forms_and_what_form_each_is():
+    """`CLOSED_PARADIGM`, offered through the `word_forms` layer: a class alone says "am" is a copula, which left
+    saying unable to choose between "am" and "is" at all, and unable to offer "am" as a copula verb because UD
+    writes it only as an auxiliary. These forms are finite and no corpus gives them, so they are stated -- the same
+    reason `CLOSED_CLASSES` is stated rather than counted."""
+    from core.learning.teaching_sources import CLOSED_CLASSES, CLOSED_PARADIGM, ClosedClassSource
+    from core.semantics.word_forms import WordForms
+
+    stated = {w for words in CLOSED_CLASSES.values() for w in words}
+    by_base = {(base, cls): dict(forms) for base, cls, forms in CLOSED_PARADIGM}
+
+    # THE TWO STATED TABLES AGREE: no form is stated for a word whose class is not, and no base is left out of them.
+    for base, cls, forms in CLOSED_PARADIGM:
+        assert base in stated, f"the paradigm states forms of {base!r}, which no closed class holds"
+        for form, features in forms:
+            assert form in stated, f"{form!r}, a form of {base!r}, is in no closed class"
+            assert features, f"{form!r} of {base!r} says nothing of what form it is"
+            for pair in features.split("|"):
+                assert pair.count("=") == 1 and all(pair.split("=")), f"{features!r} of {form!r} is not UD's features"
+
+    # THE HOLE THIS CLOSES: "am" as a copula VERB, first person singular present, which UD holds only as AUXILIARY.
+    copula = by_base[("be", "VERB")]
+    assert "am" in copula, "the copula still cannot be said in the first person singular"
+    assert "Person=1" in copula["am"] and "Number=Sing" in copula["am"], copula["am"]
+    # And the third person, so that agreement has two forms to tell apart rather than one to fall back on.
+    assert "Person=3" in copula["is"] and "Number=Sing" in copula["is"], copula["is"]
+
+    # THE OTHER HALF: case, so that a subject and an object are not the same word.
+    speaker = by_base[("i", "PRONOUN")]
+    assert "Case=Nom" in speaker["i"], speaker["i"]
+    assert "Case=Acc" in speaker["me"], speaker["me"]
+    assert "Reflex=Yes" in speaker["myself"], "a reflexive said as a plain object is how 'Myself wash myself.' read"
+    assert speaker["i"] != speaker["me"], "nominative and accusative stated alike is the defect, not the fix"
+
+    # OFFERED THROUGH THE LAYER THAT HOLDS COUNTED FORMS, so stated and counted meet as one kind of thing.
+    offered = list(ClosedClassSource().word_forms())
+    assert offered and all(isinstance(f, WordForms) for f in offered), offered[:1]
+    assert {(f.base, f.word_class) for f in offered} == set(by_base)
+    for held in offered:
+        # Each form stated once: a statement that a form exists is not evidence of how often it is used.
+        assert all(n == 1 for _, _, n in held.forms), held.forms
+        assert held.counted_from == "closed-classes", held.counted_from

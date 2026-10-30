@@ -83,7 +83,7 @@ CLOSED_CLASSES: Dict[str, Tuple[str, ...]] = {
                    "every", "any", "enough", "plenty"),
     "MODAL": ("can", "could", "may", "might", "must", "shall", "should",
               "will", "would", "ought", "need", "dare"),
-    "AUXILIARY": ("do", "does", "did", "have", "has", "had", "having"),
+    "AUXILIARY": ("do", "does", "did", "doing", "done", "have", "has", "had", "having"),
     "CONJUNCTION": ("and", "or", "but", "nor", "yet", "so"),
     "SUBORDINATOR": ("because", "although", "though", "unless", "while",
                      "whereas", "since", "if", "when", "whenever", "where",
@@ -116,6 +116,120 @@ PUNCTUATION_FACTS: Tuple[str, ...] = (
     "A bracket encloses an aside.",
 )
 
+#: THE PARADIGM OF THE CLOSED CLASSES, each form with WHAT FORM IT IS. A class
+#: alone says "am" is a copula; this says it is the copula's first person
+#: singular present, and that "me" is accusative where "I" is nominative --
+#: which is the part saying and agreement act on every time they choose a word.
+#:
+#: STATED, BECAUSE NO CORPUS GIVES IT. The forms a word is held in are counted
+#: from the treebanks, so the paradigm has exactly the holes and the junk the
+#: analysts left behind: UD writes "am" only as an AUXILIARY and never as a
+#: copula VERB, while it does write "ai", "art", "r" and "re", so saying "I am
+#: intelligent." was not possible at all and "I is intelligent." was the best
+#: sentence the grammar could offer, at full confidence because it was the only
+#: one (lyric_db, 2026-10-30). Inference is no answer either: run the reader's
+#: learned endings backwards and it writes "washs". These forms are finite and
+#: nobody discovers them from text, so they are written down -- the same reason
+#: `CLOSED_CLASSES` is written down rather than counted.
+#:
+#: The features are the treebanks' own (UD), so a stated form and a counted one
+#: meet as one kind of thing (`word_forms.WordForms`, `Words.form_features`).
+#: Each is stated once: a statement that a form exists is not evidence of how
+#: often it is used, and the counted forms carry that.
+CLOSED_PARADIGM: Tuple[Tuple[str, str, Tuple[Tuple[str, str], ...]], ...] = (
+    # THE COPULA, as a verb in its own right ("I am intelligent.") and as the
+    # auxiliary it also is ("I am waiting."). UD holds the second and not the
+    # first, which is the hole this closes.
+    ("be", "VERB", (
+        ("am", "Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("is", "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("are", "Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("are", "Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("are", "Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("are", "Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("was", "Mood=Ind|Number=Sing|Person=1|Tense=Past|VerbForm=Fin"),
+        ("was", "Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin"),
+        ("were", "Mood=Ind|Number=Plur|Person=1|Tense=Past|VerbForm=Fin"),
+        ("were", "Mood=Ind|Number=Sing|Person=2|Tense=Past|VerbForm=Fin"),
+        ("were", "Mood=Ind|Number=Plur|Person=2|Tense=Past|VerbForm=Fin"),
+        ("were", "Mood=Ind|Number=Plur|Person=3|Tense=Past|VerbForm=Fin"),
+        ("be", "VerbForm=Inf"),
+        ("been", "Tense=Past|VerbForm=Part"),
+        ("being", "VerbForm=Ger"),
+    )),
+    # DOING AND HAVING, which mark another doing and are also verbs of their
+    # own ("I do the dishes.", "I have a dog."): the same third person singular
+    # hole as the copula, "does" and "has" against "do" and "have".
+    ("do", "VERB", (
+        ("do", "Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("do", "Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("do", "Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("do", "Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("do", "Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("does", "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("did", "Mood=Ind|Tense=Past|VerbForm=Fin"),
+        ("do", "VerbForm=Inf"),
+        ("done", "Tense=Past|VerbForm=Part"),
+        ("doing", "VerbForm=Ger"),
+    )),
+    ("have", "VERB", (
+        ("have", "Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("have", "Mood=Ind|Number=Sing|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("have", "Mood=Ind|Number=Plur|Person=1|Tense=Pres|VerbForm=Fin"),
+        ("have", "Mood=Ind|Number=Plur|Person=2|Tense=Pres|VerbForm=Fin"),
+        ("have", "Mood=Ind|Number=Plur|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("has", "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+        ("had", "Mood=Ind|Tense=Past|VerbForm=Fin"),
+        ("have", "VerbForm=Inf"),
+        ("had", "Tense=Past|VerbForm=Part"),
+        ("having", "VerbForm=Ger"),
+    )),
+    # THE PRONOUNS AND THEIR CASE. Nothing anywhere said that "I" stands in a
+    # subject and "me" in an object, so saying offered either and reading
+    # accepted either: "They misled i." was said at full confidence, and
+    # "Myself wash myself." was read without complaint.
+    ("i", "PRONOUN", (
+        ("i", "Case=Nom|Number=Sing|Person=1|PronType=Prs"),
+        ("me", "Case=Acc|Number=Sing|Person=1|PronType=Prs"),
+        ("myself", "Case=Acc|Number=Sing|Person=1|PronType=Prs|Reflex=Yes"),
+    )),
+    ("we", "PRONOUN", (
+        ("we", "Case=Nom|Number=Plur|Person=1|PronType=Prs"),
+        ("us", "Case=Acc|Number=Plur|Person=1|PronType=Prs"),
+        ("ourselves", "Case=Acc|Number=Plur|Person=1|PronType=Prs|Reflex=Yes"),
+    )),
+    ("you", "PRONOUN", (
+        ("you", "Case=Nom|Person=2|PronType=Prs"),
+        ("you", "Case=Acc|Person=2|PronType=Prs"),
+        ("yourself", "Case=Acc|Number=Sing|Person=2|PronType=Prs|Reflex=Yes"),
+        ("yourselves", "Case=Acc|Number=Plur|Person=2|PronType=Prs|Reflex=Yes"),
+    )),
+    ("he", "PRONOUN", (
+        ("he", "Case=Nom|Gender=Masc|Number=Sing|Person=3|PronType=Prs"),
+        ("him", "Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs"),
+        ("himself", "Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs|Reflex=Yes"),
+    )),
+    ("she", "PRONOUN", (
+        ("she", "Case=Nom|Gender=Fem|Number=Sing|Person=3|PronType=Prs"),
+        ("her", "Case=Acc|Gender=Fem|Number=Sing|Person=3|PronType=Prs"),
+        ("herself", "Case=Acc|Gender=Fem|Number=Sing|Person=3|PronType=Prs|Reflex=Yes"),
+    )),
+    ("it", "PRONOUN", (
+        ("it", "Case=Nom|Gender=Neut|Number=Sing|Person=3|PronType=Prs"),
+        ("it", "Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Prs"),
+        ("itself", "Case=Acc|Gender=Neut|Number=Sing|Person=3|PronType=Prs|Reflex=Yes"),
+    )),
+    ("they", "PRONOUN", (
+        ("they", "Case=Nom|Number=Plur|Person=3|PronType=Prs"),
+        ("them", "Case=Acc|Number=Plur|Person=3|PronType=Prs"),
+        ("themselves", "Case=Acc|Number=Plur|Person=3|PronType=Prs|Reflex=Yes"),
+    )),
+    ("who", "PRONOUN", (
+        ("who", "Case=Nom|PronType=Rel"),
+        ("whom", "Case=Acc|PronType=Rel"),
+    )),
+)
+
 
 @dataclass
 class ClosedClassSource:
@@ -145,6 +259,20 @@ class ClosedClassSource:
         for word_class, words in CLOSED_CLASSES.items():
             for word in words:
                 yield (word, word_class)
+
+    def word_forms(self) -> Iterator[Any]:
+        """THE FORMS OF THE CLOSED CLASSES AND WHAT FORM EACH IS (`CLOSED_PARADIGM`), as the layer that holds the
+        forms counted from the treebanks holds them (`word_forms.WordForms`), so that stated and counted forms meet
+        as one kind of thing and whatever reads one reads the other.
+
+        A class alone could not say that "am" is the copula's first person singular, nor that "me" is accusative
+        where "I" is nominative, so saying could offer neither the right copula nor the right pronoun: UD holds "am"
+        only as an auxiliary, never as a copula verb."""
+        from core.semantics.word_forms import WordForms
+        for base, word_class, forms in CLOSED_PARADIGM:
+            yield WordForms(base=base, word_class=word_class,
+                            forms=tuple((form, features, 1) for form, features in forms),
+                            counted_from=self.name)
 
 
 

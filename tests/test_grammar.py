@@ -1130,3 +1130,100 @@ def test_how_surely_is_not_filled_where_nothing_is_said():
                  why=why, how_surely=how_surely) == []
     assert how_surely == {}, how_surely
     assert why.get("why"), why
+
+
+def test_reading_says_which_words_memory_does_not_hold():
+    """`Reading.unheld` and `words_not_held`: reading is permissive on purpose -- a word nobody taught is read by
+    reading the sentence around it -- but it was silent, so a sentence of words never seen looked exactly like one of
+    words taught. "This sparkles." read whole at 0.915 sure with `sparkles` a concept minted from its own letters
+    (lyric_db, 2026-10-30). `sure` is the reading's share of every whole reading, which is sureness about STRUCTURE;
+    nothing said how much of the sentence memory holds, and now the reading itself does."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    words = g.lexicon.words
+
+    def unheld(text: str) -> tuple:
+        return g.read(gm.tokens_of(text, words)).unheld
+
+    # A WORD NEVER TAUGHT IS NAMED, and the grammar's own closed-class words beside it are not: they are held.
+    assert "sparkles" in unheld("This sparkles.")
+    assert "this" not in unheld("This sparkles."), "a determiner the grammar states is held"
+    # Each word once, in the order first met, so the first thing unheld is the first thing unheld.
+    said = unheld("Zib zib zarquon.")
+    assert said == tuple(dict.fromkeys(said)), said
+    assert said.index("zib") < said.index("zarquon"), said
+    # Nothing that is not spelled in letters is a word to hold: punctuation and figures are never named.
+    for token in unheld("Zarquon 42, zarquon!"):
+        assert token.isalpha(), token
+    # READING IS UNCHANGED: naming what it does not hold neither refuses the sentence nor alters its meaning.
+    with_unknown = g.read(gm.tokens_of("This sparkles.", words))
+    assert with_unknown.unheld, "the control of this test is that the word is indeed unheld"
+    assert with_unknown.sign is not None, "a word never taught is still read by reading the sentence"
+    # ONE AUTHORITY: what the reading reports is what the function says of the very same words.
+    tokens = gm.tokens_of("This sparkles.", words)
+    assert gm.words_not_held(tokens, g.lexicon) == with_unknown.unheld
+
+
+def test_a_sentence_that_reads_no_whole_says_the_word_nothing_holds():
+    """Why a sentence did not read is worth the word it turned on: a reading that reads no whole now says which of
+    its words memory does not hold, where before the two causes -- a grammar that cannot join them and a word nobody
+    taught -- arrived as one sentence of English with nothing to tell them apart."""
+    g = gm.Grammar(gm.Lexicon(Sounding()))
+    words = g.lexicon.words
+    reading = g.read(gm.tokens_of("Zarquon blerf zib quux glorp wibble frob.", words))
+    if reading.sign is None:
+        assert "no word held for" in reading.why, reading.why
+        assert reading.unheld, "nothing was named as unheld, so the why would be empty of them"
+        for word in reading.unheld[:3]:
+            assert word in reading.why, (word, reading.why)
+    else:
+        # Read whole after all, which is reading being permissive; the words are still named.
+        assert reading.unheld, reading.unheld
+
+
+def test_a_form_saying_nothing_of_a_feature_is_no_evidence_of_having_none():
+    """`Grammar._features`: a word's forms are weighed against each other to decide what form it is where it stands
+    (`standing_as` takes the case it is written with most, `taking_subject` the person and number), and a form held
+    with no features at all was weighed in beside the ones that state them.
+
+    Every pronoun is held twice on a taught store: once as stated (`CLOSED_PARADIGM`: "I" is
+    `Case=Nom|Number=Sing|Person=1`) and once under the base a sentence recorded whole gives it, the PMB lemmatising
+    "I" as `speaker` and "they" as `person`, with no features whatever -- one each. The tie settled on no case at
+    all, so every pronoun was packed with every other and only the most often written survived: "I is intelligent.",
+    "Him is intelligent.", "Ourselves is intelligent.", while "You are intelligent." came out right because "you" is
+    the one pronoun with no case to get wrong (lyric_db, 2026-10-30)."""
+
+    class TwoWays(Held):
+        """A word held both with its features and without them, as a stated form and a record's base leave it."""
+
+        def __init__(self, held: Mapping[str, Mapping[str, float]]):
+            self._held = held
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            # Something, so that the features subjects agree by are known and `_features` does not short out.
+            return {("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 9.0, ("NOUN", "Number=Sing"): 9.0}
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            return self._held.get(word.lower(), {})
+
+    def features_of(held, token, cls="PRONOUN"):
+        g = gm.Grammar(gm.Lexicon(TwoWays(held)))
+        g._tokens = (token,)
+        g._agreeing = {}
+        return dict(g._features(cls, 0))
+
+    both = {"me": {"Case=Acc|Number=Sing|Person=1": 1.0, "": 1.0}}
+    # THE FEATURELESS FORM IS DROPPED where another form of the word as this class states features.
+    assert features_of(both, "me") == {"Case=Acc|Number=Sing|Person=1": 1.0}
+
+    # AND KEPT where nothing states any: a word of which memory holds only a featureless form is unchanged, so this
+    # neither invents a feature nor silences a word whose forms were never analysed.
+    only_bare = {"me": {"": 3.0}}
+    assert features_of(only_bare, "me") == {"": 3.0}
+
+    # Held of no form at all, nothing is reported, which is what `_agreed` reads as no form of the word.
+    assert features_of({}, "me") == {}
+
+    # Features outside the ones subjects agree by are dropped as before, and a form left with nothing by THAT is
+    # still dropped beside a form that keeps something: `PronType` is no part of agreeing.
+    paradigm = {"i": {"Case=Nom|Number=Sing|Person=1|PronType=Prs": 1.0, "PronType=Prs": 1.0}}
+    assert features_of(paradigm, "i") == {"Case=Nom|Number=Sing|Person=1": 1.0}

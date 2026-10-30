@@ -1924,6 +1924,39 @@ def tokens_of(text: str, words: Words) -> Tuple[str, ...]:
     return tuple(out)
 
 
+def words_not_held(tokens: Sequence[str], lexicon: "Lexicon") -> Tuple[str, ...]:
+    """THE WORDS OF A SENTENCE MEMORY DOES NOT HOLD, each once, in the order first met. A word is held where it is one
+    of the grammar's own words (`Lexicon.closed`, the finite classes stated and not discovered), where memory holds
+    any use of that form (`Words.uses`, which counts both a class and a grammar entry's use), or where the words'
+    knowledge holds a class for it; anything not spelled in letters is no word to hold.
+
+    Asked of the lexicon and not of the words alone, because the two halves live apart: the grammar's own words are
+    the lexicon's and every other word is memory's, and `Words` promises a plain answer for a word nothing is held
+    of while defining no `closed` at all -- which the question's first writing reached for, so it would have raised
+    on any words but the one it was called with.
+
+    Reading is permissive on purpose -- a word nobody taught is read by reading the SENTENCE instead, which is a
+    capability and not a fault -- but it was also SILENT. "This sparkles." read whole at 0.915 sure with `sparkles` a
+    concept minted from its own letters, and "The whistle juggled Tom." at 0.898 with `tom` resolved from nothing, no
+    store holding any of the three (lyric_db, 2026-10-30). `Reading.sure` is the reading's share of every whole
+    reading, which is sureness about STRUCTURE among the readings built; nothing anywhere said how much of the
+    sentence memory actually holds, so a sentence of words never seen was indistinguishable from one of words taught.
+    This is the one place that asks, for reading and for reviewing a word taught alike (`GrammarView.review_word`,
+    where the question was first written and answered for the teaching report only)."""
+    words = lexicon.words
+    knowledge = getattr(words, "knowledge", None)
+    out: List[str] = []
+    for token in tokens:
+        word = str(token).lower()
+        if not str(token).isalpha() or word in out:
+            continue
+        if lexicon.closed.get(word) or words.uses(word) \
+                or (knowledge.classes(word) if knowledge is not None else {}):
+            continue
+        out.append(word)
+    return tuple(out)
+
+
 # ── reading ───────────────────────────────────────────────────────────────────────────────────────────────────────
 
 @dataclass
@@ -1942,8 +1975,12 @@ class Reading:
     #: it made, or None).
     decided: List[Tuple[str, str, str, Optional[MeaningFact]]] = field(default_factory=list)
     #: How sure the reading of the whole is: its share of every reading of the whole the grammar made, each as surely
-    #: as it reads its words (`Grammar.read`).
+    #: as it reads its words (`Grammar.read`). SURENESS ABOUT STRUCTURE, never about the words: a sentence holding a
+    #: word memory has never seen reads at whatever share its structure wins, which is why `unheld` is kept beside it.
     sure: float = 0.0
+    #: The words of the sentence MEMORY DOES NOT HOLD, each once, in the order first met (`words_not_held`): read
+    #: anyway, by reading the sentence around them, and now said instead of passed over in silence.
+    unheld: Tuple[str, ...] = ()
 
 
 #: The categories a whole sentence may be read as, and what the speaker wants by each.
@@ -2398,6 +2435,16 @@ class Grammar:
         out: Counter = Counter()
         for features, n in self.lexicon.words.form_features(str(self._tokens[k]), cls).items():
             out["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+        # A FORM SAYING NOTHING OF THESE FEATURES IS NO EVIDENCE OF HAVING NONE. Where any form of the word as this
+        # class says what number, person or case it is, the forms that say nothing are dropped rather than weighed
+        # beside them. "I" is held twice -- stated `Case=Nom|Number=Sing|Person=1`, and again under the base a
+        # sentence recorded whole gives it (the PMB lemmatises "I" as `speaker`) with no features at all -- once
+        # each, and `standing_as` takes the case the word is written with most, which that tie settled on no case at
+        # all. Every pronoun was then packed with every other and the surest form alone said: "I is intelligent.",
+        # "Him is intelligent.", "Ourselves is intelligent.", while "You are intelligent." -- the one pronoun with
+        # no case to get wrong -- came out right (lyric_db, 2026-10-30).
+        if any(f for f in out):
+            out.pop("", None)
         self._agreeing[(cls, k)] = out
         return out
 
@@ -2730,17 +2777,22 @@ class Grammar:
         tokens = tuple(tokens)
         if not tokens:
             return Reading(tokens, None, None, "no words")
+        # WHAT OF THIS SENTENCE MEMORY DOES NOT HOLD, worked out whether it reads or not: a sentence may fail to read
+        # BECAUSE of a word nobody taught, and that was the one thing a reading never said either way.
+        unheld = words_not_held(tokens, self.lexicon)
         cells = self.chart(tokens)
         whole = [s for s in cells.get((0, len(tokens)), {}).values() if _whole(s.cat) is not None]
         if not whole:
             covered = sorted(((e - s, s, e) for (s, e), cell in cells.items() if cell
                               and any(not (isinstance(x.cat, Atom) and x.cat.base == "punct") for x in cell.values())),
                              reverse=True)
-            return Reading(tokens, None, None, "the grammar reads no whole", tuple((s, e) for _, s, e in covered[:3]))
+            return Reading(tokens, None, None,
+                           "the grammar reads no whole" + (f"; no word held for {', '.join(unheld)}" if unheld else ""),
+                           tuple((s, e) for _, s, e in covered[:3]), unheld=unheld)
         # A sentence is read as one wherever the grammar reads it so; as a phrase alone ("What a feast!") only
         # where it does not; as an order as often as what is said is one (`_said_so`).
         best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
-        reading = Reading(tokens, best, None)
+        reading = Reading(tokens, best, None, unheld=unheld)
         # HOW SURE: the reading's share of every reading of the whole, by how surely each reads its words.
         top = max(s.score for s in whole)
         reading.sure = math.exp(best.score - top) / sum(math.exp(s.score - top) for s in whole)
@@ -3237,6 +3289,11 @@ class Grammar:
                 for cls in ("VERB", "AUXILIARY"):
                     for features, n in words.form_features(word, cls).items():
                         written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+                # A form saying nothing of these features is no evidence of having none, as of a thing's case
+                # (`Grammar._features`): a verb held once with its person and once without would otherwise be kept
+                # apart by whichever the tie fell to.
+                if any(f for f in written):
+                    written.pop("", None)
                 agreeing[word] = max(sorted(written), key=lambda f: written[f]) \
                     if written and words.subjects(word) else ""
             return agreeing[word]
@@ -4822,7 +4879,6 @@ class GrammarView:
         of the example nothing taught yet holds, the words to teach next. Asks nothing of memory; reads nothing it
         learns from."""
         words = self.grammar.lexicon.words
-        knowledge = getattr(words, "knowledge", None)
         out: List[Dict[str, Any]] = []
         for sense in word.senses:
             for example in sense.examples:
@@ -4832,10 +4888,11 @@ class GrammarView:
                 if text[-1:] not in ".?!":
                     text += "."
                 tokens = tokens_of(text, words)
-                unknown = sorted({t.lower() for t in tokens if str(t).isalpha() and not words.closed.get(t.lower())
-                                  and not getattr(words, "form_uses", {}).get(t.lower())
-                                  and not (knowledge.classes(t) if knowledge is not None else {})})
                 reading = self.grammar.read(tokens)
+                # The words nothing taught yet holds, as the reading itself worked them out (`words_not_held`): the
+                # question was written here first and asked for this report alone, which left reading unable to say
+                # it of a sentence anyone else gave it.
+                unknown = sorted(reading.unheld)
                 meaning = reading.meaning
                 in_sense = meaning is not None and any(
                     f.relation == "instance_of" and f.obj == sense.concept for f in meaning.facts)

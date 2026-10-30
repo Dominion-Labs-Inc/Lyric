@@ -19,7 +19,11 @@ from pathlib import Path
 ROOT = Path("/Users/stefan/Dominion Labs/Lyric")
 sys.path.insert(0, str(ROOT))
 HOW_MANY = int(os.environ.get("HOW_MANY", "100"))
-OUT = Path(os.environ["OUT"])
+#: Stop after the vocabulary and write nothing: the sentences cost almost nothing to record and the words cost
+#: seconds to minutes each, so how many words a set of sentences needs is asked on its own, before committing to
+#: building them (`run`, the heaviest verb in WordNet, took longer alone than 182 other words together).
+VOCABULARY_ONLY = os.environ.get("VOCABULARY_ONLY", "").lower() in ("1", "yes", "true")
+OUT = Path(os.environ["OUT"]) if not VOCABULARY_ONLY else None
 
 #: The WordNet part of speech for each class a sentence uses a word as, for asking WordNet the word's base. The
 #: classes absent here (NAME, and every closed class) have no WordNet entry to ask about.
@@ -115,7 +119,13 @@ def main():
                 instead[written] = base
             vocabulary[base] = vocabulary.get(base, 0) + 1
     print(f"{len(vocabulary)} distinct words in them; {len(instead)} taken under a base the sentence did not give "
-          f"({sorted(instead.items())[:8]}); recording each whole", flush=True)
+          f"({sorted(instead.items())[:8]})", flush=True)
+    if VOCABULARY_ONLY:
+        once = sum(1 for n in vocabulary.values() if n == 1)
+        print(f"{once} of them used once, {len(vocabulary) - once} more than once; "
+              f"the ten most used: {sorted(vocabulary.items(), key=lambda kv: -kv[1])[:10]}", flush=True)
+        return
+    print("recording each whole", flush=True)
     at = time.time()
     word_records, failed, refused = [], {}, {}
     for n, word in enumerate(sorted(vocabulary, key=lambda w: -vocabulary[w]), 1):
