@@ -16,6 +16,80 @@ Conventions:
 
 ---
 
+## 2026-10-29 (84) — The teaching and learning path audited before the re-teach: complete, and held complete by what it was missing
+
+**Objective.** The owner's decision: **nothing is re-taught until teaching, learning and understanding — reading and
+responding — are down packed.** (83) made a run report everything it wrote. This asks the next question of the same
+shape: does a source's lesson reach memory at all? A capability a source offers that no pass asks for is teaching
+that silently does not happen, which is the one failure a re-teach cannot survive, because the run would report
+success for the part that ran and say nothing of the part that never did.
+
+**How it was audited.** Not by reading the comments: by reading the code and diffing what it says against what it
+does. For each of the **17 teaching sources**, every public method needing no argument but itself is something a
+pass could ask for; the names `TeachingPass.run` consumes were parsed out of the pass itself rather than listed by
+hand, so the audit cannot inherit the same staleness it is looking for.
+
+**Finding 1: the pass's dispatch is a hand-written list of method names, and it is complete.** `run` names seven in
+a tuple (`argued`, `taught_sentences`, `word_groups`, `word_forms`, `derived`, `word_records`, `sentence_records`)
+and seven more each on its own (`records`, `word_classes`, `usage`, `listening_pairs`, `analysed`, `said_of`,
+`pronunciations`), sixteen names in all. Diffed against all 17 sources: **nothing a source can teach goes
+unasked.** Four methods looked orphaned and are not — `definitions`, `senses` and `held_out` are constructor
+attributes rather than methods, and `use_of` takes arguments and is called five times inside the source. Two more
+are helpers and say so: `WikidataSource.sections` lists a cache's sections so the command line can name one, and
+`WordNetSource.stated_senses` is read by that source's own `records()`.
+
+**Finding 2, and it is a real one: a source prices everything it states, or prices each record, and nothing said
+so.** Everything but `records()` is taught at `float(self.source.quality)` — one price for the whole of what a
+source states. **ConceptNet has no such price and declares none**, instance or class: its weights run 0.5 to 4.47
+on one relation, so every record carries its own (`quality_from_corroboration`). That is right, and it holds only
+while ConceptNet teaches through `records()` alone. Grown a `usage()` or a `said_of()`, the pass would reach
+`float(self.source.quality)` and raise `AttributeError` **partway through a pass that had already written** — the
+failure arriving after the writing, which is the worst place for it. `LessonSource` also declares none at class
+level and sets it per instance from the lesson file it reads, which is sound. The contract is now written down as
+the thing that checks it.
+
+**Finding 3: the learning half is one path, and it holds.** The seven kinds of language held whole all go through
+`_learn_held`, which dispatches on two strings per call — a `MemoryAgent` method name and a ledger `subject_kind`.
+Checked: **all seven method names resolve** on `MemoryAgent`, and **all seven subject kinds are tags the store
+really holds** (`argued_sentence` 10,495 on main, `derived_sentence` 8,679, `taught_sentence` 9,874, `word_forms`
+3,703; `sentence_record`, `word_record` and `word_group` 0, because main was never taught them). The memory agent
+is the sole writer, an item memory refuses is counted refused and the reason logged, and no belief or domain is
+made of language. Nothing here accepts items and drops them.
+
+**Finding 4, the one left open for a decision: three lists of language tags must agree about the same memory, and
+they disagree.** Taught language is how to read and how to say, never something Lyric knows, and three places carry
+that distinction — `MemoryAgent`'s 23 `*_TAG` constants, `MemoryFilter.EXEMPT_EVENT_TAGS` (14 language tags, which
+keeps a lesson from being judged novel enough to keep), and a set of three at `memory_agent._remember` (which keeps
+a record of how English is used from being read as a claim). **`listening` is in the third and not the second.** Its
+exposure is one memory — the one the listener's counts are beliefs about — so the cost today is nil, and the shape
+is what matters: each of these lists has fallen behind at least once and every time the cost was measured. The
+treebank's structure pass stopped on one declined sentence (2026-10-16); word classes and pronunciations were
+declined and counted as skipped, silently; **53 of the 59 memories handed to reasoning for UNDERSTANDS-PROSE-01 and
+-02 were examples of English**, so "Is seven odd?" was answered with "'seven' is used as an adjective." (2026-10-23);
+and the word "wall"'s record was read as a claim by the grammar, 109 million combinations and 148 seconds
+(TRAIN-FORMAT-02, 2026-10-26). **One list, derived, in place of three kept by hand is the fix**, and it is a change
+to how memory is classified, so it waits on the owner.
+
+**Finding 5, for the re-teach itself: main lacks three layers, not one.** Of the kinds a full teach produces, `
+lyric_db` holds **0 word records, 0 sentences recorded whole and 0 word groups**. (82) priced the first; the other
+two have never been counted.
+
+**Built: three guards, because every finding here was a list kept by hand with nothing to make it fail.**
+`tests/test_teaching_path.py` — everything a source can teach is asked for by the pass, with a reason required for
+anything excluded and a check that each reason still names a method some source has; and the pricing contract of
+finding 2. `tests/test_language_tags_agree.py` — every kind of taught language is exempt from being judged worth
+keeping, is named by a tag constant, and every tag constant is decided about one way or the other, so a kind added
+to `MemoryAgent` fails the test until someone says which it is. With (83)'s `tests/test_teach_snapshot.py`,
+**16 pass**.
+
+**What is NOT audited yet, said plainly.** This covers teaching and learning: that a lesson reaches memory and is
+counted. It does **not** cover understanding. What was checked of reading is only that each kind of memory is named
+somewhere outside the learning code, and the module that named all fourteen turned out to be the exemption list
+above, not a reader. **Whether each kind of memory actually changes a reading is unverified**, and so is responding
+(`say()`). That is the next piece of this audit and it is the larger half.
+
+---
+
 ## 2026-10-29 (83) — A teaching run reports everything it wrote: the snapshot asks the store what it holds instead of naming eight things
 
 **Objective.** The owner's point, said again and taken as the standing requirement: the work is to standardize
