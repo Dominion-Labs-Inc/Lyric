@@ -465,6 +465,12 @@ class Words:
         memory holds none."""
         return ()
 
+    def objects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        """Of a verb ("misled", "paints"), how often what stood as its object was of each class with each of those
+        features: `("PRONOUN", "Case=Acc|Number=Sing|Person=1")`; of no word, every verb's together. This is what
+        says a thing standing after a verb is written as "me" and not as "I". Nothing where memory holds none."""
+        return {}
+
     def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
         """Of a determiner ("a", "the"), how often the nouns it was said with were of each class with each of those
         features: `("NOUN", "Number=Sing")`; of no word, every determiner's together. Nothing where memory holds none."""
@@ -2303,7 +2309,8 @@ class Grammar:
                 # perfect agreement: of nobody being intelligent, "Nothing am intelligent." was said, "am" never
                 # once asked how well it agreed with "nothing" (lyric_db, 2026-10-30).
                 made(lc.res, s, ">", right.head if _takes_its_head(lc) else left.head,
-                     self._agreement(left, right) if _raised_subject(lc) and _verb_phrase(rc) else 0.0)
+                     self._agreement(left, right) if _raised_subject(lc) and _verb_phrase(rc) else
+                     self._object_agreement(left, right) if _takes_object(lc) and isinstance(rc, Atom) else 0.0)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
             if _unify(rc.arg, lc, s):
@@ -2411,20 +2418,57 @@ class Grammar:
         Nothing compared a subject with its verb: "a wall am" was read as "a wall is", and the first sentence the
         grammar said of a wall being a partition was "Wall'm the the a partition." (lyric_dev2, 2026-10-27)."""
         words, tokens = self.lexicon.words, self._tokens
+        # WHAT THE PLACE ITSELF ASKS OF THE WORD STANDING IN IT, weighed whatever the verb agrees in and so asked
+        # first: a verb in the past agrees in nothing, and before this every subject of one scored the same nothing.
+        standing = self._standing(subject, "subject")
         hook = _hook(doing.cat)
         finite = [p[-1] for p in doing.pieces if p[0] == "finite" and p[1] == hook]
         if not finite or not 0 <= min(finite) < len(tokens):
-            return 0.0
+            return standing
         if "every" not in self._agreeing:
             self._agreeing["every"] = words.subjects()
         every = self._agreeing["every"]
         ref = _subject_ref(subject.cat)
         found = self._said_by(subject.pieces, ref) if every and ref is not None else None
         if not found:
-            return 0.0
+            return standing
         verb = ("took", str(tokens[min(finite)]))
         if verb not in self._agreeing:
             self._agreeing[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
+        return standing + self._agreed(self._agreeing[verb], every, *found)
+
+    def _object_agreement(self, doing: Sign, thing: Sign) -> float:
+        """HOW WELL A THING STANDING AFTER A VERB IS WRITTEN FOR THE PLACE IT STANDS IN, as a logarithm, never more
+        than nothing: of the things that verb took as its object (`Words.objects`, as the treebanks' objects stood
+        after that form), the share of this thing's class with its features, weighed exactly as a subject is
+        weighed against its verb (`_agreed`); of a verb memory holds no object of, as every verb's objects are.
+        Nothing where memory holds no object of any verb, or the thing is no one word of a class (`_said_by`).
+
+        Nothing weighed a thing standing after a verb at all: memory counted the subjects verbs took, the nouns
+        determiners were said with and the things a copula said something to be, and nothing counted what stood as
+        an object, so "They misled me." was said back as "They misled i." and "I misled them." as "I misled this."
+        (lyric_db, 2026-10-30)."""
+        words, tokens = self.lexicon.words, self._tokens
+        if "every object" not in self._agreeing:
+            self._agreeing["every object"] = words.objects()
+        every = self._agreeing["every object"]
+        if not every or not 0 <= doing.head < len(tokens):
+            return 0.0
+        ref = _subject_ref(thing.cat)
+        found = self._said_by(thing.pieces, ref) if ref is not None else None
+        if not found:
+            return 0.0
+        verb = ("object of", str(tokens[doing.head]))
+        if verb not in self._agreeing:
+            # WHAT STOOD AFTER THIS VERB, COUNTED TOGETHER WITH WHAT STOOD AFTER EVERY VERB, never the verb's own
+            # alone: `_agreed` gives a form no evidence names a flat penalty, so weighing by a verb's own handful
+            # would throw away the only thing that tells a case apart -- "them" and "they" both scored -3.71 after
+            # "misled", which memory holds 40 objects of and none of them plural. The case a place takes belongs to
+            # the place and not to the verb standing before it, and a verb's own objects can then only tell its own
+            # preferences more sharply.
+            held: Counter = Counter(every)
+            held.update(words.objects(verb[1]))
+            self._agreeing[verb] = held
         return self._agreed(self._agreeing[verb], every, *found)
 
     def _shared_features(self) -> Set[str]:
@@ -2436,6 +2480,63 @@ class Grammar:
                                         for f in features.split("|") if f}
         return self._agreeing["shared"]
 
+    def _marking_features(self) -> Set[str]:
+        """THE FEATURES THAT MARK WHERE A THING MAY STAND rather than what its verb agrees in (its case), as what
+        memory holds says them: of the features a subject is written with (`_shared_features`), those no form of a
+        finite verb memory holds a subject of is ever written with. A verb is written with a number and a person and
+        agrees in them; it is never written with a case, so what is left of a subject's features marks the place.
+
+        They have to be weighed apart because an English verb in the past agrees in NOTHING -- "misled" is
+        `Tense=Past|VerbForm=Fin` and says no number and no person -- so `_agreement` has nothing to weigh and
+        returned the same nothing for every subject, and the subject's CASE went unweighed with it:
+        "We misled them." was said back as "Ourselves misled this." (lyric_db, 2026-10-30). Nothing where memory
+        holds no form of any such verb, there being nothing to tell the two apart by."""
+        if "marking" not in self._agreeing:
+            words, on_verbs = self.lexicon.words, set()
+            for word in words.took_subjects():
+                for cls in ("VERB", "AUXILIARY"):
+                    for features in words.form_features(word, cls):
+                        on_verbs |= {f.split("=")[0] for f in features.split("|") if f}
+            self._agreeing["marking"] = (self._shared_features() - on_verbs) if on_verbs else set()
+        return self._agreeing["marking"]
+
+    def _placed(self, held: Mapping[Tuple[str, str], float]) -> Counter:
+        """What stood somewhere, counted by the features that mark the place alone (`_marking_features`): the
+        subjects memory holds as `("PRONOUN", "Case=Nom")` and `("NOUN", "")`, a noun being written with no case."""
+        marking, out = self._marking_features(), Counter()
+        for (cls, features), n in held.items():
+            out[(cls, "|".join(f for f in features.split("|") if f and f.split("=")[0] in marking))] += n
+        return out
+
+    def _places(self) -> Mapping[Tuple[str, str], float]:
+        """EVERYTHING THAT STOOD IN ANY PLACE A THING MAY STAND, by the features that mark the place: the subjects
+        verbs took and the things they took as objects, together. This is what one place's share is weighed against,
+        and it has to be every place rather than the place itself: a share weighed against itself tells nothing
+        apart, and `ourselves`, accusative and 3 of main's 11,295 subjects, came out at -0.15 against `we` when it
+        was (lyric_db, 2026-10-30)."""
+        if "places" not in self._agreeing:
+            words = self.lexicon.words
+            held = self._placed(words.subjects())
+            held.update(self._placed(words.objects()))
+            self._agreeing["places"] = held
+        return self._agreeing["places"]
+
+    def _standing(self, thing: Sign, place: str) -> float:
+        """HOW WELL A THING IS WRITTEN FOR THE PLACE IT STANDS IN, as a logarithm, never more than nothing: of what
+        stood in this place, the share of this thing's class with its case, against that share of everything that
+        stood in any place (`_places`, `_agreed`). Nothing where memory holds nothing of the other place, a place's
+        share then being weighed against itself, or where the thing is no one word of a class (`_said_by`)."""
+        marking = self._marking_features()
+        ref = _subject_ref(thing.cat)
+        found = self._said_by(thing.pieces, ref) if marking and ref is not None else None
+        if not found:
+            return 0.0
+        key = ("standing", place)
+        if key not in self._agreeing:
+            words = self.lexicon.words
+            self._agreeing[key] = self._placed(words.subjects() if place == "subject" else words.objects())
+        return self._agreed(self._agreeing[key], self._places(), *found, names=marking)
+
     def _agrees_as(self, word: str) -> str:
         """WHAT A FINITE VERB'S FORM SAYS OF ITS SUBJECT: the number and person memory holds this word written with
         most, by the features subjects share with verbs ("am" `Number=Sing|Person=1|VerbForm=Fin`, "is" the same of
@@ -2443,7 +2544,8 @@ class Grammar:
 
         Asked in three places and so held in one: a finite verb still taking its subject is kept apart by it until
         the subject is taken (`Grammar.say`), a form this decides is not chosen by how often it is written, and a
-        verb memory holds no subject of is weighed by what the verbs written as it is took (`_subjects_like`)."""
+        verb memory holds no subject of is weighed by what the verbs written as it is took (`_subjects_like`). Of a
+        word memory holds no form of at all, what the verbs ending as it does say (`_written_like`)."""
         words = self.lexicon.words
         held = self._agreeing.setdefault("agrees as", {})
         if word not in held:
@@ -2457,8 +2559,35 @@ class Grammar:
             # apart by whichever the tie fell to.
             if any(f for f in written):
                 written.pop("", None)
-            held[word] = max(sorted(written), key=lambda f: written[f]) if written else ""
+            held[word] = max(sorted(written), key=lambda f: written[f]) if written else self._written_like(word)
         return held[word]
+
+    def _written_like(self, word: str) -> str:
+        """WHAT A VERB MEMORY HOLDS NO FORM OF SAYS OF ITS SUBJECT, by what the verbs ending as it does say: of the
+        forms memory holds as verbs, those whose last letters are this word's, the form they are written as most.
+        Nothing where memory holds no verb ending so, and nothing for a word too short to end like anything.
+
+        A word nobody taught is still read as a verb by the ending it is written with, and then nothing could be
+        weighed against it: `sparkles` is held as no form at all, so it said what number its subject was not, and of
+        a thing sparkling "They sparkles." was said above "He sparkles." (lyric_db, 2026-10-30). The endings are the
+        word's own last letters rather than a list of English endings here, as every other thing the grammar knows
+        about a word's shape is counted and not stated."""
+        words = self.lexicon.words
+        like = self._agreeing.setdefault("written like", {})
+        if not like:
+            for other in words.took_subjects():
+                says = self._agrees_as(other)
+                if not says:
+                    continue
+                for cut in (1, 2, 3):
+                    if len(other) > cut:
+                        like.setdefault(other[-cut:], Counter())[says] += 1
+        # The longest ending memory holds any verb with, so "-les" is preferred to "-es" and "-es" to "-s".
+        for cut in (3, 2, 1):
+            held = like.get(word[-cut:]) if len(word) > cut else None
+            if held:
+                return max(sorted(held), key=lambda f: held[f])
+        return ""
 
     def _subjects_like(self, word: str) -> Mapping[Tuple[str, str], float]:
         """THE SUBJECTS EVERY FINITE FORM WRITTEN AS THIS ONE IS TOOK, gathered together (`_agrees_as`: "stinks" by
@@ -2501,13 +2630,15 @@ class Grammar:
             return None
         return found[0]
 
-    def _features(self, cls: str, k: int) -> Counter:
+    def _features(self, cls: str, k: int, names: Optional[Set[str]] = None) -> Counter:
         """What form the word at `k` is as a word of the class, as the forms memory holds say, by the features
         subjects share with verbs and mark a subject by (number, person, case): "walls" `Number=Plur`, "me"
-        `Case=Acc|Number=Sing|Person=1`; each with how often the word is that form. None where memory holds none."""
-        if (cls, k) in self._agreeing:
-            return self._agreeing[(cls, k)]
-        shared = self._shared_features()
+        `Case=Acc|Number=Sing|Person=1`; each with how often the word is that form. None where memory holds none.
+        `names`: the features to keep, where only some of them are being weighed -- the case alone, where what is
+        weighed is the place a thing stands in and not what its verb agrees in (`_standing`)."""
+        shared = self._shared_features() if names is None else names
+        if (cls, k, tuple(sorted(shared))) in self._agreeing:
+            return self._agreeing[(cls, k, tuple(sorted(shared)))]
         out: Counter = Counter()
         for features, n in self.lexicon.words.form_features(str(self._tokens[k]), cls).items():
             out["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
@@ -2521,11 +2652,11 @@ class Grammar:
         # no case to get wrong -- came out right (lyric_db, 2026-10-30).
         if any(f for f in out):
             out.pop("", None)
-        self._agreeing[(cls, k)] = out
+        self._agreeing[(cls, k, tuple(sorted(shared)))] = out
         return out
 
     def _agreed(self, took: Mapping[Tuple[str, str], float], every: Mapping[Tuple[str, str], float],
-                cls: str, k: int) -> float:
+                cls: str, k: int, names: Optional[Set[str]] = None) -> float:
         """HOW WELL A WORD AGREES WITH WHAT IT IS SAID WITH, as a logarithm, never more than nothing: of the words
         that other took (`took`: a finite verb's subjects, a determiner's nouns), the share of this word's class with
         each of its forms' features (`_features`), against that share of what every such word took (`every`), with
@@ -2534,7 +2665,7 @@ class Grammar:
 
         Its forms weighed alike, "me", written `Case=Nom` 6 times in 942 ("Me and him went"), agreed with "love" as
         "I" does, and "Me love the moon." was said of the speaker loving the moon (lyric_dev2, 2026-10-28)."""
-        forms = self._features(cls, k)
+        forms = self._features(cls, k, names)
         total, seen = sum(every.values()), sum(took.values())
         if not total:
             return 0.0
@@ -4029,6 +4160,19 @@ def _verb_phrase(cat: Cat) -> bool:
         and isinstance(cat.arg, Atom) and cat.arg.base == "NP"
 
 
+def _takes_object(cat: Cat) -> bool:
+    """WHETHER THE CATEGORY TAKES A NOUN PHRASE AFTER IT AS SOMETHING OTHER THAN ITS SUBJECT: it takes one to the
+    right AND still has its subject to come, as `(S[dcl]\\NP)/NP` does ("misled" before what was misled) and
+    `((S[dcl]\\NP)/NP)/NP` twice over.
+
+    Taking a noun phrase to the right is not enough to make it an object: a question asked with the copula takes its
+    SUBJECT that way (`(S[q].p/NP.y)/NP.x`, "Is Tom a student?"), and a determiner of a name takes one too
+    (`NP.x/NP.x`). What tells them apart is whether a subject is still outstanding, so the first noun phrase a
+    question takes is not weighed as an object and the second is not weighed at all."""
+    return isinstance(cat, Fn) and cat.slash == "/" and isinstance(cat.arg, Atom) and cat.arg.base == "NP" \
+        and (_verb_phrase(cat.res) or _takes_object(cat.res))
+
+
 def _raised_subject(cat: Cat) -> bool:
     """WHETHER THE CATEGORY IS A SUBJECT ALREADY RAISED to what is said of it, `S/(S\\NP)`: how the grammar states the
     words that deny ("nothing", "nobody", "none"), which take their verb's phrase rather than being taken by it.
@@ -5090,8 +5234,9 @@ class GrammarView:
                     if table[use][flag] <= 0:
                         del table[use][flag]
         # HOW EACH FORM IS SAID, which forms are said alike and the first sounds said after each ("a" and "an", each
-        # written most often as the other is), the subjects each finite form took, the nouns each determiner was said
-        # with, and the things said to be what a copula said they were: what the grammar weighs a form by beside the
+        # written most often as the other is), the subjects each finite form took, what each verb took as
+        # its object, the nouns each determiner was said with, and the things said to be what a copula said they
+        # were: what the grammar weighs a form by beside the
         # word after it, a subject with its verb and with what it is said to be, and a determiner with its noun
         # (`Lexicon._sound_after`, `Grammar._agreement`, `Grammar._determined`).
         if hasattr(words, "said"):
@@ -5107,6 +5252,7 @@ class GrammarView:
                 for table, every, key, layer in (
                         (words.subjects_of, words.every_subject, None, f.subjects),
                         (words.nouns_of, words.every_noun, None, f.nouns),
+                        (words.objects_of, words.every_object, None, getattr(f, "objects", ())),
                         (words.predicated_of, words.every_predicated, "said", f.predicated)):
                     for agreed in layer:
                         at, what, n = (tuple(agreed[:2]), tuple(agreed[2:4]), agreed[4]) if key else \

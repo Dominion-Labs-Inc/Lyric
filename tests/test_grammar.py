@@ -1428,3 +1428,166 @@ def test_a_subject_already_raised_is_weighed_against_its_verb_like_any_other():
         (composed_with("nothing", "is"), composed_with("nothing", "am"))
     assert composed_with("nothing", "is") == pytest.approx(said_with("nothing", "is")), \
         "the same subject and verb are weighed the same whichever rule joins them"
+
+
+def test_a_thing_standing_after_a_verb_is_weighed_by_what_stood_there_before():
+    """`Grammar._object_agreement`, `_takes_object`, `Words.objects`: memory counted the subjects verbs took, the
+    nouns determiners were said with and the things a copula said something to be, and counted nothing of what stood
+    as an OBJECT, so nothing weighed a thing standing after a verb -- "They misled me." was said back as
+    "They misled i." and "I misled them." as "I misled this." (lyric_db, 2026-10-30).
+
+    Taking a noun phrase to the right is not by itself an object: a question asked with the copula takes its subject
+    that way, so `_takes_object` asks whether a subject is still outstanding."""
+
+    class Few(Held):
+        """What stood after a verb, as a treebank's objects would be counted."""
+
+        def objects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Case=Acc|Number=Sing|Person=1"): 300.0,
+                     ("PRONOUN", "Case=Acc|Number=Plur|Person=3"): 200.0,
+                     ("NOUN", "Number=Sing"): 2000.0}
+            if word is None:
+                return every
+            return {("PRONOUN", "Case=Acc|Number=Sing|Person=1"): 40.0} if word == "misled" else {}
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls != "PRONOUN":
+                return {}
+            return {"i": {"Case=Nom|Number=Sing|Person=1": 1.0},
+                    "me": {"Case=Acc|Number=Sing|Person=1": 1.0},
+                    "they": {"Case=Nom|Number=Plur|Person=3": 1.0},
+                    "them": {"Case=Acc|Number=Plur|Person=3": 1.0}}.get(word.lower(), {})
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            # Needed only so the features a subject and an object share are known (`_shared_features`).
+            return {("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 800.0, ("NOUN", "Number=Sing"): 2900.0}
+
+    #: A verb before what it was done to, and the same verb in a question, which takes its SUBJECT that way.
+    taking = gm.parse_category("(S[dcl].e\\NP.x)/NP.y")
+    asking = gm.parse_category("(S[q].e/NP.y)/NP.x")
+
+    assert gm._takes_object(taking) and not gm._takes_object(asking)
+    assert gm._takes_object(gm.parse_category("((S[dcl].e\\NP.x)/NP.y)/NP.z")), "both of what was given"
+    assert not gm._takes_object(gm.parse_category("NP.x/NP.x")), "a determiner of a name takes a noun phrase too"
+    assert not gm._takes_object(gm.parse_category("(S[dcl].e\\NP.x)/(S[adj].e\\NP.x)")), "not a noun phrase at all"
+
+    def stood_after(verb: str, thing: str) -> float:
+        """What the rule weighs the verb taking the thing after it."""
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (verb, thing), {}
+        left = gm.Sign(taking, (), 0.0, 0, 1, "lex", head=0)
+        right = gm.Sign(gm.parse_category("NP.y"), (("word", 1, "GRAMMAR", 1, 2),), 0.0, 1, 2, "lex", head=1)
+        made = [s for s in g._combine(left, right) if s.rule == ">"]
+        assert made, "the verb takes the thing standing after it"
+        return made[0].score
+
+    # THE CASE THE PLACE TAKES IS PREFERRED, where before neither was weighed and both scored the same.
+    assert stood_after("misled", "me") > stood_after("misled", "i") + 1.0, \
+        (stood_after("misled", "me"), stood_after("misled", "i"))
+    assert stood_after("misled", "them") > stood_after("misled", "they") + 1.0, \
+        (stood_after("misled", "them"), stood_after("misled", "they"))
+    # A VERB MEMORY HOLDS NO OBJECT OF IS WEIGHED BY WHAT STOOD AFTER EVERY VERB, never by nothing.
+    assert stood_after("blamed", "me") > stood_after("blamed", "i") + 1.0, \
+        (stood_after("blamed", "me"), stood_after("blamed", "i"))
+
+
+def test_a_subject_of_a_verb_that_agrees_in_nothing_is_still_weighed_by_its_case():
+    """`Grammar._standing`, `_marking_features`, `_places`: an English verb in the past agrees in nothing -- "misled"
+    is `Tense=Past|VerbForm=Fin` and says no number and no person -- so `_agreement` had nothing to weigh and
+    returned the same nothing for every subject, taking the subject's CASE down with it. "We misled them." was said
+    back as "Ourselves misled this." (lyric_db, 2026-10-30).
+
+    The place a thing stands in is weighed apart from what its verb agrees in, and against every place a thing may
+    stand rather than against itself: a share weighed against its own share tells nothing apart, and `ourselves`,
+    accusative and 3 of main's 11,295 subjects, came out at -0.15 against `we` when it was."""
+
+    class Few(Held):
+        """Subjects and objects, as the treebanks' counts have them: the accusative hardly ever a subject."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Case=Nom|Number=Plur|Person=1"): 800.0,
+                     ("PRONOUN", "Case=Acc|Number=Plur|Person=1"): 3.0,
+                     ("NOUN", "Number=Sing"): 2900.0}
+            return every if word is None else {}
+
+        def objects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Case=Acc|Number=Plur|Person=1"): 293.0, ("NOUN", "Number=Sing"): 9800.0}
+            return every if word is None else {}
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("is",)
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls == "PRONOUN":
+                return {"we": {"Case=Nom|Number=Plur|Person=1": 1.0},
+                        "us": {"Case=Acc|Number=Plur|Person=1": 1.0},
+                        "ourselves": {"Case=Acc|Number=Plur|Person=1": 1.0}}.get(word.lower(), {})
+            # "is" says a number and a person; "misled" says neither, which is what leaves the case to be weighed.
+            return {"is": {"Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin": 229.0},
+                    "misled": {"Tense=Past|VerbForm=Fin": 40.0}}.get(word.lower(), {})
+
+    g = gm.Grammar(gm.Lexicon(Few()))
+    # CASE IS WHAT A VERB IS NEVER WRITTEN WITH, so it is what is left to mark the place.
+    assert g._marking_features() == {"Case"}, g._marking_features()
+    assert "Number" in g._shared_features() and "Person" in g._shared_features()
+
+    def stood_as_subject(word: str, verb: str) -> float:
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (word, verb), {}
+        subject = gm.Sign(gm.parse_category("NP.x"), (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex", head=0)
+        doing = gm.Sign(gm.parse_category("S[dcl].e\\NP.x"), (("finite", 1, 1),), 0.0, 1, 2, "lex", head=1)
+        return g._agreement(subject, doing)
+
+    # A VERB AGREEING IN NOTHING STILL LEAVES THE CASE WEIGHED, where before every subject scored exactly nothing.
+    assert stood_as_subject("we", "misled") > stood_as_subject("ourselves", "misled") + 1.0, \
+        (stood_as_subject("we", "misled"), stood_as_subject("ourselves", "misled"))
+    assert stood_as_subject("we", "misled") > stood_as_subject("us", "misled") + 1.0
+    # And a verb that DOES agree is weighed by both, the case no weaker for it.
+    assert stood_as_subject("we", "is") > stood_as_subject("ourselves", "is") + 1.0
+
+
+def test_a_verb_memory_holds_no_form_of_is_weighed_by_the_verbs_ending_as_it_does():
+    """`Grammar._written_like`: a word nobody taught is still read as a verb by the ending it is written with, and
+    then nothing could be weighed against it -- `sparkles` is held as no form at all, so `_agrees_as` said nothing,
+    `_subjects_like` had no group to gather and every subject scored the same nothing. Of a thing sparkling,
+    "They sparkles." was said above "He sparkles." (lyric_db, 2026-10-30)."""
+
+    class Few(Held):
+        """Verbs memory holds forms of, and one it does not."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Case=Nom|Number=Sing|Person=3"): 900.0,
+                     ("PRONOUN", "Case=Nom|Number=Plur|Person=3"): 800.0}
+            if word is None:
+                return every
+            return {("PRONOUN", "Case=Nom|Number=Sing|Person=3"): 400.0} if word in ("barks", "stinks") else \
+                {("PRONOUN", "Case=Nom|Number=Plur|Person=3"): 300.0} if word == "bark" else {}
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("barks", "stinks", "bark")
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls == "PRONOUN":
+                return {"he": {"Case=Nom|Number=Sing|Person=3": 1.0},
+                        "they": {"Case=Nom|Number=Plur|Person=3": 1.0}}.get(word.lower(), {})
+            return {"barks": {"Mood=Ind|Number=Sing|Person=3|VerbForm=Fin": 5.0},
+                    "stinks": {"Mood=Ind|Number=Sing|Person=3|VerbForm=Fin": 5.0},
+                    "bark": {"Mood=Ind|Number=Plur|Person=3|VerbForm=Fin": 4.0}}.get(word.lower(), {})
+
+    g = gm.Grammar(gm.Lexicon(Few()))
+    # MEMORY HOLDS NO FORM OF IT, and the verbs ending as it does say what it says.
+    assert g.lexicon.words.form_features("sparkles", "VERB") == {}
+    assert g._agrees_as("sparkles") == g._agrees_as("barks"), g._agrees_as("sparkles")
+    # A word ending like nothing memory holds is left saying nothing, rather than guessed at.
+    assert gm.Grammar(gm.Lexicon(Few()))._agrees_as("zzq") == ""
+
+    def agreed(subject: str, verb: str) -> float:
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (subject,), {}
+        words = g.lexicon.words
+        return g._agreed(words.subjects(verb) or g._subjects_like(verb), words.subjects(), "PRONOUN", 0)
+
+    # AND SO IT IS WEIGHED, where before every subject of it scored exactly the same.
+    assert agreed("he", "sparkles") > agreed("they", "sparkles") + 1.0, \
+        (agreed("he", "sparkles"), agreed("they", "sparkles"))
+    assert agreed("he", "sparkles") == pytest.approx(agreed("he", "barks"))

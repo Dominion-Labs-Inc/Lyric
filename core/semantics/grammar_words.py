@@ -274,6 +274,8 @@ class HeldWords(Words):
         self.every_noun: Counter = Counter()
         self.predicated_of: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         self.every_predicated: Counter = Counter()
+        self.objects_of: Dict[str, Counter] = defaultdict(Counter)
+        self.every_object: Counter = Counter()
         self._names: Dict[Tuple[str, str], str] = {}
         self._uses: Dict[str, Mapping[str, float]] = {}
         self.sentences = 0
@@ -718,6 +720,10 @@ class HeldWords(Words):
 
     def predicated(self, said: Optional[Tuple[str, str]] = None) -> Mapping[Tuple[str, str], float]:
         held = self.every_predicated if said is None else self.predicated_of.get(said, {})
+        return {k: float(n) for k, n in held.items() if n > 0}
+
+    def objects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+        held = self.every_object if word is None else self.objects_of.get(word.lower(), {})
         return {k: float(n) for k, n in held.items() if n > 0}
 
     def form_features(self, word: str, cls: str) -> Mapping[str, float]:

@@ -175,3 +175,35 @@ the sentence identity was never recoverable by any fix to saying.
 **reading takes back to the meaning asked for** (`results/check_offered_back.log` holds every whole offered to
 reading and what reading made of it) — reading being too permissive, not saying. `Everybody is intelligent.` says
 `Person is intelligent.`
+
+## A thing's case belongs to the place it stands in (2026-10-30, lab notebook (92))
+
+Objects are counted when a teach runs, so `results/check_places_and_objects.log` fills the new table from the same
+treebanks the teach reads and holds it on a read-only view of this store — the stand-in above, applied to a table
+instead of a paradigm. **21,034 things stood after a verb in 34 kinds over 3,361 forms.**
+
+| given | before | after |
+| --- | --- | --- |
+| `They misled me.` | `They misled i.` | **`They misled me.`** |
+| `We misled them.` | `Ourselves misled this.` | **`We misled him.`** |
+| `This sparkles.` | `They sparkles.` | **`He sparkles.`** |
+| `They sparkle.` | — | **`They sparkle.`** |
+
+No earlier result moved: `I am intelligent.`, `We're intelligent.`, `Nothing is intelligent.`,
+`They're intelligent.`, `The person stinks.`, `The people stink.` and `You're intelligent.` are all unchanged.
+
+**What was wrong.** An English verb in the past agrees in nothing — `misled` is `Tense=Past|VerbForm=Fin` — so the
+subject's weighing had nothing to work with and returned the same nothing for every subject, taking the subject's
+case with it. What a verb agrees in and what marks a place are now weighed apart, by what memory already holds: a
+verb is written with a number and a person and never with a case. And what stood after a verb was counted nowhere,
+so a fourth table now runs beside the three, filled in the treebank pass that already walked objects to find which
+features mark a case and then dropped them.
+
+**For the re-teach.** The object table writes when a teach runs, so a store taught before this change holds none of
+it and the measurements above need the stand-in; a store taught after holds it for real. This is the change that
+had to land before the full re-teach rather than after.
+
+**Still open here.** `They misled us.` is said back as `They misled ourselves.`: `us` and `ourselves` are both
+`Case=Acc|Number=Plur|Person=1`, so case cannot tell them apart, and the difference is binding — which saying does
+not do, by the codebase's own note. It never offers `himself` or `themselves` at all; the first and second person
+reflexives are unmarked and so are the only ones it can reach.

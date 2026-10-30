@@ -1,0 +1,41 @@
+stood after a verb: 21034 things in 34 kinds, over 3361 forms
+the kinds most often, and every pronoun kind among them:
+    ('NOUN', 'Number=Sing') 9822
+    ('NOUN', 'Number=Plur') 4317
+    ('PRONOUN', 'Case=Acc|Number=Sing|Person=3') 1602
+    ('NAME', 'Number=Sing') 908
+    ('PRONOUN', '') 728
+    ('PRONOUN', 'Number=Sing') 702
+    pronoun: ('PRONOUN', '') 728
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Plur|Person=1') 293
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Plur|Person=2') 23
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Plur|Person=3') 436
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Sing|Person=1') 653
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Sing|Person=2') 248
+    pronoun: ('PRONOUN', 'Case=Acc|Number=Sing|Person=3') 1602
+    pronoun: ('PRONOUN', 'Case=Acc|Person=2') 329
+    pronoun: ('PRONOUN', 'Case=Gen|Number=Plur|Person=3') 1
+    pronoun: ('PRONOUN', 'Case=Gen|Number=Sing|Person=2') 1
+    pronoun: ('PRONOUN', 'Number=Plur') 33
+    pronoun: ('PRONOUN', 'Number=Plur|Person=1') 3
+    pronoun: ('PRONOUN', 'Number=Sing') 702
+    pronoun: ('PRONOUN', 'Number=Sing|Person=1') 3
+    pronoun: ('PRONOUN', 'Number=Sing|Person=3') 1
+    pronoun: ('PRONOUN', 'Person=2') 1
+
+given                    before the object counts     after
+They misled me.          'They misled i.'             'They misled me.'  FIXED
+We misled them.          'We misled he.'              'We misled him.'  moved
+They misled us.          'They misled ourselves.'     'They misled ourselves.'
+This sparkles.           'He sparkles.'               'He sparkles.'
+They sparkle.            'They sparkle.'              'They sparkle.'
+I am intelligent.        'I am intelligent.'          'I am intelligent.'
+We are intelligent.      "We're intelligent."         "We're intelligent."
+Nobody is intelligent.   'Nothing is intelligent.'    'Nothing is intelligent.'
+They are intelligent.    "They're intelligent."       "They're intelligent."
+The person stinks.       'The person stinks.'         'The person stinks.'
+The people stink.        'The people stink.'          'The people stink.'
+You are intelligent.     "You're intelligent."        "You're intelligent."
+This stinks.             'He stinks.'                 'He stinks.'
+
+said back exactly: 4 of 13 before, 5 of 13 after

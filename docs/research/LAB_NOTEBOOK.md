@@ -16,6 +16,98 @@ Conventions:
 
 ---
 
+## 2026-10-30 (92) — A thing's case belongs to the place it stands in, not to the verb beside it
+
+**Objective.** The owner: "OK close what's open." Four items stood open from (90) and (91). Three are closed here
+and each one was the same family again — *nothing known scored what perfect agreement scores* — but the shape that
+kept them open is new and worth stating on its own: **the thing being weighed was attached to the wrong thing.**
+
+### What a verb agrees in, and what only marks a place
+
+An English verb in the past agrees in **nothing**: `misled` is `Tense=Past|VerbForm=Fin` and says no number and no
+person. `_agreement` weighs a subject against the subjects that verb took, so for every past-tense sentence it had
+nothing to weigh and returned `0.000` for **every subject alike** — and the subject's **case** went down with it,
+because case was being carried in the same feature string. `We misled them.` was said back as
+`Ourselves misled this.`
+
+The two are now weighed apart, and memory already knew how to tell them apart: **a verb is written with a number and
+a person and is never written with a case**, so of the features a subject is written with, those no finite verb's
+form carries are the ones that mark the place (`_marking_features`). What a verb agrees in is weighed against that
+verb's own subjects; what marks the place is weighed against **every place a thing may stand** (`_places`:
+subjects and objects together). The baseline has to be every place rather than the place itself — a share weighed
+against its own share tells nothing apart, and weighed that way `ourselves`, accusative and 3 of main's 11,295
+subjects, came out at **-0.15** against `we`.
+
+### What stood after a verb was counted nowhere
+
+Memory counted the subjects verbs took, the nouns determiners were said with and the things a copula said something
+to be, and **nothing counted what stood as an object**, so nothing weighed a thing standing after a verb:
+`They misled me.` was said back as `They misled i.` A fourth counted table now runs beside the three, filled in the
+same treebank pass that already walked objects to work out which features mark a case and then threw them away.
+
+**Two traps, both measured.** First, **a verb's own objects are not enough**: `_agreed` gives a form no evidence
+names a flat penalty whatever its share, so weighing by a verb's own handful throws away the only thing that tells a
+case apart — `them` and `they` both scored **-3.71** after `misled`, of which memory holds 40 objects and none of
+them plural. A verb's objects are counted together with every verb's. Second, **taking a noun phrase to the right is
+not the same as taking an object**: a question asked with the copula takes its SUBJECT that way
+(`(S[q].p/NP.y)/NP.x`), and a determiner of a name takes one too. What tells them apart is whether a subject is
+still outstanding (`_takes_object`).
+
+### A word nobody taught is read by its ending and was then weighed by nothing
+
+`sparkles` is held as no form at all — the reader mints it from its own letters — so `_agrees_as` said nothing,
+`_subjects_like` had no group to gather, and every subject scored the same nothing: `They sparkles.` was said above
+`He sparkles.` A verb memory holds no form of is now weighed by **what the verbs ending as it does say**, the
+longest ending memory holds any verb with, counted from the forms memory holds rather than stated as a list of
+English endings here. A word ending like nothing memory holds is left saying nothing rather than guessed at.
+
+### Measured on main, read only
+
+Objects are counted when a teach runs, so the table was filled from the same treebanks the teach reads and held on a
+read-only view, the stand-in (91) established. `experiments/TRAIN-FORMAT-03/results/check_places_and_objects.log`.
+
+| given | before | after |
+| --- | --- | --- |
+| `They misled me.` | `They misled i.` | **`They misled me.`** |
+| `We misled them.` | `Ourselves misled this.` | **`We misled him.`** |
+| `This sparkles.` | `They sparkles.` | **`He sparkles.`** |
+| `They sparkle.` | — | **`They sparkle.`** |
+
+21,034 things stood after a verb in 34 kinds over 3,361 forms. **No earlier result moved**: `I am intelligent.`,
+`We're intelligent.`, `Nothing is intelligent.`, `They're intelligent.`, `The person stinks.`, `The people stink.`,
+`You're intelligent.` all unchanged.
+
+`We misled him.` and `This sparkles.` → `He sparkles.` are right in case and number and are not the sentence given,
+because the meaning's `?previous` carries no number: the same thing (91) withdrew a claim over, not a defect.
+
+### Still open, and the fourth item is not what it looked like
+
+**Saying cannot bind a reflexive**, which the codebase already states — `_piece_says` returns 0 for a pronoun marked
+`own`, and `_says_of` refuses any entry whose piece spends nothing, so **saying never offers `himself` or
+`themselves` at all**. The first and second person reflexives are simply **not marked**: `us` and `ourselves` are
+stated as the same entry (`NP.g` with `has_member(g, ?speaker)`), as are `me` and `myself`. So they are the only
+reflexives saying can reach, and it reaches for them in the wrong places: `They misled us.` is said back as
+**`They misled ourselves.`** Case cannot tell them apart — `us` and `ourselves` are both
+`Case=Acc|Number=Plur|Person=1` — because the difference is binding, not case. Marking them the way the third
+person ones are marked would stop the wrong sentence and would not give the right one; what it needs is binding,
+and the mechanism reaches only pronouns whose thing is a variable, which `me` and `myself` (`NP.?speaker`) are not.
+**Left to the owner: it is a new mechanism in saying, not a fix to one.**
+
+Also still open, both at **reading** rather than saying: `Someone is intelligent.` is said back as
+`Anybody intelligent.`, a sentence with no verb which **reading takes back to the meaning asked for**, so saying is
+entitled to it (`WHOLE` counts a bare noun phrase a whole "tell", which one-word answers need); and
+`Everybody is intelligent.` reads to `has_property(person, intelligent)` with **the universal quantifier already
+gone**, so `Person is intelligent.` is faithful to the meaning saying was handed.
+
+### Verification
+
+66 grammar tests pass, three added, one per item closed; 160 across reading, word forms and the teaching path
+unchanged; flake8 identical at 74 findings on the four changed files before and after. Every measurement is main,
+read only; nothing was written to any store. The object table writes when a teach runs, so the full re-teach will
+fill it for real.
+
+---
+
 ## 2026-10-30 (91) — A sixth and seventh way, found by asking what it would take to know the fix was right
 
 **Objective.** The owner, on (90)'s two open items: "What does it need for me to decide that if that's the correct
