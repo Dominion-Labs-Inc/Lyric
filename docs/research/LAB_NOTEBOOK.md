@@ -16,6 +16,105 @@ Conventions:
 
 ---
 
+## 2026-10-30 (88) — Main re-taught from nothing, words first: composition is real from ten words, and two things that do not work
+
+**Objective.** Every store was wiped to zero that morning on the owner's word — main's 1,482,206 memories,
+1,193,766 beliefs and 115,448 concepts among them, 20 GB freed, schemas kept so every store still boots, no backup.
+Main is the instance all models are made from and will be frozen once it is taught; the owner's correction to the
+plan was that the proven order is a first session of words alone — their meanings, their structures — and only then
+sentences, which main had never had (0 word records, 0 sentences recorded whole, 0 word groups). This entry is the
+small run that confirms the order and the machinery before the full one, on main itself.
+
+**Committed first, because the teach writes the belief layer and this is the one moment it takes its shape**
+(`3124c0ca`): `Grammar.say` and `GrammarView.say` now take a `how_surely` dict and fill it with `Reading.sure` for
+every sentence they return, `give_up` emptying it so nothing said is never read as something said unsurely. The
+number was already computed at the accept test — which reads each candidate back and asks only *whether* the reading
+is the meaning — and thrown away. Separately, `hold_belief` stops writing `entry.memory_id` where the belief already
+names that memory, and both reads join the belief and put it back (`_of_memory`), so every reader sees it either way
+and old rows are unchanged: 2,158,285 of main's 2,182,499 evidence rows (98.9%) had been storing it twice, 52 bytes
+of 345 in a row. Three guards; 56 grammar and 10 belief tests pass. One of the new guards caught `give_up` leaving a
+stale dict standing, and the code was fixed rather than the test.
+
+**Verified live on the re-taught main:** 1,145 evidence rows written, **0** carrying `memory_id`, mean `entry`
+123 bytes.
+
+### What was taught (TRAIN-FORMAT-03, `lyric_db`)
+
+| | taught | teaching | reacting | wall |
+|---|---|---:|---:|---:|
+| 1 | `--source closed-classes`: 264 words' classes in 15 finite classes, 11 punctuation sentences | 8.6 s | 2,191 s | 37 min |
+| 2 | `--source records`: 11 words recorded whole, the whole vocabulary of four sentences | 2.4 s | 14 s | 57 s |
+| 3 | `--source records`: those 4 sentences recorded whole | 0.9 s | 13 s | 55 s |
+
+10 of 11 words held (`.` refused for "no form", which is right: `ClosedClassSource` states its class and a sentence
+recorded whole skips punctuation when it teaches classes), 4 of 4 sentences held, competence in `general`
+0.611 → 0.711 → 0.794 with every reviewed question answered right. Then `check.py`, read only: warm 8 s, every read
+0.0 s, every say 0.0–1.3 s.
+
+### Findings
+
+**(1) THE FIRST TEACH INTO AN EMPTY STORE DOES NOT HANG, AND ITS COST IS PAID ONCE.** 2,191 s of reacting after
+pass 1 against 14 s and 13 s after passes 2 and 3, pass 2 writing more memories than pass 1 wrote facts. The long one
+is the substrate perceiving its own first boot — 62 documents, 63 percepts, 61 memory_media, 804 hot rows. An earlier
+28-minute teach that looked non-terminating was this, and the full run pays it once.
+
+**(2) Composition is real from ten words.** Three arrangements never taught read whole and said the sentence they
+were given back: `The person stinks.`, `I misled the whistle.`, `The whistle is intelligent.` The sentence layer is
+not a lookup.
+
+**(3) A prediction written before the run, wrong, and why it was worth writing.** `stink`'s record holds only `stink`
+and `stunk`, `mislead`'s only `mislead` and `misleading` — UD EWT and GUM attest what an analyst happened to write,
+which is the root of the `word_forms` gap measured on the old main (3,703 bases with forms against 94,262 with
+classes). The prediction was that `This stinks.` and `They misled me.` would fail. Both read. A sentence recorded
+whole teaches the written form as well as the base (`MemoryAgent._learn_record_words`), so **the sentence layer
+supplies the forms the word layer lacks**, which is a layer relationship nothing had measured.
+
+**(4) HOW SURELY IS NOT HOW WELL, and (87)'s fix does not do what it might be read as doing.** `Reading.sure` is
+1.000 for a sentence with exactly one whole reading, so `They stinks.`, `I is intelligent.` and `They misled i.`
+all score 1.000 and `They stinks.` is ranked above `This stinks.` The number is honest about what it measures and
+does not rank good output above bad. Only `The person stinks.` discriminated at all — 0.562 `people`, 0.266 `person`,
+0.142 `persons` — and still put the wrong one first. Saying has no agreement between a subject and a finite verb and
+no case for pronouns; on a store of ten words this is plainly not a matter of how much has been taught. It is the
+`data/grammar/english.json` defect where `i`/`me`/`myself` are one `NP.?speaker` and `you`/`yourself` one
+`NP.?listener`. **Awaiting the owner's word, because fixing it moves reading too.**
+
+**(5) THE CONTROLS DID NOT FAIL, which corrects something stated in this session.** `This sparkles.` read whole at
+**0.915** with `instance_of(?v0, sparkles)` — a concept minted from the surface string — and
+`The whistle juggled Tom.` at **0.898**, resolving `tom` from nothing; confirmed by query, no `word_class` row and no
+concept exists for `sparkles`, `juggled` or `tom`. I had told the owner that an unknown thing sits at 0.5, genuine
+doubt. That 0.5 is the *construction* prior. `Reading.sure` is sureness about STRUCTURE among the readings built,
+not about vocabulary, so **an unknown word costs it nothing and nothing reports doubt about a word never seen.**
+The owner's question — does doubt update as a response is built — is answered for structure by (87) and remains
+unanswered for vocabulary.
+
+### Error found, cause, fix
+
+**The vocabulary was keyed by what a sentence record calls the lemma.** Of the 182 words of 62 PMB gold sentences, 8
+records were refused for "no form": `.` `?` `"` `!`, which is right, and **`sucks` `ran` `wiped`**, which is not.
+The PMB's gold annotation sometimes writes the lemma as the form, and UD's form rows are keyed by base, so the record
+came back empty *and the real bases `suck` `run` `wipe` were never in the vocabulary at all* — three of the 62
+sentences had a verb no word record ever taught. Cause: the builder trusted an annotation field instead of asking
+the authority the record's own senses come from. Fixed in `experiments/TRAIN-FORMAT-03/build.py`: the base is
+WordNet's `morphy` for the class the sentence used the word as, and punctuation and symbols are not asked for at all.
+`pinocchio` holds no forms and WordNet knows no base for it — a name outside the treebanks is taught by the sentence
+layer, which keeps names' classes and what they name.
+
+**Also noted:** the closed-class source carries 11 content sentences whose nouns and verbs (`comma`, `separates`,
+`clause`) only a word session teaches, so 7 of them were told and not read in pass 1. They carry no `blamed`, so no
+evidence was written against any word class; teaching that source again after the word session would land them.
+
+### How each result was verified
+
+Three teaching passes through `scripts/teach.py` against real Postgres on `lyric_db`, logs in
+`experiments/TRAIN-FORMAT-03/results/`; the read-and-say by `experiments/TRAIN-FORMAT-03/check.py`, read only,
+through the cached grammar view after `warm_word_classes`; the controls' absence by direct query of
+`memory_hot.memory_hot` and `unified.concepts`; the evidence de-duplication by direct query of
+`unified.belief_evidence`; the refusals by `WordRecord.problems()` over the built file; the bases by
+`wordnet.morphy`.
+
+
+---
+
 ## 2026-10-30 (87) — The missing half of saying is a layer, not a ceiling: the two stores' "6 of 12" were different sixes, and (86)'s claim about the word records is withdrawn
 
 **Objective** ("ok so fix it", then "it needs to be fixed"). (86) measured saying for the first time and left it at
