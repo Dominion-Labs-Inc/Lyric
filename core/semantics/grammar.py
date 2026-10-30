@@ -2009,28 +2009,53 @@ _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "
 _SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})
 
 
+def _places_filled(meaning: Meaning) -> Dict[Term, int]:
+    """HOW MANY PLACES OF ONE HAPPENING EACH THING FILLS, which is one for all but a thing that is its own
+    happening's other place (`done_by` and `done_to` of the same doing: "Tom misled Tom.", and in English a
+    reflexive the second time). What `_things_said` says such a thing twice by, and what a word saying it spends
+    twice of (`_piece_says`: "we" says a group the speaker is one of, and a sentence naming that group twice says
+    it twice)."""
+    filled: Counter = Counter((f.subject, f.obj) for f in meaning.facts if f.relation in _HAPPENING_LINKS
+                              and f.obj not in _SITUATION and f.subject != f.obj)
+    stands: Dict[Term, int] = {}
+    for (_, t), n in filled.items():
+        stands[t] = max(stands.get(t, 1), n)
+    return stands
+
+
 def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
-    """WHAT A MEANING NAMES, each with the class of word that says it, once (`Grammar.say`): the kind a thing is
+    """WHAT A MEANING NAMES, each with the class of word that says it (`Grammar.say`): the kind a thing is
     (`instance_of`), a doing where the thing is a happening; both kinds a kind is said of (`isa`); a quality a thing
-    has, an adverb's of a happening; a number; any other thing named, by its name."""
+    has, an adverb's of a happening; a number; any other thing named, by its name.
+
+    ONCE FOR EACH PLACE OF ONE HAPPENING THE THING FILLS, which is once for all but a thing that is its own
+    happening's other place: a sentence says such a thing twice ("Tom misled Tom.", and in English a reflexive the
+    second time). Named once however many places it filled, there was one word for it and no sentence putting it in
+    both could be made, so every meaning holding one was said back as nothing at all: `Tom misled Tom.` and
+    `Tom misled himself.` alike (lyric_db, 2026-10-30)."""
     events = {f.subject for f in meaning.facts if f.relation in _HAPPENING_LINKS}
-    out: List[Tuple[str, str]] = []
+    stands = _places_filled(meaning)
+    out: List[Tuple[Tuple[str, str], Optional[Term]]] = []
     for f in meaning.facts:
         if f.relation == "instance_of" and not is_variable(f.obj):
-            out.append((f.obj, "VERB" if f.subject in events else "NOUN"))
+            out.append(((f.obj, "VERB" if f.subject in events else "NOUN"), f.subject))
             continue
         if f.relation == "isa":
-            out += [(t, "NOUN") for t in (f.subject, f.obj) if not is_variable(t)]
+            out += [((t, "NOUN"), None) for t in (f.subject, f.obj) if not is_variable(t)]
             continue
         if f.relation == "has_property" and not is_variable(f.obj):
-            out.append((f.obj, "ADVERB" if f.subject in events else "ADJECTIVE"))
+            out.append(((f.obj, "ADVERB" if f.subject in events else "ADJECTIVE"), None))
             terms = (f.subject,)
         else:
             terms = (f.subject, f.obj)
         for t in terms:
             if not is_variable(t) and t not in _SITUATION:
-                out.append((t, "NUMERAL" if _number(str(t)) is not None else "NAME"))
-    return list(dict.fromkeys(out))
+                out.append(((t, "NUMERAL" if _number(str(t)) is not None else "NAME"), t))
+    # A doing is said once however many places it fills of another: a word for it says the whole of it.
+    said: Dict[Tuple[str, str], int] = {}
+    for key, term in out:
+        said[key] = max(said.get(key, 1), 1 if term is None or term in events else stands.get(term, 1))
+    return [key for key in dict.fromkeys(key for key, _ in out) for _ in range(said[key])]
 
 
 def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
@@ -2072,12 +2097,30 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     if kind == "other":
         return sum(1 for f in facts if f.relation == "equals" and not f.positive)
     if kind == "pron":
-        # A PRONOUN NOT OF ITS OWN SENTENCE IS THE ONE SPOKEN OF BEFORE, once a sentence (`spell_out`: the first such
-        # is `?previous`); one of its own ("himself") says what its sentence says, which saying does not yet bind.
-        own = len(piece) > 3 and piece[3] == "own"
-        return 0 if own else int(any("?previous" in (f.subject, f.obj) for f in facts))
+        # THE ONE SPOKEN OF BEFORE IS SAID AS OFTEN AS IT STANDS IN A PLACE, as the speaker and the listener are
+        # (`Grammar.say`'s `situation`, which counts them): counted once however many places it filled, two words
+        # could never say it and a sentence saying it twice could not be made at all -- "They misled themselves."
+        # was said back as nothing (lyric_db, 2026-10-30). A pronoun of its own sentence ("himself") says it as any
+        # other does; which places take it is not settled here but by reading, which binds it to what stands before
+        # it (`spell_out`) and reads no sentence where nothing does, so a sentence saying it wrongly is never kept.
+        # Refused here instead, every reflexive was unsayable and lifting the refusal alone changed nothing, the
+        # count being what stopped it.
+        #
+        # A PRONOUN OF ITS OWN SENTENCE WHOSE THING IS NOT THE ONE SPOKEN OF BEFORE SAYS NOTHING OF ITS OWN, and is
+        # said by what else its entry says ("ourselves", a group the speaker is one of) or by what its category
+        # stands for ("myself", "yourself"). It cannot be counted against `?previous` as "himself" is, a meaning of
+        # the speaker holding none, and counted so it spent nothing and was refused with its whole entry.
+        previous = sum(1 for f in facts for t in (f.subject, f.obj) if t == "?previous")
+        if len(piece) > 3 and piece[3] == "own":
+            return previous or None
+        return previous
     if kind == "fact":
-        return sum(1 for f in facts if f.relation == piece[1])
+        # AS OFTEN AS THE MEANING HOLDS IT, AND ONCE MORE FOR EACH FURTHER PLACE ITS THING FILLS: a word saying the
+        # fact is the word naming the thing ("we", "us": a group the speaker is one of), so a sentence naming that
+        # group in two places of one doing says it twice. Counted by the facts alone, one word could be said and
+        # "We misled ourselves." was said back as nothing (lyric_db, 2026-10-30).
+        stands = _places_filled(meaning)
+        return sum(stands.get(f.subject, 1) for f in facts if f.relation == piece[1])
     return 0
 
 
@@ -2301,7 +2344,8 @@ class Grammar:
         # Application.
         if isinstance(lc, Fn) and lc.slash == "/":
             s: Dict[int, Term] = {}
-            if _unify(lc.arg, rc, s):
+            if _unify(lc.arg, rc, s) and (not _after_its_subject(lc)
+                                          or self._stands_as_written(left, right, lc.res, s)):
                 # A SUBJECT ALREADY RAISED AGREES WITH ITS VERB AS ANY OTHER SUBJECT DOES. The words that deny are
                 # stated raised (`nothing`, `nobody`, `none`: `S/(S\NP)`), so they take their verb's phrase by this
                 # rule and were weighed by neither of the two that ask for a subject, both of which ask the subject
@@ -2436,6 +2480,43 @@ class Grammar:
         if verb not in self._agreeing:
             self._agreeing[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
         return standing + self._agreed(self._agreeing[verb], every, *found)
+
+    def _stands_as_written(self, doing: Sign, thing: Sign, taking: Cat, s: Mapping[int, Term]) -> bool:
+        """WHETHER A THING STANDING AFTER A VERB IS WRITTEN AS THE PLACE ASKS: a thing said by a pronoun of its own
+        sentence ("himself", "ourselves", "myself") says the thing the doing is done BY, so it may stand after the
+        verb only where the two are the one thing; a thing said by any other pronoun only where they are not.
+        English holds a form for each and nothing told them apart: of the one spoken of before misleading a group
+        the speaker is one of, "They misled ourselves." was said, and of the speaker misleading the speaker,
+        "I misled i." (lyric_db, 2026-10-30).
+
+        Both things must be known for this to say anything. They are where a meaning is being SAID, a verb's places
+        being bound to the meaning's own terms before a word is put in (`Grammar.say`'s `roles_bound`), and they
+        never are where a sentence is being READ, the subject not yet taken and each place still a variable -- so
+        reading is left as permissive as it was, binding a pronoun of its own sentence to what stands before it
+        (`spell_out`) rather than being told here which places it may stand in."""
+        if not isinstance(thing.cat, Atom) or thing.cat.base != "NP":
+            return True
+        ref = _subject_ref(thing.cat)
+        stands = _walk(ref, s) if ref is not None else None
+        # THE THING THE DOING IS DONE BY, AS THE DOING'S OWN PLACES HOLD IT: a verb carries a piece for each place
+        # it has and what fills it (`Grammar.say`'s `roles_bound` binds them to the meaning's terms), and those
+        # outlive the category, which loses the subject the moment a raised subject is composed with the verb.
+        hook = _hook(doing.cat)
+        subject = next((_walk(p[2], s) for p in doing.pieces
+                        if p[0] == "role" and p[1] == hook and len(p) > 3 and p[3] == "subject"), None)
+        if subject is None:
+            rest = _apply(taking, s)
+            subject = rest.arg.ref if _verb_phrase(rest) and isinstance(rest.arg, Atom) else None
+        if not isinstance(subject, str) or not isinstance(stands, str):
+            return True
+        if any(p[0] == "pron" and len(p) > 3 and p[3] == "own" and p[1] == ref for p in thing.pieces):
+            return subject == stands
+        if subject != stands:
+            return True
+        # A thing said by a word of its own and not by a pronoun has no form saying it is the subject again, so it
+        # stands here as it is: "Tom misled Tom." is all there is to say of Tom misleading Tom.
+        found = self._said_by(thing.pieces, ref)
+        return found is None or found[0] != "PRONOUN"
 
     def _object_agreement(self, doing: Sign, thing: Sign) -> float:
         """HOW WELL A THING STANDING AFTER A VERB IS WRITTEN FOR THE PLACE IT STANDS IN, as a logarithm, never more
@@ -3216,7 +3297,10 @@ class Grammar:
                 if says:
                     budget.update(says)
                     chosen.append((word, entry, {k: 1 for k in says}))
-                elif says is not None and isinstance(cat, Atom) and cat.ref in situation and not entry.sem:
+                # Nothing of the meaning spent (`says` empty, never None) is what makes it such a word, which a
+                # piece that only marks it does not change: "myself" marked a pronoun of its own sentence was no
+                # longer offered for the speaker at all while this asked for no pieces whatever.
+                elif says is not None and isinstance(cat, Atom) and cat.ref in situation and not says:
                     budget[("situation", cat.ref)] = situation[cat.ref]
                     chosen.append((word, entry, {("situation", cat.ref): 1}))
                 elif says is not None and isinstance(cat, Fn) and not _leaves_as_is(cat):
@@ -3377,6 +3461,12 @@ class Grammar:
             out: List[Dict[str, Term]] = [{}]
             for p in entry.sem:
                 of = {"given": known, "past": before_now, "indefinite": unknown, "pron": ("?previous",)}.get(p[0])
+                if p[0] == "pron" and len(p) > 3 and p[3] == "own":
+                    # A PRONOUN OF ITS OWN SENTENCE STANDS FOR A THING THE SENTENCE SAYS, not for the one spoken of
+                    # before, so it is bound to nothing here and what takes it decides which thing it is. Bound to
+                    # `?previous` as a pronoun of another sentence is, "ourselves" was made to stand for a thing
+                    # outside the sentence and "We misled ourselves." was said back as nothing at all.
+                    continue
                 if of and len(p) > 1 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
                     out = [dict(o, **{p[1]: t}) for o in out for t in of if o.get(p[1], t) == t]
             return out or [{}]
@@ -3521,7 +3611,13 @@ class Grammar:
                 forms = self._features(*found)
                 most = max(sorted(forms), key=lambda f: forms[f]) if forms else ""
                 case_of[found] = next((f for f in most.split("|") if f.startswith("Case=")), "")
-            return case_of[found]
+            # AND BY WHETHER IT IS SAID BY A PRONOUN OF ITS OWN SENTENCE, which the place it stands in asks for or
+            # refuses (`_stands_as_written`) and which no case tells apart, "me" and "myself" both being accusative:
+            # packed together by case alone, the surer of the two was kept and the other never reached the place
+            # that asked for it.
+            own = any(p[0] == "pron" and len(p) > 3 and p[3] == "own" and p[1] == sign.cat.ref
+                      for p in sign.pieces)
+            return case_of[found] + (" own" if own else "")
 
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
             if not completable(sign) or not timed(sign):
@@ -4173,6 +4269,16 @@ def _takes_object(cat: Cat) -> bool:
         and (_verb_phrase(cat.res) or _takes_object(cat.res))
 
 
+def _after_its_subject(cat: Cat) -> bool:
+    """WHETHER THE CATEGORY TAKES A THING TO THE RIGHT IN A PLACE THAT IS NOT ITS SUBJECT: it takes one and either
+    still has its subject to come (`_takes_object`), or has taken it already, what is left being a sentence -- a
+    subject raised and composed with its verb leaves `S/NP`, where the thing taken next is the object and the
+    subject is nowhere in the category any more. Asked of `_takes_object` alone, the rule asked of a thing standing
+    after a verb never reached a sentence built that way, as the weighing of such a subject never did before it."""
+    return _takes_object(cat) or (isinstance(cat, Fn) and cat.slash == "/" and isinstance(cat.arg, Atom)
+                                  and cat.arg.base == "NP" and isinstance(cat.res, Atom) and cat.res.base == "S")
+
+
 def _raised_subject(cat: Cat) -> bool:
     """WHETHER THE CATEGORY IS A SUBJECT ALREADY RAISED to what is said of it, `S/(S\\NP)`: how the grammar states the
     words that deny ("nothing", "nobody", "none"), which take their verb's phrase rather than being taken by it.
@@ -4312,6 +4418,12 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             order.append((p[3], p[1], "person"))
         elif p[0] == "pron":
             order.append((p[-1], p[1], _pronoun_kind(p[2])))
+        elif p[0] == "fact" and p[1] == "has_member" and len(p) > 3 and p[3] in ("?speaker", "?listener"):
+            # A GROUP THE SPEAKER OR THE LISTENER IS ONE OF IS A THING THE SENTENCE HAS NAMED ("we", "us", "you"),
+            # so a pronoun of its own sentence may stand for it. Named by no kind word, no name and no pronoun, it
+            # was in nothing this search could find, "ourselves" was bound to nothing, and "We misled ourselves."
+            # read as no sentence at all once the mark was stated for it (lyric_db, 2026-10-30).
+            order.append((p[-1], p[2], "person"))
     order.sort(key=lambda o: o[0])
     names: Dict[Term, Term] = {}
     previous_taken = False
@@ -4326,6 +4438,14 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                     break
         if found is not None:
             names[x] = names.get(found, found)
+        elif own and type(x) is int:
+            # A PRONOUN OF ITS OWN SENTENCE SAYS A THING STANDING BEFORE IT IN THAT SENTENCE, so where nothing does
+            # there is no sentence to read: "Themselves are intelligent." took the one spoken of before, as a
+            # pronoun of another sentence does, and read as surely as "They are intelligent." -- and saying, which
+            # keeps what reads back to the meaning, was then free to say it (lyric_db, 2026-10-30). A thing its
+            # category fixes ("myself", the speaker) is bound to nothing and needs nothing standing before it: the
+            # mark says which form stands where, and the thing is already the one the sentence says.
+            return None
         elif not previous_taken:
             names[x] = "?previous"
             previous_taken = True
@@ -4979,7 +5099,9 @@ def align_by_names(tokens: Sequence[str], meaning: Meaning, lexicon: "Lexicon") 
         for e in entries:
             for ref in re.findall(r"\.(\?[a-z]+)", e["cat"]):
                 stands[ref].add(w)
-            if any(p[0] == "pron" for p in e.get("sem", ())):
+            # A pronoun of its own sentence whose category fixes its thing ("myself", "yourself") stands for the
+            # speaker or the listener and never for the one spoken of before, whatever its mark.
+            if any(p[0] == "pron" for p in e.get("sem", ())) and not re.findall(r"\.(\?[a-z]+)", e["cat"]):
                 stands["?previous"].add(w)
             if any(p[0] == "asked" for p in e.get("sem", ())):
                 asking.add(w)

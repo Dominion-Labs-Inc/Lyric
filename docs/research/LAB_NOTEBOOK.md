@@ -16,6 +16,91 @@ Conventions:
 
 ---
 
+## 2026-10-30 (94) — Saying says a thing twice, and a reflexive stands only where it is the subject again
+
+**Objective.** The owner, on (93) having put the reflexive to him as a decision: *"Of course it starts asking. I
+don't even understand. Why is that a question if it's fucking up lyric's capability of course it needs to be
+fixed."* He is right and (93) was wrong to ask: a defect that stops Lyric saying correct English is a defect, not a
+design choice. Built here, in five changes, each measured before the next.
+
+**(1) THE ONE SPOKEN OF BEFORE IS SAID AS OFTEN AS IT STANDS IN A PLACE.** `_piece_says` counted it once however
+many places it filled, while the speaker and the listener are counted by their places (`Grammar.say`'s `situation`,
+a `Counter`), so two words could never say it and no sentence saying it twice could be made at all. It is counted
+now, and a pronoun of its own sentence is no longer refused outright — which (93) measured was never what stopped
+it. **`They misled themselves.` went from nothing said to said exactly.** Reading reads no sentence where nothing
+stands before such a pronoun for it to be, so saying cannot reach a wrong one: **`Themselves are intelligent.` is
+refused** where before it read as surely as `They are intelligent.`
+
+**(2) A THING FILLING TWO PLACES OF ONE HAPPENING IS SAID TWICE.** `_things_said` named each thing once, so there
+was one word for it and no sentence putting it in both places could be made. A new `_places_filled` counts the
+places each thing fills and both `_things_said` and `_piece_says` ask it — the second because a word saying a thing
+is the word naming it (`we` says a group the speaker is one of, one fact of the meaning, and a sentence naming that
+group twice says it twice). **`Tom misled Tom.` went from nothing said to said exactly.**
+
+**(3) THE REFLEXIVE MARK IS STATED WHERE IT WAS MISSING.** `himself`, `herself`, `itself` and `themselves` are
+stated as pronouns of their own sentence (`["pron", "x", "@", "own"]`); `myself`, `yourself`, `yourselves` and
+`ourselves` were stated as *the very entry of* `me`, `you` and `us` and said nothing of it. Now stated, 4 entries in
+`data/grammar/english.json`. Two things had to give way for the mark to be statable at all: a pronoun of its own
+sentence whose thing is not the one spoken of before **says nothing of its own** (`None`, not 0 — counted against
+`?previous`, `ourselves` spent nothing and was refused with its whole entry), and it is **bound by what takes it**
+rather than bound to `?previous` where it is put in, which had made `ourselves` stand for a thing outside its own
+sentence.
+
+**(4) A GROUP THE SPEAKER IS ONE OF IS A THING THE SENTENCE HAS NAMED.** Reading's search for what a reflexive
+stands for looks back over the things named by a kind word, a name or a pronoun — and `we` and `us` are named by
+none of the three, being a group said by a fact (`has_member(g, ?speaker)`). So `ourselves` was bound to nothing and
+`We misled ourselves.` read as no sentence once the mark was stated. The group is in that search now, and
+**reading's own defect is closed at the root: `We misled ourselves.` read as TWO different groups each holding the
+speaker, and reads as one group in both places.** (93) had put that down as a second piece of work in reading; it is
+the same piece.
+
+**(5) A THING STANDS AFTER A VERB ONLY AS ITS FORM SAYS IT MAY** (`_stands_as_written`). A thing said by a pronoun
+of its own sentence says the thing the doing is done BY, so it may stand after the verb only where the two are the
+one thing; a thing said by any other pronoun only where they are not. A thing said by a word of its own and not by
+a pronoun has no form saying it is the subject again, so it stands as it is — which is what keeps `Tom misled Tom.`
+sayable.
+
+**Both things must be known for the rule to say anything**, and they are known only where a meaning is being SAID:
+a verb's places are bound to the meaning's own terms before a word is put in (`roles_bound`), while a sentence being
+READ has its subject not yet taken and each place still a variable. So the rule is saying-only **by its nature
+rather than by a flag**, and reading is left as permissive as it was.
+
+**And it is asked by either route into the place.** `_takes_object` holds of a verb that still has its subject to
+come; a raised subject composed with its verb leaves `S/NP`, where the subject is nowhere in the category any more,
+so `_after_its_subject` asks for both and the subject's term is read from **the verb's own places**, which outlive
+the category. Asked of the first route alone the rule never fired for `I misled i.` at all — the same hole in the
+same two rules that (91) found for a raised subject's agreement.
+
+**MEASURED ON MAIN, READ ONLY** (`check_binding_built.log`; the stated closed-class forms held over it as (91) and
+(92) held them, nothing written to any store):
+
+| given | before | after |
+|---|---|---|
+| `They misled themselves.` | nothing said | **exact** |
+| `We misled ourselves.` | read as two groups, said exactly by accident | **exact, and read as one group** |
+| `I misled myself.` | `I misled i.` | **exact** |
+| `They misled us.` | `They misled ourselves.` | **exact** |
+| `Tom misled Tom.` | nothing said | **exact** |
+| `I washed myself.` | — | **exact** |
+| `Myself wash myself.` | read, and (86) recorded it | **refused** |
+| `Themselves are intelligent.` | read as surely as "They are intelligent." | **refused** |
+
+**No earlier result moved**: the thirteen sentences (92) measured say what they said. **69 grammar tests pass**,
+three added, one per change that can be weighed on its own, and **202 across reading, word forms, the teaching
+path, composition, the sentence records and the prose reader's determiners** (`reading_after_binding.log`). flake8
+identical at 35 on the changed files.
+
+**STILL OPEN, and none of it is the reflexive.** `Tom misled himself.` is said as `Tom misled Tom.` — the right
+meaning in a sentence English would not choose, because saying a name's second mention with a pronoun is
+**pronominalisation**, a capability saying has never had and a different one from binding; a pronoun fills no place
+of a thing, only the grammar's own budget. `She misled her.` says nothing: reading gives `done_to(?v0, ?v1)` with
+**nothing whatever said of `?v1`**, so no word can name it — a meaning-level gap, unchanged by this. `I misled me.`
+and `They misled ourselves.` still READ, reading being permissive; neither is said, saying keeping only what reads
+back to the meaning asked for. And `They misled me.` and `We misled them.` still want the object table a teach
+fills ((92)).
+
+---
+
 ## 2026-10-30 (93) — Saying cannot say one thing twice, and (92)'s account of the reflexive is withdrawn
 
 **Objective.** The owner, on the one item (92) left open: "what about the remaining one needs my decision?" The

@@ -1591,3 +1591,118 @@ def test_a_verb_memory_holds_no_form_of_is_weighed_by_the_verbs_ending_as_it_doe
     assert agreed("he", "sparkles") > agreed("they", "sparkles") + 1.0, \
         (agreed("he", "sparkles"), agreed("they", "sparkles"))
     assert agreed("he", "sparkles") == pytest.approx(agreed("he", "barks"))
+
+
+def test_the_one_spoken_of_before_is_said_as_often_as_it_stands_in_a_place():
+    """`_piece_says`, `Grammar.say`'s budget: the speaker and the listener are counted by how many places they fill,
+    and the one spoken of before was counted ONCE however many it filled, so two words could never say it and no
+    sentence saying it twice could be made -- "They misled themselves." was said back as nothing at all (lyric_db,
+    2026-10-30).
+
+    A pronoun of its own sentence ("himself") says it as any other does. Refusing it here instead -- `_piece_says`
+    returning 0 for a piece marked `own` -- left every reflexive unsayable, and lifting that refusal alone changed
+    nothing, the count being what stopped it. Where the meaning holds no such thing, an own pronoun says nothing of
+    its own and is said by the rest of its entry ("ourselves", a group the speaker is one of) or by what its
+    category stands for ("myself"): counted against the one spoken of before there, it spent nothing and was refused
+    with its whole entry."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    plain = ("pron", 1, "they", "-", 0)
+    own = ("pron", 1, "themselves", "own", 0)
+    misled_them = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                                   F("done_by", "?v0", "?previous"), F("done_to", "?v0", "?previous")))
+    misled_tom = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                                  F("done_by", "?v0", "?previous"), F("done_to", "?v0", "tom")))
+    of_speaker = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                                  F("done_by", "?v0", "?speaker"), F("done_to", "?v0", "?speaker")))
+
+    # TWICE WHERE IT STANDS IN TWO PLACES, once where it stands in one, as the speaker and the listener are counted.
+    assert gm._piece_says(plain, misled_them) == 2
+    assert gm._piece_says(own, misled_them) == 2
+    assert gm._piece_says(plain, misled_tom) == 1
+    # AND NOTHING OF ITS OWN where the meaning holds no such thing: None, which spends nothing and refuses nothing,
+    # against the 0 that refused the whole entry it was a piece of.
+    assert gm._piece_says(own, of_speaker) is None
+    assert gm._piece_says(plain, of_speaker) == 0
+
+
+def test_a_thing_filling_two_places_of_one_happening_is_said_twice():
+    """`_places_filled`, `_things_said`, `_piece_says`: a thing that is its own happening's other place is said
+    twice -- "Tom misled Tom.", and in English a reflexive the second time. Named once however many places it
+    filled, there was one word for it and no sentence putting it in both could be made, so every such meaning was
+    said back as nothing at all (lyric_db, 2026-10-30).
+
+    A word saying a thing spends once for each place too: "we" says a group the speaker is one of, one fact of the
+    meaning, and a sentence naming that group in two places of one doing says it twice ("We misled ourselves.")."""
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    itself = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                              F("done_by", "?v0", "tom"), F("done_to", "?v0", "tom")))
+    another = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                               F("done_by", "?v0", "tom"), F("done_to", "?v0", "bill")))
+
+    assert gm._places_filled(itself) == {"tom": 2}
+    assert gm._places_filled(another) == {"tom": 1, "bill": 1}
+    assert gm._things_said(itself) == [("misinform", "VERB"), ("tom", "NAME"), ("tom", "NAME")]
+    assert gm._things_said(another) == [("misinform", "VERB"), ("tom", "NAME"), ("bill", "NAME")]
+
+    # A WORD SAYING THE THING SPENDS ONCE FOR EACH PLACE: the group "we" says, in both places of one doing.
+    group = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                             F("done_by", "?v0", "?v1"), F("done_to", "?v0", "?v1"),
+                             F("has_member", "?v1", "?speaker")))
+    assert gm._piece_says(("fact", "has_member", 1, "?speaker", None, 0), group) == 2
+    once = Meaning("tell", (F("instance_of", "?v0", "misinform"), F("precedes", "?v0", "?now"),
+                            F("done_by", "?v0", "?previous"), F("done_to", "?v0", "?v1"),
+                            F("has_member", "?v1", "?speaker")))
+    assert gm._piece_says(("fact", "has_member", 1, "?speaker", None, 0), once) == 1
+
+
+def test_a_thing_stands_after_a_verb_only_as_its_form_says_it_may():
+    """`Grammar._stands_as_written`, `_after_its_subject`: a thing said by a pronoun of its own sentence
+    ("himself", "ourselves", "myself") says the thing the doing is done BY, so it may stand after the verb only
+    where the two are the one thing, and a thing said by any other pronoun only where they are not. English holds a
+    form for each and nothing told them apart: of the one spoken of before misleading a group the speaker is one of,
+    "They misled ourselves." was said, and of the speaker misleading the speaker, "I misled i." (lyric_db,
+    2026-10-30).
+
+    A thing said by a word of its own and not by a pronoun has no form saying it is the subject again, so it stands
+    as it is: "Tom misled Tom." is all there is to say of Tom misleading Tom.
+
+    Both things must be known for the rule to say anything, which they are only where a meaning is being SAID (a
+    verb's places bound to the meaning's own terms before a word is put in), so reading is left as permissive as it
+    was. And the rule is asked by either route into the place: a raised subject composed with its verb leaves
+    `S/NP`, where the subject is nowhere in the category any more."""
+    taking = gm.parse_category("(S[dcl].e\\NP.?speaker)/NP.?speaker")
+    composed = gm.parse_category("S[dcl].e/NP.?speaker")
+    other = gm.parse_category("(S[dcl].e\\NP.?previous)/NP.?speaker")
+
+    assert gm._after_its_subject(taking) and gm._after_its_subject(composed)
+    assert not gm._after_its_subject(gm.parse_category("(S[q].e/NP.y)/NP.x")), "a question takes its SUBJECT so"
+
+    def stands(verb: gm.Cat, word: str, own: bool, by: str = "?speaker") -> bool:
+        """Whether the verb may take the word standing after it, by the word's form alone. `by`: the thing the
+        doing is done by, as the verb's own place holds it (`roles_bound` binds it before a word is put in)."""
+        g = gm.Grammar(gm.Lexicon(Held()))
+        g._tokens, g._agreeing = ("misled", word), {}
+        pieces = (("role", "e", by, "subject", 0), ("word", "misled", "VERB", 0, 1))
+        doing = gm.Sign(verb, pieces, 0.0, 0, 1, "lex", head=0)
+        said = (("pron", "?speaker", word, "own" if own else "-", 1), ("word", word, "GRAMMAR", 1, 2))
+        thing = gm.Sign(gm.parse_category("NP.?speaker"), said, 0.0, 1, 2, "lex", head=1)
+        return any(s.rule == ">" for s in g._combine(doing, thing))
+
+    # THE SPEAKER AGAIN IS SAID BY A PRONOUN OF ITS OWN SENTENCE and by no other.
+    assert stands(taking, "myself", own=True), "the thing is the one the doing is done by"
+    assert not stands(taking, "me", own=False), '"I misled me." is no sentence of English'
+    assert stands(composed, "myself", own=True), "by the other route into the place as well"
+    assert not stands(composed, "me", own=False)
+    # AND A THING THAT IS NOT THE SUBJECT IS SAID BY NO PRONOUN OF ITS OWN SENTENCE.
+    assert stands(other, "me", own=False, by="?previous"), "the one spoken of before misled the speaker"
+    assert not stands(other, "myself", own=True, by="?previous"), '"They misled myself." is no sentence of English'
+
+    # A THING SAID BY A WORD OF ITS OWN STANDS AS IT IS, having no form saying it is the subject again.
+    g = gm.Grammar(gm.Lexicon(Held()))
+    g._tokens, g._agreeing = ("misled", "Tom"), {}
+    named = gm.Sign(gm.parse_category("(S[dcl].e\\NP.tom)/NP.tom"),
+                    (("role", "e", "tom", "subject", 0), ("word", "misled", "VERB", 0, 1)), 0.0, 0, 1, "lex", head=0)
+    tom = gm.Sign(gm.parse_category("NP.tom"), (("word", "Tom", "NAME", 1, 2),), 0.0, 1, 2, "lex", head=1)
+    assert any(s.rule == ">" for s in g._combine(named, tom)), '"Tom misled Tom." is all there is to say'

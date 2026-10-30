@@ -203,7 +203,19 @@ features mark a case and then dropped them.
 it and the measurements above need the stand-in; a store taught after holds it for real. This is the change that
 had to land before the full re-teach rather than after.
 
-**Still open here, and measured since (notebook (93)).** `They misled us.` is said back as `They misled ourselves.`,
+**Closed since (notebook (94)).** `They misled us.` was said back as `They misled ourselves.`, and the two
+paragraphs that stood here named the wrong cause twice over. What stopped it: saying could not say a thing twice in
+one sentence, and `ourselves`, `myself`, `yourself` and `yourselves` were stated as the very entry of `us`, `me`
+and `you`, saying nothing of standing for a thing already in the sentence. Both are built. The one spoken of before
+is said as often as it stands in a place, a thing filling two places of one happening is said twice, the mark is
+stated for the four that lacked it, a group the speaker is one of counts as a thing the sentence has named (which
+is what reading needed to bind `ourselves` at all), and a thing stands after a verb only as its form says it may.
+`They misled themselves.`, `We misled ourselves.`, `I misled myself.`, `They misled us.`, `Tom misled Tom.` and
+`I washed myself.` are now said back exactly, and `Myself wash myself.` and `Themselves are intelligent.` are
+refused by reading. Still open: saying a name's second mention with a pronoun (`Tom misled himself.` is said
+`Tom misled Tom.`), which is pronominalisation and not binding.
+
+**Was open here, and measured (notebook (93)).** `They misled us.` is said back as `They misled ourselves.`,
 and the paragraph that stood here named the wrong cause. The forms **are** marked — memory holds `ourselves` as
 `Case=Acc|Number=Plur|Person=1|PronType=Prs|Reflex=Yes` and `us` without the `Reflex` — but nothing weighs the mark,
 the features weighed being those a **subject** is written with and nothing standing reflexively as a subject. Of the

@@ -620,6 +620,14 @@
   "myself": [
    {
     "cat": "NP.?speaker",
+    "sem": [
+     [
+      "pron",
+      "?speaker",
+      "@",
+      "own"
+     ]
+    ],
     "use": "pron"
    }
   ],
@@ -632,12 +640,28 @@
   "yourself": [
    {
     "cat": "NP.?listener",
+    "sem": [
+     [
+      "pron",
+      "?listener",
+      "@",
+      "own"
+     ]
+    ],
     "use": "pron"
    }
   ],
   "yourselves": [
    {
     "cat": "NP.?listener",
+    "sem": [
+     [
+      "pron",
+      "?listener",
+      "@",
+      "own"
+     ]
+    ],
     "use": "pron"
    }
   ],
@@ -681,6 +705,12 @@
       "g",
       "?speaker",
       "-"
+     ],
+     [
+      "pron",
+      "g",
+      "@",
+      "own"
      ]
     ],
     "use": "pron"
