@@ -128,6 +128,30 @@ lessons, scratch, 2026-10-21) the grammar read 20.4% / 40.6% / 50.7%: where the 
 ways (`isa(rice, food)` against `equals`; `located_at` against `located_in`) the dev set holds the PMB's way. The
 lessons, held out, read right whole: 23.9%; learned from: 31.8%.
 
+**Saying, measured on a store for the first time (2026-10-29, lab notebook (86)).** `SAY_BACK=<count|all>` says back
+the dev meanings the grammar reads right whole senses aside. `Grammar.say` returns only sentences that read back to
+exactly the meaning asked for, so what is scored is coverage and exactness, not correctness. **It cannot be measured
+from files**: `HeldWords.words_for` returns `[]` with no `written_for` and `file_words` passes none, so a files-only
+run said something for 5 of 394 and said "Myself am from Russia." for "I am from Russia." Reading needs how words are
+used, which files hold; saying needs which word names a thing, which only memory does.
+
+Of the first 12 meanings each store reads right of the 77 taught-word dev documents (the two twelves overlap and are
+not identical; the timings on the nine both were asked are paired):
+
+| | lyric_dev2 (559 word records, 6,137 recorded whole) | main (0 and 0, 94,262 word classes) |
+|---|---|---|
+| says any sentence at all | 6 of 12 (50.0%) | 6 of 12 (50.0%) |
+| the gold sentence first | 1 (8.3%) | 0 (0.0%) |
+| the gold sentence at all | 3 (25.0%) | 1 (8.3%) |
+| the twelve took | 504 s | 120 s |
+
+The word-record layer buys no coverage and costs up to 600 times the time ("I wash myself." 183.6 s against 0.3 s;
+"Your arm's broken." 267.2 s against 0.0 s): a thing memory holds every form and sense of is a thing the agenda
+combines every one of. A store holding no records says things by their own names, which `words_for` falls back to
+where memory names a word as itself. Saying is anytime realization, so a meaning it can say ends early (7 of 12 under
+2 s) and one it cannot exhausts the agenda (267 s to say nothing). Whether the constructions taught cover the half the
+grammar misses is not measured.
+
 **On a store, with the comparison's conventions aligned (2026-10-28, lab notebook (70)).** `on_store.py` reads the dev
 sentences with the reader a store holds after a warm (read only); `taught_words_test.json` lists 100 dev documents
 whose words are all among 228 (77 with a gold meaning), taught to lyric_dev2 as words recorded whole. Two comparisons

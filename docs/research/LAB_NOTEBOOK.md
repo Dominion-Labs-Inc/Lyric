@@ -16,6 +16,86 @@ Conventions:
 
 ---
 
+## 2026-10-29 (86) — Saying measured for the first time: half of what it reads right it can say, the word records buy no coverage and cost up to 600 times the time, and a prediction of mine was wrong
+
+**Objective** (the owner's word, "yes you can start it"). Reading is measured against the composer it replaced
+(GRAMMAR-01: 21.8% strict, 42.4% senses aside against 16.1% / 33.6%). **Saying had no figure at all.** The one reply
+path asks the grammar first (85), so what the grammar cannot say falls to the constructions taught, and what neither
+says is a reply that admits it cannot say what it holds. This measures the first half of that: of the dev meanings the
+grammar reads right whole, how many it says any sentence for, and whether the sentence it says first is the one the
+meaning was read from.
+
+**What can and cannot be scored.** `Grammar.say` returns only sentences that READ BACK to exactly the meaning asked
+for, so "said and read back right" is not a score it can fail. What can: **coverage** (a meaning it says nothing for
+is one it cannot put into words) and **exactness** (whether the gold sentence is first, or there at all).
+
+### Two mistakes of mine, both measured rather than reasoned away
+
+**(1) Saying cannot be measured from files, and the first run's figure was the harness's.** Measured files-only as
+GRAMMAR-01 measures reading, the grammar said something for **5 of 394** meanings (1.3%) and what it said gives it
+away: "Myself am from Russia." for "I am from Russia.", "Bill am to Japan." for "Bill was in Japan." **Cause:**
+`HeldWords.words_for` returns `[]` when no `written_for` is passed (`grammar_words.py` line 737), and
+`teaching_sources.file_words` passes none. What a thing is said WITH is memory's alone (`MemoryAgent.words_for`,
+whose docstring is "What `Grammar.say` says a thing with"). Reading needs how words are USED, which files have;
+saying needs which word NAMES a thing, which only memory holds. GRAMMAR-01 measures reading from files rightly, and
+that is why the same harness cannot measure saying at all.
+
+**(2) PREDICTED WRONG, written down before the run: that main, holding 0 word records and 0 sentences recorded
+whole, would "say close to nothing, almost instantly".** It says exactly as many as the sandbox holding 559 records.
+**Cause:** the last clause of `words_for`, which this entry's author had underweighted --
+`if not found and self.name_of(folded, word_class) == folded` -- **a thing may be said by its own name**, which needs
+only the word classes, and main holds 94,262 of them.
+
+### What saying costs and covers (`on_store.py`, `SAY_BACK`, reads only)
+
+The same 77 taught-word dev documents on both stores, the first 12 meanings each store reads right whole senses
+aside said back. The two twelves overlap and are not identical, so coverage is a sample-level comparison; the timings
+on the nine sentences both were asked are paired.
+
+| | lyric_dev2 | main (lyric_db) |
+|---|---|---|
+| word records / sentences recorded whole | 559 / 6,137 | **0 / 0** |
+| names the sentence records give | 5,137 | 0 |
+| says any sentence at all | 6 of 12 (50.0%) | **6 of 12 (50.0%)** |
+| the gold sentence first | 1 (8.3%) | 0 (0.0%) |
+| the gold sentence at all | 3 (25.0%) | 1 (8.3%) |
+| the twelve took | **504 s** | **120 s** |
+| memory warm; reading the 77 | 279 s; 1 s | 138 s; 75 s |
+
+**(3) The word-record layer buys no coverage for saying, buys a little exactness, and costs up to 600 times the
+time.** Both stores say 6 of 12. The sandbox is better on exactness (the gold sentence first 1 against 0, among them
+3 against 1), which is what more words for a thing should buy. The cost is the other way and it is not small, on the
+sentences both were asked: **"I wash myself." 183.6 s on the sandbox against 0.3 s on main; "Your arm's broken."
+267.2 s against 0.0 s; "Who stabbed Tom?" 49.8 s against 117.9 s.** A thing memory holds every form and every sense
+of the class for is a thing the agenda combines every one of.
+
+**(4) Saying is unbounded where it fails, by design, and that is where the time goes.** `Grammar.say` is anytime
+realization (White 2004; Carroll and Oepen 2005): `while agenda and len(sentences) < SAID_AT_MOST` -- it stops at the
+first 8 sentences that read back. A meaning it CAN say ends early (7 of the sandbox's 12 finished under 2 s). A
+meaning it CANNOT say exhausts the whole agenda: 267 s to say nothing of "Your arm's broken.". The code records the
+same shape priced at 238 words taught ("Who did Roy paint the box for?", over ten minutes, 2026-10-28); the sandbox
+now holds 559.
+
+**(5) Reading and saying are not in the same cost class.** The same warm store read 77 sentences in **1 s** (sandbox)
+and spent **504 s** saying twelve of their meanings. On main, 75 s to read 77 and 120 s to say twelve.
+
+**How the stall was found, since it cost the session an hour.** The first store run was launched piped through
+`tail -40`, which holds every line until the process exits, so 44 minutes passed with an empty output file. CPU at
+100%, memory flat at 3.6 GB, its Postgres connections idle 35 minutes: computing, not blocked. `py-spy dump` (root,
+the owner ran it) put it in `Grammar.say` at `grammar.py:3356`, the chart's partner loop. **Fixed in the script, not
+in a note:** the leg now prints every meaning's cost as it lands, and `SAY_BACK` bounds **how many meanings are
+asked**, never how long the grammar may search -- a cap there would report an expensive meaning as "said nothing" and
+hide the only thing worth seeing.
+
+**For the re-teach.** (84) found main lacks three layers and this prices one of them for saying: **the word records
+are not what saying is missing.** Adding them to main would buy exactness in single figures and make saying
+dramatically slower. What saying is actually short of is coverage -- half of what the grammar reads right it cannot
+say at all -- and that half is not explained by any layer measured here.
+
+**What is NOT measured.** Only 12 meanings a store, and only the grammar: `derived_reader.say` falls back to the
+constructions taught (628,380 on main) when the grammar says nothing, and whether they cover the half the grammar
+misses is the other leg of the owner's run and is not done. Nor is what the constructions cost.
+
 ## 2026-10-29 (85) — The three lists settled into one register, and understanding audited: every kind of taught language reaches a reading but one
 
 **Objective.** The owner's decision stands: **nothing is re-taught until teaching, learning and understanding — reading

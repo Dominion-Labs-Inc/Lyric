@@ -7,7 +7,10 @@ WORDS_TEST names the sets of dev documents to read alone, one file or several se
 `participle_test.json`, `several_words_test.json`, each the dev documents of one thing said); unset, every dev
 document with a gold meaning. Every set is read in one run, each document once, and scored on its own and on all of
 them together, and the error budget printed by the link each fact says. RESULTS_OUT, a file each reading is written
-to. Scored strict, senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
+to. SAY_BACK says back the meanings read right whole, senses aside, and scores how many the grammar says any sentence
+for and whether the sentence it says first is the one the meaning was read from: a count of meanings to ask ("all" for
+every one), each one's cost printed as it lands. It bounds how many are ASKED and never how long the grammar may
+search, saying being unbounded where it fails (lab notebook (86)). Scored strict, senses aside (`senses_aside`), kinds aside, by their words with pronouns as unknowns (`named_by_their_words`,
 `pronouns_as_unknowns`), and kinds aside with pronouns as unknowns. From the Lyric folder:
 
     WORDS_TEST=experiments/GRAMMAR-01/taught_words_test.json POSTGRES_DATABASE=lyric_dev2 \
@@ -176,6 +179,54 @@ async def main():
                      == as_words(m, ws).canonical()}
                     for (text, _, m, _), r, a, ws, doc_id in zip(dev, readings, aside, sentence_words, doc_ids)],
                    open(os.environ["RESULTS_OUT"], "w"), indent=1)
+    # SAID BACK (`SAY_BACK=1`): of the meanings read right whole, senses aside, how many the grammar says any
+    # sentence for, and whether the sentence it says first is the one the meaning was read from.
+    #
+    # ON A STORE AND NOT FROM FILES, because what a thing is said WITH comes from memory and nowhere else
+    # (`MemoryAgent.words_for`, "What `Grammar.say` says a thing with"): the word records' senses of the class, the
+    # names the sentence records give, and -- where neither holds one -- THE THING'S OWN NAME, where memory names that
+    # word as itself. GRAMMAR-01's file-held words pass no `written_for` at all, so `HeldWords.words_for` returns []
+    # for every thing: measured files-only first, the grammar said something for 5 of 394 and said "Myself am from
+    # Russia." for "I am from Russia.", which is the harness's figure and not the grammar's (2026-10-29).
+    #
+    # THE OWN-NAME FALLBACK IS WHAT CARRIES A STORE HOLDING NO RECORDS. Main (0 word records, 0 sentences recorded
+    # whole, 94,262 word classes) says as many of its read-right meanings as the sandbox does with 559 records and
+    # 6,137 record names -- 6 of 12 each -- and says them FASTER, because a thing with more words for it is a bigger
+    # search: "I wash myself." 0.3s on main against 183.6s on the sandbox, "Your arm's broken." 0.0s against 267.2s.
+    if os.environ.get("SAY_BACK"):
+        t2 = time.time()
+        asked = [(text, a) for (text, _, _, _), r, a in zip(dev, readings, aside)
+                 if r.meaning is not None and r.meaning.canonical() == a.canonical()]
+        # HOW MANY ARE ASKED, not how long each may take. `SAY_BACK` is a count ("all" for every one): the grammar is
+        # left to search as far as it searches, because a meaning it cannot say is one it exhausts the agenda for, and
+        # a cap here would report that as nothing said rather than as what it costs. Asked blind the first time, 39
+        # minutes went into the first meanings of 35 and the run said nothing at all (2026-10-29).
+        how_many = os.environ["SAY_BACK"]
+        if how_many.strip().isdigit():
+            asked = asked[:int(how_many)]
+        plainly = lambda t: " ".join(str(t or "").strip().rstrip(".").lower().split())
+        said_any = first_gold = among_gold = 0
+        shown = []
+        print(f"      saying back {len(asked)} of the meanings read right; each one's cost as it lands", flush=True)
+        for text, want in asked:
+            at = time.time()
+            sentences = list(view.say(want))
+            # EACH ONE'S COST AS IT LANDS, never a cap: saying is chart generation and a meaning the grammar has many
+            # words for is a real search. Measured blind the first time, 36 minutes said nothing at all (2026-10-29).
+            print(f"      {time.time() - at:7.1f}s  {len(sentences):3} said  {text[:58]}", flush=True)
+            said_any += bool(sentences)
+            first_gold += bool(sentences) and plainly(sentences[0]) == plainly(text)
+            among_gold += plainly(text) in {plainly(x) for x in sentences}
+            if len(shown) < 12:
+                shown.append((text, sentences[:2]))
+        n = max(len(asked), 1)
+        print(f"  said back, of the {len(asked)} read right whole senses aside ({time.time() - t2:.0f}s):")
+        print(f"      says any sentence at all {said_any} ({said_any / n:.1%}); the gold sentence first "
+              f"{first_gold} ({first_gold / n:.1%}); the gold sentence at all {among_gold} ({among_gold / n:.1%})")
+        print(f"      words memory holds for things: {len(agent._grammar_words)} word record(s), "
+              f"{len(agent._record_names)} name(s) the sentence records give")
+        for text, sentences in shown:
+            print(f"      {text}\n         said: {sentences}")
     why = Counter((r.why or "?") if r.meaning is None else "meaning" for r in readings)
     print("  no meaning, why:", why.most_common(6))
     for (text, _, want, _), r, a in list(zip(dev, readings, aside))[:12]:
