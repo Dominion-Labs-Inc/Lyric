@@ -139,3 +139,26 @@ def test_the_one_reply_path_says_what_the_grammar_and_the_constructions_say():
     said = inspect.getsource(derived_reader.say)
     assert "grammar_view" in said, "the one say no longer asks the grammar it reads by"
     assert "_said_whole" in said, "the one say no longer says what the constructions taught say"
+
+
+def test_reading_and_saying_are_one_view_that_carries_what_things_are():
+    """The knowledge half is INSIDE saying, not upstream of it.
+
+    A reply's content is what `understand()` resolved against the store (`Understanding.known`), and the grammar it
+    is said with is the same cached view reading uses: `read` and `say` are two methods on one object, built once a
+    warm with what memory holds of things. Held because the first version of (85) said reading needed the knowledge
+    half in a place that read as though responding did not have it.
+    """
+    from core.semantics.grammar import GrammarView
+    for question in ("read", "say"):
+        assert callable(getattr(GrammarView, question, None)), (
+            f"the view no longer answers {question}; reading and saying would be two paths")
+    built = inspect.getsource(MemoryAgent.grammar_view)
+    assert "if self._grammar_view is None" in built, (
+        "the grammar view is no longer one per warm, so what reads and what says could differ")
+    assert "GraphKnowledge" in built, (
+        "the grammar is no longer given what memory holds of things (`isa`, `instance of`), which it asks of every "
+        "word it reads")
+    linked = inspect.getsource(MemoryAgent.link_concepts)
+    assert "hear_kind" in linked, (
+        "a link stored no longer reaches the live view, so what things are would wait for the next warm")

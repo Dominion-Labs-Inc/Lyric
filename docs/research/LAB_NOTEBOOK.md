@@ -91,11 +91,22 @@ changes with what was taught, through both. The alternative is on the record whe
 `natural_reply()` beside it and an `or` between them that fell through to an introspection dump for every question
 that was not a yes/no.
 
-**(4) Reading depends on the knowledge half, not only the language half.** `grammar_view` is built with
-`GraphKnowledge` from `unified.concept_relations` — each thing's kinds (`isa`), what particular ones are (`instance
-of`), and for a thing held as a kind of nothing what its definition is written with. **148,843 links on main.** The
-grammar asks this of the words it reads, and no language lesson supplies it: a re-teach of language alone leaves the
-grammar without what things are.
+**(4) The knowledge half is inside reading AND saying, and what it needs is a re-teach requirement, not a
+wiring gap.** The first version of this entry said "reading depends on the knowledge half, not only the language
+half" in a place that read as if responding did not have it. It does, twice over. **The content of a reply IS the
+knowledge half**: `Understanding.known` is the concepts resolved against the store (`informative`), beside recall,
+what things mean as the word records say it (`meanings`), and what held facts point at (`pointed_at`) — all gathered
+in `understand()`, which the field comments say is where the database is needed because "`say()` is a pure function
+over what was already found". **And reading and saying are one object**: `GrammarView.read` and `GrammarView.say` are
+two methods on the one cached view (`memory_agent._grammar_view`, built once a warm), and that view is constructed
+with `GraphKnowledge` from `unified.concept_relations` — each thing's kinds (`isa`), what particular ones are
+(`instance of`), and for a thing held as a kind of nothing what its definition is written with. **148,843 links on
+main.** A link stored reaches the live view at once, without waiting for a warm (`memory_agent` line 3609:
+`self._grammar_view.words.hear_kind(...)`).
+
+What is actually at stake is the **order of the re-teach**: no language lesson writes `isa` or `instance of` — the
+propositions do. So re-teaching the fifteen language layers alone gives the grammar nothing new about what things
+are, and it asks that of every word it reads.
 
 **(5) The listening memory holds no counts, by design, and a store-level check says it is empty.** Asked whether every
 memory of each kind carries the key its reader reads, every kind answered 100% — 108,300 of 108,300, 94,262 of 94,262,
