@@ -7396,7 +7396,16 @@ class MemoryAgent(IMemoryConsolidation):
         for (written, cls), names in self._record_names.items():
             if cls == word_class and names.get(folded, 0) > 0:
                 found[written] += names[folded]
-        if not found and self.name_of(folded, word_class) == folded:
+        # A THING NAMED BY A WORD IS SAID WITH THAT WORD. Reading names a quality and a happening by the word's own
+        # name (`@` in the grammar's taught data), so "You're vain." reads `has_property(?listener, vain)` and the
+        # thing's name IS the word. Memory holds its own name for that word by its sense -- "vain" is `bootless`,
+        # "flunk" `failure failing`, "reek" `malodor` -- so asking which words name `vain` found none and the grammar
+        # could not say back the meaning it had just read. Held to the name being the word, this answered only where
+        # the two coincide (`dog`, `wash`, `illiterate`), and 4 of the 6 meanings main read right and said nothing for
+        # were the other case (2026-10-30). Memory holding the word as that very class is the condition that matches
+        # what reading did; nothing else is offered, so it says the word or says nothing.
+        if not found and (self.name_of(folded, word_class) == folded
+                          or self.word_classes(folded).get(word_class, 0) > 0):
             bases[folded] += 1
             found[folded] += 1
         for item in (self._word_forms.items() if self._word_forms is not None else ()):

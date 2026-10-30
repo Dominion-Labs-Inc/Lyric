@@ -145,12 +145,20 @@ not identical; the timings on the nine both were asked are paired):
 | the gold sentence at all | 3 (25.0%) | 1 (8.3%) |
 | the twelve took | 504 s | 120 s |
 
-The word-record layer buys no coverage and costs up to 600 times the time ("I wash myself." 183.6 s against 0.3 s;
-"Your arm's broken." 267.2 s against 0.0 s): a thing memory holds every form and sense of is a thing the agenda
-combines every one of. A store holding no records says things by their own names, which `words_for` falls back to
-where memory names a word as itself. Saying is anytime realization, so a meaning it can say ends early (7 of 12 under
-2 s) and one it cannot exhausts the agenda (267 s to say nothing). Whether the constructions taught cover the half the
-grammar misses is not measured.
+THE TWO SIXES ARE NOT THE SAME SIX (2026-10-30, lab notebook (87)): main says "You lied to me!", "Is the dog
+chained?" and "I never played golf." where the sandbox says nothing, and the sandbox says "We're dieting." and "Your
+arm's broken." where main says nothing. **Intersection 3, union 9 of 12.** The layers are complementary -- main has
+the breadth of concepts and classes, the sandbox has the written forms -- so the 50% is one store missing one layer,
+not a ceiling of the grammar, and an earlier reading of these two figures as the word records buying no coverage is
+withdrawn. WHICH LAYER: saying may write only forms memory holds, and main holds forms for 3,703 base words against
+94,262 it holds classes for (3.9%), while the sandbox holds no `word_forms` memories at all and still writes
+"dieting", a word record carrying its forms inline (`words_for`, `WordRecord.forms_held`). The word records do cost up
+to 600 times the time ("I wash myself." 183.6 s against 0.3 s; "Your arm's broken." 267.2 s against 0.0 s): a thing
+memory holds every form and sense of is a thing the agenda combines every one of. A store holding no records says
+things by their own names, which `words_for` falls back to where memory holds the word as that class. Saying is
+anytime realization, so a meaning it can say ends early (7 of 12 under 2 s) and one it cannot exhausts the agenda --
+`I didn't flunk.` traced to 163,827 items and 689 whole sentences all read back otherwise, none kept. Whether the
+constructions taught cover the half the grammar misses is not measured.
 
 **On a store, with the comparison's conventions aligned (2026-10-28, lab notebook (70)).** `on_store.py` reads the dev
 sentences with the reader a store holds after a warm (read only); `taught_words_test.json` lists 100 dev documents

@@ -166,6 +166,27 @@ def test_a_sentence_taught_with_its_meaning_is_held_whole_and_read_when_the_view
     assert view.compose_sentence("Nothing laid out.") is None
 
 
+class _AsMemorysGrammar:
+    """Memory's grammar as `_read_by_composing` asks it: one object that READS a sentence to a meaning.
+
+    These stubs answered `compose_sentence`, which is how the composer that was replaced on 2026-10-20 was asked.
+    The live path asks `agent.grammar_view().read(...)` and takes the reading's `meaning`, so the stubs raised
+    AttributeError and four tests of `_read_by_composing` had been failing since. The assertions are unchanged; only
+    what the stub answers to is (2026-10-30).
+    """
+
+    def __init__(self, meaning=None, compose=None):
+        self._meaning, self._compose = meaning, compose
+        self.sign = None
+
+    def grammar_view(self):
+        return self
+
+    def read(self, words):
+        self.meaning = self._compose(" ".join(str(w) for w in words)) if self._compose is not None else self._meaning
+        return self
+
+
 def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monkeypatch):
     """`read_text` leaves "The cat ran." unread where nothing taught reads it; with `COMPOSING` on, it is read by the
     composer memory holds, as one reading marked composed."""
@@ -175,10 +196,7 @@ def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monk
         "The cat ran .", ["DETERMINER", "NOUN", "VERB", "PUNCTUATION"], [2, 3, 0, 3], ["det", "nsubj", "root", "punct"]))
     view.learn(*BARKED)
 
-    class Agent:
-        def grammar_view(self):
-            return view
-    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(memory, "_memory_agent", _AsMemorysGrammar(compose=view.compose_sentence))
     monkeypatch.setattr(dr, "COMPOSING", False)
     assert not dr.read_text("The cat ran.", dr.PatternInventory())[0].readings
     monkeypatch.setattr(dr, "COMPOSING", True)
@@ -198,14 +216,8 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
     from core.semantics import derived_reader as dr
     composed = Meaning("tell", (F("instance_of", "?e", "breathe"), F("done_by", "?e", "whale")))
 
-    class View:
-        def compose_sentence(self, sentence):
-            return composed
-
-    class Agent:
-        def grammar_view(self):
-            return View()
-    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    grammar = _AsMemorysGrammar(composed)
+    monkeypatch.setattr(memory, "_memory_agent", grammar)
     told = Meaning("tell", (F("has_property", "?e", "air through"),))
     pieces = (dr.Piece("Whales", True), dr.Piece("breathe", False), dr.Piece(".", False))
 
@@ -220,7 +232,7 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
         assert reading.composed and reading.meaning == composed
     for readings in [(as_taught,), (forced, as_taught)]:
         assert dr._read_forced_by_composing(utterance(*readings)).readings == readings
-    monkeypatch.setattr(View, "compose_sentence", lambda self, sentence: None)
+    grammar._meaning = None       # the grammar gives it no meaning
     assert dr._read_forced_by_composing(utterance(forced)).readings == (forced,)
 
 
@@ -231,14 +243,7 @@ def test_a_question_asking_for_something_composed_asking_for_nothing_is_not_read
     from core.semantics import derived_reader as dr
     hired = Meaning("ask", (F("instance_of", "?e", "hire"), F("done_by", "?e", "company_1")))
 
-    class View:
-        def compose_sentence(self, sentence):
-            return hired
-
-    class Agent:
-        def grammar_view(self):
-            return View()
-    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(memory, "_memory_agent", _AsMemorysGrammar(hired))
     monkeypatch.setattr(dr, "COMPOSING", True)
     assert not dr.read_text("How many engineers did the company hire?", dr.PatternInventory())[0].readings
     reading, = dr.read_text("Did the company hire engineers?", dr.PatternInventory())[0].readings
@@ -251,14 +256,8 @@ def test_a_composed_meaning_of_known_things_alone_is_no_reading(monkeypatch):
     from core.agents import memory_agent as memory
     from core.semantics import derived_reader as dr
 
-    class View:
-        def compose_sentence(self, sentence):
-            return Meaning("ask", (F("instance_of", "?x2", "valve", given=True),))
-
-    class Agent:
-        def grammar_view(self):
-            return View()
-    monkeypatch.setattr(memory, "_memory_agent", Agent())
+    monkeypatch.setattr(memory, "_memory_agent",
+                        _AsMemorysGrammar(Meaning("ask", (F("instance_of", "?x2", "valve", given=True),))))
     monkeypatch.setattr(dr, "COMPOSING", True)
     assert not dr.read_text("Is the valve closed?", dr.PatternInventory())[0].readings
 

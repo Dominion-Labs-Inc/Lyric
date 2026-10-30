@@ -16,6 +16,116 @@ Conventions:
 
 ---
 
+## 2026-10-30 (87) — The missing half of saying is a layer, not a ceiling: the two stores' "6 of 12" were different sixes, and (86)'s claim about the word records is withdrawn
+
+**Objective** ("ok so fix it", then "it needs to be fixed"). (86) measured saying for the first time and left it at
+50% coverage with four meanings saying nothing for want of a word and two refused. This fixes the first cause, gives
+saying a reason where it says nothing, and asks what the remaining half actually is. The answer withdraws one of
+(86)'s findings.
+
+### What was built
+
+**A word is said with the word reading named the thing by** (`MemoryAgent.words_for`). Reading names a quality and a
+happening by the word's own name (`@` in the taught data), so "You're vain." reads `has_property(?listener, vain)`
+and the thing's name IS the word; memory holds its own name for that word by its sense, so `vain` is `bootless`,
+`flunk` `failure failing`, `reek` `malodor`. Asking which words name `vain` found none, and the grammar could not say
+back a meaning it had just read. Held to the name being the word, this answered only where the two coincide (`dog`,
+`wash`, `illiterate`). Now memory holding the word as that very class is the condition, which is what reading did.
+**Measured on main: "You're vain." went from nothing said to said in 0.2s.**
+
+**Saying says why it said nothing** (`Grammar.say`/`GrammarView.say`, a `why` out-param). Seven different causes
+arrived as the same empty list, so half the meanings said nothing for a reason nobody could name. The five give-up
+sites now name theirs, and where whole sentences were built and refused it reports how many, what was never said,
+and three it read back otherwise.
+
+### Finding: saying is scored through reading, so reading's accuracy caps saying's
+
+`grammar.py:3306` keeps a sentence only if `reading.meaning.canonical() == target`, the meaning handed in, verbatim.
+That is the right bar — it is what "say it so it means this" has to mean — but it follows that **every sentence
+reading mis-reads is one saying must refuse, correct English or not.** On main reading gets 32 of 77 whole with
+senses aside; saying cannot exceed that, and a saying failure may be a reading defect wearing saying's clothes.
+
+### Finding: a refused meaning costs the whole chart, and (86)'s 119 seconds was partly an artifact
+
+With `vain`'s cause fixed, `I didn't flunk.` stopped quitting instantly and started searching. Traced read-only by
+reading the saying thread's own frame (`sys._current_frames()`, no root and no change to the grammar): at 1,582s,
+**163,827 items kept, 125,613 pairings, 689 whole sentences built and every one read back otherwise, 0 accepted**,
+the agenda still at 48,305 and the process at full CPU. Nothing is wrong with the search except that it never finds
+one sentence to keep, so `len(sentences) < SAID_AT_MOST` never short-circuits and the agenda must be exhausted.
+**(86) reported the twelve at 119s with 116 of them one meaning; the other eleven were under a second each only
+because four quit instantly for want of a word.** The honest figure is that a refused meaning is unbounded, and four
+of the twelve were being let off before they could show it.
+
+### THE CORRECTION: (86)'s "the word records are not what saying is missing" is withdrawn
+
+(86) concluded it from both stores saying 6 of 12. **They are not the same six.** Per meaning:
+
+| meaning | main (94,262 classes, 0 word records) | lyric_dev2 (559 word records) |
+|---|---|---|
+| You're vain. | 0, now 1 with this entry's fix | 1 |
+| I wash myself. | 8 | 8 |
+| We're dieting. | **0** | **2** ("We's by dieting.") |
+| I'm illiterate. | 1 | 1 |
+| You lied to me! | **8** | **0** |
+| Your arm's broken. | **0** | **8** |
+| I like disco music. | 8 | 6 |
+| Is the dog chained? | **8** | **0** |
+| I never played golf. | **8** | **0** |
+| I didn't flunk. / Who stabbed Tom? / You reek of alcohol. | 0 | 0 |
+
+**Intersection 3. Union 9 of 12.** The layers are complementary: main has the breadth of concepts and classes and
+says what dev2 has no words for; dev2 has the written forms and says what main cannot write. **The 50% is one store
+missing one layer, not a ceiling of the grammar.** **Cause of the wrong claim:** two equal counts were read as the
+same coverage without checking them meaning by meaning — the error "Re-verify findings" exists for.
+
+**Which layer, exactly: the written forms.** Saying may write only forms memory holds. Main holds forms for **3,703
+base words against 94,262 it holds classes for (3.9%)**, so `wash` says "washed"/"washing" and `diet`, `flunk`,
+`vain`, `broken` have no form at all. dev2 holds **0 `word_forms` memories** and still writes "dieting", because a
+word record carries its forms inline (`words_for`, `WordRecord.forms_held`). **The forms saying needs come with the
+word records, and main has none.**
+
+### An error caught before it was written: the reader's morphology cannot be inverted into a writer's
+
+The fix this entry set out to write was to run `HeldWords.changes` backwards — `lexeme` already uses that table to
+go form to base where memory holds no form, and the class's own docstring states the rule. Probed first: the guard
+proposed (the generated form being held as a word of the class) **rejects every form including the correct ones**,
+because `knowledge.classes` is keyed by base and holds no inflected form — `washing` is absent although its form row
+exists. The round-trip guard that replaced it (keep a form only where `lexeme` takes it back to this base) **accepts
+`washs`**, since undoing `s` lands on `wash`; saying would have written "I washs myself.", reading would have
+accepted it, and coverage would have risen while the English went bad — the same defect as "Yourself'm vain.",
+manufactured on purpose. **The reason is structural: reading must be permissive and writing conservative, so the
+reader's generalisation cannot be run backwards.** Saying refusing to invent `dieting` is correct; the forms are
+owed to it by teaching, not by inference.
+
+### Errors in this session's own instruments
+
+- **The report of what was refused was gated on something being unsaid**, so in exactly the case where every word was
+  said and every sentence refused, it printed nothing. The three sentences read back otherwise are now always
+  reported.
+- **A probe's fact-by-fact diff compares raw variables**, so `?v0` against `?v1` reads as a disagreement where
+  `canonical()` sees none. The `read back` line is the authoritative one.
+
+### Still open
+
+- **The third group fails on both stores**: `I didn't flunk.`, `Who stabbed Tom?`, `You reek of alcohol.` Reading
+  uses base-form tokens only for them, so the forms layer is not the cause. Unexplained.
+- **The speaker said as a reflexive** (the owner's call, unchanged from (86)): `data/grammar/english.json` gives `i`,
+  `me`, `myself` identical `NP.?speaker` and `you`/`yourself` identical `NP.?listener`. Saying offers only the
+  reflexive, so "Myself wash myself." and "Yourself'm vain." are built, and reading **accepts** them, agreeing they
+  mean what was asked. This costs exactness, not coverage: **the gold sentence is first 0 of 12.** Those same entries
+  are what reading uses, so fixing it moves reading too.
+
+### Verified
+
+- `tests/test_composition.py tests/test_grammar.py` **71 passed** — including **four pre-existing failures repaired**
+  (`git stash` confirmed them pre-existing): their stubs answered `compose_sentence`, how the composer replaced on
+  2026-10-20 was asked, while the live path asks `grammar_view().read(...)`. The fixtures were repaired; no assertion
+  was changed.
+- `tests/test_sentence_records.py` **30 passed** (covers `words_for`); the reading tests **126 passed**, unchanged.
+- Every figure above read off a run on a real store under `./venv_lyric/bin/python3`, read-only, no store written.
+
+---
+
 ## 2026-10-29 (86) — Saying measured for the first time: half of what it reads right it can say, the word records buy no coverage and cost up to 600 times the time, and a prediction of mine was wrong
 
 **Objective** (the owner's word, "yes you can start it"). Reading is measured against the composer it replaced

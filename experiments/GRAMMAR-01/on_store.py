@@ -208,12 +208,27 @@ async def main():
         said_any = first_gold = among_gold = 0
         shown = []
         print(f"      saying back {len(asked)} of the meanings read right; each one's cost as it lands", flush=True)
+        why_counts = Counter()
         for text, want in asked:
             at = time.time()
-            sentences = list(view.say(want))
+            # WHY, WHERE NOTHING IS SAID (`Grammar.say`'s `why`): seven different reasons used to arrive as the same
+            # empty list, so half the meanings said nothing for a cause nobody could name.
+            why_said: dict = {}
+            sentences = list(view.say(want, why=why_said))
             # EACH ONE'S COST AS IT LANDS, never a cap: saying is chart generation and a meaning the grammar has many
             # words for is a real search. Measured blind the first time, 36 minutes said nothing at all (2026-10-29).
-            print(f"      {time.time() - at:7.1f}s  {len(sentences):3} said  {text[:58]}", flush=True)
+            reason = "" if sentences else str(why_said.get("why") or "?")
+            if reason:
+                why_counts[reason] += 1
+            print(f"      {time.time() - at:7.1f}s  {len(sentences):3} said  {text[:44]:46}{reason}", flush=True)
+            if reason and why_said.get("thing"):
+                print(f"                 no word for: {why_said['thing']}", flush=True)
+            if reason and "items" in why_said:
+                # Not gated on anything being unsaid: where every word was said and reading refused every whole
+                # sentence, `unsaid` is empty and this line is the only report of what it built (2026-10-30).
+                print(f"                 {why_said.get('items', 0)} item(s) kept, {why_said.get('refused', 0)} "
+                      f"read back otherwise {why_said.get('read_back_otherwise') or ''}"
+                      + (f"; no word said for {why_said['unsaid']}" if why_said.get("unsaid") else ""), flush=True)
             said_any += bool(sentences)
             first_gold += bool(sentences) and plainly(sentences[0]) == plainly(text)
             among_gold += plainly(text) in {plainly(x) for x in sentences}
@@ -223,6 +238,8 @@ async def main():
         print(f"  said back, of the {len(asked)} read right whole senses aside ({time.time() - t2:.0f}s):")
         print(f"      says any sentence at all {said_any} ({said_any / n:.1%}); the gold sentence first "
               f"{first_gold} ({first_gold / n:.1%}); the gold sentence at all {among_gold} ({among_gold / n:.1%})")
+        for reason, n in why_counts.most_common():
+            print(f"      said nothing, why: {n:3}  {reason}")
         print(f"      words memory holds for things: {len(agent._grammar_words)} word record(s), "
               f"{len(agent._record_names)} name(s) the sentence records give")
         for text, sentences in shown:

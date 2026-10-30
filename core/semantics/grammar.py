@@ -2751,7 +2751,8 @@ class Grammar:
         return reading
 
     # ── saying a meaning ──
-    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None) -> List[str]:
+    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
+            why: Optional[Dict[str, Any]] = None) -> List[str]:
         """EVERY SENTENCE THIS GRAMMAR SAYS A MEANING WITH, the surest read first: the grammar a sentence is read by,
         used the other way (one grammar for reading and saying, Shieber 1988; chart generation, Kay 1996). The words
         for its things (`Words.words_for`: memory's words for each, every form held), and the grammar's own words whose
@@ -2759,9 +2760,22 @@ class Grammar:
         is made ("a", making a thing of a kind); combined by the rules reading combines by (`_combine`, `_unary`), in
         any order, each word for a thing once; each sentence made READ BACK (`read`), and said only where it reads to
         exactly this meaning. The speaker's own word for a thing (`named`) before another. Empty where nothing the
-        grammar holds says it: then it is not said another way here."""
-        if meaning.act not in WHOLE.values() or not meaning.facts:
+        grammar holds says it: then it is not said another way here.
+
+        `why`, a dict, is filled with WHY NOTHING WAS SAID. Reading says why it read nothing (`Reading.why`,
+        `Reading.missing`); saying returned the same empty list for seven different reasons, and half of what the
+        grammar reads right it says nothing for (lab notebook (86)), so which reason it is was unknowable from
+        outside. Measured, not reported: a meaning it cannot say exhausts the whole agenda, 267 s to say nothing of
+        "Your arm's broken." (lyric_dev2, 2026-10-29)."""
+        def give_up(reason: str, **of: Any) -> List[str]:
+            """Nothing said, and why. The reason is the first thing that stopped it, never a guess after the fact."""
+            if why is not None:
+                why.clear()
+                why.update(of)
+                why["why"] = reason
             return []
+        if meaning.act not in WHOLE.values() or not meaning.facts:
+            return give_up("no act a sentence says, or no fact to say", act=meaning.act, facts=len(meaning.facts))
         # A NAME IS WRITTEN AS READING WRITES IT, its words apart (`award decoration`), as `Words.words_for` finds the
         # words for it: memory's store writes the same name joined (`award_decoration`), and each sentence said is
         # read back and kept only where its meaning is this one. Told "Roy fastened the medal with a pin.", "What did
@@ -2785,7 +2799,7 @@ class Grammar:
             meaning = Meaning(meaning.act, tuple(f for f in meaning.facts if f not in covered), meaning.asked)
         wanted = _things_said(meaning)
         if not wanted:
-            return []
+            return give_up("the meaning names no thing a word could say")
         words = self.lexicon.words
         named = {str(k).lower(): str(v).lower() for k, v in (named or {}).items()}
         # KAY BINDING (Kay 1996, "Chart Generation"): each word put in is bound to the meaning's own terms where its
@@ -2868,7 +2882,11 @@ class Grammar:
                             options.append((len(tokens), entry))
                             tokens.append(form)
             if not options:
-                return []
+                # NO WORD FOR THIS THING, or none the grammar has an entry for as that kind of word. The thing's own
+                # name is already what memory falls back to (`MemoryAgent.words_for`), so reaching here means memory
+                # holds no word naming it at all, or holds one the grammar reads as another kind of word.
+                return give_up("no word for a thing it must say", thing=f"{concept} ({cls})",
+                               written=list(written)[:6])
             places.append(options)
         # THE GRAMMAR'S OWN WORDS, each spending what it says, as often as the meaning holds it, with every other word
         # saying the same (`_says_of`); a link a preposition names, once for each fact of it.
@@ -3050,7 +3068,8 @@ class Grammar:
         if (("?speaker" in situation and ("situation", "?speaker") not in spending)
                 or ("?listener" in situation and ("situation", "?listener") not in spending)
                 or ("?previous" in situation and ("pron",) not in spending)):
-            return []
+            return give_up("no word for the speaker, the listener or the one spoken of",
+                           situation=sorted(situation))
         qualities = any(f.relation == "has_property" for f in meaning.facts)
 
         def bindings_of(entry: Entry, spends: Mapping[Tuple[str, ...], int]) -> List[Dict[str, Term]]:
@@ -3094,7 +3113,8 @@ class Grammar:
                                  + [(at, entry) for at, entry, _ in extra]])
         places = [[(at, entry) for at, entry in options if self._takes_from(entry, made_here)] for options in places]
         if not all(places):
-            return []
+            return give_up("a thing's every word takes something no word here can make",
+                           thing=next(f"{c} ({cls})" for (c, cls), options in zip(wanted, places) if not options))
         extra = [(at, entry, spends) for at, entry, spends in extra if self._takes_from(entry, made_here)]
         full = (1 << len(places)) - 1
         # THE CHART, over which words are used, not where they stand: (places filled, what the grammar words spent,
@@ -3382,6 +3402,21 @@ class Grammar:
                         combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
+        if not sentences and why is not None:
+            # SEARCHED AND FOUND NOTHING, which is two different things: no whole sentence was ever made, or some were
+            # and reading took every one of them to mean something else. The second is the grammar disagreeing with
+            # itself and is the more serious. Which things nothing ever said is the chart's own `filled`, read off the
+            # items it kept rather than counted in the loop that keeps them.
+            said_any = 0
+            for key in held:
+                said_any |= key[0]
+            why.clear()
+            why.update({
+                "why": ("made whole and reading took them to mean something else" if refused
+                        else "no whole sentence was ever made"),
+                "unsaid": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted) if not said_any >> k & 1],
+                "items": len(held), "refused": len(refused),
+                "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         return [_written(said, closing) for said in ranked]
 
     @staticmethod
@@ -5121,11 +5156,12 @@ class GrammarView:
                 self._learn_from_reading(sentence, tokens, reading, named)
         return reading
 
-    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None) -> List[str]:
+    def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
+            why: Optional[Dict[str, Any]] = None) -> List[str]:
         """A meaning said by the grammar it is read by (`Grammar.say`), after learning from what is waiting: every
-        sentence that reads back to exactly it, the surest first."""
+        sentence that reads back to exactly it, the surest first. `why` is filled with why nothing was said."""
         self.learn_waiting()
-        return self.grammar.say(meaning, named)
+        return self.grammar.say(meaning, named, why)
 
     def _learn_from_reading(self, sentence: str, tokens: Sequence[str], reading: Reading, named: List[str]) -> None:
         """READING TEACHES, as a book teaches its reader (`reading_teaches`): how the sentence's reading used each of its
