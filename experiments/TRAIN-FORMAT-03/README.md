@@ -98,3 +98,41 @@ OUT=data/records/pmb_gold.jsonl HOW_MANY=100 ./venv_lyric/bin/python3 experiment
 `separates`, `clause`) only a word session teaches, so 7 of them were told and not read in pass 1. They carry no
 `blamed`, so no evidence was written against any class, and teaching the source again after the word session would
 land them.
+
+---
+
+## Read and said again after the agreement path was fixed (2026-10-30, lab notebook (90))
+
+The same `check.py`, same store, nothing re-taught: `results/check_after_agreement.log` beside the first
+`results/check.log`. Finding (1) above -- "how surely is not how well" -- is what five defects in agreement turned
+out to be, every one of them scoring **no evidence exactly as it scores perfect agreement**, `0.0`.
+
+| given | said first, before | said first, after |
+| --- | --- | --- |
+| `I am intelligent.` | `Me are intelligent.` | `I am intelligent.` |
+| `We are intelligent.` | `Ourselves is intelligent.` | `We are intelligent.` |
+| `The person stinks.` | `The people stinks.` | `The person stinks.` |
+| `This stinks.` | `They stinks.` | `He stinks.` |
+| `He is intelligent.` | `They are intelligent.`, with `Him is`, `Them is`, `Her is` among the eight | `They are intelligent.`, those three gone |
+
+`They are intelligent.` for a meaning that says only "the one spoken of before" is a preference and not an error:
+the meaning carries no number, and `He is intelligent.` is in the eight.
+
+**What each was.** (a) A subject form no subject anywhere was ever written with was passed over by `_agreed`, so
+every accusative pronoun agreed with every verb as well as it is possible to agree -- of this store's 11,295
+subjects, three are accusative. (b) `_said_by` found a grammar word only for the speaker or the listener, so
+`we`/`us`/`ourselves`, which carry `NP.g` with `has_member(g, ?speaker)`, were never found, never weighed and never
+kept apart. (c) The copula's forms share one `use`, so frequency docked `am` 2.5 nats against `are`, and agreement
+is capped at nothing and could never repay it. (d) Nothing said what number a demonstrative or an indefinite pronoun
+is. (e) With no subjects held of a verb the estimate is exactly 1 for every subject, and this store holds a subject
+of 19 finite forms.
+
+**Still open here.** `They misled me.` is said back as `They misled i.`: nothing weighs an object's case, memory
+counting subjects, determiners' nouns and what a copula said a thing to be and nothing else. And the controls'
+`This sparkles.` says `They sparkles.`, `sparkles` being minted from its own letters with no held form, so there is
+nothing to weigh it by -- which is the same finding as (2) above, now with a name.
+
+**Not confirmed end to end.** The demonstratives' and indefinites' stated forms reach memory only when
+`--source closed-classes` is taught again, a live write and the owner's to start, so this store still says
+`This am intelligent.` for a third-person meaning. Run through the real `_agreed` against this store's own subject
+counts, every stated form picks the right copula (`this` → `is` 0.00, `am` -5.76; `these` → `are` 0.00, `is` -3.00).

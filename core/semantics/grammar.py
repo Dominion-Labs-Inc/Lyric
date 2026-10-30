@@ -459,6 +459,12 @@ class Words:
         "Case=Nom|Number=Sing|Person=1")`; of no word, every finite form's together. Nothing where memory holds none."""
         return {}
 
+    def took_subjects(self) -> Tuple[str, ...]:
+        """Every finite form memory holds a subject of ("is", "paints"), so that what the verbs written as a form is
+        took may be gathered where that form took nothing of its own (`Grammar._subjects_like`). Nothing where
+        memory holds none."""
+        return ()
+
     def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
         """Of a determiner ("a", "the"), how often the nouns it was said with were of each class with each of those
         features: `("NOUN", "Number=Sing")`; of no word, every determiner's together. Nothing where memory holds none."""
@@ -2403,21 +2409,79 @@ class Grammar:
             return 0.0
         verb = ("took", str(tokens[min(finite)]))
         if verb not in self._agreeing:
-            self._agreeing[verb] = words.subjects(verb[1])
+            self._agreeing[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
         return self._agreed(self._agreeing[verb], every, *found)
+
+    def _shared_features(self) -> Set[str]:
+        """THE FEATURES A SUBJECT AND A VERB SHARE and a subject is marked by (number, person, case), as what memory
+        holds of the subjects verbs took says them (`Words.subjects`): nothing else a form is written with is weighed
+        for agreement, a tense or a mood saying nothing of what may stand before it."""
+        if "shared" not in self._agreeing:
+            self._agreeing["shared"] = {f.split("=")[0] for _, features in self.lexicon.words.subjects()
+                                        for f in features.split("|") if f}
+        return self._agreeing["shared"]
+
+    def _agrees_as(self, word: str) -> str:
+        """WHAT A FINITE VERB'S FORM SAYS OF ITS SUBJECT: the number and person memory holds this word written with
+        most, by the features subjects share with verbs ("am" `Number=Sing|Person=1|VerbForm=Fin`, "is" the same of
+        a third person); nothing where memory holds no form of it as a verb.
+
+        Asked in three places and so held in one: a finite verb still taking its subject is kept apart by it until
+        the subject is taken (`Grammar.say`), a form this decides is not chosen by how often it is written, and a
+        verb memory holds no subject of is weighed by what the verbs written as it is took (`_subjects_like`)."""
+        words = self.lexicon.words
+        held = self._agreeing.setdefault("agrees as", {})
+        if word not in held:
+            shared = self._shared_features()
+            written: Counter = Counter()
+            for cls in ("VERB", "AUXILIARY"):
+                for features, n in words.form_features(word, cls).items():
+                    written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+            # A form saying nothing of these features is no evidence of having none, as of a thing's case
+            # (`Grammar._features`): a verb held once with its person and once without would otherwise be kept
+            # apart by whichever the tie fell to.
+            if any(f for f in written):
+                written.pop("", None)
+            held[word] = max(sorted(written), key=lambda f: written[f]) if written else ""
+        return held[word]
+
+    def _subjects_like(self, word: str) -> Mapping[Tuple[str, str], float]:
+        """THE SUBJECTS EVERY FINITE FORM WRITTEN AS THIS ONE IS TOOK, gathered together (`_agrees_as`: "stinks" by
+        every other third person singular), to weigh a subject against a verb memory holds no subject of. Nothing
+        where memory holds no form of the word as a verb, or no verb written as it is ever took a subject.
+
+        A VERB NO SUBJECT WAS EVER HELD OF TOOK EVERY SUBJECT AS WELL AS ANY OTHER COULD: with nothing of its own to
+        weigh, a subject's share of this verb's subjects came out as its share of all subjects, whatever it was, and
+        so agreed perfectly -- the same nothing again for no evidence as for agreeing (`_agreed`). Of a person
+        reeking, "The people stinks." was said above "The person stinks.", memory holding a subject of 19 finite
+        forms and "stinks" not among them (lyric_db, 2026-10-30). What a form says of its subject is held of the
+        form and not of the word, so the verbs written as it is are what is left to weigh it by."""
+        of = self._agrees_as(word)
+        if "like" not in self._agreeing:
+            words, like = self.lexicon.words, defaultdict(Counter)
+            for other in words.took_subjects():
+                like[self._agrees_as(other)].update(words.subjects(other))
+            self._agreeing["like"] = like
+        return self._agreeing["like"].get(of, {}) if of else {}
 
     def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
         """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
-        name, a pronoun (a grammar word standing for the speaker or the hearer, "I", "me", "you", among them); None
-        where none or more than one. Without those, nothing weighed "me" as a subject, and "Me loves the moon." was
-        said of the speaker loving it (lyric_dev2, 2026-10-28)."""
+        name, a pronoun (a grammar word standing for the speaker or the hearer, "I", "me", "you", among them, or the
+        one grammar word a thing is said by and nothing else); None where none or more than one. Without those,
+        nothing weighed "me" as a subject, and "Me loves the moon." was said of the speaker loving it (lyric_dev2,
+        2026-10-28).
+
+        A pronoun standing for a group the speaker is one of ("we", "us", "ourselves") says no term of the situation
+        but a thing of its own that the speaker is a member of, so none of the three was ever found and none was ever
+        weighed against a verb or kept apart from the others by its case: of the speaker and another being
+        intelligent, "Ourselves is intelligent." was all that was said (lyric_db, 2026-10-30)."""
         said = [p for p in pieces if p[0] == "word"]
         at = {p[-1] for p in pieces if p[0] == "kind" and p[1] == ref}
         found = [(p[2], p[4] - 1) for p in said if p[3] in at and p[2] == "NOUN"] or \
             [(p[2], p[3]) for p in said if p[2] == "NAME" and p[1] == ref] or \
             [("PRONOUN", p[-1]) for p in pieces if p[0] == "pron" and p[1] == ref] or \
-            [("PRONOUN", p[3]) for p in said if ref in ("?speaker", "?listener") and p[2] == "GRAMMAR"
-             and p[4] - p[3] == 1]
+            [("PRONOUN", p[3]) for p in said if p[2] == "GRAMMAR" and p[4] - p[3] == 1
+             and (ref in ("?speaker", "?listener") or len(said) == 1)]
         if len(found) != 1 or not 0 <= found[0][1] < len(self._tokens):
             return None
         return found[0]
@@ -2428,10 +2492,7 @@ class Grammar:
         `Case=Acc|Number=Sing|Person=1`; each with how often the word is that form. None where memory holds none."""
         if (cls, k) in self._agreeing:
             return self._agreeing[(cls, k)]
-        if "shared" not in self._agreeing:
-            self._agreeing["shared"] = {f.split("=")[0] for _, features in self.lexicon.words.subjects()
-                                        for f in features.split("|") if f}
-        shared = self._agreeing["shared"]
+        shared = self._shared_features()
         out: Counter = Counter()
         for features, n in self.lexicon.words.form_features(str(self._tokens[k]), cls).items():
             out["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
@@ -2453,9 +2514,8 @@ class Grammar:
         """HOW WELL A WORD AGREES WITH WHAT IT IS SAID WITH, as a logarithm, never more than nothing: of the words
         that other took (`took`: a finite verb's subjects, a determiner's nouns), the share of this word's class with
         each of its forms' features (`_features`), against that share of what every such word took (`every`), with
-        one more spread as that share is; the forms weighed by how often the word is each, a form no such word ever
-        was counting nothing (any features of the class where memory holds no form of the word). Nothing where no
-        such word was of the class with any of the word's forms.
+        one more spread as that share is; the forms weighed by how often the word is each. Nothing where memory holds
+        no subject of any such word at all, there being nothing to weigh against.
 
         Its forms weighed alike, "me", written `Case=Nom` 6 times in 942 ("Me and him went"), agreed with "love" as
         "I" does, and "Me love the moon." was said of the speaker loving the moon (lyric_dev2, 2026-10-28)."""
@@ -2468,14 +2528,17 @@ class Grammar:
             return sum(n for (c, f), n in held.items() if c == cls and (features is None or f == features))
         weights: Dict[Optional[str], float] = {f: (n if sum(forms.values()) > 0 else 1.0) for f, n in forms.items()} \
             if forms else {None: 1.0}
-        agrees = had = 0.0
+        agrees = 0.0
         for features, w in weights.items():
-            share = matched(every, features) / total
-            if share > 0:
-                had += w
-                agrees += w * (matched(took, features) + share) / (seen + 1.0) / share
-        if had <= 0:
-            return 0.0
+            # A FORM NO SUBJECT WAS EVER WRITTEN WITH IS EVIDENCE AGAINST, NOT NO EVIDENCE: the share is smoothed as
+            # the rest of saying smooths a share (`share_of`, `said_for`), so that a case no subject ever had is
+            # still a share to be weighed against rather than being passed over. Passed over, "him", "them" and
+            # "us" -- every accusative pronoun, which not one of the 11,295 subjects memory holds ever was -- agreed
+            # with every verb as well as it is possible to agree, a word no form of which was ever a subject coming
+            # back the same nothing as a word with no verb to weigh it against. "Him is intelligent." was said of a
+            # man being intelligent, above "He is intelligent." (lyric_db, 2026-10-30).
+            share = (matched(every, features) + 0.5) / (total + 0.5 * (len(every) + 1))
+            agrees += w * (matched(took, features) + share) / (seen + 1.0) / share
         return min(0.0, math.log(agrees / sum(weights.values())))
 
     def _met(self, left: Sign, right: Sign, s: Dict[int, Term], rule: str) -> float:
@@ -3017,25 +3080,39 @@ class Grammar:
                     # the same without it. Offered as often as there are things, "the" said "Wall is the the a
                     # partition." (lyric_dev2, 2026-10-27). Reading still reads it.
                     empty.append((word, entry))
-        surest: Dict[Tuple[str, ...], float] = {}
+        surest: Dict[Tuple[Tuple[str, ...], str], float] = {}
         shares = {(word, entry.cat): share_of(word, entry) for word, entry, _ in chosen}
         by_whom = {"situation", "pron"}
+
+        def among(word: str, k: Tuple[str, ...]) -> Tuple[Tuple[str, ...], str]:
+            """WHAT A WORD IS WEIGHED AGAINST BY HOW OFTEN IT IS WRITTEN: the words saying the same piece, and of
+            those only the ones whose form says the same of a subject (`_agrees_as`).
+
+            A FORM AGREEMENT DECIDES IS NOT CHOSEN BY HOW OFTEN IT IS WRITTEN, as who a pronoun stands for and not
+            how often it is written decides it (`by_whom`, above). The copula's forms share one use, so "am",
+            written 327 times against "are" 1,975, was offered 2.5 nats worse than "are" for saying a thing of the
+            speaker; agreement is never better than nothing, so it could not make that up however well "I" and "am"
+            agree. "Me are intelligent." was said of the speaker being intelligent, and "I am intelligent." was
+            never built at all -- the two pack together once the subject is taken, and the surer was kept (lyric_db,
+            2026-10-30)."""
+            return k, self._agrees_as(word)
         for word, entry, spends in chosen:
             share = shares[(word, entry.cat)]
             if share is not None and not any(k[0] in by_whom for k in spends):
                 for k in spends:
-                    surest[k] = max(surest.get(k, share), share)
+                    surest[among(word, k)] = max(surest.get(among(word, k), share), share)
         chosen = [(word, entry if shares[(word, entry.cat)] is None or any(k[0] in by_whom for k in spends) else
-                   replace(entry, score=entry.score + shares[(word, entry.cat)] - max(surest[k] for k in spends)),
-                   spends) for word, entry, spends in chosen]
-        surest_of_use: Dict[str, float] = {}
+                   replace(entry, score=entry.score + shares[(word, entry.cat)]
+                           - max(surest[among(word, k)] for k in spends)), spends)
+                  for word, entry, spends in chosen]
+        surest_of_use: Dict[Tuple[Tuple[str, ...], str], float] = {}
         for word, entry in empty:
             share, use = share_of(word, entry), use_of.get((word, entry.cat))
             if share is not None:
-                surest_of_use[use] = max(surest_of_use.get(use, share), share)
+                surest_of_use[among(word, (use,))] = max(surest_of_use.get(among(word, (use,)), share), share)
         empty = [(word, entry if share_of(word, entry) is None else replace(
-            entry, score=entry.score + share_of(word, entry) - surest_of_use[use_of[(word, entry.cat)]]))
-            for word, entry in empty]
+            entry, score=entry.score + share_of(word, entry)
+            - surest_of_use[among(word, (use_of[(word, entry.cat)],))])) for word, entry in empty]
         # A PREPOSITION SAYS A LINK HERE ONLY WHERE READING IT HERE GIVES THAT LINK (Kay 1996: only what may say part
         # of the meaning is put in): what the word was taught to say of a doing or a thing, by what the thing it takes
         # is, and what it said of the very word it follows, as `spell_out` decides it. Offered wherever it ever said
@@ -3271,32 +3348,16 @@ class Grammar:
         # 2000). Packed by meaning alone ("was" and "were" each say `be` before now), the form surer alone was kept and
         # the other never said: of the medal painted, "The medal were painted." was all there was (lyric_dev2,
         # 2026-10-28).
-        agreeing: Dict[str, str] = {}
-
         def taking_subject(sign: Sign) -> str:
             # Kept apart by what a subject is weighed with: the number and person the form is written with most
-            # ("was", "were"), not the form ("is" and "'s" go on alike).
+            # (`_agrees_as`: "was", "were"), not the form ("is" and "'s" go on alike).
             if "NP" not in _wants(sign.cat)[1]:
                 return ""
             hook = _hook(sign.cat)
             at = [p[-1] for p in sign.pieces if p[0] == "finite" and p[1] == hook]
             if not at or not 0 <= min(at) < len(tokens):
                 return ""
-            word = tokens[min(at)]
-            if word not in agreeing:
-                shared = {f.split("=")[0] for _, features in words.subjects() for f in features.split("|") if f}
-                written: Counter = Counter()
-                for cls in ("VERB", "AUXILIARY"):
-                    for features, n in words.form_features(word, cls).items():
-                        written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
-                # A form saying nothing of these features is no evidence of having none, as of a thing's case
-                # (`Grammar._features`): a verb held once with its person and once without would otherwise be kept
-                # apart by whichever the tie fell to.
-                if any(f for f in written):
-                    written.pop("", None)
-                agreeing[word] = max(sorted(written), key=lambda f: written[f]) \
-                    if written and words.subjects(word) else ""
-            return agreeing[word]
+            return self._agrees_as(str(tokens[min(at)]))
         case_of: Dict[Tuple[str, int], str] = {}
 
         def standing_as(sign: Sign) -> str:

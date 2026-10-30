@@ -146,3 +146,47 @@ def test_the_closed_classes_state_their_forms_and_what_form_each_is():
         # Each form stated once: a statement that a form exists is not evidence of how often it is used.
         assert all(n == 1 for _, _, n in held.forms), held.forms
         assert held.counted_from == "closed-classes", held.counted_from
+
+
+def test_every_word_the_grammar_reads_as_a_thing_says_what_number_it_is():
+    """`CLOSED_PARADIGM`: the grammar reads a demonstrative and an indefinite pronoun as a thing ("This is
+    intelligent.", "Everybody waited."), and agreement asks what number a thing is. Nothing anywhere said, so of the
+    11,295 subjects main holds not one of them disagreed with any verb, and "This am intelligent." and "These is
+    intelligent." were said at full confidence (lyric_db, 2026-10-30).
+
+    SAID AS THE TREEBANKS SAY A SUBJECT. Agreement weighs a whole written form against the subjects written with that
+    same form, so a combination no subject was ever written with would be weighed against every verb alike and tell
+    none of them apart. The treebanks write a demonstrative subject with its number alone -- 924 singular and 59
+    plural of main's pronoun subjects -- and a personal one with case, number and person together, so these are
+    stated the same way."""
+    from core.learning.teaching_sources import CLOSED_PARADIGM
+
+    forms = {form: features for _, cls, rows in CLOSED_PARADIGM if cls == "PRONOUN"
+             for form, features in rows}
+
+    # THE DEMONSTRATIVES, singular against plural, which is what "These is intelligent." had no way to disagree on.
+    for one, many in (("this", "these"), ("that", "those")):
+        assert "Number=Sing" in forms[one], forms.get(one)
+        assert "Number=Plur" in forms[many], forms.get(many)
+
+    # THE INDEFINITE PRONOUNS, each one thing: "Everybody is here.", never "Everybody are here."
+    for word in ("anybody", "anyone", "anything", "everybody", "everyone", "everything",
+                 "nobody", "nothing", "somebody", "someone", "something", "one"):
+        assert "Number=Sing" in forms[word], forms.get(word)
+
+    # NOTHING IS STATED OF A WORD WHOSE NUMBER ENGLISH LEAVES TO WHAT IT IS OF: "none", "all", "some", "any" take it
+    # from what they quantify ("none of it is", "none of them are"), so stating either would be stating a falsehood.
+    for word in ("none", "all", "some", "any"):
+        assert word not in forms, f"{word!r} is stated a number English does not fix"
+
+    # A FORM SAYING ITS CASE SAYS ITS PERSON TOO, so that it is one the treebanks' subjects are written with: "whom"
+    # written `Case=Acc` alone matched no subject held, which agreement now weighs against rather than passing over,
+    # and so told every verb apart from no verb at all.
+    for form, features in forms.items():
+        says = {f.split("=")[0] for f in features.split("|") if f}
+        assert ("Case" in says) == ("Person" in says), f"{form!r} is written {features!r}"
+
+    # "who" and "whom" ask of one or of many, so both numbers are stated and neither is fixed.
+    asked = [features for _, cls, rows in CLOSED_PARADIGM if cls == "PRONOUN"
+             for form, features in rows if form == "who"]
+    assert {"Number=Sing" in f for f in asked} == {True, False}, asked

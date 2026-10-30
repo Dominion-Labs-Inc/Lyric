@@ -1,0 +1,57 @@
+14:19:19Z start 4 sentence records
+starting the substrate…
+[1mBertModel LOAD REPORT[0m from: sentence-transformers/all-MiniLM-L6-v2
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+[3mNotes:
+- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
+  substrate running: coordination=True reactive_drain=True
+teaching from sentence_records into general…
+waiting for the substrate to finish reacting…
+reviewing what was learned…
+  source            : sentence_records
+  domain            : general
+  coverage          : the whole source
+  records read      : 0
+  below quality floor: 0
+  facts             : {}
+  word classes      : none stated
+  patterns          : none taught
+  meaning facts     : none given
+  word usage        : none counted
+  listening counted : nothing
+  said of           : none counted
+  pronunciations    : none stated
+  sentences analysed: none given
+  arguments given   : none given
+  meanings to learn : none given
+  word groups       : none given
+  word forms        : none given
+  derived by hand   : none given
+  words recorded    : {'remembered': 0, 'already': 0, 'corrected': 0, 'refused': 0, 'total': 0}
+  recorded whole    : {'remembered': 4, 'already': 0, 'corrected': 0, 'refused': 0, 'total': 4}
+  seconds           : 0.9
+
+  the substrate:
+    memory: general                                    2 ->            3 (+1)
+    memory: language                                 745 ->          749 (+4)
+    memory: review                                     2 ->            3 (+1)
+    memory: self_assessment                            2 ->            3 (+1)
+    memory: sentence_record                            0 ->            4 (+4)
+    table: memory_hot.memory_hot                     815 ->          820 (+5)
+    table: unified.belief_evidence                 1,149 ->        1,153 (+4)
+    table: unified.knowledge_updates                 456 ->          460 (+4)
+    table: unified.performance_logs_2026_10          826 ->          831 (+5)
+    (358 counted, 46 of them holding anything)
+
+  what it did about it:
+    reacted for 13s after the last fact was taught
+    reviewed 4 of 4 things held as learned in `general`: asked 4, answered 4 right; missed: unread 0, misread 0, denied 0, not derived 0; no question taught for 0
+    competence in `general`: (0.7109348820062037, 8) -> (0.7940956952325497, 12) (posterior, update_count)
+    admissions the substrate was NOT told about: 0
+
+  session: /Users/stefan/Dominion Labs/Lyric/docs/teaching_sessions/20261030T142013Z_records.md
+exit 0
+14:20:14Z done

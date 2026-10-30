@@ -1,0 +1,86 @@
+13:37:42Z start closed-classes
+starting the substrate…
+[1mBertModel LOAD REPORT[0m from: sentence-transformers/all-MiniLM-L6-v2
+Key                     | Status     |  | 
+------------------------+------------+--+-
+embeddings.position_ids | UNEXPECTED |  | 
+
+[3mNotes:
+- UNEXPECTED[3m	:can be ignored when loading from different task/architecture; not ok if you expect identical arch.[0m
+  substrate running: coordination=True reactive_drain=True
+teaching from closed-classes into general…
+  09:38:52  facts: 4/11  admitted=4 refused=0
+waiting for the substrate to finish reacting…
+reviewing what was learned…
+  source            : closed-classes
+  domain            : general
+  coverage          : the whole source
+  records read      : 11
+  below quality floor: 0
+  facts             : {'admitted': 4, 'already': 0, 'doubted': 0, 'refused': 0, 'total': 4}
+  word classes      : {'told': 264, 'skipped': 0, 'total': 264, 'already': 0}
+  patterns          : none taught
+  meaning facts     : none given
+  word usage        : none counted
+  listening counted : nothing
+  said of           : none counted
+  pronunciations    : none stated
+  sentences analysed: none given
+  arguments given   : none given
+  meanings to learn : none given
+  word groups       : none given
+  word forms        : none given
+  derived by hand   : none given
+  words recorded    : none given
+  recorded whole    : none given
+  seconds           : 8.6
+
+  the substrate:
+    memory: admitted_proposition                         0 ->          436 (+436)
+    memory: affirms                                      1 ->          355 (+354)
+    memory: document                                     0 ->           62 (+62)
+    memory: domain                                       2 ->            5 (+3)
+    memory: domain_existence                             2 ->            5 (+3)
+    memory: general                                      0 ->            1 (+1)
+    memory: image                                        0 ->            1 (+1)
+    memory: language                                     0 ->          735 (+735)
+    memory: percept                                      0 ->           63 (+63)
+    memory: read_english                                 0 ->           28 (+28)
+    memory: reading                                      0 ->           62 (+62)
+    memory: review                                       0 ->            1 (+1)
+    memory: self_assessment                              0 ->            1 (+1)
+    memory: told_but_unread                              0 ->            7 (+7)
+    memory: vision                                       0 ->            1 (+1)
+    memory: word_class                                   0 ->          264 (+264)
+    table: memory_hot.memory_hot                         3 ->          804 (+801)
+    table: unified.affect_state                          0 ->            1 (+1)
+    table: unified.belief_evidence                       1 ->        1,145 (+1,144)
+    table: unified.beliefs                               3 ->        1,134 (+1,131)
+    table: unified.component_health                     24 ->           43 (+19)
+    table: unified.concept_aliases                     878 ->        1,545 (+667)
+    table: unified.concept_domains                     929 ->        1,635 (+706)
+    table: unified.concept_evidence                  1,360 ->        2,828 (+1,468)
+    table: unified.concept_identity_relations          689 ->        1,040 (+351)
+    table: unified.concept_relations                 1,140 ->        2,312 (+1,172)
+    table: unified.concepts                            752 ->        1,393 (+641)
+    table: unified.domains                               2 ->            5 (+3)
+    table: unified.evidence_envelopes                  252 ->          750 (+498)
+    table: unified.experience_pool                       0 ->           62 (+62)
+    table: unified.failure_events                        0 ->            5 (+5)
+    table: unified.knowledge_updates                     0 ->          446 (+446)
+    table: unified.long_term_baselines                   6 ->           16 (+10)
+    table: unified.memory_media                          0 ->           61 (+61)
+    table: unified.performance_logs_2026_10              3 ->          815 (+812)
+    table: unified.prediction_results                    0 ->            3 (+3)
+    table: unified.reasoning_bridge_stats                0 ->            8 (+8)
+    (356 counted, 41 of them holding anything)
+
+  what it did about it:
+    reacted for 2191s after the last fact was taught
+    reviewed 4 of 4 things held as learned in `general`: asked 4, answered 4 right; missed: unread 0, misread 0, denied 0, not derived 0; no question taught for 0
+    competence in `general`: (None, None) -> (0.6106391860417774, 4) (posterior, update_count)
+    admissions the substrate was NOT told about: 0
+
+  session: /Users/stefan/Dominion Labs/Lyric/docs/teaching_sessions/20261030T141527Z_closed-classes.md
+exit 0
+14:15:28Z done

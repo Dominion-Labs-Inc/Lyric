@@ -1,0 +1,62 @@
+14:20:51Z start check
+store lyric_db: warm 8s, word records 10, sentence records 4, analysed sentences 4
+
+── TAUGHT ──
+This stinks.
+    READ  sure 0.998  tell: done_by(?v0, ?previous) & instance_of(?v0, reek)  [0.0s]
+    SAID  sure 1.000  'They stinks.' <-- says first
+    SAID  sure 1.000  'He stinks.' 
+    SAID  sure 1.000  'Him stinks.' 
+    8 sentence(s) said in 0.0s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+I am intelligent.
+    READ  sure 1.000  tell: has_property(?speaker, intelligent)  [0.0s]
+    SAID  sure 1.000  'I is intelligent.' <-- says first
+    1 sentence(s) said in 0.0s
+The whistle blew.
+    READ  sure 0.997  tell: done_by(?v0, ?v1) & given instance_of(?v1, happening whistle) & instance_of(?v0, exhaust blow) & precedes(?v0, ?now)  [0.0s]
+    SAID  sure 0.997  'The whistle blew.' <-- says first
+    SAID  sure 1.000  'The whistle was blowing.' 
+    SAID  sure 1.000  'The whistle had blown.' 
+    8 sentence(s) said in 0.4s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+They misled me.
+    READ  sure 1.000  tell: done_by(?v0, ?previous) & done_to(?v0, ?speaker) & instance_of(?v0, misinform) & precedes(?v0, ?now)  [0.0s]
+    SAID  sure 1.000  'They misled i.' <-- says first
+    SAID  sure 1.000  'He misled i.' 
+    SAID  sure 1.000  'Him misled i.' 
+    8 sentence(s) said in 0.0s
+
+── COMPOSED ──
+The person stinks.
+    READ  sure 0.266  tell: done_by(?v0, ?v1) & given instance_of(?v1, person) & instance_of(?v0, reek)  [0.0s]
+    SAID  sure 0.562  'The people stinks.' <-- says first
+    SAID  sure 0.266  'The person stinks.' 
+    SAID  sure 0.142  'The persons stinks.' 
+    3 sentence(s) said in 0.3s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+I misled the whistle.
+    READ  sure 1.000  tell: done_by(?v0, ?speaker) & done_to(?v0, ?v1) & given instance_of(?v1, happening whistle) & instance_of(?v0, misinform) & precedes(?v0, ?now)  [0.0s]
+    SAID  sure 1.000  'I misled the whistle.' <-- says first
+    SAID  sure 1.000  'The whistle i misled.' 
+    SAID  sure 1.000  'I had misled the whistle.' 
+    4 sentence(s) said in 1.3s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+The whistle is intelligent.
+    READ  sure 1.000  tell: given instance_of(?v0, happening whistle) & has_property(?v0, intelligent)  [0.0s]
+    SAID  sure 1.000  'The whistle being intelligent.' <-- says first
+    SAID  sure 1.000  'The whistle is intelligent.' 
+    SAID  sure 1.000  'The intelligent whistle.' 
+    3 sentence(s) said in 0.1s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+
+── CONTROL ──
+This sparkles.
+    READ  sure 0.915  tell: done_by(?v0, ?previous) & instance_of(?v0, sparkles)  [0.0s]
+    SAID  sure 1.000  'They sparkles.' <-- says first
+    SAID  sure 1.000  'He sparkles.' 
+    SAID  sure 1.000  'Him sparkles.' 
+    8 sentence(s) said in 0.0s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+The whistle juggled Tom.
+    READ  sure 0.898  tell: done_by(?v0, ?v1) & done_to(?v0, tom) & given instance_of(?v1, happening whistle) & instance_of(?v0, juggled)  [0.0s]
+    SAID  sure 0.898  'The whistle juggled Tom.' <-- says first
+    SAID  sure 1.000  'The whistle does juggled Tom.' 
+    2 sentence(s) said in 0.1s; THE SENTENCE IT WAS GIVEN IS AMONG THEM
+
+exit 0
+14:21:03Z done

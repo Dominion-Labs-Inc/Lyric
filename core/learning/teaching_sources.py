@@ -224,10 +224,46 @@ CLOSED_PARADIGM: Tuple[Tuple[str, str, Tuple[Tuple[str, str], ...]], ...] = (
         ("them", "Case=Acc|Number=Plur|Person=3|PronType=Prs"),
         ("themselves", "Case=Acc|Number=Plur|Person=3|PronType=Prs|Reflex=Yes"),
     )),
+    # "who" and "whom" ask or relate, of one or of many ("Who is she?", "Who
+    # are they?"), so both numbers are stated and neither is fixed. Written
+    # with case alone, as they first were here, they said a form no subject
+    # the treebanks hold was ever written with, which agreement now weighs
+    # against rather than passing over: the case had to be said together with
+    # what else a subject is marked by.
     ("who", "PRONOUN", (
-        ("who", "Case=Nom|PronType=Rel"),
-        ("whom", "Case=Acc|PronType=Rel"),
+        ("who", "Case=Nom|Number=Sing|Person=3|PronType=Rel"),
+        ("who", "Case=Nom|Number=Plur|Person=3|PronType=Rel"),
+        ("whom", "Case=Acc|Number=Sing|Person=3|PronType=Rel"),
+        ("whom", "Case=Acc|Number=Plur|Person=3|PronType=Rel"),
     )),
+    # THE DEMONSTRATIVES AND THE INDEFINITE PRONOUNS, standing for a thing
+    # ("This is intelligent.", "Everybody waited."). The grammar reads each as
+    # a thing, and agreement asks what number it is, and nothing anywhere said:
+    # of 11,295 subjects memory holds, none disagreed with any verb, so "This
+    # am intelligent." and "These is intelligent." were said at full
+    # confidence of a thing being intelligent (lyric_db, 2026-10-30).
+    #
+    # SAID AS THE TREEBANKS SAY A SUBJECT, number alone and no case or person:
+    # that is the form 924 singular and 59 plural pronoun subjects are written
+    # with there. Agreement weighs a whole form against the subjects written
+    # with that same form, so a combination no subject ever had -- a
+    # demonstrative given a case, say -- would be weighed against every verb
+    # alike and tell nothing apart.
+    ("this", "PRONOUN", (
+        ("this", "Number=Sing|PronType=Dem"),
+        ("these", "Number=Plur|PronType=Dem"),
+    )),
+    ("that", "PRONOUN", (
+        ("that", "Number=Sing|PronType=Dem"),
+        ("those", "Number=Plur|PronType=Dem"),
+    )),
+) + tuple(
+    (word, "PRONOUN", ((word, "Number=Sing|PronType=Ind"),))
+    # One of them, taken alone, is one thing: "Everybody is here.", never
+    # "Everybody are here." "None" is left out, taking its number from what it
+    # is none of, as the quantifiers do.
+    for word in ("anybody", "anyone", "anything", "everybody", "everyone", "everything",
+                 "nobody", "nothing", "somebody", "someone", "something", "one")
 )
 
 

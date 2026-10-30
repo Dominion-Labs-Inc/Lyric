@@ -16,6 +16,146 @@ Conventions:
 
 ---
 
+## 2026-10-30 (90) — Five ways agreement scored no evidence as perfect agreement, and the one that had been masking the rest
+
+**Objective.** The owner: "ok so fix whats still open." What was open was the second half of (89): saying was still
+ungrammatical for the first person and the first person plural. It traced to five separate defects in the agreement
+path, every one of them the same mistake in a different place — **a word nothing is known about scored the same as a
+word that agrees perfectly** — and the fifth was hiding behind a frequency score that happened to suppress its
+symptoms.
+
+### A conclusion of (89) withdrawn
+
+(89) ended by naming the cause as the single-word budget for situation terms combined with the identical `NP.?speaker`
+category, so that `i`/`me`/`myself` "compete for a single slot and all but one is discarded before any verb is
+attached." **That is wrong.** Traced through `heapq.heappush`, all three are offered and all three reach the chart,
+kept apart by their case exactly as `standing_as` intends:
+
+```
+  i       NP.?speaker   score  0.000   case 'Case=Nom'
+  me      NP.?speaker   score  0.000   case 'Case=Acc'
+```
+
+What collapses is later and is not a defect: `i is`, `me are` and `i am` all become `S[dcl].x/(S[adj].x\NP.?speaker)`,
+and `_meant` deliberately does not distinguish a grammar word by which word it is ("is", "'s" and "was" each say
+`be`), so they pack into one item and the surest survives. Packing is the point of a chart. The bug was that the
+surest was the wrong one.
+
+The same trace also killed a premise I had been reasoning from: **`I am intelligent.` was never built at all**, while
+`Me are intelligent.` was. Eight whole sentences were made and only one read back to the meaning — the "of 1" in the
+probe is the count accepted, not the count built, which I had been reading as the count offered.
+
+And reading was never the problem. Reading scores the right sentence highest, and always did:
+
+```
+  I am intelligent.           +0.017      Me are intelligent.        -0.496
+  He is intelligent.          -0.678      Him is intelligent.        -0.579
+```
+
+### The five defects, in the order they were found
+
+**(a) A subject form no subject anywhere was ever written with was passed over.** `_agreed` computed
+`share = matched(every, features) / total` and ran the weighing only `if share > 0`; where no form of the word had a
+share, `had <= 0` returned `0.0`. So **every accusative pronoun agreed with every verb as well as it is possible to
+agree**: of the 11,295 subjects main holds, three are accusative, and `him`, `them`, `us`, `itself`, `whom`,
+`myself`, `yourself`, `themselves` are in none of them. `0.0` is also what the function returns when there is no verb
+to weigh against — the same number for "nothing is known" as for "agrees perfectly". Fixed by smoothing the share as
+the rest of saying already smooths one (`share_of`, `said_for` both add 0.5), so a case no subject ever had is still
+a share to be weighed against. Measured, against each copula:
+
+```
+            am      is     are     was    were
+  him     0.00    0.00    0.00    0.00    0.00      before
+  him    -5.76   -8.25   -7.64   -7.75   -6.61      after
+```
+
+**This is the change argued and reverted in (89).** The reasoning there was right; the measurement was taken on a
+sentence the fifth defect was deciding, so it moved nothing, and I reverted it rather than keep an unmeasured change
+in a core scorer. That was the correct call on the evidence I had and the wrong conclusion about the change.
+
+**(b) `we`, `us` and `ourselves` were never found, so never weighed and never kept apart.** `_said_by` looked for a
+grammar word only where the thing was `?speaker` or `?listener`. But a pronoun standing for a group the speaker is
+one of carries `NP.g` with `has_member(g, ?speaker)` — a thing of its own, no term of the situation — so none of the
+three was ever found. All three packed together and the surest alone was said: of the speaker and another being
+intelligent, `Ourselves is intelligent.` was the one sentence, at 1.000. Widened to the one grammar word a thing is
+said by and nothing else, which is strictly more than it found before. `We are intelligent.` now correct.
+
+**(c) A form agreement decides was chosen by how often it is written, and agreement could not make that up.** The
+copula's forms share one `use`, so `share_of` docked `am` 2.5 nats against `are` for being rarer — and `_agreed`
+returns `min(0.0, ...)`, so the best agreement possible is zero and can never repay a frequency deficit. `me are`
+(-1.829 + 0.000) therefore beat `i am` (-2.504 + 0.000). The code already states the right principle one block
+above, exempting pronouns from frequency because "who a pronoun stands for ... decides it, and agreement with what it
+is said with: how often each is used does not" — it simply was not applied to the words whose *form* agreement
+decides. Now a word is weighed by frequency only against words whose form says the same of a subject (`among`).
+`I am intelligent.` is said, and is the only sentence said.
+
+**(d) Nothing said what number a demonstrative or an indefinite pronoun is.** The grammar reads `this` and
+`everybody` as things and agreement asks their number; memory held `this` only as a featureless determiner and
+`that`, `these`, `those`, `anybody`, `everyone`, `nothing`, `one` not at all. Of 11,295 subjects none of them could
+disagree with any verb. Stated in `CLOSED_PARADIGM`, which now runs to 77 forms over 25 lexemes.
+
+> **The trap here is worth recording.** Agreement weighs a *whole* written form against the subjects written with
+> that same form. A stated combination that no recorded subject carries is therefore weighed against every verb
+> alike and tells none of them apart — and after (a) it is weighed against *hard*. The treebanks write a
+> demonstrative subject with its number alone (924 singular, 59 plural of main's pronoun subjects) and a personal one
+> with case, number and person together, so the statements have to take the same shape. This is also a defect of
+> (89)'s own work: `who` and `whom` were stated `Case=Nom`/`Case=Acc` with nothing else, a form no subject held is
+> written with, so after (a) they would have been penalised everywhere. Both now state number with case. A guard
+> holds the invariant: a stated pronoun form says its case and its person, or neither.
+
+**(e) A verb memory holds no subject of took every subject as well as any verb could.** With `took` empty, `seen` is
+0 and the estimate `(0 + share) / (0 + 1) / share` is exactly 1 for every subject whatever it is — `log 1 = 0`, free.
+Main holds a subject of **19 finite forms**; every other verb was unweighed. Of a person reeking, `The people
+stinks.` was said above `The person stinks.` New `_subjects_like` gathers the subjects of every finite form *written
+as this one is* (`stinks` by every other third person singular, one scan, cached per read), since what a form says of
+its subject is held of the form and not of the word. `The person stinks.` now said first.
+
+### Measured, on main, before and after
+
+```
+  given I am intelligent.      Me are intelligent.        ->  I am intelligent.          (c)
+  given We are intelligent.    Ourselves is intelligent.  ->  We are intelligent.        (b)
+  given The person stinks.     The people stinks.         ->  The person stinks.         (e)
+  given He is intelligent.     Him is / Them is / Her is  ->  gone from the eight said   (a)
+```
+
+For a meaning that says only "the one spoken of before", `They are intelligent.` is said above `He is intelligent.`
+Both are grammatical and the meaning carries no number, so this is a preference, not an error.
+
+### Still open, both newly found and both the same shape again
+
+**An object's case is weighed by nothing.** `They misled me.` is said back as `They misled i.` `standing_as` keeps
+`i` and `me` apart, and then nothing scores them: `_agreement` weighs subjects only, and memory counts subjects
+(`subjects_of`), determiners' nouns (`nouns_of`) and what a copula said a thing to be (`predicated_of`) — nothing
+counts what stood as an object. The fix in kind is a fourth counted table filled where those three are filled, which
+means a field on the form record, the treebank reader, the words layer and a hook in `_met`. **It writes nothing
+until a teach runs**, so it belongs before the full re-teach rather than after, and it is the owner's call because it
+changes what teaching writes.
+
+**A word memory holds no form of at all cannot be weighed.** `This sparkles.` says `They sparkles.`, `sparkles`
+being a concept minted from its own letters with no held form, so `_agrees_as` is empty, `_subjects_like` gives
+nothing and every subject is free again. The subject's own unlikelihood as a subject is still known — accusative
+subjects are 3 in 11,295 — and is ignored, because the statistic is verb-relative. Using it would mean agreement
+penalising an unusual-but-valid subject when the verb is unknown, and would bias reading against positing a subject
+at all; not done without measuring that, and not measured.
+
+**The demonstratives are confirmed by arithmetic, not end to end.** Their stated forms reach memory only when the
+closed classes are taught, which is a write to the live store and the owner's to start. Run through the real
+`_agreed` against main's own subject counts, every stated form picks the right copula (`this` → `is` 0.00, `am`
+-5.76; `these` → `are` 0.00, `is` -3.00) and every accusative and reflexive is evidence against as a subject. Until
+that teach, main still says `This am intelligent.`
+
+### Verification
+
+**222 tests pass** under `./venv_lyric/bin/python3` against real Postgres: 141 reading (unchanged), 62 grammar
+(+3 new guards), 19 forms and teaching path (+1). Four guards added, each holding a double to the real scorer: a
+subject form no verb ever took is evidence against; a verb with no subjects is weighed by the verbs written as it is;
+the one grammar word a thing is said by is found whatever the thing is; and every word the grammar reads as a thing
+says what number it is. No new lint findings on any changed file. `_shared_features` and `_agrees_as` were lifted out
+so the question "what does this form say of its subject", now asked in three places, is answered in one.
+
+---
+
 ## 2026-10-30 (89) — Reading says what it does not hold, and the ungrammatical saying traced through three wrong diagnoses to one right one
 
 **Objective.** The owner, on the two defects (88) found and I had parked: "why would we leave saying ungrammatical

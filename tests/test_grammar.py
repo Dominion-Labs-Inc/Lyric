@@ -1227,3 +1227,129 @@ def test_a_form_saying_nothing_of_a_feature_is_no_evidence_of_having_none():
     # still dropped beside a form that keeps something: `PronType` is no part of agreeing.
     paradigm = {"i": {"Case=Nom|Number=Sing|Person=1|PronType=Prs": 1.0, "PronType=Prs": 1.0}}
     assert features_of(paradigm, "i") == {"Case=Nom|Number=Sing|Person=1": 1.0}
+
+
+def test_a_subject_form_no_verb_ever_took_is_evidence_against_not_no_evidence():
+    """`Grammar._agreed`: how well a word agrees with the verb it stands before is its share of that verb's subjects
+    against its share of all of them. A form no subject anywhere was ever written with had a share of nothing, which
+    was passed over -- and a word none of whose forms was ever a subject came back the same nothing as a word with no
+    verb to weigh it against at all.
+
+    So every accusative pronoun agreed with every verb as well as it is possible to agree: of the 11,295 subjects
+    main holds, three are accusative, and "him", "them", "us", "itself" and "whom" are in none of them. "Him is
+    intelligent." was said of a man being intelligent, ranked above "He is intelligent." (lyric_db, 2026-10-30)."""
+
+    class Subjects(Held):
+        """Subjects as memory holds them: nominative pronouns and nouns, and never an accusative one."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Case=Nom|Number=Sing|Person=3"): 1800.0,
+                     ("PRONOUN", "Case=Nom|Number=Plur|Person=3"): 500.0,
+                     ("NOUN", "Number=Sing"): 2900.0}
+            if word is None:
+                return every
+            # As a store holds a copula: mostly subjects of its own number, a few of the other (a plural subject
+            # written with a singular verb is in the treebanks), and never an accusative one.
+            return {("PRONOUN", "Case=Nom|Number=Sing|Person=3"): 230.0,
+                    ("PRONOUN", "Case=Nom|Number=Plur|Person=3"): 5.0,
+                    ("NOUN", "Number=Sing"): 300.0} if word == "is" else {}
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            return {"he": {"Case=Nom|Number=Sing|Person=3": 1.0},
+                    "him": {"Case=Acc|Number=Sing|Person=3": 1.0},
+                    "they": {"Case=Nom|Number=Plur|Person=3": 1.0}}.get(word.lower(), {})
+
+    def agreed(subject, verb="is"):
+        g = gm.Grammar(gm.Lexicon(Subjects()))
+        g._tokens, g._agreeing = (subject,), {}
+        words = g.lexicon.words
+        return g._agreed(words.subjects(verb), words.subjects(), "PRONOUN", 0)
+
+    # THE SUBJECT THE VERB TOOK agrees best, and the one of another number less well: both are weighed.
+    assert agreed("he") > agreed("they"), "a verb's own subjects must tell its number apart"
+    # THE ONE NO SUBJECT EVER WAS is weighed against, not passed over: it is the worst of the three, by a wide
+    # margin, where before it was 0.0 -- the best score there is, and the very number a word with no verb to weigh
+    # it against comes back with.
+    assert agreed("him") < agreed("they") - 1.0, (agreed("him"), agreed("they"))
+    assert agreed("him") < -1.0, "an accusative subject still scores as well as it is possible to score"
+    # AGREEING IS STILL NEVER BETTER THAN NOTHING, so a reading is never rewarded for having a subject at all.
+    assert agreed("he") <= 0.0
+
+
+def test_a_verb_no_subject_was_held_of_is_weighed_by_the_verbs_written_as_it_is():
+    """`Grammar._subjects_like`: agreement is weighed from the subjects the very word took, and main holds a subject
+    of 19 finite forms. For every other verb there was nothing to weigh, so each subject's share of this verb's
+    subjects came out as its share of all subjects and agreed perfectly, whatever it was -- no evidence scored as
+    agreeing, once more.
+
+    Of a person reeking, "The people stinks." was said above "The person stinks." ("stinks" taking no subject memory
+    holds, though memory holds it as a third person singular). What a form says of its subject is held of the form,
+    so the verbs written as it is are what is left to weigh it by (lyric_db, 2026-10-30)."""
+
+    class Few(Held):
+        """One finite form with subjects, and another written as it is with none of its own."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("NOUN", "Number=Sing"): 2900.0, ("NOUN", "Number=Plur"): 1300.0}
+            if word is None:
+                return every
+            return {("NOUN", "Number=Sing"): 400.0} if word == "barks" else {}
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("barks",)
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls == "NOUN":
+                return {"person": {"Number=Sing": 9.0}, "people": {"Number=Plur": 9.0}}.get(word.lower(), {})
+            return {"barks": {"Mood=Ind|Number=Sing|Person=3|VerbForm=Fin": 5.0},
+                    "stinks": {"Mood=Ind|Number=Sing|Person=3|VerbForm=Fin": 1.0},
+                    "stink": {"VerbForm=Inf": 1.0}}.get(word.lower(), {})
+
+    def agreed(subject, verb):
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (subject,), {}
+        words = g.lexicon.words
+        return g._agreed(words.subjects(verb) or g._subjects_like(verb), words.subjects(), "NOUN", 0)
+
+    # WRITTEN AS A VERB WITH SUBJECTS, a verb with none of its own is weighed by what those took.
+    assert gm.Grammar(gm.Lexicon(Few()))._agrees_as("stinks") == \
+        gm.Grammar(gm.Lexicon(Few()))._agrees_as("barks"), "the two are written as the same form"
+    assert agreed("person", "stinks") > agreed("people", "stinks") + 1.0, \
+        (agreed("person", "stinks"), agreed("people", "stinks"))
+    # And it is weighed as the verb it is written as is, neither better nor worse.
+    assert agreed("person", "stinks") == pytest.approx(agreed("person", "barks"))
+
+    # A FORM WRITTEN AS NOTHING ELSE IS is weighed by nothing, rather than by whatever else has no subjects: an
+    # infinitive takes no subject, so nothing of the finite forms' subjects is borrowed for it.
+    g = gm.Grammar(gm.Lexicon(Few()))
+    g._tokens, g._agreeing = ("person",), {}
+    assert g._subjects_like("stink") == {}
+
+
+def test_the_one_grammar_word_a_thing_is_said_by_is_found_whatever_the_thing_is():
+    """`Grammar._said_by`: the word saying a thing is what agreement weighs and what keeps a thing apart by its case
+    (`standing_as`). It found a grammar word only where the thing was the speaker or the listener, so a pronoun
+    standing for a group the speaker is one of -- "we", "us", "ourselves", which say a thing of their own that the
+    speaker is a member of, not a term of the situation -- was never found at all.
+
+    None of the three was ever weighed against a verb or kept apart from the others by its case, so they packed
+    together and the surest alone was said: of the speaker and another being intelligent, "Ourselves is intelligent."
+    was all there was, and it was the one reading, said at 1.000 (lyric_db, 2026-10-30)."""
+    g = gm.Grammar(gm.Lexicon(Held()))
+    g._tokens = ("we", "are", "happy")
+
+    def said_by(pieces, ref):
+        return g._said_by(pieces, ref)
+
+    # A GROUP THE SPEAKER IS ONE OF: the one grammar word it is said by is found, though the thing is a variable.
+    group = [("word", "we", "GRAMMAR", 0, 1), ("fact", "has_member", 7, "?speaker", "-")]
+    assert said_by(group, 7) == ("PRONOUN", 0)
+    # THE SPEAKER ITSELF, as before: nothing that was found is lost.
+    assert said_by([("word", "i", "GRAMMAR", 0, 1)], "?speaker") == ("PRONOUN", 0)
+    assert said_by([("word", "you", "GRAMMAR", 0, 1)], "?listener") == ("PRONOUN", 0)
+    # A THING SAID BY MORE THAN ONE WORD is not taken for one of them: "the" is no word the group is said by.
+    assert said_by([("word", "the", "GRAMMAR", 0, 1), ("word", "dogs", "NOUN", 1, 2)], 7) is None
+    # NOR A STRETCH OF SEVERAL WORDS where the thing is a term of the situation and neither is the one saying it.
+    assert said_by([("word", "we", "GRAMMAR", 0, 1), ("word", "are", "GRAMMAR", 1, 2)], "?speaker") is None
+    # A NOUN IS STILL THE NOUN, not the determiner before it.
+    assert said_by([("word", "the", "GRAMMAR", 0, 1), ("word", "dog", "NOUN", 1, 2), ("kind", 7, 1)], 7) == ("NOUN", 1)

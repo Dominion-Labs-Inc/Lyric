@@ -709,6 +709,9 @@ class HeldWords(Words):
         held = self.every_subject if word is None else self.subjects_of.get(word.lower(), {})
         return {k: float(n) for k, n in held.items() if n > 0}
 
+    def took_subjects(self) -> Tuple[str, ...]:
+        return tuple(word for word, held in self.subjects_of.items() if any(n > 0 for n in held.values()))
+
     def nouns(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
         held = self.every_noun if word is None else self.nouns_of.get(word.lower(), {})
         return {k: float(n) for k, n in held.items() if n > 0}
