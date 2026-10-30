@@ -16,6 +16,73 @@ Conventions:
 
 ---
 
+## 2026-10-30 (93) — Saying cannot say one thing twice, and (92)'s account of the reflexive is withdrawn
+
+**Objective.** The owner, on the one item (92) left open: "what about the remaining one needs my decision?" The
+answer is only worth giving once it is known *which part* is his, so the question was turned into two measurements:
+does the meaning tell a thing standing after a verb apart from the subject (is binding buildable at all), and does
+the form carry the one feature separating `us` from `ourselves` far enough to be weighed.
+
+**(92) SAID THE REFUSAL OF A PRONOUN OF ITS OWN SENTENCE WAS THE CAUSE. IT IS NOT.** `_piece_says` returns 0 for a
+piece marked `own` and `_says_of` refuses any entry a piece spends nothing of, which (92) read as the reason saying
+never offers `himself` or `themselves`. Lifting that zero in memory alone — the refusal removed and nothing else
+touched — changed **not one of five sentences** (`check_binding_refusal.log`): `Tom misled himself.` and
+`They misled themselves.` still say nothing, `I misled myself.` still says "I misled i.", `They misled us.` still
+says "They misled ourselves." The refusal is real and it is not what stops a reflexive. **A claim about a cause is
+worth nothing until the cause is taken away and the effect is watched.**
+
+**WHAT ACTUALLY STOPS IT: A THING MAY NOT BE SAID TWICE IN ONE SENTENCE.** It is not about reflexives at all.
+`Tom misled Tom.` fails exactly as `Tom misled himself.` does, both reading to `done_by(?v0, tom)` and
+`done_to(?v0, tom)`, and the proof is the same meaning with one term changed: made `done_to(?v0, bill)`, nothing
+else touched, it is said back as `Tom misled Bill.` (`check_said_twice.log`). `They misled themselves.`, with
+`?previous` in both places, fails the same way. The speaker is the one exception — `I misled myself.` says
+"I misled i.", the speaker spent twice — which is why the first person leaked and looked like the whole story.
+**A reflexive is the form English gives to saying a thing the second time, and saying has no second time to give
+it to.**
+
+**READING ALREADY BINDS, AND MEMORY ALREADY MARKS.** Both halves a fix would need are in place:
+- the meaning carries it — `Tom misled himself.` and `They misled themselves.` read to **one term in both
+  places**, `She misled her.` to two (`done_to(?v0, ?v1)`), so what reading hands saying already says whether the
+  thing after the verb is the thing before it;
+- the form carries it — memory holds `ourselves` as `Case=Acc|Number=Plur|Person=1|PronType=Prs|Reflex=Yes` and
+  `us` without the `Reflex`, `themselves` against `them` and `himself` against `him` likewise. (92) said the two
+  were stated as one entry and shared their features; **the forms are marked, and have been since the closed
+  classes stated their paradigm** (91).
+
+**NOTHING WEIGHS THE MARK, AND WIDENING WHAT IS WEIGHED IS NOT THE FIX.** The features weighed are those
+**subjects** are written with (`_shared_features`, from `Words.subjects`), and nothing stands reflexively as a
+subject, so `Reflex` is in neither the shared set (`Case`, `Number`, `Person`, `VerbForm`) nor the marking set
+(`Case`), and every weighing projects `ourselves` and `us` alike to `Case=Acc|Number=Plur|Person=1`. The counting
+side drops it for the same reason, `kept` filtering by that same subject-derived set: of the **34 kinds of thing
+standing after a verb none names `Reflex`** though the treebanks hold them — they were counted as plain
+accusatives. Widening the set would make `us` win by **frequency**, a reflexive being rarer after a verb than a
+plain pronoun, and would then prefer `them` over `themselves` in the sentence that needs the reflexive.
+`Reflex=Yes` does not say where a thing may stand. It says the thing is the subject again, which is not a place
+and cannot be weighed as one. **(92)'s "marking them as the third person ones are marked" is the wrong fix for a
+second reason: they are already marked.**
+
+**SO THE TWO SYMPTOMS ARE ONE DEFECT.** Saying never asks whether the thing after the verb is the thing before it.
+Asked and answered **no**, the reflexive form is refused and `They misled us.` comes out right. Asked and answered
+**yes**, the reflexive form is required and a term must be spendable twice, which `say` has never done and which
+would make `Tom misled himself.`, `Tom misled Tom.` and `They misled themselves.` sayable for the first time.
+**The owner's call, and now a precise one: not a weighing to correct but a capability saying has never had, in how
+`say` spends, which is its core.**
+
+**AND A SECOND PIECE, IN READING, IF IT IS BUILT.** `We misled ourselves.` is right today **by accident**: reading
+makes it two different groups each holding the speaker (`done_by(?v0, ?v1)`, `done_to(?v0, ?v2)`) rather than one
+group twice, so the terms differ and nothing is refused. Asked the binding question it would answer no, refuse
+`ourselves`, and say `We misled us.` Binding the first person plural is a change to what **reading** produces, not
+to saying.
+
+**Not urgent to a teach.** A taught sentence carries its meaning from the record (`SentenceRecord`: `act`, `facts`,
+`asked`, the PMB's) rather than from reading, so none of this has to land before the re-teach.
+
+**Verified.** Three read-only probes on main (`check_binding.log`, `check_binding_refusal.log`,
+`check_said_twice.log`), the closed-class paradigm and the treebank object counts held on a read-only view as (91)
+and (92) held them. Nothing written to any store and no code changed.
+
+---
+
 ## 2026-10-30 (92) — A thing's case belongs to the place it stands in, not to the verb beside it
 
 **Objective.** The owner: "OK close what's open." Four items stood open from (90) and (91). Three are closed here

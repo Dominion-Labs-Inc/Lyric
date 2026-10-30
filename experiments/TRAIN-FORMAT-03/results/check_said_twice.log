@@ -1,0 +1,7 @@
+  Tom misled Bill.           two names                        'Tom misled Bill.'         ['done_by(?v0,tom)', 'done_to(?v0,bill)']
+  Tom misled himself.        one name twice                   'NOTHING'                  ['done_by(?v0,tom)', 'done_to(?v0,tom)']
+  Tom misled Tom.            the name written twice           'NOTHING'                  ['done_by(?v0,tom)', 'done_to(?v0,tom)']
+  I misled myself.           the speaker twice                'I misled i.'              ['done_by(?v0,?speaker)', 'done_to(?v0,?speaker)']
+  They misled themselves.    the one spoken of before, twice  'NOTHING'                  ['done_by(?v0,?previous)', 'done_to(?v0,?previous)']
+
+  the same meaning with the thing done to it made another term: 'Tom misled Bill.'

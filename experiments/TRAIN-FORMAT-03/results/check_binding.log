@@ -1,0 +1,48 @@
+== DOES THE MEANING TELL THEM APART ==
+  They misled us.            -> 'They misled ourselves.'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        done_by(?v0, ?previous)
+        done_to(?v0, ?v1)
+        has_member(?v1, ?speaker)
+  We misled ourselves.       -> 'We misled ourselves.'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        has_member(?v1, ?speaker)
+        done_by(?v0, ?v1)
+        done_to(?v0, ?v2)
+        has_member(?v2, ?speaker)
+  They misled themselves.    -> 'NOTHING'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        done_by(?v0, ?previous)
+        done_to(?v0, ?previous)
+  Tom misled himself.        -> 'NOTHING'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        done_by(?v0, tom)
+        done_to(?v0, tom)
+  I misled myself.           -> 'I misled i.'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        done_by(?v0, ?speaker)
+        done_to(?v0, ?speaker)
+  She misled her.            -> 'NOTHING'
+        instance_of(?v0, misinform)
+        precedes(?v0, ?now)
+        done_by(?v0, ?previous)
+        done_to(?v0, ?v1)
+
+== DOES THE FORM CARRY Reflex ==
+  shared features (what subjects are written with): ['Case', 'Number', 'Person', 'VerbForm']
+  marking features (the place, not the verb):       ['Case']
+  us           held as {'Case=Acc|Number=Plur|Person=1|PronType=Prs': 1.0}
+  ourselves    held as {'Case=Acc|Number=Plur|Person=1|PronType=Prs|Reflex=Yes': 1.0}
+  them         held as {'Case=Acc|Number=Plur|Person=3|PronType=Prs': 1.0}
+  themselves   held as {'Case=Acc|Number=Plur|Person=3|PronType=Prs|Reflex=Yes': 1.0}
+  him          held as {'Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs': 1.0}
+  himself      held as {'Case=Acc|Gender=Masc|Number=Sing|Person=3|PronType=Prs|Reflex=Yes': 1.0}
+
+== WHAT COUNTING SEES AFTER A VERB ==
+  kinds after a verb: 34; of them naming Reflex: 0
+  plain accusative pronouns after a verb: 3596 over 7 kinds

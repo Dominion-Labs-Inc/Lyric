@@ -203,7 +203,17 @@ features mark a case and then dropped them.
 it and the measurements above need the stand-in; a store taught after holds it for real. This is the change that
 had to land before the full re-teach rather than after.
 
-**Still open here.** `They misled us.` is said back as `They misled ourselves.`: `us` and `ourselves` are both
-`Case=Acc|Number=Plur|Person=1`, so case cannot tell them apart, and the difference is binding — which saying does
-not do, by the codebase's own note. It never offers `himself` or `themselves` at all; the first and second person
-reflexives are unmarked and so are the only ones it can reach.
+**Still open here, and measured since (notebook (93)).** `They misled us.` is said back as `They misled ourselves.`,
+and the paragraph that stood here named the wrong cause. The forms **are** marked — memory holds `ourselves` as
+`Case=Acc|Number=Plur|Person=1|PronType=Prs|Reflex=Yes` and `us` without the `Reflex` — but nothing weighs the mark,
+the features weighed being those a **subject** is written with and nothing standing reflexively as a subject. Of the
+34 kinds of thing standing after a verb, **none names `Reflex`**: the treebanks' reflexive objects were counted as
+plain accusatives by the same filter. Widening it is not the fix, since it would make `us` win by frequency and would
+then prefer `them` over `themselves` where the reflexive is required.
+
+What stops the reflexive is not the refusal of a pronoun of its own sentence (lifting it changes nothing) but that
+**a thing may not be said twice in one sentence**: `Tom misled Tom.` fails exactly as `Tom misled himself.` does,
+and the same meaning with another term in the second place is said back exactly. Reading already binds, so both
+halves a fix would need are there; what is missing is saying asking whether the thing after the verb is the thing
+before it, and being able to spend a term twice when it is. **A capability, left to the owner.** Not urgent to a
+teach: a taught sentence carries its meaning from the record, not from reading.
