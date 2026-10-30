@@ -154,7 +154,26 @@ class MemoryFilter:
         "sentence_record": "taught language",
         "word_record": "taught language",
         "read_english": "taught language",
+        # AND SO IS WHAT THE LISTENER COUNTED (`MemoryAgent.LISTENING_TAG`): the one memory the listener's beliefs
+        # are stances on, holding what each piece of its evidence was worth on sentences whose meaning it was taught.
+        # It is read back by the reader and claims nothing. The claim reader already skipped it and this table did
+        # not name it, so a decline here would have lost the one memory every belief about the listener names.
+        "listening": "taught language",
     }
+
+    #: EVERY KIND OF TAUGHT LANGUAGE, READ OFF THE TABLE ABOVE AND KEPT NOWHERE ELSE.
+    #:
+    #: Two things follow from a kind being taught language, and they were decided in two places: this filter kept a
+    #: lesson from being judged novel or complex enough to keep, and `MemoryAgent._store_memory` kept its content from
+    #: being read as a claim about the world. That second place named three kinds where this table named fourteen,
+    #: so the same memory was taught language to one and not the other -- `listening` was kept from the claim reader
+    #: and still judged for keeping, and a word class was exempt from judging and still read whole by the grammar at
+    #: every store (0 claims in 94,262 of them on the main store and 1,187 on the sandbox, measured 2026-10-29).
+    #:
+    #: Both ask this now, so a kind added to the table above is decided once and in one place, which matters because
+    #: every kind is about to be taught again.
+    TAUGHT_LANGUAGE_TAGS = frozenset(
+        tag for tag, kind in EXEMPT_EVENT_TAGS.items() if kind == "taught language")
 
     #: What came through these doors is TAUGHT, and kept because it was taught.
     #:

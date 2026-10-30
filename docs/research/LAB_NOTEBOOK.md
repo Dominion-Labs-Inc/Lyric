@@ -16,6 +16,108 @@ Conventions:
 
 ---
 
+## 2026-10-29 (85) — The three lists settled into one register, and understanding audited: every kind of taught language reaches a reading but one
+
+**Objective.** The owner's decision stands: **nothing is re-taught until teaching, learning and understanding — reading
+and responding — are down packed.** (84) audited teaching and learning and left two things: a finding waiting on his
+word (three lists of language tags that must agree and did not), and the larger half unaudited (whether each kind of
+memory actually changes a reading, and responding). He settled the first — "settle the three lists then go into
+understanding" — so both are here.
+
+### Part 1 — The three lists are one register
+
+**What was wrong.** Two things follow from a memory being taught language, and they were decided in two places with
+two different lists: `MemoryFilter.EXEMPT_EVENT_TAGS` named fourteen kinds and kept each from being judged novel or
+complex enough to keep; a set of three at `MemoryAgent._store_memory` kept a record of how English is used from being
+read as a claim about the world. (A third, `_LANGUAGE_RECORDS`, named nine source_context fields for the same
+decision — so four hand-written lists, not three.) `listening` was in the claim set and not the exemption table, so
+the same memory was taught language to one and not the other.
+
+**What it cost, measured rather than assumed.** The exposure was the reverse of what (84) guessed. `listening` is one
+memory and a decline would have lost it, which is a risk and not a cost yet. The real cost was the other way: the
+**eleven kinds the claim set left out were read whole by the grammar at every store**, and they claimed nothing.
+Across both stores, **0 of 276,000+ taught-language memories carry a conclusion or claim facts** — 0 of 94,262 word
+classes on main, 0 of 108,300 heard-after, 0 of 12,544 analysed sentences, 0 of 1,187 word classes and 6,137 sentence
+records on the sandbox (`metadata ? 'conclusion'`, both stores, read-only). 576,981 memories on main do carry one, so
+the column is the right one and the zeros are real. The same shape was priced before at a quarter-second a read
+(0 claims in 30,505 of them, 2026-10-09).
+
+**The fix.** One register, derived from the table that already names every kind and why it is one:
+`MemoryFilter.TAUGHT_LANGUAGE_TAGS = frozenset(tag for tag, kind in EXEMPT_EVENT_TAGS.items() if kind == "taught
+language")` — **15 kinds** with `listening` filed under it. One question asks it: `MemoryAgent.taught_language(tags,
+source_context)`, which both sites call. A kind added to the table is decided once, which matters because every kind
+is about to be taught again.
+
+**Verified.** `admitted_proposition` and ordinary prose still read as claims (a register that grew to cover everything
+a pass writes would silence the claims teaching exists to land — the same defect with the sign reversed), and
+`tests/test_derived_reading.py` **126 pass** unchanged.
+
+### Part 2 — Understanding: reading and responding
+
+**How it was audited.** By the routes, not the comments. Every kind of taught language has exactly one read-back site
+in `MemoryAgent` (`_rows_tagged(TAG)`), and the fifteen converge in one warm pass (`_rebuild_word_class_view`). From
+each view, the question a reader asks for it was traced forward; the questions themselves were parsed out of the
+reading and saying code rather than listed.
+
+**What the readers ask for is five questions**, asked of memory by name in `core/semantics/derived_reader.py`:
+`pattern_inventory`, `said_selection`, `grammar_view`, `listening_evidence`, `coarse_senses`; hearing and the voice
+ask `stated_pronunciations` and `lessons_taught`; the conversation asks `grammar_view`, `word_classes`,
+`word_meanings` and its own. **Most kinds reach a reading inside one of those answers, not by a question of their
+own** — word groups and the sentences analysed by hand become the structure view, and the structure view is part of
+`grammar_view`.
+
+**(1) Fourteen of the fifteen kinds reach a reading.** `language_pattern`, `word_class`, `heard_after` and
+`word_forms` through `pattern_inventory`; `said_of` through `said_selection`; `word_group`, `analysed_sentence`,
+`taught_sentence`, `derived_sentence`, `sentence_record`, `word_record` and `read_english` through `grammar_view`;
+`pronunciation` through `stated_pronunciations`.
+
+**(2) The finding: `argued_sentence` reaches no reader. 10,495 of them are held on main and they change no reading.**
+Which phrases are a happening's arguments is read back as `ArgumentStructureView` and handed to `CompositionView` —
+**the composer that was replaced on 2026-10-20**, whose decisions where no remembered sentence looked like the
+sentence were wrong one time in three (`core/semantics/grammar.py`, first paragraph: "the most specific situations
+met decided 71% of what a word stands for, 2% wrong; the rest were decided by coarser ones, 9% to 75% wrong"). The
+live path composes through `GrammarView.compose_sentence`; `agent.composition_view()` is called by nothing but the
+refresh after learning and one test, and neither `grammar.py` nor `derived_reader.py` mentions an argument anywhere
+(`grep -c argued` = 0 in both). **PropBank's role information does reach the grammar** — through the word records'
+`joins`, built from the PropBank files when the record is made (`teaching_sources._propbank_joins`), not from these
+memories. So for the re-teach: **re-teaching the argued sentences changes no reading; re-teaching the word records
+does.** Whether to wire the arguments into the grammar is a behaviour change and the owner's call.
+
+**(3) Responding is one path and it is fed by the same taught language.** `Conversation.say(understanding)` — "THE
+substrate's reply — the one path from what it holds to what it says" — renders every held fact through `_said` /
+`_said_rule`, which call `derived_reader.say`. That **asks the grammar first** (`GrammarView.say`: the grammar a
+sentence is read by, used the other way) **and the constructions taught second** (`_said_whole`). So what is said
+changes with what was taught, through both. The alternative is on the record where it happened: there used to be a
+`natural_reply()` beside it and an `or` between them that fell through to an introspection dump for every question
+that was not a yes/no.
+
+**(4) Reading depends on the knowledge half, not only the language half.** `grammar_view` is built with
+`GraphKnowledge` from `unified.concept_relations` — each thing's kinds (`isa`), what particular ones are (`instance
+of`), and for a thing held as a kind of nothing what its definition is written with. **148,843 links on main.** The
+grammar asks this of the words it reads, and no language lesson supplies it: a re-teach of language alone leaves the
+grammar without what things are.
+
+**(5) The listening memory holds no counts, by design, and a store-level check says it is empty.** Asked whether every
+memory of each kind carries the key its reader reads, every kind answered 100% — 108,300 of 108,300, 94,262 of 94,262,
+and so on — except `listening`, 0 of 1. That is not a defect: the counts are **beliefs the one memory is named by**
+(`derived_reader._held_listening_counts` reads them from the uncertainty system), weighed by `weighed()` when a
+sentence reads more than one way. Worth recording because the store-level check finds nothing and the code is the only
+place that says why.
+
+**Built: `tests/test_understanding_reaches_the_reader.py` (5 tests).** Every kind of taught language is recorded with
+the question it reaches a reading through, or recorded in `NOT_ASKED` with what is known about why it reaches
+nothing; the questions are read out of the readers themselves, so a reader that stops asking takes down every kind
+that reached a reading through it. The `NOT_ASKED` test **fails both ways on purpose**: stale if the view stops
+existing, and failing if a reader starts asking for it, which says the finding is fixed and belongs in `ANSWERS`.
+With the rewritten `tests/test_language_tags_agree.py` (8, holding the derivation instead of being a fourth copy of
+the list) and (83)–(84)'s, **24 pass**; `tests/test_memory_worthiness_semantics.py` and
+`tests/test_sentence_records.py` with them, **72 pass**; `tests/test_derived_reading.py` **126 pass**.
+
+**What is NOT verified, said plainly.** This audits the **wiring**: that each kind of memory reaches a reader, and
+which one. It does **not** measure what each kind is worth to a reading — only `word_group` has that figure here
+(`GROUPS-01`, `STRUCTURE-03`: nearly a point on EWT dev and PUD, 0.6 on GUM's held-out test). Reading a sentence
+better with a kind than without it is a measurement per kind, against the 911-document split, and it is not done.
+
 ## 2026-10-29 (84) — The teaching and learning path audited before the re-teach: complete, and held complete by what it was missing
 
 **Objective.** The owner's decision: **nothing is re-taught until teaching, learning and understanding — reading and
@@ -59,7 +161,7 @@ made of language. Nothing here accepts items and drops them.
 **Finding 4, the one left open for a decision: three lists of language tags must agree about the same memory, and
 they disagree.** Taught language is how to read and how to say, never something Lyric knows, and three places carry
 that distinction — `MemoryAgent`'s 23 `*_TAG` constants, `MemoryFilter.EXEMPT_EVENT_TAGS` (14 language tags, which
-keeps a lesson from being judged novel enough to keep), and a set of three at `memory_agent._remember` (which keeps
+keeps a lesson from being judged novel enough to keep), and a set of three at `memory_agent._store_memory` (which keeps
 a record of how English is used from being read as a claim). **`listening` is in the third and not the second.** Its
 exposure is one memory — the one the listener's counts are beliefs about — so the cost today is nil, and the shape
 is what matters: each of these lists has fallen behind at least once and every time the cost was measured. The

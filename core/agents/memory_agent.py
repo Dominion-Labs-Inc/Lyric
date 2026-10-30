@@ -506,6 +506,27 @@ class MemoryAgent(IMemoryConsolidation):
     _LANGUAGE_RECORDS = ("analysed", "taught", "argued", "word_group", "word_forms", "read_english", "derived",
                          "record", "word_record")
 
+    @classmethod
+    def taught_language(cls, tags=None, source_context=None) -> bool:
+        """Whether this memory is TAUGHT LANGUAGE: how to read or how to say, and never a claim about the world.
+
+        ONE QUESTION, ASKED OF ONE REGISTER (`MemoryFilter.TAUGHT_LANGUAGE_TAGS`, read off the exemption table that
+        already names every kind and why it is one). It used to be asked in three places with three different lists
+        -- that table's fourteen kinds, a set of three at `_store_memory`, and the record fields below -- and the same
+        memory was taught language to one and not another. What that cost is written where each list lives.
+
+        BY ITS TAGS FIRST, because every kind of lesson carries one. A pattern carries its meaning in itself
+        (`pattern_key`), and a record whose source_context names what it holds is language whether or not its caller
+        passed tags (`_LANGUAGE_RECORDS`): the net for a caller holding the record and not the tags.
+        """
+        from core.memory.utils.memory_filter import MemoryFilter
+        if MemoryFilter.TAUGHT_LANGUAGE_TAGS.intersection(tags or ()):
+            return True
+        if isinstance(source_context, dict):
+            return bool(source_context.get("pattern_key")
+                        or any(field in source_context for field in cls._LANGUAGE_RECORDS))
+        return False
+
     async def _readable_claim(self, content, source_context):
         """The substrate-readable CLAIM a memory asserts, its shape, and its
         facts -- or ``(None, None, ())``.
@@ -533,10 +554,11 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.claim_shape import shape_of
         from core.semantics.derived_reader import Meaning, MeaningFact, heard, read_text
 
-        if isinstance(source_context, dict) and any(field in source_context for field in self._LANGUAGE_RECORDS):
+        if self.taught_language(source_context=source_context):
             # HOW ENGLISH WAS TAUGHT OR READ IS NO CLAIM ABOUT THE WORLD: a sentence analysed, taught with its meaning,
             # its arguments annotated, how a reading used its words. Read as a claim each time one was kept, the
             # treebank's 12,544 took 4.7 hours to teach, every sentence read whole by the grammar (2026-10-24).
+            # Asked here as well as at the one caller, so a caller holding the record and not its tags is answered.
             return None, None, ()
         candidate = ""
         if isinstance(source_context, dict):
@@ -1157,13 +1179,19 @@ class MemoryAgent(IMemoryConsolidation):
         # the pattern itself; reading it here would file the sentence's words as
         # a second, written-reader meaning beside the taught one.
         #
-        # NOR IS A RECORD OF HOW ENGLISH IS USED: what was heard after a word,
-        # what a word is said of. Its content is the substrate's own note
+        # NOR IS ANY OTHER KIND OF TAUGHT LANGUAGE: what was heard after a word,
+        # what a word is said of, how a word is used or said, a sentence taught
+        # with its meaning. Its content is the substrate's own note
         # ("Heard after bug: is"); read as a sentence it took a quarter of a
         # second each and stated nothing (0 claims in 30,505 of them), so
         # WordNet's tens of thousands were hours of a teaching pass (2026-10-09).
-        if ((source_context or {}).get("pattern_key")
-                or {self.HEARD_TAG, self.SAID_OF_TAG, self.LISTENING_TAG} & set(tags or ())):
+        #
+        # WHICH KINDS THOSE ARE IS ASKED, NOT LISTED HERE (`taught_language`).
+        # This named three where the retention filter named fourteen, and the
+        # eleven it left out were read whole by the grammar at every store and
+        # claimed nothing: 0 of 94,262 word classes on the main store and 0 of
+        # every other kind in both stores (2026-10-29).
+        if self.taught_language(tags, source_context):
             _claim, _claim_shape, _claim_facts = None, None, ()
         else:
             _claim, _claim_shape, _claim_facts = await self._readable_claim(content, source_context)
