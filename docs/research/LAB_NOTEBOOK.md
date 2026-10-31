@@ -16,6 +16,116 @@ Conventions:
 
 ---
 
+## 2026-10-30 (96) — The teach lands and reading quadruples; saying does not scale to a taught store
+
+**Objective.** The owner ran the full teach. Reading had to be re-measured against a store that finally holds a
+vocabulary, and the sweep's saying pass stopped returning: *"its still running?"*, *"the run has not moved at all"*.
+His other question, *"why are we teaching to a file and not main"*, is answered by (87)'s own split and below.
+
+**THE TEACH LANDED.** Main, read only, by the same path (95) measured:
+
+| | main in (95), untaught | main after the teach |
+|---|---|---|
+| forms for base words | 39 | **39,898** |
+| subjects | 19 verbs | **31,155 over 1,251 verbs** |
+| things after a verb | 0 | **17,309** |
+
+Over the same 400 PMB gold training sentences: **108 read exactly the annotated meaning, up from 7**; read to
+another meaning 279 (was 241); **no whole reading 8, down from 79**; a number neither kind nor quality 1; no word
+held for a name 1. (95)'s conclusion is confirmed at root: the dominant cause of bad reading was an untaught store,
+not the grammar. Nothing about this was predicted from a handful of sentences -- it took the sweep.
+
+**THE RECORDS FILE IS NOT THE TEACHING.** `build.py` derives records from the PMB and WordNet and "writes a file
+only, never a store"; `teach.py --source records --records data/records/pmb_gold.jsonl` is what wrote main, and the
+table above is that write. Kept apart so the derivation can run unattended while the write to the live store waits
+on his word, so a wiped store is re-taught without another WordNet pass, and so what was taught stays auditable
+line by line -- which is how the gender finding below was made.
+
+**THE BUILD IS NOT SLOW, AND THE ESTIMATE IN (95) WAS WRONG BY AN ORDER OF MAGNITUDE.** (95) measured 302 words in
+1,442 s on a 200-document sample and projected at least 5 hours for 3,875. The real run: 3,662 word records and
+6,137 sentence records, 101.7 MB, in **under an hour**. Cause of the bad projection: the sample was dominated by a
+few heavy verbs, and the real list is frequency-sorted, so the heavy ones are a vanishing share. A projection from
+an unrepresentative sample is not a measurement.
+
+**SAYING DOES NOT SCALE TO A TAUGHT STORE -- the new blocker, and it outranks everything still open.** His sweep's
+saying pass, killed after **58 minutes and 15.9 GB of resident memory on one meaning**, growing 135 MB per minute.
+This is the first time saying has ever run against a real lexicon; every earlier measurement of it, (86) through
+(95), was taken against a store of tens of words.
+
+*What was measured, in order, each step correcting the last.*
+
+1. **A verb enters a place with every frame it could ever take.** Over the 400, the widest single place holds **510
+   entries**; `try` gives **200 entries over 12 forms** (31 distinct CCG categories: intransitive, transitive,
+   ditransitive, to-clause, gerund, that-clause, object control, each again for `S[pt]`, `S[pss]`, `S[b]`) where
+   `problem` gives 4 over 4 and a name gives 1 over 1. The forms include every synonym memory holds for the concept
+   (`try` -> attempt, seek, sought).
+2. **Built on that: a frame asking for a place the meaning does not give it is not offered** (`_TAKES_A_THING`, the
+   `object`, `second` and `passive` slots, whose links are `done_to` and `received_by`). This is the test
+   `roles_bound` already applied to frames taking a *clause* the meaning holds no doing for, extended to frames
+   taking a *thing*. Narrowed to those three slots because the code records that reading genuinely skips some roles.
+   `tests/test_grammar.py`: **70 passed**.
+3. **It was not enough, and frames are not the dominant multiplier.** The same sentence, with the filter in place:
+   13 minutes 30 seconds, 7.75 GB, no answer. The filter removes work that provably cannot succeed and is kept on
+   that ground alone, not as a fix for this.
+4. **A hypothesis of my own making, killed by measurement.** (94) made a thing filling two places of one happening
+   said twice; `Dick tried to solve the problem, in vain.` has `done_by(?v1, dick)` and `done_by(?v3, dick)`, so the
+   suspicion was that saying now demands two mentions of a control subject English says once. Measured on the
+   meaning itself, no store: `_places_filled` gives `{'dick': 1, '?v3': 1, '?v4': 1}` and `_things_said` gives five
+   places, `dick` among them **once**. `_places_filled` keys its counter by the `(happening, thing)` pair, so two
+   different happenings each naming `dick` once leave it standing once. (94) is not implicated.
+5. **The hot path, from the live stack rather than inference** (`faulthandler.dump_traceback_later`, every 20 s, no
+   limit placed on `say`): every dump lands on `for j in partners` in `say` -- the chart's pairing loop, quadratic
+   in the chart's size.
+6. **The growth itself, the finding that matters.** Instrumented temporarily and removed again:
+
+   | chart | agenda waiting | whole sentences said | read back and refused |
+   |---|---|---|---|
+   | 20,000 items | 172,482 | **0** | **0** |
+   | 40,000 items | 666,485 | **0** | **0** |
+
+   Double the chart and the agenda nearly quadruples. **Not one whole sentence is ever completed** -- `read_back` is
+   never reached, so this is not saying making sentences and rejecting them, it is saying never finishing one. The
+   agenda's growth is quadratic because each item pairs with every compatible item already built and each pairing
+   pushes more.
+
+**Cause, as far as the code states it.** Items are packed in `hold` under a key of `(filled, used, _meant(...),
+taking_subject, standing_as)` -- by meaning, as Carroll and Oepen 2005 prescribe -- **plus** `said[-1]` and
+`first_sound(said[0])` for liaison and "a"/"an". Two items meaning the same thing and differing only at their edges
+therefore do not pack, and with hundreds of entries per place the chart fills with surface variants of the same
+partial meaning. Ordered by `sign.score + to_come(filled)`, the agenda spends itself on breadth. Not yet verified:
+which of the two -- unpacked surface variants, or `to_come` being inadmissible and so degenerating the search --
+dominates. That measurement is the next step, and the fix follows it rather than preceding it.
+
+**GENDER: TRACED IN FULL, BUILT, MEASURED, AND WITHDRAWN TONIGHT.** `pmb_meanings.BARE` drops `male.n.02` and
+`female.n.02` with `entity.n.01` and `person.n.01`, so nothing whatever is said of a gendered pronoun's referent.
+Split into `NO_KIND` and `SAYS_GENDER`, gold gains exactly one fact and disturbs nothing else
+(`instance_of(?v0, person male)` for "He was born in America."), and the vocabulary is **unchanged** -- 6,137
+sentences, 3,875 words, the same 190 bases -- because a word record is built from the word and WordNet alone, never
+from a sentence's meaning. **Withdrawn** because memory holds no pronoun for the concept:
+`words_for('person male', 'PRONOUN')` returns `['person male']`, the fallback, so saying would reach for the noun and
+answer **"Male left the bedroom."** The records do carry `{"form": "He", "lemma": "male", "class": "PRONOUN"}` --
+1,176 occurrences of `male` in the vocabulary come from exactly this -- so the teach should have made that link
+reachable from `words_for` and did not. **Gender needs both halves in one go**, and changing gold while saying is
+broken would move the next sweep for two reasons at once.
+
+**Built and kept:** `build.py` takes `REUSE`, a previous build's file whose word records are taken as they stand
+(proven invariant to meaning changes by the table above), so rebuilding meanings costs the nine-second sentence pass
+instead of the word pass; and it writes beside and moves over, so a build that dies leaves the file it was replacing
+whole, which is what lets `REUSE` be `OUT` itself.
+
+**Verified.** `tests/test_grammar.py` 70 passed, before and after the instrumentation was taken out. flake8
+`--max-line-length=120`: no finding at any changed line (the `E306` at `roles_bound` and `build.py`'s single `E401`
+both predate this). Every figure above is from a run under `./venv_lyric/bin/python3` against main, read only.
+
+**Open, in the order they now matter.** (1) Saying's chart: measure packing against `to_come`, then fix at root --
+no cap, the growth is the defect. (2) The saying account over the 108 that now read right, which could not be taken
+tonight. (3) Gender, both halves together: the meaning side is measured and ready, the teach side is not. (4)
+Pronominalising a name (`Tom misled himself.`), which waits on (3). (5) The items (95) left: `I didn't flunk.`,
+`Who stabbed Tom?`, `You reek of alcohol.`, `Someone is intelligent.`, `Everybody is intelligent.`, `You lied to
+me!`, `Nobody is intelligent.`
+
+---
+
 ## 2026-10-30 (95) — Everything accounted for before a teach: main reads 7 of 400 real sentences, and why
 
 **Objective.** The owner: *"this needs to be fixed ... and I clearly said earlier that we were to account for

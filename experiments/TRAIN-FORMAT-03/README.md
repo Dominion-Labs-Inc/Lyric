@@ -244,3 +244,43 @@ Nothing is wrong with the grammar in those 66. Of the 7 that read right, 4 said 
 So the next thing is the full teach, and the 241 are the measure to take after it, not before. `sweep.log` holds
 the run; `sweep.py` in the session scratchpad holds how it was taken, and it is cheap to take again on a taught
 store.
+
+## The teach, and the blocker it exposed (notebook (96))
+
+The teach ran: `build.py` with `HOW_MANY=0`, then `teach.py --source closed-classes`, then
+`teach.py --source records --records data/records/pmb_gold.jsonl`. The build wrote **3,662 word records and 6,137
+sentence records, 101.7 MB, in under an hour** -- not the five hours the account before it projected, because that
+projection came from a 302-word sample dominated by heavy verbs while the real list is frequency-sorted.
+
+**Main after the teach, read only:**
+
+| | before | after |
+|---|---|---|
+| forms for base words | 39 | 39,898 |
+| subjects | 19 verbs | 31,155 over 1,251 verbs |
+| things after a verb | 0 | 17,309 |
+
+**Reading, the same 400 gold sentences:** 108 read exactly the annotated meaning (**up from 7**), 279 read to
+another meaning, 8 no whole reading (**down from 79**), 1 a number that is neither kind nor quality, 1 no word held
+for a name. The account's conclusion holds at root: the dominant cause of bad reading was an untaught store.
+
+**Saying does not scale to a taught store, and the sweep cannot finish because of it.** The saying pass was killed
+after 58 minutes and 15.9 GB of resident memory on one meaning. Measured since: a verb enters a place with all 31
+of its frames (`try`: 200 entries over 12 forms, against `problem`'s 4 over 4; widest place over the 400: 510
+entries); the chart reaches 40,000 items with 666,485 waiting and **zero whole sentences ever completed**, so
+`read_back` is never reached. Full account and cause in lab notebook (96). Until it is fixed, `sweep.py`'s saying
+section will not return on a taught store.
+
+### `REUSE`, and why rebuilding meanings is cheap
+
+`build.py` takes `REUSE`, a previous build's file whose **word** records are taken as they stand. A word's record is
+built from the word and WordNet alone, never from what a sentence means: changing the meanings and recounting gave
+**the same 6,137 sentences, 3,875 words and 190 bases**, so the word pass -- the whole cost of a build -- need not
+run again. Rebuilding after a change to `pmb_meanings.py` therefore costs the nine-second sentence pass:
+
+```
+OUT=data/records/pmb_gold.jsonl REUSE=data/records/pmb_gold.jsonl HOW_MANY=0 ./venv_lyric/bin/python3 experiments/TRAIN-FORMAT-03/build.py
+```
+
+`REUSE` may name the file being written: it is read whole before anything is written, and the build writes beside
+and moves over, so a build that dies leaves the file it was replacing intact.

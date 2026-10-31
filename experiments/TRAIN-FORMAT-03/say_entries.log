@@ -1,0 +1,54 @@
+
+=== try (VERB): 12 forms ['attempt', 'attempted', 'attempting', 'attempts', 'seek', 'seeking', 'seeks', 'sought', 'tried', 'tries', 'try', 'trying']
+  200 entries, 31 distinct categories
+      14  S[dcl].e\NP.x
+      14  (S[dcl].e\NP.x)/NP.y
+      14  ((S[dcl].e\NP.x)/NP.y)/NP.z
+      14  (S[dcl].e\NP.x)/(S[to].c\NP.x)
+      14  (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+      14  (S[dcl].e\NP.x)/S[em].c
+      14  ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+       6  S[pt].e\NP.x
+       6  (S[pt].e\NP.x)/NP.y
+       6  S[pss].e\NP.y
+       6  (S[pss].e\NP.y)/PP[by].x
+       6  ((S[pt].e\NP.x)/NP.y)/NP.z
+       6  (S[pss].e\NP.z)/NP.y
+       6  (S[pt].e\NP.x)/(S[to].c\NP.x)
+       6  (S[pt].e\NP.x)/(S[ng].c\NP.x)
+       6  (S[pt].e\NP.x)/S[em].c
+       6  ((S[pt].e\NP.x)/(S[to].c\NP.y))/NP.y
+       3  S[b].e\NP.x
+       3  (S[b].e\NP.x)/NP.y
+       3  ((S[b].e\NP.x)/NP.y)/NP.z
+  per form: {'tried': 17, 'try': 21, 'trying': 7, 'tries': 24, 'attempted': 17, 'seek': 21, 'attempt': 31, 'attempting': 7, 'sought': 17, 'seeking': 7, 'attempts': 24, 'seeks': 7}
+
+=== solve (VERB): 11 forms ['lick', 'licked', 'licking', 'licks', 'solve', 'solved', 'solving', 'work', 'worked', 'working', 'works']
+  186 entries, 31 distinct categories
+      12  S[dcl].e\NP.x
+      12  (S[dcl].e\NP.x)/NP.y
+      12  ((S[dcl].e\NP.x)/NP.y)/NP.z
+      12  (S[dcl].e\NP.x)/(S[to].c\NP.x)
+      12  (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+      12  (S[dcl].e\NP.x)/S[em].c
+      12  ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+       6  S[pt].e\NP.x
+       6  (S[pt].e\NP.x)/NP.y
+       6  S[pss].e\NP.y
+       6  (S[pss].e\NP.y)/PP[by].x
+       6  ((S[pt].e\NP.x)/NP.y)/NP.z
+       6  (S[pss].e\NP.z)/NP.y
+       6  (S[pt].e\NP.x)/(S[to].c\NP.x)
+       6  (S[pt].e\NP.x)/(S[ng].c\NP.x)
+       6  (S[pt].e\NP.x)/S[em].c
+       6  ((S[pt].e\NP.x)/(S[to].c\NP.y))/NP.y
+       3  S[b].e\NP.x
+       3  (S[b].e\NP.x)/NP.y
+       3  ((S[b].e\NP.x)/NP.y)/NP.z
+  per form: {'work': 38, 'working': 7, 'solved': 17, 'solve': 14, 'worked': 17, 'works': 24, 'solving': 7, 'licking': 7, 'lick': 14, 'licks': 24, 'licked': 17}
+
+=== what memory holds for a gendered pronoun ===
+  words_for('person male', 'NOUN') = ['male', 'males']
+  words_for('person male', 'PRONOUN') = ['person male']
+  words_for('person female', 'NOUN') = ['female', 'females']
+  words_for('person female', 'PRONOUN') = ['person female']

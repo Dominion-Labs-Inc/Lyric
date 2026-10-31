@@ -24,6 +24,12 @@ HOW_MANY = int(os.environ.get("HOW_MANY", "100"))
 #: building them (`run`, the heaviest verb in WordNet, took longer alone than 182 other words together).
 VOCABULARY_ONLY = os.environ.get("VOCABULARY_ONLY", "").lower() in ("1", "yes", "true")
 OUT = Path(os.environ["OUT"]) if not VOCABULARY_ONLY else None
+#: A previous build's file whose WORD records are taken as they stand. A word's record is built from the word and
+#: from WordNet alone, never from what a sentence means, so a change to the MEANINGS leaves every one of them as it
+#: was: keeping a pronoun's gender left 3875 words and 190 bases both unchanged (2026-10-30). Rebuilding the
+#: meanings then costs the sentence pass alone, seconds against the better part of an hour for 3,875 words. May be
+#: the file being written: it is read whole before anything is written.
+REUSE = Path(os.environ["REUSE"]) if os.environ.get("REUSE") else None
 
 #: The WordNet part of speech for each class a sentence uses a word as, for asking WordNet the word's base. The
 #: classes absent here (NAME, and every closed class) have no WordNet entry to ask about.
@@ -125,10 +131,22 @@ def main():
         print(f"{once} of them used once, {len(vocabulary) - once} more than once; "
               f"the ten most used: {sorted(vocabulary.items(), key=lambda kv: -kv[1])[:10]}", flush=True)
         return
+    held = {}
+    if REUSE:
+        with open(REUSE, encoding="utf-8") as handle:
+            for line in handle:
+                if line.strip():
+                    was = json.loads(line)
+                    if "word" in was:
+                        held[was["word"]] = was
+        print(f"{len(held)} word records held from {REUSE}, built again only for a word it does not hold", flush=True)
     print("recording each whole", flush=True)
     at = time.time()
     word_records, failed, refused = [], {}, {}
     for n, word in enumerate(sorted(vocabulary, key=lambda w: -vocabulary[w]), 1):
+        if word in held:
+            word_records.append(held[word])
+            continue
         try:
             record = word_record_of(word)
         except Exception as e:
@@ -141,18 +159,23 @@ def main():
         word_records.append(record)
         if n % 250 == 0:
             print(f"  {n} of {len(vocabulary)}: {len(word_records)} recorded, {time.time() - at:.0f}s", flush=True)
-    print(f"words recorded whole {len(word_records)} of {len(vocabulary)} in {time.time() - at:.0f}s; "
+    print(f"words recorded whole {len(word_records)} of {len(vocabulary)} in {time.time() - at:.0f}s "
+          f"({sum(1 for w in word_records if isinstance(w, dict))} held from a previous build); "
           f"{len(refused)} did not hold together, {len(failed)} could not be built", flush=True)
     for word, problems in sorted(refused.items())[:20]:
         print(f"  refused {word!r}: {problems}", flush=True)
     for word, trouble in sorted(failed.items())[:20]:
         print(f"  failed  {word!r}: {trouble}", flush=True)
 
-    with open(OUT, "w", encoding="utf-8") as handle:
+    # WRITTEN BESIDE AND MOVED OVER, so a build that dies part way leaves the file it was asked to replace whole --
+    # which is also what lets `REUSE` be `OUT` itself.
+    part = OUT.with_name(OUT.name + ".part")
+    with open(part, "w", encoding="utf-8") as handle:
         for record in word_records:
-            handle.write(json.dumps(record.to_dict()) + "\n")
+            handle.write(json.dumps(record if isinstance(record, dict) else record.to_dict()) + "\n")
         for record in records:
             handle.write(json.dumps(record.to_dict()) + "\n")
+    os.replace(part, OUT)
     print(f"wrote {OUT} -- {OUT.stat().st_size / 1e6:.1f} MB, "
           f"{len(word_records)} word + {len(records)} sentence records", flush=True)
 

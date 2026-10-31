@@ -2007,6 +2007,14 @@ CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "follows", "during"})
 #: What the situation names ("I", "you", "it", "now"): said with the grammar's own words, never a word for a thing.
 _SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})
+#: THE PLACES A VERB'S FRAME TAKES A THING IN, by the slot reading names them with (`Lexicon.linking`: `object` and
+#: `passive` say what was done to, `second` who received it). A frame asking for one of these where the meaning holds
+#: no such fact can say no part of the meaning -- the thing filling it would be a thing the meaning never had -- so
+#: saying does not offer it, as it does not offer a frame taking a clause the meaning holds no doing for
+#: (`roles_bound`). Offered, every verb stood in a place with all 31 of its frames: measured on main taught from the
+#: PMB's gold, `try` gave 200 entries over 12 forms against a noun's 4 over 4, and "Dick tried to solve the problem,
+#: in vain." left saying 58 minutes and 15.9 GB into one meaning without an answer (2026-10-30).
+_TAKES_A_THING = frozenset({"object", "second", "passive"})
 
 
 def _places_filled(meaning: Meaning) -> Dict[Term, int]:
@@ -3221,8 +3229,9 @@ class Grammar:
             # A VERB'S PLACES, each bound to what the meaning's fact of its link holds, the link as reading decides it
             # (`spell_out`: `Lexicon.inherited` from the role's slot, "by" as the subject's, "~" turned round), one
             # way for each; a place whose link the meaning holds no fact of left open (reading skips some roles: an
-            # ability's). A clause it takes must be a doing the meaning holds, not the cat: a frame taking one where
-            # none is, is not offered ("chase" taking a "that" clause, a "to" clause, an -ing clause).
+            # ability's), unless the place takes a THING (`_TAKES_A_THING`), which nothing could fill but a thing the
+            # meaning never had. A clause it takes must be a doing the meaning holds, not the cat: a frame taking one
+            # where none is, is not offered ("chase" taking a "that" clause, a "to" clause, an -ing clause).
             ways: List[Dict[str, Term]] = [{e: event}]
             lexicon = self.lexicon
             for p in entry.sem:
@@ -3242,6 +3251,8 @@ class Grammar:
                         if f.relation == relation and (f.obj if turned else f.subject) == event]
                 if ends:
                     ways = [dict(w, **{p[2]: t}) for w in ways for t in dict.fromkeys(ends) if w.get(p[2], t) == t]
+                elif slot in _TAKES_A_THING:
+                    return []
             for p in entry.sem:
                 if p[0] == "clause" and p[1] == e and len(p) > 2:
                     ways = [w for w in ways if p[2] not in w or (w[p[2]] in events and w[p[2]] != event)]
