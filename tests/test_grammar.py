@@ -1105,6 +1105,41 @@ def test_words_memory_knows_as_one_word_are_read_as_the_kind_it_knows_them_as(gr
         "instance_of(?v2, credit card) & precedes(?v0, ?now)")
 
 
+def test_a_things_sense_is_taken_by_the_place_of_the_doing_it_fills():
+    """Which sense of a thing a sentence means is taken by what the doing it is a place of was SEEN done to and by
+    (`sense_seen`, SemCor's tagged uses), as well as by the things said beside it: eating was seen done to bread, a
+    food, and the egg that is a foodstuff is a food where the egg that is a reproductive body is not. Asked of the
+    things said beside it alone, "He ate the egg." names two things of which neither is a kind of the other, so
+    nothing was offered and the sense the word names most often was taken whatever the doing said (2026-10-31).
+    Resnik (1997) takes a doing's sense and its things' senses by the one preference."""
+    kinds = {"foodstuff egg": ["foodstuff", "food", "substance"], "egg": ["reproductive structure", "body part"],
+             "bread": ["foodstuff", "food", "substance"]}
+
+    class Eaten(Held):
+        """What memory holds each thing to be a kind of."""
+
+        def kinds(self, name: str, cls: str) -> Sequence[str]:
+            return kinds.get(name, []) if cls == "NOUN" else []
+
+    lexicon = gm.Lexicon(Eaten())
+    # Two senses of "egg", the reproductive body named by the word and the foodstuff named apart, with how much each
+    # of them and each of their kinds covers of what was said (`WordSense.covers`, Resnik's information).
+    lexicon.thing_used["egg"].update({"egg": 10, "foodstuff egg": 3})
+    lexicon.thing_covers["egg"] = {
+        "egg": {"egg": 5, "reproductive structure": 50, "body part": 400},
+        "foodstuff egg": {"foodstuff egg": 4, "foodstuff": 30, "food": 300, "substance": 900}}
+    lexicon.sense_seen["eat"]["eat"][("object", "bread")] = 7
+
+    assert lexicon.thing_sense_of("egg", []) == "egg", \
+        "with nothing said beside it and no doing, the sense the word names most often"
+    assert lexicon.thing_sense_of("egg", [], [("eat", "eat", "object")]) == "foodstuff egg", \
+        "eating was seen done to a food, and one sense of the egg is a food"
+    assert lexicon.thing_sense_of("egg", [], [("eat", "eat", "subject")]) == "egg", \
+        "nothing was seen eating, so the place says nothing and the word's own sense stands"
+    assert lexicon.thing_sense_of("egg", [], [("lay", "lay", "object")]) == "egg", \
+        "a doing nothing was seen with says nothing"
+
+
 def test_what_a_verb_memory_holds_no_form_of_says_of_its_subject_is_answered_once():
     """What a verb memory holds no form of says of its subject is worked out from the verbs written as it is
     (`_written_like`), and that table is built from the forms memory DOES hold (`_held_agreement`). Built from

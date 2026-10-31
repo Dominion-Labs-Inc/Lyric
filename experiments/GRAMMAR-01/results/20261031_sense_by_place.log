@@ -1,0 +1,57 @@
+words from files in 6s
+
+RIGHT 'He ate the egg.'  wants 'foodstuff egg'
+        'eat' as a verb: 6 senses held, seen with 17 things
+        'egg' as a noun: 3 senses held
+        'egg' as a verb: 2 senses held, seen with 0 things
+        tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, foodstuff egg) & instance_of(?v0, eat) & precedes(?v0, ?now)
+
+      'Tom is reading a book.'  wants 'product book'
+        'read' as a noun: 1 senses held
+        'read' as a verb: 11 senses held, seen with 50 things
+        'book' as a noun: 11 senses held
+        'book' as a verb: 4 senses held, seen with 3 things
+        tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, ?now) & instance_of(?v0, read) & instance_of(?v1, tom) & instance_of(?v2, book)
+
+      'Tom plays the piano.'  wants 'sound play'
+        'play' as a noun: 17 senses held
+        'play' as a verb: 34 senses held, seen with 61 things
+        'piano' as a noun: 2 senses held
+        tell: done_by(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, piano) & instance_of(?v0, play)
+
+      'She went to school.'  wants 'building school'
+        'go' as a noun: 4 senses held
+        'go' as a verb: 25 senses held, seen with 65 things
+        'school' as a noun: 7 senses held
+        'school' as a verb: 3 senses held, seen with 1 things
+        tell: done_by(?v0, ?previous) & instance_of(?v0, go) & instance_of(?v1, school) & moves_to(?v0, ?v1) & precedes(?v0, ?now)
+
+      'We drank the water.'  wants 'food water'
+        'drink' as a noun: 5 senses held
+        'drink' as a verb: 5 senses held, seen with 8 things
+        'water' as a noun: 6 senses held
+        'water' as a verb: 4 senses held, seen with 2 things
+        tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v2, water) & has_member(?v1, ?speaker) & instance_of(?v0, drink) & precedes(?v0, ?now)
+
+      'He walked in the park.'  wants 'tract park'
+        'walk' as a noun: 7 senses held
+        'walk' as a verb: 10 senses held, seen with 19 things
+        'park' as a noun: 6 senses held
+        'park' as a verb: 2 senses held, seen with 1 things
+        tell: done_by(?v0, ?previous) & given instance_of(?v1, park) & has_property(?v0, ?v1) & instance_of(?v0, walk) & precedes(?v0, ?now)
+
+RIGHT 'Tom wrote a letter.'  wants 'letter'
+        'write' as a verb: 10 senses held, seen with 74 things
+        'letter' as a noun: 5 senses held
+        'letter' as a verb: 3 senses held, seen with 0 things
+        tell: done_by(?v0, tom) & done_to(?v0, ?v1) & instance_of(?v0, communicate write) & instance_of(?v1, letter) & precedes(?v0, ?now)
+
+RIGHT 'The dog chased a cat.'  wants 'cat'
+        'chase' as a noun: 3 senses held
+        'chase' as a verb: 4 senses held, seen with 2 things
+        'cat' as a noun: 8 senses held
+        'cat' as a verb: 2 senses held, seen with 0 things
+        'dog' as a noun: 7 senses held
+        'dog' as a verb: 1 senses held, seen with 0 things
+        tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & instance_of(?v2, cat) & precedes(?v0, ?now)
+

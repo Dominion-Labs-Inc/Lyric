@@ -92,8 +92,36 @@ understanding is actually lost.
    each thing fills, with the sense the sentence means of the doing, and `thing_sense_of` weighs each candidate sense
    by how often that sense of the doing was seen with a thing that IS one.
 
-**Verified.** `tests/test_grammar.py` 73 pass (two new: every way two nouns are read as one thing names the thing
-memory holds). Nothing was taught and no store was written.
+**MEASURED, on eight sentences with the words recorded whole** (`word_record_of`, WordNet and SemCor as they are
+taught; words from files as GRAMMAR-01 holds them, no store, nothing written):
+
+| | what it reads now | |
+|---|---|---|
+| `He ate the egg.` | **`foodstuff egg`** | was `egg`; eating was seen done to food |
+| `Tom wrote a letter.` | `letter` | right before and after |
+| `The dog chased a cat.` | `cat` | right before and after |
+| `Tom is reading a book.` | `book` for `product book` | both senses are a kind of product; coarse-same |
+| `We drank the water.` | `water` for `food water` | both are a kind of substance; coarse-same |
+| `Tom plays the piano.` | `play` for `sound play` | the DOING's sense, which `sense_of` takes and this did not touch |
+| `She went to school.` | `school` for `building school` | the place is `moves_to`, and `sense_seen` holds subject and object alone (`_semcor_seen`) |
+| `He walked in the park.` | `park` for `tract park`, and `has_property(?v0, ?v1)` for `located_in` | the preposition's link is wrong here, which is its own defect (`located_in` is missed 11 times over the split) |
+
+So it moves what SemCor's uses can discriminate and nothing else: one of the five it could have moved, with no
+sentence made worse. The two left are the same coarse sense as what reading gives, which is what the research
+predicted.
+
+**Verified.** `tests/test_grammar.py` 75 pass (four new: every way two nouns are read as one thing names the thing
+memory holds; what a verb memory holds no form of says of its subject is answered once; a thing's sense is taken by
+the place of the doing it fills). Nothing was taught and no store was written.
+
+**ONE DEFECT FOUND WHILE CHECKING, FIXED.** Reading never returned. What a verb memory holds no form of says of its
+subject is worked out from the verbs written as it is (`_written_like`), and that table was built by asking
+`_agrees_as` of every verb that took a subject; a verb in that list memory holds no form of sent the question
+straight back into the table being built, which was still empty, so it was built again from inside itself and never
+stopped. `Tom is reading a book.` raised RecursionError with the words held from files. The table is now built from
+the forms memory DOES hold (`_held_agreement`, lifted out of `_agrees_as`): a word memory holds nothing of says
+nothing about what an ending says, and that is the answer, not a question to ask again. It can be reached on main
+too -- any word memory holds no form of, read where a verb belongs.
 
 **OPEN, in the order the measurement puts them.**
 
