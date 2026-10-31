@@ -337,12 +337,15 @@ class Words:
         return {}
 
     def known_name(self, words: Sequence[str]) -> Optional[str]:
-        """The name memory knows these words as together ("credit card", "phone number"), or None."""
-        return None
+        """The name memory knows these words as together ("credit card", "phone number"), or None. What memory
+        knows them as is held in one place, `known_words`; answered on its own here, it said None of words memory
+        knows, and a thing of several words went unnamed wherever it was asked this way (2026-10-31)."""
+        return self.known_words(words).get("NOUN")
 
     def known_verb(self, words: Sequence[str]) -> Optional[str]:
-        """The name memory knows a verb and the word after it as together ("pass away"), or None."""
-        return None
+        """The name memory knows a verb and the word after it as together ("pass away"), or None; as
+        `known_name`, what memory knows is held in `known_words` alone."""
+        return self.known_words(words).get("VERB")
 
     def words_for(self, name: str, cls: str) -> List[str]:
         """What is written for a thing as a word of the class, every form, the word most used for it first: `name` the
@@ -1588,10 +1591,17 @@ class Lexicon:
                 if second is not None and tokens[i].lower() not in self.closed:
                     score = estimate(first, self.words.like(tokens[i], "uses"),
                                      set(first) | {"NOUN:compound"})["NOUN:compound"] + second
-                    # NAMED BY ITS OWN WORDS, the second as the word it is a form of ("dairy products" `dairy
-                    # product`): named by the second word's name instead, "cell phone" was `cell telephone`, which
-                    # is no thing's name and no words of the sentence (2026-10-29).
-                    name = f"{tokens[i].lower()} {self.words.lexeme(tokens[i + 1], 'NOUN')}"
+                    # NAMED BY THE THING MEMORY HOLDS THE TWO WORDS AS, where it holds one: "hair dryer" is
+                    # `hand blower`, and named by its own words it was a name no thing has, so nothing memory
+                    # holds of the thing reached the reading, and the same two words were read under two names at
+                    # once -- this one and the one `known_words` gives, weighed on another scale ("Did you bring a
+                    # hair dryer?", 2026-10-31). Else by its own words, the second as the word it is a form of
+                    # ("dairy products" `dairy product`): named by the second word's name instead, "cell phone"
+                    # was `cell telephone`, which is no thing's name and no words of the sentence (2026-10-29).
+                    said = [tokens[i].lower(), tokens[i + 1].lower()]
+                    base = self.words.lexeme(tokens[i + 1], "NOUN")
+                    name = (self.words.known_name(said) or self.words.known_name(said[:-1] + [base])
+                            or f"{said[0]} {base}")
                     for t in self.templates.get("NOUN", ()):
                         out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN", name,
                                                  score, "compound")))

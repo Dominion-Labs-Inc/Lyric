@@ -10,7 +10,8 @@ from core.semantics import grammar as gm
 
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
-         "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit"}
+         "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit",
+         "hair": "hair", "dryer": "dryer", "dryers": "dryer"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
          "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain"}
@@ -32,7 +33,10 @@ FRAMES = {"chase": {"transitive": 9.0}, "chain": {"transitive": 9.0}, "bark": {"
 #: Words memory holds as one word of several ("'fed up' is used as an adjective.", `WordNetSource._word_classes`),
 #: each under the name it is held by and the kind of word it is held as.
 KNOWN = {("fed", "up"): {"ADJECTIVE": "disgusted"}, ("at", "last"): {"ADVERB": "finally"},
-         ("credit", "card"): {"NOUN": "credit card"}}
+         ("credit", "card"): {"NOUN": "credit card"},
+         #: A thing memory holds under a name that is not its words ("hair dryer" is `hand blower`), which is how
+         #: WordNet names every sense but the one its word names most often.
+         ("hair", "dryer"): {"NOUN": "hand blower"}}
 
 
 class Held(gm.Words):
@@ -1099,6 +1103,20 @@ def test_words_memory_knows_as_one_word_are_read_as_the_kind_it_knows_them_as(gr
     assert read(grammar, "The dog chased a credit card.") == (
         "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
         "instance_of(?v2, credit card) & precedes(?v0, ?now)")
+
+
+def test_two_nouns_naming_one_thing_are_named_by_the_thing_memory_holds(grammar):
+    """A noun before a noun names one thing with it, and the thing is the one MEMORY holds the two words as, not a
+    name made of the words: "hair dryer" is `hand blower`, and named by its own words the name is one no thing has,
+    so nothing memory holds of the thing reaches the reading, and the same two words are read under two names at
+    once, weighed on two scales. Every way the two are read as one thing names the thing memory holds."""
+    ways = [e for end, e in grammar.lexicon.entries(("hair", "dryer"), 0) if end == 2 and e.cls == "NOUN"]
+    assert ways, "two nouns naming one thing are read as one thing"
+    assert {e.label for e in ways} >= {"compound", "known together"}, sorted(e.label for e in ways)
+    assert {e.name for e in ways} == {"hand blower"}, sorted((e.label, e.name) for e in ways)
+    assert read(grammar, "The dog chased a hair dryer.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "instance_of(?v2, hand blower) & precedes(?v0, ?now)")
 
 
 def test_saying_keeps_how_surely_each_sentence_it_says_reads_back():
