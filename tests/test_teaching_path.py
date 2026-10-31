@@ -190,3 +190,51 @@ def test_every_word_the_grammar_reads_as_a_thing_says_what_number_it_is():
     asked = [features for _, cls, rows in CLOSED_PARADIGM if cls == "PRONOUN"
              for form, features in rows if form == "who"]
     assert {"Number=Sing" in f for f in asked} == {True, False}, asked
+
+
+def test_what_a_quality_and_an_adverb_were_said_of_is_recorded_with_their_senses():
+    """`_semcor_seen` records what each sense of a word was seen used with. IT READ VERBS ALONE
+    (`t.synset().pos() == "v"`), so no word record carried anything of a quality's senses or an adverb's, and every
+    quality and every adverb was read under the sense its word names most often, whatever it was said of
+    (`Lexicon.quality_sense_of`, 2026-10-31).
+
+    A quality is said of a thing, an adverb of a doing: the word the structure joins it to ("the hot curry"), and,
+    where a copula says the quality of a thing ("The curry was hot."), that thing. The cache is seeded here with
+    real WordNet lemmas and structure reads written out, so no SemCor and no treebank is read: the function is held
+    to what it makes of a sentence, not to what a corpus happens to hold."""
+    from nltk.corpus import wordnet as wn
+
+    class Read:
+        def __init__(self, heads, relations):
+            self.heads, self.relations = tuple(heads), tuple(relations)
+
+    class Structure:
+        def __init__(self, reads):
+            self.reads = reads
+
+        def read(self, words):
+            return self.reads[tuple(words)]
+
+    curry = wn.synsets("curry", "n")[0].lemmas()[0]
+    burn = wn.synsets("burn", "v")[0].lemmas()[0]
+    run = wn.synsets("run", "v")[0].lemmas()[0]
+    hot = next(l for s in wn.synsets("hot") if s.pos() in ("a", "s") for l in s.lemmas()
+               if l.name().lower() == "hot")
+    quickly = next(l for s in wn.synsets("quickly") if s.pos() == "r" for l in s.lemmas()
+                   if l.name().lower() == "quickly")
+    said = {("The", "hot", "curry", "burned", "him"): (None, hot, curry, burn, None),
+            ("The", "curry", "was", "hot"): (None, curry, None, hot),
+            ("He", "ran", "quickly"): (None, run, quickly)}
+    reads = {("The", "hot", "curry", "burned", "him"):
+             Read([3, 3, 4, 0, 4], ["det", "amod", "nsubj", "root", "obj"]),
+             ("The", "curry", "was", "hot"): Read([2, 4, 4, 0], ["det", "nsubj", "cop", "root"]),
+             ("He", "ran", "quickly"): Read([2, 0, 2], ["nsubj", "root", "advmod"])}
+    cache = {"semcor": list(said.items()), "structure": Structure(reads)}
+
+    # The quality, said of the curry both ways round: modifying it, and said of it by a copula.
+    assert ts._semcor_seen("hot", cache) == {hot.synset().name(): {("said_of", "curry.n.01"): 2}}
+    # The adverb, said of the doing it modifies.
+    assert ts._semcor_seen("quickly", cache) == {quickly.synset().name(): {("said_of", "run.v.01"): 1}}
+    # The verb's own places are untouched: its subject and its object, never "said_of".
+    assert ts._semcor_seen("burn", cache) == {burn.synset().name(): {("subject", "curry.n.01"): 1}}
+

@@ -871,6 +871,14 @@ class Lexicon:
         #: cover (noun name -> sense -> the sense or kind -> SemCor's uses under it), from words recorded whole.
         self.thing_used: Dict[str, Counter] = defaultdict(Counter)
         self.thing_covers: Dict[str, Dict[str, Dict[str, int]]] = defaultdict(dict)
+        #: WHICH SENSE OF A QUALITY OR AN ADVERB A SENTENCE MEANS (`quality_sense_of`): each one's senses by the name
+        #: its word is read under and the kind of word it is ((name, class) -> sense -> how often used), and what each
+        #: sense was seen said of ((name, class) -> sense -> the thing's or doing's name -> how often), from words
+        #: recorded whole (`GrammarView.hold_word`). WordNet gives an adjective no kinds, so neither the information
+        #: a shared kind carries (`thing_sense_of`) nor a verb's places (`sense_of`) can be asked of one: what it was
+        #: seen said of is all there is.
+        self.quality_used: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+        self.quality_seen: Dict[Tuple[str, str], Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         self._taking_pps: Optional[List[Cat]] = None
 
     def saying(self, link: str) -> List[str]:
@@ -1046,6 +1054,44 @@ class Lexicon:
             if everything and any(n < everything for n in shared.values()):
                 for c in senses:
                     score[c] += math.log(everything / shared[c])
+        return max(senses, key=lambda c: (score[c], used[c]))
+
+    def quality_sense_of(self, name: str, cls: str, of: Sequence[str]) -> str:
+        """THE SENSE OF A QUALITY OR AN ADVERB A SENTENCE MEANS, by what it is said of.
+
+        Each sense weighed by how often it is used, and by how much more likely what it is said of is given that
+        sense than given the word at all: `ln(P(k|c)/P(k))` over each of `of` (the thing a quality is said of, or the
+        doing an adverb is, and everything that is a kind of it), averaged, one use spread as anything is. Both
+        numbers are logarithms of probabilities and are added as one (ACT-R's base level and strength; Resnik 1997,
+        selectional preference). TAKEN THE OTHER WAY ROUND -- what it is said of first, how often used only on a tie
+        -- the research measured 42.5% of WordNet's hand-tagged adjective-noun pairs right against 57.4% by how often
+        used alone, and added as one number 58.8% (`docs/research/WORD_SENSES.md` §7.4, SENSE-SAID-01, 2026-10-01).
+
+        WordNet gives an adjective no kinds, so what it was seen said of (`quality_seen`, SemCor's tagged uses) is
+        the only thing its sense can be taken by: neither the information a kind carries (`thing_sense_of`) nor a
+        verb's places (`sense_of`) exists for one. The name the word is read under where it has no senses apart, or
+        nothing was seen said of any of them."""
+        used = self.quality_used.get((name, cls))
+        if not used or len(used) < 2:
+            return name
+        seen = self.quality_seen.get((name, cls)) or {}
+        senses = list(used)
+        total = sum(used.values())
+        score = {c: math.log(used[c] / total) for c in senses}
+        every: Counter = Counter()
+        for counts in seen.values():
+            every.update(counts)
+        if not every or not of:
+            return max(senses, key=lambda c: (score[c], used[c]))
+        kinds = [k for k in of if k]
+        said = sum(every.values())
+        for c in senses:
+            mine = seen.get(c) or Counter()
+            under = sum(mine.values())
+            strength = [math.log(((mine.get(k, 0) + 1.0) / (under + len(every)))
+                                 / ((every.get(k, 0) + 1.0) / (said + len(every)))) for k in kinds]
+            if strength:
+                score[c] += sum(strength) / len(strength)
         return max(senses, key=lambda c: (score[c], used[c]))
 
     # ── what each word may be ──
@@ -5012,6 +5058,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         meant = lexicon.thing_sense_of(p[2], around, fills.get(x, ()))
         if meant != p[2]:
             decided.append(("sense", p[2], "around", None))
+        meant_of[x] = meant
         add("instance_of", x, meant, given_=x in given and isinstance(x, int), at=p[-1])
         # ANOTHER OF A KIND is one of it that is not one given (Heim 1982, Kamp and Reyle 1993; the Parallel Meaning
         # Bank writes "another woman" a woman not the same as a woman, `NEQ`): "Tom chased another cat." is a cat
@@ -5117,6 +5164,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         elif what == "adv":
             _, e, name = p[:3]
             got, how = lexicon.link("adv", (name,), lexicon.linking.get("adverb"))
+            # As a quality's, by the doing it is said of; the link under the name the word is read as.
+            quality = lexicon.quality_sense_of(name, "ADVERB", _of_what(e, meant_of, kinds, words, "VERB"))
+            if quality != name:
+                decided.append(("sense", name, "said of", None))
             # "She runs very fast": a degree of the doing's quality, as "very smooth" is a quality's; each degree
             # word grades the nearest of the doing's adverbs after it.
             after = [d[-1] for d in pieces if d[0] == "adv" and d[1] == e]
@@ -5125,16 +5176,22 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             if got == "has_property" and grading:
                 held = fresh()
                 decided.append(("adv", name, how, add("has_degree", e, held, at=at)))
-                add("instance_of", held, name, at=at)
+                add("instance_of", held, quality, at=at)
                 for d in grading:
                     add("has_property", held, d, at=at)
             else:
-                decided.append(("adv", name, how, add(got, e, name, at=at) if got else None))
+                decided.append(("adv", name, how, add(got, e, quality, at=at) if got else None))
         elif what == "prop":
             _, x, name = p[:3]
             add("has_property", x, name, at=at)
         elif what == "quality":
             _, x, name, q = p[:4]
+            # WHICH SENSE OF THE QUALITY IS MEANT, by the thing it is said of (`quality_sense_of`): what the meaning
+            # says it is. The link it makes is still learned under the name the word is read as (`inherited`), which
+            # is what every taught sentence taught it under.
+            quality = lexicon.quality_sense_of(name, "ADJECTIVE", _of_what(x, meant_of, kinds, words, "NOUN"))
+            if quality != name:
+                decided.append(("sense", name, "said of", None))
             asked_degree = next((d[2] for d in pieces if d[0] == "degree_asked" and d[1] == q), None)
             measured = [d[2] for d in pieces if d[0] == "measure" and d[1] == q]
             compared = next((d[2] for d in pieces if d[0] == "compared" and d[1] == q), None)
@@ -5150,37 +5207,37 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                         continue
                     mine, theirs = fresh(), fresh()
                     add("has_degree", x, mine, at=at)
-                    add("instance_of", mine, name, at=at)
+                    add("instance_of", mine, quality, at=at)
                     add("has_degree", y, theirs, at=at)
-                    add("instance_of", theirs, name, at=at)
+                    add("instance_of", theirs, quality, at=at)
                     a_, b_ = (mine, theirs) if compared == "more" else (theirs, mine)
                     add("exceeds", a_, b_, positive=q not in denied, at=at)
             elif compared == "most" and x in kinds:
                 # "the most careful boy", "the biggest city": its degree the greatest of its kind's.
                 held = fresh()
                 add("has_degree", x, held, at=at)
-                add("instance_of", held, name, at=at)
+                add("instance_of", held, quality, at=at)
                 add("greatest_of", held, kinds[x][2], at=at)
             elif asked_degree is not None:
                 # "How big is the dog?": a degree of bigness, the dog's, asked.
                 add("has_degree", x, asked_degree, at=at)
-                add("instance_of", asked_degree, name, at=at)
+                add("instance_of", asked_degree, quality, at=at)
             elif measured:
                 # "Tom is ten years old.": a degree of oldness, Tom's, measured ten years.
                 held = fresh()
                 add("has_degree", x, held, positive=q not in denied, at=at)
-                add("instance_of", held, name, positive=q not in denied, at=at)
+                add("instance_of", held, quality, positive=q not in denied, at=at)
                 for m in measured:
                     add("has_measure", held, m, positive=q not in denied, at=at)
             elif q in degrees:
                 for d in degrees[q]:
                     held = fresh()
                     add("has_degree", x, held, positive=q not in denied, at=at)
-                    add("instance_of", held, name, positive=q not in denied, at=at)
+                    add("instance_of", held, quality, positive=q not in denied, at=at)
                     add("has_property", held, d[2], positive=q not in denied, at=at)
             elif times.get(q) == "past":
                 state = fresh()
-                add("instance_of", state, name, at=at)
+                add("instance_of", state, quality, at=at)
                 add("precedes", state, "?now", at=at)
                 add("state_of", state, x, positive=q not in denied, at=at)
             else:
@@ -5188,7 +5245,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 # A quality saying a link to what it is of says it to that thing ("the Dutch people": from the
                 # Netherlands); said to the adjective, "The Dutch people approve ..." was `comes_from(?v0, dutch)`.
                 of = lexicon.words.defined(name) if got and got != "has_property" else []
-                decided.append(("quality", name, how, add(got or "has_property", x, of[0] if of else name,
+                decided.append(("quality", name, how, add(got or "has_property", x, of[0] if of else quality,
                                                           positive=q not in denied, at=at)))
         elif what == "count":
             _, x, n = p[:3]
@@ -5329,6 +5386,20 @@ def _be_key(pieces: Sequence[Piece], be: Piece, given: Set[Term], asked: Sequenc
 #: What a name memory holds nothing of is, as what a link is learned for: one thing called by its name ("Vance worked
 #: with Hooper.").
 NAMED = "(a name)"
+
+
+def _of_what(x: Term, meant_of: Mapping[Term, str], kinds: Mapping[Term, Piece], words: Words,
+             cls: str) -> List[str]:
+    """WHAT A QUALITY OR AN ADVERB IS SAID OF, and everything that is a kind of it, nearest first: the sense the
+    sentence means of the thing or the doing where one was taken (`thing_sense_of`, `sense_of`), else the name its
+    word is read under. What `Lexicon.quality_sense_of` weighs a sense by. Nothing where the sentence says it of
+    nothing it names -- a quality said of the one spoken of before, or of what is asked."""
+    held = meant_of.get(x)
+    if not held and x in kinds and isinstance(kinds[x][2], str):
+        held = kinds[x][2]
+    if not held:
+        return []
+    return [held] + list(words.kinds(held, cls))
 
 
 def _what_is(t: Term, kinds: Mapping[Term, Piece], pieces: Sequence[Piece], words: Words) -> List[str]:
@@ -5761,6 +5832,31 @@ class GrammarView:
                 elif sense.covers:
                     lexicon.thing_covers[thing][sense.concept] = dict(
                         zip([sense.concept] + [kind for _, kind in sense.kind_of], sense.covers))
+        # EACH QUALITY'S AND EACH ADVERB'S SENSES, how often each is used and what it was seen said of (SemCor):
+        # a quality of a thing, an adverb of a doing (`quality_sense_of`). Held under the name AND the kind of word,
+        # since a word said both ways is named the same for both ("fast") and the two have different senses.
+        for cls in ("ADJECTIVE", "ADVERB"):
+            if not any(s.word_class == cls for s in word.senses):
+                continue
+            key = (words.name(word.word, cls), cls)
+            for sense in word.senses:
+                if sense.word_class != cls:
+                    continue
+                lexicon.quality_used[key][sense.concept] += times * (sense.used + 1)
+                if lexicon.quality_used[key][sense.concept] <= 0:
+                    del lexicon.quality_used[key][sense.concept]
+                    lexicon.quality_seen[key].pop(sense.concept, None)
+                    continue
+                for slot, _, kinds, n in getattr(sense, "seen_with", ()):
+                    if slot != "said_of" or not kinds:
+                        continue
+                    held = lexicon.quality_seen[key][sense.concept]
+                    held[kinds[0]] += times * n
+                    if held[kinds[0]] <= 0:
+                        del held[kinds[0]]
+                    if knowledge is not None and hasattr(knowledge, "discard"):
+                        for kind in kinds[1:]:
+                            (knowledge.add if times > 0 else knowledge.discard)(kinds[0], "isa", kind)
         if not any(s.word_class == "VERB" for s in word.senses):
             return
         name = words.name(word.word, "VERB")

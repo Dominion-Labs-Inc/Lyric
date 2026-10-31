@@ -3203,9 +3203,11 @@ class WordSense:
     use: str = ""
     verbnet: str = ""
     places: Tuple[WordPlace, ...] = ()
-    #: WHAT THE SENSE WAS SEEN USED WITH, in sentences tagged with their senses (SemCor): (slot, the thing's WordNet
+    #: WHAT THE SENSE WAS SEEN USED WITH, in sentences tagged with their senses (SemCor): (slot, the other WordNet
     #: sense, Lyric's name for it and for everything it is a kind of, how often) — the verb `coat paint` with a house
-    #: as what it was done to. Which sense a sentence means is chosen by them (`Lexicon.sense_of`).
+    #: as what it was done to (`"subject"`, `"object"`), a quality or an adverb with what it was said of
+    #: (`"said_of"`: a quality of a thing, an adverb of a doing). Which sense a sentence means is chosen by them
+    #: (`Lexicon.sense_of`, `Lexicon.thing_sense_of`, `Lexicon.quality_sense_of`).
     seen_with: Tuple[Tuple[str, str, Tuple[str, ...], int], ...] = ()
     #: HOW MUCH OF WHAT IS SAID A NOUN SENSE AND EACH OF ITS KINDS COVER: for the sense, then each kind in `kind_of`,
     #: how many uses SemCor tagged of it or of anything that is a kind of it, each WordNet noun sense counted once
@@ -4212,10 +4214,19 @@ def _semcor_sentences(cache: Dict[str, Any]) -> List[Tuple[Tuple[str, ...], Tupl
 
 
 def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
-    """WHAT EACH VERB SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
-    sense by hand): for each tagged use of the word as a verb, the words the structure reader learned from UD
-    English EWT joins to it as its subject and its object (`StructureView`: `nsubj`, `obj`; a passive's subject its
-    object), each by the WordNet sense SemCor tagged it with. sense -> (slot, the thing's sense) -> how often."""
+    """WHAT EACH SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
+    sense by hand), by the structure the reader learned from UD English EWT (`StructureView`).
+
+    OF A VERB: the words joined to it as its subject and its object (`nsubj`, `obj`; a passive's subject its object),
+    each by the sense SemCor tagged it with. `("subject", the thing's sense)`, `("object", ...)`.
+
+    OF A QUALITY OR AN ADVERB: what it is said of (`"said_of"`) -- a quality said of a thing, an adverb of a doing:
+    the word joined to it ("a red ball", "walks quickly"), and, where a copula says it of a thing ("The ball is
+    red."), that thing. WordNet gives an adjective no kinds, so this is the only thing a quality's sense can be
+    taken by, and with nothing held of it every quality and every adverb was read under the sense its word names
+    most often, whatever it was said of (2026-10-31).
+
+    sense -> (slot, the other sense) -> how often."""
     _semcor_sentences(cache)
     if "structure" not in cache:
         from core.semantics.structure import StructureView
@@ -4225,19 +4236,39 @@ def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
         cache["structure"] = view
     out: Dict[str, Counter] = {}
     for words, tags in cache["semcor"]:
-        at = [k for k, t in enumerate(tags) if t is not None and t.name().lower() == word and t.synset().pos() == "v"]
+        at = [k for k, t in enumerate(tags) if t is not None and t.name().lower() == word
+              and t.synset().pos() in ("v", "a", "s", "r")]
         if not at:
             continue
         read = cache["structure"].read(words)
+        if len(read.heads) != len(tags):
+            continue
         for k in at:
-            sense = tags[k].synset().name()
+            of = tags[k].synset()
+            sense = of.name()
+            if of.pos() == "v":
+                for d, h in enumerate(read.heads):
+                    if h - 1 != k or tags[d] is None or tags[d].synset().pos() != "n":
+                        continue
+                    relation = read.relations[d]
+                    slot = "subject" if relation == "nsubj" else "object" if relation in ("obj", "nsubj:pass") else ""
+                    if slot:
+                        out.setdefault(sense, Counter())[(slot, tags[d].synset().name())] += 1
+                continue
+            # A quality is said of a thing, an adverb of a doing: its head where the structure joins it to one, and
+            # the subject said of it where a copula says it of one. A satellite adjective ("s") is an adjective.
+            wanted = "n" if of.pos() in ("a", "s") else "v"
+            said_of = []
+            head = read.heads[k] - 1
+            if 0 <= head < len(tags) and tags[head] is not None and tags[head] is not tags[k] \
+                    and tags[head].synset().pos() == wanted:
+                said_of.append(tags[head].synset().name())
             for d, h in enumerate(read.heads):
-                if h - 1 != k or tags[d] is None or tags[d].synset().pos() != "n":
-                    continue
-                relation = read.relations[d]
-                slot = "subject" if relation == "nsubj" else "object" if relation in ("obj", "nsubj:pass") else ""
-                if slot:
-                    out.setdefault(sense, Counter())[(slot, tags[d].synset().name())] += 1
+                if h - 1 == k and read.relations[d] in ("nsubj", "nsubj:pass") and tags[d] is not None \
+                        and tags[d] is not tags[k] and tags[d].synset().pos() == wanted:
+                    said_of.append(tags[d].synset().name())
+            for other in said_of:
+                out.setdefault(sense, Counter())[("said_of", other)] += 1
     return out
 
 

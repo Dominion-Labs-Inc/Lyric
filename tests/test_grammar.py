@@ -11,7 +11,7 @@ from core.semantics import grammar as gm
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
          "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit",
-         "hair": "hair", "dryer": "dryer", "dryers": "dryer"}
+         "hair": "hair", "dryer": "dryer", "dryers": "dryer", "curry": "curry"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
          "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain",
@@ -19,7 +19,7 @@ VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", 
 #: "chained" is held as a verb's participle and as an adjective of its own, as memory holds a word WordNet gives both
 #: (`chain.v.01`, `chained.s.01`).
 ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy", "chained": "chained",
-              "fed": "fed"}
+              "fed": "fed", "hot": "hot"}
 PREPOSITIONS = ("in", "on", "from")
 #: How often a treebank uses a question word each way, as the grammar's own uses sign them (`closed_uses`,
 #: `grammar_words.HeldWords._use`: a question's word is `wh:adverb` where it modifies the doing, `wh:object` where it
@@ -1919,3 +1919,51 @@ def test_where_asks_a_place_and_never_what_a_doing_was_done_to(grammar):
         "precedes(?v0, ?now) ? ?v2")
     assert [e["use"] for e in grammar.lexicon.closed["where"]] == [
         "wh:adverb", "wh:adverb", "wh:object", "rel:object"]
+
+
+def test_a_qualitys_sense_is_taken_by_the_thing_it_is_said_of():
+    """A QUALITY'S SENSE IS TAKEN BY WHAT IT IS SAID OF (`Lexicon.quality_sense_of`): how often the sense is used,
+    plus how much more likely what it is said of is given that sense than given the word at all, the two added as one
+    number in nats (ACT-R's base level and strength; Resnik 1997). WordNet gives an adjective no kinds, so neither the
+    information a shared kind carries (`thing_sense_of`) nor a verb's places (`sense_of`) can be asked of one: what
+    SemCor saw it said of is the only thing there is, and with none of it held every quality and every adverb was read
+    under the sense its word names most often, whatever it was said of (2026-10-31).
+
+    HOW OFTEN USED IS ADDED, NEVER RANKED UNDER: what a word is said of, taken first with frequency only on a tie,
+    got 42.5% of WordNet's hand-tagged adjective-noun pairs right against 57.4% by frequency alone, and 58.8% added as
+    one number (`docs/research/WORD_SENSES.md` §7.4, SENSE-SAID-01). So a quality said of a thing nothing was ever
+    seen said of keeps the sense its word names most often."""
+    kinds = {"curry": ["dish", "food"], "bread": ["foodstuff", "food"], "dog": ["animal", "organism"]}
+
+    class SaidOf(Held):
+        def kinds(self, name: str, cls: str) -> Sequence[str]:
+            return kinds.get(name, []) if cls == "NOUN" else []
+
+    lexicon = gm.Lexicon(SaidOf())
+    lexicon.quality_used[("hot", "ADJECTIVE")].update({"hot": 12, "spicy hot": 4})
+    lexicon.quality_seen[("hot", "ADJECTIVE")]["hot"].update({"dog": 40})
+    lexicon.quality_seen[("hot", "ADJECTIVE")]["spicy hot"].update({"food": 40})
+    # Said of nothing, and said of a thing the word was never seen said of: the sense it names most often.
+    assert lexicon.quality_sense_of("hot", "ADJECTIVE", []) == "hot"
+    assert lexicon.quality_sense_of("hot", "ADJECTIVE", ["dog", "animal", "organism"]) == "hot"
+    # Said of a food: the sense that was seen said of food.
+    assert lexicon.quality_sense_of("hot", "ADJECTIVE", ["bread", "foodstuff", "food"]) == "spicy hot"
+    # A thing never seen itself, by a kind of it that was: curry is a food.
+    assert lexicon.quality_sense_of("hot", "ADJECTIVE", ["curry", "dish", "food"]) == "spicy hot"
+    # Held under the kind of word as well as the name: a word said both ways is named the same for both ("fast").
+    assert lexicon.quality_sense_of("hot", "ADVERB", ["curry", "dish", "food"]) == "hot"
+
+
+def test_a_quality_read_in_a_sentence_says_the_sense_the_thing_it_is_said_of_takes():
+    """The whole way through: the thing's own sense is taken first (`thing_sense_of`), and the quality's by it."""
+    g = gm.Grammar(gm.Lexicon(Held()))
+    lexicon = g.lexicon
+    lexicon.quality_used[("hot", "ADJECTIVE")].update({"hot": 12, "spicy hot": 4})
+    lexicon.quality_seen[("hot", "ADJECTIVE")]["hot"].update({"dog": 40})
+    lexicon.quality_seen[("hot", "ADJECTIVE")]["spicy hot"].update({"curry": 40})
+    assert read(g, "The dog is hot.") == "tell: given instance_of(?v0, dog) & has_property(?v0, hot)"
+    assert read(g, "The curry is hot.") == "tell: given instance_of(?v0, curry) & has_property(?v0, spicy hot)"
+    # The link a quality makes is still learned under the name its word is read as, never under the sense.
+    assert read(g, "A hot dog barked.") == (
+        "tell: done_by(?v0, ?v1) & has_property(?v1, hot) & instance_of(?v0, bark) & instance_of(?v1, dog) & "
+        "precedes(?v0, ?now)")
