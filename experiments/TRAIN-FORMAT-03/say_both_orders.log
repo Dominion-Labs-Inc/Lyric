@@ -1,0 +1,105 @@
+main, read only. forms for 39898 base words.
+108 of 400 read exactly the meaning they are annotated with; saying each back both ways, bounded at 10,000 items taken
+
+  -- 10 of 108: 0 worse, 0 better
+  -- 20 of 108: 0 worse, 0 better
+  -- 30 of 108: 0 worse, 0 better
+  -- 40 of 108: 0 worse, 0 better
+  BETTER The cat ate the mouse.
+           surest first      (  4.0s, said back otherwise): The cats were eating the mice.
+           most filled first (  3.0s): The cat ate the mouse.
+  -- 50 of 108: 0 worse, 1 better
+  -- 60 of 108: 0 worse, 1 better
+  -- 70 of 108: 0 worse, 1 better
+  -- 80 of 108: 0 worse, 1 better
+  BETTER I found a nice tie for you.
+           surest first      ( 17.7s, stuck, nothing said): None
+           most filled first ( 16.6s): I found a nice tie for you.
+  -- 90 of 108: 0 worse, 2 better
+  -- 100 of 108: 0 worse, 2 better
+
+== OVER 108 MEANINGS ==
+  surest first (as it stands)         most filled first                   how many
+  said back otherwise                 said back otherwise                    57
+  stuck, nothing said                 stuck, nothing said                    26
+  said back word for word             said back word for word                11
+  nothing said                        nothing said                            7
+  said back otherwise                 stuck, nothing said                     3
+  stuck, nothing said                 said back otherwise                     1
+  said back otherwise                 said back word for word                 1
+  gave up before the chart            gave up before the chart                1
+  stuck, nothing said                 said back word for word                 1
+
+  said back word for word: surest first 11, most filled first 13
+  said nothing at all:     surest first 35, most filled first 36
+
+== BOTH SAID SOMETHING ELSE, AND NOT THE SAME SOMETHING ELSE (23) ==
+  I write poems.
+      surest first      : I write some poems.
+      most filled first : Me writes poems.
+  I ate that apple.
+      surest first      : I've been eating the apples.
+      most filled first : Me ate the apples.
+  I'm scared of you.
+      surest first      : I'm scared about yourself.
+      most filled first : I'm scared in yourself.
+  I love the ocean.
+      surest first      : I love the oceans.
+      most filled first : Me loves the oceans.
+  I drank some wine.
+      surest first      : I've been drinking a wine.
+      most filled first : Me drank wines.
+  I eat noodles.
+      surest first      : I eats a noodle.
+      most filled first : Me eats noodles.
+  Sekkura is a qualified chef.
+      surest first      : A chef Sekkura's a qualified sekkura.
+      most filled first : Sekkura're a qualified chef Sekkura.
+  John gave Mary some money.
+      surest first      : John gave a money to Mary.
+      most filled first : John gave Mary a money.
+  I brought you something.
+      surest first      : To yourselves i brought them.
+      most filled first : Myself brought you them.
+  Tom has been sitting on the riverbank for hours.
+      surest first      : For a hr Tom sat in the riverbank.
+      most filled first : Tom sat for h in the riverbank.
+  I wear boxers.
+      surest first      : I do wear boxers.
+      most filled first : I wear some boxers.
+  I want some potatoes.
+      surest first      : I wan a potato.
+      most filled first : Me wan potato.
+  Tom donated three paintings to the museum.
+      surest first      : Tom has donated a three picture to the museums.
+      most filled first : Tom donated the museums three paintings.
+  I bought a new sewing machine.
+      surest first      : I bought a newer sewing machine.
+      most filled first : I bought newer sewing machine.
+  Verga is a famous writer.
+      surest first      : A famous author Verga's a verga.
+      most filled first : Verga're a famous author Verga.
+  Tom hates rats.
+      surest first      : Tom detests some rats.
+      most filled first : Tom detests a rat.
+  I want ice cream.
+      surest first      : I wan some ice cream.
+      most filled first : I wan ice cream.
+  You told a lie.
+      surest first      : You've told a lie.
+      most filled first : You said lies.
+  Tom has a daughter.
+      surest first      : Tom had a daughter.
+      most filled first : Tom have a daughter.
+  Tom hates spiders.
+      surest first      : Tom detests some spider.
+      most filled first : Tom detests a spider.
+  We ate the pizza.
+      surest first      : We were eating the pizzas.
+      most filled first : We've eaten the pizzas.
+  The car was stolen.
+      surest first      : The cars were stolen.
+      most filled first : The car stole.
+  The cat crept toward the bird.
+      surest first      : The cat crawled into the bird.
+      most filled first : The cat crept into the birds.

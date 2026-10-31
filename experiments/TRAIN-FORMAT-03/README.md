@@ -284,3 +284,65 @@ OUT=data/records/pmb_gold.jsonl REUSE=data/records/pmb_gold.jsonl HOW_MANY=0 ./v
 
 `REUSE` may name the file being written: it is read whole before anything is written, and the build writes beside
 and moves over, so a build that dies leaves the file it was replacing intact.
+
+## Why saying does not come back, and what it is really doing (notebook (97))
+
+(96) left saying as the blocker with one named step: measure packing against `to_come`. Both are the wrong end.
+
+Main reads **108** of the 400 PMB gold sentences to exactly the meaning they are annotated with. Saying those 108
+meanings back, each bounded at 10,000 items taken so a meaning that cannot finish is named rather than left running
+(`say_charged.log`, `say_both_orders.log`):
+
+| | word for word | said otherwise | stuck, 0 read back | nothing | gave up |
+|---|---|---|---|---|---|
+| as it stands | 11 | 57 | 26 | 7 | 1 |
+| most-complete first | 13 | 57 | 26 | 7 | 1 |
+| estimate charged per place | 11 | 61 | 28 | 7 | 1 |
+
+A stuck meaning is **not** one that fails to build a sentence. It builds hundreds and reading refuses every one
+(`say_stuck.log`): `Tom is writing a letter.` makes 274 whole sentences and reads back 0; `I lost my sunglasses.`
+465 and 0; `I am intelligent.`, which works, survives on 2 of 75. What it calls a whole sentence is a noun phrase --
+`a letter written by Tom`, `a letter wrote by Tom` (`say_refused.log`) -- and reading is right: a noun phrase
+asserts nothing and the tense is gone. Since `read_back` is the only gate that lets `SAID_AT_MOST` stop the loop, a
+read-back rate of nought becomes an unbounded search. **The hang is a symptom of the disagreement.**
+
+A noun phrase counts as finished because `filled == full` asks only that every THING the meaning names has a word.
+What the grammar words spend is checked against `most` as a cap, never as a requirement: of `Tom is writing a
+letter.` all 102 whole candidates spent `done_to`=0 and `during`=0, and of `My parents are aged.` all 80 spent
+`has_property`=0 (`say_spent.log`). The fix is a coverage mask over the meaning's FACTS, as `filled` is one over
+its places -- Kay 1996's completeness condition, which `grammar.py` cites and enforces for things alone. It cannot
+be `used == most`: `i 'm intelligent` reads back correctly while spending `has_property`=0, because the adjective's
+own place carries that fact and not a grammar word.
+
+### The five links no word is offered for
+
+A mask built before these would silence 17 of the 108 rather than fix them (`say_uncoverable.log`):
+
+| link | meanings | what it is in English |
+|---|---|---|
+| `owned_by` | 6 | the possessive: *my* sunglasses, *her* room, *your* surname, mine |
+| `isa` | 5 | a name predicated of a kind: Tom is a gentleman, Verga is a famous writer |
+| `has_degree` | 3 | *How tall...*, *slightly* hungry |
+| `has_count` | 2 | *three* paintings, *a hundred* employees |
+| `state_of` | 1 | The show was exciting. |
+
+`instance_of` is offered 162 times and `isa` never: the copula says a variable is a kind and cannot say a NAME is
+one, which is why `Verga is a famous writer.` came back `Verga're a famous author Verga.`. Seven of the 28 stuck
+meanings hold such a fact, so no candidate of theirs can ever read back.
+
+### What was disproven, and why none of it was kept
+
+- The frame filter of (96) is not the lever: `_unary`'s `ng=>NP` makes "Dick tried solving the problem." real
+  English, so a thing-taking frame bound to one of the meaning's doings is reachable and must not be filtered.
+- The agenda's order is not the fix. Reversing its two keys to most-complete-first is what the loop's own comment
+  says it does, and on the widest meaning it turned 0 sentences into 4 with a chart a tenth the size
+  (`say_order.log`: 325,136 items kept and 0 said against 30,607 kept and 4 said, `Dick vainly attempted solving
+  the problem.`). Over the 108 it lost nothing and gained two -- but unstuck 2 of 28 and failed two capability
+  tests, because the loop keeps the FIRST `SAID_AT_MOST` read back and not the best.
+- A tighter estimate is not the fix. `to_come` is admissible and is the null outside estimate for all but the
+  words; charging each place what a place had cost (Caraballo and Charniak 1998) made the widest meaning return on
+  its own in 2,048 s and unstuck nought of the 108.
+- Packing is cleared: the key's surface parts cost under 1% (325,136 against 323,108).
+
+`Dick tried to solve the problem, in vain.` does not read back to its annotated meaning, so it was never in the
+sweep's saying pass; (96) calling it a sentence the sweep stalled on is wrong -- the stall was a direct `say` call.

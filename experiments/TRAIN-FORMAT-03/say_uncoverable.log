@@ -1,0 +1,69 @@
+main, read only. forms for 39898 base words.
+108 of 400 read exactly the meaning they are annotated with
+
+== LINKS A WORD IS OFFERED FOR, over 108 meanings ==
+    162  instance_of
+     69  done_by
+     47  done_to
+     43  precedes
+     33  has_property
+     15  located_in
+     11  during
+      5  moves_to
+      4  received_by
+      4  has_member
+      3  word_of
+      3  owns
+      2  has_purpose
+      2  about
+      2  done_for
+      1  moves_from
+      1  equals
+      1  done_with
+      1  moves_through
+      1  lasts_for
+
+== LINKS NO WORD IS OFFERED FOR ==
+      6  owned_by
+      5  isa
+      3  has_degree
+      2  has_count
+      1  state_of
+
+  17 of 108 meanings hold a fact no word is offered for
+
+== THOSE MEANINGS ==
+  Tom's a grouch.
+      no word offered to say  isa(tom, grouch)
+  Tom is an excellent marksman.
+      no word offered to say  isa(tom, marksman)
+  The show was exciting.
+      no word offered to say  state_of(?s2, ?v0)
+  This firm has a hundred employees.
+      no word offered to say  has_count(?v4, 100)
+  How do you spell your surname?
+      no word offered to say  owned_by(?v5, ?listener)
+  How tall is Al Pacino?
+      no word offered to say  has_degree(al pacino, ?d0)
+  Tom painted his room white.
+      no word offered to say  owned_by(?v4, tom)
+  Sekkura is a qualified chef.
+      no word offered to say  isa(sekkura, chef)
+  Tom is a gentleman.
+      no word offered to say  isa(tom, gentleman)
+  Alice rushed into her room.
+      no word offered to say  owned_by(?v4, alice)
+  The bicycle is mine.
+      no word offered to say  owned_by(?v3, ?speaker)
+  I'm slightly hungry.
+      no word offered to say  has_degree(?speaker, ?d3)
+  I planted an apple tree in my garden.
+      no word offered to say  owned_by(?v5, ?speaker)
+  I lost my sunglasses.
+      no word offered to say  owned_by(?v4, ?speaker)
+  Tom donated three paintings to the museum.
+      no word offered to say  has_count(?v4, 3)
+  Verga is a famous writer.
+      no word offered to say  isa(verga, writer)
+  How deep is Crater Lake?
+      no word offered to say  has_degree(crater lake, ?d0)

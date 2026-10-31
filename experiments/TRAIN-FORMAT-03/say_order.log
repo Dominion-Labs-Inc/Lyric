@@ -1,0 +1,87 @@
+main, read only. forms for 39898 base words.
+
+== 'I am intelligent.' ==
+  reading it: the meaning it is annotated with, its whole derivation scoring -0.18
+
+  -- taken surest-with-the-most first, as it stands -- 0.7s
+    the most any item can be estimated at (every place's best word): 0.00
+    each place's best:  intelligent=0.00
+    what a whole sentence really scores (its own reading):      -0.18
+    so the estimate must fall by 0.18 before a whole one can be taken
+    1,323 items taken, 0 waiting, 1,323 kept, 2 said, 44 refused
+       taken    estimate   own score  words  places     waiting
+           1        0.00        0.00      1       1          45
+          10       -0.00       -0.00      1       0          40
+         100       -5.09       -5.09      4       1         102
+       1,000      -16.60      -16.60      4       1         315
+       1,323      -31.45      -31.45      5       1           6
+    the estimate fell 31.45 over 1,323 items taken: 17678.8% of what it must fall
+    the most words any item taken had: 5; the most places filled: 1 of 1
+    kept apart: 1,323 of 2,784 held; 1,323 but for the sound at its edges; 1,198 but for that and its form and case
+      said: i 'm intelligent
+      said: myself are intelligent
+    first said: I'm intelligent.
+
+  -- taken most-places-filled first, surest to break a tie -- 0.7s
+    the most any item can be estimated at (every place's best word): 0.00
+    each place's best:  intelligent=0.00
+    what a whole sentence really scores (its own reading):      -0.18
+    so the estimate must fall by 0.18 before a whole one can be taken
+    1,393 items taken, 0 waiting, 1,323 kept, 3 said, 44 refused
+       taken    estimate   own score  words  places     waiting
+           1        0.00        0.00      1       1          45
+          10        0.00        0.00      2       1          39
+         100       -2.37       -2.37      1       0          47
+       1,000      -11.66      -11.66      3       0         141
+       1,393      -24.04      -24.04      3       0          12
+    the estimate fell 24.04 over 1,393 items taken: 13512.4% of what it must fall
+    the most words any item taken had: 5; the most places filled: 1 of 1
+    kept apart: 1,323 of 2,858 held; 1,323 but for the sound at its edges; 1,198 but for that and its form and case
+      said: i 'm intelligent
+      said: myself 'm intelligent
+      said: myself are intelligent
+    first said: I'm intelligent.
+
+== 'Dick tried to solve the problem, in vain.' ==
+  reading it: something else, its whole derivation scoring -7.88
+
+  -- taken surest-with-the-most first, as it stands -- 104.9s
+    the most any item can be estimated at (every place's best word): -1.61
+    each place's best:  try=-0.03, solve=-0.01, problem=0.00, dick=-1.30, vainly=-0.27
+    what a whole sentence really scores (its own reading):      -7.88
+    so the estimate must fall by 6.27 before a whole one can be taken
+    25,000 items taken, 309,537 waiting, 325,136 kept, 0 said, 0 refused
+       taken    estimate   own score  words  places     waiting
+           1       -1.61       -0.03      1       1         924
+          10       -1.61       -0.27      1       1         918
+         100       -1.86       -0.52      2       1         986
+       1,000       -2.87       -1.25      4       1       2,140
+       5,000       -4.84       -3.52      5       3      19,177
+      10,000       -5.55       -3.95      4       2      36,432
+      25,001       -6.45       -6.44      7       3     309,537
+    the estimate fell 4.84 over 25,001 items taken: 77.1% of what it must fall
+    the most words any item taken had: 9; the most places filled: 5 of 5
+    kept apart: 325,136 of 593,916 held; 323,108 but for the sound at its edges; 320,120 but for that and its form and case
+
+  -- taken most-places-filled first, surest to break a tie -- 58.1s
+    the most any item can be estimated at (every place's best word): -1.61
+    each place's best:  try=-0.03, solve=-0.01, problem=0.00, dick=-1.30, vainly=-0.27
+    what a whole sentence really scores (its own reading):      -7.88
+    so the estimate must fall by 6.27 before a whole one can be taken
+    25,000 items taken, 8,172 waiting, 30,607 kept, 4 said, 716 refused
+       taken    estimate   own score  words  places     waiting
+           1       -1.61       -0.03      1       1         924
+          10       -1.61       -0.27      1       1         918
+         100      -10.73       -9.44      4       4         906
+       1,000      -15.20      -13.63      3       3         870
+       5,000      -24.65      -24.65      5       5         824
+      10,000      -17.48      -17.48      6       5       1,127
+      25,001      -17.34      -17.34      7       5       8,172
+    the estimate fell 15.72 over 25,001 items taken: 250.7% of what it must fall
+    the most words any item taken had: 8; the most places filled: 5 of 5
+    kept apart: 30,607 of 52,004 held; 30,606 but for the sound at its edges; 30,595 but for that and its form and case
+      said: Dick vainly attempted solving the problems
+      said: Dick vainly attempted solving the problem
+      said: Dick vainly tried solving the problems
+      said: Dick vainly tried solving the problem
+    first said: Dick vainly attempted solving the problem.

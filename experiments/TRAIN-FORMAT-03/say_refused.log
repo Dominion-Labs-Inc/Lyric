@@ -1,0 +1,185 @@
+main, read only. forms for 39898 base words.
+
+== 'Tom is writing a letter.' ==
+   the meaning, 5 facts:
+       done_by(?v2, tom)
+       done_to(?v2, ?v3)
+       during(?v2, ?now)
+       instance_of(?v2, communicate write)
+       instance_of(?v3, letter)
+   whole sentences saying made, and what reading makes of each:
+       'A letter written by Tom.'
+           reading holds, the meaning does not:  done_by(?v0, ?v1)
+           reading holds, the meaning does not:  done_by(?v0, tom)
+           reading holds, the meaning does not:  instance_of(?v0, write)
+           reading holds, the meaning does not:  instance_of(?v1, letter)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v2, tom)
+           the meaning holds, reading does not:  done_to(?v2, ?v3)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v2, communicate write)
+           the meaning holds, reading does not:  instance_of(?v3, letter)
+       'A letter written of Tom.'
+           reading holds, the meaning does not:  done_by(?v0, ?v1)
+           reading holds, the meaning does not:  done_by(?v0, tom)
+           reading holds, the meaning does not:  instance_of(?v0, write)
+           reading holds, the meaning does not:  instance_of(?v1, letter)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v2, tom)
+           the meaning holds, reading does not:  done_to(?v2, ?v3)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v2, communicate write)
+           the meaning holds, reading does not:  instance_of(?v3, letter)
+       'A letter wrote by Tom.'
+           reading holds, the meaning does not:  done_by(?v0, ?v1)
+           reading holds, the meaning does not:  done_by(?v0, tom)
+           reading holds, the meaning does not:  instance_of(?v0, write)
+           reading holds, the meaning does not:  instance_of(?v1, letter)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v2, tom)
+           the meaning holds, reading does not:  done_to(?v2, ?v3)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v2, communicate write)
+           the meaning holds, reading does not:  instance_of(?v3, letter)
+
+== 'The bicycle is mine.' ==
+   the meaning, 3 facts:
+       equals(?v0, ?v3)
+       instance_of(?v0, bicycle)
+       owned_by(?v3, ?speaker)
+   whole sentences saying made, and what reading makes of each:
+       'A bicycle.'
+           reading holds, the meaning does not:  done_by(?v0, a)
+           reading holds, the meaning does not:  instance_of(?v0, ride bicycle)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  equals(?v0, ?v3)
+           the meaning holds, reading does not:  instance_of(?v0, bicycle)
+           the meaning holds, reading does not:  owned_by(?v3, ?speaker)
+       "A bicycle's me."
+           reading holds, the meaning does not:  equals(bicycle, ?speaker)
+           the meaning holds, reading does not:  equals(?v0, ?v3)
+           the meaning holds, reading does not:  instance_of(?v0, bicycle)
+           the meaning holds, reading does not:  owned_by(?v3, ?speaker)
+       "A bicycle's myself."  reads to nothing: nothing said
+
+== 'My parents are aged.' ==
+   the meaning, 3 facts:
+       has_property(?v1, aged)
+       instance_of(?v1, parent)
+       word_of(?v1, ?speaker)
+   whole sentences saying made, and what reading makes of each:
+       'A older parent.'
+           reading holds, the meaning does not:  done_by(?v0, older)
+           reading holds, the meaning does not:  instance_of(?v0, nurture)
+           reading holds, the meaning does not:  isa(older, angstrom)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  has_property(?v1, aged)
+           the meaning holds, reading does not:  instance_of(?v1, parent)
+           the meaning holds, reading does not:  word_of(?v1, ?speaker)
+       'A parent being older.'
+           reading holds, the meaning does not:  done_by(?v0, a)
+           reading holds, the meaning does not:  done_to(?v0, ?v1)
+           reading holds, the meaning does not:  has_property(a, old)
+           reading holds, the meaning does not:  instance_of(?v0, nurture)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  has_property(?v1, aged)
+           the meaning holds, reading does not:  instance_of(?v1, parent)
+           the meaning holds, reading does not:  word_of(?v1, ?speaker)
+       'A parent being older of me.'
+           reading holds, the meaning does not:  about(a, ?speaker)
+           reading holds, the meaning does not:  done_by(?v0, a)
+           reading holds, the meaning does not:  done_to(?v0, ?v1)
+           reading holds, the meaning does not:  has_property(a, old)
+           reading holds, the meaning does not:  instance_of(?v0, nurture)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  has_property(?v1, aged)
+           the meaning holds, reading does not:  instance_of(?v1, parent)
+           the meaning holds, reading does not:  word_of(?v1, ?speaker)
+
+== 'Alice rushed into her room.' ==
+   the meaning, 6 facts:
+       done_by(?v1, alice)
+       instance_of(?v1, rush)
+       instance_of(?v4, room)
+       moves_to(?v1, ?v4)
+       owned_by(?v4, alice)
+       precedes(?v1, ?now)
+   whole sentences saying made, and what reading makes of each:
+       'A room Alice has been racing into.'
+           reading holds, the meaning does not:  done_by(?v0, alice)
+           reading holds, the meaning does not:  instance_of(?v0, rush)
+           reading holds, the meaning does not:  instance_of(?v1, room)
+           reading holds, the meaning does not:  moves_through(?v0, ?v1)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v1, alice)
+           the meaning holds, reading does not:  instance_of(?v1, rush)
+           the meaning holds, reading does not:  instance_of(?v4, room)
+           the meaning holds, reading does not:  moves_to(?v1, ?v4)
+           the meaning holds, reading does not:  owned_by(?v4, alice)
+           the meaning holds, reading does not:  precedes(?v1, ?now)
+       'A room Alice has been racing onto.'
+           reading holds, the meaning does not:  done_by(?v0, alice)
+           reading holds, the meaning does not:  instance_of(?v0, rush)
+           reading holds, the meaning does not:  instance_of(?v1, room)
+           reading holds, the meaning does not:  moves_through(?v0, ?v1)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v1, alice)
+           the meaning holds, reading does not:  instance_of(?v1, rush)
+           the meaning holds, reading does not:  instance_of(?v4, room)
+           the meaning holds, reading does not:  moves_to(?v1, ?v4)
+           the meaning holds, reading does not:  owned_by(?v4, alice)
+           the meaning holds, reading does not:  precedes(?v1, ?now)
+       'A room Alice has been racing to.'
+           reading holds, the meaning does not:  done_by(?v0, alice)
+           reading holds, the meaning does not:  has_property(?v0, to)
+           reading holds, the meaning does not:  instance_of(?v0, rush)
+           reading holds, the meaning does not:  isa(alice, room)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_by(?v1, alice)
+           the meaning holds, reading does not:  instance_of(?v1, rush)
+           the meaning holds, reading does not:  instance_of(?v4, room)
+           the meaning holds, reading does not:  moves_to(?v1, ?v4)
+           the meaning holds, reading does not:  owned_by(?v4, alice)
+           the meaning holds, reading does not:  precedes(?v1, ?now)
+
+== 'The ice cream is melting.' ==
+   the meaning, 4 facts:
+       done_to(?v2, ?v0)
+       during(?v2, ?now)
+       instance_of(?v0, ice cream)
+       instance_of(?v2, liquefy dissolve)
+   whole sentences saying made, and what reading makes of each:
+       "A ice cream's on melting."
+           reading holds, the meaning does not:  done_to(?v0, ?v1)
+           reading holds, the meaning does not:  instance_of(?v0, melt)
+           reading holds, the meaning does not:  located_in(ice cream, ?v0)
+           the meaning holds, reading does not:  done_to(?v2, ?v0)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v0, ice cream)
+           the meaning holds, reading does not:  instance_of(?v2, liquefy dissolve)
+       'A ice cream about melting.'
+           reading holds, the meaning does not:  done_by(?v0, ?v2)
+           reading holds, the meaning does not:  done_to(?v0, ?v1)
+           reading holds, the meaning does not:  done_to(?v1, ?v3)
+           reading holds, the meaning does not:  instance_of(?v0, scramble cream)
+           reading holds, the meaning does not:  instance_of(?v1, melt)
+           reading holds, the meaning does not:  instance_of(?v2, ice)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_to(?v2, ?v0)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v0, ice cream)
+           the meaning holds, reading does not:  instance_of(?v2, liquefy dissolve)
+       'A ice cream being on melting.'
+           reading holds, the meaning does not:  done_by(?v0, ?v2)
+           reading holds, the meaning does not:  done_to(?v0, ?v3)
+           reading holds, the meaning does not:  done_to(?v1, ?v4)
+           reading holds, the meaning does not:  instance_of(?v0, scramble cream)
+           reading holds, the meaning does not:  instance_of(?v1, melt)
+           reading holds, the meaning does not:  instance_of(?v2, ice)
+           reading holds, the meaning does not:  located_in(?v2, ?v1)
+           reading holds, the meaning does not:  precedes(?v0, ?now)
+           the meaning holds, reading does not:  done_to(?v2, ?v0)
+           the meaning holds, reading does not:  during(?v2, ?now)
+           the meaning holds, reading does not:  instance_of(?v0, ice cream)
+           the meaning holds, reading does not:  instance_of(?v2, liquefy dissolve)
+

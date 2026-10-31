@@ -1,0 +1,220 @@
+main, read only. forms for 39898 base words.
+
+== 'Dick tried to solve the problem, in vain.', up to 300,000 items ==
+  2048.7s  228,529 taken  233,669 kept  32,415 waiting
+  a place charged -3.46 beside its word; every place's best word -1.61 over 5 places
+  stopped because: eight read back
+  8 read back to the meaning, 2092 to something else
+    Dick vainly tried solving the problem.
+    Dick vainly tried solving the problems.
+    Dick vainly've been trying solving the problems.
+    Dick vainly've tried solving the problems.
+
+108 of 400 read exactly the meaning they are annotated with; saying each back, bounded at 10,000 items taken
+
+  20 of 108: 15 said back otherwise, 2 stuck, nothing said, 2 said back word for word, 1 nothing said
+  40 of 108: 26 said back otherwise, 7 stuck, nothing said, 4 said back word for word, 3 nothing said
+  60 of 108: 34 said back otherwise, 16 stuck, nothing said, 5 said back word for word, 4 nothing said, 1 gave up before the chart
+  80 of 108: 43 said back otherwise, 22 stuck, nothing said, 8 said back word for word, 6 nothing said, 1 gave up before the chart
+  100 of 108: 57 said back otherwise, 25 stuck, nothing said, 10 said back word for word, 7 nothing said, 1 gave up before the chart
+
+== OVER 108 MEANINGS MAIN READS RIGHT ==
+     61  said back otherwise
+     28  stuck, nothing said
+     11  said back word for word
+      7  nothing said
+      1  gave up before the chart
+
+== SAID SOMETHING ELSE (61) ==
+  I am intelligent.
+      -> I'm intelligent.
+  I'm calm now.
+      -> I'm calm.
+  We exaggerated.
+      -> We've been exaggerating.
+  I write poems.
+      -> I write a poem.
+  Freud originated psychoanalysis.
+      -> Freud originated a psychoanalysis.
+  Tom waved at Mary from the helicopter.
+      -> Tom waved to Mary on the helicopter.
+  Tom is waiting for Mary.
+      -> Tom's by waiting for Mary.
+  This tree is tall.
+      -> The tree's tall.
+  Tom is an excellent marksman.
+      -> Tom's excellent marksman Tom.
+  I ate that apple.
+      -> I've eaten the apples.
+  I'm scared of you.
+      -> I'm scared about yourself.
+  Nobody is perfect.
+      -> Nothing's perfect.
+  I am hungry.
+      -> I'm hungry.
+  We were playing golf.
+      -> We played a golf.
+  I love the ocean.
+      -> I love the oceans.
+  The show was exciting.
+      -> The shows were exciting.
+  Odette was born in Nantes in 1905.
+      -> Odette were born in Nantes in 1905.
+  This firm has a hundred employees.
+      -> The firms have a hundred employee.
+  Greece cancels the referendum.
+      -> Greece cancels the referendums.
+  The Second World War broke out in 1939.
+      -> Second World War broke at 1939.
+  Sue picked up a pencil off the floor.
+      -> Sue picked a pencil from the floors.
+  There is a dragonfly on the ceiling.
+      -> Some dragonfly's at the ceiling.
+  The bee flew to the flower.
+      -> The bee has flown to the flowers.
+  I drank some wine.
+      -> I drank a wine.
+  I eat noodles.
+      -> I eats a noodle.
+  I need help.
+      -> I need a help.
+  The cat ate the mouse.
+      -> The cat has eaten the mice.
+  Sekkura is a qualified chef.
+      -> Sekkura's a qualified chef Sekkura.
+  Tom is courteous.
+      -> Tom's courteous.
+  Tom is a gentleman.
+      -> Tom's a gentleman.
+  I'm not ashamed.
+      -> In't'm ashamed.
+  John gave Mary some money.
+      -> John gave a money to Mary.
+  I live in Azerbaijan.
+      -> I lives in Azerbaijan.
+  I brought you something.
+      -> I've brought yourselves them.
+  I like fresh air.
+      -> I like a fresh air.
+  The sky is blue.
+      -> The sky's blue.
+  The blackbird whistles.
+      -> The blackbird does whistle.
+  Tom is still in the hospital.
+      -> Tom's at the hospital.
+  Is Tom retired?
+      -> Tom's retired?
+  There were islands in the sea.
+      -> Some island's in the seas.
+  Tom has been sitting on the riverbank for hours.
+      -> Tom sat for h in the riverbank.
+  I wear boxers.
+      -> I do wear boxers.
+  I want some potatoes.
+      -> I wan potato.
+  The bread is in the oven.
+      -> The bread's in the oven.
+  Mary is pregnant.
+      -> Mary's pregnant.
+  Tom donated three paintings to the museum.
+      -> Tom has donated a three picture to the museums.
+  I bought a new sewing machine.
+      -> I bought a newer sewing machine.
+  Verga is a famous writer.
+      -> Verga's a famous author Verga.
+  Tom hates rats.
+      -> Tom detests a rat.
+  I want ice cream.
+      -> I wan a ice cream.
+  There are some apples in that box.
+      -> Some apples's in the boxes.
+  The cat is on the mat.
+      -> The cat's in the mat.
+  Tom is broke.
+      -> Tom's broke.
+  I'm exaggerating.
+      -> I am by exaggerating.
+  You told a lie.
+      -> You said lies.
+  Tom has a daughter.
+      -> Tom had a daughter.
+  Tom hates spiders.
+      -> Tom detests a spider.
+  We ate the pizza.
+      -> We were eating the pizzas.
+  The car was stolen.
+      -> The cars were stolen.
+  I won!
+      -> I've been winning.
+
+== SAID NOTHING (35) ==
+  You never donate anything to anybody.
+      stuck at 10,000 items, 0 read back
+  Where is Georgetown University?
+      made whole and reading took them to mean something else
+  Tom hasn't prepared the parcel yet.
+      stuck at 10,000 items, 0 read back
+  I'm begging you.
+      stuck at 10,000 items, 0 read back
+  My parents are aged.
+      stuck at 10,000 items, 0 read back
+  How do you spell your surname?
+      stuck at 10,000 items, 0 read back
+  You're a grouch.
+      made whole and reading took them to mean something else
+  Tom is writing a letter.
+      stuck at 10,000 items, 0 read back
+  Tom doesn't have a credit card.
+      made whole and reading took them to mean something else
+  My daugther wants a kitten.
+      stuck at 10,000 items, 0 read back
+  The report has been rewritten.
+      stuck at 10,000 items, 0 read back
+  How tall is Al Pacino?
+      no whole sentence was ever made
+  We are longing for peace.
+      stuck at 10,000 items, 0 read back
+  Tom doesn't speak to Mary.
+      stuck at 10,000 items, 0 read back
+  Tom painted his room white.
+      stuck at 10,000 items, 0 read back
+  The ice cream is melting.
+      stuck at 10,000 items, 0 read back
+  A stranger spoke to me in the bus.
+      stuck at 10,000 items, 0 read back
+  Alice rushed into her room.
+      stuck at 10,000 items, 0 read back
+  The bicycle is mine.
+      stuck at 10,000 items, 0 read back
+  My father cut wood with a saw.
+      stuck at 10,000 items, 0 read back
+  Tom did the dishes for Mary.
+      stuck at 10,000 items, 0 read back
+  It snowed in Osaka.
+      made whole and reading took them to mean something else
+  I planted an apple tree in my garden.
+      stuck at 10,000 items, 0 read back
+  The corporate headquarters is in Los Angeles.
+      stuck at 10,000 items, 0 read back
+  I am not a witch.
+      made whole and reading took them to mean something else
+  I lost my sunglasses.
+      stuck at 10,000 items, 0 read back
+  Where did you put the ketchup?
+      stuck at 10,000 items, 0 read back
+  A jet is not flying
+      stuck at 10,000 items, 0 read back
+  The squirrel is hibernating.
+      stuck at 10,000 items, 0 read back
+  I never saw you.
+      stuck at 10,000 items, 0 read back
+  How deep is Crater Lake?
+      no whole sentence was ever made
+  I want to marry Martyna.
+      stuck at 10,000 items, 0 read back
+  I'm waiting for the ferry.
+      stuck at 10,000 items, 0 read back
+  I regret nothing.
+      stuck at 10,000 items, 0 read back
+  How did Bob Marley die?
+      stuck at 10,000 items, 0 read back

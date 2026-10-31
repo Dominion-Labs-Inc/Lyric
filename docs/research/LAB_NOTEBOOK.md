@@ -16,6 +16,111 @@ Conventions:
 
 ---
 
+## 2026-10-31 (97) — Saying offers noun phrases as sentences; reading refuses them all, and that is the hang
+
+**Objective.** *"So let's work on saying. I don't wanna teach anything else until saying is 100% correct."* (96) left
+saying as the blocker with one named next step: measure packing against `to_come`, then fix at root. The packing half
+is settled, the heuristic half is settled, and both are the wrong end of the problem.
+
+**WHAT SAYING ACTUALLY DOES.** Of the 400 PMB gold sentences, main reads 108 to exactly the meaning they are
+annotated with. Saying those 108 meanings back, each bounded at 10,000 items taken so a meaning that cannot finish is
+named rather than left running:
+
+| | word for word | said otherwise | stuck, 0 read back | nothing said | gave up |
+|---|---|---|---|---|---|
+| as it stands | 11 | 57 | 26 | 7 | 1 |
+| most-complete first | 13 | 57 | 26 | 7 | 1 |
+| estimate charged per place | 11 | 61 | 28 | 7 | 1 |
+
+**THE STUCK ONES BUILD HUNDREDS OF WHOLE SENTENCES AND READING REFUSES EVERY ONE.** Every stuck meaning reports
+`made whole and reading took them to mean something else`, never `no whole sentence was ever made`:
+
+| | items at full coverage | whole sentences made | read back | refused |
+|---|---|---|---|---|
+| `Tom is writing a letter.` | 5,097 | 274 | **0** | 274 |
+| `Alice rushed into her room.` | 3,418 | 348 | **0** | 348 |
+| `I lost my sunglasses.` | 5,423 | 465 | **0** | 464 |
+| `The bicycle is mine.` | 9,512 | 339 | **0** | 326 |
+| `I am intelligent.` (works) | 1,042 | 75 | 2 | 44 |
+
+What it calls a whole sentence is a noun phrase: of `Tom is writing a letter.`, `a letter written by Tom`,
+`a letter wrote by Tom`, `write a letter by Tom`. Reading is right to refuse them -- a noun phrase asserts nothing
+and the tense is gone. `read_back` is the only gate that lets `SAID_AT_MOST` stop the loop, so a read-back rate of
+nought becomes an unbounded search: **the hang is a symptom of the disagreement, not a cause.** `I am intelligent.`
+survives on 2 of 75.
+
+**WHY A NOUN PHRASE COUNTS AS FINISHED.** `filled == full` asks only that every THING the meaning names has a word.
+What the grammar words spend is kept apart in `used` and checked against `most` as a cap (`if any(n > m ...)`), never
+as a requirement. Of `Tom is writing a letter.` the spendable facts are `done_by`, `done_to`, `during`, and all 102
+whole candidates spent `done_to`=0 and `during`=0; of `My parents are aged.` all 80 spent `has_property`=0. So
+saying finishes sentences that drop facts and only reading can tell it. This is Kay 1996's completeness condition --
+that the goal item cover all of the input semantics -- cited at `grammar.py:3191` and enforced for things alone.
+
+**THE FIX IS A COVERAGE MASK OVER THE MEANING'S FACTS**, as `filled` is one over its places, a fact covered whether a
+grammar word spent it or a content word's frame carried it. NOT `used == most`: `i 'm intelligent` reads back
+correctly while spending `has_property`=0, because the adjective's own place carries that fact and not a grammar
+word. Facts are said by two routes and `used` counts one.
+
+**FIRST, THE LINKS NO WORD IS OFFERED FOR.** A mask built before these would silence 17 meanings instead of fixing
+them. Over the 108:
+
+| link | meanings | what it is in English |
+|---|---|---|
+| `owned_by` | 6 | the possessive: *my* sunglasses, *her* room, *your* surname, mine |
+| `isa` | 5 | a name predicated of a kind: Tom is a gentleman, Verga is a famous writer |
+| `has_degree` | 3 | *How tall...*, *slightly* hungry |
+| `has_count` | 2 | *three* paintings, *a hundred* employees |
+| `state_of` | 1 | The show was exciting. |
+
+`instance_of` is offered 162 times and `isa` never: the copula says a variable is a kind and cannot say a NAME is
+one, which is why `Verga is a famous writer.` came back `Verga're a famous author Verga.` -- working around a link it
+cannot say. Seven of the 28 stuck meanings hold such a fact (`I lost my sunglasses.`, `Alice rushed into her room.`,
+`The bicycle is mine.`, `Tom painted his room white.`, `How do you spell your surname?`, `How tall is Al Pacino?`,
+`How deep is Crater Lake?`): no candidate can ever read back, so the loop cannot stop.
+
+**WHAT WAS DISPROVEN, each by measurement and none kept.**
+
+- **The frame filter of (96) is not the lever.** `roles_bound` does not refuse a thing-taking frame bound to one of
+  the meaning's doings, and it must not: `_unary`'s `ng=>NP` (`grammar.py:2969`) makes "Dick tried solving the
+  problem." real English, so those frames are reachable and filtering them would remove a capability.
+- **The agenda's order is not the fix.** Reversing its two keys to most-complete-first does what the loop's own
+  comment says ("the most complete, surest first", `grammar.py:3745`) against what it does, and on the widest meaning
+  it turned 0 sentences into 4 with a chart a tenth the size (`Dick vainly attempted solving the problem.`). Over the
+  108 it lost nothing said word for word and gained two -- but it unstuck 2 of 28, and it failed
+  `test_a_or_an_is_said_as_the_word_after_it_is_said` and
+  `test_a_finite_verb_is_kept_apart_by_its_form_until_its_subject_is_taken`, because the loop keeps the FIRST
+  `SAID_AT_MOST` read back and not the best, so those eight fill with `A owl is a bird.` and `Dogs is mammals.`.
+  Reverted.
+- **A tighter estimate is not the fix either.** `to_come` is admissible and is the null outside estimate for all but
+  the words: nothing is charged for the grammar words, the joins or the agreement still to be paid, so a one-word
+  sign is reckoned at -1.61 where a whole sentence scores -7.88, and A* must take the whole band between. Klein and
+  Manning 2003 is cited for it at `grammar.py:3578` and that paper's floor is an estimate with nothing outside it.
+  Charging each place what a place had cost so far (an outside estimate, Caraballo and Charniak 1998) made the widest
+  meaning return on its own -- 8 read back, 228,529 items, **2,048.7 s** -- and over the 108 unstuck nought and cost
+  two. Reverted.
+- **Packing is not involved.** The key's surface parts (`said[-1]`, `first_sound(said[0])`) cost under 1%: 325,136
+  kept against 323,108 without them on the widest meaning, 1,323 against 1,323 on `I am intelligent.`. (96)'s open
+  question -- unpacked surface variants against the heuristic -- resolves to neither.
+
+**CORRECTIONS.** `Dick tried to solve the problem, in vain.` does NOT read back to its annotated meaning, so it was
+never in the sweep's saying pass; (96) describing it as a sentence the sweep stalled on is wrong, the stall was a
+`say` call made directly. And "word for word" undercounts what saying gets right: `I am intelligent.` is answered
+`I'm intelligent.`, correct English counted as a failure, so the 61 said otherwise are not 61 errors.
+
+**Verified against the real system.** `./venv_lyric/bin/python3`, main read only, `tests/test_grammar.py` 70 passed
+before and after every revert; the tree holds no change from this session.
+
+**Open, in the order the measurements put them.**
+1. Offer a word for `owned_by`, `isa`, `has_count`, `has_degree`, `state_of` -- the `_says_of`/`spending` machinery
+   already there. Unblocks 17 meanings, 7 of them stuck.
+2. Then the fact-coverage mask (Kay completeness), sound once every fact can be said.
+3. Then the saying account over the 108 again, splitting said-otherwise into right-but-different and wrong.
+4. Reading accepts bad English and that is its own defect: `Me writes poems.` reads back as `I write poems.`, as do
+   `Tom have a daughter.` and `Verga're a famous author Verga.`. Case and agreement are read too loosely.
+5. (96)'s gender item still stands, both halves together.
+
+---
+
 ## 2026-10-30 (96) — The teach lands and reading quadruples; saying does not scale to a taught store
 
 **Objective.** The owner ran the full teach. Reading had to be re-measured against a store that finally holds a

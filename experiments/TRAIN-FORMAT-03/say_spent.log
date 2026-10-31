@@ -1,0 +1,115 @@
+main, read only. forms for 39898 base words.
+
+== 'Tom is writing a letter.' ==
+   the meaning: instance_of(?v2, communicate write), during(?v2, ?now), instance_of(?v3, letter), done_by(?v2, tom), done_to(?v2, ?v3)
+   what a word may spend, and the most of each:
+         1  ('fact', 'done_by')
+         1  ('fact', 'done_to')
+         1  ('fact', 'during')
+         3  ('takes', '(S[adj]q\\NP[]x)')
+         1  ('takes', '(S[b]e\\NP[]x)')
+         1  ('takes', '(S[ng]e\\NP[]x)')
+         3  ('takes', '(S[pp]p\\NP[]x)')
+         4  ('takes', 'N[]x')
+   102 made whole of 4,000 taken; 0 read back. the first eight whole, with what each spent:
+       order    'write a letter by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       order    'write letters by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'a letter written by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'letters written by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       order    'write a letters by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       order    'write a letter of Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       order    'write some letters by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'writing a letter by Tom'
+                 spent ('fact', 'done_by')=1, ('fact', 'done_to')=0, ('fact', 'during')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+
+== 'Alice rushed into her room.' ==
+   the meaning: instance_of(?v1, rush), precedes(?v1, ?now), instance_of(?v4, room), done_by(?v1, alice), moves_to(?v1, ?v4), owned_by(?v4, alice)
+   what a word may spend, and the most of each:
+         1  ('fact', 'done_by')
+         1  ('fact', 'moves_to')
+         1  ('joins',)
+         1  ('past',)
+         2  ('takes', '(S[adj]q\\NP[]x)')
+         2  ('takes', '(S[b]e\\NP[]x)')
+         1  ('takes', '(S[ng]e\\NP[]x)')
+         2  ('takes', '(S[pp]p\\NP[]x)')
+         3  ('takes', 'N[]x')
+   148 made whole of 4,000 taken; 0 read back. the first eight whole, with what each spent:
+       tell     'a room Alice raced to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a room Alice rushed to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'rooms Alice raced to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'rooms Alice rushed to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'a room Alice raced into'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a room Alice rushed into'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a room Alice has rushed to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=1, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a rooms Alice raced to'
+                 spent ('fact', 'done_by')=0, ('fact', 'moves_to')=1, ('joins',)=0, ('past',)=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[b]e\\NP[]x)')=0, ('takes', '(S[ng]e\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+
+== 'My parents are aged.' ==
+   the meaning: instance_of(?v1, parent), word_of(?v1, ?speaker), has_property(?v1, aged)
+   what a word may spend, and the most of each:
+         1  ('fact', 'has_property')
+         1  ('fact', 'word_of')
+         1  ('joins',)
+         1  ('situation', '?speaker')
+         3  ('takes', '(S[adj]q\\NP[]x)')
+         2  ('takes', '(S[pp]p\\NP[]x)')
+         3  ('takes', 'N[]x')
+   80 made whole of 4,000 taken; 0 read back. the first eight whole, with what each spent:
+       tell     'anybody older of a parent'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'anybody older of a parent'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a parent older of me'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a parent older of myself'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a parent older of me'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'a parent older of myself'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=1, ('joins',)=0, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+       tell     'older parents'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=0, ('joins',)=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=0, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'a parent being older'
+                 spent ('fact', 'has_property')=0, ('fact', 'word_of')=0, ('joins',)=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=1
+
+== 'I am intelligent.' ==
+   the meaning: has_property(?speaker, intelligent)
+   what a word may spend, and the most of each:
+         1  ('fact', 'has_property')
+         1  ('situation', '?speaker')
+         2  ('takes', '(S[adj]q\\NP[]x)')
+         1  ('takes', '(S[pp]p\\NP[]x)')
+         1  ('takes', 'N[]x')
+   75 made whole of 1,323 taken; 2 read back. the first eight whole, with what each spent:
+       tell     'anybody intelligent'
+                 spent ('fact', 'has_property')=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     "i 'm intelligent"
+                 spent ('fact', 'has_property')=0, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       order    'be intelligent'
+                 spent ('fact', 'has_property')=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'i would be intelligent'
+                 spent ('fact', 'has_property')=1, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'i might be intelligent'
+                 spent ('fact', 'has_property')=1, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'being intelligent'
+                 spent ('fact', 'has_property')=0, ('situation', '?speaker')=0, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'anybody intelligent to myself'
+                 spent ('fact', 'has_property')=1, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+       tell     'anybody intelligent to me'
+                 spent ('fact', 'has_property')=1, ('situation', '?speaker')=1, ('takes', '(S[adj]q\\NP[]x)')=1, ('takes', '(S[pp]p\\NP[]x)')=0, ('takes', 'N[]x')=0
+
