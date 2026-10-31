@@ -19,11 +19,18 @@ Learned, as memory learns (`grammar.GrammarView`), from the lessons and the PMB'
 
 Run (from the Lyric folder; a few minutes, or longer with `--with-words`):
     PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py [--data DIR] [--pmb DIR]
-        [--with-words] [--without-structure]
+        [--with-words [--fresh-words]] [--without-structure] [--gold-categories]
 `--with-words` records every word the sentences use whole, as main holds it (`teaching_sources.word_record_of`):
 without them the grammar has no sense of any word apart and no PropBank places for any verb, so every word is read
 under the sense it names most often and every place of a doing takes the grammar's own link. Main holds such records,
 so a run without them is below what main does.
+`--gold-categories` fixes each word's category to the one the PMB's own checked gold derivation gives it (release
+4.0.0's `en.parse.tags`) and reads everything else as usual, so what is measured is what the grammar's RULES and what
+words hold cost, APART FROM CHOOSING THE CATEGORY -- which is where most of its words go wrong (85.5% take the
+derivation's category or one saying the same, `diagnostics/categories.py`). This is the same test Boxer is held to
+with the gold `cat` layer, which it scores above 0.99 on, there because the gold was made by Boxer from those very
+derivations; here the rules are an independent reimplementation and the target is Lyric's own meaning language, so
+the number is unknown and is what says whether the grammar's rules or its choosing is the thing to work on.
 The Parallel Meaning Bank: University of Groningen, annotations ODC-BY 1.0 (Abzianidze et al. 2017).
 """
 import json
@@ -62,6 +69,107 @@ def grounded(meaning, is_variable):
         s = kind.get(f.subject, "?") if is_variable(f.subject) else f.subject
         o = kind.get(f.obj, "?") if is_variable(f.obj) else f.obj
         out[(f.relation, s, o, f.positive)] += 1
+    return out
+
+
+#: A word of a PMB 4.0.0 gold derivation: `t(Category, 'word', [from:, to:, pos:, ...])`.
+LEAF = re.compile(r"t\(([^,]+?), '((?:[^'\\]|\\.)*)', \[from:(\d+), to:(\d+), pos:'([^']*)'")
+
+
+def pmb_tree(text):
+    """A meaning-bank category as a tree: atoms like s:dcl, np; slashes left-associative."""
+    toks = re.findall(r"\(|\)|/|\\|[a-z]+(?::[a-z]+)?", text)
+    at = [0]
+
+    def primary():
+        if toks[at[0]] == "(":
+            at[0] += 1
+            c = expr()
+            at[0] += 1
+            return c
+        s = toks[at[0]]
+        at[0] += 1
+        return ("atom",) + tuple(s.split(":")) if ":" in s else ("atom", s, None)
+
+    def expr():
+        c = primary()
+        while at[0] < len(toks) and toks[at[0]] in ("/", "\\"):
+            s = toks[at[0]]
+            at[0] += 1
+            c = ("fn", c, s, primary())
+        return c
+    return expr()
+
+
+def canon_pmb(t, feats):
+    if t[0] == "atom":
+        return t[1] + (":" + t[2] if feats and t[2] else "")
+    return "(" + canon_pmb(t[1], feats) + t[2] + canon_pmb(t[3], feats) + ")"
+
+
+def canon_lyric(c, feats):
+    from core.semantics.grammar import Atom
+    if isinstance(c, Atom):
+        f = c.feat
+        return c.base.lower() + (":" + f if feats and isinstance(f, str) and f.islower() else "")
+    return "(" + canon_lyric(c.res, feats) + c.slash + canon_lyric(c.arg, feats) + ")"
+
+
+def strip(s):
+    return s[1:-1] if s.startswith("(") and s.endswith(")") else s
+
+
+def offsets(text, tokens):
+    """Each token's characters in the text, or None: how a gold derivation's words are matched to the grammar's."""
+    out, at = [], 0
+    for t in tokens:
+        w = str(t)
+        k = text.find(w, at)
+        if k < 0:
+            k = text.lower().find(w.lower(), at)
+        if k < 0:
+            out.append(None)
+            continue
+        out.append((k, k + len(w)))
+        at = k + len(w)
+    return out
+
+
+def gold_categories(tags_file, text, tokens):
+    """EACH TOKEN'S CATEGORY AS THE PMB'S CHECKED GOLD DERIVATION GIVES IT (release 4.0.0's `en.parse.tags`), named
+    as the grammar names a category and without features: token index -> category. Marks aside. Nothing where the
+    derivation's word is not one of the grammar's tokens (a word of several, a different split)."""
+    out = {}
+    if not tags_file.exists():
+        return out
+    by_span = {sp: i for i, sp in enumerate(offsets(text, tokens)) if sp}
+    for c, w, a, b, _pos in LEAF.findall(tags_file.read_text(encoding="utf-8")):
+        c = c.strip()
+        if c in ("punct", "comma") or not any(ch.isalnum() for ch in w):
+            continue
+        i = by_span.get((int(a), int(b)))
+        if i is not None:
+            out[i] = strip(canon_pmb(pmb_tree(c), False))
+    return out
+
+
+def reaches(grammar, tokens, i, end, entry):
+    """Every category a word read as this entry may stand as: its own, and each one the grammar's own rules make of
+    it over the same words (`Grammar._unary`: a kind said bare is a thing, a doing is a thing). A gold derivation
+    names the category the word STANDS AS, which is often one of these and not the entry's own."""
+    try:
+        sign = grammar._lexical(tokens, i, end, entry)
+    except (ValueError, IndexError):
+        return {strip(canon_lyric(entry.cat, False))}
+    out, todo, seen = set(), [sign], set()
+    while todo:
+        x = todo.pop()
+        k = strip(canon_lyric(x.cat, False))
+        if k in seen:
+            continue
+        seen.add(k)
+        out.add(k)
+        todo.extend(u for u in grammar._unary(x) if u.start == x.start and u.end == x.end)
     return out
 
 
@@ -239,6 +347,9 @@ def main() -> int:
         except Exception:
             return None
     dev = []
+    #: With `--gold-categories`, each dev sentence's gold category per token (`gold_categories`).
+    gold_of = []
+    p4 = ROOT / "test_data" / "semantics" / "pmb" / "pmb-4.0.0" / "data" / "en" / "gold"
     listed = pm.split_ids(pmb / "split" / "en" / "dev" / "standard.sbn")
     for doc_id in listed:
         document = pm.read_document(pmb / "data" / "en" / "gold" / doc_id)
@@ -250,6 +361,8 @@ def main() -> int:
                                    document.concepts[k].marked) for k, how in at if document.concepts[k].span))
                         for t, at in said.anchors.items())
         dev.append((document.text, tokens, said.meaning, gm.align_by_anchors(tokens, document.text, anchors)))
+        gold_of.append(gold_categories(p4 / doc_id / "en.parse.tags", document.text, tokens)
+                       if "--gold-categories" in sys.argv else {})
     EV.metric("PMB dev sentences said whole", len(dev), unit="sentences", note=f"of {len(listed):,} listed")
     say(f"PMB dev said whole {len(dev):,} of {len(listed):,}")
 
@@ -261,7 +374,19 @@ def main() -> int:
     # fact F1) and a doing's Co-Agent place ("Castro visits the UN." wants `done_by(?v0, un)`, 24 sentences). Main
     # holds records for 2,667 nouns and 1,430 verbs, so what is measured here without them is below what main does.
     if "--with-words" in sys.argv:
-        from core.learning.teaching_sources import word_record_of
+        from core.learning.teaching_sources import word_record_of, WordRecord
+        # EVERY RECORD KEPT, so a second run costs its reading and not its records. Of this experiment's 3,707
+        # seconds with the records, 3,674 was building them and 33 was reading the whole dev split, which made every
+        # question about a fix cost an hour to answer (lab notebook (101)). Written beside and moved over, so a run
+        # that dies part way leaves a whole file. `--fresh-words` builds them again.
+        kept = HERE / "results" / "word_records.jsonl"
+        held = {}
+        if kept.exists() and "--fresh-words" not in sys.argv:
+            for line in kept.read_text(encoding="utf-8").splitlines():
+                if line.strip():
+                    was = json.loads(line)
+                    held[was["word"]] = was
+            say(f"  {len(held):,} word records held from {kept.name}")
         base = set()
         for sentence in [t.sentence for t in lessons + gold] + [text for text, _, _, _ in dev]:
             for token in tokens_of(sentence):
@@ -269,20 +394,62 @@ def main() -> int:
                 if not low.isalpha() or len(low) < 2:
                     continue
                 base.update(words.lexeme(low, cls) for cls in ("NOUN", "VERB", "ADJECTIVE", "ADVERB"))
-        held, unheld = 0, 0
+        recorded, unheld, built = 0, 0, {}
         for k, word in enumerate(sorted(base)):
             try:
-                view.hold_word(word_record_of(word))
-                held += 1
+                record = WordRecord.from_dict(held[word]) if word in held else word_record_of(word)
+                view.hold_word(record)
+                built[word] = held.get(word) or record.to_dict()
+                recorded += 1
             except Exception:
                 unheld += 1
             if (k + 1) % 500 == 0:
                 say(f"  recorded whole {k + 1:,} of {len(base):,}, {time.perf_counter() - started:.0f}s")
-        EV.metric("words recorded whole", held, unit="words",
-                  note=f"of {len(base):,} the sentences use; {unheld:,} WordNet holds nothing of")
+        if len(built) > len(held):
+            part = kept.with_name(kept.name + ".part")
+            part.write_text("".join(json.dumps(r) + "\n" for r in built.values()), encoding="utf-8")
+            part.replace(kept)
+            say(f"  kept {len(built):,} word records in {kept.name} ({kept.stat().st_size / 1e6:.0f} MB)")
+        EV.metric("words recorded whole", recorded, unit="words",
+                  note=f"of {len(base):,} the sentences use; {unheld:,} WordNet holds nothing of; "
+                       f"{len(held):,} held from a previous run")
         say(f"recorded whole {held:,} of {len(base):,} words, {time.perf_counter() - started:.0f}s")
 
-    readings = [grammar.read(tokens) for _, tokens, _, _ in dev]
+    if "--gold-categories" in sys.argv:
+        # ── EACH WORD READ AS THE PMB'S CHECKED GOLD DERIVATION SAYS, and nothing else ──
+        # The grammar chooses each word's category itself, out of what memory holds the word used as, and that choice
+        # is where most of its words go wrong: of the dev words, 85.5% take the derivation's category or one saying
+        # the same (`diagnostics/categories.py`). This fixes that choice to the gold and reads everything else as
+        # usual, so what is left is what the grammar's RULES and what words hold cost, apart from the choosing. A
+        # token whose gold category no entry can stand as is left to the grammar, and so is every entry over more
+        # than one word (a gold derivation names one category per word).
+        plain = grammar.lexicon.entries
+        asked = {"forced": 0, "left": 0, "unnamed": 0}
+
+        def gold_entries(toks, i, want=None):
+            out = plain(toks, i)
+            if not want or i not in want:
+                asked["unnamed"] += 1
+                return out
+            fit = [(end, e) for end, e in out
+                   if end > i + 1 or want[i] in reaches(grammar, toks, i, end, e)]
+            if any(end == i + 1 for end, _ in fit):
+                asked["forced"] += 1
+                return fit
+            asked["left"] += 1
+            return out
+        readings = []
+        for (_, tokens, _, _), want in zip(dev, gold_of):
+            grammar.lexicon.entries = lambda toks, i, _w=want: gold_entries(toks, i, _w)
+            readings.append(grammar.read(tokens))
+        grammar.lexicon.entries = plain
+        EV.metric("dev words read as the gold derivation says", asked["forced"], unit="words",
+                  note=f"{asked['left']:,} whose gold category no entry stands as, left to the grammar; "
+                       f"{asked['unnamed']:,} the derivation names none of")
+        say(f"gold categories: {asked['forced']:,} words forced, {asked['left']:,} no entry stands as, "
+            f"{asked['unnamed']:,} unnamed")
+    else:
+        readings = [grammar.read(tokens) for _, tokens, _, _ in dev]
 
     def unnamed_before(meaning):
         if meaning is None:
