@@ -14,20 +14,30 @@ NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "wh
          "hair": "hair", "dryer": "dryer", "dryers": "dryer"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
-         "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain"}
+         "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain",
+         "study": "study", "studied": "study"}
 #: "chained" is held as a verb's participle and as an adjective of its own, as memory holds a word WordNet gives both
 #: (`chain.v.01`, `chained.s.01`).
 ADJECTIVES = {"closed": "closed", "full": "full", "red": "red", "happy": "happy", "chained": "chained",
               "fed": "fed"}
 PREPOSITIONS = ("in", "on", "from")
+#: How often a treebank uses a question word each way, as the grammar's own uses sign them (`closed_uses`,
+#: `grammar_words.HeldWords._use`: a question's word is `wh:adverb` where it modifies the doing, `wh:object` where it
+#: is what the doing is done to). UD English EWT's training part uses "where" as an adverb 16 times and as an object
+#: NEVER, where it uses "what" as an object 76 times: "where" asks a place, and no English sentence asks with it what
+#: a doing was done to.
+ASKING = {"where": {"wh:adverb": 16.0, "rel:object": 48.0, "ADVERB": 44.0}}
 FORMS = {"chased": {"past": 5.0, "participle": 1.0}, "barked": {"past": 5.0}, "unbuttoned": {"past": 2.0},
          "locked": {"participle": 4.0, "past": 2.0}, "kicked": {"past": 3.0}, "began": {"past": 5.0},
-         "fell": {"past": 5.0}, "chained": {"participle": 4.0, "past": 2.0}}
+         "fell": {"past": 5.0}, "chained": {"participle": 4.0, "past": 2.0}, "studied": {"past": 5.0}}
 FRAMES = {"chase": {"transitive": 9.0}, "chain": {"transitive": 9.0}, "bark": {"intransitive": 9.0},
           "fly": {"intransitive": 9.0},
           "unbutton": {"transitive": 9.0}, "lock": {"transitive": 9.0}, "kick": {"transitive": 9.0},
           "sleep": {"intransitive": 9.0}, "begin": {"ing": 6.0, "to": 3.0}, "work": {"intransitive": 9.0},
-          "fall": {"intransitive": 9.0}}
+          "fall": {"intransitive": 9.0},
+          #: A verb said both ways, which is what makes a question's word stand for a place or for what was done to:
+          #: "Where did Gandhi study?" asks where, "What did Gandhi study?" what.
+          "study": {"transitive": 6.0, "intransitive": 4.0}}
 
 
 #: Words memory holds as one word of several ("'fed up' is used as an adjective.", `WordNetSource._word_classes`),
@@ -56,6 +66,8 @@ class Held(gm.Words):
             out["ADJECTIVE"] = 10.0
         if w in PREPOSITIONS:
             out["PREPOSITION"] = 10.0
+        if w in ASKING:
+            out.update(ASKING[w])
         if word[:1].isupper() and not out:
             out["NAME"] = 10.0
         return out
@@ -1874,3 +1886,36 @@ def test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying():
     # quantifier and the denial of a thing.
     for kind in sorted(gm.NOT_YET_SAID):
         assert gm._piece_says((kind, "x"), nothing) == 0, f"{kind} is answered for, so take it out of NOT_YET_SAID"
+
+
+def test_where_asks_a_place_and_never_what_a_doing_was_done_to(grammar):
+    """"WHERE" ASKS THE PLACE OF A DOING, and the doing it asks of keeps its own places. The grammar reads it four
+    ways, and one of them -- "where" as the thing a doing is done to (`where:object`) -- claimed the adverb's uses
+    (`"use": "wh:adverb"`), so both ways weighed exactly the same and what the rest of the sentence cost decided
+    which: a doing with an object is cheaper than one with an adjunct, so "Where did Mahatma Gandhi study?" asked
+    WHAT Gandhi studied, and 8 of the 21 dev sentences whose meaning says `located_in` were questions read this way
+    (GRAMMAR-01 20261028T111052Z, 2026-10-31). Signed as the use it is, the treebank weighs it by how often "where"
+    is a doing's object, which is never, and the place reading wins by evidence and not by a tie. The entry remains:
+    a sentence no other way reads can still be read by it.
+
+    The link "where" makes is learned like any preposition's (`Lexicon.link("prep", ...)`); nothing is taught here,
+    so it reads as the word it was said with (`word_where`)."""
+    # "study" is said both ways, so both readings compose and only the weighing decides: the place.
+    assert read(grammar, "Where did the dog study?") == (
+        "ask: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, study) & precedes(?v0, ?now) & "
+        "word_where(?v0, ?v2) ? ?v2")
+    # What a doing was done to is still asked by "what", which a treebank does use so.
+    assert read(grammar, "What did the dog study?") == (
+        "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, study) & "
+        "precedes(?v0, ?now) ? ?v2")
+    # The doing keeps its own object: asking the place takes nothing from it.
+    assert read(grammar, "Where did the dog chase a cat?") == (
+        "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "instance_of(?v2, cat) & precedes(?v0, ?now) & word_where(?v0, ?v3) ? ?v3")
+    # A verb said only one way is read that way whatever the weighing: "chase" takes a thing, so "where" fills its
+    # place where no other reading composes, and the entry remains for it.
+    assert read(grammar, "Where did the dog chase?") == (
+        "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "precedes(?v0, ?now) ? ?v2")
+    assert [e["use"] for e in grammar.lexicon.closed["where"]] == [
+        "wh:adverb", "wh:adverb", "wh:object", "rel:object"]

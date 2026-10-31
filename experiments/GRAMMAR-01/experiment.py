@@ -263,7 +263,7 @@ def main() -> int:
     if "--with-words" in sys.argv:
         from core.learning.teaching_sources import word_record_of
         base = set()
-        for sentence in [t.text for t in lessons + gold] + [text for text, _, _, _ in dev]:
+        for sentence in [t.sentence for t in lessons + gold] + [text for text, _, _, _ in dev]:
             for token in tokens_of(sentence):
                 low = token.lower()
                 if not low.isalpha() or len(low) < 2:
