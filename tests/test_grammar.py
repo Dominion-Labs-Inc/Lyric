@@ -1742,3 +1742,22 @@ def test_a_thing_no_word_names_is_said_by_a_pronoun():
     assert not said & {"i", "me", "myself", "you", "we", "us", "ourselves"}, sorted(said)
     own = {word for word, _, own in grammar._pronouns() if own}
     assert own == {"himself", "herself", "itself", "themselves"}, sorted(own)
+
+
+def test_a_possessive_says_what_a_thing_is_owned_by():
+    """Saying says what a thing is owned by with a possessive ("my ball"), the link `Lexicon.linking` gives as
+    `possessive` and reading reads the same `poss` piece as (`spell_out`). `_piece_says` knew no `poss` piece, so
+    `_says_of` took nothing from it to mean the whole entry said nothing the meaning holds, and "my", "your",
+    "his", "her", "their", "mine" and "'s" were offered for NO meaning whatever: saying could not say a possessive
+    at all. Of the 108 PMB gold sentences main reads exactly, the six holding an `owned_by` fact said nothing, and
+    `I lost my sunglasses.` was still being searched after 10,000 chart items with no sentence ever read back; said
+    here, it comes back in 1,413 items (2026-10-31)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    meaning = gm.Meaning("tell", (gm.MeaningFact("instance_of", "?v0", "ball"),
+                                  gm.MeaningFact("owned_by", "?v0", "?speaker"),
+                                  gm.MeaningFact("has_property", "?v0", "red")))
+    said = g.say(meaning)
+    assert said, "nothing said of a ball of the speaker's being red"
+    assert any("my" in [w.lower() for w in gm.tokens_of(s, g.lexicon.words)] for s in said), said[:8]
+    for sentence in said:
+        assert read(g, sentence) == meaning.canonical(), sentence

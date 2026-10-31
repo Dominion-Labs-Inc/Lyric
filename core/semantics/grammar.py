@@ -2005,6 +2005,9 @@ CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
 #: The links that tell of a happening: what holds them is said with a verb.
 _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "follows", "during"})
+#: THE LINK A POSSESSIVE SAYS, which `data/grammar/english.json`'s `linking` gives as `possessive` and reading reads
+#: a `poss` piece as (`spell_out`); named here because `_piece_says` weighs a piece with no lexicon to ask.
+OWNED_BY = "owned_by"
 #: What the situation names ("I", "you", "it", "now"): said with the grammar's own words, never a word for a thing.
 _SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})
 #: THE PLACES A VERB'S FRAME TAKES A THING IN, by the slot reading names them with (`Lexicon.linking`: `object` and
@@ -2096,8 +2099,8 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
 def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
     facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
-    `equals`, or a named thing of a kind; a denial, `deny`; a link a word names, `fact`; the one spoken of before,
-    `pron`), none for any other piece;
+    `equals`, or a named thing of a kind; what a thing is owned by, `poss`; a denial, `deny`; a link a word names,
+    `fact`; the one spoken of before, `pron`), none for any other piece;
     None for a piece saying nothing a meaning holds (`indefinite`, `finite`, `some`); a thing that is not another of
     its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
@@ -2110,6 +2113,17 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     if kind == "be":
         return sum(1 for f in facts if f.relation in ("isa", "equals")
                    or (f.relation == "instance_of" and not is_variable(f.subject)))
+    if kind == "poss":
+        # A POSSESSIVE SAYS WHAT A THING IS OWNED BY, the link `Lexicon.linking`'s `possessive` gives and reading
+        # spells out from the same piece (`spell_out`'s `poss`, by `Lexicon.inherited`). Unknown here, the piece
+        # said nothing, `_says_of` took nothing to mean the whole entry says nothing the meaning holds, and "my",
+        # "your", "his", "her", "their", "mine" and "'s" were offered for NO meaning whatever: saying could not say
+        # a possessive at all, which reading has read all along. Of the 108 gold sentences main reads exactly, six
+        # hold a fact no word was offered to say and every one of them is this (`I lost my sunglasses.`,
+        # `Alice rushed into her room.`, `The bicycle is mine.`, `Tom painted his room white.`,
+        # `How do you spell your surname?`, `I planted an apple tree in my garden.`), and saying never finished a
+        # sentence for any of them (2026-10-31).
+        return sum(1 for f in facts if f.relation == OWNED_BY)
     if kind == "deny":
         return sum(1 for f in facts if not f.positive)
     if kind == "other":
@@ -3535,6 +3549,15 @@ class Grammar:
                     # before, so it is bound to nothing here and what takes it decides which thing it is. Bound to
                     # `?previous` as a pronoun of another sentence is, "ourselves" was made to stand for a thing
                     # outside the sentence and "We misled ourselves." was said back as nothing at all.
+                    continue
+                if p[0] == "poss" and len(p) > 2 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
+                    # A POSSESSIVE IS BOUND TO THE THING IT IS OWNED BY (Kay 1996 binding, as every other word put
+                    # in is): the thing of an `owned_by` fact, and where the word names its owner itself ("my" the
+                    # speaker, "your" the listener) only a fact of that owner. The owner a word leaves open ("her",
+                    # "'s") is left open here, as what takes it decides which thing it is.
+                    owned = [f.subject for f in meaning.facts if f.relation == OWNED_BY
+                             and (p[2] not in _SITUATION or f.obj == p[2])]
+                    out = [dict(o, **{p[1]: t}) for o in out for t in dict.fromkeys(owned) if o.get(p[1], t) == t]
                     continue
                 if of and len(p) > 1 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
                     out = [dict(o, **{p[1]: t}) for o in out for t in of if o.get(p[1], t) == t]

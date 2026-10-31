@@ -1,0 +1,160 @@
+main, read only. forms for 39898 base words.
+108 of 400 read exactly the meaning they are annotated with
+
+== THE SIX MEANINGS HOLDING AN owned_by FACT ==
+  I lost my sunglasses.
+         2.0s, 1,413 taken, 8 read back, 64 refused
+      -> I've lost my sunglasses.
+      -> I've been losing my sunglasses.
+      -> I lost my sunglasses.
+  Alice rushed into her room.
+        22.7s, 10,000 taken, 0 read back, 359 refused
+      nothing said: made whole and reading took them to mean something else
+  The bicycle is mine.
+        19.7s, 10,000 taken, 0 read back, 448 refused
+      nothing said: made whole and reading took them to mean something else
+  Tom painted his room white.
+        16.6s, 10,000 taken, 0 read back, 9 refused
+      nothing said: made whole and reading took them to mean something else
+  How do you spell your surname?
+        39.3s, 10,000 taken, 0 read back, 272 refused
+      nothing said: made whole and reading took them to mean something else
+  I planted an apple tree in my garden.
+         1.0s, 438 taken, 8 read back, 4 refused
+      -> I planted a apple tree to my garden.
+      -> I've planted a apple tree to my garden.
+      -> To my garden i've planted a apple tree.
+  20 of 108: 14 said back otherwise, 3 stuck, nothing said, 2 said back word for word, 1 nothing said
+  40 of 108: 25 said back otherwise, 8 stuck, nothing said, 4 said back word for word, 3 nothing said
+  60 of 108: 34 said back otherwise, 16 stuck, nothing said, 5 said back word for word, 4 nothing said, 1 gave up before the chart
+  80 of 108: 45 said back otherwise, 19 stuck, nothing said, 9 said back word for word, 6 nothing said, 1 gave up before the chart
+  100 of 108: 59 said back otherwise, 23 stuck, nothing said, 10 said back word for word, 7 nothing said, 1 gave up before the chart
+
+== OVER 108 MEANINGS, AGAINST 11/57/26/7/1 BEFORE ==
+     63  said back otherwise
+     26  stuck, nothing said
+     11  said back word for word
+      7  nothing said
+      1  gave up before the chart
+
+== SAID SOMETHING ELSE ==
+  I am intelligent.
+      -> I'm intelligent.
+  I'm calm now.
+      -> I'm calm.
+  We exaggerated.
+      -> We've been exaggerating.
+  I write poems.
+      -> I write some poems.
+  Freud originated psychoanalysis.
+      -> Freud originated a psychoanalysis.
+  Tom waved at Mary from the helicopter.
+      -> Tom waved to Mary on the helicopter.
+  Tom is waiting for Mary.
+      -> Tom's by waiting for Mary.
+  This tree is tall.
+      -> The tree's tall.
+  I ate that apple.
+      -> I've been eating the apples.
+  I'm scared of you.
+      -> I'm scared about yourself.
+  Nobody is perfect.
+      -> Nothing's perfect.
+  I am hungry.
+      -> I'm hungry.
+  We were playing golf.
+      -> We played a golf.
+  I love the ocean.
+      -> I love the oceans.
+  The show was exciting.
+      -> The shows were exciting.
+  Odette was born in Nantes in 1905.
+      -> Odette were born in Nantes in 1905.
+  This firm has a hundred employees.
+      -> The firms have a hundred employee.
+  Greece cancels the referendum.
+      -> Greece cancels the referendums.
+  The Second World War broke out in 1939.
+      -> Second World War broke at 1939.
+  Sue picked up a pencil off the floor.
+      -> Sue picked a pencil from the floors.
+  There is a dragonfly on the ceiling.
+      -> Some dragonfly's at the ceiling.
+  The bee flew to the flower.
+      -> The bee has flown to the flowers.
+  I drank some wine.
+      -> I've been drinking a wine.
+  I eat noodles.
+      -> I eats a noodle.
+  I need help.
+      -> I need a help.
+  The cat ate the mouse.
+      -> The cats were eating the mice.
+  A stranger spoke to me in the bus.
+      -> I spoke in the buses with a stranger.
+  Sekkura is a qualified chef.
+      -> A chef Sekkura's a qualified sekkura.
+  Tom is courteous.
+      -> Tom's courteous.
+  Tom is a gentleman.
+      -> Tom's a gentleman.
+  I'm not ashamed.
+      -> In't'm ashamed.
+  John gave Mary some money.
+      -> John gave a money to Mary.
+  I live in Azerbaijan.
+      -> I lives in Azerbaijan.
+  I brought you something.
+      -> To yourselves i brought them.
+  I like fresh air.
+      -> I like a fresh air.
+  The sky is blue.
+      -> The sky's blue.
+  I planted an apple tree in my garden.
+      -> I planted a apple tree to my garden.
+  The blackbird whistles.
+      -> The blackbird does whistle.
+  Tom is still in the hospital.
+      -> Tom's at the hospital.
+  Is Tom retired?
+      -> Tom's retired?
+  There were islands in the sea.
+      -> Some island's in the seas.
+  Tom has been sitting on the riverbank for hours.
+      -> For a hr Tom sat in the riverbank.
+  I lost my sunglasses.
+      -> I've lost my sunglasses.
+  I wear boxers.
+      -> I do wear boxers.
+  I want some potatoes.
+      -> I wan a potato.
+  The bread is in the oven.
+      -> The bread's in the oven.
+  Mary is pregnant.
+      -> Mary's pregnant.
+  Tom donated three paintings to the museum.
+      -> Tom has donated a three picture to the museums.
+  I bought a new sewing machine.
+      -> I bought a newer sewing machine.
+  Verga is a famous writer.
+      -> A famous author Verga's a verga.
+  Tom hates rats.
+      -> Tom detests some rats.
+  I want ice cream.
+      -> I wan some ice cream.
+  The cat is on the mat.
+      -> The cat's in the mat.
+  Tom is broke.
+      -> Tom's broke.
+  I'm exaggerating.
+      -> I am by exaggerating.
+  You told a lie.
+      -> You've told a lie.
+  Tom has a daughter.
+      -> Tom had a daughter.
+  Tom hates spiders.
+      -> Tom detests some spider.
+  I want to marry Martyna.
+      -> I wan to marry Martyna.
+  We ate the pizza.
+      -> We were eating the pizzas.

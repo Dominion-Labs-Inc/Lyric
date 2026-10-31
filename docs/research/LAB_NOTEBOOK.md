@@ -16,6 +16,73 @@ Conventions:
 
 ---
 
+## 2026-10-31 (98) — Saying could not say a possessive at all, and one unknown piece kind was why
+
+**Objective.** *"ok lets do it. and you said links must be fixed. so here we are again fixing reading and sentence
+structure AGAIN."* (97) named five links no word is offered to say and put the possessive first. His objection is
+right about the process -- fixing one link at a time is the drip (95) forbade -- so the route from a link to a word
+was taken whole instead, and it has ONE break in it.
+
+**SAYING HAD ONE ROUTE FROM A LINK TO A WORD AND IT WAS PREPOSITIONS ONLY.** `Lexicon.saying(link)` reads the
+`prep`, `prep_to` and `prep_of` tables and nothing else, and the loop that budgets a link
+(`grammar.py`, `for link in sorted({f.relation for f in meaning.facts})`) keeps an entry only
+`if entry.cls == "PREPOSITION"`. Every link that works is prepositional: `located_in`, `moves_to`, `owns`,
+`word_of`, `about`, `done_for`, `moves_from`, `equals`, `done_with`, `moves_through`, `lasts_for`.
+
+**THE BREAK IS ONE UNKNOWN PIECE KIND.** `_piece_says` enumerates the kinds saying understands -- `given`, `past`,
+`be`, `deny`, `fact`, `pron` -- and its docstring says "none for any other piece". **`poss` was not among them**, so
+a possessive's piece said nothing, and `_says_of` turns a nothing into `None` for the WHOLE entry. So `my`, `your`,
+`his`, `her`, `their`, `mine` and `'s` were offered **for no meaning whatever**: saying has never been able to say a
+possessive, while reading has read them all along from the same piece (`spell_out`'s `poss`) through the same table
+(`data/grammar/english.json`'s `linking`: `"possessive": "owned_by"`). One table, used by one side.
+
+**FIXED, both halves.** A `poss` piece says as many facts as the meaning holds of `owned_by`; and it is bound to the
+thing it owns (Kay 1996 binding), only to a fact of the named owner where the word names one ("my" the speaker,
+"your" the listener), the owner left open where the word leaves it open ("her", "'s"). 71 grammar tests pass, one
+new: `test_a_possessive_says_what_a_thing_is_owned_by`.
+
+**MEASURED over the 108 gold sentences main reads to exactly their annotated meaning:**
+
+| | word for word | said otherwise | stuck, 0 read back | nothing | gave up |
+|---|---|---|---|---|---|
+| before | 11 | 61 | **28** | 7 | 1 |
+| a possessive can be said | 11 | 63 | **26** | 7 | 1 |
+
+`I lost my sunglasses.` went from **stuck at 10,000 chart items with 0 read back** to **2.0 s, 1,413 items, 8 read
+back**, and `I planted an apple tree in my garden.` from stuck to **1.0 s, 438 items**. Nothing regressed. The two
+that moved are the two whose possessive names its own owner (`my`); the four left are `her` and `his` (the owner
+open, left to the pronoun machinery), `your` in a question, and `mine` standing alone as `NP.x`, where the owned
+thing has no kind and so never becomes a place at all.
+
+**WORD FOR WORD DID NOT MOVE, AND THE REASON IS RANKING, NOT SAYING.** `I lost my sunglasses.` is said exactly --
+it is **third** in the list, behind `I've lost my sunglasses.` and `I've been losing my sunglasses.`. The tally
+counts `said[0]` alone, so a right sentence ranked third counts as a failure. **Ranking is now what stands between a
+working possessive and a visible gain**, and it is the next thing to measure.
+
+**TWO ERRORS OF MINE, both corrected in (97) in place.**
+- **(97)'s baseline was wrong.** I quoted 11/57/26/7/1 for the order as it stands; those were CELLS of the two-order
+  joint table (where both orders agreed), not the marginals. The marginals are 11/61/28/7/1. So the charged estimate
+  of (97) was **identical** to the order as it stands, not worse: the claim that it "cost two" was arithmetic of
+  mine, not a measurement. Its conclusion stands -- it is not the fix.
+- **(97) over-counted the missing links.** `isa` is NOT missing: `_piece_says`'s `be` kind covers `isa`, `equals`
+  and `instance_of` of a name, and the census only matched `("fact", link)` keys so it missed `("be",)`. So
+  `Verga're a famous author Verga.` is not a missing link; its cause is `_things_said` turning `isa(verga, writer)`
+  into TWO NOUN places with nothing obliging a copula between them, which is open.
+
+**Verified against the real system.** `./venv_lyric/bin/python3`, main read only, `tests/test_grammar.py` 71 passed.
+Nothing written to any store.
+
+**Open, in order.**
+1. Ranking: the right sentence is made and ranked third. Measure how often, over the 108, the gold sentence is in
+   what saying returns but not first -- that is the cheapest gain now in sight.
+2. The remaining possessives: `her`/`his` with the owner open, `mine` standing alone, `your` in a question.
+3. `_things_said` makes two NOUN places of one `isa` fact, and nothing obliges a copula between them.
+4. The fact-coverage mask of (97), still the root fix for the 26 stuck and the 63 said otherwise; sound once every
+   fact can be said, and `has_degree` and `state_of` need the corrected census before it is built.
+5. Reading accepts bad English (`Me writes poems.` reads back as `I write poems.`): case and agreement read loosely.
+
+---
+
 ## 2026-10-31 (97) — Saying offers noun phrases as sentences; reading refuses them all, and that is the hang
 
 **Objective.** *"So let's work on saying. I don't wanna teach anything else until saying is 100% correct."* (96) left
@@ -28,9 +95,14 @@ named rather than left running:
 
 | | word for word | said otherwise | stuck, 0 read back | nothing said | gave up |
 |---|---|---|---|---|---|
-| as it stands | 11 | 57 | 26 | 7 | 1 |
-| most-complete first | 13 | 57 | 26 | 7 | 1 |
+| as it stands | 11 | 61 | 28 | 7 | 1 |
+| most-complete first | 13 | 59 | 26 | 7 | 1 |
 | estimate charged per place | 11 | 61 | 28 | 7 | 1 |
+
+*[Corrected 2026-10-31, same day: the first version of this entry printed 11/57/26/7/1 for both of the first two
+rows. Those were CELLS of the two-order joint table (the meanings where both orders did the same thing), not the
+marginals. Read correctly, the charged estimate is **identical** to the order as it stands, so the claim below that
+it "cost two" is wrong -- it cost nothing and gained nothing. The conclusion is unchanged: it is not the fix.]*
 
 **THE STUCK ONES BUILD HUNDREDS OF WHOLE SENTENCES AND READING REFUSES EVERY ONE.** Every stuck meaning reports
 `made whole and reading took them to mean something else`, never `no whole sentence was ever made`:
@@ -67,7 +139,7 @@ them. Over the 108:
 | link | meanings | what it is in English |
 |---|---|---|
 | `owned_by` | 6 | the possessive: *my* sunglasses, *her* room, *your* surname, mine |
-| `isa` | 5 | a name predicated of a kind: Tom is a gentleman, Verga is a famous writer |
+| `isa` | 5 | **WRONGLY COUNTED, see (98)**: the copula's `be` piece does say it |
 | `has_degree` | 3 | *How tall...*, *slightly* hungry |
 | `has_count` | 2 | *three* paintings, *a hundred* employees |
 | `state_of` | 1 | The show was exciting. |
@@ -96,8 +168,8 @@ cannot say. Seven of the 28 stuck meanings hold such a fact (`I lost my sunglass
   sign is reckoned at -1.61 where a whole sentence scores -7.88, and A* must take the whole band between. Klein and
   Manning 2003 is cited for it at `grammar.py:3578` and that paper's floor is an estimate with nothing outside it.
   Charging each place what a place had cost so far (an outside estimate, Caraballo and Charniak 1998) made the widest
-  meaning return on its own -- 8 read back, 228,529 items, **2,048.7 s** -- and over the 108 unstuck nought and cost
-  two. Reverted.
+  meaning return on its own -- 8 read back, 228,529 items, **2,048.7 s** -- and over the 108 was identical to the
+  order as it stands, unsticking nought. Reverted.
 - **Packing is not involved.** The key's surface parts (`said[-1]`, `first_sound(said[0])`) cost under 1%: 325,136
   kept against 323,108 without them on the widest meaning, 1,323 against 1,323 on `I am intelligent.`. (96)'s open
   question -- unpacked surface variants against the heuristic -- resolves to neither.

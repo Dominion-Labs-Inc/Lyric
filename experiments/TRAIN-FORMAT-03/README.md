@@ -346,3 +346,33 @@ meanings hold such a fact, so no candidate of theirs can ever read back.
 
 `Dick tried to solve the problem, in vain.` does not read back to its annotated meaning, so it was never in the
 sweep's saying pass; (96) calling it a sentence the sweep stalled on is wrong -- the stall was a direct `say` call.
+
+## Saying could not say a possessive at all (notebook (98))
+
+(97) named five links no word is offered to say. Taking the whole route from a link to a word instead of one link at
+a time: **saying's only route is prepositions.** `Lexicon.saying(link)` reads the `prep`, `prep_to` and `prep_of`
+tables and nothing else, and the loop budgeting a link keeps an entry only `if entry.cls == "PREPOSITION"`.
+
+The break is **one unknown piece kind**. `_piece_says` lists the kinds saying understands -- `given`, `past`, `be`,
+`deny`, `fact`, `pron` -- and its docstring says "none for any other piece". `poss` was not among them, so a
+possessive's piece said nothing, and `_says_of` turns a nothing into `None` for the whole entry. `my`, `your`,
+`his`, `her`, `their`, `mine` and `'s` were offered for **no meaning whatever**: saying has never been able to say a
+possessive, while reading has read them all along from the same piece (`spell_out`'s `poss`) through the same table
+(`data/grammar/english.json`'s `linking`: `"possessive": "owned_by"`).
+
+Fixed both halves: a `poss` piece says as many `owned_by` facts as the meaning holds, and is bound to the thing it
+owns, only to a fact of the named owner where the word names one. Over the 108 gold sentences main reads exactly
+(`say_poss.log`):
+
+| | word for word | said otherwise | stuck, 0 read back | nothing | gave up |
+|---|---|---|---|---|---|
+| before | 11 | 61 | **28** | 7 | 1 |
+| a possessive can be said | 11 | 63 | **26** | 7 | 1 |
+
+`I lost my sunglasses.` went from stuck at 10,000 items with 0 read back to 2.0 s, 1,413 items, 8 read back.
+Word for word did not move because the right sentence is ranked **third**, behind `I've lost my sunglasses.`, and
+the tally counts `said[0]` alone -- ranking is the next thing to measure.
+
+Two corrections to (97): its 11/57/26/7/1 baseline were cells of the two-order joint table, not marginals (the
+marginals are 11/61/28/7/1, so the charged estimate was identical to the order as it stands, not worse); and `isa`
+was wrongly counted as a missing link, since `_piece_says`'s `be` kind covers it.
