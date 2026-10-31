@@ -16,7 +16,7 @@ Conventions:
 
 ---
 
-## 2026-10-31 (101) — "Where" asked what a doing was done to; a quality could mean no sense but its most frequent
+## 2026-10-31 (101) — The word records fix the sense label and wreck the structure: one record overruled every sentence taught about the verb. "Where" asked what a doing was done to; a quality could mean no sense but its most frequent
 
 **Objective.** *"continue.... you mentioned 3 things and none of them need my decision"* — the three things (100)
 left waiting: run GRAMMAR-01 with the word records, fix the preposition's link, and give a quality and an adverb a
@@ -116,13 +116,61 @@ re-reading. 86 tests pass (`test_grammar.py` 78, `test_teaching_path.py` 8).
 **Expected size: small.** The research prices fine-grained adjective–noun choice at 1.4 points over most-frequent
 sense. This closes a hole in what reading *can* do; it is not a large share of its gap.
 
-### The run
+### THE RUN: the word records fix the sense label and wreck the structure
 
-GRAMMAR-01 with `--with-words` is running (it switches on the sense tables and the verb-frame tables that
-20261028T111052Z measured with switched off). It crashed first on my own block from (100) — `TaughtSentence.text`,
-which does not exist; the field is `sentence`. Restarted, it records 6,986 words at ~0.8s each, so about 90 minutes
-of records before it reads the dev split. **It loaded the grammar and the teaching sources before these two fixes**,
-so it prices the word-record layer alone, and a second run prices the fixes on top of it.
+`20261031T211729Z`, GRAMMAR-01 with `--with-words` — 6,986 words recorded whole, 2,848s. It crashed first on my own
+block from (100): `TaughtSentence.text`, which does not exist; the field is `sentence`. It loaded the grammar and the
+teaching sources before the two fixes above, so it prices the word-record layer **alone** against
+`20261028T111052Z`, which is the same experiment with the records switched off:
+
+| | no records | with records | |
+|---|---:|---:|---|
+| strict: whole meaning right | 21.84% | **25.14%** | **+3.3** |
+| strict: facts F1 | 0.468 | **0.513** | **+4.5** |
+| senses aside: whole meaning right | **42.37%** | 31.83% | **−10.5** |
+| senses aside: facts F1 | **0.821** | 0.637 | **−18.4** |
+| + the one spoken of before unnamed | **53.57%** | 40.61% | −13.0 |
+| links by the word's own uses, right | **1,172 of 1,443 (81.2%)** | 872 of 1,437 (60.7%) | **−20.5** |
+| links by what it is a kind of | 93 of 173 (53.8%) | 44 of 96 (45.8%) | −8.0 |
+| links by the grammar's rule | 69 of 169 (40.8%) | 35 of 101 (34.7%) | −6.1 |
+| read, meaning wrong | 498 | 591 | +93 |
+
+(100) predicted the records would be *"the lever on both gaps at once"*. **Half right, and the half that is wrong is
+larger.** They do what was predicted for the sense label. They also decide 300 more of the same number of links
+WRONG. The senses-aside drop is not a measurement artefact: `senses_aside` renames the **gold** by the reading's own
+word names (`names_of`, from the winning sign's `word` pieces), so the sense label is neutralised there by
+construction and a drop can only be structure.
+
+**THE CAUSE, traced and shown with no run at all.** `GrammarView.learn` counts what a taught meaning said of each
+place of a verb into `learned["role"][(name, slot)]`; `hold_word` counts the word record's PropBank places into **the
+same counter**. `_weighed` takes the most said, and PropBank's count is the larger, so **one word record overruled
+every sentence ever taught about that verb.** Filling the two counters by hand, exactly as the two callers fill them:
+
+```
+after one taught sentence ("You tortured a prisoner."):
+    learned['role'][('torture','subject')] = {'done_by': 1}        inherited -> ('done_by', 'own')
+after the word record is held on top:
+    learned['role'][('torture','subject')] = {'done_by': 1, 'has_property': 5}
+    place_links[('torture','subject')]     = {'has_property': 5}   inherited -> ('has_property', 'own')
+```
+
+VerbNet's only class of "torture" is one of feelings (`amuse-31.1`: "NP:Stimulus V NP:Experiencer"), so the record
+turned the torturer into what causes a feeling — and this is the verb whose docstring already records the same defect
+being found from the other direction in lyric_dev2 on 2026-10-29.
+
+**The bookkeeping to fix it was already there and unused.** `hold_word` records PropBank's own share apart
+(`place_links`) for exactly this purpose, and `taught_role` already states the rule — *"what was said of the very verb
+is not overruled by its frames"* — but **only `framed` consulted it.** The place decision now does the same
+(`_taught_apart`): PropBank's share comes out of the counter and what taught sentences said decides where they said
+anything. A verb nobody taught still takes its PropBank places, which beat the grammar's own link alone. No other
+table is touched, and the regression test was proved to discriminate.
+
+**Same shape, not fixed, no bookkeeping to separate the two:** `hold_word` also counts the record's preposition links
+into `learned["prep"]`, `learned["prep_to"]` and `learned["prep_of"]`, which taught sentences also fill, and there is
+no `place_links` for them. `prep_of` wins outright in the preposition branch (`if how_own == "own"`), so a record's
+preposition link overrides every taught sentence about that verb's preposition.
+
+**A run is going** with all four fixes against the same 6,986 records, so its numbers are the fixes' own.
 
 ### Found, not fixed: a word memory knows several words as always beats the literal reading
 
