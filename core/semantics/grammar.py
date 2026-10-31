@@ -986,6 +986,17 @@ class Lexicon:
                 return default if default in tied else tied[0]
         return None
 
+    def _taught_apart(self, key: Tuple, held: Counter) -> Optional[Counter]:
+        """WHAT SENTENCES TAUGHT WITH THEIR MEANINGS SAID OF A VERB'S PLACE, the share its word's PropBank places put
+        there taken out (`place_links`, which `hold_word` records for exactly this). None where they said nothing
+        beyond it: PropBank's places are what a verb nobody taught has, and are better than the grammar's own link
+        alone."""
+        recorded = self.place_links.get(key) or {}
+        if not recorded:
+            return None
+        taught = Counter({link: n - recorded.get(link, 0) for link, n in held.items()})
+        return Counter({link: n for link, n in taught.items() if n > 0}) or None
+
     def taught_role(self, name: str, slot: str) -> bool:
         """Whether sentences taught with their meanings said what a verb's place is, beyond what its word's PropBank
         places said (`place_links`): what was said of the very verb is not overruled by its frames (`framed`).
@@ -1923,8 +1934,18 @@ class Lexicon:
 
     def inherited(self, table: str, name: str, cls: str, rest: Tuple, default: Optional[str]) \
             -> Tuple[Optional[str], str]:
-        """As `link`, for a word whose own uses say nothing: what is said of the nearest kind memory holds it to be."""
+        """As `link`, for a word whose own uses say nothing: what is said of the nearest kind memory holds it to be.
+
+        OF A VERB'S PLACE, WHAT TAUGHT SENTENCES SAID COMES BEFORE WHAT ITS WORD'S PROPBANK PLACES SAID
+        (`_taught_apart`), as `taught_role` already says of its frames: the two are counted into one counter
+        (`GrammarView.learn` and `hold_word` both fill `learned["role"]`), and PropBank's count is the larger, so a
+        word recorded whole overruled every sentence taught about the same verb. Holding the records of the 6,986
+        words the PMB's sentences use, the links decided by a word's own uses fell from 1,172 of 1,443 right to 872
+        of 1,437 (81.2% to 60.7%), and whole meanings with senses aside from 42.4% to 31.8%
+        (GRAMMAR-01 20261028T111052Z against 20261031T211729Z)."""
         held = self.learned[table].get((name,) + rest)
+        if table == "role" and held:
+            held = self._taught_apart((name,) + rest[:1], held) or held
         if held:
             return _weighed(held, default), "own"
         for kind in self.words.kinds(name, cls):

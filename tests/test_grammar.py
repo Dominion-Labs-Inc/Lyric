@@ -1967,3 +1967,39 @@ def test_a_quality_read_in_a_sentence_says_the_sense_the_thing_it_is_said_of_tak
     assert read(g, "A hot dog barked.") == (
         "tell: done_by(?v0, ?v1) & has_property(?v1, hot) & instance_of(?v0, bark) & instance_of(?v1, dog) & "
         "precedes(?v0, ?now)")
+
+
+def test_what_taught_sentences_said_of_a_verbs_place_is_not_overruled_by_its_propbank_places():
+    """A VERB'S PLACE IS DECIDED BY WHAT SENTENCES TAUGHT ABOUT THAT VERB SAID, BEFORE WHAT ITS WORD'S PROPBANK
+    PLACES SAID. `GrammarView.learn` counts what a taught meaning said of each place into `learned["role"]`, and
+    `hold_word` counts the word record's PropBank places into THE SAME counter. PropBank's count is the larger, so a
+    word recorded whole overruled every sentence ever taught about that verb: "You tortured a prisoner." teaches the
+    torturer who does it, VerbNet's only class of "torture" is one of feelings (`amuse-31.1`: "NP:Stimulus V
+    NP:Experiencer"), and the record turned the subject into what causes one.
+
+    Measured: holding the records of the 6,986 words the PMB's sentences use, the links decided by a word's own uses
+    fell from 1,172 of 1,443 right to 872 of 1,437 (81.2% to 60.7%), whole meanings with senses aside from 42.4% to
+    31.8% and facts F1 from 0.821 to 0.637, while the fine-grained sense label IMPROVED (21.8% to 25.1% strict)
+    — GRAMMAR-01 20261028T111052Z against 20261031T211729Z, lab notebook (101).
+
+    `hold_word` already records PropBank's own share apart (`place_links`) for exactly this, and `taught_role` already
+    says what taught sentences said is not overruled by the verb's frames. The place decision now does the same."""
+    lexicon = gm.Lexicon(Held())
+    # As `GrammarView.learn` counts it from "You tortured a prisoner."
+    lexicon.learned["role"][("torture", "subject")]["done_by"] += 1
+    assert lexicon.inherited("role", "torture", "VERB", ("subject",), "done_by") == ("done_by", "own")
+    # As `hold_word` counts the word record's PropBank places on top, recording its own share apart.
+    lexicon.learned["role"][("torture", "subject")]["has_property"] += 5
+    lexicon.place_links[("torture", "subject")]["has_property"] += 5
+    assert lexicon.taught_role("torture", "subject"), "a taught sentence did say what the subject is"
+    assert lexicon.inherited("role", "torture", "VERB", ("subject",), "done_by") == ("done_by", "own")
+    # A VERB NOBODY TAUGHT still takes its PropBank places: they are better than the grammar's own link alone.
+    lexicon.learned["role"][("amuse", "subject")]["has_property"] += 5
+    lexicon.place_links[("amuse", "subject")]["has_property"] += 5
+    assert not lexicon.taught_role("amuse", "subject")
+    assert lexicon.inherited("role", "amuse", "VERB", ("subject",), "done_by") == ("has_property", "own")
+    # Every other table is untouched: only a verb's places are counted from two sources into one counter.
+    lexicon.learned["poss"][("room",)]["owned_by"] += 1
+    lexicon.place_links[("room",)]["part_of"] += 9
+    assert lexicon.inherited("poss", "room", "NOUN", (), "owned_by") == ("owned_by", "own")
+
