@@ -170,7 +170,45 @@ into `learned["prep"]`, `learned["prep_to"]` and `learned["prep_of"]`, which tau
 no `place_links` for them. `prep_of` wins outright in the preposition branch (`if how_own == "own"`), so a record's
 preposition link overrides every taught sentence about that verb's preposition.
 
-**A run is going** with all four fixes against the same 6,986 records, so its numbers are the fixes' own.
+### THE FOUR FIXES MEASURED: net negative, and MY CLAIMED CAUSE IS WRONG
+
+`20261031T220938Z`, the same 6,986 records with all four of today's fixes ("where", the quality's sense, the
+adverb's sense, and `_taught_apart`):
+
+| | records only | + the four fixes | |
+|---|---:|---:|---|
+| strict: whole meaning right | 25.14% (229) | 25.25% (230) | +1 sentence |
+| strict: facts F1 | 0.513 | 0.517 | +0.4 |
+| senses aside: whole meaning right | 31.83% (290) | **29.97% (273)** | **−17 sentences** |
+| senses aside: facts F1 | 0.637 | **0.623** | **−1.4** |
+| + the one spoken of before unnamed | 40.61% (370) | **38.20% (348)** | **−22** |
+| links by the word's own uses, right | 872 of 1,437 (60.7%) | **848 of 1,438 (59.0%)** | **−24 right** |
+| links by what it is a kind of | 44 of 96 (45.8%) | 41 of 96 (42.7%) | −3 |
+| links by the grammar's rule | 35 of 101 (34.7%) | 29 of 101 (28.7%) | −6 |
+
+**ERROR, CORRECTED HERE.** Commit `270ad380` and the paragraph above state that PropBank's places overruling the
+taught counter **is the cause** of the records' 20-point structural regression. **It is not.** Taking the overruling
+out recovered nothing: links decided by a word's own uses went 60.7% → 59.0%, slightly *worse*. The overruling is
+real — it is shown by construction, by filling the two counters exactly as their two callers fill them — but it is
+not what costs the points. I verified that the mechanism exists and then asserted it was the cause without measuring
+that, which is the same mistake (99) made and (100) corrected.
+
+So the records' structural damage comes from something else `hold_word` writes: the forms, the uses each word is put
+to, `verb_frames`, the name a word is read under (`recorded_name` — which changes what every kind in every reading is
+called), the knowledge `isa` links, or `learned["prep"]`/`prep_to`/`prep_of`. Not yet separated.
+
+**And the four fixes cannot be separated from each other** by this run: each was verified on its own sentences with a
+test proved to discriminate, and together they are net −1.9 points of whole meanings with senses aside. Separating
+them is four more runs. Each costs 62 minutes, of which **3,674 of 3,707 seconds is recording the 6,986 words** — the
+reading itself is 33 seconds. Caching the records to disk would make a variant run about a minute, and separating
+four fixes four minutes instead of four hours. That is the measurement tool this loop has been missing all day.
+
+**What the day's arithmetic says.** Four fixes, each traced to a named cause in the code, each with a discriminating
+regression test, each measured right on the sentences it was about: **net worse on the held-out split.** Taken with
+the fact that this task has a published rule-based reference implementation (Boxer, 74.3, the tool that made the
+PMB's own gold) and that GRAMMAR-01's facts F1 is its own measure and not the Counter the published numbers use, the
+honest reading is that the defect-at-a-time loop is not converging and the next move is a measurement one, not
+another fix.
 
 ### Found, not fixed: a word memory knows several words as always beats the literal reading
 

@@ -92,6 +92,7 @@ not read right senses aside (`_missed.json`).
 | `20261026T184453Z` | 865 / 860 | 22.6% | 43.3% | 54.8% | 82.6% | 1,395 (81.7%) / 169 (55.6%) / 164 (42.1%) |
 | `20261028T111052Z` | 891 / 884 | 21.8% | 42.4% | 53.6% | 82.1% | 1,443 (81.2%) / 173 (53.8%) / 169 (40.8%) |
 | `20261031T211729Z` (`--with-words`) | 893 / 881 | **25.1%** | 31.8% | 40.6% | 63.7% | 1,437 (60.7%) / 96 (45.8%) / 101 (34.7%) |
+| `20261031T220938Z` (`--with-words`, four fixes) | 893 / 881 | **25.2%** | 30.0% | 38.2% | 62.3% | 1,438 (59.0%) / 96 (42.7%) / 101 (28.7%) |
 
 From `20261026T043416Z` each word's category is chosen beside the words around it, as the PMB's checked CCG derivations
 say (`Lexicon.hear_derived`, `_in_context`, `_frame_evidence`; lab notebook 2026-10-26 (52)): each derivation word
@@ -323,8 +324,17 @@ decided wrong. A drop with senses aside can only be structure, since `senses_asi
 reading's own word names (`names_of`, from the winning sign's `word` pieces) and so neutralises the sense label by
 construction.
 
-The cause is that `GrammarView.learn` counts what a taught meaning said of a verb's place into `learned["role"]` and
-`hold_word` counts the record's PropBank places into the same counter, so one word record overruled every sentence
-ever taught about that verb (`Lexicon._taught_apart`, fixed; the record's preposition links have no such
-bookkeeping and are not). **So no run before `20261031T211729Z` is comparable with main**, and this one is the
-baseline the records' own effect is measured against.
+One cause was found and fixed and **was not it**: `GrammarView.learn` counts what a taught meaning said of a verb's
+place into `learned["role"]` and `hold_word` counts the record's PropBank places into the same counter, so one word
+record overruled every sentence ever taught about that verb (shown by construction; `Lexicon._taught_apart`). Taking
+it out recovered nothing — `20261031T220938Z`, the same records with that and three other fixes, reads 30.0% whole
+with senses aside against 31.8%, and its links by a word's own uses are 59.0% right against 60.7%. What the records
+damage is still unfound: `hold_word` also writes the forms, each word's uses, `verb_frames`, the name a word is read
+under (`recorded_name`), the knowledge's `isa` links and `learned["prep"]`/`prep_to`/`prep_of`.
+
+**So no run before `20261031T211729Z` is comparable with main**, and that one is the baseline the records' own effect
+is measured against.
+
+**The harness's own cost is the bottleneck on finding out:** of `20261031T220938Z`'s 3,707s, **3,674s is recording
+the 6,986 words** and 33s is reading the dev split. Caching the records would make a variant run about a minute, and
+is what any separation of causes needs first.
