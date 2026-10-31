@@ -90,6 +90,8 @@ not read right senses aside (`_missed.json`).
 | `20261026T125030Z` | 865 / 860 | 23.0% | 43.6% | 55.0% | 82.5% | 1,391 (82.1%) / 164 (57.3%) / 167 (41.9%) |
 | `20261026T182351Z` (`--without-structure`) | 865 / 860 | 23.0% | 43.6% | 55.0% | 82.5% | 1,392 (82.0%) / 164 (57.3%) / 165 (42.4%) |
 | `20261026T184453Z` | 865 / 860 | 22.6% | 43.3% | 54.8% | 82.6% | 1,395 (81.7%) / 169 (55.6%) / 164 (42.1%) |
+| `20261028T111052Z` | 891 / 884 | 21.8% | 42.4% | 53.6% | 82.1% | 1,443 (81.2%) / 173 (53.8%) / 169 (40.8%) |
+| `20261031T211729Z` (`--with-words`) | 893 / 881 | **25.1%** | 31.8% | 40.6% | 63.7% | 1,437 (60.7%) / 96 (45.8%) / 101 (34.7%) |
 
 From `20261026T043416Z` each word's category is chosen beside the words around it, as the PMB's checked CCG derivations
 say (`Lexicon.hear_derived`, `_in_context`, `_frame_evidence`; lab notebook 2026-10-26 (52)): each derivation word
@@ -303,3 +305,26 @@ buy CDs.": `done_to(?v0, cds)` for `done_to(?v0, ?v2) & instance_of(?v2, cds)`).
 sense and the Co-Agent place -- are the same cause: the run holds no word records, so both sense tables and the
 verb-frame table are empty.** `--with-words` is the lever; it has not been run.
 
+**The word records fix the sense label and wreck the structure (2026-10-31, lab notebook (101)).** `--with-words`
+records every word the sentences use whole (`teaching_sources.word_record_of`), which is what main holds and what
+`20261028T111052Z` measured with switched off: without them the grammar has no sense of any word apart and no
+PropBank places for any verb. `20261031T211729Z` holds all 6,986 of them (2,848s, 2,815 of it the records):
+
+| | no records | with records | |
+|---|---:|---:|---|
+| strict: whole meaning right | 21.84% | **25.14%** | **+3.3** |
+| strict: facts F1 | 0.468 | **0.513** | **+4.5** |
+| senses aside: whole meaning right | **42.37%** | 31.83% | **−10.5** |
+| senses aside: facts F1 | **0.821** | 0.637 | **−18.4** |
+| links by the word's own uses, right | **1,172 of 1,443 (81.2%)** | 872 of 1,437 (60.7%) | **−20.5** |
+
+The sense label improves as (100) predicted and the structure falls further: 300 more of the same number of links
+decided wrong. A drop with senses aside can only be structure, since `senses_aside` renames the **gold** by the
+reading's own word names (`names_of`, from the winning sign's `word` pieces) and so neutralises the sense label by
+construction.
+
+The cause is that `GrammarView.learn` counts what a taught meaning said of a verb's place into `learned["role"]` and
+`hold_word` counts the record's PropBank places into the same counter, so one word record overruled every sentence
+ever taught about that verb (`Lexicon._taught_apart`, fixed; the record's preposition links have no such
+bookkeeping and are not). **So no run before `20261031T211729Z` is comparable with main**, and this one is the
+baseline the records' own effect is measured against.
