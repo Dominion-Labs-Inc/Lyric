@@ -801,6 +801,19 @@ def _taking_a_pp(derived: Derived) -> Dict[int, Tuple[str, Optional[int]]]:
     walk(derived.tree)
     return out
 
+def _first_sounds(words: Any, form: str) -> Set[str]:
+    """THE SOUNDS A FORM MAY BEGIN WITH, as memory holds how it is said (the CMU Pronouncing Dictionary's): what
+    decides "a" from "an" (`Lexicon._sound_after`, `Grammar.say`).
+
+    A FORM OF MORE THAN ONE WORD HAS NO SOUND OF ITS OWN, and the sound that decides is the one the next word
+    begins with, which is the first of them. Asked only of the whole form, "apple tree", "ice cream" and every
+    other multi-word name of a thing answered nothing, the choice fell back to how often each form is said at all,
+    and "a" -- said far oftener than "an" -- won every time: "I planted a apple tree to my garden." (2026-10-31).
+    """
+    ways = words.sounds(form)
+    if not ways and " " in form:
+        ways = words.sounds(form.split()[0])
+    return {way.split()[0].rstrip("012") for way in ways if way.split()}
 
 class Lexicon:
     """The words: English's grammar words and the categories of each kind of word (`data/grammar/english.json`),
@@ -1109,7 +1122,7 @@ class Lexicon:
         prior = (said[tokens[i].lower()] + 1.0) / (sum(said.values()) + len(said))
         firsts = set()
         if i + 1 < len(tokens):
-            firsts = {way.split()[0].rstrip("012") for way in self.words.sounds(tokens[i + 1]) if way.split()}
+            firsts = _first_sounds(self.words, str(tokens[i + 1]))
         if not firsts:
             return math.log(prior)
         return max(math.log((own.get(s, 0.0) + prior) / (sum(f.get(s, 0.0) for f in alike.values()) + 1.0))
@@ -2005,6 +2018,15 @@ CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
 #: The links that tell of a happening: what holds them is said with a verb.
 _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "follows", "during"})
+#: THE LINKS A SENTENCE MUST BE A CLAUSE TO SAY: a happening, and what a thing is held to be or to be like. A noun
+#: phrase says none of them -- it names a thing and asserts nothing of it -- so where a meaning holds one of these a
+#: noun phrase cannot be a whole telling of it, though `WHOLE` holds `NP` for the fragment that answers a question.
+#: Offered as whole tellings, noun phrases were every whole sentence saying made for a third of the gold sentences
+#: main reads: of `Tom is writing a letter.` all 274 were "a letter written by Tom" and its like, losing the tense
+#: and asserting nothing, and reading refused every one, so nothing read back, so `SAID_AT_MOST` never stopped the
+#: making and saying searched 10,000 items without an answer (2026-10-31).
+_ASSERTED = _HAPPENING_LINKS | frozenset({"has_property", "isa", "equals", "state_of"})
+
 #: THE LINK A POSSESSIVE SAYS, which `data/grammar/english.json`'s `linking` gives as `possessive` and reading reads
 #: a `poss` piece as (`spell_out`); named here because `_piece_says` weighs a piece with no lexicon to ask.
 OWNED_BY = "owned_by"
@@ -2045,17 +2067,26 @@ def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
     both could be made, so every meaning holding one was said back as nothing at all: `Tom misled Tom.` and
     `Tom misled himself.` alike (lyric_db, 2026-10-30)."""
     events = {f.subject for f in meaning.facts if f.relation in _HAPPENING_LINKS}
+    # A QUALITY HELD TO A DEGREE, OR HELD OF A THING, IS SAID BY AN ADJECTIVE AND NOT BY A NOUN: a degree's own term
+    # carries the quality's kind (`has_degree(?speaker, ?d3)` with `instance_of(?d3, hungry)`), and a state's does
+    # the same (`state_of(?s2, ?v0)` with `instance_of(?s2, exciting)`), so its kind is a word for a quality and
+    # what is said OF it is an adverb ("slightly"). Counted neither a happening nor a quality, the kind was asked
+    # for as a NOUN and what is said of it as an ADJECTIVE: nothing said `I'm slightly hungry.`,
+    # `The show was exciting.`, `How tall is Al Pacino?` or `How deep is Crater Lake?` (2026-10-31).
+    qualities = {f.obj for f in meaning.facts if f.relation == "has_degree"} \
+        | {f.subject for f in meaning.facts if f.relation == "state_of"}
     stands = _places_filled(meaning)
     out: List[Tuple[Tuple[str, str], Optional[Term]]] = []
     for f in meaning.facts:
         if f.relation == "instance_of" and not is_variable(f.obj):
-            out.append(((f.obj, "VERB" if f.subject in events else "NOUN"), f.subject))
+            out.append(((f.obj, "VERB" if f.subject in events else
+                         "ADJECTIVE" if f.subject in qualities else "NOUN"), f.subject))
             continue
         if f.relation == "isa":
-            out += [((t, "NOUN"), None) for t in (f.subject, f.obj) if not is_variable(t)]
+            out += [((t, "NOUN"), t) for t in (f.subject, f.obj) if not is_variable(t)]
             continue
         if f.relation == "has_property" and not is_variable(f.obj):
-            out.append(((f.obj, "ADVERB" if f.subject in events else "ADJECTIVE"), None))
+            out.append(((f.obj, "ADVERB" if f.subject in events or f.subject in qualities else "ADJECTIVE"), None))
             terms = (f.subject,)
         else:
             terms = (f.subject, f.obj)
@@ -2072,6 +2103,19 @@ def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
         if t in events or any(f.relation not in _HAPPENING_LINKS and t in (f.subject, f.obj) for f in meaning.facts):
             continue
         out += [((t, "PRONOUN"), t)] * stands.get(t, 1)
+    # ONE PLACE FOR ONE THING, WHATEVER ITS FACTS CALL IT: a thing that is the subject of an `isa` fact and named in
+    # another fact of the same meaning had a place as a kind (`isa`, above) AND a place as a name (the loop above
+    # it), so a sentence filling both said the thing twice -- of Verga being a famous writer, saying answered
+    # "Verga're a famous author Verga." (2026-10-31). The first class its facts give it is kept, the facts in the
+    # order the meaning holds them; a thing standing in two places of ONE happening is still said twice, which is
+    # `stands` below and what a reflexive is for.
+    first_class: Dict[Term, Tuple[str, str]] = {}
+    one_each: List[Tuple[Tuple[str, str], Optional[Term]]] = []
+    for key, term in out:
+        if term is not None and not is_variable(term) and first_class.setdefault(term, key) != key:
+            continue
+        one_each.append((key, term))
+    out = one_each
     # A doing is said once however many places it fills of another: a word for it says the whole of it.
     said: Dict[Tuple[str, str], int] = {}
     for key, term in out:
@@ -2095,21 +2139,87 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
                 out.update(of_other)
     return out
 
+#: EVERY KIND OF PIECE A GRAMMAR WORD'S MEANING IS WRITTEN IN, and which side of saying knows it. `spell_out` makes
+#: a reading's facts from these pieces and `_piece_says` says how many of a meaning's facts each piece may say; the
+#: two must cover the same ground, and nothing used to check that they did. A kind `_piece_says` does not know
+#: returns nothing, `_says_of` takes a nothing to mean the whole entry says nothing the meaning holds, and the word
+#: is then offered for NO meaning at all -- so one unknown kind silently takes a whole construction out of English.
+#: Unchecked, `poss` was unknown and saying could not say a possessive, `now` was unknown and it had no present
+#: progressive, `asked` was unknown and it could say no question whatever, while reading read all three
+#: (2026-10-31). `tests/test_grammar.py` holds every kind in `data/grammar/english.json` to this list, so a kind
+#: added to the grammar's words must be answered for on this side before it can be taught.
+#: What a piece says of a meaning, counted here.
+SAYS_OF_A_MEANING = frozenset({"given", "past", "now", "future", "be", "poss", "deny", "other", "pron", "fact",
+                               "asked", "degree_asked", "can", "may", "kind", "deny_arg", "compared",
+                               "quality", "counted", "than", "count", "during"})
+#: What says nothing of a meaning and so disqualifies no word: how a word is written or inflected, not what it means.
+SAYS_NOTHING_OF_A_MEANING = frozenset({"indefinite", "finite", "some"})
+#: STILL UNANSWERED FOR, each one silencing its words. `every` (all, every, everybody) is why a universal quantifier
+#: is lost; `deny_arg` (no) is why "Nobody is intelligent." comes back "Nothing is intelligent."; `npi` is "any";
+#: `compared`, `quality`, `counted` and `than` are the comparatives; `count` is "times"; `during` is "when".
+#: What says nothing of a meaning's FACTS, so disqualifies no word: how a sentence is addressed or joined.
+SAYS_NOTHING_OF_FACTS = frozenset({"polite", "npi", "gap", "event", "role"})
+#: STILL UNANSWERED FOR, each knowingly and for a stated reason.
+#:
+#: `prep`: a preposition is offered by its link instead (`Lexicon.saying`, `Grammar.say`'s loop over the meaning's
+#: links), so answering for it here would offer every one of them twice.
+#:
+#: `every` ("all", "every", "everybody"): THE MEANING LANGUAGE CANNOT SAY A UNIVERSAL. "An owl is a bird." and "All
+#: owls are birds." are both `isa(owl, bird)` and nothing tells them apart, so saying cannot know when "every" is
+#: right: answered for by that fact, "All owl is birds." was offered of one owl being a bird and ranked first
+#: (2026-10-31). This is why a universal quantifier is lost on the way out -- the gap is in what a meaning can
+#: HOLD, not in what saying can say, and it is fixed by giving the meaning language a universal, not here.
+NOT_YET_SAID = frozenset({"prep", "every"})
 
 def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
-    facts it may say (a thing known, `given`; a time before now, `past`; what one thing is of another, `be`: `isa`,
-    `equals`, or a named thing of a kind; what a thing is owned by, `poss`; a denial, `deny`; a link a word names,
-    `fact`; the one spoken of before, `pron`), none for any other piece;
+    facts it may say (a thing known, `given`; a time before now, `past`, going on now, `now`, after now, `future`;
+    what one thing is of another, `be`: `isa`, `equals`, or a named thing of a kind; what a thing is owned by,
+    `poss`; a denial, `deny`; what is asked about, `asked`, and a degree asked, `degree_asked`; what is held
+    allowed or possible, `can` and `may`; a link a word names, `fact`; the one spoken of before, `pron`), none for
+    any other piece;
+
+    EVERY KIND `spell_out` MAKES A FACT FROM MUST BE KNOWN HERE. A kind this does not know returns nothing, and
+    `_says_of` takes a nothing to mean the whole entry says nothing the meaning holds, so the word is offered for no
+    meaning at all -- which is how saying came to have no present progressive, no future, no question word and no
+    possessive while reading read them all (2026-10-31). The kinds still unknown, each silencing its words:
+    `every` (all, every, everybody), `deny_arg` (no), `npi` (any), `compared`/`quality`/`counted`/`than` (more,
+    most, less, least), `count` (times), `during` (when), `kind` (everybody, everyone, everything), `polite`,
+    `event`, `gap`, `role`.
     None for a piece saying nothing a meaning holds (`indefinite`, `finite`, `some`); a thing that is not another of
     its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
-    if kind in ("indefinite", "finite", "some"):
+    if kind in SAYS_NOTHING_OF_A_MEANING:
         return None
     if kind == "given":
         return sum(1 for f in facts if f.given)
     if kind == "past":
         return sum(1 for f in facts if f.relation == "precedes" and f.obj == "?now")
+    # THE OTHER TWO TIMES A WORD TELLS, which `spell_out` makes from these very pieces exactly as it makes `past`
+    # from `past` (`add("precedes", e, "?now")`, `add("follows", ...)`, `add("during", ...)`), and which `say`
+    # itself already maps the same way for `timed`. Unknown here, each returned nothing and `_says_of` took nothing
+    # to mean the WHOLE ENTRY says nothing the meaning holds, so the entries of "is", "am", "are" and "'s" that
+    # make a doing going on now were thrown away, and `will` and `shall` with them: the present progressive and the
+    # future were unsayable. `Tom is writing a letter.`, `The ice cream is melting.`, `We are longing for peace.`
+    # and `The squirrel is hibernating.` each made hundreds of whole sentences and read not one of them back
+    # (2026-10-31).
+    if kind == "now":
+        return sum(1 for f in facts if f.relation == "during" and f.obj == "?now")
+    if kind == "future":
+        return sum(1 for f in facts if f.relation == "follows" and f.obj == "?now")
+    # WHAT A SENTENCE ASKS ABOUT ("who", "what", "how", "where", "which"): `spell_out` gathers the terms its `asked`
+    # pieces name and a meaning holds them in `asked`. Unknown here, every question word was thrown away whole, so
+    # no question could be said at all: `Who stabbed Tom?`, `How tall is Al Pacino?`, `How deep is Crater Lake?`,
+    # `Where did you put the ketchup?` and `How do you spell your surname?` said nothing (2026-10-31).
+    if kind == "asked":
+        return len(meaning.asked)
+    # A DEGREE ASKED ABOUT ("How tall is he?"): the degree a quality is held to, where the degree is what is asked.
+    if kind == "degree_asked":
+        return sum(1 for f in facts if f.relation == "has_degree" and f.obj in meaning.asked)
+    # WHAT A DOING IS HELD TO BE ALLOWED OR POSSIBLE, as `spell_out` makes it of a `can` or a `may` piece
+    # (`add("has_property", e, "allowed")`, `"possible"` where it is not the listener's to allow).
+    if kind in ("can", "may"):
+        return sum(1 for f in facts if f.relation == "has_property" and f.obj in ("allowed", "possible"))
     if kind == "be":
         return sum(1 for f in facts if f.relation in ("isa", "equals")
                    or (f.relation == "instance_of" and not is_variable(f.subject)))
@@ -2146,6 +2256,28 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
         if len(piece) > 3 and piece[3] == "own":
             return previous or None
         return previous
+    # WHAT SAYS NOTHING OF A MEANING'S FACTS disqualifies no word: how a sentence is addressed, not what it holds.
+    # Every modal carries `polite` beside its own `can` or `may`, so while `polite` said nothing countable the whole
+    # entry was refused by it and no modal could be said however well `can` was answered for (2026-10-31).
+    if kind in SAYS_NOTHING_OF_FACTS:
+        return None
+    # A KIND SAYING WHAT A THING IS ("everybody", "everyone", "everything": `['kind', x, 'person']`).
+    if kind == "kind":
+        return sum(1 for f in facts if f.relation in ("instance_of", "isa") and f.obj == piece[2]) \
+            if len(piece) > 2 else 0
+    # A THING DENIED ("no money", "nobody", "nothing"), which `spell_out` makes of a denial as it makes any other.
+    if kind == "deny_arg":
+        return sum(1 for f in facts if not f.positive
+                   or (f.relation == "has_property" and f.obj == "false"))
+    # A QUALITY HELD TO A DEGREE ("more", "most", "less", "least", "than", "fewer").
+    if kind in ("compared", "quality", "counted", "than"):
+        return sum(1 for f in facts if f.relation == "has_degree")
+    # HOW MANY ("times").
+    if kind == "count":
+        return sum(1 for f in facts if f.relation == "has_count")
+    # ONE DOING WHILE ANOTHER ("when"), which is a `during` of two doings and not of now.
+    if kind == "during":
+        return sum(1 for f in facts if f.relation == "during" and f.obj != "?now")
     if kind == "fact":
         # AS OFTEN AS THE MEANING HOLDS IT, AND ONCE MORE FOR EACH FURTHER PLACE ITS THING FILLS: a word saying the
         # fact is the word naming the thing ("we", "us": a group the speaker is one of), so a sentence naming that
@@ -2386,6 +2518,9 @@ class Grammar:
                 # once asked how well it agreed with "nothing" (lyric_db, 2026-10-30).
                 made(lc.res, s, ">", right.head if _takes_its_head(lc) else left.head,
                      self._agreement(left, right) if _raised_subject(lc) and _verb_phrase(rc) else
+                     # A QUESTION'S SUBJECT AGREES WITH THE WORD THAT MAKES IT FINITE, and the subject is the one
+                     # taken here, so the two go in the other way round from a raised subject's.
+                     self._agreement(right, left) if _asks_its_subject(lc) and isinstance(rc, Atom) else
                      self._object_agreement(left, right) if _takes_object(lc) and isinstance(rc, Atom) else 0.0)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
@@ -3277,6 +3412,16 @@ class Grammar:
         places: List[List[Tuple[int, Entry]]] = []
         said_already: Set[Tuple[str, str]] = set()
         for concept, cls in wanted:
+            # A THING MEMORY KNOWS AS A NAME IS SAID AS A NAME, not as a noun. `isa` joins two things and asks for a
+            # word for each, and a kind is what it asks for, so a NAME was asked for as a NOUN: memory answers a
+            # noun asked of a name with the name itself (`MemoryAgent.words_for`'s fallback, `recorded_name` taking
+            # a NAME record for a NOUN), which saying then said in lower case and put a determiner before -- of
+            # Verga being a famous writer, "A verga's a famous writer.", and of Sekkura being a qualified chef,
+            # "A sekkura's a qualified chef." (2026-10-31).
+            if cls == "NOUN":
+                how_used = words.uses(str(concept))
+                if how_used.get("NAME", 0.0) > how_used.get("NOUN", 0.0):
+                    cls = "NAME"
             # A THING SAID A SECOND TIME, standing in a place of its happening it has already filled.
             again = (concept, cls) in said_already
             said_already.add((concept, cls))
@@ -3555,9 +3700,21 @@ class Grammar:
                     # in is): the thing of an `owned_by` fact, and where the word names its owner itself ("my" the
                     # speaker, "your" the listener) only a fact of that owner. The owner a word leaves open ("her",
                     # "'s") is left open here, as what takes it decides which thing it is.
-                    owned = [f.subject for f in meaning.facts if f.relation == OWNED_BY
-                             and (p[2] not in _SITUATION or f.obj == p[2])]
-                    out = [dict(o, **{p[1]: t}) for o in out for t in dict.fromkeys(owned) if o.get(p[1], t) == t]
+                    # THE OWNER A WORD LEAVES OPEN IS BOUND TO THE OWNER THE FACT GIVES ("her room" of Alice's
+                    # room): the word names no owner of its own, and its pronoun piece stands for a thing of this
+                    # very sentence (`own`), so nothing else would ever fill it and the fact would go unsaid.
+                    # Unbound, "her", "his", "their" and "'s" were offered and could say no `owned_by` fact at all,
+                    # and `Alice rushed into her room.` and `Tom painted his room white.` said nothing (2026-10-31).
+                    ways = []
+                    for f in meaning.facts:
+                        if f.relation != OWNED_BY or (p[2] in _SITUATION and f.obj != p[2]):
+                            continue
+                        way = {p[1]: f.subject}
+                        if p[2] not in _SITUATION and isinstance(p[2], str) and _MEANING_VARIABLE.fullmatch(p[2]):
+                            way[p[2]] = f.obj
+                        ways.append(way)
+                    out = [dict(o, **w) for o in out for w in ways
+                           if all(o.get(k, v) == v for k, v in w.items())]
                     continue
                 if of and len(p) > 1 and isinstance(p[1], str) and _MEANING_VARIABLE.fullmatch(p[1]):
                     out = [dict(o, **{p[1]: t}) for o in out for t in of if o.get(p[1], t) == t]
@@ -3622,7 +3779,7 @@ class Grammar:
         beside_of: Dict[Tuple[str, str], float] = {}
 
         def first_sound(word: str) -> Tuple[str, ...]:
-            return tuple(sorted({way.split()[0].rstrip("012") for way in lexicon.words.sounds(word) if way.split()}))
+            return tuple(sorted(_first_sounds(lexicon.words, word)))
 
         # WHAT CAN NEVER BE COMPLETED IS DROPPED (Kay 1996): a thing of the meaning said inside a stretch but no longer
         # reachable from its category ("a cat" taken by "chased": the cat) is joined to nothing more, so each fact
@@ -3731,6 +3888,9 @@ class Grammar:
         for at, entry, spends in extra:
             with contextlib.suppress(ValueError, IndexError):
                 hold(0, spends, self._lexical(tokens, at, at + 1, entry, bound_at.get(at)), (tokens[at],), (at,))
+        # A NOUN PHRASE IS NOT A TELLING OF WHAT MUST BE ASSERTED (`_ASSERTED`): where the meaning holds a happening
+        # or what a thing is held to be, the whole must be a clause.
+        asserting = any(f.relation in _ASSERTED for f in meaning.facts)
         closing = {"tell": ".", "ask": "?"}[meaning.act] if meaning.act in ("tell", "ask") else "."
         wanted_act = meaning.act
         target = whole.canonical()
@@ -3761,7 +3921,7 @@ class Grammar:
         # being a mammal, "A dog is mammals." and "A dogs is a mammal." were said, never "Dogs are mammals.".
         state = (self._tokens, self._weighed, self._marking, self._asking, self._agreeing)
 
-        def read_back(said: Tuple[str, ...]) -> None:
+        def read_back(said: Tuple[str, ...], made: float = 0.0) -> None:
             # Read as it is written, its first word with a capital: "wall" first was read surely (-4.6), "Wall" not
             # (-32.3), a name it might be (lyric_dev2, 2026-10-27). Reading takes the grammar's state for the
             # sentence read; the making's is put back.
@@ -3772,8 +3932,15 @@ class Grammar:
                 return
             # HOW SURELY IT READS BACK, kept beside whether it does: a sentence with one reading says the meaning and
             # nothing else, where one of several says it only as surely as that reading is taken (`Reading.sure`).
-            sentences[said] = (own(said, reading.sign), reading.sign.score if reading.sign is not None else 0.0,
-                               reading.sure)
+            # HOW SURELY IT WAS MADE RANKS IT, how surely it reads back breaks the tie. `SAID_AT_MOST` says the
+            # best its MAKING ranks first and the making's score was thrown away here, so sentences were ranked by
+            # how probable a PARSE each is -- which is reading's question, not saying's. Of the speaker's own words
+            # there are none to go by unless the speaker's are given (`own`), so ranking fell to the reading alone
+            # and `I've lost my sunglasses.` was put before `I lost my sunglasses.`, which saying had made surer:
+            # the right sentence was said THIRD and every count of what saying gets right reads the first alone
+            # (2026-10-31).
+            sentences[said] = (own(said, reading.sign), made,
+                               reading.sign.score if reading.sign is not None else 0.0, reading.sure)
         # TWO STRETCHES SAYING NOTHING ARE NOT COMBINED (Eisner 1996, normal-form CCG): what both say nothing of the
         # meaning (no word for a thing, nothing spent the meaning holds) combine only with what says something, every
         # sentence built so being built otherwise too, each word taking what says something first: "to" with "be in
@@ -3806,8 +3973,11 @@ class Grammar:
                 continue
             n = len(done)
             done.append(item)
-            if filled == full and _whole(sign.cat) is not None and said not in sentences and said not in refused:
-                read_back(said)
+            whole_as = _whole(sign.cat)
+            if asserting and isinstance(sign.cat, Atom) and sign.cat.base == "NP":
+                whole_as = None
+            if filled == full and whole_as is not None and said not in sentences and said not in refused:
+                read_back(said, sign.score)
             offers, (after, before) = _offers(sign.cat), _wants(sign.cat)
             for s in offers:
                 standing[s].append(n)
@@ -3868,10 +4038,11 @@ class Grammar:
                             combined.binding = None
                         combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
-        ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1]))
+        ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1],
+                                                     -sentences[said][2]))
         if how_surely is not None:
             how_surely.clear()
-            how_surely.update({_written(said, closing): sentences[said][2] for said in ranked})
+            how_surely.update({_written(said, closing): sentences[said][3] for said in ranked})
         if not sentences and why is not None:
             # SEARCHED AND FOUND NOTHING, which is two different things: no whole sentence was ever made, or some were
             # and reading took every one of them to mean something else. The second is the grammar disagreeing with
@@ -4347,6 +4518,19 @@ def _verb_phrase(cat: Cat) -> bool:
     return isinstance(cat, Fn) and cat.slash == "\\" and isinstance(cat.res, Atom) and cat.res.base == "S" \
         and isinstance(cat.arg, Atom) and cat.arg.base == "NP"
 
+def _asks_its_subject(cat: Cat) -> bool:
+    r"""WHETHER THE CATEGORY TAKES ITS SUBJECT TO THE RIGHT BECAUSE IT ASKS: a question puts the word that makes it
+    finite first and takes its subject after it (`(S[q].p/NP.y)/NP.x` of "Is Tom a student?",
+    `(S[q].e/(S[ng].e\NP.x))/NP.x` of "Is Tom writing?"), so that subject is joined by forward application and not
+    by backward, exactly as a raised subject is (`_raised_subject`).
+
+    `_takes_object` knows about this category and excludes it, so a question's first noun phrase is rightly not
+    weighed as an object -- and nothing weighed it as a SUBJECT either, so a question's subject was never weighed
+    for agreement at all. Of how the listener spells their surname, "How does you spell your surname?" was said and
+    ranked first; of Tom being retired, "Does Tom be retired?" (2026-10-31)."""
+    if not (isinstance(cat, Fn) and cat.slash == "/" and isinstance(cat.arg, Atom) and cat.arg.base == "NP"):
+        return False
+    return _whole((_comes_to(cat) or [cat])[-1]) == "ask" and not _takes_object(cat)
 
 def _takes_object(cat: Cat) -> bool:
     """WHETHER THE CATEGORY TAKES A NOUN PHRASE AFTER IT AS SOMETHING OTHER THAN ITS SUBJECT: it takes one to the

@@ -789,6 +789,93 @@ names, and `wordnet_names.py --write` records them, once every store is repaired
 the old names, repaired and taught again, "fast" is the adjective (like quick, the opposite of slow), fasting is
 `abstinence fast`, a kind of self-denial, and no word for fasting still names `fast`.
 
+## 12g · The format has two sides, and both must be answered for
+
+A teaching record is not finished when it holds the right fields. It is finished
+when **both sides of the system that reads those fields agree about them**. Every
+large defect found on 2026-10-31 was one side of the format using something the
+other side ignored, and in each case the record itself was correct:
+
+| the format states it | reading uses it | saying used it |
+|---|---|---|
+| `linking: possessive -> owned_by` (`data/grammar/english.json`) | yes, `spell_out`'s `poss` | **no** |
+| 32 kinds of piece a grammar word's meaning is written in | yes, `spell_out` | **11 of 32**, `_piece_says` |
+| `said_alone` on a word record | — | yes (and it IS in the record) |
+
+The consequence of the second row is not a worse sentence, it is **a construction
+that does not exist**. `_piece_says` answers how many of a meaning's facts a piece
+may say; an unknown kind answers nothing; `_says_of` reads a nothing as *this
+whole entry says nothing this meaning holds* and drops the entry. So one unknown
+kind takes every word carrying it out of English, silently:
+
+- `poss` unknown -> `my`, `your`, `his`, `her`, `their`, `mine`, `'s` offered for
+  **no meaning at all**. Saying could not say a possessive.
+- `now` unknown -> the entries of `is`, `am`, `are`, `'s` that make a doing going
+  on now were dropped. **No present progressive**: `Tom is writing a letter.`
+- `asked` unknown -> every question word dropped. **No questions at all.**
+
+None of this showed up as an error. It showed up as saying searching 10,000 chart
+items and returning nothing, which looks like a performance problem and is not.
+
+**THE RULE.** A kind of piece, a link, or a record field is not taught until every
+side that consumes it answers for it. For the piece kinds this is enforced, not
+documented: `grammar.py` holds `SAYS_OF_A_MEANING`, `SAYS_NOTHING_OF_A_MEANING`
+and `NOT_YET_SAID`, together covering exactly the kinds in
+`data/grammar/english.json`, and
+`tests/test_grammar.py::test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying`
+fails when the grammar's words gain a kind that saying has not answered for. A
+kind may be put in `NOT_YET_SAID` **knowingly** — that is a debt, written down —
+but it may not be left out.
+
+What is still owed, each one silencing its words: `every` (all, every, everybody:
+why a universal quantifier is lost), `deny_arg` (`no`: why *Nobody is
+intelligent.* comes back *Nothing is intelligent.*), `npi` (`any`), `compared`,
+`quality`, `counted`, `than` (the comparatives), `count` (`times`), `during`
+(`when`), `kind`, `polite`, `event`, `gap`, `role`.
+
+**Before the next teach,** the same question is owed of anything new: which side
+reads this, and does the other side answer for it? A record that passes its own
+schema and fails this is the expensive kind of correct.
+
+## 12h · What a meaning cannot hold, and what that costs every measurement
+
+Three things a sentence says that the meaning language has no way to hold. Each
+is read away on the way in, so reading cannot keep it and saying cannot recover
+it — and any score that compares what saying produces with the words a person
+actually wrote is measuring this, not saying.
+
+| the meaning cannot hold | so these are one meaning | measured |
+|---|---|---|
+| a universal quantifier | *An owl is a bird.* / *All owls are birds.* — both `isa(owl, bird)` | 2026-10-31 |
+| a noun's number | *I write poems.* / *I write a poem.* — both `instance_of(?v3, poem)` | 2026-10-31 |
+| a degree or comparison | *an old man* / *an older man* — the PMB's own annotation of "An older man was sitting on the bench." is `has_property(?v1, aged)` | 2026-10-31 |
+
+**What it costs.** Saying is asked for a sentence and judged against the one the
+person wrote. Where the meaning does not pin the words down, saying answers
+faithfully and the comparison calls it wrong: `I write some poems.`,
+`I love the oceans.`, `A older parent.`, `I bought a newer sewing machine.`,
+`How taller is Al Pacino?` all read back to exactly the meaning they were asked
+for. `read_back` admits nothing else — that is what it is for.
+
+**So word-for-word identity is the wrong measure of saying**, and it was the one
+used through (97) and (98). The right pair is:
+
+1. **Does it say the meaning?** Automatic and already enforced: a sentence is
+   only ever returned if reading it gives exactly the meaning asked for. On
+   2026-10-31, 87 of the 108 gold sentences main reads exactly got such a
+   sentence; 21 got none.
+2. **Is it English?** This is where the real remaining defect is, and it is
+   agreement and case, not vocabulary: *How does you spell your surname?*,
+   *I eats a noodle.*, *Me writes poems.*, *a apple*, *Tom's gentlemen.*
+
+**The standardisation consequence.** Before the next teach, a record that carries
+a distinction the meaning language cannot hold teaches nothing by it — the
+distinction is dropped at the door and no amount of data will bring it back. The
+universal, the number and the degree are the three known cases. Adding one is a
+change to the meaning language (`docs/TEACHING.md` §12, `spell_out`,
+`_things_said`, `_piece_says`) and to every side that reads it — §12g's rule
+applies: both sides must answer for it.
+
 ## 13 · Open
 
 - The one pipeline **is built**: `TeachingPass` owns the policy and

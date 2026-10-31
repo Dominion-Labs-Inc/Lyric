@@ -1,6 +1,7 @@
 """Reading by English's grammar (`core/semantics/grammar.py`): each word's category and meaning, combined by general
 rules. The words here are held in the test (`Held`), as memory would hold them; nothing is learned, so every link is
 the grammar's own."""
+import json
 from typing import Dict, Mapping, Optional, Sequence, Tuple
 
 import pytest
@@ -1761,3 +1762,37 @@ def test_a_possessive_says_what_a_thing_is_owned_by():
     assert any("my" in [w.lower() for w in gm.tokens_of(s, g.lexicon.words)] for s in said), said[:8]
     for sentence in said:
         assert read(g, sentence) == meaning.canonical(), sentence
+
+
+def test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying():
+    """`spell_out` makes a reading's facts from the pieces of a grammar word's meaning, and `_piece_says` says how
+    many of a meaning's facts each piece may say. THE TWO MUST COVER THE SAME GROUND. A kind `_piece_says` does not
+    know returns nothing; `_says_of` takes a nothing to mean the whole entry says nothing the meaning holds; and the
+    word is then offered for NO meaning at all, so one unknown kind silently takes a whole construction out of
+    English. Unchecked, `poss` was unknown and saying could not say a possessive, `now` was unknown and it had no
+    present progressive, and `asked` was unknown and it could say no question whatever, while reading read all three
+    (2026-10-31). This holds every kind in `data/grammar/english.json` to one of the three lists, so a kind added to
+    the grammar's words must be answered for on the saying side before it can be taught."""
+    held = json.loads(gm.ENGLISH.read_text(encoding="utf-8"))
+    kinds = {piece[0] for entries in held["words"].values()
+             for entry in (entries if isinstance(entries, list) else [entries])
+             if isinstance(entry, dict) and entry.get("sem")
+             for piece in entry["sem"] if piece}
+    answered = (gm.SAYS_OF_A_MEANING | gm.SAYS_NOTHING_OF_A_MEANING | gm.SAYS_NOTHING_OF_FACTS
+                | gm.NOT_YET_SAID)
+    assert not kinds - answered, (
+        f"the grammar's words carry piece kinds saying does not answer for: {sorted(kinds - answered)}. "
+        f"Each one silences every word that carries it. Put it in SAYS_OF_A_MEANING with what it says of a "
+        f"meaning, in SAYS_NOTHING_OF_A_MEANING if it says nothing of one, or in NOT_YET_SAID knowingly.")
+    assert not answered - kinds, (
+        f"saying answers for piece kinds the grammar's words do not carry: {sorted(answered - kinds)}")
+    # What `_piece_says` actually counts must be what the spec says it counts, or the spec is a comment.
+    nothing = gm.Meaning("tell", (gm.MeaningFact("instance_of", "?v0", "dog"),))
+    for kind in sorted(gm.SAYS_NOTHING_OF_A_MEANING | gm.SAYS_NOTHING_OF_FACTS):
+        assert gm._piece_says((kind, "x"), nothing) is None, kind
+    # A kind not yet answered for ABSTAINS: it disqualifies no word, since nothing is known of what it says.
+    # Counted as nothing said, `_says_of` took the whole entry to say nothing the meaning holds and the word was
+    # offered for no meaning at all -- which is how saying lost every modal, every comparative, the universal
+    # quantifier and the denial of a thing.
+    for kind in sorted(gm.NOT_YET_SAID):
+        assert gm._piece_says((kind, "x"), nothing) == 0, f"{kind} is answered for, so take it out of NOT_YET_SAID"

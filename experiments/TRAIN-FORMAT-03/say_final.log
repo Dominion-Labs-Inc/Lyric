@@ -1,0 +1,223 @@
+main, read only. forms for 39898 base words.
+108 of 400 read exactly the meaning they are annotated with
+
+  20 of 108: 11 said something else, 5 said it, NOT first (ranking), 2 nothing said at all, 2 said it, first
+  40 of 108: 21 said something else, 8 said it, NOT first (ranking), 6 nothing said at all, 5 said it, first
+  60 of 108: 29 said something else, 12 nothing said at all, 12 said it, NOT first (ranking), 7 said it, first
+  80 of 108: 36 said something else, 17 nothing said at all, 16 said it, NOT first (ranking), 11 said it, first
+  100 of 108: 45 said something else, 21 nothing said at all, 19 said it, NOT first (ranking), 15 said it, first
+
+== OVER 108, AGAINST 11 said / 63 otherwise / 26 stuck / 7 nothing BEFORE ==
+     48  said something else
+     22  nothing said at all
+     21  said it, NOT first (ranking)
+     17  said it, first
+
+  the person's own sentence is somewhere in what saying returns: 38 of 108
+
+== THE SIX HOLDING AN owned_by FACT ==
+  I lost my sunglasses.
+        14.5s  ranked 2
+        I've lost my sunglasses.
+        I lost my sunglasses.
+        I've been losing my sunglasses.
+  Alice rushed into her room.
+         8.8s  ranked 5
+        Alice rushed to her room.
+        Alice rushed to her rooms.
+        Alice rushed to his room.
+  The bicycle is mine.
+        22.3s  nothing said
+        made whole and reading took them to mean something else
+  Tom painted his room white.
+        16.9s  nothing said
+        no whole sentence was ever made
+  How do you spell your surname?
+        52.6s  said something else
+        How does you spell yourself's surname?
+        How does you spell yourselves's surname?
+        How does you spell you's surname?
+  I planted an apple tree in my garden.
+        42.3s  said something else
+        I planted a apple tree to my garden.
+        To my garden i planted a apple tree.
+        I planted a apple tree to my gardens.
+
+== THE FOUR WHERE A NAME IS SAID TO BE A KIND (the isa doubling) ==
+  Tom's a grouch.
+         0.3s  SAID IT
+        Tom's a grouch.
+        Tom's grouch.
+  Verga is a famous writer.
+        19.9s  said something else
+        A verga's a famous writer.
+        A verga's a famous author.
+        A verga's famous authors.
+  Tom is a gentleman.
+         0.3s  said something else
+        Tom's a gentleman.
+        Tom's gentlemen.
+        Tom's a gentlemen.
+  Sekkura is a qualified chef.
+        12.8s  said something else
+        Sekkura's a qualified chef.
+        A chef Sekkura's qualified.
+        Sekkura's qualified chefs.
+
+== THE FOUR HOLDING has_degree OR state_of ==
+  How tall is Al Pacino?
+         4.6s  ranked 3
+        How taller is Al Pacino?
+        How tallest is Al Pacino?
+        How tall is Al Pacino?
+  I'm slightly hungry.
+        10.4s  SAID IT
+        I'm slightly hungry.
+        I'm somewhat hungry.
+  How deep is Crater Lake?
+        13.6s  SAID IT
+        How deep is Crater Lake?
+        How deep does Crater Lake be?
+        How least deep is Crater Lake?
+  The show was exciting.
+         1.0s  said something else
+        The shows were exciting.
+        The show has been exciting.
+        The shows have been exciting.
+  Tom is writing a letter.
+        23.2s  said something else
+        Tom's writing a letter.
+        Tom's writing letters.
+        Tom's writing a letters.
+  The ice cream is melting.
+        19.2s  said something else
+        The ice cream's melting.
+  Where did you put the ketchup?
+        50.3s  nothing said
+        made whole and reading took them to mean something else
+  Is Tom retired?
+         0.4s  SAID IT
+        Is Tom retired?
+        Does Tom be retired?
+        Tom's retired?
+
+== SAID EXACTLY, RANKED BELOW SOMETHING ELSE (21) ==
+  We exaggerated.   [ranked 3 of 8; first: We've exaggerated.]
+  I write poems.   [ranked 2 of 8; first: I write a poem.]
+  Freud originated psychoanalysis.   [ranked 2 of 8; first: Freud originated a psychoanalysis.]
+  We were playing golf.   [ranked 6 of 8; first: We played a golf.]
+  I love the ocean.   [ranked 2 of 8; first: I love the oceans.]
+  Greece cancels the referendum.   [ranked 2 of 8; first: Greece cancels the referendums.]
+  I eat noodles.   [ranked 4 of 8; first: I eats a noodle.]
+  I need help.   [ranked 2 of 6; first: I need a help.]
+  The cat ate the mouse.   [ranked 5 of 8; first: The cat has eaten the mice.]
+  How tall is Al Pacino?   [ranked 3 of 8; first: How taller is Al Pacino?]
+  Alice rushed into her room.   [ranked 5 of 8; first: Alice rushed to her room.]
+  I live in Azerbaijan.   [ranked 3 of 8; first: I lives in Azerbaijan.]
+  I like fresh air.   [ranked 2 of 3; first: I like a fresh air.]
+  Tom unlocked the cage.   [ranked 2 of 8; first: Tom unlocked the cages.]
+  I lost my sunglasses.   [ranked 2 of 8; first: I've lost my sunglasses.]
+  The baby's awake.   [ranked 2 of 3; first: The babe's awake.]
+  Tom hates rats.   [ranked 4 of 8; first: Tom detests a rat.]
+  I want ice cream.   [ranked 4 of 8; first: I wan a ice cream.]
+  Tom hates spiders.   [ranked 4 of 8; first: Tom detests a spider.]
+  We ate the pizza.   [ranked 4 of 8; first: We've eaten the pizzas.]
+  I'm waiting for the ferry.   [ranked 3 of 6; first: I'm waiting for the ferries.]
+
+== SAID SOMETHING ELSE (48) ==
+  I am intelligent.
+      -> I'm intelligent.
+  I'm calm now.
+      -> I'm calmest.
+  Where is Georgetown University?
+      -> Whom does Georgetown University be on?
+  Tom waved at Mary from the helicopter.
+      -> Tom waved to Mary on the helicopters.
+  Tom is waiting for Mary.
+      -> Tom's waiting for Mary.
+  This tree is tall.
+      -> The tree's taller.
+  Tom is an excellent marksman.
+      -> A marksman Tom's excellent.
+  I ate that apple.
+      -> I've eaten the apples.
+  I'm scared of you.
+      -> In yourselves i'm scared.
+  Nobody is perfect.
+      -> Nothing's perfect.
+  I am hungry.
+      -> I'm hungry.
+  The show was exciting.
+      -> The shows were exciting.
+  Odette was born in Nantes in 1905.
+      -> Odette were born in 1905 in Nantes.
+  This firm has a hundred employees.
+      -> The firms have a hundred employee.
+  How do you spell your surname?
+      -> How does you spell yourself's surname?
+  Tom is writing a letter.
+      -> Tom's writing a letter.
+  The Second World War broke out in 1939.
+      -> Second World War broke in 1939.
+  Sue picked up a pencil off the floor.
+      -> Sue picked a pencil from the floors.
+  There is a dragonfly on the ceiling.
+      -> Some dragonfly's on the ceiling.
+  The bee flew to the flower.
+      -> The bee has flown to the flowers.
+  I drank some wine.
+      -> I drank a wine.
+  The ice cream is melting.
+      -> The ice cream's melting.
+  A stranger spoke to me in the bus.
+      -> I spoke in the buses with a stranger.
+  Sekkura is a qualified chef.
+      -> Sekkura's a qualified chef.
+  Tom is courteous.
+      -> Tom's courteous.
+  Tom is a gentleman.
+      -> Tom's a gentleman.
+  I'm not ashamed.
+      -> In't'm ashamed.
+  John gave Mary some money.
+      -> John gave Mary a money.
+  I brought you something.
+      -> To yourselves i brought them.
+  The sky is blue.
+      -> The sky's blue.
+  I planted an apple tree in my garden.
+      -> I planted a apple tree to my garden.
+  The blackbird whistles.
+      -> The blackbird whistle.
+  Tom is still in the hospital.
+      -> Tom's on the hospitals.
+  There were islands in the sea.
+      -> Some island's on the seas.
+  Tom has been sitting on the riverbank for hours.
+      -> For a hr Tom sat in the riverbank.
+  I want some potatoes.
+      -> I wan a potato.
+  The squirrel is hibernating.
+      -> The squirrel's hibernating.
+  The bread is in the oven.
+      -> The bread's in the oven.
+  Mary is pregnant.
+      -> Mary's pregnant.
+  Verga is a famous writer.
+      -> A verga's a famous writer.
+  The cat is on the mat.
+      -> The cat's on the mat.
+  Tom is broke.
+      -> Tom's broke.
+  You told a lie.
+      -> You've stated lies.
+  Tom has a daughter.
+      -> Tom had a daughter.
+  I want to marry Martyna.
+      -> I wan to marry Martyna.
+  The car was stolen.
+      -> The car has stolen.
+  I won!
+      -> I've won.
+  The cat crept toward the bird.
+      -> The cat crawled into the birds.
