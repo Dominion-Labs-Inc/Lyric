@@ -16,6 +16,143 @@ Conventions:
 
 ---
 
+## 2026-10-31 (101) — "Where" asked what a doing was done to; a quality could mean no sense but its most frequent
+
+**Objective.** *"continue.... you mentioned 3 things and none of them need my decision"* — the three things (100)
+left waiting: run GRAMMAR-01 with the word records, fix the preposition's link, and give a quality and an adverb a
+sense at all.
+
+### The preposition's link: the real population is not the sentence I named
+
+(100) closed on *"`He walked in the park.` reads `has_property(?v0, ?v1)` where `located_in` belongs; `located_in` is
+missed 11 times over the split"*. Read off the run's own record of what it missed
+(`20261028T111656Z_missed.json`), that is **21** sentences whose meaning says `located_in` and whose reading does
+not (8 the other way round), and they are not one defect:
+
+| shape | n | |
+|---|---|---|
+| a question whose "where" is not read as asking a place | **8** | `Where did Mahatma Gandhi study?`, `Where did Golda Meir grow up?`, `Where did you guys meet?`, `But where is this compass?`, `Where art thou?`, `In which city is he?`, `What country is Berlin in?`, `What band was Jerry Garcia with?` |
+| the preposition's own link learned wrong | 3 | `Nobody walks in LA.` → `has_property(?v0, la)`; `Is English spoken in Canada?` → `about(english, canada)` |
+| a word memory knows several words as beats the literal reading | 1 | `She doesn't speak Japanese at home.` — "at home" read as the THING that speaks |
+| a verb's frames | 1 | `He collided with a tree.` → `done_by` twice |
+| a quality's link | 1 | `Dagbladet is a Norwegian newspaper.` → `comes_from` |
+| the rest | 7 | |
+
+So the sentence I named is 1 of 21, and the dominant shape is the question word. **Fix what the measurement says, not
+what the example says.**
+
+### "Where" spent the adverb's uses, so a cheaper parse decided what it meant
+
+The grammar reads "where" four ways. Three make a `prep` piece saying it asks a place; one
+(`where:object`) says it is the thing a doing is done to, and **that one declared `"use": "wh:adverb"`** — the
+adverb's use. Every entry of a grammar word is weighed by how often a treebank uses the word that way
+(`Lexicon.entries`: `evidence.get(e["use"], -20.0)`), so the two readings weighed **exactly the same**, and what the
+rest of the sentence cost decided which. A doing with its object filled is cheaper than one with an adjunct, so
+`Where did Mahatma Gandhi study?` asked WHAT Gandhi studied.
+
+The treebank already signs the two apart (`grammar_words.HeldWords._use`: `wh:adverb` where the word modifies the
+doing, `wh:object` where it is the object), and it is decisive:
+
+| word | `wh:adverb` | `wh:object` |
+|---|---|---|
+| where | 16 | **0** |
+| what | — | 76 |
+| who | — | 4 |
+| which | — | 3 |
+
+"Where" is never a doing's object in UD English EWT's training part, which is right for English. One word changed in
+`data/grammar/english.json`; the entry **remains**, so a sentence no other reading composes for is still read by it
+(`Where did the dog chase?` still asks what was chased, "chase" being only ever said with a thing).
+
+**Verified** by reverting the one word and reading the same 15 sentences with words held from files: 2 read "where"
+as asking a place before, **5** after; `Where did you guys meet?`, `Where did Mahatma Gandhi study?` and `Where is
+the station?` gained, and the full diff of both readings touches no other sentence — "who", "what", "when" and "how"
+are untouched. The regression test (`test_where_asks_a_place_and_never_what_a_doing_was_done_to`) was proved to
+discriminate: with the word reverted, `Where did the dog study?` asks what was studied.
+
+**A defect found while writing that test.** The test first asserted on `Where did the dog sleep?` and passed either
+way: the fixture had no verb said both transitively and intransitively, so no competition could arise and the test
+measured nothing. "study" was added to the fixture with both frames. A test that passes before the fix is not a test.
+
+### A quality and an adverb had no sense mechanism at all
+
+`thing_sense_of` takes a noun's sense and `sense_of` a verb's. **Nothing took a quality's or an adverb's.**
+`hold_word` loaded sense tables for nouns and verbs alone, `spell_out` asked nothing, and the quality branch said
+`words.name(word, "ADJECTIVE")` — which is WordNet's name for the sense the word names most often. And the data was
+not there either: `_semcor_seen` read verbs alone (`t.synset().pos() == "v"`), so no word record carried anything of
+a quality's senses.
+
+Built in the three places the noun's and the verb's are built: `_semcor_seen` records what a quality and an adverb
+were **said of** (a quality of a thing, an adverb of a doing — the word the structure joins it to, and the subject
+where a copula says it of one); `Lexicon.quality_used` and `quality_seen`, held under the name **and** the kind of
+word, since a word said both ways is named the same for both ("fast"); and `Lexicon.quality_sense_of`, asked in the
+quality branch and the adverb branch by what the sentence means of the thing or doing it is said of, so the thing's
+own sense is taken first and the quality's by it.
+
+**The research decided the form.** `WORD_SENSES.md` §7.4 (SENSE-SAID-01, 12,654 of WordNet's hand-tagged pairs):
+
+| | verb–object | adjective–noun |
+|---|---|---|
+| most frequent sense | 56.6% | 57.4% |
+| what it is said of first, frequency on a tie | 44.6% | **42.5%** |
+| the two added as one number in nats | 58.3% | **58.8%** |
+
+So how often a sense is used is **added**, never ranked under — `ln(used/total)` plus `ln(P(k|c)/P(k))` over each
+kind the thing is, averaged, one use spread as anything is. That is the same form `thing_sense_of` and `sense_of`
+already take, which I checked before writing a line: both start from the frequency prior in nats and add the
+strength. A quality said of a thing nothing was ever seen said of keeps its most frequent sense.
+
+WordNet gives an adjective no kinds, so neither the information a shared kind carries nor a verb's places can be
+asked of one. What it was seen said of is all there is.
+
+**Verified.** `_semcor_seen` was held to what it makes of a sentence, not to what a corpus happens to hold: the
+cache is seeded with real WordNet lemmas and structure reads written out, so the test reads no SemCor and no
+treebank (3.8s). A quality `amod` of a noun and a quality said of a noun by a copula both record
+`("said_of", curry.n.01)`; an adverb records its doing; the verb's own subject and object are untouched. End to end,
+`The curry is hot.` reads `has_property(?v0, spicy hot)` where it read `hot`, and `The dog is hot.` and `A hot dog
+barked.` do not move — proved to come from asking the sense by answering `quality_sense_of` with the bare name and
+re-reading. 86 tests pass (`test_grammar.py` 78, `test_teaching_path.py` 8).
+
+**Expected size: small.** The research prices fine-grained adjective–noun choice at 1.4 points over most-frequent
+sense. This closes a hole in what reading *can* do; it is not a large share of its gap.
+
+### The run
+
+GRAMMAR-01 with `--with-words` is running (it switches on the sense tables and the verb-frame tables that
+20261028T111052Z measured with switched off). It crashed first on my own block from (100) — `TaughtSentence.text`,
+which does not exist; the field is `sentence`. Restarted, it records 6,986 words at ~0.8s each, so about 90 minutes
+of records before it reads the dev split. **It loaded the grammar and the teaching sources before these two fixes**,
+so it prices the word-record layer alone, and a second run prices the fixes on top of it.
+
+### Found, not fixed: a word memory knows several words as always beats the literal reading
+
+`The book is on the table.` reads `has_property(?v0, "on the table")` — WordNet holds "on the table" as an adjective
+(the idiom), and nothing of the table survives in the meaning. `Tom is at home.` reads `equals(tom, ?v0) &
+instance_of(?v0, "at home")` — WordNet's "at home" is a reception. `She doesn't speak Japanese at home.` is the same
+defect in the dev split.
+
+The cause is in four lines of `Lexicon._together`: a word memory knows several words as is scored
+`sum(max(evidence per word))` — **every one of its words at its most likely use**, which is the ceiling for that
+span. So it ties or beats every reading built from those same words, however rare the idiom. And the score does not
+depend on the class, so "at home" as a thing and "at home" as an adverb weigh exactly the same though a word's kinds
+are never equally likely. `uses("on the table")` is 0.0: EWT tokenises them apart, so there is no count to weigh the
+whole by, and the honest scale would have to come from the treebank's own `fixed`/`flat` joins. **Not touched** —
+re-weighing every multiword entry changes reading broadly, and that is a change to ask for, not to make.
+
+### Open
+
+1. **The 375 truly apart (41.2%)**, unchanged from (100): a doing's Co-Agent place (24), which link a possessive
+   says (13), a doing of three places (13), a word standing where a thing belongs (26 sentences, 37 links).
+2. **The two runs' numbers**, and GRAMMAR-01's README and RunRecord from them.
+3. **A word of several words outscoring its own words**, above.
+4. `Where art thou?` reads no whole; `But where is this compass?` hangs the place on the wrong thing; `In which city
+   is he?` does not read a fronted preposition phrase.
+5. The verb side of sense choice: `Tom plays the piano.` still reads `play` for `sound play`.
+6. From (100): saying's 22 silent and 30 wrong; no universal quantifier, no noun number, no degree in the meaning
+   language.
+
+---
+
 ## 2026-10-31 (100) — Reading's gap, taken apart: the sense label costs 20.6 points, the naming convention 13.6, and 41% is truly wrong
 
 **Objective.** *"ok perfect so lets fix"* — fix reading, after (99) named word senses its binding defect.
