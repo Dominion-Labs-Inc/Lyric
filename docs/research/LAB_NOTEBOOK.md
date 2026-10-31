@@ -139,12 +139,25 @@ are never equally likely. `uses("on the table")` is 0.0: EWT tokenises them apar
 whole by, and the honest scale would have to come from the treebank's own `fixed`/`flat` joins. **Not touched** —
 re-weighing every multiword entry changes reading broadly, and that is a change to ask for, not to make.
 
+### Found, measured, NOT fixed: a fronted preposition phrase is read as an adverb named by the bare word
+
+`In which city is he?` reads `has_property(?v1, in)` — "in" becomes an adverb named `in`, said of a variable nothing
+else in the meaning mentions, and "which city" becomes a thing linked to nobody. `On the table is a book.` reads
+`has_property(?v2, on)` **and equates the table with the book**. `In Boston he lives.` reads correctly
+(`word_in(?v0, boston)`), so the failure is specifically a fronted phrase before an inverted copula.
+
+**Sized before touching it:** of the 525 dev misses, **2** read a preposition as a quality named by the bare word,
+and both are particles ("clean up", "out of fashion"), not fronted phrases. `In which city is he?` is 1 sentence in
+911. Left alone: the shape the PMB's dev split does not contain is not what reading's gap is made of, and the
+measurement said so before an hour went into it.
+
 ### Open
 
 1. **The 375 truly apart (41.2%)**, unchanged from (100): a doing's Co-Agent place (24), which link a possessive
    says (13), a doing of three places (13), a word standing where a thing belongs (26 sentences, 37 links).
 2. **The two runs' numbers**, and GRAMMAR-01's README and RunRecord from them.
-3. **A word of several words outscoring its own words**, above.
+3. **A word of several words outscoring its own words**, above; and a fronted preposition phrase, above (1 sentence
+   in 911, so last).
 4. `Where art thou?` reads no whole; `But where is this compass?` hangs the place on the wrong thing; `In which city
    is he?` does not read a fronted preposition phrase.
 5. The verb side of sense choice: `Tom plays the piano.` still reads `play` for `sound play`.
