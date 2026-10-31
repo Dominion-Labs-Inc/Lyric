@@ -1,0 +1,151 @@
+main, read only. forms for 39898 base words.
+
+== 108 of 400 READ EXACTLY; WHY THE REST DO NOT ==
+    103  the same links, different words
+    102  different words and different links
+     43  the same words and the same links, joined differently
+     31  the same words, different links
+      8  read nothing: no whole reading
+      3  read nothing: the grammar reads no whole
+      1  read nothing: a number is neither a kind nor a quality: noth
+      1  read nothing: the grammar reads no whole; no word held for p
+
+  reading holds every word and every link and only joins them differently: 43
+
+== WORDS THE MEANING HAS THAT READING MISSED ==
+      5  name
+      3  give birth
+      3  product book
+      2  new york
+      2  meet
+      2  foodstuff egg
+      2  board game chess
+      2  tract park
+      2  other new
+      2  sound play
+      2  national capital
+      2  disgusted
+      2  building school
+      2  extremely
+      2  food water
+      2  enamored
+
+== WORDS READING PUT IN THAT THE MEANING HAS NOT ==
+      5  new
+      4  undress take off
+      3  bear
+      3  run
+      3  usually
+      3  sing
+      3  book
+      3  school
+      3  invite
+      3  water
+      2  suck
+      2  york
+      2  work
+      2  egg
+      2  chess
+      2  hot
+
+== LINKS THE MEANING HAS THAT READING MISSED ==
+     36  instance_of
+     16  done_to
+     13  done_by
+     12  has_property
+      9  has_member
+      8  located_in
+      6  precedes
+      5  equals
+      4  follows
+      4  has_degree
+      4  moves_to
+      4  part_of
+      4  member_of
+      3  done_for
+      3  done_with
+      2  isa
+
+== LINKS READING PUT IN THAT THE MEANING HAS NOT ==
+     34  instance_of
+     26  has_property
+     22  done_to
+     16  done_by
+      9  isa
+      7  equals
+      6  owned_by
+      5  has_degree
+      4  about
+      3  located_in
+      3  received_by
+      3  done_with
+      2  has_purpose
+      2  during
+      2  precedes
+      2  owns
+
+== THE FIRST FEW OF EACH ==
+
+  -- different words and different links (102) --
+    The movie starts at ten o'clock.
+        words:  missed ['10:00 p.m.']   put in ['10:00']
+        links:  missed ['follows']   put in []
+    I flew from London to New York.
+        words:  missed ['new york']   put in ['new', 'york']
+        links:  missed []   put in ['has_property', 'instance_of']
+    "In" is a preposition.
+        words:  missed ['word']   put in ['in']
+        links:  missed ['instance_of', 'instance_of']   put in ['isa']
+    They call Robert "Bob".
+        words:  missed ['name']   put in ['bob']
+        links:  missed ['instance_of']   put in []
+    Tom was sacked.
+        words:  missed ['remove displace']   put in ['open fire']
+        links:  missed ['done_by']   put in ['done_to']
+    Let's go to the beach.
+        words:  missed ['go']   put in ['a-ok go', 'let']
+        links:  missed ['done_by', 'follows', 'instance_of', 'moves_to']   put in ['about', 'has_property']
+    She stared at him with hatred.
+        words:  missed ['emotion hate']   put in ['she', 'wear hat', 'with']
+        links:  missed ['has_property']   put in ['done_to', 'isa']
+
+  -- the same links, different words (103) --
+    She sucks up to the teacher.
+        words:  missed ['cozy up']   put in ['suck']
+    He was born in America.
+        words:  missed ['give birth']   put in ['bear']
+    Did you bring a hair dryer?
+        words:  missed ['hand blower']   put in ['hair dryer']
+    We added something new.
+        words:  missed ['original fresh']   put in ['new']
+    She's addicted to shopping.
+        words:  missed ['obtain shop']   put in ['shopping']
+    I ran into your brother on the street.
+        words:  missed ['meet']   put in ['run']
+    We are working for you.
+        words:  missed ['put to work work']   put in ['work']
+
+  -- the same words, different links (31) --
+    Jim is not a lawyer but a doctor.
+        links:  missed ['isa']   put in ['instance_of']
+    He was ashamed of his ignorance.
+        links:  missed ['creates']   put in ['owned_by']
+    My house is on the south bank of the Thames.
+        links:  missed []   put in ['instance_of']
+    She is rather poor at tennis.
+        links:  missed ['has_degree']   put in []
+    My wife is Swedish.
+        links:  missed ['comes_from']   put in ['has_property']
+    We got dressed.
+        links:  missed ['done_to']   put in ['done_by']
+    Turtles are reptiles.
+        links:  missed ['instance_of', 'instance_of']   put in ['isa']
+
+  -- the same words and the same links, joined differently (43) --
+    I owe ten dollars to her.
+    He died of a heart attack.
+    He never translates my sentences.
+    He likes my jokes.
+    That black bird is not a blackbird.
+    She's dishonest.
+    What a tall tree it is!

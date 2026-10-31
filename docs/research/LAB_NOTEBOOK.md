@@ -16,6 +16,121 @@ Conventions:
 
 ---
 
+## 2026-10-31 (99) — Reading picks the most frequent sense of every word, and that is the system's binding defect
+
+**Objective.** *"FIX ALL OF THESE"*, of (98)'s open list, and then *"how far is lyric away from being able to have a
+conversation"*. Twelve saying defects are fixed below, but the finding that outranks all of them is what the 279
+reading failures turn out to be: nobody had ever looked at them, and they are ONE defect with 205 instances.
+
+**WHY READING GIVES THE WRONG MEANING, over the 279 of 400 it gets wrong.** Compared only on what does not depend
+on what an unknown was called -- the CONCEPTS a meaning names and the LINKS it holds:
+
+| | meanings | |
+|---|---|---|
+| the same links, different words | 103 | the structure is right, the sense is wrong |
+| different words and different links | 102 | |
+| the same words and the same links, joined differently | 43 | both right, the attachment wrong |
+| the same words, different links | 31 | |
+| read nothing at all | 13 | 8 no whole reading, 3 no whole, 2 named |
+
+**READING GETS THE STRUCTURE RIGHT IN 146 OF 279, AND 205 OF 279 TURN ON THE WRONG SENSE OF A WORD.** The wrong
+senses are not near misses, they are the FIRST sense of the word every time, checked against WordNet itself:
+
+| the meaning holds | reading gives |
+|---|---|
+| `product book` = `book.n.02` | `book` = `book.n.01` |
+| `foodstuff egg` = `egg.n.02` | `egg` = `egg.n.01` |
+| `sound play` = `play.v.07` | `play` = `play.v.01` |
+| `cozy up` = `cozy_up.v.01` ("sucks up to") | `suck` = `suck.v.01` |
+| `give birth` = `give_birth.v.01` ("was born") | `bear` = `bear.v.01` |
+| `meet` = `meet.v.01` ("ran into") | `run` = `run.v.01` |
+| `national capital` | `york` |
+
+**Reading has no word sense disambiguation. It takes the most frequent sense and the context never enters.** Two
+sub-causes, both well defined: the most-frequent-sense baseline, and a phrasal verb read as its bare verb ("ran
+into", "sucks up to", "was born"). BOTH ARE FIXABLE FROM DATA THE STORE ALREADY HOLDS -- SemCor records what each
+sense was seen used with (`uses` on every word record) and `together`/`joins_things` carry the multi-word units.
+No new source is needed. **This is the gate on everything: reading's grammar is in far better shape than 27%
+suggests, and saying cannot be judged above a ceiling reading sets.**
+
+**TWELVE SAYING DEFECTS, AND THEY WERE ONE CAUSE.** `_piece_says` is the authority on what a grammar word says of a
+meaning and it knew **11 of the 32** kinds of piece the grammar's words carry. An unknown kind counts nothing,
+`_says_of` reads a nothing as *this whole entry says nothing this meaning holds*, and discards the ENTIRE ENTRY --
+so one unknown kind takes every word carrying it out of English, with no error raised anywhere:
+
+- `poss` unknown -> `my`, `your`, `his`, `her`, `their`, `mine`, `'s` offered for **no meaning at all**. No possessive.
+- `now` unknown -> the entries of `is`/`am`/`are`/`'s` that make a doing going on now discarded. **No present
+  progressive**, so `Tom is writing a letter.` could never be said however long saying searched.
+- `asked` unknown -> every question word discarded. **No questions whatever.**
+- `polite` unknown -> every modal carries it beside its own `can`, so every modal was refused by it.
+
+Answered for now: `poss` (with the possessive bound to the thing it owns, Kay 1996, and an owner the word leaves
+open bound to the owner the fact gives), `now` and `future` (the two times beside `past`, which `say` itself
+already mapped the same way), `asked`, `degree_asked`, `can`, `may`, `kind`, `deny_arg`, the comparatives, `count`,
+`during`. `polite`, `npi`, `gap`, `event` and `role` say nothing of a meaning's FACTS and so disqualify no word.
+`prep` and `every` stay unanswered knowingly and for stated reasons.
+
+**Seven more, each its own cause.** A noun phrase is no longer a whole telling of a meaning that asserts something,
+so `a letter written by Tom` is not a finished sentence and the 274 candidates it stood for are never offered. One
+thing gets one place whatever its facts call it (an `isa` subject had a NOUN place AND a NAME place, which is why
+`Verga're a famous author Verga.` said the name twice). A thing memory knows as a name is said as a name, not as a
+noun with a determiner (`A verga's a famous writer.`). A quality held to a degree or of a thing is said by an
+adjective, not asked for as a noun (`I'm slightly hungry.`, `The show was exciting.`). A question's subject is
+weighed for agreement, which NEITHER `_raised_subject` NOR `_takes_object` did -- the latter excludes it on purpose
+and nothing picked it up (`How does you spell your surname?`). A multi-word form is sounded by its first word, so
+"apple tree" has a first sound and `an apple tree` can be chosen -- the data was never missing, `said_before` holds
+`an` before AE 89 times against `a`'s 3. And how surely a sentence was MADE ranks it, as `SAID_AT_MOST` always said
+it should, instead of how probable its parse is.
+
+**MEASURED over the 108 gold sentences main reads to exactly their annotated meaning:**
+
+| | before | after |
+|---|---|---|
+| produced a correct rendering | 32 | **56** |
+| said it exactly and first | 11 | 17 |
+| the same words but for a contraction | — | 14 |
+| differing only in a determiner or a noun's number | — | 4 |
+| said it exactly, ranked below something else | 20 | 21 |
+| nothing said at all | 35 | **22** |
+
+**FOUR ERRORS OF MINE THIS SESSION, all of measurement and all corrected.**
+1. **Word-for-word identity is the wrong measure of saying**, and it is the one used through (97) and (98). It
+   counts `I'm intelligent.` as a failure against `I am intelligent.`: 14 of the 48 "said otherwise" are the same
+   words but for a contraction.
+2. **The 11/57/26/7/1 baseline of (97) was cells of a joint table**, not marginals. Corrected in (97) in place.
+3. **`isa` and `has_count` were never missing links** -- the copula's `be` piece says `isa`, a numeral's place says
+   `has_count`; the census matched only `("fact", link)` keys.
+4. **Two reading breakdowns reported variable renaming as a defect.** Two different meanings cannot have their
+   unknowns aligned by naming each one minimally: each naming is least for its OWN facts, so `?v0 read as ?v1` is
+   an artifact. Only the concepts and the links are free of it, and that is what (99)'s table measures.
+
+**WHAT A MEANING CANNOT HOLD, which caps every such measurement** (`docs/TEACHING.md` 12h): a universal quantifier
+(*An owl is a bird.* and *All owls are birds.* are both `isa(owl, bird)`), a noun's number (`instance_of(?v3,
+poem)` for "I write poems."), and a degree (the PMB's own annotation of "An older man was sitting on the bench." is
+`has_property(?v1, aged)`). Saying answers faithfully where the meaning does not pin the words down and the
+comparison calls it wrong.
+
+**THE STANDARDISATION, MADE EXECUTABLE** (`docs/TEACHING.md` 12g). Every defect above is one side of the format
+using what the other ignores: `linking` states `possessive -> owned_by` and only reading used it; `english.json`
+carries 32 piece kinds and `_piece_says` knew 11. `grammar.py` now holds `SAYS_OF_A_MEANING`,
+`SAYS_NOTHING_OF_A_MEANING`, `SAYS_NOTHING_OF_FACTS` and `NOT_YET_SAID`, covering exactly those 32, and
+`test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying` fails if the grammar's words gain a
+kind saying has not answered for OR if the lists claim one the data has not got.
+
+**Verified against the real system.** `./venv_lyric/bin/python3`, main read only, `tests/test_grammar.py` **72
+passed**, two new. Nothing written to any store.
+
+**Open, in the order the measurements put them.**
+1. **Word sense disambiguation in reading.** 205 of 279. The most frequent sense is taken and context never
+   enters; SemCor's `uses` is already on every word record.
+2. **Phrasal verbs as units** ("ran into", "sucks up to", "was born"): `together` and `joins_things` already hold them.
+3. The 43 that hold every word and every link and only join them differently -- attachment, measured but untraced.
+4. Saying's 22 that say nothing and 30 that say something wrong, now a short list rather than a class.
+5. The meaning language's three gaps (12h), each a change to what a meaning can HOLD.
+6. (98)'s remainder: `mine` standing alone, `your` in a question, gender both halves.
+
+---
+
 ## 2026-10-31 (98) — Saying could not say a possessive at all, and one unknown piece kind was why
 
 **Objective.** *"ok lets do it. and you said links must be fixed. so here we are again fixing reading and sentence
