@@ -988,14 +988,28 @@ class Lexicon:
         recorded = self.place_links.get((name, slot)) or {}
         return any(n > recorded.get(link, 0) for link, n in held.items())
 
-    def thing_sense_of(self, name: str, around: Sequence[str]) -> str:
-        """THE SENSE OF A NOUN A SENTENCE MEANS, by the other things it names (`around`, each by its name): each sense
-        weighed by how often it is used, and, for each thing around it, by the information of the most specific kind
-        the sense shares with it (the sense itself, or a kind of it, that the thing is or is a kind of): how little of
-        what is said that kind covers, against the most any sense's kinds cover (Resnik 1995; lexical cohesion, Morris
-        and Hirst 1991). "a second coat of paint": paint is a coating, as the coat that is a layer is, and a coating
-        covers far less than the coverings a coat that is worn shares with it. The name the word is read under where
-        it has no senses apart, or nothing around it is of any kind its senses are."""
+    def thing_sense_of(self, name: str, around: Sequence[str],
+                       places: Sequence[Tuple[str, str, str]] = ()) -> str:
+        """THE SENSE OF A NOUN A SENTENCE MEANS, by the other things it names and by the places of the doings it
+        fills.
+
+        By the other things (`around`, each by its name): each sense weighed by how often it is used, and, for each
+        thing around it, by the information of the most specific kind the sense shares with it (the sense itself, or a
+        kind of it, that the thing is or is a kind of): how little of what is said that kind covers, against the most
+        any sense's kinds cover (Resnik 1995; lexical cohesion, Morris and Hirst 1991). "a second coat of paint":
+        paint is a coating, as the coat that is a layer is, and a coating covers far less than the coverings a coat
+        that is worn shares with it.
+
+        BY THE PLACE OF A DOING IT FILLS (`places`: the doing's name, the sense the sentence means of it, and the
+        place), by what that sense of the doing was SEEN done to and by (`sense_seen`, SemCor's tagged uses): a sense
+        the doing was seen with there is meant; one it was never seen with is not. This is the other half of how a
+        doing's own sense is taken (`sense_of`), and Resnik (1997) takes both by the one preference: what eating is
+        done to says which "fish" is meant as much as the fish says which "eat". Asked of the things around it alone,
+        every short sentence offered nothing -- "He ate the egg." names two things and neither is a kind of the other
+        -- so the sense the word names most often was taken, whatever the doing said (2026-10-31).
+
+        The name the word is read under where it has no senses apart, or nothing it was seen with or said beside is
+        of any kind its senses are."""
         used = self.thing_used.get(name)
         if not used or len(used) < 2:
             return name
@@ -1009,6 +1023,25 @@ class Lexicon:
                 continue
             levels = [other] + list(self.words.kinds(other, "NOUN"))
             shared = {c: next((covers[c][level] for level in levels if level in covers[c]), everything)
+                      for c in senses}
+            if everything and any(n < everything for n in shared.values()):
+                for c in senses:
+                    score[c] += math.log(everything / shared[c])
+        for doing, meant, slot in places:
+            seen = [f for (sl, f), _ in self.sense_seen.get(doing, {}).get(meant, {}).items() if sl == slot]
+            if not seen:
+                continue
+            # EVERY KIND THE THINGS SEEN IN THAT PLACE ARE, and for each sense the most specific kind it shares with
+            # any of them, weighed as a thing said beside it is: how little that kind covers, against the most any
+            # sense's kinds cover. Eating was seen done to food, and the egg that is a foodstuff is a food where the
+            # egg that is a reproductive body is not. Asked the other way round -- whether the sense itself is
+            # among the kinds of something seen -- nothing ever matched, since SemCor never saw eating done to that
+            # very sense of egg (2026-10-31).
+            was: Set[str] = set()
+            for f in seen:
+                was.add(f)
+                was.update(self.words.kinds(f, "NOUN"))
+            shared = {c: min((covers[c][level] for level in was if level in covers[c]), default=everything)
                       for c in senses}
             if everything and any(n < everything for n in shared.values()):
                 for c in senses:
@@ -2830,21 +2863,29 @@ class Grammar:
         the subject is taken (`Grammar.say`), a form this decides is not chosen by how often it is written, and a
         verb memory holds no subject of is weighed by what the verbs written as it is took (`_subjects_like`). Of a
         word memory holds no form of at all, what the verbs ending as it does say (`_written_like`)."""
-        words = self.lexicon.words
         held = self._agreeing.setdefault("agrees as", {})
         if word not in held:
-            shared = self._shared_features()
-            written: Counter = Counter()
-            for cls in ("VERB", "AUXILIARY"):
-                for features, n in words.form_features(word, cls).items():
-                    written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
-            # A form saying nothing of these features is no evidence of having none, as of a thing's case
-            # (`Grammar._features`): a verb held once with its person and once without would otherwise be kept
-            # apart by whichever the tie fell to.
-            if any(f for f in written):
-                written.pop("", None)
-            held[word] = max(sorted(written), key=lambda f: written[f]) if written else self._written_like(word)
+            held[word] = self._held_agreement(word) or self._written_like(word)
         return held[word]
+
+    def _held_agreement(self, word: str) -> str:
+        """WHAT THE FORMS MEMORY HOLDS OF A WORD SAY OF ITS SUBJECT, the form it is written as most; nothing where
+        memory holds no form of it as a verb. What a word memory holds no form of says is worked out from the verbs
+        written as it is (`_written_like`), and that is built from these alone: a word memory holds nothing of says
+        nothing about what an ending says, and asking it through `_agrees_as` built the ending table from inside
+        itself, with the table still empty, and never stopped (RecursionError reading "Tom is reading a book."
+        with the words held from files, 2026-10-31)."""
+        shared = self._shared_features()
+        written: Counter = Counter()
+        for cls in ("VERB", "AUXILIARY"):
+            for features, n in self.lexicon.words.form_features(word, cls).items():
+                written["|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)] += n
+        # A form saying nothing of these features is no evidence of having none, as of a thing's case
+        # (`Grammar._features`): a verb held once with its person and once without would otherwise be kept
+        # apart by whichever the tie fell to.
+        if any(f for f in written):
+            written.pop("", None)
+        return max(sorted(written), key=lambda f: written[f]) if written else ""
 
     def _written_like(self, word: str) -> str:
         """WHAT A VERB MEMORY HOLDS NO FORM OF SAYS OF ITS SUBJECT, by what the verbs ending as it does say: of the
@@ -2860,7 +2901,7 @@ class Grammar:
         like = self._agreeing.setdefault("written like", {})
         if not like:
             for other in words.took_subjects():
-                says = self._agrees_as(other)
+                says = self._held_agreement(other)
                 if not says:
                     continue
                 for cut in (1, 2, 3):
@@ -4916,6 +4957,8 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
     for e in as_link_unfilled:
         as_link.pop(e, None)
     meant_of: Dict[Term, str] = {}
+    #: Each thing -> the places of doings it fills: (the doing's name, the sense meant of it, the place).
+    fills: Dict[Term, List[Tuple[str, str, str]]] = {}
     for e, p in events.items():
         at = p[-1]
         if e in as_link:
@@ -4929,6 +4972,11 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             filled["object"] = filled.pop("passive")
         meant = lexicon.sense_of(p[2], filled)
         meant_of[e] = meant
+        # WHICH PLACE OF WHICH DOING EACH THING FILLS, with the sense the sentence means of the doing: what that
+        # sense was seen done to and by says which sense of the thing is meant (`thing_sense_of`).
+        for q in pieces:
+            if q[0] == "role" and q[1] == e and q[3] in ("subject", "object", "passive"):
+                fills.setdefault(q[2], []).append((p[2], meant, "object" if q[3] == "passive" else q[3]))
         if meant != p[2]:
             decided.append(("sense", p[2], "seen", None))
         add("instance_of", e, meant, at=at)
@@ -4961,7 +5009,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 add("isa", x, p[2], at=p[-1])
             continue
         around = [q[2] for y, q in kinds.items() if y != x and y not in events and isinstance(q[2], str)]
-        meant = lexicon.thing_sense_of(p[2], around)
+        meant = lexicon.thing_sense_of(p[2], around, fills.get(x, ()))
         if meant != p[2]:
             decided.append(("sense", p[2], "around", None))
         add("instance_of", x, meant, given_=x in given and isinstance(x, int), at=p[-1])

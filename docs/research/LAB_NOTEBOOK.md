@@ -16,6 +16,102 @@ Conventions:
 
 ---
 
+## 2026-10-31 (100) — Reading's gap, taken apart: the sense label costs 20.6 points, the naming convention 13.6, and 41% is truly wrong
+
+**Objective.** *"ok perfect so lets fix"* — fix reading, after (99) named word senses its binding defect.
+
+**ERROR IN (99), CORRECTED HERE.** (99) says the 279 reading failures *"are ONE defect with 205 instances"* and that
+*"reading has no word sense disambiguation; it takes the most frequent sense and context never enters."* Both are
+wrong, and the code says so:
+
+- `Lexicon.thing_sense_of` (nouns, Resnik 1995 over the other things a sentence names) and `Lexicon.sense_of` (verbs,
+  Resnik 1993 over what fills each place, from SemCor's tagged uses) are both built, both called from `spell_out`,
+  and both read tables main holds for 2,667 nouns and 1,430 verbs. Context DOES enter.
+- The 279 are not one defect. They are four blocks of very different size and very different cost, and the
+  measurement that separates them was already on disk.
+
+**WHAT READING'S GAP IS MADE OF**, from GRAMMAR-01's own run `20261028T111052Z` (the PMB's held-out dev split, 911
+sentences) and from that run's record of every sentence it missed (`20261028T111656Z_missed.json`, 525 of them, with
+senses already set aside on both sides). No run was started for this; the numbers below are that run's, re-read:
+
+| | right whole | | |
+|---|---|---|---|
+| strict — each fine-grained WordNet sense counted | 199 | 21.8% | facts F1 0.468 |
+| senses set aside — both sides named by the word | 386 | 42.4% | facts F1 0.821 |
+| + which unknown is which (reading says `?previous` where the PMB leaves an unknown) | 510 | 56.0% | |
+| + a word put where the PMB puts a thing of that kind | 536 | 58.8% | |
+| **truly apart — a word or a link genuinely wrong** | **375** | **41.2%** | |
+
+So the sense LABEL costs 20.6 points of whole meanings and 35 points of fact F1; which unknown is which costs 13.6
+more (GRAMMAR-01 already measures that third way: 53.6%); a word used where a thing belongs 2.8; and 41% is
+genuinely wrong. **Reading's structure is right in 58.8% of held-out sentences and its facts at F1 0.821 with the
+sense label set aside.** The grammar is not the binding defect; (99) had that part right for the wrong reason.
+
+**AND THE SENSE MACHINERY WAS NEVER MEASURED.** GRAMMAR-01 never calls `GrammarView.hold_word`, so `thing_used`,
+`thing_covers`, `sense_used` and `sense_seen` are all empty in it. Its strict 21.8% is the most frequent sense of
+every word, with no sense choice running at all. The experiment that measures reading does not exercise the one
+mechanism that would move its strict number.
+
+**OF THE 291 MISSES THAT NAME EVERY WORD RIGHT**, what differs:
+
+| | meanings | |
+|---|---|---|
+| only which unknown is which | 124 | `He ate the apple.`: `done_by(?v0, ?previous)` for `done_by(?v0, ?v1)` |
+| the meaning's `done_by`, reading's `done_to` | 15 | `Tom embraces Marie.`, `Castro visits the UN.`: a doing whose second place VerbNet gives a Co-Agent |
+| the meaning's `done_to`, reading's `done_by` | 9 | |
+| the meaning's `part_of` / `creates`, reading's `owned_by` | 13 | `He was ashamed of his ignorance.`: which link a possessive says |
+| the meaning's `received_by`, reading's `done_to` | 4 (+9 put in) | a doing of three places |
+| `instance_of` missed, a word standing where a thing belongs | 37 links | `We buy CDs.`: `done_to(?v0, cds)` for `done_to(?v0, ?v2) & instance_of(?v2, cds)` |
+
+**WHAT THE RESEARCH ALREADY SAYS ABOUT THE SENSE LABEL** (`docs/research/WORD_SENSES.md`, 2026-10-01, measured on
+12,654 of WordNet's hand-tagged pairs, SENSE-SAID-01): the most frequent sense is 56.6% on verb–object and 57.4% on
+adjective–noun; what a word is said of, added, gives 58.3% and 58.8%; taken FIRST it falls to 44.6% and 42.5%. The
+knowledge-based random walk over WordNet (Agirre et al. 2014) is 59.7 against 60.1 for the most frequent sense
+fine-grained, and 80.1 coarse. **Fine-grained sense choice has about one to two points of headroom over the most
+frequent sense and forty at the coarse level.** So the 20.6 points the label costs are not 20.6 points of
+understanding: most of the pairs are one coarse sense (`product book` for `book`, `foodstuff egg` for `egg`,
+`building school` for `school`, `tract park` for `park`, `food water` for `water`). The 41% truly apart is where
+understanding is actually lost.
+
+**BUILT.**
+
+1. **A thing of several words was read under a name no thing has.** What memory knows two words as together is held
+   in one place, `Words.known_words`. `Words.known_name` and `Words.known_verb` answered `None` of their own instead
+   of asking it, so any `Words` holding only `known_words` — the one the contract names — said memory knows nothing
+   of several words. A noun before a noun then named the thing by its own words: `Did you bring a hair dryer?` was
+   `hair dryer`, a name no thing has, so nothing memory holds of the thing reached the reading, and the two words
+   were read under two names at once, this one and `known_words`' `hand blower`, weighed on two scales. Both now name
+   the thing memory holds. `df3d3d6a`.
+
+2. **A thing's sense is taken by the place of the doing it fills.** `thing_sense_of` was given only the other THINGS
+   a sentence names, and `He ate the egg.` names two things of which neither is a kind of the other, so nothing was
+   offered and the most frequent sense was taken whatever the doing said. `sense_seen` already holds what each sense
+   of each doing was seen done to and by (SemCor's tagged uses, loaded for 1,052 verbs on main); it was read in one
+   direction only — the thing choosing the doing's sense, never the doing choosing the thing's. Resnik (1997), whom
+   `sense_of` already cites, takes both by the one preference. `spell_out` now remembers which place of which doing
+   each thing fills, with the sense the sentence means of the doing, and `thing_sense_of` weighs each candidate sense
+   by how often that sense of the doing was seen with a thing that IS one.
+
+**Verified.** `tests/test_grammar.py` 73 pass (two new: every way two nouns are read as one thing names the thing
+memory holds). Nothing was taught and no store was written.
+
+**OPEN, in the order the measurement puts them.**
+
+1. **The 375 truly apart (41.2%).** Named above: a doing's Co-Agent place (24), which link a possessive says (13), a
+   doing of three places (13), a word standing where a thing belongs (26 sentences, 37 links). Each is a link
+   decision learned from taught meanings (`learned["role"]`, `place_links`, `framed`, `inherited`), not a rule in
+   code.
+2. **GRAMMAR-01 holds no word records**, so its strict number never exercises sense choice. Holding them is a run.
+3. **A quality and an adverb can never mean any sense but the most frequent.** `hold_word` loads sense tables for
+   nouns and verbs only, and `spell_out` asks for neither for a quality: `We added something new.` can only be `new`,
+   never `original fresh`. The data a quality's sense would be chosen by — what each sense was seen said of — is not
+   on the record either (`_semcor_seen` reads verbs alone), so this one needs a teaching source change and a run.
+4. **Multiword verbs on main.** `run into` for `meet`, `suck up to` for `cozy up`. Whether main holds WordNet's 2,770
+   multi-word verbs is unchecked (`lyric_wordnet_one_class_per_word` says lyric_dev was taught them and main was not);
+   `known_verb` now asks `known_words` for them wherever they are held.
+
+---
+
 ## 2026-10-31 (99) — Reading picks the most frequent sense of every word, and that is the system's binding defect
 
 **Objective.** *"FIX ALL OF THESE"*, of (98)'s open list, and then *"how far is lyric away from being able to have a

@@ -1105,6 +1105,31 @@ def test_words_memory_knows_as_one_word_are_read_as_the_kind_it_knows_them_as(gr
         "instance_of(?v2, credit card) & precedes(?v0, ?now)")
 
 
+def test_what_a_verb_memory_holds_no_form_of_says_of_its_subject_is_answered_once():
+    """What a verb memory holds no form of says of its subject is worked out from the verbs written as it is
+    (`_written_like`), and that table is built from the forms memory DOES hold (`_held_agreement`). Built from
+    `_agrees_as` instead, a verb in the table that memory holds no form of sent the question back into the
+    half-built table, and reading never returned (RecursionError on "Tom is reading a book." with the words held
+    from files, 2026-10-31)."""
+
+    class NoForms(Held):
+        """Verbs that took subjects, of which memory holds the forms of none."""
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("sparkles", "glistens", "shimmers")
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            return {("NOUN", "Number=Sing"): 3.0}
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            return {}
+
+    g = gm.Grammar(gm.Lexicon(NoForms()))
+    assert g._agrees_as("sparkles") == "", "a verb memory holds no form of says nothing of its subject"
+    assert g._written_like("twinkles") == "", "nor do the verbs written as it is, memory holding no form of them"
+    assert g._subjects_like("sparkles") == {}, "so there is nothing to weigh its subject by"
+
+
 def test_two_nouns_naming_one_thing_are_named_by_the_thing_memory_holds(grammar):
     """A noun before a noun names one thing with it, and the thing is the one MEMORY holds the two words as, not a
     name made of the words: "hair dryer" is `hand blower`, and named by its own words the name is one no thing has,
