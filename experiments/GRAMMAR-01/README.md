@@ -55,11 +55,17 @@ gold CCG derivations (release 4.0.0, `teaching_sources.PMBDerivationSource`: 8,6
 test documents never held), held before the taught sentences are learned from, as main holds them
 (`GrammarView.hold_derived`). On main the same questions go to memory.
 
-**Run** (from the Lyric folder; about two minutes):
+**Run** (from the Lyric folder; about two minutes, or longer with `--with-words`):
 
 ```
-PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py
+PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py [--with-words]
 ```
+
+`--with-words` records every word the sentences use whole, as main holds it (`teaching_sources.word_record_of`).
+Without it the grammar has no sense of any word apart (`Lexicon.thing_used`, `sense_used`, `sense_seen` are empty)
+and no PropBank places for any verb (`frames_said`), so every thing and every doing is read under the sense its word
+names most often and every place of a doing takes the grammar's own link. A run without it is below what a store
+holding word records does.
 
 with `test_data/syntax/UD_English-EWT` (`--data DIR`; the counts read from it kept beside it,
 `grammar_words_held.pkl`), the PMB release 5.1.0 in `test_data/semantics/pmb/pmb-5.1.0` (`--pmb DIR`; never pushed)
@@ -276,3 +282,24 @@ sentence still misses 2.25 of its 4.4 facts. Found, not fixed: the floor's one c
 of 33 over the split (P 20.8%) — "He's an ex-con." reads `equals(?previous, con) & isa(con, ex)`, a hyphenated word
 main holds no entry for split into two words it now holds classes for, so a word read as the wrong something makes
 two false facts instead of none.
+
+**What reading's gap is made of (2026-10-31, lab notebook (100)).** Run `20261028T111052Z` and its own record of the
+sentences it missed (`20261028T111656Z_missed.json`, 525, senses already set aside on both sides), taken apart with
+no new run:
+
+| | right whole | | |
+|---|---|---|---|
+| strict -- each fine-grained WordNet sense counted | 199 | 21.8% | facts F1 0.468 |
+| senses set aside -- both sides named by the word | 386 | 42.4% | facts F1 0.821 |
+| + which unknown is which (`?previous` where the PMB leaves an unknown) | 510 | 56.0% | |
+| + a word put where the PMB puts a thing of that kind | 536 | 58.8% | |
+| **truly apart -- a word or a link genuinely wrong** | **375** | **41.2%** | |
+
+Of the 291 misses that name every word right: 124 differ only in which unknown is which; 24 in a doing's Co-Agent
+place ("Castro visits the UN." wants `done_by(?v0, un)`, "Tom embraces Marie." `done_by(?v0, marie)`); 13 in which
+link a possessive says (`part_of`, `creates` where reading says `owned_by`); 13 in a doing of three places
+(`received_by`); and 37 links are an `instance_of` missing where a word stands in place of a thing of its kind ("We
+buy CDs.": `done_to(?v0, cds)` for `done_to(?v0, ?v2) & instance_of(?v2, cds)`). **Two of those -- the fine-grained
+sense and the Co-Agent place -- are the same cause: the run holds no word records, so both sense tables and the
+verb-frame table are empty.** `--with-words` is the lever; it has not been run.
+

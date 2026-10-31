@@ -17,8 +17,13 @@ Learned, as memory learns (`grammar.GrammarView`), from the lessons and the PMB'
 (`teaching_sources.PMBSource`), each aligned to its words by its source's lines or its names. Words as main holds them
 (`grammar_words.HeldWords`), from UD English EWT's training part and WordNet's taught links (`words.file_words`).
 
-Run (from the Lyric folder; a few minutes):
+Run (from the Lyric folder; a few minutes, or longer with `--with-words`):
     PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py [--data DIR] [--pmb DIR]
+        [--with-words] [--without-structure]
+`--with-words` records every word the sentences use whole, as main holds it (`teaching_sources.word_record_of`):
+without them the grammar has no sense of any word apart and no PropBank places for any verb, so every word is read
+under the sense it names most often and every place of a doing takes the grammar's own link. Main holds such records,
+so a run without them is below what main does.
 The Parallel Meaning Bank: University of Groningen, annotations ODC-BY 1.0 (Abzianidze et al. 2017).
 """
 import json
@@ -247,6 +252,35 @@ def main() -> int:
         dev.append((document.text, tokens, said.meaning, gm.align_by_anchors(tokens, document.text, anchors)))
     EV.metric("PMB dev sentences said whole", len(dev), unit="sentences", note=f"of {len(listed):,} listed")
     say(f"PMB dev said whole {len(dev):,} of {len(listed):,}")
+
+    # ── EACH WORD RECORDED WHOLE, as main holds it (`--with-words`) ──
+    # Without them the grammar has no sense of any word apart (`Lexicon.thing_used`, `sense_used`, `sense_seen`) and
+    # no PropBank places for any verb (`frames_said`), so every thing and every doing is read under the sense its
+    # word names most often and every place of a doing takes the grammar's own link. Two of the largest kinds of
+    # miss in run 20261028T111052Z are exactly that: the fine-grained sense (20.6 points of whole meanings, 35 of
+    # fact F1) and a doing's Co-Agent place ("Castro visits the UN." wants `done_by(?v0, un)`, 24 sentences). Main
+    # holds records for 2,667 nouns and 1,430 verbs, so what is measured here without them is below what main does.
+    if "--with-words" in sys.argv:
+        from core.learning.teaching_sources import word_record_of
+        base = set()
+        for sentence in [t.text for t in lessons + gold] + [text for text, _, _, _ in dev]:
+            for token in tokens_of(sentence):
+                low = token.lower()
+                if not low.isalpha() or len(low) < 2:
+                    continue
+                base.update(words.lexeme(low, cls) for cls in ("NOUN", "VERB", "ADJECTIVE", "ADVERB"))
+        held, unheld = 0, 0
+        for k, word in enumerate(sorted(base)):
+            try:
+                view.hold_word(word_record_of(word))
+                held += 1
+            except Exception:
+                unheld += 1
+            if (k + 1) % 500 == 0:
+                say(f"  recorded whole {k + 1:,} of {len(base):,}, {time.perf_counter() - started:.0f}s")
+        EV.metric("words recorded whole", held, unit="words",
+                  note=f"of {len(base):,} the sentences use; {unheld:,} WordNet holds nothing of")
+        say(f"recorded whole {held:,} of {len(base):,} words, {time.perf_counter() - started:.0f}s")
 
     readings = [grammar.read(tokens) for _, tokens, _, _ in dev]
 
