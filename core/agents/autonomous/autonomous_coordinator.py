@@ -20992,9 +20992,19 @@ def _atoms_of(facts) -> List[str]:
 
 def _claim_facts(text: str) -> Tuple[Any, ...]:
     """What a remembered claim states, read by the one reader: the facts of a
-    text that reads, as one utterance, to one telling; nothing otherwise."""
+    text that reads, as one utterance, to one telling; nothing otherwise.
+
+    A CLAIM IS ONE SENTENCE (`claim_shape.one_sentence`), the same rule that decides it as the memory is written
+    (`MemoryAgent._readable_claim`). Asked there and not here, a memory that is no claim was still read as one
+    when it was recalled as a premise: a document's own account of itself, 84 words with no full stop to end on,
+    was charted as one utterance and answering never returned (`_held_premises`, 2026-11-01).
+    """
+    from core.semantics.claim_shape import one_sentence
     from core.semantics.derived_reader import read_text
-    meaning = _meaning_of(read_text(str(text or "")))
+    said = one_sentence(text)
+    if said is None:
+        return ()
+    meaning = _meaning_of(read_text(said))
     return meaning.facts if meaning is not None and meaning.act == "tell" else ()
 
 

@@ -160,3 +160,31 @@ async def test_an_unverified_answer_is_not_recorded_as_knowledge():
     assert kept[0]["source_context"]["verified"] is False
     assert kept[0]["content"].endswith(
         "I concluded this because model_coverage. I have not verified this.")
+
+
+def test_a_recalled_memory_that_is_no_claim_is_not_read_as_one():
+    """A CLAIM IS ONE SENTENCE where a recalled memory is read as a premise, as it is where the memory is written.
+
+    `MemoryAgent._readable_claim` asked it and `_claim_facts` did not, so a memory that is no claim was still read
+    as one when it was recalled to answer with: a document's own account of itself -- "1 page(s), 2020 word(s),
+    text document; it says: ...", 571 letters over 84 words with no full stop to end on -- was handed whole to the
+    reader, which found no end in it and charted all 84 words as one utterance. Answering "Is South Asia a
+    sub-region of Asia?" ran 25 minutes and 5 GB on main and never returned (2026-11-01).
+    """
+    from core.agents.autonomous.autonomous_coordinator import _claim_facts
+    from core.semantics.claim_shape import CLAIM_LETTERS, one_sentence
+
+    caption = ("1 page(s), 2020 word(s), text document; it says: In May 2000, Guido and the Python core "
+               "development team moved to BeOpen.com to form the BeOpen PythonLabs team. In October of the same "
+               "year, the PythonLabs team moved to Digital Creations, which became Zope Corporation.")
+    assert len(caption.split()) > 40 and len(caption) > CLAIM_LETTERS
+    assert _claim_facts(caption) == ()
+
+    # An episode written for a reader is not one claim, however readable a line of it is.
+    assert _claim_facts("Was the account locked?\nYes, after five failed attempts.") == ()
+    assert _claim_facts("") == ()
+
+    # And the rule itself: one sentence stands, what is no sentence does not.
+    assert one_sentence("South Asia is a sub-region of Asia.") == "South Asia is a sub-region of Asia."
+    assert one_sentence("x" * CLAIM_LETTERS) is not None
+    assert one_sentence("x" * (CLAIM_LETTERS + 1)) is None

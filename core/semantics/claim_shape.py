@@ -186,6 +186,34 @@ def read_claim(text: str) -> ClaimShape:
     )
 
 
+#: The most letters a claim is written in. An episode written for a reader is longer than any sentence of it, and
+#: there is no end in it for the reader to find.
+CLAIM_LETTERS = 200
+
+
+def one_sentence(text: str) -> Optional[str]:
+    """`text` where it could be ONE claim, with the space around it taken off; None where it could not.
+
+    A CLAIM IS ONE SENTENCE. An episode written for a reader -- several lines, a query and its answer, a document's
+    own account of itself -- is not one, and is not made one by holding something readable somewhere inside it.
+
+    ASKED AT BOTH ENDS, so a memory is judged the same whether its claim is read as the memory is written
+    (`MemoryAgent._readable_claim`) or as the memory is recalled as a premise to answer with
+    (`autonomous_coordinator._claim_facts`). Asked at the writing end alone, a document's own account of itself --
+    "1 page(s), 2020 word(s), text document; it says: In May 2000, Guido and the Python core development team moved
+    to BeOpen.com ...", 571 letters over 84 words, with no full stop to end on -- was recalled as a premise and
+    handed whole to the reader, which found no end in it and charted all 84 words as one utterance: answering
+    "Is South Asia a sub-region of Asia?" ran 25 minutes and 5 GB on main and never returned (2026-11-01). The
+    reader meets the same thing wherever a text has no end in it: a page of sixty entries, none ending in a full
+    stop, was one utterance of 524 words and its chart was still being built an hour later (2026-10-21).
+    """
+    said = str(text or "").strip()
+    if not said or "\n" in said or len(said) > CLAIM_LETTERS:
+        return None
+    return said
+
+
 __all__ = ["ClaimShape", "shape_of", "read_shape", "read_claim", "names_in", "about_the_same_thing",
+           "one_sentence", "CLAIM_LETTERS",
            "AFFIRMS", "DENIES", "PRESENT", "PAST",
            "NEGATORS", "PAST_MARKERS", "PRESENT_MARKERS"]

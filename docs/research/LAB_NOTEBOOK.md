@@ -22876,3 +22876,64 @@ question 1.
 
 **Next:** the owner's UNDERSTANDS-PROSE-01 run on main; then senses (the lessons name some words by sense: "rain" the
 verb is `precipitate rain`), the remaining lesson conventions, arithmetic words.
+
+### ANSWERING NEVER RETURNED BECAUSE A DOCUMENT'S ACCOUNT OF ITSELF WAS READ AS A CLAIM
+
+**What it was.** Asked "Is South Asia a sub-region of Asia?" after a text was told, answering ran 25 minutes at a
+core and 5 GB and never returned (16 minutes in the first sample, same shape). Traced through the one reader with
+every `read_text` watched and the whole stack printed for the first long one:
+
+```
+understand -> _understand -> _reasoned_answers -> _held_premises -> _claim_facts
+   -> read_text('1 page(s), 2020 word(s), text document; it says: In May 2000, Guido and the Python core
+      development team moved to BeOpen.com ...')      571 letters, 84 words, NO FULL STOP
+```
+
+`_held_premises` recalls memories to answer with and reads each one's words as a claim. One of main's 62 document
+memories is a document's own account of itself, which ends on a hyphen, so the reader finds no end in it and charts
+all 84 words as ONE utterance. The reader meets the same thing wherever a text has no end in it: a page of sixty
+entries was one utterance of 524 words and its chart was still building an hour later ((10-21)).
+
+**The cause was duplicate authority, not the reader.** `MemoryAgent._readable_claim` already refuses this at the
+moment a memory is written -- "A claim is ONE sentence. An episode written for a reader ... is not one, and is not
+made one by containing something readable somewhere inside it" -- and `_claim_facts`, which does the same job when
+the memory is RECALLED, asked nothing. So a memory correctly refused a claim on the way in was read as one on the
+way out.
+
+**The fix.** The rule is now in one place, `claim_shape.one_sentence` (with `CLAIM_LETTERS`), and both ends ask it:
+`_readable_claim` where a memory is written, `_claim_facts` where a recalled memory is read as a premise. No cap on
+work and no timeout: it is what a claim IS, applied where it was already applied once.
+
+**Measured, same sentence told and same question asked, on main:**
+
+| | before | after |
+|---|---:|---:|
+| answering the question | 25 min, 5.0 GB, no answer | **3.2s** |
+| of which reading the question | -- | 0.6s |
+| of which saying the answer | -- | 2.4s |
+
+`tests/test_coordinator_reason_about.py::test_a_recalled_memory_that_is_no_claim_is_not_read_as_one` holds it.
+
+**WHAT THIS DID NOT FIX, said plainly.** The answer is still wrong: *"I remember: 2970x1770 png image, 1
+region(s). Region's Both. I hold things about south asia that I have not been taught to say yet. I hold nothing for
+sub."* Two reasons, both measured:
+
+- **`sub-region` is read as a thing called `sub`.** A hyphenated run is one word only where memory holds it in some
+  spelling (`Lexicon.hyphened`, `Words.spelled`: "sub-region", "subregion", "sub region"); main holds none of the
+  three, nor `region`, `level` or `purpose`, so the run is read apart and `sub` -- a noun by its ending alone --
+  heads it. Main holds 266 stated word classes over 241 words, every one a closed class; the open classes are the
+  unfinished part of the re-teach, words and their structures and meanings before any facts.
+- **Recall answered with a png image** because the word "region" appears in that image's own caption
+  ("1 region(s)"), which is recall matching on a word of a machine-made caption.
+
+**Two claims of mine today, both withdrawn by measurement.** That the reasoner was chaining over a large graph:
+main's concept graph is 1,402 concepts and 2,318 relations, and the walk from `south_asia` returns in 0.0s because
+the name is not in it. That `Grammar.chart` emptying `self._agreeing` for every sentence was the cost: the six
+tables build from cold in 0.04s and keeping them saves 0.03s on this question. Neither was the defect; the stack
+was, read twice over rather than argued about.
+
+**And one thing that is not a defect at all.** 6,137 sentences are learned again on the first read of any process
+because `GrammarView.rules` is a hash of the BYTES of `grammar.py`, `grammar_words.py` and `data/grammar/english.json`,
+and today's grammar work changed two of the three. The store holds all 6,137 kept under the old hash; the front
+door re-keys them under the new one (`keep_grammar_learning`) the first time a turn goes through it. One run's cost
+after a grammar change, by design.

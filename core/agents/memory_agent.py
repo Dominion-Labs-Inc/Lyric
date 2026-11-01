@@ -561,7 +561,7 @@ class MemoryAgent(IMemoryConsolidation):
         vector provably cannot recover, stored beside the memory instead of
         guessed at recall), and the facts it states.
         """
-        from core.semantics.claim_shape import shape_of
+        from core.semantics.claim_shape import one_sentence, shape_of
         from core.semantics.derived_reader import Meaning, MeaningFact, heard, read_text
 
         if self.taught_language(source_context=source_context):
@@ -582,10 +582,11 @@ class MemoryAgent(IMemoryConsolidation):
                 candidate = candidate[len(prefix):].strip()
                 break
 
-        # A claim is ONE sentence. An episode written for a reader -- several
-        # lines, a query and an answer -- is not one, and is not made one by
-        # containing something readable somewhere inside it.
-        if not candidate or "\n" in candidate or len(candidate) > 200:
+        # A claim is ONE sentence (`claim_shape.one_sentence`): the one rule, asked here as a memory is written and
+        # again where a recalled memory is read as a premise (`autonomous_coordinator._claim_facts`), which had no
+        # such rule and handed a document's own 84-word account of itself to the reader whole (2026-11-01).
+        candidate = one_sentence(candidate)
+        if not candidate:
             return None, None, ()
 
         made = source_context.get("claim_facts") if isinstance(source_context, dict) else None
