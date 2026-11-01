@@ -86,9 +86,22 @@ ABSTRACT: Mapping[str, Optional[str]] = {
 }
 
 
+#: A WORD THE ERG'S LEXICON DOES NOT HOLD, which it reads by its shape and says as `_word/tag_u_unknown`
+#: (`_applauded/vbd_u_unknown`, `_groggy/jj_u_unknown`). The tag is the Penn treebank's, so it says the class.
+UNKNOWN = re.compile(r"^_(?P<lemma>.+?)/(?P<tag>[a-z]+)_u_unknown$")
+UNKNOWN_CLASSES = {"nn": "n", "nns": "n", "nnp": "n", "nnps": "n", "vb": "v", "vbd": "v", "vbg": "v", "vbn": "v",
+                   "vbp": "v", "vbz": "v", "jj": "a", "jjr": "a", "jjs": "a", "rb": "r", "rbr": "r", "rbs": "r"}
+
+
 def _lemma(predicate: str) -> Optional[Tuple[str, str, str]]:
     """An open-class predicate taken apart: its word, its class, and what the ERG says after it. None where the
-    predicate is one of the grammar's own (`pron`, `compound`)."""
+    predicate is one of the grammar's own (`pron`, `compound`). A word the ERG's lexicon does not hold is read by
+    the Penn tag it guessed (`UNKNOWN`), which is the class; left unread, six of the first 120 dev sentences were
+    said as nothing for one word apiece."""
+    strange = UNKNOWN.match(predicate)
+    if strange and strange.group("tag") in UNKNOWN_CLASSES:
+        return (strange.group("lemma").replace("+", " ").replace("_", " "),
+                UNKNOWN_CLASSES[strange.group("tag")], "")
     found = OPEN.match(predicate)
     if not found:
         return None
@@ -120,6 +133,9 @@ def meaning_of(graph: Any) -> Said:
     joined: Dict[str, Any] = {}
     #: Happenings denied by a quantifier rather than by `neg`.
     denied_later: Set[str] = set()
+    #: A term the ERG named only as an underspecified thing -> what it named it. Said only where no other fact
+    #: speaks of the term.
+    loose: Dict[Optional[str], str] = {}
 
     def add(relation: str, subject: Optional[str], obj: Optional[str], given_: bool = False) -> None:
         if subject is None or obj is None:
@@ -156,6 +172,17 @@ def meaning_of(graph: Any) -> Said:
         elif node.predicate not in PLAIN_QUANTIFIERS:
             gaps.append(f"quantifier:{node.predicate}")
 
+    # ── THE COPULA IS NOT A HAPPENING ──
+    # "It's a trap!" is a thing being a trap (`instance_of`), not a doing called "be" done by one thing to another;
+    # "He is ill." is a quality, which the ERG says by the adjective's own argument and needs no help. The ERG reads
+    # "is" as a verb of its own (`_be_v_id`) with the subject its first place and what it is said to be its second.
+    # Read as any other verb, every copular sentence came out `instance_of(?v0, be)` with two places filled.
+    copula: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    for node in graph.nodes:
+        parts = _lemma(node.predicate)
+        if parts and parts[1] == "v" and parts[0] == "be":
+            copula[node.id] = (node.edges.get("ARG1"), node.edges.get("ARG2"))
+
     # ── WHAT IS DENIED ──
     # The ERG marks a denial with its own predicate over the happening (`neg ARG1`), where Lyric marks the facts of
     # the happening themselves as not so.
@@ -169,7 +196,7 @@ def meaning_of(graph: Any) -> Said:
     for node in graph.nodes:
         here = of(node.id)
         parts = _lemma(node.predicate)
-        if node.predicate.endswith("_q"):
+        if node.predicate.endswith("_q") or node.id in copula:
             continue
         if parts is None:
             # ── the grammar's own predicates ──
@@ -185,18 +212,30 @@ def meaning_of(graph: Any) -> Said:
                 if node.carg and here:
                     counted[node.id] = str(node.carg).lower()
             elif says == "pronoun":
-                # WHO IS SPOKEN OF: the speaker, the listener, or the one spoken of before. The ERG says which by
-                # the person it holds of the pronoun; it does not say which thing before, and neither does Lyric.
-                person = (node.properties or {}).get("PERS")
-                counted[node.id] = {"1": "?speaker", "2": "?listener"}.get(str(person), "?previous")
+                # WHO IS SPOKEN OF, by the person AND the number the ERG holds of the pronoun: the speaker, the
+                # listener, or the one spoken of before. SAID OF MANY ("we", "us", "you" of several), it is a group
+                # one of them is a member of, which is how the PMB says it -- "We buy CDs." is a buying done by a
+                # group the speaker is a member of (`has_member`), never by the speaker. Taken as the speaker
+                # outright, every first-person plural sentence was one fact short and one fact wrong.
+                held_of = node.properties or {}
+                person, number = str(held_of.get("PERS", "3")), str(held_of.get("NUM", "sg"))
+                one = {"1": "?speaker", "2": "?listener"}.get(person)
+                if one is None:
+                    counted[node.id] = "?previous"
+                elif number == "pl":
+                    add("has_member", here, one)
+                else:
+                    counted[node.id] = one
             elif says in ("person", "place", "time", "thing"):
-                # A THING THE SENTENCE SAYS NOTHING OF IS NAMED NOTHING. The ERG names what it knows of an
+                # A THING ANOTHER FACT ALREADY SPEAKS OF IS NAMED NOTHING. The ERG names what it knows of an
                 # underspecified thing (`person` for "nobody", `place_n` for "where", `thing`, `generic_entity`,
                 # `time_n`), and the PMB leaves it unnamed: "Where did Mahatma Gandhi study?" asks `?v1` with
                 # nothing said it is, and "Nobody walks in LA." says a walker, not a person. Said, each was one
-                # fact more than the meaning holds, in 276 of the dev split's predicate uses. The term stays; only
-                # the naming goes.
-                pass
+                # fact more than the meaning holds, over 276 uses of the dev split.
+                # BUT A TERM NO OTHER FACT MENTIONS MUST KEEP ITS NAME, or the meaning asks for something it never
+                # speaks of and is no meaning at all (14 dev sentences, 2026-11-01). Decided at the end, when every
+                # other fact is in.
+                loose[here] = says
             elif says == "compound":
                 # TWO WORDS NAMING ONE THING ARE ONE THING with one name, as Lyric reads them ("Mahatma Gandhi",
                 # "ice cream"); the ERG says two things joined, the second word's thing the head (`ARG1`) and the
@@ -208,7 +247,15 @@ def meaning_of(graph: Any) -> Said:
                     joined[head] = joined.get(modifier, modifier), joined.get(head, head)
             elif says == "not":
                 continue
-            elif says in ("many", "greatest", "more", "degree", "year", "day", "month", "weekday", "clock"):
+            elif says in ("year", "day", "month", "weekday", "clock"):
+                # A TIME IS THE LITERAL IT SAYS ("1945", "7:30 p.m."), as the reader writes one
+                # (`literals.classify_literal`) and as the lessons say a time. Left a gap, 22 dev sentences said
+                # nothing for a year alone.
+                if node.carg:
+                    counted[node.id] = str(node.carg)
+                else:
+                    gaps.append(f"nothing said for:{node.predicate}")
+            elif says in ("many", "greatest", "more", "degree"):
                 gaps.append(f"nothing said for:{node.predicate}")
             elif says == "has_count":
                 if node.carg and node.edges.get("ARG1") in term:
@@ -253,6 +300,24 @@ def meaning_of(graph: Any) -> Said:
                 add(link, of(node.edges.get("ARG1")), of(node.edges.get("ARG2")))
         else:
             gaps.append(f"class:{node.predicate}")
+
+    # ── WHAT THE COPULA SAID A THING TO BE ──
+    # Said to be of a kind, the thing IS one of that kind, and there is no second thing: "Tom is a boy."
+    # `isa(tom, boy)` where the one spoken of is named, `instance_of` where it is not, as the lessons say it.
+    for was, (subject, predicated) in copula.items():
+        here, there = of(subject), of(predicated)
+        if here is None or there is None:
+            continue
+        kinds = [f.obj for f in facts if f.relation == "instance_of" and f.subject == there]
+        if not kinds:
+            continue
+        facts = [f for f in facts if not (f.relation == "instance_of" and f.subject == there)]
+        add("instance_of", here, kinds[0])
+        # everything else said of the second thing is said of the one it is
+        facts = [MeaningFact(f.relation, here if f.subject == there else f.subject,
+                             here if f.obj == there else f.obj, f.positive, f.condition, f.alternative,
+                             f.unasserted, f.given) for f in facts]
+        term.pop(predicated, None)
 
     # ── TWO WORDS SAYING ONE THING, JOINED ──
     # A name of two words is one name ("Mahatma Gandhi" `mahatma gandhi`); two nouns naming one thing are one thing
@@ -300,17 +365,20 @@ def meaning_of(graph: Any) -> Said:
     # ── WHEN IT WAS, AND WHAT THE SPEAKER WANTS ──
     top = graph.top
     held = dict((nodes[top].properties or {})) if top in nodes else {}
-    tense = str(held.get("TENSE", "")).lower()
-    for at in list(term):
-        node = nodes[at]
-        if _lemma(node.predicate) and _lemma(node.predicate)[1] == "v":
-            when = str((node.properties or {}).get("TENSE", "")).lower()
-            if when == "past":
-                add("precedes", of(at), "?now")
-            elif when == "fut":
-                add("follows", of(at), "?now")
-            elif when == "pres" and str((node.properties or {}).get("PROG", "")) == "+":
-                add("during", of(at), "?now")
+    # SAID OF THE MAIN HAPPENING ALONE, which the ERG names (`top`), and not of every verb in the sentence: the ERG
+    # holds a tense on an embedded verb too, and said of each one a sentence of two clauses was before now twice.
+    # A present happening has no time said unless it is going on (`during`), as the lessons say it.
+    main = top if top in term and top not in copula else next(
+        (at for at in term if at not in copula and (_lemma(nodes[at].predicate) or ("", "", ""))[1] == "v"), None)
+    if main is not None:
+        held_of = nodes[main].properties or {}
+        when = str(held_of.get("TENSE", "")).lower()
+        if when == "past":
+            add("precedes", of(main), "?now")
+        elif when == "fut":
+            add("follows", of(main), "?now")
+        elif when == "pres" and str(held_of.get("PROG", "")) == "+":
+            add("during", of(main), "?now")
     act = {"ques": "ask", "prop": "tell", "comm": "request"}.get(str(held.get("SF", "prop")).lower(), "tell")
 
     # ── DENIALS ──
@@ -321,6 +389,11 @@ def meaning_of(graph: Any) -> Said:
     for at in denied | {of(x) for x in denied_later if of(x)}:
         if at:
             add("has_property", at, "false")
+
+    # ── A TERM NOTHING ELSE SPEAKS OF KEEPS THE NAME THE ERG GAVE IT ──
+    for at, says in loose.items():
+        if at and not any(at in (f.subject, f.obj) for f in facts):
+            add("instance_of", at, says)
 
     if gaps:
         return Said(None, tuple(sorted(set(gaps))))

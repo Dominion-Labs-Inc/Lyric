@@ -18,6 +18,7 @@ Nothing here is pushed: `tools/delphin/` is 302 MB of downloaded binary and gram
 import subprocess
 import sys
 from pathlib import Path
+from typing import Dict, List, Optional
 
 ROOT = Path(__file__).resolve().parents[3]
 TOOLS = ROOT / "tools" / "delphin"
@@ -38,16 +39,23 @@ def read(sentences, readings=1, timeout=600):
          "-v", f"{TOOLS}:/d:ro", IMAGE,
          f"/d/{ACE}", "-g", f"/d/{GRAMMAR}", "-n", str(readings), "-T"],
         input=said, capture_output=True, text=True, timeout=timeout)
-    # ALIGNED BY ACE'S OWN `SENT:` LINE, which it writes for every sentence given it, before whatever it read.
-    # Taken instead as "one block per sentence, blocks apart by a blank line", a sentence it read nothing of left no
-    # trace and every sentence after it was scored against the wrong meaning. `-q` would suppress the `SENT:` line,
-    # so it is not passed.
-    found = [None] * len(sentences)
-    at = -1
+    # ALIGNED BY THE SENTENCE ACE ECHOES, never by its place in the output. ACE writes `SENT: <the sentence>` before
+    # what it read -- but NOT FOR EVERY SENTENCE GIVEN IT: of the dev split's 1,194 it echoed 1,178, passing over
+    # "Where art thou?" and fifteen others in silence. Counted by place, every sentence after the first silence was
+    # scored against another sentence's meaning, and the whole split came out at 2.9% where its first hundred came
+    # out at 20.8% (2026-11-01). `-q` would suppress the echo, so it is not passed. Two sentences written alike are
+    # answered in the order they were asked.
+    lines = [s.replace("\n", " ") for s in sentences]
+    waiting: Dict[str, List[int]] = {}
+    for i, one in enumerate(lines):
+        waiting.setdefault(one, []).append(i)
+    found: List[Optional[str]] = [None] * len(sentences)
+    at: Optional[int] = None
     for line in out.stdout.splitlines():
         if line.startswith("SENT: "):
-            at += 1
-        elif line.startswith("[ LTOP:") and 0 <= at < len(found) and found[at] is None:
+            queue = waiting.get(line[6:])
+            at = queue.pop(0) if queue else None
+        elif line.startswith("[ LTOP:") and at is not None and found[at] is None:
             found[at] = line
     return found, out.stderr
 

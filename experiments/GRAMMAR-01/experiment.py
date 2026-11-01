@@ -330,9 +330,13 @@ def main() -> int:
     lessons = [TaughtSentence(sentence, meaning, "lessons") for sentence, meaning in ListeningSource(tuple(
         str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
     gold = list(PMBSource.of("gold", str(pmb)).taught_sentences())
-    for taught in lessons + gold:
-        view.hold(taught)
-    view.learn_waiting()
+    # NOTHING IS LEARNED FOR A RUN THAT DOES NOT READ WITH LYRIC'S GRAMMAR (`--erg`): what the taught sentences
+    # teach is what Lyric's own words hold, which the ERG neither has nor asks for. Learning them anyway cost 310
+    # of each run's 350 seconds, which is the whole iteration loop.
+    if "--erg" not in sys.argv:
+        for taught in lessons + gold:
+            view.hold(taught)
+        view.learn_waiting()
     say(f"learned from {view.learned_from:,} taught sentences ({len(lessons):,} lessons, {len(gold):,} PMB gold), "
         f"{view.read_whole:,} read whole, {time.perf_counter() - started:.0f}s")
     EV.metric("taught sentences read whole (learned from)", view.read_whole, unit="sentences",
