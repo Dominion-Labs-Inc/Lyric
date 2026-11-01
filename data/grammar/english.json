@@ -1496,6 +1496,10 @@
      ]
     ],
     "use": "wh:object"
+   },
+   {
+    "cat": "(N.x\\N.x)/(S[dcl].e/NP.x)",
+    "use": "rel:object"
    }
   ],
   "which": [

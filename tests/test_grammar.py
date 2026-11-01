@@ -124,9 +124,17 @@ def test_a_question_asks_what_is_taken_from_its_place(grammar):
 
 
 def test_whom_asks_who_a_thing_was_done_to_never_who_did_it(grammar):
-    # "Whom" is the object's form: "Whom did Cyrus defeat?" was read on main as asking who did the defeating
-    # (done_by(?v0, ?v1) beside done_by(?v0, cyrus)), "whom" held as a subject (UNDERSTANDS-PROSE-02, 2026-10-22).
-    assert [entry["use"] for entry in grammar.lexicon.closed["whom"]] == ["wh:object"]
+    """"Whom" is the OBJECT'S form, so not one of its entries may take a clause missing its SUBJECT: "Whom did Cyrus
+    defeat?" was read on main as asking who did the defeating (`done_by(?v0, ?v1)` beside `done_by(?v0, cyrus)`),
+    "whom" held as a subject (UNDERSTANDS-PROSE-02, 2026-10-22).
+
+    Amended 2026-11-01, not weakened: the test pinned the whole list of "whom"'s entries, which is stricter than
+    what it is for, and "whom" had no relative entry at all where "who" has one, so "the partner whom you can
+    trust" read no whole. Every entry is still required to take a clause missing a thing to its RIGHT, which is what
+    says the word is never a subject, and the reading it was written for is unchanged.
+    """
+    gaps = [entry["cat"].rsplit("/(", 1)[-1] for entry in grammar.lexicon.closed["whom"]]
+    assert gaps and all(gap.endswith("/NP.x)") for gap in gaps), gaps
     assert read(grammar, "Whom did the dog chase?") == read(grammar, "What did the dog chase?")
 
 
