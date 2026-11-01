@@ -132,6 +132,23 @@ def show(cat: Cat, refs: bool = True) -> str:
     return f"({res}{cat.slash}{arg})" if isinstance(cat.res, Fn) or True else f"{res}{cat.slash}{arg}"
 
 
+def _carries(cat: Cat) -> Optional[Tuple[Cat, Term, Term]]:
+    """A WH-PHRASE A PREPOSITION MAY BE CARRIED ALONG BY, its gap dropped (`Lexicon._carried`): the category with the
+    clause it takes no longer missing a thing, the clause's own term, and the term the gap stood for. None where it
+    takes no clause missing a thing to its right."""
+    if not isinstance(cat, Fn):
+        return None
+    arg = cat.arg
+    if isinstance(arg, Fn) and arg.slash == "/" and isinstance(arg.arg, Atom) and arg.arg.base == "NP" \
+            and isinstance(arg.res, Atom) and arg.res.ref is not None and arg.arg.ref is not None:
+        return Fn(cat.res, cat.slash, arg.res), arg.res.ref, arg.arg.ref
+    inner = _carries(cat.res)
+    if inner is None:
+        return None
+    res, doing, stood_for = inner
+    return Fn(res, cat.slash, cat.arg), doing, stood_for
+
+
 def _walk(t: Optional[Term], s: Mapping[int, Term]) -> Optional[Term]:
     while isinstance(t, int) and t in s:
         t = s[t]
@@ -1144,6 +1161,7 @@ class Lexicon:
             return out + [(i + 1, Entry(e["cat"], (), "GRAMMAR", low, 0.0, e.get("label", e["use"])))
                           for e in marking]
         evidence = self._evidence(tokens, i)
+        out += self._carried(tokens, i, evidence)
         for e in closed:
             out.append((i + 1, Entry(e["cat"], tuple(tuple(p) for p in e.get("sem", ())), "GRAMMAR", low,
                                      evidence.get(e["use"], -20.0), e.get("label", e["use"]),
@@ -1584,6 +1602,47 @@ class Lexicon:
             self._taking_pps = [c for c in (self._category(w) for w in written) if isinstance(c, Fn)
                                 and isinstance(c.arg, Atom) and c.arg.base == "PP" and c.arg.feat]
         return self._taking_pps
+
+    def _carried(self, tokens: Sequence[str], i: int, evidence: Mapping[str, float]) -> List[Tuple[int, Entry]]:
+        """A PREPOSITION CARRIED ALONG WITH THE WH-PHRASE IT OPENS, read as the wh-phrase is, with the preposition's
+        own link joining the doing to what is asked: "From which port did the password come?", "the premise with
+        which the administration is acting", "most of whom had no experience".
+
+        THE WORD ORDER IS THE ONLY DIFFERENCE. The same sentence with the preposition left where its object belongs
+        reads right today -- "Which port did the password come from?" is `instance_of(?v0, come) & done_by(?v0,
+        password) & word_from(?v0, ?v1)` -- because the wh-phrase takes a clause missing a thing and the preposition
+        takes that thing where it stands. Carried to the front it has nothing to take: its six categories are all a
+        modifier of something to its left or right (`templates["PREPOSITION"]`), and a wh-word is neither, so the
+        cheapest reading left made the preposition A THING. On the held-out hand-analysed sentences that front one,
+        12 of 27 read no whole and the preposition was joined to the word the analysis joins it to 2 times in 12,
+        "the premise with which" reading `isa(with, premise)` (EWT dev, 2026-11-01).
+
+        Read here as the grammar already reads "where", which is the same construction in one word (`S[wq].e/S[q].e`
+        with `prep(e, a, where)` and `asked(a)`): the wh-phrase's own gap is dropped, because the preposition's
+        object fills it, and the preposition's link joins the clause's doing to what the gap stood for. So a fronted
+        preposition says what the same sentence says with it left behind, and nothing else about the wh-phrase
+        changes -- its category, its weighing and the rest of its meaning are its own.
+
+        ONLY A GAP THE PREPOSITION COULD FILL: a clause missing a thing to its RIGHT (`S[q].e/NP.x`), never a
+        subject gap (`S[dcl].e\\NP.x`), which no preposition is carried along by ("From which port came it?" is not
+        English). A word memory does not use as a preposition, and a word after it with no such entry, offer
+        nothing."""
+        if i + 1 >= len(tokens) or "PREPOSITION" not in evidence:
+            return []
+        after = str(tokens[i + 1]).lower()
+        asking = [e for e in self.closed.get(after, []) if _carries(parse_category(e["cat"])) is not None]
+        if not asking:
+            return []
+        mine = evidence["PREPOSITION"]
+        theirs = self._evidence(tokens, i + 1)
+        out: List[Tuple[int, Entry]] = []
+        for e in asking:
+            carried = _carries(parse_category(e["cat"]))
+            cat, doing, stood_for = carried
+            sem = tuple(tuple(x) for x in e.get("sem", ())) + (("prep", doing, stood_for, "@", "-"),)
+            out.append((i + 2, Entry(show(cat), sem, "GRAMMAR", str(tokens[i]).lower(),
+                                     mine + theirs.get(e["use"], -20.0), f"carried:{e.get('use', '')}")))
+        return out
 
     def _together(self, tokens: Sequence[str], i: int) -> List[Tuple[int, Entry]]:
         out: List[Tuple[int, Entry]] = []

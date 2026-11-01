@@ -2140,3 +2140,22 @@ def test_saying_refuses_a_form_that_cannot_agree_with_its_subject_though_reading
     assert not joined("nothing", "am", saying=True), '"Nothing am intelligent." is not said'
     # EVIDENCE AGAINST, NEVER THE ABSENCE OF IT: "be" was written with three subjects, too few to refuse on.
     assert joined("nothing", "be", saying=True), "a form held of few subjects says nothing against them"
+
+
+def test_a_preposition_carried_along_with_the_wh_phrase_says_what_it_says_left_behind(grammar):
+    """A PREPOSITION CARRIED ALONG WITH THE WH-PHRASE IT OPENS (`Lexicon._carried`): "In which park did the dog
+    bark?" means what "Which park did the dog bark in?" means, which is the same sentence with the preposition left
+    where its object belongs.
+
+    The word order is the only difference, and the one left behind read right already: the wh-phrase takes a clause
+    missing a thing and the preposition takes that thing where it stands. Carried to the front it had nothing to
+    take -- all six of a preposition's categories are a modifier of something beside it, and a wh-word is neither --
+    so the cheapest reading left made the preposition A THING: "the premise with which the administartion is acting"
+    read `isa(with, premise)` (EWT dev, 2026-11-01).
+    """
+    carried = read(grammar, "In which park did the dog bark?")
+    behind = read(grammar, "Which park did the dog bark in?")
+    assert carried is not None and carried == behind, f"carried {carried!r} != left behind {behind!r}"
+    assert "word_in(?v0, ?v2)" in carried and "instance_of(?v2, park)" in carried, carried
+    # WHAT IS ASKED IS THE THING THE PREPOSITION TAKES, and the doing is still the doing.
+    assert carried.endswith("? ?v2") and "instance_of(?v0, bark)" in carried, carried

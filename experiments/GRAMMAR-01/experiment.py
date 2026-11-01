@@ -33,6 +33,7 @@ derivations; here the rules are an independent reimplementation and the target i
 the number is unknown and is what says whether the grammar's rules or its choosing is the thing to work on.
 The Parallel Meaning Bank: University of Groningen, annotations ODC-BY 1.0 (Abzianidze et al. 2017).
 """
+import dataclasses
 import json
 import random
 import re
@@ -398,12 +399,29 @@ def main() -> int:
                 if not low.isalpha() or len(low) < 2:
                     continue
                 base.update(words.lexeme(low, cls) for cls in ("NOUN", "VERB", "ADJECTIVE", "ADVERB"))
+        # ── ONE LAYER OF THE RECORD LEFT OUT (`--words-without used_as,means`) ──
+        # The records are HALF RIGHT: they fix the sense label (+3.3 strict, +4.5 fact F1) and cost the structure
+        # (-10.5 whole meanings senses aside, -18.4 fact F1, 300 more links decided wrong), and what in them does
+        # that was never separated -- `hold_word` writes a dozen layers at once (lab notebook (101)). A record is a
+        # `WordRecord`, so a layer is left out by emptying its field and holding the rest exactly as main holds it:
+        # the grammar is not touched, and what is measured is that layer's own cost. Main holds the records, so
+        # whichever layer this names is what main is paying for.
+        without = []
+        if "--words-without" in sys.argv:
+            without = [f.strip() for f in sys.argv[sys.argv.index("--words-without") + 1].split(",") if f.strip()]
+            fields = {f.name for f in dataclasses.fields(WordRecord)}
+            if set(without) - fields:
+                sys.exit(f"no such part of a word record: {sorted(set(without) - fields)}")
+            EV.note(f"every word record held without {', '.join(without)}, the rest as main holds it")
+            say(f"  records held WITHOUT {', '.join(without)}")
         recorded, unheld, built = 0, 0, {}
         for k, word in enumerate(sorted(base)):
             try:
                 record = WordRecord.from_dict(held[word]) if word in held else word_record_of(word)
+                if without:
+                    record = dataclasses.replace(record, **{f: () for f in without})
                 view.hold_word(record)
-                built[word] = held.get(word) or record.to_dict()
+                built[word] = held.get(word) or record.to_dict()  # the WHOLE record is kept, never the stripped one
                 recorded += 1
             except Exception:
                 unheld += 1
@@ -417,7 +435,7 @@ def main() -> int:
         EV.metric("words recorded whole", recorded, unit="words",
                   note=f"of {len(base):,} the sentences use; {unheld:,} WordNet holds nothing of; "
                        f"{len(held):,} held from a previous run")
-        say(f"recorded whole {held:,} of {len(base):,} words, {time.perf_counter() - started:.0f}s")
+        say(f"recorded whole {recorded:,} of {len(base):,} words, {time.perf_counter() - started:.0f}s")
 
     if "--gold-categories" in sys.argv:
         # ── EACH WORD READ AS THE PMB'S CHECKED GOLD DERIVATION SAYS, and nothing else ──
