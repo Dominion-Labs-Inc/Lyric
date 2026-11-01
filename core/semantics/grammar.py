@@ -2619,7 +2619,8 @@ class Grammar:
         if isinstance(lc, Fn) and lc.slash == "/":
             s: Dict[int, Term] = {}
             if _unify(lc.arg, rc, s) and (not _after_its_subject(lc)
-                                          or self._stands_as_written(left, right, lc.res, s)):
+                                          or self._stands_as_written(left, right, lc.res, s)) \
+                    and not (_raised_subject(lc) and _verb_phrase(rc) and self._says_its_own(left)):
                 # A SUBJECT ALREADY RAISED AGREES WITH ITS VERB AS ANY OTHER SUBJECT DOES. The words that deny are
                 # stated raised (`nothing`, `nobody`, `none`: `S/(S\NP)`), so they take their verb's phrase by this
                 # rule and were weighed by neither of the two that ask for a subject, both of which ask the subject
@@ -2634,7 +2635,8 @@ class Grammar:
                      self._object_agreement(left, right) if _takes_object(lc) and isinstance(rc, Atom) else 0.0)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
-            if _unify(rc.arg, lc, s):
+            if _unify(rc.arg, lc, s) and not (_verb_phrase(rc) and isinstance(lc, Atom)
+                                              and self._says_its_own(left)):
                 made(rc.res, s, "<", left.head if _takes_its_head(rc) else right.head,
                      self._agreement(left, right) if _verb_phrase(rc) and isinstance(lc, Atom) else 0.0)
         # Composition: X/Y Y/Z => X/Z; Y\Z X\Y => X\Z.
@@ -2723,7 +2725,12 @@ class Grammar:
                 and isinstance(rc.res, Fn) and rc.res.slash == "\\" and isinstance(rc.res.arg, Atom) \
                 and rc.res.arg.base == "NP" and isinstance(rc.res.res, Atom) and rc.res.res.base == "S":
             s = {}
-            if _unify(rc.res.arg, lc, s):
+            # A PRONOUN OF ITS OWN SENTENCE IS NO SUBJECT HERE EITHER. The thing raised to what is said of it is the
+            # subject, so the same refusal holds as when a verb's phrase takes one whole: "the money myself owed" is
+            # no English. Guarded only where the phrase is whole, saying still said "Myself'm oldest." and
+            # "Myself payed for the bag.", both composed by this rule before the rest of the sentence was taken,
+            # and reading read them back to exactly the meaning they were made for (2026-11-01).
+            if _unify(rc.res.arg, lc, s) and not self._says_its_own(left):
                 # Its subject agrees with its verb as when the verb's phrase is whole: "Owl'm birds." was read so,
                 # "Owl'm" composed before "birds", and agreement weighed only the other way of reading it.
                 made(Fn(rc.res.res, "/", rc.arg), s, ">T>B", right.head, self._agreement(left, right))
@@ -2783,6 +2790,22 @@ class Grammar:
                     out.append((word, entry, len(said[0]) > 3 and said[0][3] == "own"))
             self._agreeing["pronouns"] = out
         return self._agreeing["pronouns"]
+
+    @staticmethod
+    def _says_its_own(thing: Sign) -> bool:
+        """WHETHER A THING IS SAID BY A PRONOUN OF ITS OWN SENTENCE ("myself", "ourselves", "himself").
+
+        SUCH A WORD IS NEVER A SUBJECT. It says the thing its doing is done BY, so it stands where that thing stands
+        a second time and nowhere else -- which `_stands_as_written` asks of a thing standing AFTER the verb, and
+        nothing asked of a subject. Saying therefore offered one as a subject and reading read it back: "Myself'm
+        oldest." was said of the speaker being the oldest and "Myself payed for the bag." of the speaker paying,
+        both read back to exactly the meaning they were made for, so the round trip could not refuse them
+        (2026-11-01).
+        """
+        ref = getattr(thing.cat, "ref", None)
+        return ref is not None and any(
+            piece[0] == "pron" and len(piece) > 3 and piece[3] == "own" and piece[1] == ref
+            for piece in thing.pieces)
 
     def _stands_as_written(self, doing: Sign, thing: Sign, taking: Cat, s: Mapping[int, Term]) -> bool:
         """WHETHER A THING STANDING AFTER A VERB IS WRITTEN AS THE PLACE ASKS: a thing said by a pronoun of its own

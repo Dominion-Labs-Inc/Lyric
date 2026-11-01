@@ -16,6 +16,70 @@ Conventions:
 
 ---
 
+## 2026-11-01 (104) — Saying could never name anything from files, and a reflexive was offered as a subject
+
+**Objective.** Go at saying, the largest single bucket of unanswered prose questions (159 of 370 "not taught to
+say"), and find out whether it can serve the answer path at all.
+
+**The fallback was never missing.** `derived_reader.say` with no inventory tries `GrammarView.say` FIRST and falls
+back to the taught constructions, so those 159 are not waiting on a grammar fallback: the grammar is asked and says
+nothing. Five `give_up` preconditions guard `Grammar.say` and every one is about things or acts; `("fact", link)`
+enters the budget only for links a PREPOSITION says, so a link said by a verb's role, a determiner or a copula is
+checked nowhere until read-back.
+
+**Error found, in my own harness, before any finding could be trusted.** `file_words` built `name_of` (a word ->
+the thing it names) and never passed `written_for` (a thing -> the words that say it), so `HeldWords.words_for`
+returned `[]` for every thing and saying could name NOTHING from files. My first measurement was 0 of 46 meanings,
+every one failing in 0.0s with `no word for a thing it must say`. `on_store.py` already recorded the same artefact
+(5 of 394, "the harness's figure and not the grammar's", 2026-10-29) and I should have read the saying harness
+before writing another. Fixed by building the exact inverse of `name_of` over the treebank's words and WordNet's
+lemmas, most used first, with a thing's own name as the fallback that carries main. Saying is now measurable from
+files, which it never was.
+
+**Measured, 46 real PMB dev meanings, 25s allowed each BY THE MEASUREMENT (never a cap in the grammar).**
+
+| facts | said | median |
+|---|---|---|
+| 1-3  | 9 of 12 | ~1s |
+| 4-8  | 8 of 20 | 25s (cut) |
+| 9-13 | 0 of 14 | 25s (cut) |
+
+The cliff is at four facts. AN ANSWER IS A ONE-FACT MEANING (`_said` builds exactly that), so saying is viable for
+the answer path; it is full-sentence generation that collapses, which is a different use and not what the 159 need.
+
+**Error found and fixed: a pronoun of its own sentence was offered as a SUBJECT.** "Myself", "ourselves",
+"himself" say the thing their doing is done by, so each stands where that thing stands again and nowhere else.
+`_stands_as_written` asks this of a thing standing AFTER the verb; nothing asked it of a subject. Saying said
+"Myself'm oldest." and "Myself payed for the bag with a 200 dollar bill.", and READING READ THEM BACK to exactly
+the meanings they were made for, so the round trip could not refuse them.
+
+Guarding the two application routes changed nothing, because the subject is taken by a third: `>T>B`, a thing
+raised to what is said of it and composed with the verb BEFORE the rest of the sentence. The derivation named it:
+`>T>B  S[dcl]/(S[adj]\NP.?speaker)  [0:2]`. That rule's own comment had already recorded the same shape of defect
+("Owl'm birds." read so, agreement weighed only the other way of reading it). Guarded at all three.
+
+**Verified.** `Myself'm oldest.` -> `I'm oldest.`; 17 of 46 said, from 16; said under 5s 11, from 10. Reflexive
+OBJECTS untouched: "Tom chased himself." still `done_by(?v0, tom) & done_to(?v0, tom)`, "I chased myself." still
+`done_to(?v0, ?speaker)`. 248 tests pass, the derived-reading suite's 122 among them.
+
+**Verified separately, on `lyric_dev`, through the real conversation layer** (reading bypassed with the question's
+meaning, since lyric_dev holds no English): UNDERSTANDS-PROSE-02's FIRST question, "Is South Asia a sub-region of
+Asia?", answered "Yes." where it had answered "I hold things about south asia that I have not been taught to say
+yet." -- the recall dump, which is reached only when nothing answered. "Is South Asia southern?" answered "Yes."
+with `because ['south asia -> sub region 1 -> southern']`. Both needed entry (103)'s `same_as`.
+
+**41 of the 159 "not taught to say" are yes/no questions**, which need no vocabulary for the relation at all, only
+a verdict. They were never a saying problem: the reasoner returned nothing, so the reply fell through to the recall
+dump, which then could not say the facts either. Two failures stacked.
+
+**Still open, and both are the owner's call.**
+- AGREEMENT IS A WEIGHT, NOT A CONSTRAINT. `_agreed` returns `min(0.0, log(...))`, so a disagreeing form can win on
+  frequency and reading accepts it back, which is why the round trip keeps "We'm biased." and "My dog've bite Tom."
+  Making it a constraint changes the READER, so it needs approval and a GRAMMAR-01 run to show it costs no reading.
+- SEVEN ANSWER LINKS HAVE NO ENGLISH AT ALL: `requires`, `enables`, `prevents`, `caused_by`, `required_by`,
+  `synonym_of`, `defined_as` -- read from every table in `Lexicon.learned`, not a chosen few. Four are relations the
+  substrate reasons with, so it can derive a causal answer and have no way to say it. That is lessons, not code.
+
 ## 2026-11-01 (103) — One word for two relations: identity was inert, and that was the whole of the zero-step failure
 
 **Objective.** Find the first verified failure in the reasoning pathway for the South Asia question, and make the

@@ -2044,3 +2044,30 @@ def test_an_unknown_a_reading_mints_is_a_variable_and_never_a_number():
     both = read(g, "The dog is more happy than the cat.")
     assert "exceeds(?v0, ?v1)" in both, both
     assert both.count("has_degree") == 2 and both.count("instance_of(?v0, happy)") == 1, both
+
+
+def test_a_pronoun_of_its_own_sentence_is_never_a_subject():
+    """"Myself", "ourselves", "himself" say the thing their doing is done BY, so each stands where that thing stands
+    a second time and nowhere else. `_stands_as_written` asks this of a thing standing AFTER the verb; nothing asked
+    it of a SUBJECT, by either route a subject is taken -- a verb's phrase taking one whole, or a thing raised to
+    what is said of it and composed with the verb before the rest of the sentence (`>T>B`, which is how
+    "Myself'm red." was built). So saying offered one as a subject and reading read it back to exactly the meaning
+    it was made for, which is why the round trip could not refuse it: of the PMB's dev meanings, saying said
+    "Myself'm oldest." and "Myself payed for the bag with a 200 dollar bill." (2026-11-01).
+
+    WHAT A REFLEXIVE IS FOR IS UNTOUCHED: it still says the thing done to where that is the one doing it.
+    """
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    # No subject, by either route: `>T>B` composes "myself" with the copula, "is" takes its phrase whole.
+    assert g.read(("myself", "'m", "red", ".")).meaning is None
+    assert g.read(("myself", "is", "red", ".")).meaning is None
+    assert g.read(("myself", "chased", "tom", ".")).meaning is None
+    # What it IS for: the thing done to, where that is the one doing it.
+    for said in ("Tom chased himself.", "Tom kicked himself."):
+        told = read(g, said)
+        assert "done_by(?v0, tom)" in told and "done_to(?v0, tom)" in told, (said, told)
+    assert "done_to(?v0, ?speaker)" in read(g, "I chased myself."), read(g, "I chased myself.")
+    # An ordinary subject is taken by both routes as it was.
+    assert read(g, "Tom is red.") == "tell: has_property(tom, red)"
+    assert "done_by(?v0, tom)" in read(g, "Tom chased a cat.")
+    assert read(g, "Whales are mammals.") == "tell: isa(whale, mammal)"
