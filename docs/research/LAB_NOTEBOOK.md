@@ -207,6 +207,31 @@ facts F1 79.6%** (strict, every fine-grained sense counted: 25.5%). Against the 
 against the published state of the art on this corpus of 89.3 Counter F1 and Boxer's 74.3 (a different fact measure,
 so not directly comparable).
 
+### THE SAMPLE ON MAIN: READING IS BETTER AND ANSWERING DOES NOT RETURN
+
+The owner chose a three-text sample before the two-hour half (texts 1, 47, 50: 15 sentences, 24 questions), on
+`lyric_db`, read-only. **It never reached a question.**
+
+**Reading on main, text 1 (South Asia), 10 sentences: 6 read whole** against 7 on 10-26, and the two differ --
+"South Asia, with a population of 2.04 billion, contains a quarter (25%) of the world's population." reads whole
+now where it read nothing then. The first sentence costs 554s (the rules are built on the first reading, once per
+process), the rest 4.7s to 219s, the longest sentences the slowest.
+
+**Then the first question -- "Is South Asia a sub-region of Asia?", the one (103) made answerable -- ran for 16
+minutes without returning**, at 95% of a core and 5.4 GB, and was stopped. On `lyric_dev` the same question
+answered "Yes." in a moment ((104), reading bypassed). So the cost is main's, not the question's: 24 questions at
+that rate is not a two-hour run.
+
+**What the sample is worth:** this is why the owner's rule is a sample first. The 10-26 run answered 231 questions
+in 7,398s, about 30s each; whatever has changed since, answering on main is now at least thirty times slower than
+that on its first question, and the prose benchmark cannot be run until that is traced. The candidates, in order:
+(103)'s renaming lets the reasoner CHAIN where it used to take zero steps, and main's graph is large; the recall
+path; `_held_ways` over a large store.
+
+**Nothing was written.** The run's own end-of-run check never ran, so it was checked by hand: 0 rows made in the
+last 75 minutes in `unified.concepts`, `beliefs`, `scoped_concept_relations`, `scoped_beliefs`, `experience_pool`,
+`memory_media`, `memory_operations`.
+
 ### CLOSED BY READING THE CODE, NO RUN
 
 (103) left open that `hold_for_person` has no `remembered()` guard where `hold_scoped_relation` does, so a
