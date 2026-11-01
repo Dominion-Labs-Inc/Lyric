@@ -16,7 +16,7 @@ Conventions:
 
 ---
 
-## 2026-11-01 (105) — A fifth of the questions could not be read, and the reading measure could not see why: a preposition carried along with the wh-phrase was read as a thing
+## 2026-11-01 (105) — The reading measure charged the word records for using the senses they were built to hold, and a fifth of the questions could not be read at all: a preposition carried along with the wh-phrase was a thing
 
 **Objective.** *"there was a big fucking issue with lyrics fucking reading responding and understanding. This has
 been a four or five day fucking problem."* Account for where reading and responding fail end to end from the runs
@@ -122,26 +122,90 @@ added.
 count's preposition list was not word-bounded, so "iron?" matched "on" and "group?" matched "up". The figures are 82
 and 11.
 
-### THE MEASUREMENT TOOL (101) ASKED FOR IS BUILT, AND IT PRICES THE RECORD LAYER AT 20 POINTS
+### THE MEASUREMENT TOOL (101) ASKED FOR IS BUILT
 
 (101): *"Caching the records to disk would make a variant run about a minute... That is the measurement tool this
 loop has been missing all day."* It had been written and **never run**, and it crashed one line after writing its own
 cache (`say(f"recorded whole {held:,} ...")`, formatting a dict). Fixed; the cache is 6,985 records, 108 MB, ignored
-by git. `--words-without used_as,means,…` holds every record with one layer emptied and the rest as main holds it, so
-the layers can be priced one at a time.
+by git, and the records load in **470s** instead of 3,674s, so a variant run is 8.5 minutes, mostly the 440s
+teaching phase. `--words-without used_as,means,senses.kind_of,…` holds every record with one layer (or one part of
+each of its senses) emptied and the rest as main holds it, each field emptied to a value of its own kind — `used` is
+an int, and emptying it to `()` would have made every record unheld while the run reported one field left out.
 
-The same experiment either side of the whole layer, on today's code:
+### THE RECORD LAYER PRICED — AND THE 20 POINTS WERE THE MEASURE, NOT THE READING
 
-| GRAMMAR-01, PMB dev | records off | records on |
+**The bisect.** Seven runs, each holding every record with ONE layer emptied and the rest as main holds it:
+
+| without | senses aside: whole right | facts F1 | links by a word's own uses |
+|---|---:|---:|---:|
+| `used_as` | 277 | 62.7% | 59.5% |
+| `means` | 275 | 62.3% | 58.9% |
+| `joins`, `joins_things` | 276 | 62.4% | 59.2% |
+| `forms` | 276 | 62.4% | 59.1% |
+| **`senses`** | **406** | **83.4%** | **83.5%** |
+| `capitalized`, `shapes`, `said_of_doing`, `said_after` | 275 | 62.2% | 59.0% |
+| `said_alone`, `used_before_doing`, `used_asking`, `together`, `uses` | 276 | 62.5% | 58.9% |
+| (records on, nothing left out) | 273 | 62.3% | 59.0% |
+
+Six layers move two to four sentences. `senses` moves 133 — so the sense layer is the whole of it, and the rest of
+the record is a small net gain.
+
+**Then the sense layer, taken apart the same way:** `kind_of` +12, `seen_with` +19, `places` +5, `frames` +3,
+`related` 0, and `covers`+`used` **−15** (the usage counts are how a sense is chosen at all). All five of the first
+together: senses aside 276 → 297. **No part of a sense accounts for the 133**, which is what sent me to the
+sentences.
+
+**THE 133 ARE 129 SENTENCES WITH THE SAME LINKS IN THE SAME PLACES AND ANOTHER WORD FOR THE SAME SENSE.** Of the 138
+dev sentences the sense layer alone loses, 129 differ from the gold only in what a thing is called, and every one is
+a WordNet synonym of it:
+
+```
+Tom waved.       gold instance_of(?v0, wave)     read instance_of(?v0, beckon)
+You're vain.     gold has_property(?listener, vain)   read has_property(?listener, conceited)
+We buy CDs.      gold instance_of(?v2, cd)       read instance_of(?v2, compact disk)
+We concurred.    gold instance_of(?v0, concur)   read instance_of(?v0, agree)
+I liked Tony.    gold instance_of(?v0, like)     read instance_of(?v0, desire wish)
+```
+
+**The cause, in the measure.** `senses_aside` renames the GOLD by the name the reading gives each word, and it can
+only do that where the PMB **anchors** that term to a word (`at`, from the document's concepts' spans). Where the PMB
+anchors none — a quality said by a copula, a kind on a line of its own — the gold keeps its own word, and a synonym
+the reading chose **from the right sense** is scored as a miss. So the records, whose whole purpose is to give a word
+its senses, were charged for using them.
+
+**The fix was written on 10-28 and never called here.** `named_by_their_words` sits in the same file, names both
+sides by the word of the sentence a thing is a sense of, and its docstring says `senses_aside` "counted a sense
+chosen from what fills a verb's places wrong where the word was read right". `on_store.py` has scored its headline
+error budget that way since; `experiment.py` — which produced every figure in (99) through (105) — never used it.
+Wired in as a fourth way, applied to the reading and the gold alike.
+
+**Like for like, same code, same split:**
+
+| | records on | records off |
 |---|---:|---:|
-| strict: whole meaning right | 206 (22.6%) | **230 (25.2%)** |
-| strict: facts F1 | 47.4% | **51.7%** |
-| senses aside: whole meaning right | **397 (43.6%)** | 273 (30.0%) |
-| senses aside: facts F1 | **83.1%** | 62.3% |
-| links by the word's own uses, right | **1,170 of 1,413 (82.8%)** | 848 of 1,438 (59.0%) |
+| strict: whole right | **232 (25.5%)** | 206 (22.6%) |
+| strict: facts F1 | **51.7%** | 47.4% |
+| senses aside (the old way) | 276 (30.3%) | **397 (43.6%)** |
+| senses aside: facts F1 | 62.4% | **83.1%** |
+| **by their words: whole right** | **503 (55.2%)** | 488 (53.6%) |
+| **by their words: facts F1** | **79.6%** | 79.0% |
 
-**Main holds the records, so main is paying the 20-point column.** (The records-on run loaded the grammar before
-`_carried` landed, which is worth five sentences, so it prices the layer and not the rule.)
+**The word records HELP** — +26 whole meanings strict, +15 by their words, better facts F1 both ways. The old measure
+said they cost 121 whole meanings and 20.7 points of F1.
+
+**WITHDRAWN.** (101)'s headline — *"the word records fix the sense label and wreck the structure"* — and (100)'s
+*"the senses-aside drop cannot be a labelling artefact, by construction"*, and my own statement earlier today that
+*"main is paying the 20-point column"*. The structural loss the sense layer really causes is **9 sentences of 911**.
+Main needs no change on this account.
+
+**What it cost to find:** (101) spent a day on four fixes aimed at a regression that was not there, and reported them
+as net negative against this measure. The lesson is the one (101) itself drew and then applied to the wrong thing:
+when a measurement says a layer built to help is hurting, take ONE sentence apart before building anything.
+
+**Reading's honest standing on held-out PMB dev**, with the records as main holds them: **55.2% of whole meanings,
+facts F1 79.6%** (strict, every fine-grained sense counted: 25.5%). Against the bar of 95% on whole meanings, and
+against the published state of the art on this corpus of 89.3 Counter F1 and Boxer's 74.3 (a different fact measure,
+so not directly comparable).
 
 ### CLOSED BY READING THE CODE, NO RUN
 
@@ -166,7 +230,14 @@ read-only benchmark run on main is safe on that count.
 1. **The end-to-end number needs main, read-only.** UNDERSTANDS-PROSE-02 has not run since main was re-taught (96)
    or since (103)'s `same_as`, so 7.8% of questions is a figure for a store that no longer exists. The sandbox holds
    no English, so nothing else can give it.
-2. **The record bisect**, now that a variant costs minutes.
+2. **Every figure in (99) to (104) was scored by `senses_aside`**, so each is worth re-reading against the measure
+   that names both sides by their words: the four fixes (101) called net negative, (100)'s error budget and its
+   "sense label costs 20.6 points", and the ERG comparison in (102), where the bridge's own naming was handled on
+   one side only. The runs are on disk; nothing needs re-running to re-score the whole-meaning counts, since every
+   run writes its misses.
+3. The link figures (`links decided by own/kind/rule`) are still scored against the `senses_aside` gold so they stay
+   comparable with earlier runs, which means they understate a reading that named a thing by another word for the
+   same sense: with the records held they read 59.0% where the whole-meaning figure for the same run is 55.2%.
 3. A carried preposition with a SUBJECT gap in a relative clause ("most of whom had no experience", "both of which
    are timed") — English, common in edited prose, and refused on purpose by this rule because a question cannot do
    it. Its own measured step.

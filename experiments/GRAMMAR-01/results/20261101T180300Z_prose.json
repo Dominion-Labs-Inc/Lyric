@@ -1,0 +1,282 @@
+[
+ {
+  "sentence": "Whales are mammals.",
+  "read": "tell: isa(whales, mammal)"
+ },
+ {
+  "sentence": "They live in the ocean.",
+  "read": "tell: done_by(?v0, ?previous) & given instance_of(?v1, ocean) & instance_of(?v0, populate) & located_in(?v0, ?v1)"
+ },
+ {
+  "sentence": "A whale breathes air through a blowhole.",
+  "read": "tell: done_by(?v0, whale breath) & instance_of(?v0, air out) & instance_of(?v1, blowhole) & moves_through(?v0, ?v1)"
+ },
+ {
+  "sentence": "Whales feed their young with milk.",
+  "read": "tell: done_by(?v0, whales) & instance_of(?v0, feed) & instance_of(?v1, animal young) & instance_of(?v2, milk) & owned_by(?v1, whales) & received_by(?v0, ?v1)"
+ },
+ {
+  "sentence": "The blue whale is the largest animal on Earth.",
+  "read": "tell: given instance_of(?v0, blue whale) & greatest_of(?v1, animal) & has_degree(?v0, ?v1) & instance_of(?v0, animal) & instance_of(?v1, ample large) & instance_of(?v2, earth) & located_in(?v0, ?v2)"
+ },
+ {
+  "sentence": "Are whales mammals?",
+  "read": "ask: isa(whale, mammal)"
+ },
+ {
+  "sentence": "Do whales live in the ocean?",
+  "read": "ask: done_by(?v0, whale) & given instance_of(?v1, ocean) & instance_of(?v0, populate) & located_in(?v0, ?v1)"
+ },
+ {
+  "sentence": "Do whales breathe air?",
+  "read": "ask: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air)"
+ },
+ {
+  "sentence": "Where do whales live?",
+  "read": "ask: done_by(?v0, whale) & instance_of(?v0, populate) & located_in(?v0, ?v1) ? ?v1"
+ },
+ {
+  "sentence": "What is the largest animal on Earth?",
+  "read": "ask: given instance_of(?v0, animal) & greatest_of(?v1, animal) & has_degree(?v0, ?v1) & instance_of(?v1, ample large) & located_in(?v0, earth) & same_as(?v0, ?v2) ? ?v2"
+ },
+ {
+  "sentence": "Is a blue whale an animal?",
+  "read": "ask: isa(blue whale, animal)"
+ },
+ {
+  "sentence": "Photosynthesis is the process by which plants make food from light.",
+  "read": "tell: done_by(?v0, ?v1) & done_by(?v0, ?v2) & done_to(?v0, ?v3) & given instance_of(?v2, process) & instance_of(?v0, make) & instance_of(?v1, building complex plant) & instance_of(?v3, food) & instance_of(?v4, light) & moves_from(?v0, ?v4) & same_as(photosynthesis, ?v2)"
+ },
+ {
+  "sentence": "Plants take in carbon dioxide and water.",
+  "read": "tell: done_by(?v0, plant) & done_to(?v0, ?v1) & has_member(?v1, ?v2) & has_member(?v1, ?v3) & instance_of(?v0, take in) & instance_of(?v2, carbon dioxide) & instance_of(?v3, water)"
+ },
+ {
+  "sentence": "They release oxygen.",
+  "read": "tell: done_by(?v0, ?previous) & instance_of(?v0, let go of) & instance_of(?v1, oxygen) & moves_from(?v0, ?v1)"
+ },
+ {
+  "sentence": "Chlorophyll is the green pigment that absorbs the light.",
+  "read": "tell: done_by(?v0, ?v1) & given instance_of(?v1, light) & given instance_of(?v2, pigment) & has_property(?v2, green) & has_purpose(?v0, ?v2) & instance_of(?v0, absorb) & same_as(chlorophyll, ?v2)"
+ },
+ {
+  "sentence": "Do plants release oxygen?",
+  "read": "ask: done_by(?v0, plant) & instance_of(?v0, let go of) & instance_of(?v1, oxygen) & moves_from(?v0, ?v1)"
+ },
+ {
+  "sentence": "Do plants take in carbon dioxide?",
+  "read": "ask: done_by(?v0, plant) & done_to(?v0, ?v1) & instance_of(?v0, take in) & instance_of(?v1, carbon dioxide)"
+ },
+ {
+  "sentence": "Is chlorophyll a pigment?",
+  "read": "ask: isa(chlorophyll a, pigment)"
+ },
+ {
+  "sentence": "Is chlorophyll green?",
+  "read": "ask: has_property(chlorophyll, green)"
+ },
+ {
+  "sentence": "What absorbs the light?",
+  "read": "ask: done_by(?v0, ?v1) & given instance_of(?v1, light) & has_purpose(?v0, ?v2) & instance_of(?v0, absorb) ? ?v2"
+ },
+ {
+  "sentence": "Python is a high-level, general-purpose programming language.",
+  "read": "tell: has_property(python, general-purpose) & has_property(python, high-level) & isa(python, programming language)"
+ },
+ {
+  "sentence": "Its design philosophy emphasizes code readability with the use of significant indentation.",
+  "read": "(not read: )"
+ },
+ {
+  "sentence": "Python is dynamically typed and garbage-collected.",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v2, python) & has_property(?v2, dynamically) & instance_of(?v0, collect) & instance_of(?v1, garbage) & instance_of(?v2, write type) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "It supports multiple programming paradigms, including structured, object-oriented and functional programming.",
+  "read": "tell: done_by(?v0, ?previous) & done_by(?v1, ?v2) & done_by(?v3, ?v2) & done_to(?v0, ?v4) & has_member(?v4, ?v5) & has_member(?v4, ?v6) & has_member(?v4, oriented) & has_property(?v4, multiple) & has_property(?v5, functional) & instance_of(?v0, support) & instance_of(?v1, include) & instance_of(?v3, structure) & instance_of(?v5, programming) & instance_of(?v6, programming paradigm) & isa(oriented, object)"
+ },
+ {
+  "sentence": "Guido van Rossum began working on Python in the late 1980s.",
+  "read": "tell: done_by(?v0, guido van rossum) & done_by(?v1, guido van rossum) & done_to(?v0, python) & done_to(?v1, ?v0) & given instance_of(?v2, 1980s) & has_property(?v2, late) & instance_of(?v0, work) & instance_of(?v1, start) & located_in(?v0, ?v2) & precedes(?v1, ?now)"
+ },
+ {
+  "sentence": "Is Python a programming language?",
+  "read": "ask: isa(python, programming language)"
+ },
+ {
+  "sentence": "Is Python dynamically typed?",
+  "read": "ask: done_to(?v0, python) & has_property(?v0, dynamically) & instance_of(?v0, write type)"
+ },
+ {
+  "sentence": "Does Python support functional programming?",
+  "read": "ask: done_by(?v0, python) & done_to(?v0, ?v1) & has_property(?v1, functional) & instance_of(?v0, support) & instance_of(?v1, programming)"
+ },
+ {
+  "sentence": "Who began working on Python?",
+  "read": "ask: done_by(?v0, ?v1) & done_by(?v2, ?v1) & done_to(?v0, python) & done_to(?v2, ?v0) & instance_of(?v0, work) & instance_of(?v2, start) & precedes(?v2, ?now) ? ?v1"
+ },
+ {
+  "sentence": "The function sorted returns a new list.",
+  "read": "tell: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list) & isa(sorted, function)"
+ },
+ {
+  "sentence": "It does not change the original list.",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & given instance_of(?v1, list) & has_property(?v0, false) & has_property(?v1, original) & instance_of(?v0, change)"
+ },
+ {
+  "sentence": "The argument key is a function that is applied to each element.",
+  "read": "tell: about(?v0, ?v1) & given instance_of(?v0, argument key) & has_property(?v0, applied) & instance_of(?v0, function) & instance_of(?v1, element)"
+ },
+ {
+  "sentence": "Does sorted return a new list?",
+  "read": "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & has_property(?v1, new) & instance_of(?v0, return) & instance_of(?v1, list) & isa(sorted, doe)"
+ },
+ {
+  "sentence": "Does sorted change the original list?",
+  "read": "ask: done_by(?v0, sorted) & done_to(?v0, ?v1) & given instance_of(?v1, list) & has_property(?v1, original) & instance_of(?v0, change) & isa(sorted, doe)"
+ },
+ {
+  "sentence": "Is key a function?",
+  "read": "ask: isa(key, function)"
+ },
+ {
+  "sentence": "A prime number is a natural number greater than 1 that has no divisors other than 1 and itself.",
+  "read": "tell: exceeds(?v0, 1) & has_member(?v1, 1) & has_member(?v1, ?v2) & if instance_of(?v0, amount number) & instance_of(?v0, natural number) & instance_of(?v2, divisor) & not owns(?v0, ?v2)"
+ },
+ {
+  "sentence": "Seven is a prime number.",
+  "read": "tell: isa(7, number)"
+ },
+ {
+  "sentence": "Every prime number greater than 2 is odd.",
+  "read": "tell: has_property(?v0, odd) & if exceeds(?v0, 2) & if instance_of(?v0, amount number)"
+ },
+ {
+  "sentence": "Is seven a natural number?",
+  "read": "ask: isa(7, natural number)"
+ },
+ {
+  "sentence": "Is seven odd?",
+  "read": "ask: has_property(7, odd)"
+ },
+ {
+  "sentence": "Is seven greater than 1?",
+  "read": "ask: exceeds(7, 1)"
+ },
+ {
+  "sentence": "Is eight a prime number?",
+  "read": "ask: isa(8, number)"
+ },
+ {
+  "sentence": "If the valve is closed, the tank is full.",
+  "read": "tell: given if instance_of(?v0, structure valve) & given instance_of(?v1, armored vehicle tank) & has_property(?v1, full) & if has_property(?v0, closed)"
+ },
+ {
+  "sentence": "The valve is closed.",
+  "read": "tell: given instance_of(?v0, structure valve) & has_property(?v0, closed)"
+ },
+ {
+  "sentence": "Is the tank full?",
+  "read": "ask: given instance_of(?v0, armored vehicle tank) & has_property(?v0, full)"
+ },
+ {
+  "sentence": "Is the valve closed?",
+  "read": "ask: given instance_of(?v0, structure valve) & has_property(?v0, closed)"
+ },
+ {
+  "sentence": "The Eiffel Tower was built in 1889.",
+  "read": "tell: done_to(?v0, eiffel tower) & during(?v0, 1889) & instance_of(?v0, construct) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "It is in Paris.",
+  "read": "tell: located_in(?previous, paris)"
+ },
+ {
+  "sentence": "Paris is the capital of France.",
+  "read": "tell: given instance_of(?v0, capital) & part_of(?v0, france) & same_as(paris, ?v0)"
+ },
+ {
+  "sentence": "Is the Eiffel Tower in Paris?",
+  "read": "ask: located_in(eiffel tower, paris)"
+ },
+ {
+  "sentence": "Is the Eiffel Tower in France?",
+  "read": "ask: located_in(eiffel tower, france)"
+ },
+ {
+  "sentence": "When was the Eiffel Tower built?",
+  "read": "ask: done_to(?v0, eiffel tower) & during(?v0, ?v1) & instance_of(?v0, construct) & precedes(?v0, ?now) ? ?v1"
+ },
+ {
+  "sentence": "Is Paris the capital of France?",
+  "read": "ask: given instance_of(?v0, capital) & part_of(?v0, france) & same_as(paris, ?v0)"
+ },
+ {
+  "sentence": "We propose a new method for detecting anomalies in network traffic.",
+  "read": "tell: about(?v0, ?v1) & done_by(?v0, ?v2) & done_for(?v0, ?v3) & has_member(?v2, ?speaker) & has_property(?v1, new) & instance_of(?v0, propose) & instance_of(?v1, method) & instance_of(?v3, detecting anomaly) & instance_of(?v4, network traffic) & located_in(?v0, ?v4)"
+ },
+ {
+  "sentence": "The method learns a model of normal traffic from unlabeled data.",
+  "read": "tell: about(?v0, ?v1) & comes_from(?v2, ?v3) & done_by(?v0, ?v4) & given instance_of(?v4, method) & has_property(?v2, normal) & has_property(?v3, unlabeled) & instance_of(?v0, learn) & instance_of(?v1, model) & instance_of(?v2, traffic) & instance_of(?v3, data) & word_of(?v1, ?v2)"
+ },
+ {
+  "sentence": "In experiments on three datasets, it detects more attacks than earlier methods.",
+  "read": "tell: done_by(?v0, ?previous) & done_to(?v0, ?v1) & done_to(?v0, ?v2) & exceeds(?v3, ?v4) & has_count(?v1, ?v3) & has_count(?v5, 3) & has_count(?v6, ?v4) & has_property(?v6, early) & instance_of(?v0, detect) & instance_of(?v1, operation attack) & instance_of(?v2, experiment) & instance_of(?v5, dataset) & instance_of(?v6, method) & located_in(?v0, ?v5)"
+ },
+ {
+  "sentence": "Does the method detect anomalies?",
+  "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, method) & instance_of(?v0, detect) & instance_of(?v2, anomaly)"
+ },
+ {
+  "sentence": "Does the method learn from unlabeled data?",
+  "read": "ask: done_by(?v0, ?v1) & given instance_of(?v1, method) & has_property(?v2, unlabeled) & instance_of(?v0, learn) & instance_of(?v2, data) & moves_from(?v0, ?v2)"
+ },
+ {
+  "sentence": "What does the method detect?",
+  "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, method) & instance_of(?v0, detect) ? ?v2"
+ },
+ {
+  "sentence": "The server logged a failed login from 10.0.0.5.",
+  "read": "tell: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v3) & given instance_of(?v1, waiter) & instance_of(?v0, record log) & instance_of(?v2, fail) & instance_of(?v3, login) & moves_from(?v0, 10.0.0.5) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "The account was locked after five failed attempts.",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v2, ?v1) & done_to(?v2, ?v3) & given instance_of(?v3, record history) & has_count(?v1, 5) & instance_of(?v0, fail) & instance_of(?v1, attempt) & instance_of(?v2, fasten lock) & precedes(?v2, ?now)"
+ },
+ {
+  "sentence": "The attacker used a list of common passwords.",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, attacker) & has_property(?v3, common) & instance_of(?v0, use) & instance_of(?v2, list) & instance_of(?v3, password) & precedes(?v0, ?now) & word_of(?v2, ?v3)"
+ },
+ {
+  "sentence": "Was the account locked?",
+  "read": "ask: done_to(?v0, ?v1) & given instance_of(?v1, record history) & instance_of(?v0, fasten lock) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Did the server log a failed login?",
+  "read": "ask: done_by(?v0, ?v1) & done_by(?v2, ?v3) & done_to(?v0, ?v3) & given instance_of(?v1, waiter) & instance_of(?v0, record log) & instance_of(?v2, fail) & instance_of(?v3, login) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "How many failed attempts were there?",
+  "read": "ask: done_by(?v0, ?v1) & has_count(?v1, ?v2) & instance_of(?v0, fail) & instance_of(?v1, attempt) ? ?v2"
+ },
+ {
+  "sentence": "The company hired three engineers in May.",
+  "read": "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & during(?v0, may) & given instance_of(?v1, company) & has_count(?v2, 3) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "Two of them work in Berlin.",
+  "read": "tell: done_by(?v0, ?v1) & has_count(?v1, 2) & instance_of(?v0, work) & located_in(?v0, berlin) & part_of(?v1, ?previous)"
+ },
+ {
+  "sentence": "Did the company hire engineers?",
+  "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, company) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now)"
+ },
+ {
+  "sentence": "How many engineers did the company hire?",
+  "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, company) & has_count(?v2, ?v3) & instance_of(?v0, hire) & instance_of(?v2, engineer) & precedes(?v0, ?now) ? ?v3"
+ },
+ {
+  "sentence": "Do two of the engineers work in Berlin?",
+  "read": "ask: done_by(?v0, ?v1) & given instance_of(?v2, engineer) & has_count(?v1, 2) & instance_of(?v0, work) & located_in(?v0, berlin) & part_of(?v1, ?v2)"
+ }
+]

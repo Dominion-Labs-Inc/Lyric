@@ -45,12 +45,30 @@ whole.
 | PUD test: content words joined right | 186 of 311 | **191 of 311** |
 | the benchmark's own 43 carried questions: read at all | 31 of 43 | **38 of 43** |
 
-**And the measurement tool (101) asked for is built.** The word-record cache had been written and never run, and it
-crashed one line after writing itself; `--words-without used_as,means,…` now holds every record with one layer
-emptied and the rest as main holds it. The whole layer, priced on today's code: senses aside **43.6% without the
-records against 30.0% with**, facts F1 **83.1% against 62.3%**, links by a word's own uses **82.8% against 59.0%**,
-strict 22.6% against 25.2%. **Main holds the records, so main is paying that column**, and which layer does it is
-now a question costing minutes rather than an hour.
+**AND THE READING MEASURE WAS CHARGING THE WORD RECORDS FOR USING THEIR SENSES.** The cache (101) asked for had
+been written, never run, and crashed one line after writing itself; fixed, the records load in 470s instead of
+3,674s, so a variant run is 8.5 minutes. The bisect then said the `senses` layer was the whole of the records'
+apparent 20-point structural cost (six other layers move 2 to 4 sentences each, `senses` moved 133) — and taking the
+sentences apart said why: **129 of the 138 the sense layer "lost" have the same links in the same places and another
+word for the same sense** ("Tom waved." read `beckon` for `wave`, "You're vain." `conceited` for `vain`, "We buy
+CDs." `compact disk` for `cd`). `senses_aside` renames the gold by the reading's own name for a word only where the
+PMB ANCHORS that term to a word; where it anchors none the gold keeps its word, so a sense chosen rightly is scored
+wrong. `named_by_their_words`, written 2026-10-28 in that same file and used by `on_store.py` ever since, names both
+sides by their words; it had never been called by `experiment.py`, which produced every figure in (99) to (105). Now
+wired in:
+
+| | records on | records off |
+|---|---:|---:|
+| strict: whole right | **232 (25.5%)** | 206 (22.6%) |
+| senses aside (the old way) | 276 (30.3%) | **397 (43.6%)** |
+| **by their words: whole right** | **503 (55.2%)** | 488 (53.6%) |
+| **by their words: facts F1** | **79.6%** | 79.0% |
+
+**The records HELP, by every measure named here**, and (101)'s "they wreck the structure" and (100)'s "the
+senses-aside drop cannot be a labelling artefact, by construction" are withdrawn. **Reading's honest standing on the
+held-out dev split, with the records as main holds them: 55.2% of whole meanings, facts F1 79.6%** (strict 25.5%).
+Every figure in (99) to (104) was scored the old way and is worth re-reading, the ERG comparison in (102) among
+them.
 
 **Open, in order:** the end-to-end number needs UNDERSTANDS-PROSE-02 on main, read-only (it has not run since the
 re-teach (96) or since (103)'s `same_as`, so 7.8% of questions describes a store that no longer exists, and the

@@ -40,6 +40,7 @@ import re
 import sys
 import time
 from collections import Counter, defaultdict
+from typing import Dict
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -414,20 +415,43 @@ def main() -> int:
         # `WordRecord`, so a layer is left out by emptying its field and holding the rest exactly as main holds it:
         # the grammar is not touched, and what is measured is that layer's own cost. Main holds the records, so
         # whichever layer this names is what main is paying for.
-        without = []
+        def emptied(held, name: str):
+            """THE EMPTY VALUE OF THE KIND THE FIELD HOLDS. `sense.used` is an int and `sense.used + 1` is counted
+            into `thing_used`, so emptying it to `()` would raise inside the loop that holds each record, every
+            record would be passed over as unheld, and the run would measure NO RECORDS AT ALL while reporting that
+            it had left one field out."""
+            was = getattr(held, name)
+            return type(was)() if was is not None else None
+
+        without, within = [], []
         if "--words-without" in sys.argv:
-            without = [f.strip() for f in sys.argv[sys.argv.index("--words-without") + 1].split(",") if f.strip()]
+            asked_without = [f.strip() for f in sys.argv[sys.argv.index("--words-without") + 1].split(",")
+                             if f.strip()]
+            # A PART OF EACH OF ITS SENSES is named `senses.kind_of`: the senses layer carries a dozen things of its
+            # own (each sense's kind chain, its pertainyms, what it was seen used with, a verb's places), and that
+            # layer is the WHOLE of the structural cost -- held without it, reading is better than with no records at
+            # all (whole meanings with senses aside 406 against 397 and 273, lab notebook (105)).
+            from core.learning.teaching_sources import WordSense
+            within = [f.split(".", 1)[1] for f in asked_without if f.startswith("senses.")]
+            without = [f for f in asked_without if not f.startswith("senses.")]
             fields = {f.name for f in dataclasses.fields(WordRecord)}
+            inside = {f.name for f in dataclasses.fields(WordSense)}
             if set(without) - fields:
                 sys.exit(f"no such part of a word record: {sorted(set(without) - fields)}")
-            EV.note(f"every word record held without {', '.join(without)}, the rest as main holds it")
-            say(f"  records held WITHOUT {', '.join(without)}")
+            if set(within) - inside:
+                sys.exit(f"no such part of a sense: {sorted(set(within) - inside)}")
+            EV.note(f"every word record held without {', '.join(asked_without)}, the rest as main holds it")
+            say(f"  records held WITHOUT {', '.join(asked_without)}")
         recorded, unheld, built = 0, 0, {}
         for k, word in enumerate(sorted(base)):
             try:
                 record = WordRecord.from_dict(held[word]) if word in held else word_record_of(word)
                 if without:
-                    record = dataclasses.replace(record, **{f: () for f in without})
+                    record = dataclasses.replace(record, **{f: emptied(record, f) for f in without})
+                if within:
+                    record = dataclasses.replace(record, senses=tuple(
+                        dataclasses.replace(sense, **{f: emptied(sense, f) for f in within})
+                        for sense in record.senses))
                 view.hold_word(record)
                 built[word] = held.get(word) or record.to_dict()  # the WHOLE record is kept, never the stripped one
                 recorded += 1
@@ -558,6 +582,26 @@ def main() -> int:
         names_of.append(names)
     aside = [senses_aside(m, at, names) for (_, _, m, at), names in zip(dev, names_of)]
     say(f"senses aside named by the grammar's words; {time.perf_counter() - started:.0f}s")
+    # ── EVERY THING NAMED BY THE WORD IT IS A SENSE OF, ON BOTH SIDES (`named_by_their_words`) ──
+    # `senses_aside` renames the GOLD by the name the reading gives each word, and can only do it where the PMB
+    # ANCHORS that term to a word; where it anchors none, the gold keeps its own name and a synonym the reading
+    # chose from the right sense counts as a miss. Holding the word records, that is most of what the measure
+    # called a structural loss: of the 138 dev sentences the senses layer alone lost, 129 have the same links in
+    # the same places and another name for a thing -- "Tom waved." read `beckon` for `wave`, "You're vain."
+    # `conceited` for `vain`, "We buy CDs." `compact disk` for `cd` (lab notebook (105)). `named_by_their_words`
+    # names both sides by the word of the sentence the thing is a sense of, and `on_store.py` has scored its
+    # headline error budget that way since 2026-10-28; it was written in THIS file and never called here.
+    senses_named: Dict[str, list] = {}
+    for synset, name in sense_names.items():
+        senses_named.setdefault(name, []).append(synset)
+    sentence_words = [words_of_sentence(tokens) for _, tokens, _, _ in dev]
+
+    def as_words(meaning, words):
+        if meaning is None:
+            return None
+        return pronouns_as_unknowns(named_by_their_words(meaning, words, senses_named))
+
+    by_words = [as_words(m, ws) for (_, _, m, _), ws in zip(dev, sentence_words)]
     whole = sum(r.sign is not None for r in readings)
     meant = sum(r.meaning is not None for r in readings)
     EV.metric("dev sentences read whole by the grammar", whole, unit="sentences", note=f"of {len(dev):,}")
@@ -565,11 +609,14 @@ def main() -> int:
     say(f"read whole {whole:,} of {len(dev):,}; given a meaning {meant:,}")
     out = {}
     for way, wanted in (("strict", [m for _, _, m, _ in dev]), ("senses aside", aside),
-                        ("senses aside, the one spoken of before unnamed", aside)):
+                        ("senses aside, the one spoken of before unnamed", aside),
+                        ("by their words, the one spoken of before unnamed", by_words)):
         right = tp = fp = fn = 0
-        for r, want in zip(readings, wanted):
+        for r, want, ws in zip(readings, wanted, sentence_words):
             got = r.meaning
-            if got is not None and way.endswith("unnamed"):
+            if got is not None and way.startswith("by their words"):
+                got = as_words(got, ws)
+            elif got is not None and way.endswith("unnamed"):
                 got = unnamed_before(got)
             w = grounded(want, is_variable)
             if got is None:
@@ -597,6 +644,10 @@ def main() -> int:
              "(20261025T173519Z, 366/884, 41.4%)", out["senses aside"] > 366 / 884, f"{out['senses aside']:.1%}")
     # Of the links decided, by where the decision came from, how many the meaning holds (senses aside, grounded as
     # PMB-01 grounds facts): the word's own uses, what memory holds it a kind of, the grammar's rule.
+    # SCORED AGAINST THE `senses_aside` GOLD, as every run before this one, so the figures stay comparable -- which
+    # means they carry that gold's hole: a link between two things is counted wrong where the reading named either
+    # of them by another word for the same sense, so with the word records held these figures understate the links
+    # (lab notebook (105)). The whole-meaning and fact figures above are reported both ways.
     made, held = Counter(), Counter()
     for r, want in zip(readings, aside):
         if r.meaning is None:
