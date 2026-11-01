@@ -1,4 +1,4 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-10-29)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-11-01)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
@@ -6,11 +6,56 @@ For an engineer, and their Claude Code session, picking this work up. Read this 
 to 2026-10-28 (67) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-10-29)
+## 0. Where it stands (2026-11-01)
 
 **THE BAR IS 95% AND NOTHING IS DONE BEFORE IT IS MET (the owner, 2026-10-26).** Steps landed are "landed,
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
 sentences *taken in*, most of them misread (about 2 of 14 sampled read right): the questions are the honest measure.
+
+**LATEST (lab notebook (105), 2026-11-01): A FIFTH OF THE QUESTIONS COULD NOT BE READ, AND THE READING MEASURE
+COULD NOT SEE WHY.** The account of the last end-to-end run (10-26, main, the fit half's 231 questions), grouped by
+what the system itself did: **179 of the 208 unanswered questions asked the reasoner once, it took ZERO steps and
+returned an EMPTY answer**, 19 were read only in part, 4 got no reply, 4 were honestly "not entailed by the
+premises". Of the 179, **177 ask a conjunctive pattern with unknowns** and 2 are plain yes/no, so `_held_ways` (which
+does solve patterns) found no way because what reading HELD and what the question ASKS are not the same facts. The
+recall dump is a symptom, not the defect.
+
+**82 of the 456 questions (18%)** carry a preposition along with the wh-phrase ("From which port did the first failed
+password come?") or strand one ("What is rain composed of?"), and **11 of the 19 read only in part** are that shape.
+(101) measured the same gap from the other side (22.1% of gold categories Lyric cannot express, over half of it the
+one decision to have no `pp`) and left it alone because the PMB's dev split holds the shape ONCE in 911 sentences.
+The hand-analysed treebanks hold it 27 times in EWT's dev, 33 in GUM's dev, 29 in PUD's test: **GRAMMAR-01 is blind
+to a construction that breaks a fifth of what people ask.**
+
+`Lexicon._carried` reads a carried preposition as the grammar already reads "where" (`S[wq].e/S[q].e` with `prep(e,
+a, where)`): the wh-phrase's own gap is dropped, because the preposition's object fills it, and the preposition's
+link joins the clause's doing to what the gap stood for; never a subject gap. `From which port did the password
+come?` now reads fact for fact what `Which port did the password come from?` reads, which read right already. Found
+on the way: **"whom" had no relative use at all** where "who" has one, so "a partner whom you can trust" read no
+whole.
+
+| | without | with |
+|---|---:|---:|
+| GRAMMAR-01, PMB dev: senses aside, whole right | 392 (43.0%) | **397 (43.6%)** |
+| GRAMMAR-01: facts F1 | 82.9% | **83.1%** |
+| GRAMMAR-01: read to another meaning | 489 | **485** |
+| EWT dev, 27 fronted: the preposition joined right | 2 of 12 | **5 of 13** (with "whom") |
+| EWT dev: read no whole | 12 of 27 | **11 of 27** |
+| PUD test, 29 fronted: the preposition joined right | 0 of 20 | **9 of 20** |
+| PUD test: content words joined right | 186 of 311 | **191 of 311** |
+| the benchmark's own 43 carried questions: read at all | 31 of 43 | **38 of 43** |
+
+**And the measurement tool (101) asked for is built.** The word-record cache had been written and never run, and it
+crashed one line after writing itself; `--words-without used_as,means,…` now holds every record with one layer
+emptied and the rest as main holds it. The whole layer, priced on today's code: senses aside **43.6% without the
+records against 30.0% with**, facts F1 **83.1% against 62.3%**, links by a word's own uses **82.8% against 59.0%**,
+strict 22.6% against 25.2%. **Main holds the records, so main is paying that column**, and which layer does it is
+now a question costing minutes rather than an hour.
+
+**Open, in order:** the end-to-end number needs UNDERSTANDS-PROSE-02 on main, read-only (it has not run since the
+re-teach (96) or since (103)'s `same_as`, so 7.8% of questions describes a store that no longer exists, and the
+sandbox holds no English); the record bisect; a carried preposition with a SUBJECT gap in a relative clause ("most of
+whom had no experience"); `pp` and `pr`.
 
 **LATEST (lab notebook (101), 2026-10-31): THE WORD RECORDS FIX THE SENSE LABEL AND WRECK THE STRUCTURE — ONE RECORD OVERRULED EVERY SENTENCE TAUGHT ABOUT THE VERB.** (100) called the word-record layer *"the lever on both gaps at once"*. GRAMMAR-01 `20261031T211729Z` holds the records of all 6,986 words the PMB's sentences use, against `20261028T111052Z` which is the same experiment with them switched off:
 

@@ -16,6 +16,166 @@ Conventions:
 
 ---
 
+## 2026-11-01 (105) — A fifth of the questions could not be read, and the reading measure could not see why: a preposition carried along with the wh-phrase was read as a thing
+
+**Objective.** *"there was a big fucking issue with lyrics fucking reading responding and understanding. This has
+been a four or five day fucking problem."* Account for where reading and responding fail end to end from the runs
+already on disk, and fix in order of the counts.
+
+### THE ACCOUNT (10-26, main, the fit half's 231 questions), grouped by what the system itself did
+
+| | n |
+|---|---:|
+| the reasoner was asked once, took **zero steps**, returned an **empty** answer | **179** |
+| the question was read only in part | 19 |
+| no reply at all | 4 |
+| the reasoner said "not entailed by the premises" (open world, honest) | 4 |
+| right | 18 |
+| wrong | 5 |
+
+Of the 179, **177 ask a conjunctive pattern with unknowns** (`instance_of(?v0, evolve) & done_by(?v0, ?v1) &
+moves_to(?v0, ?v3) ? ?v3`) and 2 are plain yes/no. So "the reasoner is broken" is the wrong reading of it:
+`_asked_of_events`/`_held_ways` do solve patterns, and found no way because what reading HELD from the text and what
+the question ASKS are not the same facts. Every one of those replies fell through to the recall dump, which is
+reached only when nothing answered — so the dump is a symptom, not the defect.
+
+### THE SHAPE THAT DOMINATES WHAT FAILS, AND WHICH THE READING MEASURE CANNOT SEE
+
+**82 of the 456 questions (18%)** carry a preposition along with the wh-phrase ("From which port did the first failed
+password come?", 43) or strand one at the end ("What is rain composed of?", 42), and **11 of the 19 read only in
+part** are that shape. The grammar said so itself: *"I understood 'which port did the failed password from
+123.235.32.19 come', but not how 'From' fits with it."*
+
+(101) measured the same gap from the other side — 22.1% of the gold's categories Lyric cannot express, over half of
+it the one decision to have no `pp` — and left it alone because **the PMB's dev split holds the shape once in 911
+sentences.** That is right about the PMB and wrong about English: the hand-analysed treebanks hold it 27 times in
+EWT's dev, 33 in GUM's dev and 29 in PUD's test. GRAMMAR-01 is blind to a construction that breaks a fifth of what
+people ask.
+
+### THE CAUSE, from the grammar, on the same sentence with one thing changed
+
+| read by the grammar built from files | |
+|---|---|
+| `Does South Asia border East Asia?` | right |
+| `What does South Asia border?` | right — the object gap works |
+| `What bounds South Asia?` | right |
+| `Which port did the password come from?` | **right**: `word_from(?v0, ?v1)` |
+| `From which port did the password come?` | **garbage**: `done_by(?v0, from) & instance_of(?v2, "password come")` |
+
+All six of a preposition's categories are a modifier of something beside it (`templates["PREPOSITION"]`) and a
+wh-word is neither, so carried to the front it has nothing to take and the cheapest reading left makes it A THING.
+In prose the same defect reads `isa(with, premise)`, `isa(from, meal)`, `isa(in, union)`.
+
+Also measured, and worth keeping: the first reading in a process costs **90s** (the rules are built then) and every
+reading after it 0.0s, so a probe against the real file-held grammar is cheap once warm. That is what made this
+day's twenty-odd probes possible.
+
+### THE FIX: read it as the grammar already reads "where"
+
+"Where" is this construction in one word and the grammar has had it all along (`S[wq].e/S[q].e` with `prep(e, a,
+where)` and `asked(a)`). `Lexicon._carried` offers the same for a preposition followed by a wh-word: the wh-phrase's
+own gap is dropped, because the preposition's object fills it, and the preposition's link joins the clause's doing to
+what the gap stood for. **Only a gap the preposition could fill** — a clause missing a thing to its RIGHT, never a
+subject gap ("From which port came it?" is not English). Nothing else about the wh-phrase changes: its category, its
+weighing and the rest of its meaning are its own. `From which port did the password come?` now reads fact for fact
+what the stranded sentence reads.
+
+### MEASURED
+
+**The measure was corrected first**: a preposition read as one entry with its wh-phrase has no head of its own, and
+the analysis joins it to that very wh-word, which `prose_joins` already counts right for a content word inside an
+entry of several words. The baseline was re-measured under the corrected measure and did not move (2 of 12 either
+way), so the correction does not flatter it.
+
+| held-out hand-analysed sentences that front a preposition | without | with |
+|---|---:|---:|
+| EWT dev (27 sentences): the preposition joined right | 2 of 12 | **4 of 12** |
+| EWT dev: content words joined right | 100 of 166 | 98 of 166 |
+| EWT dev: read no whole | 12 of 27 | 12 of 27 |
+| PUD test (29 sentences): the preposition joined right | 0 of 20 | **9 of 20** |
+| PUD test: content words joined right | 186 of 311 (59.8%) | **191 of 311 (61.4%)** |
+| PUD test: read no whole | 8 of 29 | 8 of 29 |
+| PUD test: seconds | 298 | 301 |
+
+| the benchmark's own 43 carried questions | without | with |
+|---|---:|---:|
+| read at all | 31 of 43 | **38 of 43** |
+| the preposition not made a thing | 29 | **38** |
+
+**And it costs nothing on the split that scores reading** (`--without-carried`, as `--without-structure` prices the
+structure view): GRAMMAR-01, PMB dev, read whole 892 → 893, strict whole right 204 → 206, **senses aside 392 →
+397**, facts F1 82.9% → **83.1%**, the one spoken of before unnamed 494 → 499, links by the word's own uses 1,165 of
+1,411 → 1,170 of 1,413, read-to-another-meaning 489 → **485**, 466s → 467s. The split holds the construction about
+once, so what was asked was whether the rule COSTS anything; five more whole meanings come right instead.
+
+### "WHOM" HAD NO RELATIVE USE AT ALL
+
+Found while reading the 27: `who` has `rel:object` and **"whom" had only `wh:object`**, so a relative clause on the
+object's own form — "a partner whom you can trust and with whom you can, together, develop" — could not be read at
+all. One entry, mirroring `who`'s exactly. EWT dev: read no whole 12 → **11**, content words joined right 98 of 166
+→ **107 of 184**, the preposition 4 of 12 → 5 of 13. PMB dev: every figure identical, so it is free there.
+`test_whom_asks_who_a_thing_was_done_to_never_who_did_it` was amended, not weakened — it pinned the whole list of
+entries, where what it is for is that none of them takes a SUBJECT gap, and that assertion now fails if one is ever
+added.
+
+**ERROR, CORRECTED HERE.** Commits `810f34f3` and this entry's first draft said 110 of 456 questions and 13 of 19. My
+count's preposition list was not word-bounded, so "iron?" matched "on" and "group?" matched "up". The figures are 82
+and 11.
+
+### THE MEASUREMENT TOOL (101) ASKED FOR IS BUILT, AND IT PRICES THE RECORD LAYER AT 20 POINTS
+
+(101): *"Caching the records to disk would make a variant run about a minute... That is the measurement tool this
+loop has been missing all day."* It had been written and **never run**, and it crashed one line after writing its own
+cache (`say(f"recorded whole {held:,} ...")`, formatting a dict). Fixed; the cache is 6,985 records, 108 MB, ignored
+by git. `--words-without used_as,means,…` holds every record with one layer emptied and the rest as main holds it, so
+the layers can be priced one at a time.
+
+The same experiment either side of the whole layer, on today's code:
+
+| GRAMMAR-01, PMB dev | records off | records on |
+|---|---:|---:|
+| strict: whole meaning right | 206 (22.6%) | **230 (25.2%)** |
+| strict: facts F1 | 47.4% | **51.7%** |
+| senses aside: whole meaning right | **397 (43.6%)** | 273 (30.0%) |
+| senses aside: facts F1 | **83.1%** | 62.3% |
+| links by the word's own uses, right | **1,170 of 1,413 (82.8%)** | 848 of 1,438 (59.0%) |
+
+**Main holds the records, so main is paying the 20-point column.** (The records-on run loaded the grammar before
+`_carried` landed, which is worth five sentences, so it prices the layer and not the rule.)
+
+### CLOSED BY READING THE CODE, NO RUN
+
+(103) left open that `hold_for_person` has no `remembered()` guard where `hold_scoped_relation` does, so a
+`remembers=False` conversation might persist scoped rows on main. **It cannot:** `ScopedContextStore.observe` writes
+only through `hold_scoped_relation` and `_observe_belief` → `hold_scoped_belief`, both of which hold in working
+memory when nothing is remembered, and `observe_rule` goes through `hold_scoped_rule`, guarded the same way. A
+read-only benchmark run on main is safe on that count.
+
+### COMMITTED
+
+- **What reading forgives, saying does not produce** ((104)'s first open item; it needed no approval because reading
+  does not change). Agreement was a weight alone, so saying said "We'm biased." and "My dog've bite Tom." and reading
+  read them back to the very meaning they were made for. The refusal now holds only while the grammar is saying
+  (`Grammar._saying`, set by `say` alone) and only on evidence against: a form memory holds few subjects of, a
+  subject it holds no features of, and features no subject was ever written with refuse nothing.
+- The carried preposition, its guard measurement, `whom`, and the record-cache tooling. 84 grammar tests and 126
+  derived-reading tests pass.
+
+### OPEN
+
+1. **The end-to-end number needs main, read-only.** UNDERSTANDS-PROSE-02 has not run since main was re-taught (96)
+   or since (103)'s `same_as`, so 7.8% of questions is a figure for a store that no longer exists. The sandbox holds
+   no English, so nothing else can give it.
+2. **The record bisect**, now that a variant costs minutes.
+3. A carried preposition with a SUBJECT gap in a relative clause ("most of whom had no experience", "both of which
+   are timed") — English, common in edited prose, and refused on purpose by this rule because a question cannot do
+   it. Its own measured step.
+4. `pp` and `pr`: a head declaring it takes a preposition phrase is what the gold has and this does not.
+5. The five wrong answers of the 10-26 run are mostly the sense label reaching the person: "What is a test case?" →
+   *"A test case is a kind of legal action."*, "Whom did Cyrus defeat?" → *"Cyrus. | Metier."*
+
+---
+
 ## 2026-11-01 (104) — Saying could never name anything from files, and a reflexive was offered as a subject
 
 **Objective.** Go at saying, the largest single bucket of unanswered prose questions (159 of 370 "not taught to
