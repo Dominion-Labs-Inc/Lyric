@@ -201,3 +201,30 @@ def test_a_strategy_without_a_similarity_is_not_scored_as_a_perfect_match():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-q"]))
+
+
+def test_what_the_senses_took_in_is_recalled_but_claims_nothing():
+    """A MEMORY OF MEETING SOMETHING IS NOT KNOWLEDGE ABOUT THE WORLD.
+
+    A percept's words are the account the senses wrote of a file -- "2970x1770 png image, 1 region(s)" -- and not a
+    telling anyone made. Stored with a claim read out of those words (`isa(image, png)`,
+    `instance_of(?v1, region)`), it was recalled as a premise and recited: asked "Is South Asia a sub-region of
+    Asia?", main answered "I remember: 2970x1770 png image, 1 region(s)." because the caption named a region
+    (2026-11-01). It is still recalled -- the senses are the only record of what was met -- and it claims nothing,
+    exactly as the record of an exchange claims nothing.
+    """
+    from core.memory.live_recall import took_in
+
+    picture = _memory("the-picture", "2970x1770 png image, 1 region(s)", similarity=0.7, importance=0.6,
+                      tags=["percept", "vision", "image"])
+    told = _memory("the-telling", "South Asia is a region.", similarity=0.7, importance=0.6,
+                   tags=["admitted_proposition"])
+
+    assert took_in(picture), "a percept is a record of meeting something"
+    assert not took_in(told), "a telling is not"
+
+    # And the claim stored with it is not weighed, however it came to be there: what recall hands up for a percept
+    # claims nothing, so nothing recites it as knowledge.
+    picture.metadata = {"claim_facts": [["instance_of", "?v1", "region", True]]}
+    told.metadata = {"claim_facts": [["isa", "south_asia", "region", True]]}
+    assert took_in(picture) and not took_in(told)

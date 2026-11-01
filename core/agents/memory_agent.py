@@ -564,6 +564,13 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.claim_shape import one_sentence, shape_of
         from core.semantics.derived_reader import Meaning, MeaningFact, heard, read_text
 
+        if isinstance(source_context, dict) and source_context.get("met"):
+            # WHAT THE SENSES TOOK IN IS NO CLAIM ABOUT THE WORLD. A percept's words are the account the senses
+            # wrote of the file ("2970x1770 png image, 1 region(s)"), not a telling anyone made; `met` is the
+            # digest of what was met, set where the media is attached. Read as a claim, that caption's own words
+            # became facts (`isa(image, png)`, `instance_of(?v1, region)`) and a question about a region was
+            # answered with a picture (2026-11-01). Recall holds the same of it (`live_recall.took_in`).
+            return None, None, ()
         if self.taught_language(source_context=source_context):
             # HOW ENGLISH WAS TAUGHT OR READ IS NO CLAIM ABOUT THE WORLD: a sentence analysed, taught with its meaning,
             # its arguments annotated, how a reading used its words. Read as a claim each time one was kept, the

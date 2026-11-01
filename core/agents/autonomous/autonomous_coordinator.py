@@ -24732,8 +24732,16 @@ class Conversation:
         def names_in(facts) -> set:
             return {str(term).replace("_", " ").lower() for f in facts for term in (f.subject, f.obj)
                     if not is_variable(term)}
+        # WHAT A MEMORY CLAIMS WAS DECIDED WHEN IT WAS STORED, and is not decided again here: "the asked sentence
+        # is read; what is remembered is not, again" (`live_recall.harvest`), and one stored with no claim claimed
+        # nothing readable then. Recited from a second reading of its words, the account the senses wrote of a file
+        # became knowledge: "Is South Asia a sub-region of Asia?" was answered "I remember: 2970x1770 png image, 1
+        # region(s)." (2026-11-01).
+        claimed = ({m.text for m in understanding.recall.memories[:_RECALLED] if m.facts}
+                   if understanding.recall is not None else None)
         claims = [(m, _claim_facts(m)) for m in understanding.remembered
-                  if m and "\n" not in m and len(m) <= 220
+                  if (claimed is None or m in claimed)
+                  and m and "\n" not in m and len(m) <= 220
                   and not any(j in m.lower() for j in _junk)
                   # Not the question itself, remembered a moment ago: that is not
                   # something known about what it asks.

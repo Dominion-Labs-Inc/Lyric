@@ -159,6 +159,24 @@ class Harvest:
         return [m.text for m in self.memories[:limit]]
 
 
+#: The tags of a memory of MEETING something: a picture seen, a document read, a recording heard.
+TOOK_IN = frozenset({"percept"})
+
+
+def took_in(item: Any) -> bool:
+    """WHETHER THIS MEMORY IS THE RECORD OF MEETING SOMETHING, so its words claim nothing about the world.
+
+    A percept's words are the account the senses wrote of the file -- "2970x1770 png image, 1 region(s)",
+    "1 page(s), 2020 word(s), text document" -- and not a telling anyone made. Read as a claim they became facts
+    of their own (`isa(image, png)`, `instance_of(?v1, region)`), so asking "Is South Asia a sub-region of Asia?"
+    was answered "I remember: 2970x1770 png image, 1 region(s)." -- the caption named a region (2026-11-01).
+
+    The memory is still recalled: what was met is worth recalling AS something met, and the senses are the only
+    record of it. It claims nothing, exactly as the record of an exchange claims nothing (`_absorb`).
+    """
+    return bool(TOOK_IN & set(getattr(item, "tags", None) or ()))
+
+
 def _said_as(recalled: "Recalled") -> str:
     """What a memory says, as words: two memories saying the same words say one thing."""
     return " ".join(recalled.text.lower().split())
@@ -285,7 +303,10 @@ class LiveRecall:
                     importance=decayed_importance(float(getattr(item, "importance_score", 0) or 0),
                                                   getattr(item, "created_at", None)),
                     similarity=score, corrected=corrected,
-                    facts=tuple((meta or {}).get("claim_facts") or ()) if isinstance(meta, dict) else ())
+                    # What the senses took in claims nothing (`took_in`), whatever was stored with it before that
+                    # was so: its words are the account of a file, not a telling.
+                    facts=() if took_in(item) else (
+                        tuple((meta or {}).get("claim_facts") or ()) if isinstance(meta, dict) else ()))
                 found[memory_id] = existing
             else:
                 existing.similarity = max(existing.similarity, score)

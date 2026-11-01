@@ -22937,3 +22937,50 @@ because `GrammarView.rules` is a hash of the BYTES of `grammar.py`, `grammar_wor
 and today's grammar work changed two of the three. The store holds all 6,137 kept under the old hash; the front
 door re-keys them under the new one (`keep_grammar_learning`) the first time a turn goes through it. One run's cost
 after a grammar change, by design.
+
+### AND A PICTURE ANSWERED A QUESTION ABOUT A REGION
+
+With the hang gone the answer could be read, and it began *"I remember: 2970x1770 png image, 1 region(s)."* That
+memory is a percept -- tags `percept, vision, image` -- and it carried a claim read out of its own caption:
+
+```
+claim_facts: [['instance_of','?v0','s'], ['isa','image','png'], ['instance_of','?v1','region'], ...]
+met: f82f48f8...   source_system: vision   origin: {'through': 'take_in'}
+```
+
+So a question naming a REGION matched a PNG, because the account the senses wrote of the file names one. 50 of
+main's 63 percept memories carry such a claim.
+
+**The rule was already written, twice, and neither place covered this.** `live_recall._absorb` drops the record of
+an exchange ("THE RECORD OF AN EXCHANGE IS NOT KNOWLEDGE OF THE WORLD"), and the reciting path says "a record of
+hearing a word said, or a file's size, is an episode, not knowledge about what was asked" -- and then decided it by
+reading the words again. `live_recall.harvest` states the design outright: "THE ASKED SENTENCE IS READ; WHAT IS
+REMEMBERED IS NOT, AGAIN. A memory's claim was read once, when it was stored, and kept with it; one stored with
+none claimed nothing readable then. Read again here, every recalled memory went back through the whole reader each
+turn: 27 s of a 40 s answer."
+
+**Fixed in the three places a memory becomes a claim, each by the rule already there:**
+
+- `live_recall.took_in` -- a memory of MEETING something claims nothing, whatever was stored with it before the rule
+  existed, so main's 50 need no repair. It is still recalled: what was met is worth recalling AS something met, and
+  the senses are the only record of it.
+- `MemoryAgent._readable_claim` -- refuses a claim where `met` is set, so no percept stores one again.
+- the reciting path -- recites only what recall holds to be a claim, instead of reading the words a second time,
+  which was the defect and a per-turn cost both.
+
+**Measured, same sentence told and same question asked:** `"I remember: 2970x1770 png image, 1 region(s). Region's
+Both. I hold things about south asia ... I hold nothing for sub."` becomes `"Region's Both. I hold things about
+south asia that I have not been taught to say yet. I hold nothing for sub. Tell me what it is and I will keep
+it."`, in 3.1s. `tests/test_recall_ranking.py` 10 pass, the new one among them.
+
+**STILL WRONG, AND WHY.** "I hold nothing for sub": `sub-region` is read apart because memory holds none of
+"sub-region", "subregion", "sub region" or "region", and `sub` -- a noun by its ending alone -- heads the run.
+**WordNet holds no "subregion" at all** (0 senses, `morphy` nothing), so no teach makes it one word; what a teach
+fixes is that the run read apart is headed by `region`, a known noun, which answers the question. Main's 3,662
+words recorded whole are the vocabulary of its 6,137 PMB sentences, which are short and simple, so more PMB
+documents do not reach it. `region` recorded whole in 403s and holds all 20 layers, its main sense used 65 times,
+`location` -> `object` -> `physical entity`: one record verified fully before a set, as (56)/(57) asks. The set
+being built is the 5,042 open-class bases of UD EWT+GUM -- the treebanks the record format already takes its forms
+from, so the same authority, and nothing held out and measured on -- less main's 3,662: **3,326 words**, written
+most first so a run stopped part-way has recorded the words prose uses most. A file only; teaching it to main is the
+owner's to start. "Region's Both." is a saying defect and is not this.
