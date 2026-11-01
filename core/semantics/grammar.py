@@ -2620,7 +2620,10 @@ class Grammar:
             s: Dict[int, Term] = {}
             if _unify(lc.arg, rc, s) and (not _after_its_subject(lc)
                                           or self._stands_as_written(left, right, lc.res, s)) \
-                    and not (_raised_subject(lc) and _verb_phrase(rc) and self._says_its_own(left)):
+                    and not (self._saying and _raised_subject(lc) and _verb_phrase(rc)
+                             and (self._says_its_own(left) or self._disagrees(left, right))) \
+                    and not (self._saying and _asks_its_subject(lc) and isinstance(rc, Atom)
+                             and self._disagrees(right, left)):
                 # A SUBJECT ALREADY RAISED AGREES WITH ITS VERB AS ANY OTHER SUBJECT DOES. The words that deny are
                 # stated raised (`nothing`, `nobody`, `none`: `S/(S\NP)`), so they take their verb's phrase by this
                 # rule and were weighed by neither of the two that ask for a subject, both of which ask the subject
@@ -2635,14 +2638,15 @@ class Grammar:
                      self._object_agreement(left, right) if _takes_object(lc) and isinstance(rc, Atom) else 0.0)
         if isinstance(rc, Fn) and rc.slash == "\\":
             s = {}
-            if _unify(rc.arg, lc, s) and not (_verb_phrase(rc) and isinstance(lc, Atom)
-                                              and self._says_its_own(left)):
+            if _unify(rc.arg, lc, s) and not (self._saying and _verb_phrase(rc) and isinstance(lc, Atom)
+                                              and (self._says_its_own(left) or self._disagrees(left, right))):
                 made(rc.res, s, "<", left.head if _takes_its_head(rc) else right.head,
                      self._agreement(left, right) if _verb_phrase(rc) and isinstance(lc, Atom) else 0.0)
         # Composition: X/Y Y/Z => X/Z; Y\Z X\Y => X\Z.
         if isinstance(lc, Fn) and lc.slash == "/" and isinstance(rc, Fn) and rc.slash == "/":
             s = {}
-            if _unify(lc.arg, rc.res, s):
+            if _unify(lc.arg, rc.res, s) and not (self._saying and _raised_subject(lc)
+                                                  and _verb_phrase(rc.res) and self._disagrees(left, right)):
                 # A RAISED SUBJECT AGREES WITH ITS VERB WHERE IT IS COMPOSED WITH IT TOO, before the verb has taken
                 # what else it takes, as a subject raised by the rule above does (`>T>B`). Weighed where the subject
                 # TAKES its verb and not where it is composed with it, the copula's only unweighed form was the one
@@ -2730,11 +2734,71 @@ class Grammar:
             # no English. Guarded only where the phrase is whole, saying still said "Myself'm oldest." and
             # "Myself payed for the bag.", both composed by this rule before the rest of the sentence was taken,
             # and reading read them back to exactly the meaning they were made for (2026-11-01).
-            if _unify(rc.res.arg, lc, s) and not self._says_its_own(left):
+            if _unify(rc.res.arg, lc, s) and not (
+                    self._saying and (self._says_its_own(left) or self._disagrees(left, right))):
                 # Its subject agrees with its verb as when the verb's phrase is whole: "Owl'm birds." was read so,
                 # "Owl'm" composed before "birds", and agreement weighed only the other way of reading it.
                 made(Fn(rc.res.res, "/", rc.arg), s, ">T>B", right.head, self._agreement(left, right))
         return out
+
+    #: HOW MANY SUBJECTS A FORM MUST HAVE BEEN WRITTEN WITH before its disagreement REFUSES a sentence rather than
+    #: weighing it down: a form seen with few subjects says little about the ones it was not seen with.
+    SUBJECTS_BEFORE_REFUSING = 20
+
+    #: WHETHER THIS GRAMMAR IS SAYING RATHER THAN READING (`say` sets it for as long as it is saying).
+    #:
+    #: WHAT READING MUST FORGIVE, SAYING MUST NOT PRODUCE. One grammar reads and says, but the two want opposite
+    #: things of a rule English requires: reading has to understand "A dog am a mammal." and "Myself is red." --
+    #: typed in haste, said by someone learning the language -- and reads them less surely rather than refusing
+    #: them, which is a capability and not a defect (`test_a_subject_agrees_with_its_verb_as_the_subjects_it_took`).
+    #: Saying has no such excuse: it chooses its own words, so a form that cannot agree with its subject and a
+    #: pronoun of its own sentence standing as one are refused outright while it is saying, and weighed exactly as
+    #: before while it is reading.
+    _saying = False
+
+    def _disagrees(self, subject: Sign, doing: Sign) -> bool:
+        """WHETHER A SUBJECT AND ITS FINITE VERB CANNOT AGREE: of the subjects THIS FORM of the verb was written
+        with, not one shares the subject's class and features, and the form was written with enough of them
+        (`SUBJECTS_BEFORE_REFUSING`) for that absence to be evidence rather than silence.
+
+        AGREEMENT WAS A WEIGHT ALONE (`_agreement`, `_agreed`: a logarithm never more than nothing), so a form
+        common enough kept its place however badly it agreed, and READING WEIGHED IT THE SAME WAY, so a sentence
+        saying it read back to exactly the meaning it was made for and saying's round trip could not refuse it. Of
+        the PMB's dev meanings, saying said "We'm biased." and "My dog've bite Tom." (2026-11-01). One grammar reads
+        and says, so a refusal here is a refusal both ways: English requires the form to match, and a sentence whose
+        form cannot match its subject is no sentence of English to read either.
+
+        REFUSED ONLY ON EVIDENCE AGAINST, never on the absence of evidence: a form memory holds few subjects of, a
+        subject it holds no features of, a form of the verb that is not finite, and features no subject was ever
+        written with are all weighed exactly as before and refuse nothing.
+        """
+        words, tokens = self.lexicon.words, self._tokens
+        hook = _hook(doing.cat)
+        finite = [piece[-1] for piece in doing.pieces if piece[0] == "finite" and piece[1] == hook]
+        if not finite or not 0 <= min(finite) < len(tokens):
+            return False
+        ref = _subject_ref(subject.cat)
+        found = self._said_by(subject.pieces, ref) if ref is not None else None
+        if not found:
+            return False
+        # ONLY THE SUBJECTS THIS FORM WAS SEEN WITH, never the ones inferred for a form memory holds none of
+        # (`_subjects_like`): what is worked out from words written alike is evidence to weigh, not to refuse on.
+        took = words.subjects(str(tokens[min(finite)]))
+        if not took or sum(took.values()) < self.SUBJECTS_BEFORE_REFUSING:
+            return False
+        cls, at = found[0], found[1]
+        forms = [f for f in self._features(cls, at) if f]
+        if not forms:
+            return False
+        if "every" not in self._agreeing:
+            self._agreeing["every"] = words.subjects()
+        every = self._agreeing["every"]
+
+        def matched(held: Mapping[Tuple[str, str], float], features: str) -> float:
+            return sum(n for (c, f), n in held.items() if c == cls and f == features)
+        # Every form the subject could be is one THIS form of the verb never took, and one some subject somewhere
+        # was written as -- so the absence is about this pairing and not about the feature.
+        return all(matched(took, f) == 0 and matched(every, f) > 0 for f in forms)
 
     def _agreement(self, subject: Sign, doing: Sign) -> float:
         """HOW WELL A SUBJECT AGREES WITH ITS VERB, as a logarithm, never more than nothing: of the subjects the
@@ -3430,6 +3494,16 @@ class Grammar:
     def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
             why: Optional[Dict[str, Any]] = None,
             how_surely: Optional[Dict[str, float]] = None) -> List[str]:
+        """`_say`, while this grammar is SAYING (`_saying`): what reading forgives, saying does not produce."""
+        self._saying = True
+        try:
+            return self._say(meaning, named, why, how_surely)
+        finally:
+            self._saying = False
+
+    def _say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
+             why: Optional[Dict[str, Any]] = None,
+             how_surely: Optional[Dict[str, float]] = None) -> List[str]:
         """EVERY SENTENCE THIS GRAMMAR SAYS A MEANING WITH, the surest read first: the grammar a sentence is read by,
         used the other way (one grammar for reading and saying, Shieber 1988; chart generation, Kay 1996). The words
         for its things (`Words.words_for`: memory's words for each, every form held), and the grammar's own words whose

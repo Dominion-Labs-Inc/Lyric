@@ -2058,10 +2058,18 @@ def test_a_pronoun_of_its_own_sentence_is_never_a_subject():
     WHAT A REFLEXIVE IS FOR IS UNTOUCHED: it still says the thing done to where that is the one doing it.
     """
     g = gm.Grammar(gm.Lexicon(Speaking()))
-    # No subject, by either route: `>T>B` composes "myself" with the copula, "is" takes its phrase whole.
-    assert g.read(("myself", "'m", "red", ".")).meaning is None
-    assert g.read(("myself", "is", "red", ".")).meaning is None
-    assert g.read(("myself", "chased", "tom", ".")).meaning is None
+    # WHAT READING FORGIVES, SAYING DOES NOT PRODUCE. Reading still understands it -- said by someone learning the
+    # language, typed in haste -- and that is a capability, so the refusal holds only while saying (`_saying`).
+    assert g.read(("myself", "'m", "red", ".")).meaning is not None
+    assert g.read(("myself", "is", "red", ".")).meaning is not None
+    # The refusal holds only while saying, and `say` puts the flag back however it leaves.
+    assert gm.Grammar._saying is False
+    g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
+    assert g._saying is False
+    # A pronoun of its own sentence is told from any other, which is what the three routes ask.
+    speaker = gm.Sign(gm.Atom("NP", None, "?speaker"), (("pron", "?speaker", "myself", "own", 0),), 0.0, 0, 1, "lex")
+    plain = gm.Sign(gm.Atom("NP", None, "tom"), (("word", "tom", "NAME", 0, 1),), 0.0, 0, 1, "lex")
+    assert g._says_its_own(speaker) and not g._says_its_own(plain)
     # What it IS for: the thing done to, where that is the one doing it.
     for said in ("Tom chased himself.", "Tom kicked himself."):
         told = read(g, said)
@@ -2071,3 +2079,64 @@ def test_a_pronoun_of_its_own_sentence_is_never_a_subject():
     assert read(g, "Tom is red.") == "tell: has_property(tom, red)"
     assert "done_by(?v0, tom)" in read(g, "Tom chased a cat.")
     assert read(g, "Whales are mammals.") == "tell: isa(whale, mammal)"
+
+
+def test_saying_refuses_a_form_that_cannot_agree_with_its_subject_though_reading_forgives_it():
+    """WHAT READING MUST FORGIVE, SAYING MUST NOT PRODUCE (`Grammar._saying`, `_disagrees`).
+
+    Agreement was a weight alone (`_agreement`, `_agreed`: a logarithm never more than nothing), so a form common
+    enough kept its place however badly it agreed. READING WEIGHS IT THE SAME WAY, so a sentence saying it reads
+    back to exactly the meaning it was made for and saying's round trip cannot refuse it: of the PMB's dev
+    meanings, saying said "We'm biased." and "My dog've bite Tom." (2026-11-01).
+
+    Reading has to understand "Nothing am intelligent." -- typed in haste, said by someone learning the language --
+    and reads it less surely rather than refusing it, which is a capability. Saying chooses its own words and has
+    no such excuse, so the same rule refuses there and only there.
+
+    Refused ONLY ON EVIDENCE AGAINST: a form memory holds few subjects of, a subject it holds no features of, and
+    features no subject was ever written with refuse nothing at all.
+    """
+
+    class Few(Held):
+        """The copula's forms, as the subjects of a taught store take them."""
+
+        def subjects(self, word: Optional[str] = None) -> Mapping[Tuple[str, str], float]:
+            every = {("PRONOUN", "Number=Sing"): 900.0, ("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 800.0,
+                     ("NOUN", "Number=Sing"): 2900.0}
+            if word is None:
+                return every
+            return {"is": {("PRONOUN", "Number=Sing"): 400.0, ("NOUN", "Number=Sing"): 1100.0},
+                    "am": {("PRONOUN", "Case=Nom|Number=Sing|Person=1"): 315.0},
+                    "be": {("PRONOUN", "Number=Sing"): 3.0}}.get(word, {})
+
+        def took_subjects(self) -> Tuple[str, ...]:
+            return ("is", "am", "be")
+
+        def form_features(self, word: str, cls: str) -> Mapping[str, float]:
+            if cls == "PRONOUN":
+                return {"nothing": {"Number=Sing|PronType=Ind": 1.0},
+                        "i": {"Case=Nom|Number=Sing|Person=1": 1.0}}.get(word.lower(), {})
+            return {"is": {"Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin": 229.0},
+                    "am": {"Mood=Ind|Number=Sing|Person=1|Tense=Pres|VerbForm=Fin": 326.0}}.get(word.lower(), {})
+
+    raised = gm.parse_category("S[dcl].e/(S[dcl].e\\NP.x)")
+    phrase = gm.parse_category("S[dcl].e\\NP.x")
+
+    def joined(subject: str, verb: str, *, saying: bool):
+        g = gm.Grammar(gm.Lexicon(Few()))
+        g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
+        g._saying = saying
+        left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
+        right = gm.Sign(phrase, (("finite", raised.res.ref, 1),), 0.0, 1, 3, ">")
+        return [sign for sign in g._combine(left, right) if sign.rule == ">"]
+
+    # READING FORGIVES BOTH, and weighs the one that agrees above the one that does not.
+    assert joined("nothing", "is", saying=False), "a sentence that agrees is read"
+    assert joined("nothing", "am", saying=False), "one that does not is read too, less surely"
+    assert joined("nothing", "is", saying=False)[0].score > joined("nothing", "am", saying=False)[0].score
+    # SAYING REFUSES WHAT CANNOT AGREE: of the 315 subjects "am" was written with, not one is what "nothing" is,
+    # and what "nothing" is was written as a subject 900 times elsewhere, so the absence is evidence.
+    assert joined("nothing", "is", saying=True), "a form that agrees is still said"
+    assert not joined("nothing", "am", saying=True), '"Nothing am intelligent." is not said'
+    # EVIDENCE AGAINST, NEVER THE ABSENCE OF IT: "be" was written with three subjects, too few to refuse on.
+    assert joined("nothing", "be", saying=True), "a form held of few subjects says nothing against them"
