@@ -5034,6 +5034,37 @@ def file_words(ewt: Path, closed):
                 out[cls] = joined.replace("_", " ")
         return out
 
+    #: WHAT A THING IS SAID WITH, the other way round from `name_of` (`HeldWords.words_for`: "What `Grammar.say`
+    #: says a thing with"). Memory answers this from its word records and the names its sentences give; from files
+    #: there was nothing to answer it with, so `written_for` was never passed, `words_for` returned [] for EVERY
+    #: thing, and saying could name nothing at all: it said something for 5 of 394 meanings read right whole and
+    #: said "Myself am from Russia." for "I am from Russia." -- a figure of the harness and not of the grammar
+    #: (`on_store.py`, 2026-10-29). Saying was measurable only against a store holding words, so it could not be
+    #: worked on from files the way reading is.
+    #:
+    #: Built as the EXACT INVERSE of `name_of` over the treebank's words and WordNet's lemmas, so every word offered
+    #: for a thing is one that names that thing when read back; the most used first, as memory orders them. A thing
+    #: no word is held for is said by ITS OWN NAME where that word names itself -- the fallback that carries main,
+    #: which holds 94,262 word classes and no word records and still says as much as a sandbox with 559 records.
+    #: Built on first ask and kept, so a run that only reads never pays for it.
+    written: Dict[Tuple[str, str], List[str]] = {}
+
+    def written_for(name: str, cls: str) -> List[str]:
+        if not written:
+            counted: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
+            for (form, c), these in lemmas.items():
+                counted[(name_of(form, c), c)][form] += sum(these.values())
+            for c, part in by_class.items():
+                for synset in wn.all_synsets(part):
+                    for lemma in synset.lemma_names():
+                        word = lemma.lower().replace("_", " ")
+                        counted[(word if " " in word else name_of(word, c), c)].setdefault(word, 0)
+            written.update({key: [w for w, _ in found.most_common()] for key, found in counted.items()})
+        held = written.get((name, cls))
+        if held:
+            return list(held)
+        return [name] if name_of(name, cls) == name else []
+
     knowledge = GraphKnowledge(classes=classes, names=names)
     held = ewt.parent.parent / "grammar_wordnet_links.pkl"
     if held.exists():
@@ -5049,4 +5080,5 @@ def file_words(ewt: Path, closed):
     with open(ewt, encoding="utf-8") as handle:
         for item in forms_from_conllu(handle, "ud_english_ewt"):
             forms.hold(item)
-    return HeldWords(read_conllu(str(ewt), "ud_english_ewt"), closed, name_of, knowledge, forms)
+    return HeldWords(read_conllu(str(ewt), "ud_english_ewt"), closed, name_of, knowledge, forms,
+                     written_for=written_for)
