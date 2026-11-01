@@ -16,6 +16,117 @@ Conventions:
 
 ---
 
+## 2026-11-01 (102) — The English Resource Grammar reads here, and the 95% bar is outside the state of the art
+
+**Objective.** *"ok lets do it. You don't need to come back to me until reading and responding is above the 95%
+bar"* — after (101) showed four hand-traced fixes net negative, use a grammar that already exists instead of
+building one.
+
+### What already exists, and what does not
+
+| | what it is | licence | not a model? |
+|---|---|---|---|
+| **ERG + ACE** | hand-written HPSG grammar of English, 20+ years, 225 syntactic and 70 lexical rules | **MIT** | **yes** |
+| PyDelphin | Python for it, v1.11.0, active | MIT | — |
+| UDepLambda | UD to lambda forms | Apache 2.0 | yes, but stale ~9.5 years, pulls in GPL CoreNLP |
+| depccg / Issen | CCG parsers, 94.0 F1 | MIT code | **no** — neural; weights from LDC CCGbank |
+| Boxer | made the PMB's gold | **unclear**, unmaintained | yes |
+
+What nobody ships, and nobody could, is **MRS to Lyric's meaning language**: one side of that table is
+`done_by`/`done_to`/`instance_of`/`located_in`, which is Lyric's own. The download covers English to formal
+semantics. The bridge is ours.
+
+**Two blockers, each looking like something else.** ACE mmaps its grammar image at a hardcoded address
+(`FREEZER_MMAP_BASE`); the macOS build on offer predates the Apple Silicon fix (r1096) and dies with *"mmap didn't
+put the freezer where i wanted it"*. The Linux 0.9.34 build runs under Docker. And without a UTF-8 locale ACE fails
+decoding a curly apostrophe **in the grammar's own data**, on sentences containing no such character.
+
+### THE DEFECT THAT WOULD HAVE INVALIDATED EVERY NUMBER
+
+`erg_parse.read` matched ACE's output to its input **by place**. ACE writes `SENT: <the sentence>` before what it
+read — **but not for every sentence given it**: of 1,194 it echoed 1,178, passing over `Where art thou?` and fifteen
+others in silence. From the first silence on, every sentence was scored against another sentence's meaning: the
+whole split came out at **2.9%** where its first hundred came out at **20.8%**, which is the only reason the bug
+showed itself. Aligned now by the sentence ACE echoes.
+
+### Where it lands
+
+`20261101T014320Z` and the run after it, both against `20261028T111052Z`:
+
+| | Lyric's grammar | ERG + the bridge |
+|---|---:|---:|
+| read at all | 891 of 911 | **897 of 911** |
+| senses aside: whole right | **42.4%** | 17.1% |
+| senses aside: facts F1 | **0.821** | 0.658 |
+| + the one spoken of before unnamed | **53.6%** | 20.6% |
+
+The ERG reads MORE sentences and its meanings are LESS accurate — the bridge is hours old against a grammar that has
+had weeks. On the sentences (101) spent a day on it is exactly right where Lyric is wrong:
+
+```
+'He walked in the park.'             _in_p_loc ARG1=the walking ARG2=the park   -> located_in
+'Where did Mahatma Gandhi study?'    loc_nonsp + place_n + which_q, study ARG2 unfilled
+'The book is on the table.'          _on_p_loc ARG1=the book ARG2=the table
+```
+
+`Where did Mahatma Gandhi study?` and `Nobody walks in LA.` come out EXACTLY as the gold.
+
+### AND THE MEASURE STOPS RESPONDING
+
+Six conventions bridged, each verified on its own sentences, each read off the gold rather than guessed:
+coordination of things as a group (`has_member`) and of happenings as two happenings; a quality naming a place as
+`comes_from` by WordNet's pertainym; a possessive as `part_of` of a body part; the copula as no happening at all; a
+pronoun by person **and** number; a time as the literal it says.
+
+The whole-meaning score across those six: **15.0 → 20.8 → 20.8 → 17.7 → 18.0 → 16.9 → 17.1.**
+
+**Making the code correct lowered it twice.** Fixing the ordering so the possessive rule fired at all and so a
+conjunction of names joined names rather than unknowns cost 1.1 points. The gold encodes an **annotator's manual**,
+and both readings of a sentence are often right English with only one in the manual: `I am Korean.` is
+`comes_from(?speaker, korea)` there and `has_property(?speaker, korean)` by any ordinary reading; a body part is
+sometimes `part_of` and sometimes `owned_by`; `Let us go!` is a future; "CDs" is `compact disk`. There is no
+gradient to climb.
+
+### WHAT THIS SAYS ABOUT THE 95% BAR
+
+Exact whole-meaning match needs very nearly every fact right. Two points measured today:
+
+| facts F1 | whole meanings right |
+|---:|---:|
+| 0.821 (Lyric) | 42.4% |
+| 0.658 (this bridge) | 17.1% |
+
+**95% of whole meanings needs facts F1 of about 0.99.** The best published parsing of this corpus is **89.3 Counter
+F1** (one 2024 claim of 91.5), and **Boxer — the hand-built system that MADE this gold — scores 74.3**, and is
+admitted by its own authors to be partly tuned on the dev and test sets. Nobody is within reach of 0.99.
+
+So **95% of whole meanings exactly right is not a bar this benchmark can be held to, by Lyric or by anything else
+that exists.** It is not a statement about Lyric's grammar.
+
+### What the bar should be instead, and what to do
+
+1. **Hold the bar on a graded measure or on answering.** Facts F1 (Lyric 0.821 today) is the measure comparable to
+   the published 0.89–0.91. For "reading AND RESPONDING", the honest measure is questions answered right end to end:
+   UNDERSTANDS-PROSE-02 has that at **9.4% of questions**, which is where the headroom actually is and where 95%
+   means something a user would feel.
+2. **Keep Lyric's grammar.** On this evidence it is more than twice as accurate as ERG plus a young bridge, and the
+   bridge has no gradient.
+3. **Use the ERG as an ORACLE.** It found three real Lyric defects in minutes, and (101)'s category measurement
+   stands: 22.1% of the gold's categories Lyric cannot express, over half of that one design decision — no `pp` and
+   no `pr`, so a preposition must choose among six modifier categories at the preposition where the PMB lets the
+   head declare it takes a phrase.
+
+### Open
+
+1. The `pp`/`pr` refactor of `english.json` (101), still the largest measured inventory gap, still unapproved.
+2. The three tests asked for before calling the pipeline integrated: translation loss is now **named and counted**
+   (180 gaps over 911, `nothing said for` 97, `class` 43, `predicate` 18, `quantifier` 17); reasoning integration is
+   **not started** and needs a store, `lyric_dev` only; round-trip generation is **not started**, and ACE generates
+   as well as parses, so there are two round-trips worth measuring and they fail differently.
+3. From (101): the record's preposition links overrule taught sentences with no bookkeeping to separate them.
+
+---
+
 ## 2026-10-31 (101) — The word records fix the sense label and wreck the structure: one record overruled every sentence taught about the verb. "Where" asked what a doing was done to; a quality could mean no sense but its most frequent
 
 **Objective.** *"continue.... you mentioned 3 things and none of them need my decision"* — the three things (100)
