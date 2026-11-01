@@ -36,20 +36,20 @@ def read(sentences, readings=1, timeout=600):
         ["docker", "run", "--rm", "-i", "--platform", "linux/amd64",
          "-e", "LC_ALL=C.UTF-8", "-e", "LANG=C.UTF-8",
          "-v", f"{TOOLS}:/d:ro", IMAGE,
-         f"/d/{ACE}", "-g", f"/d/{GRAMMAR}", "-n", str(readings), "-T", "-q"],
+         f"/d/{ACE}", "-g", f"/d/{GRAMMAR}", "-n", str(readings), "-T"],
         input=said, capture_output=True, text=True, timeout=timeout)
-    # ACE writes one block per sentence, blocks apart by a blank line, nothing where it read none; what it could not
-    # read at all it says on stderr.
-    blocks, held = [], []
+    # ALIGNED BY ACE'S OWN `SENT:` LINE, which it writes for every sentence given it, before whatever it read.
+    # Taken instead as "one block per sentence, blocks apart by a blank line", a sentence it read nothing of left no
+    # trace and every sentence after it was scored against the wrong meaning. `-q` would suppress the `SENT:` line,
+    # so it is not passed.
+    found = [None] * len(sentences)
+    at = -1
     for line in out.stdout.splitlines():
-        if line.startswith("[ LTOP:"):
-            held.append(line)
-        elif not line.strip() and held:
-            blocks.append(held[-1])
-            held = []
-    if held:
-        blocks.append(held[-1])
-    return blocks, out.stderr
+        if line.startswith("SENT: "):
+            at += 1
+        elif line.startswith("[ LTOP:") and 0 <= at < len(found) and found[at] is None:
+            found[at] = line
+    return found, out.stderr
 
 
 def main():
@@ -57,7 +57,7 @@ def main():
     blocks, trouble = read(sentences)
     from delphin.codecs import simplemrs
     from delphin import dmrs
-    for text, block in zip(sentences, blocks + [None] * len(sentences)):
+    for text, block in zip(sentences, blocks):
         print(f"{text!r}")
         if block is None:
             print("    the ERG reads no whole")

@@ -19,7 +19,7 @@ Learned, as memory learns (`grammar.GrammarView`), from the lessons and the PMB'
 
 Run (from the Lyric folder; a few minutes, or longer with `--with-words`):
     PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/GRAMMAR-01/experiment.py [--data DIR] [--pmb DIR]
-        [--with-words [--fresh-words]] [--without-structure] [--gold-categories]
+        [--with-words [--fresh-words]] [--without-structure] [--gold-categories] [--erg]
 `--with-words` records every word the sentences use whole, as main holds it (`teaching_sources.word_record_of`):
 without them the grammar has no sense of any word apart and no PropBank places for any verb, so every word is read
 under the sense it names most often and every place of a doing takes the grammar's own link. Main holds such records,
@@ -448,6 +448,63 @@ def main() -> int:
                        f"{asked['unnamed']:,} the derivation names none of")
         say(f"gold categories: {asked['forced']:,} words forced, {asked['left']:,} no entry stands as, "
             f"{asked['unnamed']:,} unnamed")
+    elif "--erg" in sys.argv:
+        # ── READ BY THE ENGLISH RESOURCE GRAMMAR INSTEAD, scored by the very same measure ──
+        # The ERG (`delph-in/erg`, MIT) is a grammar of English written by hand over more than twenty years, with
+        # ACE (MIT) to parse with it; neither is a model, which is what makes this comparable at all. Its meaning is
+        # said in Lyric's meaning language by `erg_meanings.meaning_of`, and what that cannot say is NAMED, never
+        # guessed (`Said.gaps`), so a sentence is right, or wrong, or named as not sayable -- never quietly thin.
+        sys.path.insert(0, str(HERE / "diagnostics"))
+        import erg_parse
+        from core.semantics import erg_meanings as em
+        from delphin.codecs import simplemrs
+        from delphin import eds as edsmod
+
+        class ErgReading:
+            """What the rest of this experiment asks of a reading: its meaning, and the name each word is read
+            under (`names`, for `senses_aside`). The ERG makes no sign of Lyric's and decides no links of its own,
+            so `sign` is None and `decided` empty: its rows in the links table are nil by construction."""
+
+            def __init__(self, meaning, names, why=""):
+                self.meaning, self.names, self.why = meaning, names, why
+                self.sign, self.decided, self.unheld = None, [], ()
+
+        blocks, trouble = erg_parse.read([text for text, _, _, _ in dev], timeout=3600)
+        readings, gapped, broken = [], Counter(), 0
+        for (text, tokens, _, _), block in zip(dev, blocks):
+            if block is None:
+                readings.append(ErgReading(None, {}, "the ERG reads no whole"))
+                continue
+            try:
+                graph = edsmod.from_mrs(simplemrs.decode(block))
+            except Exception as problem:
+                broken += 1
+                readings.append(ErgReading(None, {}, f"{type(problem).__name__}: {problem}"))
+                continue
+            said = em.meaning_of(graph)
+            # EACH WORD'S NAME AS THE ERG READS IT, by the characters its predicate points at, so that setting the
+            # sense aside sets aside the ERG's sense inventory on one side and the PMB's on the other. The ERG's
+            # predicates are not WordNet's senses, so compared strictly it would be scored wrong for naming the
+            # same thing its own way.
+            spans = offsets(text, tokens)
+            names = {}
+            for node in graph.nodes:
+                lemma = em._lemma(node.predicate)
+                if lemma is None or node.lnk is None or not node.lnk.data:
+                    continue
+                a, b = node.lnk.data[0], node.lnk.data[-1]
+                for k, span in enumerate(spans):
+                    if span and span[0] >= a and span[1] <= b:
+                        names.setdefault(k, lemma[0])
+            for gap in said.gaps:
+                gapped[gap.split(":")[0]] += 1
+            readings.append(ErgReading(said.meaning, names, "; ".join(said.gaps)))
+        read_any = sum(1 for b in blocks if b is not None)
+        EV.metric("dev sentences the ERG read", read_any, unit="sentences", note=f"of {len(dev):,}")
+        EV.metric("dev meanings the meaning language cannot say", sum(gapped.values()), unit="gaps",
+                  note="; ".join(f"{k} {n}" for k, n in gapped.most_common(8)))
+        say(f"the ERG read {read_any:,} of {len(dev):,}; {sum(gapped.values()):,} gaps "
+            f"({dict(gapped.most_common(6))}); {broken} MRS could not be made an EDS")
     else:
         readings = [grammar.read(tokens) for _, tokens, _, _ in dev]
 
@@ -462,7 +519,7 @@ def main() -> int:
 
     names_of = []
     for r in readings:
-        names = {}
+        names = dict(getattr(r, "names", {}) or {})
         if r.sign is not None:
             for p in r.sign.pieces:
                 if p[0] == "word":
