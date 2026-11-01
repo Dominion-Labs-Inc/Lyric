@@ -109,6 +109,41 @@ def _lemma(predicate: str) -> Optional[Tuple[str, str, str]]:
             found.group("rest") or "")
 
 
+#: WHAT A POSSESSIVE SAYS, by what the thing possessed IS (WordNet's own grouping of its nouns): a body part is
+#: PART OF whoever it is of ("my eyes" `part_of`), a relative is a member of the family, and a thing owned is
+#: `owned_by`. The PMB says all three with the same word, and said `owned_by` throughout, 67 of the dev split's
+#: possessives were a link the meaning does not hold and 34 of its `part_of` links were missing. Lyric's own
+#: grammar takes this from what taught sentences said of the noun's kind (`inherited("poss", ...)`); here it comes
+#: from WordNet, which is the same knowledge by another road.
+POSSESSED = {"noun.body": "part_of"}
+
+
+def _possesses(word: str) -> str:
+    """The link a possessive makes with a thing of this word: `part_of` for a part of a body, else `owned_by`."""
+    try:
+        from nltk.corpus import wordnet as wn
+    except Exception:
+        return "owned_by"
+    for sense in wn.synsets(word.replace(" ", "_"), "n")[:1]:
+        return POSSESSED.get(sense.lexname(), "owned_by")
+    return "owned_by"
+
+
+def _comes_from(word: str) -> Optional[str]:
+    """The place a quality says a thing comes from, lowered ("Korean" `korea`), or None: WordNet's pertainym of the
+    quality, where what it pertains to is a location."""
+    try:
+        from nltk.corpus import wordnet as wn
+    except Exception:
+        return None
+    for sense in wn.synsets(word.replace(" ", "_"), "a"):
+        for lemma in sense.lemmas():
+            for of_what in lemma.pertainyms():
+                if of_what.synset().lexname() == "noun.location":
+                    return of_what.name().replace("_", " ").lower()
+    return None
+
+
 def meaning_of(graph: Any) -> Said:
     """What the ERG read, said in Lyric's meaning language (`Said`), or None with the gaps that keep it from being
     said. `graph` is an Elementary Dependency Structure (`delphin.eds.EDS`), as `delphin.eds.from_mrs` makes one of
@@ -136,6 +171,8 @@ def meaning_of(graph: Any) -> Said:
     #: A term the ERG named only as an underspecified thing -> what it named it. Said only where no other fact
     #: speaks of the term.
     loose: Dict[Optional[str], str] = {}
+    #: (the thing possessed, whose it is), answered once every fact saying what things are is in.
+    possessives: List[Tuple[Optional[str], Optional[str]]] = []
 
     def add(relation: str, subject: Optional[str], obj: Optional[str], given_: bool = False) -> None:
         if subject is None or obj is None:
@@ -183,6 +220,19 @@ def meaning_of(graph: Any) -> Said:
         if parts and parts[1] == "v" and parts[0] == "be":
             copula[node.id] = (node.edges.get("ARG1"), node.edges.get("ARG2"))
 
+    # ── TWO THINGS SAID TOGETHER ARE BOTH IN WHATEVER THEY FILL ──
+    # "Tom and Mary left." is a leaving done by Tom and a leaving done by Mary, which is how the PMB says it and
+    # what Lyric's language can hold; it has no term for a pair. The ERG makes the conjunction a thing of its own
+    # (`_and_c ARG1 ARG2`, or `implicit_conj` where no word joins them) and fills the place with THAT, so left
+    # alone 41 dev sentences were said as nothing for a word meaning "and". An "or" is NOT this: one of the two
+    # holds and the meaning language marks alternatives, which is not yet said here.
+    together: Dict[str, Tuple[Optional[str], Optional[str]]] = {}
+    for node in graph.nodes:
+        parts = _lemma(node.predicate)
+        joins = (parts and parts[1] == "c" and parts[0] == "and") or node.predicate == "implicit_conj"
+        if joins:
+            together[node.id] = (node.edges.get("ARG1"), node.edges.get("ARG2"))
+
     # ── WHAT IS DENIED ──
     # The ERG marks a denial with its own predicate over the happening (`neg ARG1`), where Lyric marks the facts of
     # the happening themselves as not so.
@@ -196,7 +246,7 @@ def meaning_of(graph: Any) -> Said:
     for node in graph.nodes:
         here = of(node.id)
         parts = _lemma(node.predicate)
-        if node.predicate.endswith("_q") or node.id in copula:
+        if node.predicate.endswith("_q") or node.id in copula or node.id in together:
             continue
         if parts is None:
             # ── the grammar's own predicates ──
@@ -260,6 +310,11 @@ def meaning_of(graph: Any) -> Said:
             elif says == "has_count":
                 if node.carg and node.edges.get("ARG1") in term:
                     add("has_count", of(node.edges.get("ARG1")), str(node.carg))
+            elif says == "owned_by":
+                # WAITED FOR: what a possessive says depends on what is possessed (`_possesses`), and the fact
+                # saying what that is may not be in yet when this node is reached -- asked here it was never in,
+                # and every possessive came out `owned_by` however the fix was written (2026-11-01).
+                possessives.append((node.edges.get("ARG1"), node.edges.get("ARG2")))
             else:
                 add(says, of(node.edges.get("ARG1")), of(node.edges.get("ARG2")))
             continue
@@ -280,8 +335,15 @@ def meaning_of(graph: Any) -> Said:
                     add(link, here, of(filled))
         elif kind in ("a", "j"):
             # A quality is said of what it is of; a comparative or a superlative of it is a gap.
+            # A QUALITY NAMING A PLACE SAYS WHERE THE THING COMES FROM, as the PMB says it: "I am Korean."
+            # `comes_from(?speaker, korea)`, never a quality called "korean". WordNet says which qualities those
+            # are (a pertainym whose thing is a location), which is the same knowledge Lyric's own grammar uses
+            # for it (`Words.defined`, `inherited("quality", ...)`).
             about = node.edges.get("ARG1")
-            if about in term:
+            whence = _comes_from(word)
+            if about in term and whence:
+                add("comes_from", of(about), whence)
+            elif about in term:
                 add("has_property", of(about), word)
             elif about is not None:
                 gaps.append(f"quality of nothing:{node.predicate}")
@@ -389,6 +451,37 @@ def meaning_of(graph: Any) -> Said:
     for at in denied | {of(x) for x in denied_later if of(x)}:
         if at:
             add("has_property", at, "false")
+
+    def standing(at: Optional[str]) -> Optional[str]:
+        """What a node stands for NOW: the name or the speaker that replaced its term, else its term. Asked as
+        `of()` after the names were put in, a conjunction of two names joined two terms nothing else mentions and
+        "Tom and Mary left." came out with two unknowns (2026-11-01)."""
+        return counted.get(at) if at in counted else of(at)
+
+    # ── WHAT EACH POSSESSIVE SAYS, by what is possessed ──
+    for whose, mine in possessives:
+        here = standing(whose)
+        kinds = [f.obj for f in facts if f.relation == "instance_of" and f.subject == here]
+        add(_possesses(kinds[0]) if kinds else "owned_by", here, standing(mine))
+
+    # ── WHAT TWO THINGS SAID TOGETHER ARE ──
+    # READ OFF THE GOLD, not guessed. Of THINGS, the pair is a GROUP and each is a member of it, and the group
+    # fills the place once: "Will you and Randy join us?" is a joining done by a group the listener and Randy are
+    # members of (`has_member`), never two joinings. Of HAPPENINGS, there are simply two happenings, each with its
+    # own doer and its own time: "Dick played piano and Lucy sang." Said instead by putting each of the two
+    # wherever the pair stood, every coordination came out as two of whatever the pair filled, and the split fell
+    # from 18.0% to 16.9% (2026-11-01).
+    for pair, (one, other) in together.items():
+        here = standing(pair)
+        ends = [standing(one), standing(other)]
+        if here is None or not all(ends):
+            continue
+        happenings = [at for at in (one, other)
+                      if at in nodes and (_lemma(nodes[at].predicate) or ("", "", ""))[1] == "v"]
+        if happenings:
+            continue        # two happenings stand on their own; the word joining them says nothing more
+        for end in ends:
+            add("has_member", here, end)
 
     # ── A TERM NOTHING ELSE SPEAKS OF KEEPS THE NAME THE ERG GAVE IT ──
     for at, says in loose.items():
