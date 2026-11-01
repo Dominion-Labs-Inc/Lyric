@@ -32,6 +32,12 @@ Licensed derivations, all conservative and all PROVENANCE-TAGGED:
                    as an observation -- the evidence architecture must be able to
                    tell "seen" from "inferred".
 
+    IDENTITY       A -SAME_AS-> B -r-> C  |=  A -r-> C   (and the mirror,
+                   A -r-> B -SAME_AS-> C |= A -r-> C): one thing under two
+                   descriptions, so what is said of either is said of both.
+                   SAME_AS is identity between THINGS -- not EQUALS (two values
+                   that are the same number), not SYNONYM_OF (two words).
+
     plus the single special case INSTANCE_OF ∘ ISA |= INSTANCE_OF.
 
 Every other pairing composes to NOTHING. Isolation is the default. And the whole
@@ -55,6 +61,7 @@ logger = logging.getLogger(__name__)
 
 ISA = SemanticRelation.ISA
 INSTANCE_OF = SemanticRelation.INSTANCE_OF
+SAME_AS = SemanticRelation.SAME_AS
 
 # Derivation rules, recorded on every derived edge so an inference is never
 # confused with an observation and can always say WHY it holds.
@@ -63,9 +70,17 @@ INHERITANCE = "inheritance"
 INSTANCE_RIDE = "instance_of_rides_isa"
 INVERSE = "inverse_of_relation"
 PLACE = "in_what_it_is_in_or_part_of"
+IDENTITY = "one_thing_under_two_descriptions"
 
 #: Where a thing is, through what it is in or part of (`PLACE`).
 _WHERE = frozenset({SemanticRelation.LOCATED_IN, SemanticRelation.PART_OF})
+
+#: WHAT RENAMING WILL NOT REACH INTO (`IDENTITY`). Substituting one description for another is sound wherever a
+#: relation is extensional, but ARITHMETIC is worked out by the symbolic faculty and nothing chains through it: a
+#: number is not a thing under two descriptions. Reading never puts a number in `SAME_AS` either (`spell_out` says
+#: `equals` when either side is a number), so sealing it off costs nothing and keeps a wrong identity from ever
+#: propagating a numeric claim.
+_NO_RENAMING = frozenset({SemanticRelation.EQUALS})
 
 
 def compose(r1: SemanticRelation, r2: SemanticRelation, *,
@@ -80,6 +95,18 @@ def compose(r1: SemanticRelation, r2: SemanticRelation, *,
     so ontology-defined relations do NOT chain unless a context says so."""
     if r1 is INSTANCE_OF and r2 is ISA:
         return INSTANCE_OF, INSTANCE_RIDE
+    # ONE THING UNDER TWO DESCRIPTIONS: what is said of either is said of both,
+    # in EITHER argument position. "South Asia is the southern sub-region of
+    # Asia" and "that sub-region is part of Asia" give "South Asia is part of
+    # Asia" -- the reading binds both descriptions to one particular, and this
+    # is what lets the two facts about it meet. Substitution carries the OTHER
+    # relation through unchanged, so it licenses nothing that relation does not
+    # already license: an unlicensed r still stops the chain at its own hop.
+    # Both are SAME_AS falls through to transitivity below, which says the same.
+    if r1 is SAME_AS and r2 is not SAME_AS and r2 not in _NO_RENAMING:
+        return r2, IDENTITY
+    if r2 is SAME_AS and r1 is not SAME_AS and r1 not in _NO_RENAMING:
+        return r1, IDENTITY
     if r1 is not r2 and {r1, r2} == _WHERE:
         return SemanticRelation.LOCATED_IN, PLACE
     if r1 is ISA and get_spec(r2).inheritable:

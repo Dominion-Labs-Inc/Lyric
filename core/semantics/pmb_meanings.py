@@ -39,6 +39,14 @@ from core.semantics.relation_types import worded
 
 #: A concept line's sense: `movie.n.01`.
 _SENSE = re.compile(r"^(?P<lemma>.+)\.(?P<part>[nvars])\.(?P<number>\d+)$")
+#: A sense that never matches, so an entry with no sense asks nothing of WordNet (`_ARITHMETIC`).
+_EMPTY = _SENSE.match("x.n.01")
+#: WHAT A COPULA STATES THE VALUE OF: these say a number, so "The sum of two and three is five." is `equals`
+#: (arithmetic) where "South Asia is the southern sub-region of Asia." is `same_as` (one thing, two descriptions).
+#: Reading decides the same question from the term's kind (`spell_out`'s `numeric`, which reaches WordNet's
+#: hypernyms); the gold has only the sense it is written with, so the lemma is asked directly.
+_ARITHMETIC = frozenset({"sum", "difference", "product", "quotient", "total", "number", "quantity",
+                         "amount", "square", "root", "square_root", "cube", "power", "average", "mean"})
 #: A pointer to another concept line, or to another box.
 _POINTER = re.compile(r"^[+-]\d+$")
 _BOX_POINTER = re.compile(r"^[<>]\d+$")
@@ -626,10 +634,17 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
                                 same[root(other)] = root(subject)
                         elif subject is not None:
                             # "The capital of France is Paris.", "What is his surname?": the one is the other, as
-                            # the lessons say it, what is asked second ("What is the sum of two and three?":
-                            # `equals(?v0, ?v1)`); merged, a name said of a thing was lost.
+                            # the lessons say it, what is asked second; merged, a name said of a thing was lost.
+                            # THE SAME THING, OR THE SAME NUMBER: a copula between two things says one thing under
+                            # two descriptions (`same_as`), and reading says it the same way, so the two meet. Only
+                            # arithmetic says `equals` ("What is the sum of two and three?": `equals(?v0, ?v1)`),
+                            # which chains through nothing because nothing chains through arithmetic.
                             one, two = term_of(subject), term_of(other)
-                            add("equals", *((two, one) if one in asked else (one, two)), k)
+                            counted = any(_number(t) is not None for t in (one, two)) or any(
+                                (_SENSE.match(concepts[e].sense or "") or _EMPTY).group("lemma") in _ARITHMETIC
+                                for e in (subject, other) if e in concepts)
+                            add("equals" if counted else "same_as",
+                                *((two, one) if one in asked else (one, two)), k)
                     elif role in ("Location", "Source") and "Theme" in roles and _POINTER.match(roles["Theme"]):
                         subject = target(k, roles["Theme"])
                         if subject is not None:

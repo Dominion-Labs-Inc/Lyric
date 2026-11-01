@@ -16,6 +16,77 @@ Conventions:
 
 ---
 
+## 2026-11-01 (103) — One word for two relations: identity was inert, and that was the whole of the zero-step failure
+
+**Objective.** Find the first verified failure in the reasoning pathway for the South Asia question, and make the
+smallest architecture-consistent correction. The owner's own reading of the problem was the one to test: *"its
+language system can express relationships the reasoning algebra does not yet adequately distinguish or support."*
+
+**The chain, traced and verified on `lyric_dev`.** Reading, minting, binding, scoping, the overlay, relation
+decoding and term normalisation ALL WORK. `load_subgraph(['south_asia'], actor=...)` returned five typed edges
+including `same_as(south_asia, sub_region_1)`, `part_of(sub_region_1, asia)` and `has_property(sub_region_1,
+southern)`. `derive_from` returned ONE derivation: `south_asia equals south_asia`, a self-loop by transitivity.
+`answer_over_graph` said `unknown` with both edges in hand.
+
+Cause: `compose(EQUALS, r)` and `compose(r, EQUALS)` are `None` for every `r`, by design — nothing chains through
+arithmetic. But the reader emitted `equals` for EVERY copula, arithmetic or not, because the meaning language had
+one word for both. `pmb_meanings`' own comment recorded the conflation: `equals` served both *"The capital of France
+is Paris."* and *"the sum of two and three"*.
+
+**Two of my own earlier claims were wrong, and both cost time:**
+- *"Nothing reaches the world's concept graph, so the reasoner has no edges."* True that nothing does, but it is BY
+  DESIGN (`Conversation._actor`: "THERE IS NO CONVERSATION THAT TEACHES THE SUBSTRATE FACTS", tightened on purpose
+  because the old substrate fallback made talking a second door into the shared mind). Conversational facts reach
+  the reasoner through the SCOPED OVERLAY (`load_subgraph(actor=...)` unions `edges_for_actor`), which I had missed.
+  The world graph being empty is irrelevant to this failure.
+- *"Relation names do not round-trip (`'has property'` vs `has_property`)."* Wrong. `_typed_edge` decodes spaces to
+  underscores explicitly, in one place, by design.
+
+**The correction.** `SemanticRelation.SAME_AS` — one thing under two descriptions — distinct from `EQUALS` (two
+values that are the same number) and from `SYNONYM_OF` (two words that mean the same, which already owns the
+surface form "same as"). Symmetric, always transitive, not inheritable, not generic-safe, no surface forms: reading
+decides it from the construction. `relation_algebra.compose` gained renaming in BOTH argument positions
+(`one_thing_under_two_descriptions`), and `spell_out`'s copula now says `equals` only when either side is a number.
+`pmb_meanings` and `erg_meanings` (`appos`, `id`) draw the same line, so the benchmark compares like with like.
+
+Renaming carries the other relation through UNCHANGED, so it licenses nothing that relation did not already
+license: `a same_as b`, `b made_of steel`, `steel isa alloy` still refuses `a isa alloy`. Arithmetic is sealed off
+from renaming (`_NO_RENAMING`): a number is not a thing under two descriptions, reading never puts one in `SAME_AS`,
+so sealing it costs nothing and stops a wrong identity propagating a numeric claim.
+
+**Error found and fixed, pre-existing, shared by two call sites.** `spell_out`'s `numeric(t)` asked
+`_number(str(t))`. The unknowns a reading mints are ints (`fresh()` returns negatives) and `term` spells every int
+as `?x`/`?y`, so the mint's own counter read as a written number and EVERY described thing was numeric.
+`_number(str(-5))` is `'-5'`. Two consequences: the new copula rule said `equals` for "Tom is the dog.", and the
+comparative at the other call site read *"Rex is more careful than the dog."* as two numbers compared with no degree
+of carefulness between them. Fixed at the helper, which repairs both: a written number is only ever a `str`.
+
+**Verified.**
+- `lyric_dev`, through the real overlay and the real algebra, actor-scoped: `south asia has_property southern` →
+  `true` and `south asia instance_of sub-region` → `true`, both previously `unknown`, both derived via
+  `one_thing_under_two_descriptions`, and NEITHER held in the shared graph (checked and printed first).
+  `south asia part_of europe` → `unknown`: open-world preserved, nothing confabulated.
+- 122 tests pass: grammar 81, teaching path 8, relations + algebra 33.
+- New regression tests cover identity substitution both ways, arithmetic staying inert, no inheritance down a kind
+  and no place-reading, an identity cycle terminating, and a derived fact naming its rule and carrying the evidence
+  of every edge it went through.
+- The existing `done_by`/`done_to` isolation test was amended, not weakened: renaming REPLACES an argument rather
+  than chaining through the link ("done by Alice, Alice is the mayor, so done by the mayor"), and the test that no
+  kind of a participant leaks into the event still guards the thing it was written for.
+- PMB dev gold: 33 copula sentences, all `same_as`, none arithmetic — the gold and the reader draw the same line on
+  this split, so the `_ARITHMETIC` guard is dormant there and cannot regress it.
+
+**Not measured yet.** The effect on GRAMMAR-01 and UNDERSTANDS-PROSE-02. Both are the owner's runs to start. What
+they should show: the reading score roughly unchanged (one relation renamed on both sides of the comparison), and
+the reasoner taking steps where it took none on 0 of 362 factual questions.
+
+**Still open.** 159 of 370 unanswered prose questions are "not taught to say" — the largest single bucket, and
+untouched by this. `Grammar.say` works but took 58 min / 15.9 GB on one meaning, so it is not wired behind
+`_said()`. The `pp`/`pr` grammar refactor (22.1% of dev words have a gold category Lyric cannot express, 52% of it
+one design decision) remains unapproved. `hold_for_person` has no `remembered()` guard where the neighbouring
+`hold_scoped_relation` does, so a `remembers=False` conversation may still persist scoped rows — worth checking
+against main, which I cannot read.
+
 ## 2026-11-01 (102) — The English Resource Grammar reads here, and the 95% bar is outside the state of the art
 
 **Objective.** *"ok lets do it. You don't need to come back to me until reading and responding is above the 95%

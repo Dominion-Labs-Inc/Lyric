@@ -69,7 +69,7 @@ ABSTRACT: Mapping[str, Optional[str]] = {
     "pron": "pronoun", "named": "name", "named_n": "name", "person": "person", "place_n": "place",
     "time_n": "time", "thing": "thing", "generic_entity": "thing", "ne_x": "name",
     # links Lyric holds
-    "compound": "compound", "poss": "owned_by", "part_of": "part_of", "appos": "equals", "id": "equals",
+    "compound": "compound", "poss": "owned_by", "part_of": "part_of", "appos": "same_as", "id": "same_as",
     "loc_nonsp": "located_in", "measure": "has_measure", "meas_np": "has_measure", "card": "has_count",
     "ord": "has_count", "much-many_a": "many", "neg": "not", "superl": "greatest", "more_comp": "more",
     "comp": "more", "comp_equal": "equals", "times": "has_count", "abstr_deg": "degree",

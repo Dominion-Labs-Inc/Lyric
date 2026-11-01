@@ -632,7 +632,10 @@ def test_a_time_of_the_clock_is_one_time_its_half_of_the_day_where_its_words_say
 def test_what_a_thing_is_said_not_to_be_is_denied_with_its_qualities(grammar):
     # "Tom is not a happy dog.": no happy dog, so not happy either; said of Tom, the quality was told as so.
     assert "not has_property(?v0, happy)" in read(grammar, "Tom is not a happy dog.")
-    assert "& has_property(?v0, happy)" in read(grammar, "Tom is a happy dog.")
+    # Asked of the fact itself, not of where it falls in the canonical order: "equals" sorted before
+    # "has_property" and "same_as" sorts after, so a leading "& " was never what this test was about.
+    told = read(grammar, "Tom is a happy dog.")
+    assert "has_property(?v0, happy)" in told and "not has_property(?v0, happy)" not in told, told
 
 
 def test_a_degree_word_grades_the_quality_or_the_doings_quality_it_is_said_of():
@@ -980,12 +983,13 @@ def test_the_speakers_verb_is_their_word_in_any_form_and_their_noun_as_they_wrot
 
 def test_another_is_one_of_a_kind_not_one_given_and_is_said_only_so():
     """"Another" is one of a kind that is not the one of it given (Heim 1982; the Parallel Meaning Bank's `NEQ`):
-    "Tom chased another cat." is a cat chased, a cat known, the two not one, and is said back of that meaning, first;
+    "Tom chased another cat." is a cat chased, a cat known, the two NOT THE SAME THING (`same_as` denied, never
+    `equals`: two cats are not a number), and is said back of that meaning, first;
     of a dog being a mammal, "another" is never said. Saying nothing, it was read as "a"."""
     g = gm.Grammar(gm.Lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased another cat.", g.lexicon.words)).meaning
     facts = {(f.relation, f.positive, f.given) for f in told.facts}
-    assert ("equals", False, False) in facts and ("instance_of", True, True) in facts, told.canonical()
+    assert ("same_as", False, False) in facts and ("instance_of", True, True) in facts, told.canonical()
     assert told.canonical() != read(g, "Tom chased a cat.")
     said = g.say(told)
     assert said and said[0] == "Tom chased another cat.", said[:5]
@@ -2003,3 +2007,40 @@ def test_what_taught_sentences_said_of_a_verbs_place_is_not_overruled_by_its_pro
     lexicon.place_links[("room",)]["part_of"] += 9
     assert lexicon.inherited("poss", "room", "NOUN", (), "owned_by") == ("owned_by", "own")
 
+
+
+def test_a_copula_says_the_same_thing_or_the_same_number_and_never_confuses_the_two():
+    """"Tom is the dog." says one thing under two descriptions (`same_as`); "The cards are two." says a value is a
+    number (`equals`). ONE WORD FOR BOTH made every identity inert: `equals` composes with nothing, by design,
+    because nothing chains through arithmetic, so a reading held `same_as(south asia, sub_region_1)` beside
+    `part_of(sub_region_1, asia)` and could not reach `part_of(south asia, asia)` -- both edges in hand, answer
+    `unknown` (UNDERSTANDS-PROSE-02, 2026-11-01). What a thing is a KIND of is neither, and stays as it was.
+    """
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    # one thing, two descriptions
+    assert "same_as(tom, ?v0)" in read(g, "Tom is the dog.")
+    assert "same_as(?v1, ?v0)" in read(g, "The dog is the cat.")
+    # a value and a number
+    assert "equals(?v0, 2)" in read(g, "The cards are two.")
+    assert "equals(tom, 2)" in read(g, "Tom is two.")
+    # what a thing is a kind of, and what it is like, are said as they were
+    assert read(g, "Whales are mammals.") == "tell: isa(whale, mammal)"
+    assert "has_property(?v0, red)" in read(g, "The ball is red.")
+    for said in ("Whales are mammals.", "The ball is red."):
+        assert "same_as" not in read(g, said) and "equals" not in read(g, said), said
+
+
+def test_an_unknown_a_reading_mints_is_a_variable_and_never_a_number():
+    """The unknowns a reading mints are ints, and `term` spells every int as `?x`/`?y`, so asking whether a term is
+    written as a number must ask it only of a STRING. Asked of the int, the mint's own counter read as a number and
+    every described thing was numeric: "Tom is the dog." was arithmetic, and "Rex is more careful than the dog."
+    compared two numbers instead of two degrees of carefulness (2026-11-01)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    told = read(g, "Tom is the dog.")
+    assert "equals" not in told, told
+    # A DEGREE COMPARED IS A DEGREE, not a number, when both sides are things described: "more happy than" holds a
+    # degree of happiness for each and puts one above the other. Asked of the mint's int, both sides were numbers and
+    # the two things were compared as numbers with no degree of anything between them.
+    both = read(g, "The dog is more happy than the cat.")
+    assert "exceeds(?v0, ?v1)" in both, both
+    assert both.count("has_degree") == 2 and both.count("instance_of(?v0, happy)") == 1, both

@@ -148,13 +148,23 @@ def test_every_kind_resolves_to_itself_by_name():
 def test_event_participants_carry_no_english_and_license_nothing():
     """`done_by` / `done_to` say who did an event and what it was done to. No
     English is written for them -- which words say them is learned -- and they
-    compose to nothing: no chaining, no inheritance down ISA, no inverse."""
+    compose to nothing: no chaining, no inheritance down ISA, no inverse.
+
+    EXCEPT RENAMING WHO IT WAS: `same_as` is not a step THROUGH the participant
+    link, it REPLACES one of its arguments. A tying done by Alice, where Alice is
+    the mayor, was done by the mayor -- the event is untouched and no kind of the
+    participant leaks into it (`test_an_event_participant_stays_a_fact_about_that_event`
+    is what guards that). Substitution carries the participant relation through
+    unchanged, so it licenses nothing the relation did not already license."""
     from core.semantics.relation_types import get_spec
     for kind in (R.DONE_BY, R.DONE_TO):
         spec = get_spec(kind)
         assert spec.surface_forms == frozenset()
         assert spec.inverse is None and not spec.inheritable and not spec.symmetric
         for other in R:
+            if other is R.SAME_AS:
+                assert is_licensed(kind, other) and is_licensed(other, kind), kind
+                continue
             assert not is_licensed(kind, other), (kind, other)
             assert not is_licensed(other, kind), (other, kind)
 
@@ -395,3 +405,90 @@ def test_no_closed_world_on_what_the_asker_said_and_was_not_taken_in():
     assert _named_in_any("programming_language", told)
     assert not _named_in_any("grandfather_clock", ["The grandfather of Tom is old."]), "every word of the name"
     assert not _named_in_any("python", []) and not _named_in_any("python", ["The beer is cold."])
+
+
+# ------------------------------------------------ identity (one thing, two descriptions)
+
+def test_what_is_said_of_one_description_is_said_of_the_other():
+    """"South Asia is the southern sub-region of Asia that is defined in ... terms." reads as an identity between
+    the name and the described thing, and every other fact of the sentence hangs off the DESCRIBED one. Asked what
+    South Asia is a sub-region of, the reasoner held `same_as(south_asia, sub_region_1)` and
+    `part_of(sub_region_1, asia)` and could reach nothing: `equals` composes with nothing by design, because nothing
+    chains through arithmetic, and the reader had one word for both (UNDERSTANDS-PROSE-02, 2026-11-01)."""
+    held = [Edge("south_asia", R.SAME_AS, "sub_region_1"),
+            Edge("sub_region_1", R.PART_OF, "asia"),
+            Edge("sub_region_1", R.HAS_PROPERTY, "southern"),
+            Edge("sub_region_1", R.INSTANCE_OF, "sub_region")]
+    got = {(d.edge.relation, d.edge.obj) for d in derive_from("south_asia", held)}
+    assert (R.PART_OF, "asia") in got, got            # where it is
+    assert (R.HAS_PROPERTY, "southern") in got, got   # what it is like
+    assert (R.INSTANCE_OF, "sub_region") in got, got  # what it is
+
+
+def test_identity_substitutes_in_either_argument_position():
+    """A fact reached THROUGH an identity and a fact whose OBJECT is renamed by one are both entailed: the mayor
+    signed it, and Alice is the mayor, so Alice signed it."""
+    assert compose(R.SAME_AS, R.PART_OF)[0] is R.PART_OF
+    assert compose(R.PART_OF, R.SAME_AS)[0] is R.PART_OF
+    for kind in (R.ISA, R.INSTANCE_OF, R.HAS_PROPERTY, R.LOCATED_IN, R.DONE_BY, R.CAUSES):
+        assert compose(R.SAME_AS, kind)[0] is kind, kind
+        assert compose(kind, R.SAME_AS)[0] is kind, kind
+    # Renaming carries the relation through UNCHANGED, so it licenses no step that relation did not license: an
+    # unlicensed pairing still stops the chain at its own hop.
+    held = [Edge("a", R.SAME_AS, "b"), Edge("b", R.MADE_OF, "steel"), Edge("steel", R.ISA, "alloy")]
+    got = {(d.edge.relation, d.edge.obj) for d in derive_from("a", held)}
+    assert (R.MADE_OF, "steel") in got
+    assert (R.ISA, "alloy") not in got, "made_of never becomes isa, through an identity or otherwise"
+
+
+def test_arithmetic_equality_is_not_identity_and_substitutes_nothing():
+    """`equals` is two values that are the SAME NUMBER: "the sum of two and three equals five". Nothing chains
+    through arithmetic -- the symbolic faculty works it out -- so it must stay inert, and giving identity its own
+    relation is what lets it stay inert while identity reasons."""
+    from core.semantics.relation_types import get_spec
+    assert get_spec(R.EQUALS).gloss != get_spec(R.SAME_AS).gloss
+    for kind in R:
+        if kind is R.EQUALS:
+            continue
+        assert compose(R.EQUALS, kind) is None, kind
+        assert compose(kind, R.EQUALS) is None, kind
+    held = [Edge("sum_1", R.EQUALS, "five"), Edge("five", R.INSTANCE_OF, "number")]
+    assert not [d for d in derive_from("sum_1", held) if d.edge.obj == "number"]
+
+
+def test_identity_does_not_inherit_down_a_kind_or_place_a_thing():
+    """`same_as` is a fact about one PARTICULAR, so it neither rides ISA down to every member of a kind nor counts
+    as a place. Were it inheritable, "a robin is a bird" and "that bird is the one I saw" would make every robin
+    the one I saw; were it a place, it would answer where things are."""
+    from core.semantics.relation_types import get_spec
+    spec = get_spec(R.SAME_AS)
+    assert not spec.inheritable, "identity holds of a particular, never of every member of a kind"
+    assert spec.symmetric and spec.transitive, "one thing under two descriptions, either way round"
+    assert not spec.generic_safe, "a bare indefinite is no universal law of identity"
+    assert compose(R.ISA, R.SAME_AS)[1] == "one_thing_under_two_descriptions", "renaming, not inheritance"
+    # The thing a robin is identical to is not WHERE a robin is.
+    held = [Edge("robin", R.SAME_AS, "bird_7"), Edge("bird_7", R.LOCATED_IN, "nest")]
+    got = {d.edge.relation for d in derive_from("robin", held)}
+    assert R.LOCATED_IN in got and R.PART_OF not in got
+
+
+def test_an_identity_cycle_terminates_and_says_only_what_it_knows():
+    """Each told the other way ("A is B", "B is A") is a cycle; the walk must end, and must not invent a third
+    thing. Nothing is acyclic about identity -- each stands in it to the other -- so termination is the walk's
+    job, not the relation's."""
+    held = [Edge("a", R.SAME_AS, "b"), Edge("b", R.SAME_AS, "a"), Edge("b", R.HAS_PROPERTY, "red")]
+    got = {(d.edge.subject, d.edge.relation, d.edge.obj) for d in derive_from("a", held)}
+    assert ("a", R.HAS_PROPERTY, "red") in got
+    assert all(o in ("a", "b", "red") for _, _, o in got), got
+
+
+def test_a_derived_identity_says_which_rule_licensed_it_and_what_it_rests_on():
+    """An inference is never confused with an observation: the derivation names the rule and carries the evidence of
+    EVERY edge it went through, so "what does this rest on" can be answered of a renamed fact too."""
+    held = [Edge("south_asia", R.SAME_AS, "sub_region_1", ("ev_identity",)),
+            Edge("sub_region_1", R.PART_OF, "asia", ("ev_part",))]
+    found = [d for d in derive_from("south_asia", held) if d.edge.relation is R.PART_OF]
+    assert len(found) == 1, found
+    assert found[0].rules == ("one_thing_under_two_descriptions",), found[0].rules
+    rests_on = {e for edge in found[0].path for e in edge.evidence}
+    assert rests_on == {"ev_identity", "ev_part"}, rests_on

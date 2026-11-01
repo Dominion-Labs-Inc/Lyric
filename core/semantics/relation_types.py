@@ -52,6 +52,14 @@ class SemanticRelation(Enum):
     ISA = "isa"                    # kind -> superkind: robin ISA bird
     INSTANCE_OF = "instance_of"    # individual -> kind: Fido INSTANCE_OF dog
 
+    # ── identity ─────────────────────────────────────────────────────────
+    # ONE THING UNDER TWO DESCRIPTIONS. Distinct from EQUALS (two values that
+    # are the same NUMBER) and from SYNONYM_OF (two WORDS that mean the same):
+    # this is the same particular, named twice. "South Asia is the southern
+    # sub-region of Asia" says the sub-region and South Asia are one thing, so
+    # whatever is said of either is said of both.
+    SAME_AS = "same_as"            # South Asia SAME_AS the southern sub-region of Asia (symmetric)
+
     # ── mereological (part / whole / membership) ─────────────────────────
     PART_OF = "part_of"            # wheel PART_OF car
     HAS_PART = "has_part"          # car HAS_PART wheel   (inverse of PART_OF)
@@ -302,6 +310,12 @@ _SPECS: Tuple[RelationSpec, ...] = (
                             "is the", "instance of"}),
                  gloss="an individual falls under a kind",
                  heading_forms=frozenset({"type", "kind", "class", "equipment type"})),
+    # identity. NO SURFACE FORMS: "same as" and "is the same as" are SYNONYM_OF's,
+    # which is about words; this is about things, and reading decides it from the
+    # construction (a copula between two particulars), not from a phrase.
+    RelationSpec(SemanticRelation.SAME_AS, frozenset(), symmetric=True,
+                 transitivity=Transitivity.ALWAYS, generic_safe=False,
+                 gloss="one thing under two descriptions, so what is said of either is said of both"),
     # mereological
     RelationSpec(SemanticRelation.PART_OF,
                  frozenset({"is part of", "part of", "is a part of"}),

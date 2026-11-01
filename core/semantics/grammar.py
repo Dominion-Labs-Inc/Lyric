@@ -2135,7 +2135,7 @@ _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "
 #: main reads: of `Tom is writing a letter.` all 274 were "a letter written by Tom" and its like, losing the tense
 #: and asserting nothing, and reading refused every one, so nothing read back, so `SAID_AT_MOST` never stopped the
 #: making and saying searched 10,000 items without an answer (2026-10-31).
-_ASSERTED = _HAPPENING_LINKS | frozenset({"has_property", "isa", "equals", "state_of"})
+_ASSERTED = _HAPPENING_LINKS | frozenset({"has_property", "isa", "equals", "same_as", "state_of"})
 
 #: THE LINK A POSSESSIVE SAYS, which `data/grammar/english.json`'s `linking` gives as `possessive` and reading reads
 #: a `poss` piece as (`spell_out`); named here because `_piece_says` weighs a piece with no lexicon to ask.
@@ -2239,7 +2239,7 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
     what the other is."""
     out: Set[MeaningFact] = set()
     for f in meaning.facts:
-        if f.relation != "equals" or f.positive or not (is_variable(f.subject) and is_variable(f.obj)):
+        if f.relation != "same_as" or f.positive or not (is_variable(f.subject) and is_variable(f.obj)):
             continue
         for one, other in ((f.subject, f.obj), (f.obj, f.subject)):
             of_other = [g for g in meaning.facts if other in (g.subject, g.obj)]
@@ -2331,7 +2331,7 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     if kind in ("can", "may"):
         return sum(1 for f in facts if f.relation == "has_property" and f.obj in ("allowed", "possible"))
     if kind == "be":
-        return sum(1 for f in facts if f.relation in ("isa", "equals")
+        return sum(1 for f in facts if f.relation in ("isa", "equals", "same_as")
                    or (f.relation == "instance_of" and not is_variable(f.subject)))
     if kind == "poss":
         # A POSSESSIVE SAYS WHAT A THING IS OWNED BY, the link `Lexicon.linking`'s `possessive` gives and reading
@@ -2347,7 +2347,7 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     if kind == "deny":
         return sum(1 for f in facts if not f.positive)
     if kind == "other":
-        return sum(1 for f in facts if f.relation == "equals" and not f.positive)
+        return sum(1 for f in facts if f.relation == "same_as" and not f.positive)
     if kind == "pron":
         # THE ONE SPOKEN OF BEFORE IS SAID AS OFTEN AS IT STANDS IN A PLACE, as the speaker and the listener are
         # (`Grammar.say`'s `situation`, which counts them): counted once however many places it filled, two words
@@ -4433,7 +4433,7 @@ class Grammar:
                     continue
                 given = {q[1] for q in pieces if q[0] == "given"}
                 asked = [q[1] for q in pieces if q[0] == "asked"]
-                way = ("equals" if any(r in ("equals", "~equals") for r in got) else
+                way = ("equals" if any(r in ("equals", "~equals", "same_as", "~same_as") for r in got) else
                        "merge" if any(r in ("isa", "instance_of", "same") for r in got) else "")
                 count("be", _be_key(pieces, p, given, asked), way)
             elif p[0] == "quality" and p[3] not in timed and p[3] not in graded:
@@ -5089,11 +5089,18 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             if q[0] == "other" and q[1] == x:
                 known = fresh()
                 add("instance_of", known, meant, given_=True, at=q[-1])
-                add("equals", x, known, positive=False, at=q[-1])
+                add("same_as", x, known, positive=False, at=q[-1])
     def numeric(t: Term) -> bool:
-        """Whether a term is a number, or one of a kind of number."""
+        """Whether a term is a number, or one of a kind of number.
+
+        AN INT TERM IS A VARIABLE, NEVER A NUMBER: `term` spells every int as `?x`/`?y`, and the unknowns a reading
+        mints are ints, so `_number(str(t))` read the mint's own counter as a written number and called every
+        described thing numeric. "Tom is the dog." was `equals` (arithmetic) rather than `same_as`, and
+        "Rex is more careful than the dog." compared two numbers (2026-11-01).
+        """
         kind = kinds[t][2] if t in kinds else t if isinstance(t, str) and t in kind_of.values() else None
-        return _number(str(t)) is not None or (kind is not None and "number" in [kind] + words.kinds(kind, "NOUN"))
+        written = isinstance(t, str) and _number(t) is not None
+        return written or (kind is not None and "number" in [kind] + words.kinds(kind, "NOUN"))
     bes: List[Piece] = [p for p in pieces if p[0] == "be"]
     holders: Dict[Term, Term] = {p[3]: p[1] for p in pieces if p[0] == "quality"}
     holders.update({p[3]: p[1] for p in bes})
@@ -5326,10 +5333,18 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 add("instance_of", x, y_kind[2], positive=positive, at=at)
             merged[y] = x
             continue
+        # THE SAME NUMBER, OR THE SAME THING. "The sum of two and three is five." says two values are one number
+        # (`equals`, arithmetic, which chains through nothing because nothing chains through arithmetic);
+        # "South Asia is the southern sub-region of Asia." says one thing under two descriptions (`same_as`), and
+        # what is said of either is said of both. ONE WORD FOR BOTH left the reasoner unable to carry a fact across
+        # an identity at all: every composition with `equals` is None by design, so the reading held
+        # `equals(south asia, sub_region_1)` beside `part_of(sub_region_1, asia)` and could not reach
+        # `part_of(south asia, asia)` -- both edges in hand, answer `unknown` (UNDERSTANDS-PROSE-02, 2026-11-01).
+        is_one = "equals" if numeric(x) or numeric(y) else "same_as"
         if x in asked and y not in asked:
-            add("equals", y, x, positive=positive, at=at)
+            add(is_one, y, x, positive=positive, at=at)
         else:
-            add("equals", x, y, positive=positive, at=at)
+            add(is_one, x, y, positive=positive, at=at)
     if merged:
         rename = {term(k): term(v) for k, v in merged.items()}
         facts = [f.renamed(rename) if any(t in rename for t in f.terms()) else f for f in facts]
