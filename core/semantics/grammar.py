@@ -132,6 +132,19 @@ def show(cat: Cat, refs: bool = True) -> str:
     return f"({res}{cat.slash}{arg})" if isinstance(cat.res, Fn) or True else f"{res}{cat.slash}{arg}"
 
 
+#: WHAT EACH WH-PHRASE'S CATEGORY BECOMES with its gap dropped, worked out once per category written in the grammar
+#: (`_carried` asks it of the word after every preposition in every sentence, and a category is a string to parse).
+_CARRIED: Dict[str, Optional[Tuple[str, Term, Term]]] = {}
+
+
+def _carried_cat(text: str) -> Optional[Tuple[str, Term, Term]]:
+    """`_carries` of a category as the grammar writes it, kept."""
+    if text not in _CARRIED:
+        carried = _carries(parse_category(text))
+        _CARRIED[text] = None if carried is None else (show(carried[0]), carried[1], carried[2])
+    return _CARRIED[text]
+
+
 def _carries(cat: Cat) -> Optional[Tuple[Cat, Term, Term]]:
     """A WH-PHRASE A PREPOSITION MAY BE CARRIED ALONG BY, its gap dropped (`Lexicon._carried`): the category with the
     clause it takes no longer missing a thing, the clause's own term, and the term the gap stood for. None where it
@@ -1630,17 +1643,16 @@ class Lexicon:
         if i + 1 >= len(tokens) or "PREPOSITION" not in evidence:
             return []
         after = str(tokens[i + 1]).lower()
-        asking = [e for e in self.closed.get(after, []) if _carries(parse_category(e["cat"])) is not None]
+        asking = [e for e in self.closed.get(after, []) if _carried_cat(e["cat"]) is not None]
         if not asking:
             return []
         mine = evidence["PREPOSITION"]
         theirs = self._evidence(tokens, i + 1)
         out: List[Tuple[int, Entry]] = []
         for e in asking:
-            carried = _carries(parse_category(e["cat"]))
-            cat, doing, stood_for = carried
+            cat, doing, stood_for = _carried_cat(e["cat"])
             sem = tuple(tuple(x) for x in e.get("sem", ())) + (("prep", doing, stood_for, "@", "-"),)
-            out.append((i + 2, Entry(show(cat), sem, "GRAMMAR", str(tokens[i]).lower(),
+            out.append((i + 2, Entry(cat, sem, "GRAMMAR", str(tokens[i]).lower(),
                                      mine + theirs.get(e["use"], -20.0), f"carried:{e.get('use', '')}")))
         return out
 

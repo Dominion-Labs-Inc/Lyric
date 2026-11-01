@@ -368,6 +368,14 @@ def main() -> int:
         dev.append((document.text, tokens, said.meaning, gm.align_by_anchors(tokens, document.text, anchors)))
         gold_of.append(gold_categories(p4 / doc_id / "en.parse.tags", document.text, tokens)
                        if "--gold-categories" in sys.argv else {})
+    if "--without-carried" in sys.argv:
+        # WITHOUT A PREPOSITION BEING CARRIED ALONG WITH THE WH-PHRASE IT OPENS (`Lexicon._carried`), so this
+        # measurement prices that rule on the split it scores: the PMB's dev holds the shape once in 911 sentences,
+        # where the hand-analysed treebanks hold it 27 to 33 times in a dev split, so what is asked here is whether
+        # it COSTS reading anything, not whether it helps.
+        gm.Lexicon._carried = lambda self, tokens, i, evidence: []
+        EV.note("read without a preposition being carried along with the wh-phrase it opens (`Lexicon._carried`)")
+
     EV.metric("PMB dev sentences said whole", len(dev), unit="sentences", note=f"of {len(listed):,} listed")
     say(f"PMB dev said whole {len(dev):,} of {len(listed):,}")
 
