@@ -1,0 +1,746 @@
+{
+  "experiment": "TRAIN-FORMAT-02",
+  "claim": "a word recorded whole, every form, every sense and how its verb is used, taught through the one teaching path, is held as one memory, every part of reading learns its layer from it, sentences never taught that use it are read right, and what they said is answered through the front door",
+  "hypothesis": "every check holds",
+  "started_at": "2026-11-02T04:19:28.375092+00:00",
+  "duration_seconds": 11.899,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "292fc3b6b3a0c19b13bf8c71fb276318d4ce0639",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_dev",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_dev",
+        "model": "lyric_dev",
+        "user_context": "lyric_dev",
+        "learning": "lyric_dev"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "dotenv:.env.postgres",
+        "database": "environment",
+        "user": "dotenv:.env.postgres",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 2,
+    "database_verified": "lyric_dev",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 83,
+    "passed": 79,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [],
+  "checks": [
+    {
+      "label": "the run is on lyric_dev2",
+      "passed": false,
+      "detail": "lyric_dev",
+      "at": "2026-11-02T04:19:28.375100+00:00",
+      "reads": []
+    },
+    {
+      "label": "the store is the one it says",
+      "passed": true,
+      "detail": "lyric_dev",
+      "at": "2026-11-02T04:19:31.805564+00:00",
+      "reads": []
+    },
+    {
+      "label": "every word record is whole: its forms of its senses' classes, the word itself among them, every sense named and said what it means, every place of the grammar's with what it says",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:31.913634+00:00",
+      "reads": [
+        "word",
+        "forms",
+        "senses"
+      ]
+    },
+    {
+      "label": "each word record written and read back is the same record",
+      "passed": true,
+      "detail": "",
+      "at": "2026-11-02T04:19:32.337734+00:00",
+      "reads": []
+    },
+    {
+      "label": "memory holds each taught word as one memory, the record as taught",
+      "passed": true,
+      "detail": "19 held",
+      "at": "2026-11-02T04:19:32.645273+00:00",
+      "reads": []
+    },
+    {
+      "label": "memory reads none of them as a claim about the world",
+      "passed": true,
+      "detail": "",
+      "at": "2026-11-02T04:19:32.645296+00:00",
+      "reads": []
+    },
+    {
+      "label": "memory holds each word's senses, what each means and, of a noun or a verb, what it is a kind of; a word WordNet has none of, its uses, and a preposition what it says",
+      "passed": true,
+      "detail": "",
+      "at": "2026-11-02T04:19:32.645309+00:00",
+      "reads": []
+    },
+    {
+      "label": "each form is held a form of its word (\"painted\", \"paints\", \"painting\" of paint)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:32.645440+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "memory knows each form's class (\"paint\" a verb and a noun, \"painted\" a verb)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:32.645483+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds how the treebanks used each form, as its entries name the uses (\"for\" a preposition, a subordinator)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.003141+00:00",
+      "reads": [
+        "used_as"
+      ]
+    },
+    {
+      "label": "the grammar holds what each preposition says joining a doing to a thing (\"for\" done_for, has_purpose)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.003155+00:00",
+      "reads": [
+        "joins"
+      ]
+    },
+    {
+      "label": "the word names, as each class, what its most used sense of the class means (the verb `paint`, the noun `coating paint`)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.003495+00:00",
+      "reads": [
+        "senses"
+      ]
+    },
+    {
+      "label": "English's grammar holds each word",
+      "passed": true,
+      "detail": "19",
+      "at": "2026-11-02T04:19:33.067276+00:00",
+      "reads": [
+        "word"
+      ]
+    },
+    {
+      "label": "each verb sense PropBank and VerbNet say is the word's carries its PropBank sense and its places (paint.v.01 paint.02 create pictures, paint.v.02 paint.01 put paint on a surface, paint.v.03 paint.03 depict)",
+      "passed": true,
+      "detail": "{\"paint.v.01\": [\"paint.02\", \"create-26.4-1-1\"], \"paint.v.02\": [\"paint.01\", \"coloring-24\"], \"paint.v.03\": [\"paint.03\", \"characterize-29.2\"], \"paint.v.04\": [\"\", \"\"], \"wall.v.01\": [\"\", \"\"], \"visualize.v.01\": [\"picture.01\", \"characterize-29.2\"], \"picture.v.02\": [\"\", \"\"], \"coat.v.01\": [\"coat.01\", \"fill-9.8-1\"], \"coat.v.02\": [\"coat.01\", \"fill-9.8-1\"], \"coat.v.03\": [\"coat.01\", \"fill-9.8-1\"], \"make.v.01\": [\"\", \"\"], \"make.v.02\": [\"make.02\", \"render-29.90-1\"], \"make.v.03\": [\"\", \"\"], \"induce.v.02\": [\"\", \"\"], \"cause.v.01\": [\"\", \"\"], \"produce.v.02\": [\"make.01\", \"build-26.1-1\"], \"draw.v.04\": [\"\", \"\"], \"make.v.08\": [\"\", \"\"], \"create.v.05\": [\"\", \"\"], \"gain.v.08\": [\"make.05\", \"obtain-13.5.2\"], \"do.v.08\": [\"make.01\", \"build-26.1-1\"], \"form.v.02\": [\"make.01\", \"build-26.1-1\"], \"reach.v.07\": [\"\", \"\"], \"make.v.14\": [\"\", \"\"], \"make.v.15\": [\"\", \"\"], \"make.v.16\": [\"\", \"\"], \"construct.v.01\": [\"make.01\", \"build-26.1-1\"], \"make.v.18\": [\"\", \"\"], \"make.v.19\": [\"\", \"\"], \"name.v.03\": [\"\", \"\"], \"have.v.17\": [\"make.18\", \"reach-51.8\"], \"reach.v.01\": [\"make.18\", \"reach-51.8\"], \"lay_down.v.01\": [\"\", \"\"], \"make.v.24\": [\"\", \"\"], \"make.v.25\": [\"\", \"\"], \"hold.v.03\": [\"\", \"\"], \"make.v.27\": [\"\", \"\"], \"take.v.27\": [\"\", \"\"], \"stool.v.04\": [\"\", \"\"], \"make.v.31\": [\"make.01\", \"build-26.1-1\"], \"make.v.32\": [\"\", \"\"], \"make.v.33\": [\"\", \"\"], \"make.v.34\": [\"\", \"\"], \"make.v.35\": [\"\", \"\"], \"make.v.36\": [\"\", \"\"], \"make.v.37\": [\"\", \"\"], \"make.v.38\": [\"make.01\", \"build-26.1-1\"], \"cook.v.02\": [\"make.01\", \"build-26.1-1\"], \"seduce.v.01\": [\"\", \"\"], \"make.v.41\": [\"\", \"\"], \"make.v.42\": [\"\", \"\"], \"make.v.43\": [\"\", \"\"], \"make.v.44\": [\"\", \"\"], \"make.v.45\": [\"\", \"\"], \"make.v.46\": [\"\", \"\"], \"make.v.47\": [\"\", \"\"], \"make.v.48\": [\"\", \"\"], \"make.v.49\": [\"\", \"\"], \"survive.v.02\": [\"\", \"\"], \"arrive.v.02\": [\"\", \"\"], \"pass.v.14\": [\"\", \"\"], \"mean.v.01\": [\"\", \"\"], \"entail.v.01\": [\"\", \"\"], \"mean.v.03\": [\"mean.01\", \"representation-110.1\"], \"intend.v.01\": [\"\", \"\"], \"mean.v.05\": [\"\", \"\"], \"think_of.v.04\": [\"\", \"\"], \"mean.v.07\": [\"\", \"\"], \"be.v.01\": [\"be.01\", \"seem-109-1-1\"], \"be.v.02\": [\"be.01\", \"representation-110.1\"], \"exist.v.01\": [\"\", \"\"], \"equal.v.01\": [\"\", \"\"], \"constitute.v.01\": [\"be.01\", \"seem-109-1-1\"], \"embody.v.02\": [\"be.01\", \"representation-110.1\"], \"be.v.10\": [\"\", \"\"], \"be.v.11\": [\"\", \"\"], \"be.v.12\": [\"\", \"\"], \"cost.v.01\": [\"\", \"\"], \"partition.v.01\": [\"\", \"\"], \"partition.v.02\": [\"partition.01\", \"disassemble-23.3\"], \"structure.v.01\": [\"\", \"\"]}",
+      "at": "2026-11-02T04:19:33.067339+00:00",
+      "reads": [
+        "senses",
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar knows what each sense is a kind of (`coating paint` a coating, the verb `paint` an act of creating), as it asks deciding a link",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.067815+00:00",
+      "reads": [
+        "senses"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'paint' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"painted\": {\"participle\": 3.0, \"past\": 1.0}, \"paints\": {\"third\": 1.0}, \"paint\": {\"base\": 3.0}, \"painting\": {\"ing\": 1.0}}",
+      "at": "2026-11-02T04:19:33.067863+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'paint' is used in (intransitive, transitive)",
+      "passed": true,
+      "detail": "{\"intransitive\": 17.0, \"transitive\": 42.0}",
+      "at": "2026-11-02T04:19:33.067872+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'paint' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 15}, \"object\": {\"done_to\": 15}}",
+      "at": "2026-11-02T04:19:33.067887+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'paint' says (for done_for)",
+      "passed": true,
+      "detail": "{\"for\": {\"done_for\": 1}}",
+      "at": "2026-11-02T04:19:33.067896+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'wall' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"wall\": {\"base\": 1.0}}",
+      "at": "2026-11-02T04:19:33.067907+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'wall' is used in (transitive)",
+      "passed": true,
+      "detail": "{\"transitive\": 1.0}",
+      "at": "2026-11-02T04:19:33.067911+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'wall' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.067915+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'wall' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.067919+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'picture' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"picture\": {\"base\": 2.0}, \"pictured\": {\"participle\": 1.0}}",
+      "at": "2026-11-02T04:19:33.067932+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'picture' is used in (transitive, that)",
+      "passed": true,
+      "detail": "{\"transitive\": 9.0, \"that\": 5.0}",
+      "at": "2026-11-02T04:19:33.067937+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'picture' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 1}, \"object\": {\"done_to\": 1}}",
+      "at": "2026-11-02T04:19:33.067943+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'picture' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.067947+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'coat' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"coated\": {\"past\": 1.0}, \"coat\": {\"base\": 1.0}}",
+      "at": "2026-11-02T04:19:33.067957+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'coat' is used in (transitive)",
+      "passed": true,
+      "detail": "{\"transitive\": 5.0}",
+      "at": "2026-11-02T04:19:33.067961+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'coat' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.067965+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'coat' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.067968+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'make' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"make\": {\"base\": 341.0, \"third\": 38.0, \"present\": 21.0}, \"makes\": {\"third\": 89.0}, \"making\": {\"ing\": 108.0}, \"made\": {\"participle\": 158.0, \"past\": 129.0}}",
+      "at": "2026-11-02T04:19:33.068000+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'make' is used in (transitive, to, ditransitive, that, intransitive)",
+      "passed": true,
+      "detail": "{\"transitive\": 1603.0, \"to\": 18.0, \"ditransitive\": 5.6667, \"that\": 5.0, \"intransitive\": 7.0}",
+      "at": "2026-11-02T04:19:33.068019+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'make' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 38}, \"object\": {\"done_to\": 30, \"\": 2}}",
+      "at": "2026-11-02T04:19:33.068035+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'make' says (to moves_to)",
+      "passed": true,
+      "detail": "{\"to\": {\"moves_to\": 1}}",
+      "at": "2026-11-02T04:19:33.068049+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'make it' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"make it\": {\"base\": 6.0}, \"making it\": {\"ing\": 2.0}, \"made it\": {\"participle\": 2.0}}",
+      "at": "2026-11-02T04:19:33.068061+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'make it' is used in (intransitive)",
+      "passed": true,
+      "detail": "{\"intransitive\": 11.0}",
+      "at": "2026-11-02T04:19:33.068065+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'make it' says (subject done_by)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 1}}",
+      "at": "2026-11-02T04:19:33.068069+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'make it' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.068074+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'mean' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"meaning\": {\"ing\": 7.0}, \"means\": {\"third\": 90.0}, \"meant\": {\"past\": 14.0, \"participle\": 12.0}, \"mean\": {\"present\": 101.0, \"base\": 28.0, \"third\": 3.0}}",
+      "at": "2026-11-02T04:19:33.068099+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'mean' is used in (transitive, to)",
+      "passed": true,
+      "detail": "{\"transitive\": 270.0, \"to\": 27.0}",
+      "at": "2026-11-02T04:19:33.068106+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'mean' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 6}, \"object\": {\"\": 1, \"done_to\": 3}}",
+      "at": "2026-11-02T04:19:33.068116+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'mean' says (for done_for)",
+      "passed": true,
+      "detail": "{\"for\": {\"done_for\": 2}}",
+      "at": "2026-11-02T04:19:33.068125+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'be' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"been\": {\"participle\": 31.0}, \"was\": {\"past\": 105.0}, \"ai\": {\"third\": 1.0}, \"is\": {\"third\": 230.0}, \"be\": {\"base\": 67.0}, \"were\": {\"past\": 60.0}, \"'s\": {\"third\": 125.0}, \"are\": {\"present\": 3.0, \"third\": 201.0}, \"s\": {\"third\": 1.0}, \"'re\": {\"third\": 1.0, \"present\": 1.0}, \"being\": {\"ing\": 3.0}, \"'m\": {\"present\": 6.0}}",
+      "at": "2026-11-02T04:19:33.068180+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'be' is used in (intransitive, transitive)",
+      "passed": true,
+      "detail": "{\"intransitive\": 11444.0, \"transitive\": 14282.0}",
+      "at": "2026-11-02T04:19:33.068189+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'be' says (object done_to)",
+      "passed": true,
+      "detail": "{\"object\": {\"done_to\": 5}}",
+      "at": "2026-11-02T04:19:33.068197+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'be' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.068202+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'partition' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"partition\": {\"base\": 1.0}}",
+      "at": "2026-11-02T04:19:33.068211+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'partition' is used in (transitive)",
+      "passed": true,
+      "detail": "{\"transitive\": 2.0}",
+      "at": "2026-11-02T04:19:33.068215+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'partition' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 1}, \"object\": {\"done_to\": 1}}",
+      "at": "2026-11-02T04:19:33.068221+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'partition' says (from moves_from)",
+      "passed": true,
+      "detail": "{\"from\": {\"moves_from\": 1}}",
+      "at": "2026-11-02T04:19:33.068226+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar reads each form of 'structure' as the form of its verb it is",
+      "passed": true,
+      "detail": "{\"structured\": {\"participle\": 4.0}, \"structure\": {\"base\": 1.0}}",
+      "at": "2026-11-02T04:19:33.068236+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the frames 'structure' is used in (transitive)",
+      "passed": true,
+      "detail": "{\"transitive\": 1.0}",
+      "at": "2026-11-02T04:19:33.068240+00:00",
+      "reads": [
+        "verbnet_frames"
+      ]
+    },
+    {
+      "label": "the grammar holds what each place of 'structure' says (subject done_by, object done_to)",
+      "passed": true,
+      "detail": "{\"subject\": {\"done_by\": 1}, \"object\": {\"done_to\": 1}}",
+      "at": "2026-11-02T04:19:33.068245+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds what a preposition after 'structure' says ()",
+      "passed": true,
+      "detail": "{}",
+      "at": "2026-11-02T04:19:33.068249+00:00",
+      "reads": [
+        "rolesets"
+      ]
+    },
+    {
+      "label": "the grammar holds how each form is said (\"wall\" W AO1 L)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.068338+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds which forms are said alike and the first sounds said after each (\"a\" and \"an\")",
+      "passed": true,
+      "detail": "['a', 'an']; not held: []",
+      "at": "2026-11-02T04:19:33.068354+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "the grammar holds the subjects each finite form took (\"is\" nouns, \"am\" I)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.068418+00:00",
+      "reads": [
+        "forms"
+      ]
+    },
+    {
+      "label": "memory says what each word means, every sense with its definition and kind (`word_meanings`)",
+      "passed": true,
+      "detail": "[]",
+      "at": "2026-11-02T04:19:33.068578+00:00",
+      "reads": [
+        "senses"
+      ]
+    },
+    {
+      "label": "each word is read back in every example of every sense",
+      "passed": true,
+      "detail": "162 of 162",
+      "at": "2026-11-02T04:19:34.736532+00:00",
+      "reads": []
+    },
+    {
+      "label": "every example whose words are all taught (130) is read whole, the word in its sense",
+      "passed": false,
+      "detail": "[(\"artists use `paint' and `pigment' interchangeably.\", 'paint.n.01'), ('he dominates play in the paint.', 'key.n.09'), ('he painted all day in the garden.', 'paint.v.01'), ('He painted a painting of the garden.', 'paint.v.01'), ('He painted his mistress many times.', 'paint.v.03'), ('a wall of wate",
+      "at": "2026-11-02T04:19:34.736611+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted the medal.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_by(?e, roy) & done_to(?e, ?x) & instance_of(?x, award decoration)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.739801+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy paints the medal.' is read: instance_of(?e, paint) & done_by(?e, roy) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint)",
+      "at": "2026-11-02T04:19:34.741752+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy is painting the medal.' is read: instance_of(?e, paint) & during(?e, ?now) & done_by(?e, roy) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & during(?v0, ?now) & given instance_of(?v1, award decoration) & instance_of(?v0, paint)",
+      "at": "2026-11-02T04:19:34.746416+00:00",
+      "reads": []
+    },
+    {
+      "label": "'The medal was painted.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_to(?e, ?x) & instance_of(?x, award decoration)",
+      "passed": true,
+      "detail": "tell: done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.749407+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted.' is read: instance_of(?e, paint) & precedes(?e, ?now) & done_by(?e, roy)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.750632+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted the medal with paint.' is read: instance_of(?e, paint) & done_with(?e, ?y) & instance_of(?y, coating paint)",
+      "passed": false,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & instance_of(?v2, coating paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.759848+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted the medal for Tom.' is read: instance_of(?e, paint) & done_for(?e, tom) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_for(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.765489+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted the wall.' is read: instance_of(?e, coat paint) & done_to(?e, ?x) & instance_of(?x, wall) & precedes(?e, ?now)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & given instance_of(?v1, wall) & instance_of(?v0, coat paint) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.770654+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy painted a picture.' is read: instance_of(?e, represent paint) & done_to(?e, ?x) & instance_of(?x, picture)",
+      "passed": false,
+      "detail": "tell: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, represent paint) & instance_of(?v1, painting) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.780581+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Roy fastened the medal for Tom.' is read: instance_of(?e, fasten) & done_for(?e, tom) & done_to(?e, ?x)",
+      "passed": true,
+      "detail": "tell: done_by(?v0, roy) & done_for(?v0, tom) & done_to(?v0, ?v1) & given instance_of(?v1, award decoration) & instance_of(?v0, fasten) & precedes(?v0, ?now)",
+      "at": "2026-11-02T04:19:34.786241+00:00",
+      "reads": []
+    },
+    {
+      "label": "'A wall is a partition.' is read more surely than 'A wall am a partition.'",
+      "passed": true,
+      "detail": "{\"A wall is a partition.\": -4.733238559553365, \"A wall am a partition.\": -11.555248967909758}",
+      "at": "2026-11-02T04:19:34.818059+00:00",
+      "reads": []
+    },
+    {
+      "label": "'Pictures are representations.' is read more surely than 'Pictures is representations.'",
+      "passed": true,
+      "detail": "{\"Pictures are representations.\": -7.093350594354668, \"Pictures is representations.\": -8.72420273408039}",
+      "at": "2026-11-02T04:19:34.822983+00:00",
+      "reads": []
+    },
+    {
+      "label": "'A picture is a representation.' is read more surely than 'An picture is a representation.'",
+      "passed": true,
+      "detail": "{\"A picture is a representation.\": -5.87479695734236, \"An picture is a representation.\": -14.390455374324663}",
+      "at": "2026-11-02T04:19:34.837533+00:00",
+      "reads": []
+    },
+    {
+      "label": "a wall being a partition is said first as English says it: \"A wall is a partition.\"",
+      "passed": true,
+      "detail": "[\"A wall is a partition.\", \"A wall is partition.\", \"Wall is a partition.\", \"Wall is partition.\", \"Walls are a partition.\", \"A walls are a partition.\"]",
+      "at": "2026-11-02T04:19:35.272979+00:00",
+      "reads": []
+    },
+    {
+      "label": "the reasoning owner is handed what the words mean, each premise from the word record saying it (\"wall\": a partition, a structure, an artifact)",
+      "passed": true,
+      "detail": "[('wall_partition', 'word', 'mem_d5e8f449d019454daafb3aaa8768f59d'), ('wall_structure', 'word', 'mem_d5e8f449d019454daafb3aaa8768f59d'), ('wall_artifact', 'word', 'mem_d5e8f449d019454daafb3aaa8768f59d'), ('wall_object_whole', 'word', 'mem_d5e8f449d019454daafb3aaa8768f59d'), ('wall_object', 'word', '",
+      "at": "2026-11-02T04:19:35.637026+00:00",
+      "reads": []
+    },
+    {
+      "label": "told \"Roy painted the wall.\", 'Is a wall a substance?' is no yes (a wall is no substance; no picture was coated; a coating is no making)",
+      "passed": true,
+      "detail": "'A wall is a partition.\\nA substance is a matter.'",
+      "at": "2026-11-02T04:19:36.873496+00:00",
+      "reads": []
+    },
+    {
+      "label": "told \"Roy painted the wall.\", 'Did Roy coat the picture?' is no yes (a wall is no substance; no picture was coated; a coating is no making)",
+      "passed": true,
+      "detail": "'I hold things about roy that I have not been taught to say yet.'",
+      "at": "2026-11-02T04:19:36.996825+00:00",
+      "reads": []
+    },
+    {
+      "label": "told \"Roy painted the wall.\", 'Did Roy make something?' is no yes (a wall is no substance; no picture was coated; a coating is no making)",
+      "passed": true,
+      "detail": "'I hold things about roy that I have not been taught to say yet.'",
+      "at": "2026-11-02T04:19:37.060589+00:00",
+      "reads": []
+    },
+    {
+      "label": "\"Is a structure a wall?\" is answered by what the words hold to be both, a wall being a structure, and no yes",
+      "passed": true,
+      "detail": "'A wall is a structure.'",
+      "at": "2026-11-02T04:19:37.929591+00:00",
+      "reads": []
+    },
+    {
+      "label": "\"Is a picture a wall?\", neither held a kind of the other, is answered by what each is, and no yes or no",
+      "passed": true,
+      "detail": "'A picture is a representation.\\nA wall is a partition.'",
+      "at": "2026-11-02T04:19:38.955789+00:00",
+      "reads": []
+    },
+    {
+      "label": "no reply says it holds nothing of a word taught",
+      "passed": true,
+      "detail": "['I hold things about roy that I have not been taught to say yet.', 'A wall is a structure.']",
+      "at": "2026-11-02T04:19:39.931016+00:00",
+      "reads": []
+    },
+    {
+      "label": "told \"Roy painted a picture.\", \"Did Roy coat the picture?\" is no yes (painting a picture is a making, no coating)",
+      "passed": true,
+      "detail": "'I hold things about roy that I have not been taught to say yet.'",
+      "at": "2026-11-02T04:19:40.274647+00:00",
+      "reads": []
+    }
+  ],
+  "notes": [
+    "words the examples hold that nothing taught holds yet: arab, buy, california, chok, club, company, derek, dna, dog, ex, help, hour, jacobi, job, john, know, law, look, milk, modern, money, peninsula, roof, room, shigella, show, sofa, speak, straw, throw, too, window, yellow"
+  ]
+}

@@ -23057,3 +23057,59 @@ of kinds written in the reporting script goes stale the moment a kind of learnin
 fail when it does", cured there by asking the store what it holds and by a test holding the property for
 `Report.lines()`. The cure here is the same: the checks must be derived from `WordRecord`'s own layers crossed with
 the kinds of question, so a layer no question reads is a failure and not a hole.
+
+### THE SMALL BATCH EARNED ITS KEEP: TEACHING A VERB'S FRAMES WHOLE MAKES THE READER MISREAD "with paint"
+
+The owner, before sleeping: add proper logging to every teaching point, teach a small batch, verify it 100% with no
+errors, then run a full batch -- "you don't need my permission to run it, but you need to make sure it is 100%
+right; if it is not, don't run it". **It is not 100%, so the full batch was not run.**
+
+**The small batch, into the sandbox emptied to nothing, through the one teaching path:**
+
+| pass | taught | refused | reacting | competence in `general` |
+|---|---|---:|---:|---:|
+| `--source closed-classes` | 266 word classes, 438 propositions | 0 | 929s | -> 0.611 |
+| `--source records`, the 19 FULL records | 19 words recorded whole | 0 | 12s | -> 0.711 |
+| `--source records`, TRAIN-FORMAT-01 | 1 sentence recorded whole | 0 | 14s | -> 0.794 |
+
+Teaching is clean: nothing refused, "admissions the substrate was NOT told about: 0" every pass, 4 of 4 reviewed
+right each time. **Reading got WORSE.**
+
+| | the records taught before | the records whole |
+|---|---:|---:|
+| checks failed | 3 | **4** |
+| questions answered right | 19/21 (90.5%) | **18/21 (85.7%)** |
+| sentences understood | 7/7 | 7/7 |
+| answered wrong | 0 | 0 |
+
+`"Roy painted the medal with paint."` now reads `done_to(?v0, ?v1) & done_to(?v0, ?v2)` where it read
+`done_with(?v0, ?v2)`: **"with paint" is read as a second thing painted.** `"Did Roy coat the wall?"`, answered
+right before, is not answered at all.
+
+**Which layer, by emptying one at a time in a loaded view (no store written):**
+
+| `"Roy painted the medal with paint."` | read as |
+|---|---|
+| the record whole | `done_to(?v0, ?v2)` -- wrong |
+| **`verbnet_frames` emptied (18 dropped)** | **`done_with(?v0, ?v2)` -- right** |
+| `rolesets` emptied (3 dropped) | `done_to` -- still wrong |
+| `senses` emptied (7 dropped) | right, and the senses are lost (`picture` becomes `situation picture`) |
+
+So it is **the verb's VerbNet frames, taught whole**. The reader links a verb's places by the frame of the sense
+read "that gives the most of the places said, the fewest besides" ((65), `Lexicon.framed`); with all 18 of `paint`'s
+frames held, a frame taking two noun phrases wins over the one taking an object and a `with` phrase. The records
+taught until today carried **no** `verbnet_frames` at all, so nothing ever exercised the rule at full width, and
+(65) measured it over the PMB with the frames a record then carried -- not with every frame VerbNet holds.
+
+**What this says about the standard, which is the owner's own point.** The format gained layers and the file the
+format was verified against did not; teaching those layers for the first time moved reading DOWN. A record is not
+better for being fuller: each layer has to be measured where it is read. The frame rule is the next piece of
+research (`GRAMMAR-01/diagnostics/verb_places.py` is the instrument (65) used), and until it is settled, teaching
+83,118 words with every frame held would carry this misreading into every verb in the vocabulary.
+
+**And the logging asked for** is `experiments/TRAIN-FORMAT-02/diagnostics/layers_landed.py`: it holds a record into
+a grammar holding nothing, diffs the grammar's own tables, and attributes each table to a layer by emptying that
+layer alone, so the writer stays the only authority on where a layer goes. It is what found this. It also found
+that emptying `rolesets` changes nothing -- the same places ride on the senses -- and that twelve layers land
+nowhere in the grammar because `hold_word` is half of teaching a word and `MemoryAgent._learn_word_record` is the
+other half (`structure.hold_joins` takes `joined_as` and `related_as`): the measure covers one half so far.
