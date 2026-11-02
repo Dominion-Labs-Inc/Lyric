@@ -23113,3 +23113,36 @@ layer alone, so the writer stays the only authority on where a layer goes. It is
 that emptying `rolesets` changes nothing -- the same places ride on the senses -- and that twelve layers land
 nowhere in the grammar because `hold_word` is half of teaching a word and `MemoryAgent._learn_word_record` is the
 other half (`structure.hold_joins` takes `joined_as` and `related_as`): the measure covers one half so far.
+
+**WHY, EXACTLY: A VERB'S PLACES ARE LINKED ONE AT A TIME, SO TWO FRAMES ANSWER ONE SENTENCE.** `Lexicon.framed` is
+asked for one slot per call (`framed(name, sense, slots, slot)`), and each call chooses afresh among the frames
+that fit. Of `paint`'s frames, the one naming `pp:with` is VerbNet's `fill`-style analysis:
+
+```
+{'subject': 'done_by', 'object': 'moves_to', 'pp:with': 'done_to'}
+```
+
+which is right: in "painted the medal with paint" the PAINT is what is applied (`done_to`) and the MEDAL is where it
+goes (`moves_to`). But the object's link was taken from a different frame, `{'object': 'done_to', 'subject':
+'done_by'}`, so the reading holds `done_to` twice -- a thing no single frame says, and a sentence no frame analyses
+that way. **The frame is a whole analysis of a happening and is being read a place at a time.**
+
+**The research, over the PMB's 9,552 gold train documents (`verb_places.py`), says keep the frames:**
+
+| place | the word records' links | by the sense's frames |
+|---|---:|---:|
+| subject (6,455) | 90.7% | 92.7% |
+| object (3,639) | 81.8% | 86.8% |
+| after a preposition (2,121) | 12.3% | **45.1%** |
+| the second of two (243) | 39.9% | 87.7% |
+
+So the frames are a large gain everywhere and are not the thing to undo; what has to change is that one frame
+should answer for one happening. The records taught before today carried no frames at all, so every place fell to
+the grammar's own link and the two-frames-one-sentence case could not arise. That is why teaching the records whole
+moved reading down for the first time: not because a layer is wrong, but because a rule that was never exercised at
+full width is wrong.
+
+**THE GATE, ANSWERED.** Asked to teach a small batch, verify it 100%, then run a full batch, and not to run it if it
+is not 100%: it is not. 18 of 21 questions, 4 checks failed, and one capability lost ("Did Roy coat the wall?",
+answered before, unanswered now). **Main was not wiped and no full batch was run.** The fix is named and measured:
+choose one frame for a happening and take every place from it.
