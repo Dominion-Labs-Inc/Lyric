@@ -32,7 +32,7 @@ import time
 from dataclasses import dataclass, field, asdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -137,6 +137,12 @@ class CheckRecord:
     passed: bool
     detail: str = ""
     at: str = ""
+    #: WHICH LAYERS OF THE THING TAUGHT THIS CHECK READS, named by the check itself ("forms", "senses",
+    #: "joined_as"). A run's own report then says what its checks cover, so a layer taught and verified by nothing
+    #: is a number and not a hole: coverage was being worked out by matching a record's field names against the
+    #: checks' English, which both missed layers that ARE checked under prose ("used_as", by "how the treebanks
+    #: used each form") and would pass a label that merely mentions a word (2026-11-02).
+    reads: Tuple[str, ...] = ()
 
 
 @dataclass
@@ -198,9 +204,11 @@ class RunRecord:
 
     # ── recording ────────────────────────────────────────────────────────────
 
-    def check(self, label: str, ok: bool, detail: str = "") -> bool:
+    def check(self, label: str, ok: bool, detail: str = "", reads: "Sequence[str]" = ()) -> bool:
+        """One check, and `reads`: which layers of the thing taught it reads (`CheckRecord.reads`)."""
         self.checks.append(CheckRecord(label=label, passed=bool(ok), detail=str(detail),
-                                       at=datetime.now(timezone.utc).isoformat()))
+                                       at=datetime.now(timezone.utc).isoformat(),
+                                       reads=tuple(str(layer) for layer in reads)))
         return bool(ok)
 
     def metric(self, name: str, value: Any, unit: str = "", note: str = "") -> Any:

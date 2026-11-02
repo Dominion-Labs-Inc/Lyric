@@ -107,64 +107,75 @@ def test_every_field_of_a_pass_report_reaches_the_lines_it_prints():
 
 
 def test_every_layer_of_a_word_recorded_whole_is_read_by_a_check():
-    """A LAYER NO CHECK NAMES IS A HOLE NOBODY SEES. The standard format Lyric is taught from was proven on one
-    example and mirrored, so its verification is a hand-written list of checks about that example, and a layer of
-    the record -- or a kind of question -- that no example happened to use is verified by nothing.
+    """A LAYER NO CHECK READS IS A HOLE NOBODY SEES. The standard format Lyric is taught from was proven on one
+    example and mirrored, so a layer of the record -- or a kind of question -- that no example happened to use is
+    verified by nothing. Measured 2026-11-02 on a store taught from nothing: 19 words recorded whole went in with 0
+    refused, every sentence read, and "What is paint?" was answered "There was nothing in that I could resolve."
+    against records holding seven senses with their definitions and every kind up their chains.
 
-    Measured 2026-11-02 on a store taught from nothing: 19 words recorded whole went in with 0 refused, every
-    sentence read, and "What is paint?", "What is a picture?" and "What is a wall?" were answered "There was
-    nothing in that I could resolve." -- the plainest question there is, against records holding seven senses with
-    their definitions and every kind up their chains. Four of twenty-one questions, and no check named the layer
-    they needed.
+    EACH CHECK SAYS WHICH LAYERS IT READS (`RunRecord.check(..., reads=...)`), and coverage is counted from that.
+    It was first counted by matching the record's field names against the checks' English, which is no measure at
+    all: it missed layers that ARE checked under prose ("used_as", by "the grammar holds how the treebanks used
+    each form") and would have passed a label that merely mentioned a word. The round-trip check reads no layer on
+    purpose -- that the format survives being written and read back is a different property, and counting it would
+    mark all 27 verified while nothing read one.
 
-    This is the same defect, in the same shape, as the snapshot's eight hand-written counts above: a list written
-    in a script goes stale the moment a layer is added, and nothing makes it fail when it does. So the property is
-    held here. Every layer of `WordRecord` is one of three things, and nothing else: PROVENANCE (what the record
-    came from, read by no part of reading), named by one of the experiment's own checks, or named in
-    `NOT_YET_CHECKED` -- the layers taught today and verified by nothing, written out so they are a list someone
-    can work through instead of a hole. **That list may only shrink.** A layer added without a check fails here,
-    and a layer in the list that has since got a check fails here too, so it is taken out when it is earned.
+    Every layer is one of three things and nothing else: PROVENANCE (where the record came from, read by no part of
+    reading), read by a check that says so, or named in `NOT_YET_CHECKED` -- taught today and verified by nothing,
+    written out so it is a list someone can work through instead of a hole. **That list only shrinks.**
     """
+    import ast
     import dataclasses
-    import re
 
     from core.learning.teaching_sources import WordRecord
 
     #: Layers that say where the record CAME FROM, read by no part of reading, so no check reads them.
-    PROVENANCE = {"source", "licence", "split", "tags", "misc"}
-    #: TAUGHT AND VERIFIED BY NOTHING (2026-11-02): 16 of `WordRecord`'s 27 layers, against 6 the checks name.
-    #: Each is written into memory by `GrammarView._count_word` and read by some part of reading, and no check
-    #: asks whether what went in comes back. ONLY SHRINKS: take a name out when a check names it.
+    PROVENANCE = {"source", "licence", "split"}
+    #: TAUGHT AND VERIFIED BY NOTHING (2026-11-02). Each is written into memory by `GrammarView._count_word` or
+    #: `MemoryAgent._learn_word_record` and read by some part of reading -- `joined_as` and `related_as` by the
+    #: structure view that weighs which word takes which, `misc` by the morphological segmentation, `tags` by the
+    #: treebank's own tags -- and no check asks whether what went in comes back. ONLY SHRINKS.
     NOT_YET_CHECKED = {
-        "used_as", "joins", "joins_things", "together", "used_before_doing", "used_asking", "said_alone",
-        "capitalized", "shapes", "said_of_doing", "joined_as", "related_as", "enhanced", "rolesets",
-        "verbnet_frames", "covered",
+        "uses", "joins_things", "together", "used_before_doing", "used_asking", "said_alone", "capitalized",
+        "shapes", "said_of_doing", "said_after", "means", "tags", "joined_as", "related_as", "enhanced", "misc",
+        "covered",
     }
 
     experiment = Path(__file__).resolve().parents[1] / "experiments" / "TRAIN-FORMAT-02" / "experiment.py"
-    said = experiment.read_text(encoding="utf-8")
-    labels = " || ".join(a or b for a, b in re.findall(
-        r"""EV\.check\(\s*(?:f?"([^"]*)"|f?'([^']*)')""", said, re.S)).lower()
+    tree = ast.parse(experiment.read_text(encoding="utf-8"))
+    read_by_a_check: set = set()
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "check"):
+            continue
+        for keyword in node.keywords:
+            if keyword.arg != "reads":
+                continue
+            for element in getattr(keyword.value, "elts", ()):
+                if isinstance(element, ast.Constant) and isinstance(element.value, str):
+                    read_by_a_check.add(element.value)
+    assert read_by_a_check, "no check says which layers it reads; coverage cannot be counted"
+
     layers = {f.name for f in dataclasses.fields(WordRecord)}
+    named = sorted(layer for layer in read_by_a_check if layer not in layers)
+    assert not named, (
+        f"these checks say they read layers WordRecord does not have: {', '.join(named)}. A check that reads a "
+        "layer by the wrong name verifies nothing and reports that it did."
+    )
 
-    def named(layer: str) -> bool:
-        return layer.replace("_", " ") in labels or layer in labels
-
-    unaccounted = sorted(layer for layer in layers
-                         if layer not in PROVENANCE and layer not in NOT_YET_CHECKED and not named(layer))
+    unaccounted = sorted(layers - PROVENANCE - NOT_YET_CHECKED - read_by_a_check)
     assert not unaccounted, (
-        "every layer of a word recorded whole must be named by a check that reads it, or named as provenance, or "
-        f"written into NOT_YET_CHECKED: {', '.join(unaccounted)} is neither. A layer taught and read by nothing "
-        "measurable is learning nobody can verify."
+        "every layer of a word recorded whole must be read by a check that says so, or named as provenance, or "
+        f"written into NOT_YET_CHECKED: {', '.join(unaccounted)} is none of the three. A layer taught and read by "
+        "nothing measurable is learning nobody can verify."
     )
 
-    earned = sorted(layer for layer in NOT_YET_CHECKED if named(layer))
+    earned = sorted(NOT_YET_CHECKED & read_by_a_check)
     assert not earned, (
-        f"these layers now have a check that names them and must come out of NOT_YET_CHECKED: {', '.join(earned)}. "
-        "The list only shrinks, so it says what is still unverified and not what once was."
+        f"these layers are now read by a check and must come out of NOT_YET_CHECKED: {', '.join(earned)}. The list "
+        "only shrinks, so it says what is still unverified and not what once was."
     )
 
-    gone = sorted(NOT_YET_CHECKED - layers) + sorted(PROVENANCE - layers)
+    gone = sorted((NOT_YET_CHECKED | PROVENANCE) - layers)
     assert not gone, (
         f"these are named here but are no longer layers of WordRecord: {', '.join(gone)}. A list that outlives "
         "what it describes is the defect this test exists to stop."

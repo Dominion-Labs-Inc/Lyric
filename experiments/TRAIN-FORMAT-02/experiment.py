@@ -114,9 +114,12 @@ async def store_checks() -> int:
     problems = {w.word: w.problems() for w in words if w.problems()}
     EV.check("every word record is whole: its forms of its senses' classes, the word itself among them, every sense "
              "named and said what it means, every place of the grammar's with what it says", not problems,
-             json.dumps(problems)[:400])
+             json.dumps(problems)[:400], reads=("word", "forms", "senses"))
     EV.check("each word record written and read back is the same record",
              all(WordRecord.from_dict(json.loads(json.dumps(w.to_dict()))) == w for w in words))
+    # NOTE: that check reads no layer. It holds that the FORMAT survives being written and read back, which is a
+    # different property from a part of reading reading a layer, and counting it as coverage would mark every
+    # layer verified while nothing read one.
 
     # ── memory ──
     held = await agent._word_record_memories()
@@ -139,38 +142,38 @@ async def store_checks() -> int:
     forms = agent.word_forms()
     unformed = [(f.form, w.word) for w in words for f in w.forms if w.word not in forms.bases_of(f.form)]
     EV.check("each form is held a form of its word (\"painted\", \"paints\", \"painting\" of paint)", not unformed,
-             str(unformed))
+             str(unformed), reads=("forms",))
     unclassed = [(f.form, f.word_class) for w in words for f in w.forms
                  if not agent.word_classes(f.form).get(f.word_class)]
     EV.check("memory knows each form's class (\"paint\" a verb and a noun, \"painted\" a verb)", not unclassed,
-             str(unclassed))
+             str(unclassed), reads=("forms",))
     lexicon = agent.grammar_view().grammar.lexicon
     unused = [(form, use, n, dict(lexicon.words.form_uses.get(form, {}))) for w in words for form, use, n in w.used_as
               if lexicon.words.form_uses.get(form, {}).get(use, 0) < n]
     EV.check("the grammar holds how the treebanks used each form, as its entries name the uses (\"for\" a "
-             "preposition, a subordinator)", not unused, str(unused)[:300])
+             "preposition, a subordinator)", not unused, str(unused)[:300], reads=("used_as",))
     unjoined = [(w.word, link, n) for w in words for link, n in w.joins
                 if lexicon.learned["prep"].get((w.word, "event", "-"), {}).get(link, 0) < n]
     EV.check("the grammar holds what each preposition says joining a doing to a thing (\"for\" done_for, "
-             "has_purpose)", not unjoined, str(unjoined))
+             "has_purpose)", not unjoined, str(unjoined), reads=("joins",))
     misnamed = [(w.word, cls, agent.name_of(w.word, cls), name) for w in words for cls, name in w.names().items()
                 if agent.name_of(w.word, cls) != name]
     EV.check("the word names, as each class, what its most used sense of the class means (the verb `paint`, the noun "
-             "`coating paint`)", not misnamed, str(misnamed))
+             "`coating paint`)", not misnamed, str(misnamed), reads=("senses",))
     view = agent.grammar_view()
     held_words = view.grammar.lexicon.words
-    EV.check("English's grammar holds each word", all(w.key() in view._words for w in words), f"{len(view._words)}")
+    EV.check("English's grammar holds each word", all(w.key() in view._words for w in words), f"{len(view._words)}", reads=("word",))
     joined = {s.id: (s.roleset, s.verbnet) for w in words for s in w.senses if s.word_class == "VERB"}
     EV.check("each verb sense PropBank and VerbNet say is the word's carries its PropBank sense and its places "
              "(paint.v.01 paint.02 create pictures, paint.v.02 paint.01 put paint on a surface, paint.v.03 paint.03 "
              "depict)", all(not s.roleset or s.places for w in words for s in w.senses)
-             and any(r for r, _ in joined.values()), json.dumps(joined))
+             and any(r for r, _ in joined.values()), json.dumps(joined), reads=("senses", "rolesets"))
     unkinded = [(s.concept, s.word_class, [k for _, k in s.kind_of], held_kinds)
                 for w in words for s in w.senses
                 for held_kinds in [view.grammar.lexicon.words.kinds(s.concept, s.word_class)]
                 if not all(k in held_kinds for _, k in s.kind_of if k)]
     EV.check("the grammar knows what each sense is a kind of (`coating paint` a coating, the verb `paint` an act "
-             "of creating), as it asks deciding a link", not unkinded, str(unkinded)[:300])
+             "of creating), as it asks deciding a link", not unkinded, str(unkinded)[:300], reads=("senses",))
     for w in words:
         if not any(s.word_class == "VERB" for s in w.senses):
             continue
@@ -179,38 +182,41 @@ async def store_checks() -> int:
                                                                          if f.word_class == "VERB"}}
         EV.check(f"the grammar reads each form of {w.word!r} as the form of its verb it is",
                  all(forms_of.get(f.form, {}).get(_verb_form(f.features)) for f in w.forms
-                     if f.word_class == "VERB" and _verb_form(f.features)), json.dumps(forms_of))
+                     if f.word_class == "VERB" and _verb_form(f.features)), json.dumps(forms_of), reads=("forms",))
         frames = dict(held_words.frames(name))
         EV.check(f"the grammar holds the frames {w.word!r} is used in ({', '.join(w.frames())})",
-                 all(frames.get(f, 0) >= n for f, n in w.frames().items()), json.dumps(frames))
+                 all(frames.get(f, 0) >= n for f, n in w.frames().items()), json.dumps(frames),
+                 reads=("verbnet_frames",))
         # A doer after "by" the grammar reads by the subject's link: shown by reading "... was painted by Roy." below.
         places = [(slot, link) for slot, link in w.links() if slot != "by"]
         roles = {slot: dict(view.grammar.lexicon.learned["role"].get((name, slot), {})) for slot, _ in places}
         EV.check(f"the grammar holds what each place of {w.word!r} says "
                  f"({', '.join(f'{s} {l}' for s, l in places)})",
-                 all(roles.get(slot, {}).get(link, 0) > 0 for slot, link in places), json.dumps(roles))
+                 all(roles.get(slot, {}).get(link, 0) > 0 for slot, link in places), json.dumps(roles),
+                 reads=("rolesets",))
         after = {p: dict(view.grammar.lexicon.learned["prep_of"].get((name, p, "-"), {})) for p, _ in w.prepositions()}
         EV.check(f"the grammar holds what a preposition after {w.word!r} says "
                  f"({', '.join(f'{p} {l}' for p, l in w.prepositions())})",
-                 all(after.get(p, {}).get(link, 0) > 0 for p, link in w.prepositions()), json.dumps(after))
+                 all(after.get(p, {}).get(link, 0) > 0 for p, link in w.prepositions()), json.dumps(after),
+                 reads=("rolesets",))
 
     # ── how each form is said, the subjects each finite form took ──
     unsaid = [(f.form, w.word) for w in words for f in w.forms if f.sounds
               and not set(f.sounds) <= set(held_words.sounds(f.form))]
-    EV.check("the grammar holds how each form is said (\"wall\" W AO1 L)", not unsaid, str(unsaid)[:300])
+    EV.check("the grammar holds how each form is said (\"wall\" W AO1 L)", not unsaid, str(unsaid)[:300], reads=("forms",))
     alike = {f.form for w in words for f in w.forms if f.before}
     unalike = [form for form in alike if len(held_words.said_before(form)) < 2]
     EV.check("the grammar holds which forms are said alike and the first sounds said after each (\"a\" and \"an\")",
-             alike and not unalike, f"{sorted(alike)}; not held: {unalike}")
+             alike and not unalike, f"{sorted(alike)}; not held: {unalike}", reads=("forms",))
     untaken = [(f.form, w.word) for w in words for f in w.forms
                if f.subjects and not held_words.subjects(f.form)]
     EV.check("the grammar holds the subjects each finite form took (\"is\" nouns, \"am\" I)", not untaken,
-             str(untaken)[:300])
+             str(untaken)[:300], reads=("forms",))
 
     # ── what each word means, and each word read back in its own examples ──
     unmeant = [w.word for w in words if w.senses and not agent.word_meanings(w.word)]
     EV.check("memory says what each word means, every sense with its definition and kind (`word_meanings`)",
-             not unmeant, str(unmeant))
+             not unmeant, str(unmeant), reads=("senses",))
     reviews = {w.word: view.review_word(w) for w in words}
     every = sum(len(s.examples) for w in words for s in w.senses)
     EV.check("each word is read back in every example of every sense", sum(len(r) for r in reviews.values()) == every,
