@@ -1039,6 +1039,70 @@ class LyricSystem:
         # LogicalFormulaParser, is imported directly where it's used (the proof
         # engine, the neural bridge formalizer, abduction); nothing to init here.
 
+#: WHAT A TEACHING SESSION KEEPS RUNNING (`LYRIC_TEACHING=1`). The substrate schedules seven recurring tiers
+#: (`AutonomousCoordinator._register_idle_subsystems`) and not one of them is teaching: four sample the substrate's
+#: own state, which while a store is being taught has nothing in it but the teaching. Each is named here with
+#: whether a teaching session keeps it, so turning one off or back on is one word in one place.
+#:
+#: THE CONSTITUTION IS KEPT, and what it does on a timer is not what it is taken to do: it judges ACTS, never
+#: language and never a taught fact -- nothing in the teaching path calls `judge_act` at all.
+#: `constitution_record` writes down judgements ALREADY MADE, which is an empty drain while nothing is acting, and
+#: a dropped judgement is a substrate that cannot answer for itself (Law 2). `constitution_integrity` asks whether
+#: the machinery that judges was changed under it. THE TIER THAT DID SCORE THE SUBSTRATE WHILE IT WAS BEING TAUGHT
+#: is already gone: `_check_constitutional_alignment` read a store still being taught as drift and wrote a drift
+#: memory of importance 1.0 for each alert, and it was taken off the schedule on 2026-10-11.
+#:
+#: HOW TEACHING FELT IS ALSO KEPT, and that is the one choice in here worth arguing about. `epistemic_affect` and
+#: `affect_refresh` were made periodic exactly so a teaching run is felt: measured, teaching 15 facts produced a
+#: full signal (information gain 1.0, 15 mutations) that nothing ever asked for, so through a teaching run of any
+#: length the substrate held `activation` and nothing else. Stopped here, teaching would cost less and be felt by
+#: nothing, and experience is the substrate's own (`docs`): so they stay unless someone decides otherwise.
+TEACHING_KEEPS = {
+    "constitution_record":       True,   # an empty drain while nothing acts; Law 2 the moment something does
+    "constitution_integrity":    True,   # whether what judges was changed under it
+    "epistemic_affect":          True,   # how the substrate's knowledge moved -- what makes teaching felt at all
+    "affect_refresh":            True,   # the same for emotion: without it a teaching run transitions nothing
+    "idle_system_state_refresh": False,  # resource usage and metrics: the substrate watching itself work
+    "motivation_refresh":        False,  # what is worth pursuing next, which no teaching session decides
+    "system_awareness":          False,  # self-monitoring
+}
+
+
+def quiet_for_teaching(coordinator) -> Dict[str, bool]:
+    """Stop the recurring tiers a teaching session does not need (`TEACHING_KEEPS`), and say so.
+
+    THROUGH THE QUEUE AUTHORITY'S OWN ONE WAY TO STOP A JOB (`QueueAuthority.cancel`), so a tier that is stopped is
+    removed and never fires again -- not retuned to fire rarely, which would leave the substrate doing the same
+    thing less often and call it off. Returns what it stopped, by name.
+
+    Only on `LYRIC_TEACHING=1`, and never implied by anything else. NOT `LYRIC_ENVIRONMENT`, which already says
+    development and already defaults to it (`postgres_config.ENV_KEYS`): that names which line of the model a store
+    belongs to, and keyed off it every substrate everywhere would come up with its own state-sampling stopped. The
+    main model teaching is a different substrate from the one that serves, and which of them is running has to be a
+    decision somebody made, written where the log will show it."""
+    stopped: Dict[str, bool] = {}
+    queue = getattr(coordinator, "task_queue", None)
+    if queue is None or not hasattr(queue, "cancel"):
+        logger.warning("development mode: no queue authority to stop a tier on; every tier left running")
+        return stopped
+    scheduled = set(queue.scheduled_jobs()) if hasattr(queue, "scheduled_jobs") else set()
+    for tier, keep in TEACHING_KEEPS.items():
+        if keep:
+            continue
+        if tier not in scheduled:
+            # NOT FAKED EITHER WAY: a tier that is not scheduled was not stopped by this.
+            logger.info("development mode: tier '%s' was not scheduled; nothing to stop", tier)
+            continue
+        stopped[tier] = bool(queue.cancel(tier))
+    kept = [t for t, keep in TEACHING_KEEPS.items() if keep]
+    unknown = sorted(scheduled - set(TEACHING_KEEPS))
+    logger.info("DEVELOPMENT MODE: stopped %s; kept %s%s",
+                ", ".join(sorted(stopped)) or "nothing",
+                ", ".join(sorted(kept)),
+                f"; not named here and left running: {', '.join(unknown)}" if unknown else "")
+    return stopped
+
+
     # ========================================================================
     # PHASE 10: AUTONOMOUS COORDINATOR (THE SINGLETON)
     # ========================================================================
@@ -1321,6 +1385,11 @@ class LyricSystem:
             if self.autonomous_coordinator:
                 await self.autonomous_coordinator.start_coordination()
                 logger.info("✓ Autonomous coordinator started")
+
+                # A SUBSTRATE BEING TAUGHT DOES NOT WATCH ITSELF WORK. Its tiers are registered by
+                # `start_coordination`, so this is where they can be stopped (`TEACHING_KEEPS`).
+                if os.getenv("LYRIC_TEACHING", "").strip().lower() in ("1", "true", "yes", "on"):
+                    quiet_for_teaching(self.autonomous_coordinator)
 
             # A WORKER takes queued work and learns from it (`is_worker`); what watches, embeds and backs up the
             # store, the Lyric it works for does, once.
