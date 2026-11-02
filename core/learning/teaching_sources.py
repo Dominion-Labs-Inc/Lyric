@@ -4389,6 +4389,23 @@ _RESTRICTED_AS = {"+concrete": "physical_entity.n.01", "+animate": "living_thing
                   "+animal": "animal.n.01", "+container": "container.n.01", "+refl": ""}
 
 
+def _rolesets(frame_file) -> "Iterator[Any]":
+    """The rolesets of a PropBank frame file, and NONE where the file is not well formed.
+
+    PropBank's own `check.xml` and `rend.xml` are malformed (a mismatched tag; found 2026-10-29). Parsed without
+    this, the error came out of the whole word: `check` -- the 61st most written word of UD EWT and GUM -- was
+    refused a record entirely, losing its forms, its senses and their kinds along with the places the broken file
+    was to supply (2026-11-01). A word is worth more than one of its layers, so a file that cannot be read costs
+    that word its PropBank places and nothing else, as it already did everywhere the frames are read over all the
+    files at once (`propbank_roles_of_frames`, `_propbank_joins`).
+    """
+    import xml.etree.ElementTree as ET
+    try:
+        return list(ET.parse(frame_file).iter("roleset"))
+    except ET.ParseError:
+        return []
+
+
 def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: str = "train",
                    _cache: Dict[str, Any] = {}) -> WordRecord:
     """A word recorded whole (`WordRecord`) from what was made by hand of it, never written here: its forms as UD's
@@ -4546,7 +4563,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     frame_file = Path(SYNTAX_DATA) / "propbank-frames" / "frames" / f"{head}.xml"
     rolesets: List[Tuple[str, str, List[Tuple[Any, Dict[str, List[str]]]], Set[str]]] = []
     if any(s.word_class == "VERB" for s in senses) and frame_file.exists():
-        for roleset in ET.parse(frame_file).iter("roleset"):
+        for roleset in _rolesets(frame_file):
             if not str(roleset.get("id", "")).startswith(lemma_name + "."):
                 continue
             said: Dict[str, List[str]] = {}
@@ -4590,7 +4607,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     # their classes, the FrameNet frames its places are linked to) — paint.01 said as "painting" a noun too.
     propbank: List[Tuple[str, str, Tuple[Tuple[str, str], ...], Tuple[str, ...]]] = []
     if frame_file.exists() and not rest:
-        for roleset in ET.parse(frame_file).iter("roleset"):
+        for roleset in _rolesets(frame_file):
             if str(roleset.get("id", "")).startswith(lemma_name + "."):
                 propbank.append((str(roleset.get("id")), str(roleset.get("name") or ""),
                                  tuple((str(a.text or "").strip(), str(a.get("pos") or "")) for a in roleset.iter("alias")),

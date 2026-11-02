@@ -23090,21 +23090,62 @@ class Conversation:
                            support=support, conclusion=claim)]
 
         if not premises:
-            return []
+            return self._what_a_kind_is(meaning, asked_of)
         result = await bridge.reason(ReasoningRequest(
             query=sentence, context=premises, reading=reading,
             task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
                            "remembers": self._remembers}))
         if not (result.metadata or {}).get("verified") or not result.answer:
-            return []
+            return self._what_a_kind_is(meaning, asked_of)
         support = self._support_used(premises, result.reasoning_steps,
                                      result.metadata)
         # Same grounding guard for an open question: a word-overlap belief (its
         # answer is a bare "P(claim) = x") is not an answer to "what is X".
         if not self._grounded(result, support):
-            return []
+            return self._what_a_kind_is(meaning, asked_of)
         return [Answer(about="", relation="", others=(), verdict=None,
                        support=support, conclusion=self._render_atom(result.answer))]
+
+    def _what_a_kind_is(self, meaning, asked_of) -> List["Answer"]:
+        """WHAT A KIND IS, asked of the kind itself and not of any one thing of it: "What is paint?" -> "A paint is
+        a coating.". Empty where the question is not that one.
+
+        "What is paint?" reads `instance_of(?v0, coating paint) & same_as(?v0, ?v1)`, asking what a thing that is a
+        paint is the same as. Nothing is said of that thing but which kind it is, and memory holds no one paint, so
+        what is held as a whole answers nothing (`_asked_of_events`) and the reasoner is handed no single goal to
+        prove. What the question wants is what the KIND is, which the word recorded whole holds and which "Is paint
+        a substance?" is already answered from -- said here as `_held_as_both` says what each of two words is
+        (`MemoryAgent.word_meanings`, the nearest kind the record names).
+
+        A word recorded whole, with seven senses, their definitions and every kind up their chains, taught through
+        the one teaching path and refused nothing, answered "There was nothing in that I could resolve." to "What is
+        paint?" and "What is a picture?": four of TRAIN-FORMAT-02's twenty-one questions, and the plainest question
+        there is. Nothing caught it because the standard format was proven on one example and mirrored, and no
+        example asked it (lyric_dev taught from nothing, 2026-11-02).
+        """
+        from core.semantics.derived_reader import is_variable
+        words = _words_held()
+        if words is None or len(meaning.asked) != 1:
+            return []
+        asked = meaning.asked[0]
+        facts = [f for f in asked_of if f.positive and not f.condition]
+        same = [f for f in facts if f.relation == "same_as" and asked in (f.subject, f.obj)]
+        others = [f for f in facts if f.relation != "same_as"]
+        if len(same) != 1 or len(others) != 1:
+            return []
+        this = same[0].obj if same[0].subject == asked else same[0].subject
+        kind_of = others[0]
+        # NOTHING MAY BE SAID OF THE THING BUT WHICH KIND IT IS: a question that says more of it asks something
+        # else, and is not answered by what its kind is ("What is the wall made of?").
+        if not is_variable(this) or kind_of.subject != this or kind_of.relation not in ("instance_of", "isa") \
+                or is_variable(kind_of.obj):
+            return []
+        held = next(((m["word"], m["kind"]) for m in words.word_meanings(kind_of.obj)
+                     if m["named"] and m["kind"]), None)
+        if held is None:
+            return []
+        word, kind = held
+        return [Answer(word, "isa", (kind,), verdict=None)]
 
     async def _held_as_both(self, fact) -> List["Answer"]:
         """What answers "is an X a Y?" when neither yes nor no follows: the thing memory holds to be both. "Is a

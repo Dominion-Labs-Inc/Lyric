@@ -22984,3 +22984,76 @@ being built is the 5,042 open-class bases of UD EWT+GUM -- the treebanks the rec
 from, so the same authority, and nothing held out and measured on -- less main's 3,662: **3,326 words**, written
 most first so a run stopped part-way has recorded the words prose uses most. A file only; teaching it to main is the
 owner's to start. "Region's Both." is a saying defect and is not this.
+
+### THE STANDARD FORMAT WAS PROVEN ON ONE EXAMPLE AND MIRRORED, SO NOBODY ASKED "WHAT IS PAINT?"
+
+The owner, on being shown that answering a question works again: fix it, and ensure it does not happen again --
+"this seems to be an issue with the standardization plan, considering the fact that we created one example of how
+teaching is supposed to go and we mirrored that". He is right, and this is the measurement of it.
+
+**Done on a store that held nothing**, so nothing could be borrowed from work already in it: the sandbox line
+emptied (`reset_dev_store.py`, `lyric_dev` 261 rows -> 0), then the plan's own order, each pass through the one
+teaching path:
+
+| pass | taught | refused | reacting | competence in `general` |
+|---|---|---:|---:|---:|
+| `--source closed-classes` | 266 word classes, 438 propositions, 765 language | 0 | 929s | -> 0.611 |
+| `--source records` (TRAIN-FORMAT-02) | 19 words recorded whole | **0** | 15s | -> 0.711 |
+| `--source records` (TRAIN-FORMAT-01) | 1 sentence recorded whole | **0** | 14s | -> 0.794 |
+
+Each pass reviewed 4 of 4 things it held as learned and answered all 4 right, and reported "admissions the substrate
+was NOT told about: 0". **266 word classes, 63 percepts and 62 documents is exactly what main holds**, which
+confirms from an empty store that main has had the closed-classes pass and nothing else, and that its percepts are
+its own boot.
+
+**Then TRAIN-FORMAT-02's own checks, and the answer to "is it 100%?" was no:** 80 of 83 checks, and
+**questions 16 of 21 (76.2%) against a bar of 80%**. Four of the five failures were one group:
+
+```
+'What is paint?'        -> 'There was nothing in that I could resolve.'
+'What does paint mean?' -> 'There was nothing in that I could resolve.'
+'What is a picture?'    -> 'There was nothing in that I could resolve.'
+'What is a wall?'       -> 'I remember: A bracket encloses an aside. ...'
+```
+
+A word recorded whole with seven senses, their definitions and every kind up their chains, taught with nothing
+refused, every sentence read -- and **the plainest question there is could not be answered**. "Is paint a
+substance?", "Is a wall a structure?" and "Did Roy coat the wall?" all answered right from the same records, so the
+senses were in there and reachable.
+
+**Why.** "What is paint?" reads `instance_of(?v0, coating paint) & same_as(?v0, ?v1)`, asking what a thing that is a
+paint is the same as. Nothing is said of that thing but which kind it is, and memory holds no one paint, so what is
+held as a whole answers nothing and the reasoner is handed no single goal to prove. The concept graph holds nothing
+of these words at all (0 kinds above `coating paint`, `wall`, `picture`); what answers "Is paint a substance?" is
+the word record, through `MemoryAgent.word_kinds`, which already hands those chains up as premises:
+
+```
+'coating paint' -> isa coating, coloring material, artifact covering, material, artifact, substance   (14)
+'wall'          -> isa partition, structure, artifact, object whole, object, physical entity           (7)
+```
+
+**The fix** (`_what_a_kind_is`): a question asked of a kind and not of any one thing of it is answered by what the
+record says the kind is, the nearest kind it names -- said as `_held_as_both` already says what each of two words
+is (`word_meanings`). Tried only where nothing else answered, so no question that was answered before is answered
+differently. **19 of 21 (90.5%), and every bar met**: sentences 7/7, wrong 0/21.
+
+| | before | after | bar |
+|---|---:|---:|---|
+| sentences understood | 7/7 | 7/7 (100%) | >= 90% |
+| questions answered right | 16/21 (76.2%) | **19/21 (90.5%)** | >= 80% |
+| answered wrong | 0/21 | 0/21 | <= 2% |
+
+**STILL FAILING, AND NAMED.** Of the questions: "What does paint mean?" is misread -- `instance_of(?v1, average
+mean)`, "mean" taken as the verb to average -- and "Did Roy paint a representation?" is not answered. Of the checks:
+9 of 131 examples whose words are all taught read in their sense, and "Roy painted a picture." names the thing
+`painting` where the check asks for `picture`. The third failure, "the run is on lyric_dev2", is the store this run
+chose and no defect. And `_said` cannot say "A paint is a coating.", so a right answer was spoken as "Coating." --
+saying, which is the standing blocker and not this.
+
+**THE REAL LESSON, WHICH IS THE OWNER'S.** The gap was not in teaching, reading or the reasoner: all three did
+their part. It was that the standard's verification is a hand-written list of checks per example, so a layer or a
+kind of question nobody wrote a check for is invisible. This is the same defect, in the same shape, as (83): "a list
+of kinds written in the reporting script goes stale the moment a kind of learning is added, and nothing makes it
+fail when it does", cured there by asking the store what it holds and by a test holding the property for
+`Report.lines()`. The cure here is the same: the checks must be derived from `WordRecord`'s own layers crossed with
+the kinds of question, so a layer no question reads is a failure and not a hole.
