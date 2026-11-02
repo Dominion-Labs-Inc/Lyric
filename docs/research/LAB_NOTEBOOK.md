@@ -180,6 +180,40 @@ best published parsing of this corpus is 89.3 and Boxer, the hand-built system t
 bar that is reachable and that a user would feel is questions answered right end to end
 (UNDERSTANDS-PROSE-02, 9.4%).
 
+### AND THE MEASURE WAS ASKING FOR WORDS THE STORE DOES NOT HOLD
+
+*"you're testing lyric on shit that he doesn't know for what reason and then tying that into the score"* — and that
+is what the numbers above are. GRAMMAR-01's dev split is 911 sentences drawn from the whole PMB; the store holds
+3,662 words recorded whole. Worse for the ERG numbers specifically: **the bridge uses nothing Lyric learns**
+(`erg_against_gold` is files only, no store), so no score of it was ever about what Lyric knows. It measures the
+bridge.
+
+**What the store actually holds** (`lyric_db`, read only): 6,137 sentences recorded whole, 3,662 words recorded
+whole, 266 closed-class word classes, 25 word forms, 28 read_english. Of the 3,775 distinct open-class words those
+6,137 sentences use, **3,576 are held as a word record and 199 are not** — words before sentences holds for 94.7%
+of them, so the standard's own order is kept.
+
+**THE TAUGHT-WORDS SET WAS DRAWN AGAINST 228 WORDS.** `taught_words_test.json` lists 228 words and the 100 dev
+documents drawn against them, 77 with a gold meaning, and **every "77 held-out" number since 10-28 was measured on
+it** (dev2 46, main 40, bar 95%). It was drawn when a store held that many. Redrawn against what the store holds
+now (`diagnostics/draw_taught_set.py`, reads the store's own vocabulary through `PostgresConfig.resolve`):
+
+| | words it was drawn against | dev sentences it can ask |
+|---|---:|---:|
+| `taught_words_test.json` (10-28) | 228 | 77 |
+| `taught_now_test.json` | **842** | **490 of 911 (53.8%)** |
+
+Drawn with LYRIC'S OWN TOKENIZER and not a pattern of mine: the store holds `n't` as a negator, so a contraction is
+split and "isn't" is "is" + "n't", both held. Counted as one word it looked like the single biggest gap in the
+vocabulary (38 sentences) and is not one at all.
+
+**Nothing systemic is left out of reach.** The words that still put a sentence beyond the store are a long tail of 2
+to 4 sentences each: `mt`, `vain`, `tony`, `mediocre`, `lincoln`, `yumi`, `wanna`, `stung`, `norwegian`. Vocabulary
+breadth, one word at a time, not a missing layer of the record.
+
+**Not run.** The measure itself (`on_store.py` with the new set against `lyric_db`) reads the live store and has not
+been run; it waits on his word.
+
 ### Open
 
 1. **The predicate inventory for writing.** Reading takes the lemma out of `_disable_v_1`; writing has to put it
