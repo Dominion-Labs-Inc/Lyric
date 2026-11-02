@@ -214,6 +214,84 @@ breadth, one word at a time, not a missing layer of the record.
 **Not run.** The measure itself (`on_store.py` with the new set against `lyric_db`) reads the live store and has not
 been run; it waits on his word.
 
+### THE MAIN MODEL RESIDENT, AND WHAT STARTING IT COST TO FIND OUT
+
+*"why don't we just start lyric in Docker in idle mode ... so that way we don't have to keep waiting for it to
+warm. THE MAIN MODEL"*, and then: *"the constitution does not need to judge his language and shit while we're
+teaching it."*
+
+**THE WARM IS NOT 18.6 SECONDS, AND I SAID IT WAS.** `agent.initialize()` with `warm_word_classes()` is 18.6 s on
+`lyric_db` (4.7 s of import, 13.6 s of warm), and that is all `on_store.py` pays, so that is what I measured and
+reported -- as an argument that keeping a substrate resident would save almost nothing. The substrate pays
+`AutonomousCoordinator.ready_to_read()` as well, which `on_store.py` never calls:
+
+| | |
+|---|---:|
+| boot to word classes warmed | 23 s |
+| **`ready_to_read()`** | **13 min 13 s** (12:53:17 to 13:06:30) |
+| everything after it, to idle | 5 s |
+
+Over 3,662 words and 6,137 sentences recorded whole, in one pure-Python loop at 100% of a core, logging nothing
+while it runs. THAT is the cost a resident instance pays once instead of per run, and the ask was right.
+
+**Teaching mode** (`LYRIC_TEACHING=1`, `core/main.py`, which is not a protected module): the three tiers that are
+the substrate watching itself work are stopped through the queue authority's own one way to stop a job
+(`QueueAuthority.cancel`), so they are removed and never fire, not retuned to fire rarely. Measured on the live
+boot: `TEACHING MODE: stopped idle_system_state_refresh, motivation_refresh, system_awareness; kept affect_refresh,
+constitution_integrity, constitution_record, epistemic_affect`. Idle after it: **0.0% CPU, sleeping**.
+
+**THE CONSTITUTION DOES NOT JUDGE LANGUAGE, and never judged a taught fact.** It judges ACTS; nothing in the
+teaching path calls `judge_act`. What it does on a timer is drain judgements already made (30 s, an empty drain
+while nothing acts) and ask whether the machinery that judges was changed under it (120 s). The tier that DID score
+the substrate while it was being taught is long gone: `_check_constitutional_alignment` read a store still being
+taught as drift and wrote a drift memory of importance 1.0 per alert, and it came off the schedule on 2026-10-11.
+
+**AND THE SCHEDULER HOLDS TEN RECURRING JOBS, NOT SEVEN.** The coordinator registers seven; the queue authority
+adds `queue_heartbeat` (30 s), `reasoning_telemetry_flush` (300 s) and `queue_history_prune` (3600 s) of its own. I
+had counted the coordinator's list and said seven. The mode found them because it reports what it does not know:
+*"not named here and left running"*, rather than passing over a name its table has no entry for.
+
+**THE SENSES DEFAULT ON.** `sources_from_environment` takes `LYRIC_MICROPHONE` and `LYRIC_CAMERA`, falling back to
+the system default microphone and the first camera, so the instance came up *"listening to mic:default, looking at
+cam:0"* -- a substrate started to be taught, with the microphone open and nobody having asked for it. Listening is
+not idling. Stopped and restarted with both `off`.
+
+### Two defects, both found by starting the thing rather than by reading it
+
+1. **My own, in the commit before it ran.** `TEACHING_KEEPS` and `quiet_for_teaching` went in at column 0
+   immediately before a comment that sat INSIDE `LyricSystem`'s body, which ends a class: ten of its twenty methods
+   became module-level functions. `core.main` still parsed, the new tests still passed (they import two names and
+   never build the system), and the boot died 11 s in on `no attribute '_initialize_autonomous_coordinator'` and
+   again inside its own `finally` on `shutdown`, which hid the first. The guard asks `getattr` on the CLASS for
+   each of the nine methods the boot calls; asked of the module, a method that had slipped out would still import.
+2. **11 MB of log from one character.** `memory_agent`'s word-class warm handed its format string `derived`, the
+   LIST of 7,462 derived claims, where it said `%d`. Logging cannot format that and falls back to printing the
+   whole argument tuple: the same 3.8 MB line, three times. `tests/test_log_format_arity.py` now reads every logger
+   call in the tree with a literal format and countable arguments -- 1,456 over 1,037 files -- and holds that none
+   promises more than it is given.
+
+   **The sweep that found it was wrong twice, and both ways accused innocent code.** `%%` is a literal percent sign
+   and must be removed before counting, or "moved %.0f%% of the way" counts one too many (`% o` is a space-flagged
+   octal by the same rule) -- which named `autonomous_coordinator.py`, a PROTECTED module, while a substrate was
+   running. And the walk used `Path(".")`, so `/archive` and `/backups/` matched nothing and it counted staged
+   copies of that same protected module: 3,624 calls and six defects, none of them real and none of them live.
+
+### What a resident Lyric still cannot do
+
+**Nothing can hand it a job.** There is no HTTP server anywhere in the repo (no `uvicorn.run`, no `FastAPI(`, no
+`web.run_app`), so the gateway's `lyric-main` on 9001 and `LYRIC_CHAT_URL` on 9080 name servers that do not exist;
+the live front door is the world channel (`world.message` to `handle_user_request`), which a teaching instance must
+not attach to. `unified.system_control_commands`, which `lyric-systems` writes to, carries `(system, action)` --
+stop, start, restart -- and nothing else. So `teach.py` and `on_store.py` still each spawn a process and each pay
+`ready_to_read` again, and the resident instance is warm but unreachable. The job channel is the piece worth
+building, and the 13 minutes above is what it is worth.
+
+**And Docker cannot reach the store as it stands.** `listen_addresses` is `localhost`, so a container arriving over
+`host.docker.internal` reaches nothing, and Docker Desktop on macOS has no host networking that reaches the Mac's
+loopback. Containerising the main model needs the store opened beyond loopback (his call, and a restart of
+Postgres), which is the boundary the two instances were separated on in the first place. Run natively instead, by
+his decision.
+
 ### Open
 
 1. **The predicate inventory for writing.** Reading takes the lemma out of `_disable_v_1`; writing has to put it
