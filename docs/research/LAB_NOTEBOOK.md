@@ -127,6 +127,59 @@ as a yes or no question and skips `given` and `condition` facts when deciding, w
 it, written into the test as it came (`READ`), as `test_pmb_meanings` writes its documents, so what is tested
 is the bridge alone.
 
+### THEN THE WHOLE SHORTFALL WAS ACCOUNTED FOR, and four more causes came out of it
+
+*"why is everything not scoring above the 95% bar"* — so the 81.7% was broken down rather than guessed. The dev
+split's parses are cached (`erg_parse` once, then instant), every differing sentence bucketed by WHAT differs, and
+the biggest bucket read by eye.
+
+**The biggest bucket was one flag.** Of the 146 sentences with the gold's own links joined otherwise, **35 differed
+in `given` and nothing else**, 27 of them the same way: the ERG said already known where the gold did not, and every
+one of those 27 was a **possessive**. The cause is not a rule either side states. `pmb_meanings.KNOWN` holds "my"
+among the words that make a thing known, so by the rule the gold should mark it -- but the PMB writes the possessive
+as a line of its OWN, so the words of the thing possessed never include "my" and the flag is never set. The ERG uses
+`def_explicit_q` there, which was in `GIVEN_QUANTIFIERS`.
+
+**And a whole class of quantifier was invisible.** `_that_q_dem` does not end in `_q`. The three places that find a
+quantifier tested that suffix, so every "this", "that", "these" and "those" took a term of its own, said nothing,
+and never marked the thing it binds as known where the gold marks it. `_quantifies` replaces the suffix test.
+
+**Two more, found in the same sweep.** A reflexive is marked by the ERG (`PT: refl`) and was read as any other
+pronoun, so "Tom hated himself." said Tom hated somebody else; its term is the doer's now. And **one `?previous` is
+all the meaning language has** (`derived_reader.SITUATION_VARIABLES`), so "He fixed it." came out as the one spoken
+of before fixing ITSELF -- two pronouns the ERG holds different things of cannot both be said, and that is now a gap
+BY NAME rather than a wrong meaning. It costs 8 sentences their reading and none of them were right.
+
+| | start of day | after the operators | after the sweep |
+|---|---:|---:|---:|
+| right whole, senses aside | 156 (17.1%) | 167 (18.3%) | **200 (22.0%)** |
+| + the one before unnamed | 188 (20.6%) | 199 (21.8%) | **239 (26.2%)** |
+| the meaning language cannot say | 146 | 140 | 145 |
+
+### WHERE THE REMAINING 78% IS, named and counted
+
+| | n | what it is |
+|---|---:|---|
+| the meaning language cannot say it | **145 (15.9%)** | named gaps: `nominalization` 15, `superl` 14, `abstr_deg` 10, `_what+a_q` 9, `manner` 9, `unspec_manner` 9, a second `?previous` 8, `_very_x_deg` 7, `ellipsis_ref` 7, `_but_c` 7, `_any_q` 6, `subord` 5 |
+| ACE reads no whole | 14 (1.5%) | the lexicon, mostly |
+| read, meaning differs | 552 (60.6%) | 103 the same links joined otherwise, the rest a link one side has and the other does not |
+
+**THE CEILING IS 84.1%, NOT 95%, AND IT IS NOT THE READER'S.** 145 sentences say something the meaning language has
+no words for: it has no superlative, no "very", no manner, no nominalization, no "but", no universal quantifier, and
+one `?previous`. No work on the adapter or on the grammar can cross that line; the meaning language has to grow
+first, and each of those is a design decision, not a defect.
+
+Of the 552 that read and differ, the biggest bucket was read by eye (12 sentences): about half are the GOLD's own
+conventions and not errors at all -- `Mary bores me.` is `done_by(?speaker)` in the gold, the experiencer as the
+agent, where the ERG gives the syntactic subject; `rock music` is `rock` in the gold, the compound named by one
+sense; `LA` is `los angeles`. The other half are fixable, and the clean ones were fixed today.
+
+**And the arithmetic of exact whole-meaning match stands, from (102).** Every fact has to be right: facts F1 0.658
+gave 17.1% of whole meanings, Lyric's own 0.821 gives 42.4%, and 95% of whole meanings needs about 0.99 -- where the
+best published parsing of this corpus is 89.3 and Boxer, the hand-built system that MADE this gold, scores 74.3. The
+bar that is reachable and that a user would feel is questions answered right end to end
+(UNDERSTANDS-PROSE-02, 9.4%).
+
 ### Open
 
 1. **The predicate inventory for writing.** Reading takes the lemma out of `_disable_v_1`; writing has to put it

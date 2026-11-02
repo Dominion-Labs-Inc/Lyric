@@ -55,8 +55,26 @@ VERB_PLACES = {"ARG1": "done_by", "ARG2": "done_to", "ARG3": "received_by", "ARG
 #: A QUANTIFIER THAT SAYS THE THING IS ALREADY KNOWN (`given`): "the dog" is a dog the speaker and listener both
 #: know, where "a dog" is one not known before. The rest say nothing Lyric's language holds, and `every_q` says
 #: something it cannot hold at all.
-GIVEN_QUANTIFIERS = frozenset({"_the_q", "def_explicit_q", "def_implicit_q", "pronoun_q", "proper_q", "def_poss_q"})
-PLAIN_QUANTIFIERS = frozenset({"_a_q", "udef_q", "number_q", "idiom_q_i", "free_relative_q", "some_q", "_some_q"})
+#: A POSSESSIVE IS NOT AMONG THEM, though "my" is one of the words the gold calls known
+#: (`pmb_meanings.KNOWN`). The PMB writes the possessive as a line of its OWN (the owner's role), so the words of
+#: the thing possessed never include "my" and the gold does not mark it known -- 27 dev sentences differed from the
+#: gold in that one flag and nothing else, every one of them a possessive (2026-11-02).
+GIVEN_QUANTIFIERS = frozenset({"_the_q", "def_implicit_q", "pronoun_q", "proper_q",
+                               "_this_q_dem", "_that_q_dem", "_these_q_dem", "_those_q_dem"})
+
+
+def _quantifies(predicate: str) -> bool:
+    """Whether a predicate binds a thing and says of it whether it is already known, rather than saying anything the
+    meaning holds. MOST OF THEM END IN `_q` AND A DEMONSTRATIVE DOES NOT (`_that_q_dem`), so tested by the suffix
+    alone every "this", "that", "these" and "those" was invisible to the pass that reads quantifiers: it took a term
+    of its own, said nothing, and the thing it binds was never marked known where the gold marks it (6 dev
+    sentences, 2026-11-02)."""
+    return predicate.endswith("_q") or predicate.endswith("_q_dem")
+#: A POSSESSIVE'S OWN QUANTIFIER IS HERE and not above: it says the thing is somebody's, which the possessive's
+#: own fact already says, and it does NOT say the thing was spoken of before. Left out of both, every sentence
+#: holding a possessive was said as nothing for a quantifier the bridge had no word for.
+PLAIN_QUANTIFIERS = frozenset({"_a_q", "udef_q", "number_q", "idiom_q_i", "free_relative_q", "some_q", "_some_q",
+                               "def_explicit_q", "def_poss_q"})
 #: Quantifiers Lyric's meaning language has no words for: it has no universal quantifier at all (lab notebook (100)).
 UNSAYABLE_QUANTIFIERS = frozenset({"every_q", "_every_q", "_all_q", "_each_q", "_no_q", "_both_q", "_any_q",
                                    "which_q", "_which_q", "_most_q", "_many_q", "_few_q"})
@@ -213,10 +231,30 @@ def meaning_of(graph: Any) -> Said:
     # that a fact can be about gets a term, numbered as it is said, so two readings of one sentence name alike.
     said: List[str] = []
     for node in graph.nodes:
-        if node.predicate.endswith("_q"):
+        if _quantifies(node.predicate):
             continue
         said.append(node.id)
     term = {at: f"?v{k}" for k, at in enumerate(said)}
+
+    # ── A REFLEXIVE STANDS FOR WHOEVER DID IT ──
+    # "Tom hated himself." is a hating done to TOM, which is how the gold says it and how Lyric's own reading says
+    # it (`composition`: the hating done by Tom, done to "himself"). The ERG marks the pronoun itself (`PT: refl`)
+    # and otherwise leaves it a thing of its own, so read as any other pronoun it became "the one spoken of before"
+    # and the sentence said Tom hated somebody else (2026-11-02). Its term is the doer's from here on.
+    reflexive: Set[str] = set()
+    for node in graph.nodes:
+        if node.predicate != "pron" or str((node.properties or {}).get("PT", "")) != "refl":
+            continue
+        for other in graph.nodes:
+            if node.id not in other.edges.values():
+                continue
+            if (_lemma(other.predicate) or ("", "", ""))[1] != "v":
+                continue
+            doer = other.edges.get("ARG1")
+            if doer in term and doer != node.id:
+                term[node.id] = term[doer]
+                reflexive.add(node.id)
+            break
 
     facts: List[MeaningFact] = []
     denied: Set[str] = set()
@@ -235,6 +273,8 @@ def meaning_of(graph: Any) -> Said:
     held_back: List[Tuple[str, str]] = []
     #: (the one who could do it, the doing's word), for what "can" says (`ABLE`).
     able: List[Tuple[Optional[str], str]] = []
+    #: What the ERG holds of each pronoun said to point back, so two that cannot be one thing are told apart.
+    pointed_back: Set[Tuple[str, str, str]] = set()
 
     #: The marks of the node whose facts are being made (`Mark`), set by the walk and by each pass after it.
     marked: List[Mark] = [Mark()]
@@ -261,7 +301,7 @@ def meaning_of(graph: Any) -> Said:
     given: Set[str] = set()
     asked: Set[str] = set()
     for node in graph.nodes:
-        if not node.predicate.endswith("_q"):
+        if not _quantifies(node.predicate):
             continue
         bound = node.edges.get("BV")
         if node.predicate in GIVEN_QUANTIFIERS:
@@ -394,7 +434,7 @@ def meaning_of(graph: Any) -> Said:
         here = of(node.id)
         parts = _lemma(node.predicate)
         marked[0] = marks.get(node.id, Mark())
-        if node.predicate.endswith("_q") or node.id in copula or node.id in together or node.id in operators:
+        if _quantifies(node.predicate) or node.id in copula or node.id in together or node.id in operators:
             continue
         if parts is None:
             # ── the grammar's own predicates ──
@@ -415,10 +455,19 @@ def meaning_of(graph: Any) -> Said:
                 # one of them is a member of, which is how the PMB says it -- "We buy CDs." is a buying done by a
                 # group the speaker is a member of (`has_member`), never by the speaker. Taken as the speaker
                 # outright, every first-person plural sentence was one fact short and one fact wrong.
+                if node.id in reflexive:
+                    continue        # its term is the doer's already
                 held_of = node.properties or {}
                 person, number = str(held_of.get("PERS", "3")), str(held_of.get("NUM", "sg"))
                 one = {"1": "?speaker", "2": "?listener"}.get(person)
                 if one is None:
+                    # ONE `?previous` IS ALL THE MEANING LANGUAGE HAS (`derived_reader.SITUATION_VARIABLES`), so
+                    # two pronouns that cannot be the same thing cannot both be said: "He fixed it." came out as
+                    # the one spoken of before fixing ITSELF, which is not what the sentence says, and the measure's
+                    # own way of lining a pronoun up with the gold cannot undo a merge
+                    # (`pronouns_as_unknowns`). Told apart by what the ERG holds of each, since two mentions of
+                    # "he" ARE one thing and "he" and "it" are not.
+                    pointed_back.add((person, number, str(held_of.get("GEND", ""))))
                     counted[node.id] = "?previous"
                 elif number == "pl":
                     add("has_member", here, one)
@@ -689,6 +738,8 @@ def meaning_of(graph: Any) -> Said:
         if at and not any(at in (f.subject, f.obj) for f in facts):
             add("instance_of", at, says)
 
+    if len(pointed_back) > 1:
+        gaps.append("nothing said for:a second one spoken of before")
     if gaps:
         return Said(None, tuple(sorted(set(gaps))))
     kept = list(dict.fromkeys(facts))
