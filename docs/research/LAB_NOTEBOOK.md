@@ -16,6 +16,127 @@ Conventions:
 
 ---
 
+## 2026-11-02 (106) — What stands over a clause: a denial reached the modal and not the thing denied, and a modal was read as a happening called "may" with no gap named
+
+**Objective.** *"so for days we have been waisting time on lyrics hand built reading and responding modules. i want
+to strip the modules and use [ACE + the ERG, Lyric's own system, SimpleNLG] ... unless lyric already has it"*, and
+then: *"The adapter is the part you would still need to build ... It must preserve negation, uncertainty,
+conditions, and who did what to whom, not merely extract nouns and verbs."*
+
+### What already existed, so the question is answered first
+
+The parse side is here and has been since (102): PyDelphin 1.11.0 installed, ACE 0.9.34 and the ERG 2018 in
+`tools/delphin/` (583 MB, `.gitignore`), run under Docker because the macOS build predates the Apple Silicon fix,
+and `core/semantics/erg_meanings.py` the bridge. It is wired into GRAMMAR-01 and nothing else. **SimpleNLG is not
+needed** (below). What was missing is exactly what the objective names: of the four, only who-did-what-to-whom was
+read.
+
+### THE FOUR THINGS, MEASURED ON LYRIC'S OWN DOMAIN BEFORE ANYTHING WAS CHANGED
+
+24 sentences about accounts, access, approvals and deploys. ACE read 21; the bridge said **18** of the 24 as
+something, and of those:
+
+| | before | cause |
+|---|---|---|
+| who did what to whom | 4 of 5 | a verb's third place filled by a PHRASE read as a recipient |
+| negation | 2 of 4 | "never" read as a quality; a denial over a modal landed on the modal |
+| **uncertainty** | **0 of 4** | a modal read as an ordinary verb, **and no gap named** |
+| conditions | **0 of 4** | `_if_x_then` and `_when_x_subord` unread, so the sentence was said as nothing |
+
+### The errors, each with its cause
+
+1. **A denial two levels up landed one level down.** `Jordan might not be an administrator.` is `neg` over
+   `_might_v_modal` over `_be_v_id`. Read a level at a time, the denial was a fact of the MODAL and the meaning said
+   **Jordan IS an administrator**. Cause: the operator was resolved to what fills its place, not to what it finally
+   speaks of. `governs` now follows the chain.
+2. **A modal was a happening called "may", and the loss was SILENT.** `Jordan may have disabled the account.` came
+   out `instance_of(?v1, may)` with the disabling **told as fact** and `gaps == ()`. Every other thing the bridge
+   cannot say is named (`Said.gaps`); this one was not, so nothing in the record showed it.
+3. **"never" was a quality.** `has_property(?v, never)` with the approving told as having happened, where Lyric's
+   own reading has "not" and "never" both negate (`propbank_roles.Said`).
+4. **A phrase was a third participant.** `_remove_v_1 ARG1 Jordan, ARG2 Luis, ARG3 _from_p`: the third place holds
+   the "from" PHRASE, and read as a participant every such sentence said somebody received something, of a term no
+   other fact mentioned. The ERG was right and I misread it: `_from_p ARG1 Luis` says Luis came from the team.
+5. **Every "when" asked where.** The ERG says a bare time with the predicate it says a bare place with
+   (`loc_nonsp`), and what tells them apart is what fills its second place (`time_n` against `place_n`).
+6. **A conditional sentence had no time, and the first verb in the graph's order was the CONDITION's.** The ERG
+   names `_if_x_then` or `_may_v_modal` as the sentence's own top and holds no tense on either, so the main
+   happening has to be found through it. A hedged happening is untensed besides (`TENSE: untensed PERF: +`), so read
+   by tense alone it lost its time altogether.
+
+### Built
+
+One pass over the graph for all three, because the ERG writes all three alike, as a predicate taking the clause as
+its place: `DENYING` (`neg`, `_never_a_1`, `_no+longer_a_1`), `HEDGING` (`_may_v_modal` and seven more, to
+`possible` or `probable`), `CONDITIONING` (`_if_x_then`, `_when_x_subord`, `_unless_p_1`, the last being the
+condition DENIED as `propbank_roles` says it), `ABLE` (`_can_v_modal`, to `relation_types.CAPABLE_OF`). Each lands
+in the field Lyric already has for it: `has_property(e, false)` for a happening denied, `MeaningFact.positive` for a
+link denied, `unasserted` for what the sentence does not tell as so, `condition` for what must hold first.
+
+**MARKED WHEN THE FACT IS MADE, never afterwards by the term it is about.** Marked at the end by term, `If the
+token is invalid, the session ends.` cannot work: the quality's fact is about the token, which the consequent speaks
+of too. **What both already know takes no mark** (`MeaningFact.given`): "the account" is an account whether or not
+he disables it.
+
+**Every other modal is a gap BY NAME.** Obligation ("must", "should") has no link in the meaning language, so
+`Jordan must approve the request.` is said as nothing and says why, rather than as a happening named "must".
+
+### Measured
+
+The same instrument as (102), `erg_against_gold.py`, the PMB dev split's 911 sentences with a gold meaning:
+
+| | before | after |
+|---|---:|---:|
+| right whole, senses aside | 156 (17.1%) | **167 (18.3%)** |
+| + the one before unnamed | 188 (20.6%) | **199 (21.8%)** |
+| the meaning language cannot say | 146 (16.0%) | **140 (15.4%)** |
+| read, meaning differs | 595 (65.3%) | 590 (64.8%) |
+
+`class:_if_x_then` is gone from the gap list (7 sentences). On the first 300 alone, 31.3% to 32.7%. **This is the
+first change to this bridge that moved the number forward**: (102)'s six conventions went 15.0, 20.8, 20.8, 17.7,
+18.0, 16.9, 17.1. On the 24 domain sentences, the bridge now says **21 of 24** where it said 18, and all four of the
+things named are kept.
+
+### THE ERG'S LEXICON IS THE LIMIT ON THE LANGUAGE A USER TYPES, not the grammar
+
+`The release broke the payment service.` reads. `The deploy failed.` reads **nothing at all** -- not a partial
+parse, nothing -- because the 2018 lexicon has "deploy" only as a verb. Same for `rolled back` and `signed in`.
+Covering a word the lexicon lacks means feeding ACE POS tags for it, which means a tagger in front of it, which is a
+statistical model. That is the one place where this road meets the model-free line.
+
+### SimpleNLG IS NOT NEEDED: the same grammar writes
+
+ACE generates (`-e`). An MRS **assembled by hand from Lyric's facts** -- one quantifier a thing (`_the_q` where the
+fact is `given`, else `_a_q`), the verb's places as `ARG1`/`ARG2`, the tense from `precedes`, and **the scope simply
+defaulted**, since Lyric's meaning language holds none -- generated `Jordan disabled the account.` So the scope the
+meaning language cannot hold is not an obstacle to writing, only to reading back exactly. ACE returns a SET of
+wordings (8 here, including the passive and `the acc't`), so a chooser is the piece that would be needed, not a
+second grammar. Java 17 is on the machine if SimpleNLG is wanted anyway.
+
+### Where the strip stands
+
+On this measure Lyric's own grammar is 42.4% whole against the bridge's 18.3%, and the bridge is a day and a half
+old against a grammar that has had weeks. **Not yet**, and (102)'s argument stands that this benchmark's
+whole-meaning match is the wrong bar for either of them. What has changed is that the bridge now preserves what
+answering needs, and in the shape Lyric's answerer already reads: `_asked_of_events` treats `ask` with nothing asked
+as a yes or no question and skips `given` and `condition` facts when deciding, which is what the new marks are.
+
+### Verified
+
+`tests/test_erg_meanings.py`, **25 of 25**, with no ACE and no Docker in it: each sentence's MRS is what ACE read of
+it, written into the test as it came (`READ`), as `test_pmb_meanings` writes its documents, so what is tested
+is the bridge alone.
+
+### Open
+
+1. **The predicate inventory for writing.** Reading takes the lemma out of `_disable_v_1`; writing has to put it
+   back, and a predicate the ERG does not hold generates nothing. The principled answer is that the predicate a word
+   is written with is the one it was READ with, recorded as reading earns it.
+2. The round trip is still unmeasured: parse, bridge, bridge back, generate, compare.
+3. `plus_c` (4 sentences) surfaced as a gap once `_if_x_then` stopped nulling its sentences first.
+
+---
+
 ## 2026-11-01 (105) — The reading measure charged the word records for using the senses they were built to hold, and a fifth of the questions could not be read at all: a preposition carried along with the wh-phrase was a thing
 
 **Objective.** *"there was a big fucking issue with lyrics fucking reading responding and understanding. This has

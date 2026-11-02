@@ -24583,15 +24583,26 @@ class Conversation:
                                      if understanding.recall else [])
                          if m.agrees is False]
         if contradicting:
-            lines.append("I have the opposite on record: "
-                         + contradicting[0].text[:200])
+            # THE OPPOSITE ON RECORD IS SAID, NOT DUMPED. This appended
+            # `contradicting[0].text[:200]`: the store's own text, cut off mid
+            # sentence at two hundred characters. A record carries the facts it
+            # was read as (`Recalled.facts`), so they go through the one saying
+            # path like every other fact, and where saying has no sentence for
+            # them nothing is said. A truncated record is not a sentence.
+            opposite = [s for s in (_said(f[1], f[0], f[2], bool(f[3]) if len(f) > 3 else True,
+                                          named=named, framed=framed, kinds=understanding.kinds)
+                                    for f in (contradicting[0].facts or ())) if s]
+            if opposite:
+                lines.append("I have the opposite on record: " + " ".join(opposite))
 
         # SAY WHAT JUST CHANGED. A turn that quietly stored something, or
         # quietly failed to, is a turn you cannot trust twice.
         for item in understanding.acquired:
             if item.stored and understanding.asked:
-                lines.append(f"I did not have {item.label}. I looked it up: "
-                             f"{item.description}")
+                # WITHOUT THE STORE'S NAME FOR IT. This opened "I did not have
+                # coat_paint_c60b554a." -- the name memory made for a thing it
+                # met, which is nobody's word for anything.
+                lines.append(f"I looked that up: {item.description}")
                 if item.origin:
                     lines.append(f"    (from {item.origin})")
             elif item.stored:
@@ -24606,13 +24617,18 @@ class Conversation:
                     said = [s for s in (_said(item.label, relation, other, named=named, framed=framed,
                                               kinds=understanding.kinds)
                                         for relation, other in item.relations) if s]
+                # NOTHING STANDS IN FOR A SENTENCE SAYING CANNOT SAY. These
+                # were "Noted." and "Noted - I'll hold that about <label>",
+                # and the label is the store's own name for a thing:
+                # "coat_paint_890984b3", "population_ce500198" -- 663 such
+                # names in 92 of 147 replies to a published sentence
+                # (UNDERSTANDS-PROSE-02, 2026-10-26). Worse than ugly, it made
+                # a telling look acknowledged where what was held of it could
+                # not be said back, so the hole in saying never showed. A fact
+                # saying has no sentence for is a fact saying must learn to
+                # say; it is not a name to print.
                 if said:
                     lines.append("Noted - " + " ".join(said))
-                elif item.rule:
-                    lines.append("Noted.")
-                else:
-                    lines.append(f"Noted - I'll hold that about "
-                                 f"{ {'?listener': 'you', '?speaker': 'me'}.get(item.label, item.label)}.")
             elif item.detail and not understanding.asked:
                 # NOT HELD, AND WHY. A telling that was read but not held says
                 # its own reason; it is not a look-up that found nothing.
@@ -24756,62 +24772,23 @@ class Conversation:
             return (f"I hold nothing for {asked_about}. "
                     f"Tell me and I will keep it.")
 
-        # Recite a memory only if it is a CLAIM worth saying back. Pre-readability
-        # records are reader-oriented prose -- "Query: ... Answer: ...",
-        # "Learning: ... — a; b; c" -- that recite as noise; a record that is not
-        # a single clean statement is skipped rather than said back malformed as
-        # if it were remembered knowledge.
-        _junk = ("query:", "answer:", "reasoning steps", "learning:",
-                 "conclusion(s)", "premise(s)", "[premise")
         # WHAT THE QUESTION IS ABOUT: the things its meaning's facts are said
-        # of. What is recited and what is listed is about them, never about
-        # whatever else a word of the sentence happened to find.
+        # of. What is listed is about them, never about whatever else a word of
+        # the sentence happened to find.
         about = ({str(f.subject).replace("_", " ").lower() for f in asked_meaning.facts
                   if not is_variable(f.subject)} if asked_meaning is not None else set())
-        said_now = str(understanding.sentence or "").strip().rstrip(".?!").lower()
-
-        def names_in(facts) -> set:
-            return {str(term).replace("_", " ").lower() for f in facts for term in (f.subject, f.obj)
-                    if not is_variable(term)}
-        # WHAT A MEMORY CLAIMS WAS DECIDED WHEN IT WAS STORED, and is not decided again here: "the asked sentence
-        # is read; what is remembered is not, again" (`live_recall.harvest`), and one stored with no claim claimed
-        # nothing readable then. Recited from a second reading of its words, the account the senses wrote of a file
-        # became knowledge: "Is South Asia a sub-region of Asia?" was answered "I remember: 2970x1770 png image, 1
-        # region(s)." (2026-11-01).
-        claimed = ({m.text for m in understanding.recall.memories[:_RECALLED] if m.facts}
-                   if understanding.recall is not None else None)
-        claims = [(m, _claim_facts(m)) for m in understanding.remembered
-                  if (claimed is None or m in claimed)
-                  and m and "\n" not in m and len(m) <= 220
-                  and not any(j in m.lower() for j in _junk)
-                  # Not the question itself, remembered a moment ago: that is not
-                  # something known about what it asks.
-                  and m.strip().rstrip(".?!").lower() != said_now
-                  and not m.strip().endswith("?")
-                  # And about what was asked: a memory that names none of it is
-                  # not an answer, however recall came to hand it up.
-                  and (not about or any(name in m.replace("_", " ").lower() for name in about))]
-        # And a CLAIM: what it reads, through what it was taught, as a telling. A
-        # record of hearing a word said, or a file's size, is an episode, not
-        # knowledge about what was asked. Of the claims, the one naming most of
-        # what the question names, in the order recalled where they name as much:
-        # asked "Did the blip run?", "The kelt said that the blip ran." before "A
-        # blip is an animal.".
-        asked_names = names_in(asked_meaning.facts) if asked_meaning is not None else set()
-        claims = [(m, facts) for m, facts in claims if facts]
-        recitable = max(claims, key=lambda claim: len(asked_names & names_in(claim[1])))[0] if claims else None
-        if recitable:
-            # A REMEMBERED CLAIM IS QUOTED AS IT WAS SAID: it is someone's
-            # sentence, and saying it over with a template over its relation's
-            # label is how "broken clock at_location repair shop" reached a
-            # person. Underscores are the store's spelling, never a person's.
-            plain = recitable.replace("_", " ").strip()
-            lines.append("I remember: "
-                         + (plain if plain.endswith((".", "?", "!")) else plain + "."))
-        elif understanding.recall is not None and not understanding.recall.complete:
-            # SAY SO. An answer that nearly had a memory is a different answer
-            # from a complete one, and only one of them is worth trusting twice.
-            lines.append("(still searching memory — ask again for more)")
+        # A REMEMBERED RECORD IS NOT AN ANSWER, AND NOTHING RECITES ONE.
+        # What stood here chose the stored record naming most of what the
+        # question named and said it back as "I remember: ...". A record is the
+        # store's own text, so what reached a person was the store talking: "Is
+        # South Asia a sub-region of Asia?" was answered "I remember: 2970x1770
+        # png image, 1 region(s)." (2026-11-01), and over a published-prose run
+        # a recitation stood in for an answer 23 times in 144
+        # (UNDERSTANDS-PROSE-02, 2026-10-26). It ran only where nothing matched
+        # what was asked -- exactly where it hid that the substrate could not
+        # say what it held. The note that memory was still being searched went
+        # with it: that is the machinery describing itself, not an answer. What
+        # is held is said through what saying was taught, or it is not said.
 
         if not known and (lines or asking):
             return _spoken(lines + asking)
@@ -24860,28 +24837,39 @@ class Conversation:
             said = list(itertools.islice(
                 (s for s in (_said(item.phrase, relation, other, named=named, framed=framed, kinds=understanding.kinds)
                              for relation, other in relations) if s), 5))
+            # WHAT CANNOT BE SAID IS NOT ANNOUNCED. Three stand-ins stood
+            # here: the store's own description string ("A wall: met in use
+            # ..."), "I hold things about X that I have not been taught to say
+            # yet", and "I hold X but nothing said about it yet". The middle one
+            # was the largest single reply to a question on published prose --
+            # 44 of 144 (UNDERSTANDS-PROSE-02, 2026-10-26) -- and all three say
+            # the same thing: saying has no sentence for the facts held. Of the
+            # twenty relations reading prose produces, saying can say three;
+            # `done_by`, `done_to`, `part_of`, `located_in` and `owned_by` have
+            # no sentence at all, so "Roy painted the wall." can be read and
+            # cannot be said (lyric_dev, 2026-11-02). That is saying's to fix,
+            # and a sentence about the gap in place of the answer only hides how
+            # big it is.
             if said:
                 lines.append(" ".join(said))
-            elif item.description and "met in use" not in item.description:
-                # A real definition is worth saying; the store's own note about
-                # how a word was first encountered is not an answer to anything.
-                lines.append(f"{item.phrase[:1].upper()}{item.phrase[1:]}: "
-                             f"{item.description}")
-            elif item.phrase in understanding.kinds:
-                continue
-            elif item.relations or item.phrase in understanding.pointed_at:
-                lines.append(f"I hold things about {item.phrase} that I have not "
-                             f"been taught to say yet.")
-            else:
-                lines.append(f"I hold {item.phrase} but nothing said about it yet.")
 
         # ASK, rather than answer around it. A phrase the store holds twice is
         # not one the substrate can answer about until it knows which was meant.
         for item in known:
             if item.alternatives and not item.head_of:
-                where = ", ".join(d or c for c, d in item.alternatives)
-                lines.append(f"Which {item.phrase} do you mean — the one in "
-                             f"{item.domain}, or in {where}?")
+                # ASKED BY WHAT EACH ONE MEANS, NEVER BY WHERE IT IS KEPT.
+                # This asked "the one in <domain>, or in <concept id>" and named
+                # the store's own shelves -- "reading", "code_generation",
+                # "environment_dc1455ad4d39ee9c" -- which say nothing about
+                # which thing is meant. A sense nothing is said of cannot be
+                # told apart in words, so it is not offered as a choice, and
+                # where none can be told apart the question is not asked.
+                meanings = [m for m in ([item.description]
+                                        + [d for _concept, d in item.alternatives])
+                            if m and "met in use" not in m]
+                if len(meanings) > 1:
+                    lines.append(f"Which {item.phrase} do you mean — "
+                                 + ", or ".join(meanings) + "?")
 
         if unknown:
             lines.append("I hold nothing for "
