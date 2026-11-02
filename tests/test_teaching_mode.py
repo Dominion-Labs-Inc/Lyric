@@ -96,3 +96,29 @@ def test_every_tier_named_here_is_one_the_coordinator_schedules(tier):
     source = (Path(__file__).resolve().parents[1]
               / "core/agents/autonomous/autonomous_coordinator.py").read_text()
     assert f'("{tier}"' in source, tier
+
+
+#: THE METHODS THE BOOT CALLS ON `LyricSystem`. Adding `quiet_for_teaching` and its table at column 0 inside the
+#: class body ENDED THE CLASS: ten methods after that point became module-level functions, `core.main` still
+#: parsed, and every check above still passed, because they import two names and never build the system. The
+#: substrate then died eleven seconds into its boot on `'LyricSystem' object has no attribute
+#: '_initialize_autonomous_coordinator'`, and died again in its own `finally` on `shutdown` for the same reason,
+#: which hid the first (2026-11-02). A thing defined at module level has to BE at module level.
+BOOT_CALLS = ("initialize", "start", "run", "shutdown", "_initialize_autonomous_coordinator",
+              "_system_control_loop", "get_system_status", "open_senses", "close_senses")
+
+
+@pytest.mark.parametrize("name", BOOT_CALLS)
+def test_the_system_still_holds_the_methods_its_boot_calls(name):
+    """`getattr` on the class, not on the module: a method that slipped out of the class body is still importable
+    from `core.main` and would pass a test that only asked whether the name exists somewhere."""
+    from core.main import LyricSystem
+    held = getattr(LyricSystem, name, None)
+    assert callable(held), f"LyricSystem.{name} is not a method of the class"
+
+
+def test_quiet_for_teaching_is_module_level_and_not_a_method():
+    """It is called from inside the class and must not be one of its attributes."""
+    import core.main as m
+    assert callable(m.quiet_for_teaching)
+    assert not hasattr(m.LyricSystem, "quiet_for_teaching")
