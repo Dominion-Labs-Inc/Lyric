@@ -225,14 +225,17 @@ teaching it."*
 reported -- as an argument that keeping a substrate resident would save almost nothing. The substrate pays
 `AutonomousCoordinator.ready_to_read()` as well, which `on_store.py` never calls:
 
-| | |
-|---|---:|
-| boot to word classes warmed | 23 s |
-| **`ready_to_read()`** | **13 min 13 s** (12:53:17 to 13:06:30) |
-| everything after it, to idle | 5 s |
+| | first boot | the boot after it |
+|---|---:|---:|
+| boot to word classes warmed | 23 s | 20 s |
+| **`ready_to_read()`** | **13 min 13 s** | **3 min 31 s** |
+| everything after it, to idle | 5 s | 5 s |
 
 Over 3,662 words and 6,137 sentences recorded whole, in one pure-Python loop at 100% of a core, logging nothing
-while it runs. THAT is the cost a resident instance pays once instead of per run, and the ask was right.
+while it runs. MOST OF WHAT IT LEARNS IS KEPT: the same boot repeated, with nothing taught in between, cost 3 min
+31 s rather than 13 min 13 s, so the 13 minutes is what a store pays once after it changes and the 3 and a half is
+what every process pays for having started. Either way a resident instance pays it once instead of per run, and
+the ask was right.
 
 **Teaching mode** (`LYRIC_TEACHING=1`, `core/main.py`, which is not a protected module): the three tiers that are
 the substrate watching itself work are stopped through the queue authority's own one way to stop a job
@@ -268,7 +271,8 @@ not idling. Stopped and restarted with both `off`.
    LIST of 7,462 derived claims, where it said `%d`. Logging cannot format that and falls back to printing the
    whole argument tuple: the same 3.8 MB line, three times. `tests/test_log_format_arity.py` now reads every logger
    call in the tree with a literal format and countable arguments -- 1,456 over 1,037 files -- and holds that none
-   promises more than it is given.
+   promises more than it is given. **Verified in the running system**: the same boot wrote 452 KB of log where it
+   had written 11 MB.
 
    **The sweep that found it was wrong twice, and both ways accused innocent code.** `%%` is a literal percent sign
    and must be removed before counting, or "moved %.0f%% of the way" counts one too many (`% o` is a space-flagged
