@@ -23146,3 +23146,150 @@ full width is wrong.
 is not 100%: it is not. 18 of 21 questions, 4 checks failed, and one capability lost ("Did Roy coat the wall?",
 answered before, unanswered now). **Main was not wiped and no full batch was run.** The fix is named and measured:
 choose one frame for a happening and take every place from it.
+
+### ONE FRAME ANSWERS FOR ONE HAPPENING, AND ONE TAGGED USE IS ONE USE
+
+The owner, on being handed a night of measurement and no fix: "the point was not to waste eight hours. You could
+have fixed the error and run teaching." Both defects named last night are fixed here, each at its rule, each
+measured over the PMB before it went in.
+
+**THE FIRST: a verb's places were linked one at a time.** `Lexicon.framed` was asked for one place per call and
+chose afresh among the frames that fit, so "Roy painted the medal with paint." took `done_to` for the medal from
+one frame of `paint` and `done_to` again for the paint from VerbNet's filling frame -- a painting done to two
+things, which no single frame says.
+
+`Lexicon.places_framed` replaces it: the frames of the sense the sentence means (else of the word's) vote on each
+place as before, but **a frame votes on a place only where it agrees with the links already given** -- what
+teaching said of the verb's places first, then the subject, the object, the thing before it, and the places after a
+preposition, the places read most surely deciding the analysis the rest are read under. A preposition no frame of
+the sense names is answered by the word's frames, again only by one that agrees, and only where it names that very
+preposition: a frame whose prepositional place names no preposition cannot be stretched onto one another frame of
+the word names otherwise. The reader asks it once per happening (`framed_of`), not once per place.
+
+Over the PMB's 9,552 gold train documents (`GRAMMAR-01/diagnostics/verb_places.py`, extended with the rule):
+
+| place | a place at a time | read as one analysis |
+|---|---:|---:|
+| subject (6,455) | 92.6% | 92.6% |
+| object (3,639) | 86.2% | **86.5%** |
+| after a preposition (2,121) | **45.1%** | 43.4% |
+| the second of two (243) | 89.7% | **90.1%** |
+| a passive's subject (678) | 44.0% | **44.1%** |
+
+So coherence costs 1.7 points after a preposition and gains a little everywhere else; it is near enough a wash on
+the gold and it is the only reading that can be defended, since the figures a place at a time are an average over
+analyses that contradict each other. **Choosing one frame outright** (its places taken whole, no vote) was measured
+first and is worse everywhere -- subject 90.3%, object 83.1%, second 79.4% -- because the vote across the frames
+that fit is a majority over compatible analyses, not an arbitrary pick. That is why the rule keeps the vote and
+adds agreement rather than replacing it.
+
+**Was the frames' authority over the object the thing to undo?** No, and the gold says so. Asked what the frames
+give each place and how often that is the gold:
+
+| the frames say the object is | places | right |
+|---|---:|---:|
+| `done_to` | 2,826 | 92.3% |
+| `moves_to` | 63 | 71.4% |
+| `moves_to`, nothing said after a preposition | 59 | 74.6% |
+
+A bare object linked `moves_to` is what the PMB says three times in four, so VerbNet's filling analysis of "coat
+the wall" is right by the gold and is not a defect to remove.
+
+**THE SECOND: one tagged use outweighed eighty-three.** `Lexicon.thing_sense_of` weighed the place of a doing a
+thing fills by the information of the most specific kind the sense shares with anything that doing was seen done
+to -- the information alone, with no weight for how much was seen. SemCor holds ONE coating done to a slope, so
+"Roy coated the wall." read the wall a geological formation (`geological formation wall`, used once, against the
+83 uses of the wall that is a partition); and SemCor holds ONE representing-paint done to a painting, so "Roy
+painted a picture." read the picture a `painting`.
+
+The information of the kind now counts for the share of the uses whose thing is of that kind, Lidstone-smoothed, as
+Resnik (1993) weighs what a verb's place prefers by how much of what it was seen with is of the kind rather than by
+the kind's information alone. "Roy coated the wall." is a wall again.
+
+**THE LOGGING, AS ASKED, AT BOTH HALVES OF TEACHING AND AT EVERY DECISION OF A READING.**
+
+- `TRAIN-FORMAT-02/diagnostics/layers_landed.py` now holds a record through BOTH halves of teaching a word --
+  English's grammar (`GrammarView.hold_word`) and memory's own views (`MemoryAgent._learn_word_record`: the forms
+  held, `StructureView.hold_joins`, the word classes, what the word names) -- and counts **every** table each view
+  holds by name (`vars`), nothing named by hand. `joined_as` (65 entries) and `related_as` (60) now show where they
+  land, and so does `verbnet_frames` (18 -> `lexicon.frames_said`), which the old hand-written list of tables
+  missed. Nine layers of `paint` still land nowhere: `word`, `source`, `licence`, `split` by design (what the
+  record is and where it came from), and **`tags` (6), `enhanced` (13), `misc` (5), `covered` (33) and `rolesets`
+  (3), which are taught and read by nothing.**
+- `TRAIN-FORMAT-02/diagnostics/how_it_read.py` prints what a reading already records and nothing ever showed
+  (`Reading.decided`): every link it spelled out and what decided it -- the word's own uses, what memory holds it a
+  kind of, its verb's frames, the grammar's own link -- and beside it the two decisions made from a word recorded
+  whole and nowhere visible: the frames held of each happening with how each fits the places said and the one
+  analysis they gave, and every sense of each thing with how often it is used, the kind it shares with what the
+  doing was seen with, and what each contributes. Last night's defect was traced by hand, one probe at a time; this
+  is one command.
+
+**WHAT IS STILL NOT ANSWERED, AND WHY IT IS NOT A READING DEFECT.** "Did Roy coat the wall?", told "Roy painted the
+wall.", is still unanswered, and the measurement says neither reading is wrong:
+
+```
+told   Roy painted the wall.   instance_of(?e, coat paint) & done_to(?e, wall)
+asked  Did Roy coat the wall?  instance_of(?e, to coat)    & moves_to(?e, wall)
+```
+
+WordNet says the first is a kind of the second (`paint.v.02` "apply paint to; coat with paint" is a kind of
+`coat.v.01`). VerbNet puts them in different classes -- `coloring-24`, whose object is what is painted, and
+`fill-9.8-1`, whose object is the surface it goes onto -- and the PMB, which annotates with VerbNet's roles,
+inherits that: a bare object linked `moves_to` is its gold 74.6% of the time. **So two sources analyse the same
+happening differently, and both readings are faithful.** What cannot be done is match the question to what was
+told, because the match is made on the link and the link differs.
+
+The place does not differ: the wall is the OBJECT in both, and the reading knows it (`Reading.decided` holds
+`paint:object` and `coat:object`). Two ways out, both a change of behaviour and neither to be taken without the
+owner: a verb's places must agree with the places of the verb it is a kind of (the kind chain arbitrating where two
+sources disagree), or a question's happening must be matched to a told one by the place a thing fills rather than
+by the link alone. **Named, measured, and left for his call.**
+
+Also still open and NOT caused by teaching: "What does paint mean?" is unresolved ("mean" read as the verb of
+averages), and "Roy painted a picture." reads the picture a `painting`, which is what SemCor's annotators tagged
+for this very sense of the verb and what the check does not expect -- `picture` is used 26 times and `painting` 25,
+so the sense the word names most often barely separates them and the one tagged use decides. The check is left
+failing rather than changed to suit the reading.
+
+**THE SMALL BATCH, TAUGHT AGAIN FROM AN EMPTY STORE** (`reset_dev_store.py`, then the plan's own order through the
+one teaching path: closed classes, the 19 words recorded whole, the one sentence recorded whole). Every pass clean
+and identical to last night's: 266 word classes and 25 word forms, 19 words remembered, 1 sentence remembered,
+**0 refused at every pass**, competence 0.611 -> 0.711 -> 0.794, and "admissions the substrate was NOT told about:
+0" each time (`20261102T114611Z`).
+
+| | records thin (to 11-01) | records whole (11-02, a place at a time) | records whole, read as one analysis |
+|---|---:|---:|---:|
+| store checks failed | 3 | 4 | **2** |
+| sentences understood | 7/7 | 7/7 | 7/7 |
+| questions right | 19/21 | 18/21 | 18/21 |
+| questions wrong | 0 | 0 | 0 |
+
+`"Roy painted the medal with paint."` reads `done_to(?v0, medal) & done_with(?v0, paint)`, and `"Did Roy coat the
+wall?"` asks of a wall again. The two checks still failing are the 130 examples whose words are all taught, of which
+121 are read whole in their sense, and `"Roy painted a picture."` (above). **Fewer checks fail than before the
+records carried these layers at all, and no question is answered wrongly.**
+
+**AND A NEW DEFECT, FOUND BY THE NEW LOGGING IN ITS FIRST USE.** "What does paint mean?" is not answered because
+**the grammar builds only one reading of it, and it is the wrong one**:
+
+```
+What does paint mean?    ask: done_by(?v0, ?v1) & done_to(?v0, ?v2)
+                              & instance_of(?v0, represent paint) & instance_of(?v2, average mean) ? ?v1
+```
+
+-- "what paints a mean", with "paint" the verb and "mean" the arithmetic average, although memory holds "mean" used
+as a verb 132 times and as a noun once. The right reading is **not in the chart at all**, and the three sentences
+beside it say exactly where the hole is:
+
+| asked | read |
+|---|---|
+| "What does Roy mean?" | right: `done_by(?e, roy) & instance_of(?e, mean)` |
+| "Does paint mean a coating?" | right: `done_by(?e, coating paint) & instance_of(?e, mean)` |
+| **"What does paint mean?"** | **wrong, one reading only** |
+| **"What does the wall mean?"** | **wrong: `instance_of(?e, do)`, and "wall" read a quality (`nasty hateful`)** |
+
+So a wh-object question takes a NAME as its subject and a yes-or-no question takes a common noun, but **a wh-object
+question with a common-noun subject is not read**: `What does <noun> <verb>?` has no derivation. That is a rule of
+English missing from the grammar, not a word missing from the store, and it is the shape of half the questions
+anyone would ask of a word. Next: measure how much of UD EWT's and GUM's questions take that shape before touching
+`_combine`, as the carried preposition was measured (18% of questions) before it was fixed.

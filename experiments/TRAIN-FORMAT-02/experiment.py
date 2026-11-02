@@ -97,7 +97,11 @@ async def store_checks() -> int:
     from core.learning.teaching_sources import RecordSource, WordRecord
     from core.semantics.grammar_words import _verb_form
     EV = RunRecord("TRAIN-FORMAT-02", claim=CLAIM, hypothesis="every check holds", results_dir=HERE / "results")
-    EV.check("the run is on lyric_dev2", os.environ.get("POSTGRES_DATABASE") == "lyric_dev2",
+    # ON THE SANDBOX LINE, NEVER THE MAIN STORE: the run needs a store holding the taught records and nothing
+    # borrowed, which only an emptied sandbox gives (`scripts/reset_dev_store.py` empties `lyric_dev`; `lyric_dev2`
+    # is the other sandbox and was where this ran first).
+    EV.check("the run is on a sandbox store, never the main one",
+             os.environ.get("POSTGRES_DATABASE", "") in ("lyric_dev", "lyric_dev2"),
              os.environ.get("POSTGRES_DATABASE", ""))
     quiet = io.StringIO()
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):

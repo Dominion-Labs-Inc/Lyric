@@ -248,3 +248,17 @@ treebank: the noun's plural "paints".
   remembered, none refused, 75 s. On the 77 sentences, read with the same code as main: structure right 26 of 77 (main
   22), right with real senses 18 (main 15; words alone 16), senses aside 23 (main 26). Saying the three probes: "He
   mended the bike with a hacksaw." 0.4 s, "I love the moon." 5.3 s, "He wears a blue hat." 6.6 s.
+- **2026-11-02: the frames read as one analysis, and one tagged use weighed as one use** (lab notebook (72)). The
+  sandbox emptied and the plan's order taught again (closed classes, the 19 words, the one sentence): 0 refused at
+  every pass, competence 0.611 -> 0.711 -> 0.794, admissions the substrate was not told about 0. Store **81 of 83**
+  (`20261102T114611Z`; the 130 examples read in their sense, and "Roy painted a picture." read a `painting`, which is
+  what SemCor tagged for this sense of the verb), front door 7/7 sentences and **18 of 21 questions right, none
+  wrong** (`114611Z`). `"Roy painted the medal with paint."` is `done_to(medal) & done_with(paint)` again, and the
+  wall of `"Did Roy coat the wall?"` is a wall and not a geological formation. Still unanswered: "What does paint
+  mean?" (no derivation for `What does <noun> <verb>?`), "Did Roy coat the wall?" (VerbNet links the object of
+  `coat` and of `paint`'s coating sense differently, so the question cannot be matched to what was told) and "Did Roy
+  paint a representation?" (it follows from the picture's sense).
+- **Its diagnostics**: `diagnostics/layers_landed.py` (which layer of a record lands in which table, over BOTH halves
+  of teaching a word, every table counted by name) and `diagnostics/how_it_read.py` (every decision of a reading and
+  what decided it: the frames of each happening with their fit and the one analysis they gave, and every sense of
+  each thing with what the doing was seen done to).

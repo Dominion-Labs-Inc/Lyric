@@ -890,7 +890,7 @@ class Lexicon:
         #: VerbNet restricts it to, "restricted" ("+animate", a living thing), and what PropBank says fills it,
         #: "described" ("art").
         self.sense_wants: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
-        #: WHAT EACH PLACE OF A VERB SAYS, BY THE PLACES SAID WITH IT (`framed`): verb name -> sense ("" the word's) ->
+        #: WHAT EACH PLACE OF A VERB SAYS, BY THE PLACES SAID WITH IT (`places_framed`): verb name -> sense ("" the word's) ->
         #: a frame's places ((slot, link), ...) -> how many frames say just those (`WordRecord.frames_said`).
         self.frames_said: Dict[str, Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         #: Of what `learned["role"]` holds of a verb's place, what its word's PropBank places said ((verb name, slot)
@@ -976,45 +976,85 @@ class Lexicon:
                     break
         return max(senses, key=lambda c: (score[c], used[c]))
 
-    def framed(self, name: str, sense: str, slots: Sequence[str], slot: str, default: Optional[str] = None) \
-            -> Optional[str]:
-        """WHAT A VERB'S PLACE SAYS BY THE PLACES SAID WITH IT, as its frames say (`frames_said`; Boxer gives a verb's
-        roles by the frame its category is, Bos 2008): of the frames of the sense the sentence means (and, for a
-        place after a preposition, else of the word's), those giving the most of the places said (`slots`, a `pp:*`
-        any preposition's), the fewest besides; the link most of them give `slot`, `default` where it ties with
-        another. None where no frame gives it: "The chicken is pecking at Tom." is a pecking done to Tom
-        (`chew-39.2-1`: "NP V PP-Conative", the one pecked after "at"). THE WORD'S FRAMES SAY NOTHING OF ITS SUBJECT
-        AND OBJECTS: its senses' frames disagree there ("call" a Topic, a Theme, a Recipient), and taken where the
-        sense's said nothing, 86.0% of the PMB's train objects were linked as the PMB links them, against 86.5% by
-        the sense's alone; after a preposition, 45.1% against 40.8% (`GRAMMAR-01/diagnostics/verb_places.py`,
-        2026-10-29)."""
+    def _frame_fit(self, frames: Mapping[Tuple, int], slots: Sequence[str]) -> Tuple[Dict[Tuple, Tuple], Tuple]:
+        """How well each frame fits the places said: how many of them it gives (`slots`, a `pp:*` any preposition's),
+        the fewest places besides; and the best fit of them all."""
+        fits = {}
+        for frame in frames:
+            said = dict(frame)
+            fits[frame] = (sum(s in said or (s.startswith("pp:") and "pp:*" in said) for s in slots),
+                           -abs(len(said) - len(slots)))
+        return fits, max(fits.values())
+
+    def _framed_vote(self, frames: Mapping[Tuple, int], fits: Mapping[Tuple, Tuple], best: Tuple, slot: str,
+                     decided: Mapping[str, str], default: Optional[str], unnamed: bool) -> Optional[str]:
+        """The link the frames of the best fit give one place, each counted by how many frames say just those places:
+        the link most of them give, `default` where it ties with another. ONLY A FRAME THAT AGREES with the links
+        already given (`decided`) wherever both name a place is counted, so one happening is read as one analysis
+        (`unnamed`: and a frame may answer a preposition it does not name, with its own prepositional place)."""
+        votes: Counter = Counter()
+        for frame, n in frames.items():
+            said = dict(frame)
+            if fits[frame] != best or any(said[s] != decided[s] for s in set(said) & set(decided)):
+                continue
+            link = said.get(slot) or (said.get("pp:*") if unnamed and slot.startswith("pp:") else None)
+            if link:
+                votes[link] += n
+        if not votes:
+            return None
+        top = max(votes.values())
+        tied = sorted(link for link, n in votes.items() if n == top)
+        return default if default in tied else tied[0]
+
+    def places_framed(self, name: str, sense: str, slots: Sequence[str], defaults: Mapping[str, str] = {},
+                      given: Mapping[str, str] = {}) -> Dict[str, str]:
+        """WHAT EVERY PLACE OF ONE HAPPENING SAYS, as its verb's frames say (`frames_said`; Boxer gives a verb's roles
+        by the frame its category is, Bos 2008), READ AS ONE ANALYSIS: of the frames of the sense the sentence means
+        (else of the word's), those giving the most of the places said, the fewest besides, vote on each place
+        (`_framed_vote`), and A FRAME VOTES ON A PLACE ONLY WHERE IT AGREES with the links already given -- what
+        teaching said of the verb's places (`given`), then the subject, the object, the thing before it, and the
+        places after a preposition, the places read most surely deciding the analysis the rest are read under.
+
+        A FRAME IS A WHOLE ANALYSIS OF A HAPPENING AND MUST NOT BE READ A PLACE AT A TIME: asked one place at a time,
+        "Roy painted the medal with paint." took `done_to` for the medal from the frames of `paint` and `done_to`
+        again for the paint from VerbNet's filling frame ("NP V NP PP.theme", where the medal is what is painted
+        over and the paint what moves onto it), so the painting was done to two things, which no one frame says
+        (2026-11-02).
+
+        A preposition no frame of the sense names is answered by the word's frames, again only by one agreeing with
+        what is given, and only where it names that very preposition: a frame whose prepositional place names no
+        preposition cannot be stretched onto one another frame of the word names otherwise. Nothing is said of a
+        place where no frame gives it: "The chicken is pecking at Tom." is a pecking done to Tom (`chew-39.2-1`:
+        "NP V PP-Conative", the one pecked after "at").
+
+        Over the PMB's 9,552 train documents, read as one analysis against a place at a time: subjects 92.6% against
+        92.6% of the gold links, objects 86.5% against 86.2%, the thing before the object 90.1% against 89.7%, a
+        place after a preposition 43.4% against 45.1% (`GRAMMAR-01/diagnostics/verb_places.py`, 2026-11-02)."""
         held = self.frames_said.get(name)
         if not held:
-            return None
+            return {}
         used = self.sense_used.get(name) or {}
         if sense not in used and len(used) == 1:
             sense = next(iter(used))        # a verb of one sense is read under its word's name (`sense_of`)
-        for key in ([sense] if sense else []) + ([""] if slot.startswith("pp:") else []):
-            frames = held.get(key)
-            if not frames:
+        word_frames = held.get("") or {}
+        frames = (held.get(sense) or {}) if sense else {}
+        pool = frames or word_frames
+        if not pool:
+            return {}
+        fits, best = self._frame_fit(pool, slots)
+        by_word = self._frame_fit(word_frames, slots) if word_frames else ({}, ())
+        decided = {slot: link for slot, link in given.items() if slot in slots}
+        for slot in [s for s in ("subject", "object", "second") if s in slots] + \
+                [s for s in slots if s.startswith("pp:")]:
+            if slot in decided:
                 continue
-            fits = {}
-            for frame in frames:
-                said = dict(frame)
-                fits[frame] = (sum(s in said or (s.startswith("pp:") and "pp:*" in said) for s in slots),
-                               -abs(len(said) - len(slots)))
-            best = max(fits.values())
-            votes: Counter = Counter()
-            for frame, n in frames.items():
-                said = dict(frame)
-                link = said.get(slot) or (said.get("pp:*") if slot.startswith("pp:") else None)
-                if fits[frame] == best and link:
-                    votes[link] += n
-            if votes:
-                top = max(votes.values())
-                tied = sorted(link for link, n in votes.items() if n == top)
-                return default if default in tied else tied[0]
-        return None
+            got = self._framed_vote(pool, fits, best, slot, decided, defaults.get(slot), True)
+            if got is None and frames and word_frames and slot.startswith("pp:"):
+                got = self._framed_vote(word_frames, by_word[0], by_word[1], slot, decided, defaults.get(slot),
+                                        False)
+            if got:
+                decided[slot] = got
+        return {slot: link for slot, link in decided.items() if slot not in given}
 
     def _taught_apart(self, key: Tuple, held: Counter) -> Optional[Counter]:
         """WHAT SENTENCES TAUGHT WITH THEIR MEANINGS SAID OF A VERB'S PLACE, the share its word's PropBank places put
@@ -1029,7 +1069,8 @@ class Lexicon:
 
     def taught_role(self, name: str, slot: str) -> bool:
         """Whether sentences taught with their meanings said what a verb's place is, beyond what its word's PropBank
-        places said (`place_links`): what was said of the very verb is not overruled by its frames (`framed`).
+        places said (`place_links`): what was said of the very verb is not overruled by its frames, which are read
+        as one analysis agreeing with it (`places_framed`).
         "You tortured a prisoner." taught the torturer who does it; VerbNet's only class of "torture" is one of
         feelings (`amuse-31.1`: "NP:Stimulus V NP:Experiencer"), and "Who did Maurice Papon torture?" was read as
         Papon tortured (lyric_dev2, 2026-10-29)."""
@@ -1077,7 +1118,8 @@ class Lexicon:
                 for c in senses:
                     score[c] += math.log(everything / shared[c])
         for doing, meant, slot in places:
-            seen = [f for (sl, f), _ in self.sense_seen.get(doing, {}).get(meant, {}).items() if sl == slot]
+            seen = Counter({f: n for (sl, f), n in self.sense_seen.get(doing, {}).get(meant, {}).items()
+                            if sl == slot})
             if not seen:
                 continue
             # EVERY KIND THE THINGS SEEN IN THAT PLACE ARE, and for each sense the most specific kind it shares with
@@ -1086,15 +1128,26 @@ class Lexicon:
             # egg that is a reproductive body is not. Asked the other way round -- whether the sense itself is
             # among the kinds of something seen -- nothing ever matched, since SemCor never saw eating done to that
             # very sense of egg (2026-10-31).
-            was: Set[str] = set()
-            for f in seen:
-                was.add(f)
-                was.update(self.words.kinds(f, "NOUN"))
+            #
+            # AND WEIGHED BY HOW MUCH WAS SEEN THERE: the information of the kind shared counts for the share of the
+            # uses whose thing is of it, as Resnik (1993) weighs what a verb's place prefers by how much of what it
+            # was seen with is of the kind, not by the kind's information alone. ONE TAGGED USE IS ONE USE: counted
+            # as certain, SemCor's single coating of a slope read "Roy coated the wall." a geological formation,
+            # against the 83 uses of the wall that is a partition and the 1 of the geological one; and its single
+            # painting of a painting read "Roy painted a picture." a painting, which is no representation, so what
+            # Roy painted was answered to be no representation (2026-11-02).
+            of_kind: Dict[str, Set[str]] = {f: {f} | set(self.words.kinds(f, "NOUN")) for f in seen}
+            was: Set[str] = {level for kinds in of_kind.values() for level in kinds}
             shared = {c: min((covers[c][level] for level in was if level in covers[c]), default=everything)
                       for c in senses}
             if everything and any(n < everything for n in shared.values()):
+                at = {c: next((level for level in was if level in covers[c] and covers[c][level] == shared[c]), None)
+                      for c in senses}
+                uses = {c: sum(n for f, n in seen.items() if at[c] in of_kind[f]) for c in senses}
+                every = sum(seen.values())
                 for c in senses:
-                    score[c] += math.log(everything / shared[c])
+                    score[c] += math.log(everything / shared[c]) \
+                        * (uses[c] + 0.5) / (every + 0.5 * len(senses))
         return max(senses, key=lambda c: (score[c], used[c]))
 
     def quality_sense_of(self, name: str, cls: str, of: Sequence[str]) -> str:
@@ -5278,11 +5331,33 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         return bool(lexicon.time_of(b) or (lexicon.time_of(kinds[b][2]) if b in kinds else None))
 
     def places_of(e: Term) -> List[str]:
-        """The places a happening's verb is said with, as its frames name them (`Lexicon.framed`): its subject,
+        """The places a happening's verb is said with, as its frames name them (`Lexicon.places_framed`): its subject,
         objects, and each preposition after it that says no time."""
         return [q[3] for q in pieces if q[0] == "role" and q[1] == e and (q[3] in ("subject", "object", "second")
                                                                           or q[3].startswith("pp:"))] + \
             ["pp:" + q[3] for q in pieces if q[0] == "prep" and q[1] == e and q[3] and not timed(q[2])]
+    framed_places: Dict[Term, Dict[str, str]] = {}
+
+    def framed_of(e: Term, verb: str) -> Dict[str, str]:
+        """WHAT EVERY PLACE OF A HAPPENING SAYS, as its verb's frames say them READ AS ONE ANALYSIS
+        (`Lexicon.places_framed`), taken once for the happening: the places said (`places_of`), each with the link
+        the grammar gives it where the frames say nothing of it, and the links sentences taught said of the verb's
+        places, which its frames do not overrule and must agree with (`Lexicon.taught_role`)."""
+        if e not in framed_places:
+            slots = places_of(e)
+            defaults: Dict[str, str] = {}
+            given: Dict[str, str] = {}
+            for slot in slots:
+                was = (worded(slot[3:]) if slot[3:].isalpha() else None) if slot.startswith("pp:") \
+                    else lexicon.linking.get(slot)
+                got, _ = lexicon.inherited("role", verb, "VERB", (slot,), was)
+                if got:
+                    defaults[slot] = got
+                    if lexicon.taught_role(verb, slot):
+                        given[slot] = got
+            framed_places[e] = lexicon.places_framed(verb, meant_of.get(e, ""), slots, defaults, given)
+        return framed_places[e]
+
     for p in pieces:
         what = p[0]
         at = p[-1] if isinstance(p[-1], int) and p[-1] < FIRST_VARIABLE else -1
@@ -5301,10 +5376,10 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 got, how = lexicon.inherited("role", verb[2], "VERB", ("subject",), lexicon.linking.get("subject"))
             elif (slot in ("subject", "object", "second") or slot.startswith("pp:")) \
                     and not lexicon.taught_role(verb[2], slot):
-                # WHAT THE PLACE IS BY THE PLACES SAID WITH IT, as the verb's frames say (`Lexicon.framed`), where
-                # no sentence taught said what it is: "Our colleague's mother passed away." is a passing away done
-                # to her (`die-42.4-1`: "NP:Patient V").
-                framed = lexicon.framed(verb[2], meant_of.get(e, ""), places_of(e), slot, got)
+                # WHAT THE PLACE IS BY THE PLACES SAID WITH IT, as the verb's frames say them as one analysis of
+                # the happening (`framed_of`), where no sentence taught said what it is: "Our colleague's mother
+                # passed away." is a passing away done to her (`die-42.4-1`: "NP:Patient V").
+                framed = framed_of(e, verb[2]).get(slot)
                 if framed is not None:
                     got, how = framed, "frame"
             decided.append(("role", f"{verb[2]}:{slot}", how, add(got, e, x, at=at)))
@@ -5339,8 +5414,9 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                     got, how = own, "own"
                 elif a in events and time == "-" and word:
                     # What the verb's frames say of the preposition, by the places said with it ("collided with a
-                    # truck": `Lexicon.framed`), before what is said of the word whatever its verb.
-                    framed = lexicon.framed(head[2], meant_of.get(a, ""), places_of(a), "pp:" + word, got)
+                    # truck"), as one analysis of the happening (`framed_of`), before what is said of the word
+                    # whatever its verb.
+                    framed = framed_of(a, head[2]).get("pp:" + word)
                     if framed is not None:
                         got, how = framed, "frame"
             decided.append(("prep", f"{word}:{kind}:{time}", how,

@@ -137,9 +137,106 @@ def framed(said: list, slots: list, slot: str, default):
     return default if default in tied else tied[0]
 
 
+def _counted(said: list):
+    """The frames as the lexicon holds them: the places of each -> how many frames say just those."""
+    return collections.Counter(tuple(sorted(f.items())) for f in said)
+
+
+def _chosen(frames, slots: list):
+    """THE ONE FRAME THAT ANSWERS FOR THE HAPPENING: of the frames given, the one giving the most of the places said,
+    the fewest besides, then the one most of them are, then by its places (so one sentence is read one way)."""
+    fits = {}
+    for f in frames:
+        d = dict(f)
+        fits[f] = (sum(s in d or (s.startswith("pp:") and "pp:*" in d) for s in slots), -abs(len(d) - len(slots)))
+    best = max(fits.values())
+    return min((f for f in frames if fits[f] == best), key=lambda f: (-frames[f], f))
+
+
+def one_frame(by_sense: list, every: list, slots: list, slot: str, default, loose: bool = False):
+    """ONE FRAME ANSWERS FOR ONE HAPPENING: every place read from the one frame chosen for the places said, and a
+    preposition that frame does not name answered by another of the word's frames only where it AGREES with the
+    chosen one everywhere both name a place (`loose`: and may answer with a prepositional place of its own whose
+    preposition it does not name)."""
+    frames = _counted(by_sense or every)
+    if not frames:
+        return None
+    chosen = dict(_chosen(frames, slots))
+    link = chosen.get(slot) or (chosen.get("pp:*") if slot.startswith("pp:") else None)
+    if link:
+        return link
+    if not slot.startswith("pp:"):
+        return None
+    votes = collections.Counter()
+    for other, n in _counted(every).items():
+        d = dict(other)
+        if any(d[s] != chosen[s] for s in set(d) & set(chosen)):
+            continue
+        got = d.get(slot) or (d.get("pp:*") if loose else None)
+        if got:
+            votes[got] += n
+    if not votes:
+        return None
+    top = max(votes.values())
+    tied = sorted(l for l, n in votes.items() if n == top)
+    return default if default in tied else tied[0]
+
+
+def _vote(frames, fits, best, slot: str, decided: dict, default, wild: bool):
+    """The link the frames of the best fit give a place, as `framed` votes, counting only a frame that AGREES with
+    the links already given (`decided`) everywhere both name a place."""
+    votes = collections.Counter()
+    for fr, n in frames.items():
+        d = dict(fr)
+        if fits[fr] != best or any(d[x] != decided[x] for x in set(d) & set(decided)):
+            continue
+        link = d.get(slot) or (d.get("pp:*") if wild and slot.startswith("pp:") else None)
+        if link:
+            votes[link] += n
+    if not votes:
+        return None
+    top = max(votes.values())
+    tied = sorted(l for l, n in votes.items() if n == top)
+    return default if default in tied else tied[0]
+
+
+def places_agreeing(by_sense: list, every: list, slots: list, defaults: dict, loose: bool = False):
+    """EVERY PLACE OF A HAPPENING READ AS ONE ANALYSIS: each place linked as the frames of the best fit vote
+    (`framed`), except that a frame speaks of a place only where it agrees with the links already given -- the
+    subject first, then the object, the thing before it, and the places after a preposition, the places read most
+    surely deciding the analysis the rest are read under. A preposition the sense's frames do not name is answered
+    by the word's, again only by a frame agreeing with what is given (`loose`: and by a prepositional place whose
+    preposition such a frame does not name)."""
+    sense_frames, word_frames = _counted(by_sense), _counted(every)
+    pool = sense_frames or word_frames
+    if not pool:
+        return {}
+
+    def fitted(frames):
+        f = {}
+        for fr in frames:
+            d = dict(fr)
+            f[fr] = (sum(x in d or (x.startswith("pp:") and "pp:*" in d) for x in slots), -abs(len(d) - len(slots)))
+        return f, max(f.values())
+    fit_pool, best_pool = fitted(pool)
+    fit_word, best_word = fitted(word_frames) if word_frames else ({}, None)
+    decided: dict = {}
+    order = [x for x in ("subject", "object", "second") if x in slots] + [x for x in slots if x.startswith("pp:")]
+    for slot in order:
+        if slot in decided:
+            continue
+        got = _vote(pool, fit_pool, best_pool, slot, decided, defaults.get(slot), True)
+        if got is None and slot.startswith("pp:") and sense_frames and word_frames:
+            got = _vote(word_frames, fit_word, best_word, slot, decided, defaults.get(slot), loose)
+        if got:
+            decided[slot] = got
+    return decided
+
+
 def main(split: str) -> None:
     ids = pm.split_ids(pmb / "split" / "en" / split / ("gold.sbn" if split == "train" else "standard.sbn"))
     stats = collections.defaultdict(collections.Counter)
+    given = collections.defaultdict(collections.Counter)      # (place, the link the frames give) -> n, right
     n_docs = 0
     for doc_id in ids:
         d = pm.read_document(pmb / "data" / "en" / "gold" / doc_id)
@@ -197,6 +294,9 @@ def main(split: str) -> None:
             senses = [x for x in wn.synsets(lemma, "v") if any(l.name().lower() == lemma for l in x.lemmas())]
             most_used = max(senses, key=lambda x: sum(l.count() for l in x.lemmas() if l.name().lower() == lemma)
                             ).name() if senses else c.sense
+            defaults = {x: now(lemma, x) for x in set(slots) | set(as_active)}
+            agreed = places_agreeing(*frames(lemma, c.sense), slots, defaults)
+            agreed_loose = places_agreeing(*frames(lemma, c.sense), slots, defaults, loose=True)
             for slot, role in placed:
                 gold = gold_link(role, roles_said)
                 if gold is None:
@@ -213,6 +313,20 @@ def main(split: str) -> None:
                 s["sense"] += (b if b is not None else a) == gold
                 s["sense, word"] += (b if b is not None else w if w is not None else a) == gold
                 s["most used sense"] += (mu if mu is not None else a) == gold
+                o = one_frame(by_sense, every, slots, slot, a)
+                ol = one_frame(by_sense, every, slots, slot, a, loose=True)
+                s["one frame"] += (o if o is not None else a) == gold
+                s["one frame, pp:*"] += (ol if ol is not None else a) == gold
+                s["agreeing"] += (agreed.get(slot) or a) == gold
+                s["agreeing, pp:*"] += (agreed_loose.get(slot) or a) == gold
+                place = ("passive:" if passive else "") + ("pp" if slot.startswith("pp:") else slot)
+                if slot in ("object", "second"):
+                    place += ", a place after a preposition said" if any(x.startswith("pp:") for x in slots) \
+                        else ", no place after a preposition"
+                g = given[(place, agreed.get(slot) or f"none ({a})")]
+                g["n"] += 1
+                g["right"] += (agreed.get(slot) or a) == gold
+                g[f"gold:{gold}"] += 1
                 if passive and slot == "subject":
                     # LYRIC'S OWN CONVENTION, read of the sentence: what the happening is done to where a doer is
                     # said with it ("I was stung by a bee."), who does it where none is ("The phone rang.",
@@ -231,13 +345,32 @@ def main(split: str) -> None:
                 s["sense"] += (b2 if b2 is not None else a2) == gold
                 s["sense, word"] += (b2 if b2 is not None else w2 if w2 is not None else a2) == gold
                 s["most used sense"] += (mu2 if mu2 is not None else a2) == gold
+                o2 = one_frame(by_sense, every, as_active, here, a2)
+                ol2 = one_frame(by_sense, every, as_active, here, a2, loose=True)
+                s["one frame"] += (o2 if o2 is not None else a2) == gold
+                s["one frame, pp:*"] += (ol2 if ol2 is not None else a2) == gold
+                active_agreed = places_agreeing(*frames(lemma, c.sense), as_active, defaults)
+                active_loose = places_agreeing(*frames(lemma, c.sense), as_active, defaults, loose=True)
+                s["agreeing"] += (active_agreed.get(here) or a2) == gold
+                s["agreeing, pp:*"] += (active_loose.get(here) or a2) == gold
     print(f"{n_docs} documents ({split}); each verb place, what the PMB links it as, and how often each way says so:")
     for kind, s in sorted(stats.items(), key=lambda x: -x[1]["n"]):
         n = s["n"]
         said = sorted(((k[5:], m) for k, m in s.items() if k.startswith("gold:")), key=lambda x: -x[1])
         print(f"  {kind:24} {n:5}  gold: " + ", ".join(f"{link} {m / n:.0%}" for link, m in said[:3]))
         print(" " * 33 + "  ".join(f"{way} {s[way] / n:6.1%}" for way in
-                                   ("now", "sense", "sense, word", "most used sense", "a doer said") if way in s))
+                                   ("now", "sense", "sense, word", "one frame", "one frame, pp:*",
+                                    "agreeing", "agreeing, pp:*", "most used sense",
+                                    "a doer said") if way in s))
+
+
+    print("\nwhat the frames give each place, read as one analysis (`agreeing`), and how often that is the gold:")
+    for (place, link), g in sorted(given.items(), key=lambda x: (x[0][0], -x[1]["n"])):
+        if g["n"] < 10:
+            continue
+        said = sorted(((k[5:], m) for k, m in g.items() if k.startswith("gold:")), key=lambda x: -x[1])
+        print(f"  {place:16} {link:14} {g['n']:5}  right {g['right'] / g['n']:6.1%}   gold: "
+              + ", ".join(f"{l} {m / g['n']:.0%}" for l, m in said[:3]))
 
 
 if __name__ == "__main__":
