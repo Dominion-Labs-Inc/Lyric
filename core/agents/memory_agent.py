@@ -3058,7 +3058,7 @@ class MemoryAgent(IMemoryConsolidation):
             "class, %d class(es) stated outright, %d derived claim(s) that "
             "teach no vocabulary); %d taught construction(s) and link(s)",
             len(index), len(taught) + len(unread) + len(stated), unparsed,
-            refuted, told, derived, len(inventory))
+            refuted, told, len(derived), len(inventory))
         return len(index)
 
     @profile_performance("memory_agent", "search_memories")
