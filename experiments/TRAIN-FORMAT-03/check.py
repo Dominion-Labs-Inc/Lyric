@@ -1,8 +1,22 @@
-"""What main reads and says after its first word session and its first sentence session.
+"""What main reads and says, and HOW IT CUT THE SENTENCE UP BEFORE IT READ IT.
 
-Read only. For each sentence: the meaning read (or why none) and how surely that reading is the one among all the
-whole readings the grammar made; then that very meaning said back, with how sure it is of each sentence it says
-(`how_surely`). The last group holds words that were never taught, as the control that must not read whole.
+Read only. For each sentence: the pieces the sentence machine made of it, the words those pieces are written as, the
+tokens the grammar is actually handed, then the meaning read (or why none) and how surely that reading is the one
+among all the whole readings; then that very meaning said back, with how sure it is of each sentence it says
+(`how_surely`).
+
+THE TOKENS ARE PRINTED BECAUSE A FUSED ONE IS INVISIBLE IN THE REPLY. "Is iron a metal?", answered honestly as "I
+hold nothing for metal." before 8,566 word records were taught, afterwards came back "I don't hold iron a yet" --
+a word that does not exist. Nothing in the reply, the meaning or the sureness says where "iron a" came from; only
+the tokens do. Where a token holds a space this prints each of its parts with whether `Words.uses` holds it, because
+that is the one test `tokens_of` splits a fused piece back on (grammar.py:2176) and a closed-class word like "a" is
+held by the lexicon rather than by `Words`.
+
+Given sentences on the command line it reads those; given none, the four taught, the three composed of their words
+and the two controls holding a word never taught.
+
+  POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/TRAIN-FORMAT-03/check.py \
+      "Is iron a metal?" "Is a dog an animal?"
 """
 import asyncio, contextlib, io, os, sys, time
 from pathlib import Path
@@ -41,13 +55,26 @@ async def main():
     print(f"store {os.environ.get('POSTGRES_DATABASE') or 'lyric_db'}: warm {time.time() - at:.0f}s, "
           f"word records {len(agent._grammar_words)}, sentence records {len(agent._grammar_records)}, "
           f"analysed sentences {len(agent.structure_view())}\n", flush=True)
-    for name, group in (("TAUGHT", TAUGHT), ("COMPOSED", COMPOSED), ("CONTROL", CONTROL)):
+    groups = (("GIVEN", sys.argv[1:]),) if len(sys.argv) > 1 else (
+        ("TAUGHT", TAUGHT), ("COMPOSED", COMPOSED), ("CONTROL", CONTROL))
+    for name, group in groups:
         print(f"── {name} ──", flush=True)
         for text in group:
             at = time.time()
             tokens = gm.tokens_of(text, view.words)
-            reading = view.grammar.read(tokens)
             print(f"{text}", flush=True)
+            # HOW THE SENTENCE WAS CUT UP, before anything is said about what it means.
+            from core.semantics.sentence_machine import form_of
+            from core.semantics.structure import words_of
+            written = words_of(form_of(text))
+            print(f"    PIECES  {list(written)}", flush=True)
+            print(f"    TOKENS  {[str(t) for t in tokens]}", flush=True)
+            for token in tokens:
+                if " " in str(token):
+                    parts = str(token).split()
+                    held = ", ".join(f"{p}={'held' if view.words.uses(p) else 'NOT in Words'}" for p in parts)
+                    print(f"    FUSED   {str(token)!r} stayed one token: {held}", flush=True)
+            reading = view.grammar.read(tokens)
             if reading.meaning is None:
                 whole = "no whole reading" if reading.sign is None else "read whole, no meaning"
                 print(f"    READ: nothing -- {whole}; why {reading.why or '?'}"

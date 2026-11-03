@@ -871,6 +871,24 @@ def create_advanced_proof_engine() -> AdvancedProofEngine:
     return get_proof_engine()
 
 
+# EVERY PROOF STEP SAYS IT IS RUNNING, AND WHAT IT COST.
+#
+# `prove_theorem` and `_smt_proof` do say something about themselves. The rest do not: `verify_proof` (51 lines),
+# `_check_derivation` (63), `_licensed` (41) and `_consequences` (39) held not one logger call between them -- 194
+# lines of deciding whether something follows, in silence. A proof that takes a long time or never returns is the
+# likeliest thing in reasoning to do either, since this is where the SMT solver is called.
+#
+# Entry and cost at DEBUG; slower than `SLOW_STEP_MS` at INFO; and a step still running says so from a thread while
+# it runs, which is the only way to name one that has not come back. Nothing here is capped or timed out.
+from core.learning.performance_profiler import trace_step as _trace_step
+
+for _part in ("prove_theorem", "_smt_proof", "_consequences", "verify_proof", "_check_derivation", "_licensed"):
+    _was = AdvancedProofEngine.__dict__.get(_part)
+    if callable(_was):
+        setattr(AdvancedProofEngine, _part, _trace_step("proving", _part)(_was))
+del _part, _was
+
+
 # Test usage
 async def main():
     """Test proof engine"""

@@ -15,6 +15,8 @@ Features:
 
 import asyncio
 import logging
+import os
+import threading
 import time
 import psutil
 import tracemalloc
@@ -1048,6 +1050,82 @@ def get_performance_profiler() -> PerformanceProfiler:
 
 
 # Decorator for easy profiling
+#: A step slower than this says so at INFO; everything else stays at DEBUG, so an ordinary answer leaves no trace.
+SLOW_STEP_MS = float(os.environ.get("LYRIC_SLOW_STEP_MS", "2000"))
+
+
+def trace_step(component_name: str, operation_name: str = None):
+    """Say a step is STARTING, then say what it cost. For work that can fail to finish.
+
+    `profile_performance` reports on completion, so a step that never returns reports nothing. A substrate answering
+    one question sat at 98% CPU for forty-five minutes and wrote not one line about it: the last thing in the log was
+    a subsystem it had called on the way in, and the step it was actually inside said nothing, because nothing said
+    anything until it came back -- and it never came back (2026-11-02). The process had to be killed to find out
+    where it was, which destroyed the only instance of the defect.
+
+    So the entry line is the point. A hang now leaves the name of the step it hung in as the last line in the log,
+    and needs no stack, no profiler and no second process to find.
+    """
+    def decorator(func: Callable):
+        name = operation_name or func.__name__
+
+        def watching():
+            """Say, FROM ANOTHER THREAD, that the step is still running -- again each time, so the log shows it is
+            stuck rather than merely slow.
+
+            IT CANNOT BE AN ASYNCIO TASK. The step that hung for forty-five minutes was CPU-bound Python, which
+            holds the event loop for as long as it runs, so a watchdog scheduled on the loop would not have run
+            until the step it was watching had already finished. A thread runs because the interpreter releases
+            the lock between bytecodes, which is exactly the case this has to report on.
+
+            It only says where the work is. It does not stop it, bound it or time it out."""
+            waited = [0.0]
+            timer = [None]
+
+            def nag():
+                waited[0] += SLOW_STEP_MS / 1000.0
+                logger.info("%s: STILL INSIDE %s after %.0fs", component_name, name, waited[0])
+                timer[0] = threading.Timer(SLOW_STEP_MS / 1000.0, nag)
+                timer[0].daemon = True
+                timer[0].start()
+
+            timer[0] = threading.Timer(SLOW_STEP_MS / 1000.0, nag)
+            timer[0].daemon = True
+            timer[0].start()
+            return timer
+
+        def done(timer, started):
+            if timer[0] is not None:
+                timer[0].cancel()
+            spent = (time.perf_counter() - started) * 1000.0
+            if spent >= SLOW_STEP_MS:
+                logger.info("%s: %s took %.0fms", component_name, name, spent)
+            else:
+                logger.debug("%s: %s took %.1fms", component_name, name, spent)
+
+        if asyncio.iscoroutinefunction(func):
+            @wraps(func)
+            async def wrapper(*args, **kwargs):
+                logger.debug("%s: %s starting", component_name, name)
+                started, timer = time.perf_counter(), watching()
+                try:
+                    return await func(*args, **kwargs)
+                finally:
+                    done(timer, started)
+            return wrapper
+
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            logger.debug("%s: %s starting", component_name, name)
+            started, timer = time.perf_counter(), watching()
+            try:
+                return func(*args, **kwargs)
+            finally:
+                done(timer, started)
+        return wrapper
+    return decorator
+
+
 def profile_performance(component_name: str, operation_name: str = None):
     """
     Decorator to automatically profile function performance

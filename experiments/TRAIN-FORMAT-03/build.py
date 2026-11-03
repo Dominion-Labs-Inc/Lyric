@@ -30,6 +30,50 @@ OUT = Path(os.environ["OUT"]) if not VOCABULARY_ONLY else None
 #: meanings then costs the sentence pass alone, seconds against the better part of an hour for 3,875 words. May be
 #: the file being written: it is read whole before anything is written.
 REUSE = Path(os.environ["REUSE"]) if os.environ.get("REUSE") else None
+#: Where the vocabulary comes from: `pmb` (the gold documents' own words, the default) or `treebank` (every open-class
+#: lemma of a UD treebank, no sentences). The treebank path records WORDS ONLY, because the sentences of a treebank
+#: are taught as structure by `teach.py --source treebank` reading the file itself, not as records -- and the words
+#: have to be held before that pass runs ("a sentence teaches how known words go together, never a word it does not
+#: hold", `WordRecord`).
+VOCABULARY = os.environ.get("VOCABULARY", "pmb")
+#: The treebank whose vocabulary to record (VOCABULARY=treebank).
+TREEBANK = Path(os.environ.get("TREEBANK") or ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu")
+#: How often a lemma must be used in it to be recorded at all; 1 records every one of them.
+FLOOR = int(os.environ.get("FLOOR", "1"))
+#: Write only the words `REUSE` does NOT hold. For the treebank path, where the store already holds every word of the
+#: file being reused, a pass over the whole of it would re-offer thousands of records the store answers `already` to;
+#: what is wanted is the new vocabulary alone. The PMB path leaves this off: its OUT must hold the whole corpus.
+NEW_ONLY = os.environ.get("NEW_ONLY", "").lower() in ("1", "yes", "true")
+
+#: UD's open classes, and which WordNet part to ask for a lemma's base. A name (PROPN) has no WordNet entry to ask
+#: about, so it is taken as written -- and is recorded, and refused where it holds nothing, rather than guessed at.
+UD_WORDNET_PART = {"NOUN": "n", "VERB": "v", "ADJ": "a", "ADV": "r", "PROPN": None}
+
+
+def _treebank_vocabulary(wn) -> dict:
+    """Every open-class lemma of `TREEBANK`, under the same base the PMB path keys by (`wn.morphy`), with how often
+    the treebank uses it. Reads the file and nothing else."""
+    used: dict = {}
+    taken = 0
+    with open(TREEBANK, encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip() or line.startswith("#"):
+                continue
+            columns = line.rstrip("\n").split("\t")
+            if len(columns) < 10 or "-" in columns[0] or "." in columns[0]:
+                continue        # a multiword token's range, or an inserted empty node
+            lemma, word_class = columns[2], columns[3]
+            if word_class not in UD_WORDNET_PART or lemma in ("_", ""):
+                continue
+            taken += 1
+            written = lemma.lower()
+            part = UD_WORDNET_PART[word_class]
+            base = (wn.morphy(written, part) or written).lower() if part else written
+            used[base] = used.get(base, 0) + 1
+    kept = {word: n for word, n in used.items() if n >= FLOOR}
+    print(f"{TREEBANK.name}: {taken} open-class words, {len(used)} distinct under their base, "
+          f"{len(kept)} used at least {FLOOR}x", flush=True)
+    return kept
 
 #: The WordNet part of speech for each class a sentence uses a word as, for asking WordNet the word's base. The
 #: classes absent here (NAME, and every closed class) have no WordNet entry to ask about.
@@ -66,6 +110,10 @@ def main():
     print(f"train gold {len(ids)} documents after holding out", flush=True)
     if HOW_MANY:
         ids = ids[:HOW_MANY]
+    if VOCABULARY == "treebank":
+        # NOT ONE SENTENCE IS RECORDED HERE. The vocabulary is the treebank's, read below; its sentences are taught
+        # as structure from the file itself, after these words are held.
+        ids = []
     at = time.time()
     records, why = [], {"no derivation": 0, "several sentences": 0, "no meaning": 0, "refused": 0}
     for n, doc_id in enumerate(ids, 1):
@@ -126,6 +174,8 @@ def main():
             vocabulary[base] = vocabulary.get(base, 0) + 1
     print(f"{len(vocabulary)} distinct words in them; {len(instead)} taken under a base the sentence did not give "
           f"({sorted(instead.items())[:8]})", flush=True)
+    if VOCABULARY == "treebank":
+        vocabulary = _treebank_vocabulary(wn)
     if VOCABULARY_ONLY:
         once = sum(1 for n in vocabulary.values() if n == 1)
         print(f"{once} of them used once, {len(vocabulary) - once} more than once; "
@@ -145,7 +195,8 @@ def main():
     word_records, failed, refused = [], {}, {}
     for n, word in enumerate(sorted(vocabulary, key=lambda w: -vocabulary[w]), 1):
         if word in held:
-            word_records.append(held[word])
+            if not NEW_ONLY:
+                word_records.append(held[word])
             continue
         try:
             record = word_record_of(word)

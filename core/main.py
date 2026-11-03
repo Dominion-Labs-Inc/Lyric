@@ -102,6 +102,20 @@ except Exception as _cap_err:                      # never block startup on logg
 
 logger = logging.getLogger(__name__)
 
+# WHERE A WEDGED SUBSTRATE IS, ASKED FROM OUTSIDE. `scripts/teach.py` and `scripts/review.py` have registered this
+# since they were written; a substrate started as `python -m core.main` had not, so SIGUSR1 kept its default
+# disposition and KILLED IT. A resident substrate that had spent 45 minutes at full CPU on one question, logging
+# nothing, was signalled to make it say where it was and died instead, taking the only live instance of the defect
+# with it (2026-11-02). Answering is the longest-running thing a substrate does and the one least able to say where
+# it is, so the one process that answers people must be the one that can be asked.
+try:
+    from core.utils.stack_dump import dump_stacks_on_signal
+    _stacks_at = dump_stacks_on_signal("lyric", Path(__file__).resolve().parents[1] / "logs")
+    logger.info("Stack dump armed: kill -USR1 %d writes every thread's Python stack to %s",
+                os.getpid(), _stacks_at)
+except Exception as _dump_err:                      # never block startup on a diagnostic
+    logging.getLogger(__name__).warning("Stack dump unavailable: %s", _dump_err)
+
 # ============================================================================
 # Service Initialization Helpers
 # ============================================================================

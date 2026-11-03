@@ -1,0 +1,42 @@
+{
+ "Is a person an organism?": {
+  "reply": "Yes. A person's organism.",
+  "verdict": true
+ },
+ "Is a location an object?": {
+  "reply": "Yes. A location's object.",
+  "verdict": true
+ },
+ "Is a man an adult?": {
+  "reply": "Yes. A man's an adult.",
+  "verdict": true
+ },
+ "Is a year a gathering?": {
+  "reply": "A year's a period.\nA gathering's a social group.",
+  "verdict": null
+ },
+ "Is a youth a person?": {
+  "reply": "Yes. A youth's a person.",
+  "verdict": true
+ },
+ "Is an eye an organ?": {
+  "reply": "Yes. Eye's an organ.",
+  "verdict": true
+ },
+ "Is a people a group?": {
+  "reply": "Yes. People's a group.",
+  "verdict": true
+ },
+ "Is a time a case?": {
+  "reply": "Times's periods.\nA case's occurrence.",
+  "verdict": null
+ },
+ "Is a hand a laborer?": {
+  "reply": "Extremity.\nJack's a workman.",
+  "verdict": null
+ },
+ "Is a head an animal?": {
+  "reply": "A head's an external body part.\nAn animal's organism.",
+  "verdict": null
+ }
+}

@@ -1,0 +1,606 @@
+{
+ "yes": [
+  {
+   "ask": "Is a person an organism?",
+   "expect": true,
+   "word": "person",
+   "kind": "organism",
+   "from": "person.n.01",
+   "sense_used": 6833
+  },
+  {
+   "ask": "Is a location an object?",
+   "expect": true,
+   "word": "location",
+   "kind": "object",
+   "from": "location.n.01",
+   "sense_used": 992
+  },
+  {
+   "ask": "Is a man an adult?",
+   "expect": true,
+   "word": "man",
+   "kind": "adult",
+   "from": "man.n.01",
+   "sense_used": 749
+  },
+  {
+   "ask": "Is a youth a person?",
+   "expect": true,
+   "word": "youth",
+   "kind": "person",
+   "from": "young_person.n.01",
+   "sense_used": 323
+  },
+  {
+   "ask": "Is an eye an organ?",
+   "expect": true,
+   "word": "eye",
+   "kind": "organ",
+   "from": "eye.n.01",
+   "sense_used": 263
+  },
+  {
+   "ask": "Is a people a group?",
+   "expect": true,
+   "word": "people",
+   "kind": "group",
+   "from": "people.n.01",
+   "sense_used": 257
+  },
+  {
+   "ask": "Is a time a case?",
+   "expect": true,
+   "word": "time",
+   "kind": "case",
+   "from": "time.n.01",
+   "sense_used": 219
+  },
+  {
+   "ask": "Is a way an attribute?",
+   "expect": true,
+   "word": "way",
+   "kind": "attribute",
+   "from": "manner.n.01",
+   "sense_used": 183
+  },
+  {
+   "ask": "Is a friend a person?",
+   "expect": true,
+   "word": "friend",
+   "kind": "person",
+   "from": "friend.n.01",
+   "sense_used": 169
+  },
+  {
+   "ask": "Is a soldier a worker?",
+   "expect": true,
+   "word": "soldier",
+   "kind": "worker",
+   "from": "soldier.n.01",
+   "sense_used": 166
+  },
+  {
+   "ask": "Is a house a building?",
+   "expect": true,
+   "word": "house",
+   "kind": "building",
+   "from": "house.n.01",
+   "sense_used": 157
+  },
+  {
+   "ask": "Is a problem a condition?",
+   "expect": true,
+   "word": "problem",
+   "kind": "condition",
+   "from": "problem.n.01",
+   "sense_used": 151
+  },
+  {
+   "ask": "Is a child a person?",
+   "expect": true,
+   "word": "child",
+   "kind": "person",
+   "from": "child.n.01",
+   "sense_used": 148
+  },
+  {
+   "ask": "Is an area a location?",
+   "expect": true,
+   "word": "area",
+   "kind": "location",
+   "from": "area.n.01",
+   "sense_used": 146
+  },
+  {
+   "ask": "Is a boy a person?",
+   "expect": true,
+   "word": "boy",
+   "kind": "person",
+   "from": "male_child.n.01",
+   "sense_used": 144
+  },
+  {
+   "ask": "Is a woman an adult?",
+   "expect": true,
+   "word": "woman",
+   "kind": "adult",
+   "from": "woman.n.01",
+   "sense_used": 143
+  },
+  {
+   "ask": "Is a type a category?",
+   "expect": true,
+   "word": "type",
+   "kind": "category",
+   "from": "type.n.01",
+   "sense_used": 136
+  },
+  {
+   "ask": "Is a water a material?",
+   "expect": true,
+   "word": "water",
+   "kind": "material",
+   "from": "water.n.01",
+   "sense_used": 136
+  },
+  {
+   "ask": "Is a number an amount?",
+   "expect": true,
+   "word": "number",
+   "kind": "amount",
+   "from": "number.n.01",
+   "sense_used": 131
+  },
+  {
+   "ask": "Is a kind a category?",
+   "expect": true,
+   "word": "kind",
+   "kind": "category",
+   "from": "kind.n.01",
+   "sense_used": 126
+  },
+  {
+   "ask": "Is a school an institution?",
+   "expect": true,
+   "word": "school",
+   "kind": "institution",
+   "from": "school.n.01",
+   "sense_used": 125
+  },
+  {
+   "ask": "Is a wife a spouse?",
+   "expect": true,
+   "word": "wife",
+   "kind": "spouse",
+   "from": "wife.n.01",
+   "sense_used": 120
+  },
+  {
+   "ask": "Is a word a part?",
+   "expect": true,
+   "word": "word",
+   "kind": "part",
+   "from": "word.n.01",
+   "sense_used": 117
+  },
+  {
+   "ask": "Is a room a structure?",
+   "expect": true,
+   "word": "room",
+   "kind": "structure",
+   "from": "room.n.01",
+   "sense_used": 116
+  },
+  {
+   "ask": "Is a body an object?",
+   "expect": true,
+   "word": "body",
+   "kind": "object",
+   "from": "body.n.01",
+   "sense_used": 113
+  },
+  {
+   "ask": "Is a part a relation?",
+   "expect": true,
+   "word": "part",
+   "kind": "relation",
+   "from": "part.n.01",
+   "sense_used": 113
+  },
+  {
+   "ask": "Is a state a district?",
+   "expect": true,
+   "word": "state",
+   "kind": "district",
+   "from": "state.n.01",
+   "sense_used": 108
+  },
+  {
+   "ask": "Is a tree a plant?",
+   "expect": true,
+   "word": "tree",
+   "kind": "plant",
+   "from": "tree.n.01",
+   "sense_used": 107
+  },
+  {
+   "ask": "Is a program an idea?",
+   "expect": true,
+   "word": "program",
+   "kind": "idea",
+   "from": "plan.n.01",
+   "sense_used": 106
+  },
+  {
+   "ask": "Is an arm a limb?",
+   "expect": true,
+   "word": "arm",
+   "kind": "limb",
+   "from": "arm.n.01",
+   "sense_used": 104
+  },
+  {
+   "ask": "Is a city a municipality?",
+   "expect": true,
+   "word": "city",
+   "kind": "municipality",
+   "from": "city.n.01",
+   "sense_used": 103
+  },
+  {
+   "ask": "Is a horse an equine?",
+   "expect": true,
+   "word": "horse",
+   "kind": "equine",
+   "from": "horse.n.01",
+   "sense_used": 103
+  },
+  {
+   "ask": "Is an information a message?",
+   "expect": true,
+   "word": "information",
+   "kind": "message",
+   "from": "information.n.01",
+   "sense_used": 102
+  },
+  {
+   "ask": "Is an effect a phenomenon?",
+   "expect": true,
+   "word": "effect",
+   "kind": "phenomenon",
+   "from": "consequence.n.01",
+   "sense_used": 101
+  },
+  {
+   "ask": "Is a mother a parent?",
+   "expect": true,
+   "word": "mother",
+   "kind": "parent",
+   "from": "mother.n.01",
+   "sense_used": 100
+  },
+  {
+   "ask": "Is a government an organization?",
+   "expect": true,
+   "word": "government",
+   "kind": "organization",
+   "from": "government.n.01",
+   "sense_used": 100
+  },
+  {
+   "ask": "Is a door a barrier?",
+   "expect": true,
+   "word": "door",
+   "kind": "barrier",
+   "from": "door.n.01",
+   "sense_used": 98
+  },
+  {
+   "ask": "Is a form a word?",
+   "expect": true,
+   "word": "form",
+   "kind": "word",
+   "from": "form.n.01",
+   "sense_used": 96
+  },
+  {
+   "ask": "Is a road an artifact?",
+   "expect": true,
+   "word": "road",
+   "kind": "artifact",
+   "from": "road.n.01",
+   "sense_used": 94
+  },
+  {
+   "ask": "Is a name a part?",
+   "expect": true,
+   "word": "name",
+   "kind": "part",
+   "from": "name.n.01",
+   "sense_used": 94
+  }
+ ],
+ "no": [
+  {
+   "ask": "Is a person an adult?",
+   "expect": false,
+   "word": "person",
+   "kind": "adult",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a location an amount?",
+   "expect": false,
+   "word": "location",
+   "kind": "amount",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a man an attribute?",
+   "expect": false,
+   "word": "man",
+   "kind": "attribute",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a youth a barrier?",
+   "expect": false,
+   "word": "youth",
+   "kind": "barrier",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is an eye a barrier?",
+   "expect": false,
+   "word": "eye",
+   "kind": "barrier",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a people a building?",
+   "expect": false,
+   "word": "people",
+   "kind": "building",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a time a category?",
+   "expect": false,
+   "word": "time",
+   "kind": "category",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a way a district?",
+   "expect": false,
+   "word": "way",
+   "kind": "district",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a friend a condition?",
+   "expect": false,
+   "word": "friend",
+   "kind": "condition",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a soldier a district?",
+   "expect": false,
+   "word": "soldier",
+   "kind": "district",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a house an equine?",
+   "expect": false,
+   "word": "house",
+   "kind": "equine",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a problem a group?",
+   "expect": false,
+   "word": "problem",
+   "kind": "group",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a child an idea?",
+   "expect": false,
+   "word": "child",
+   "kind": "idea",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is an area an institution?",
+   "expect": false,
+   "word": "area",
+   "kind": "institution",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a boy a limb?",
+   "expect": false,
+   "word": "boy",
+   "kind": "limb",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a woman a location?",
+   "expect": false,
+   "word": "woman",
+   "kind": "location",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a type a material?",
+   "expect": false,
+   "word": "type",
+   "kind": "material",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a water a message?",
+   "expect": false,
+   "word": "water",
+   "kind": "message",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a number a municipality?",
+   "expect": false,
+   "word": "number",
+   "kind": "municipality",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a kind an object?",
+   "expect": false,
+   "word": "kind",
+   "kind": "object",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a school an organ?",
+   "expect": false,
+   "word": "school",
+   "kind": "organ",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a wife an organization?",
+   "expect": false,
+   "word": "wife",
+   "kind": "organization",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a word an organization?",
+   "expect": false,
+   "word": "word",
+   "kind": "organization",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a room a parent?",
+   "expect": false,
+   "word": "room",
+   "kind": "parent",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a body a person?",
+   "expect": false,
+   "word": "body",
+   "kind": "person",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a part a person?",
+   "expect": false,
+   "word": "part",
+   "kind": "person",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a state a plant?",
+   "expect": false,
+   "word": "state",
+   "kind": "plant",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a tree a relation?",
+   "expect": false,
+   "word": "tree",
+   "kind": "relation",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a program a relation?",
+   "expect": false,
+   "word": "program",
+   "kind": "relation",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is an arm a spouse?",
+   "expect": false,
+   "word": "arm",
+   "kind": "spouse",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a city a structure?",
+   "expect": false,
+   "word": "city",
+   "kind": "structure",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a horse a word?",
+   "expect": false,
+   "word": "horse",
+   "kind": "word",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is an information a worker?",
+   "expect": false,
+   "word": "information",
+   "kind": "worker",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is an effect an adult?",
+   "expect": false,
+   "word": "effect",
+   "kind": "adult",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a mother an amount?",
+   "expect": false,
+   "word": "mother",
+   "kind": "amount",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a government an artifact?",
+   "expect": false,
+   "word": "government",
+   "kind": "artifact",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a door an attribute?",
+   "expect": false,
+   "word": "door",
+   "kind": "attribute",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a form a barrier?",
+   "expect": false,
+   "word": "form",
+   "kind": "barrier",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a road a building?",
+   "expect": false,
+   "word": "road",
+   "kind": "building",
+   "from": "not above it in WordNet"
+  },
+  {
+   "ask": "Is a name a case?",
+   "expect": false,
+   "word": "name",
+   "kind": "case",
+   "from": "not above it in WordNet"
+  }
+ ]
+}

@@ -184,6 +184,10 @@ def main() -> int:
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--chunk", type=int, default=2000)
     parser.add_argument("--out", default="logs/teaching_preflight.json")
+    parser.add_argument("--records", default=None,
+                        help="records: the JSON Lines file of records to replay (`SentenceRecord`, `WordRecord`)")
+    parser.add_argument("--treebank", default=None, choices=("ewt", "gum", "lines", "partut", "atis", "eslspok"))
+    parser.add_argument("--pmb", default="gold", choices=("gold", "silver"))
     args = parser.parse_args()
     if "lyric_dev" not in os.environ.get("POSTGRES_DATABASE", ""):
         raise SystemExit("the preflight reads the sandbox's language: POSTGRES_DATABASE=lyric_dev")
@@ -193,9 +197,13 @@ def main() -> int:
     teach = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(teach)
     from core.learning.teaching import TeachingPass, Report
+    # EVERY FIELD `build_source` READS, or the source it builds raises before a single record is checked. Four were
+    # missing (`records`, `treebank`, `pmb`, `small`, `sense`, `part`), so the sources that need one -- `records`
+    # above all, which is the format a vocabulary is taught from -- could not be preflighted at all.
     source = teach.build_source(argparse.Namespace(
         source=args.source, domain=args.domain, limit=None, head=False, cache=None, section=None, dump=None,
-        relations="grammar", lesson=None, definitions=False))
+        relations="grammar", lesson=None, definitions=False, records=args.records, treebank=args.treebank,
+        pmb=args.pmb, small=None, sense=(), part=()))
     started = time.time()
     records = TeachingPass(source, domain=args.domain, limit=None, sample=True)._harvest(
         Report(source=source.name, domain=args.domain))

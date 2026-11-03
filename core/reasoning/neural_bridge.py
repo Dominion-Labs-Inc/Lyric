@@ -332,9 +332,26 @@ REASON_INTERNAL_FAULT = "internal_fault"
 _IMPLICATION_ARROWS = ("->", "=>", "\u2192")
 
 
-def _is_implication(text: str) -> bool:
-    """Whether this context item states a rule rather than a fact."""
-    return any(arrow in text for arrow in _IMPLICATION_ARROWS)
+def _is_implication(item: Any) -> bool:
+    """Whether this context item states a rule rather than a fact.
+
+    ASK THE PREMISE, NOT ITS TEXT. This read the statement for `->`, `=>` or an arrow, and nothing the substrate
+    holds is written with one: a premise is an atom (`isa(robin, bird)`) or English ("A robin is a bird"), so
+    `rules` came back EMPTY on every question ever asked. `DeductiveReasoningStrategy.is_applicable` requires
+    `len(context.rules) > 0`, so deduction declined every time -- 12 of 12 measured on the real answering path --
+    and the log said `no kind of thinking settled this (tried deductive)`, which reads as "tried and failed" and
+    actually meant "could not run at all" (2026-11-02).
+
+    A `ReasoningPremise` already says what it came from (`provenance_kind`: concept | memory | rule | belief), which
+    is the identity the caller established when it read the thing. Taking it is the same correction the premise type
+    was created for: "a heuristic standing in for a link that had been thrown away three frames earlier."
+
+    The arrow test remains for a bare string, which carries no provenance to ask.
+    """
+    kind = getattr(item, "provenance_kind", None)
+    if kind is not None:
+        return kind == "rule"
+    return any(arrow in str(item) for arrow in _IMPLICATION_ARROWS)
 
 
 #: Ubiquitous function words that connect any two sentences, so they must not
@@ -3891,10 +3908,14 @@ class NeuralSymbolicBridge:
                 ReasoningPremise(premise_id=f"ctx{i}", statement=str(item),
                                  confidence=1.0, source="request_context")
                 for i, item in enumerate(request.context or ())
-                if not _is_implication(str(item))
+                # THE ITEM, NOT ITS TEXT. `str(item)` on a `ReasoningPremise` returns its statement alone
+                # (`__str__`), so asking the string what it came from always answered None and the split fell back
+                # to looking for arrows -- which is the defect `_is_implication` was just corrected for. Passing the
+                # premise keeps the provenance the caller established.
+                if not _is_implication(item)
             ],
             rules=[str(item) for item in (request.context or ())
-                   if _is_implication(str(item))],
+                   if _is_implication(item)],
             # THE QUESTION IS NOT A FACT. It used to be passed as
             # `facts=[request.query]`, and abduction reads its observations from
             # premises PLUS facts -- so "what best explains the wet lawn?"
@@ -3913,7 +3934,7 @@ class NeuralSymbolicBridge:
             # Safe to repeat the premises here: `_observations` deduplicates on
             # the statement text, so nothing is counted twice.
             facts=[str(item) for item in (request.context or ())
-                   if not _is_implication(str(item))],
+                   if not _is_implication(item)],
             # THE QUESTION IS THE GOAL. Logical and probabilistic reasoning both
             # need a claim to settle -- a prover with no theorem and a belief
             # system with no proposition have nothing to do -- and with

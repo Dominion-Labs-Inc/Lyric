@@ -30,7 +30,7 @@ from .shared_types import (
     is_substrate_actor
 )
 from core.learning.unified_learning_system import get_learning_authority
-from core.learning.performance_profiler import profile_performance
+from core.learning.performance_profiler import profile_performance, trace_step
 from core.intelligence.predictive_intelligence_system import Departure
 from .directive_system import DirectiveSystem
 from .coordinator_config import CoordinatorConfig, get_default_config
@@ -24880,6 +24880,33 @@ class Conversation:
         # reached people at the end of otherwise ordinary replies. The reading is
         # still on the `Understanding` for anything that wants to inspect it.
         return _spoken(lines + asking)
+
+
+# EVERY STEP OF ANSWERING SAYS IT IS STARTING, AND WHAT IT COST.
+#
+# This class is 3,522 lines and 85 methods and held NINE logger calls; `_understand`, which is the whole of
+# answering, held one across 269 lines. So everything ever seen in a log while Lyric answered came from subsystems it
+# called on the way through -- a pgvector search, the proof engine, the reasoning engine saying no strategy fit --
+# and never from the answering itself. The moment it entered a step that calls none of those, the log went silent
+# while the work went on.
+#
+# WHAT THAT COST: a substrate answering "Is a person an organism?" ran at 98% of a core for forty-five minutes and
+# wrote nothing. The last line in its log came from `neural_bridge` on the way into `_reasoned_answers`, so the step
+# it was actually inside could only be guessed at. It was killed to find out, and the only live instance of the
+# defect died with it (2026-11-02).
+#
+# Wrapped here, once, rather than decorated method by method: the list is the pipeline `_understand` runs, so what
+# the log shows is the shape of answering and not a scattering of whatever happened to be annotated. A step's entry
+# line is at DEBUG and so is its cost, unless it took longer than `SLOW_STEP_MS` (2s), which is said at INFO -- an
+# ordinary answer leaves no trace and a slow one names itself. NOTHING IS CAPPED OR TIMED OUT: a step that runs long
+# still runs, it just stops being invisible while it does.
+for _step in ("_understand", "_listen", "_take_feedback", "_answered_in_kind", "_worked",
+              "_incoming_relations", "_asked_of_events", "_asked_of_events_composed", "_reasoned_answers",
+              "_register_domain_gap", "_plural_map", "_kind_of", "_hand_over_turn"):
+    _was = getattr(Conversation, _step, None)
+    if callable(_was):
+        setattr(Conversation, _step, trace_step("answering", _step)(_was))
+del _step
 
 
 #: Held conversations, keyed by session. Bounded, oldest evicted first.

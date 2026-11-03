@@ -1887,8 +1887,19 @@ class AbstractReasoningEngine:
         result_id = str(uuid.uuid4())
         
         try:
-            logger.info(f"Starting reasoning operation: {context.problem_type}")
-            
+            # WHAT IT IS REASONING ABOUT, not merely that it is reasoning. `Starting reasoning operation: <type>`
+            # named the KIND of problem and never the problem: a reader could not tell what was asked, what was
+            # given to work from, or -- when nothing came back -- whether there had been anything to work from at
+            # all. An answer that took 5.6s of reasoning said nothing about what it reasoned over (2026-11-02).
+            logger.info("reasoning: asked %s in %s -- %d premise(s), %d fact(s), %d rule(s), depth<=%d, conf>=%.2f",
+                        context.problem_type, context.domain or "no domain", len(context.premises or ()),
+                        len(context.facts or ()), len(context.rules or ()),
+                        context.max_inference_depth, context.confidence_threshold)
+            for _n, _premise in enumerate(context.premises or (), 1):
+                logger.info("reasoning:   given %d. %s", _n, str(_premise)[:200])
+            if not context.premises:
+                logger.info("reasoning:   NOTHING WAS GIVEN TO REASON FROM")
+
             self.active_contexts[context.context_id] = context
             
             # Initialize result
@@ -1910,12 +1921,29 @@ class AbstractReasoningEngine:
             for reasoning_type, strategy in applicable_strategies:
                 try:
                     strategy_conclusions = await strategy.reason(context)
-                    
+
+                    # WHAT THE KIND CONCLUDED, AND WHAT WAS THROWN AWAY. A conclusion rejected by
+                    # `_validate_conclusion` vanished without trace, so a kind that derived the right thing and had
+                    # it refused looked identical to a kind that derived nothing -- and both came out as
+                    # `no kind of thinking settled this`.
+                    if not strategy_conclusions:
+                        logger.info("reasoning:   %s concluded nothing", reasoning_type.value)
                     for conclusion in strategy_conclusions:
                         # Validate conclusion
-                        if await self._validate_conclusion(conclusion, context):
+                        _ok = await self._validate_conclusion(conclusion, context)
+                        logger.info(
+                            "reasoning:   %s %s %r  conf=%.2f valid=%.2f evidence=%.2f coherence=%.2f "
+                            "(via %s, from %d premise(s), %d step(s))",
+                            reasoning_type.value, "concluded" if _ok else "concluded BUT WAS REFUSED",
+                            str(conclusion.statement)[:160], conclusion.confidence, conclusion.logical_validity,
+                            conclusion.evidence_strength, conclusion.coherence_score,
+                            getattr(conclusion.inference_method, "value", conclusion.inference_method),
+                            len(conclusion.supporting_premises or ()), len(conclusion.reasoning_steps or ()))
+                        for _n, _step in enumerate(conclusion.reasoning_steps or (), 1):
+                            logger.info("reasoning:       step %d. %s", _n, str(_step)[:200])
+                        if _ok:
                             all_conclusions.append(conclusion)
-                            
+
                             # Update statistics
                             strategy_name = reasoning_type.value
                             self.statistics["reasoning_types_used"][strategy_name] = \
@@ -1932,7 +1960,25 @@ class AbstractReasoningEngine:
             # Filter and rank conclusions
             filtered_conclusions = await self._filter_conclusions(all_conclusions, context)
             ranked_conclusions = await self._rank_conclusions(filtered_conclusions, context)
-            
+
+            # WHAT SURVIVED AND WHAT WON. Filtering and ranking both dropped and reordered conclusions in silence,
+            # so the one conclusion that became the answer could not be told apart from the ones that did not, and a
+            # conclusion lost at the filter looked exactly like one never derived.
+            if len(filtered_conclusions) != len(all_conclusions):
+                _gone = {id(c) for c in filtered_conclusions}
+                for _c in all_conclusions:
+                    if id(_c) not in _gone:
+                        logger.info("reasoning:   filtered out %r (%s, conf=%.2f)", str(_c.statement)[:140],
+                                    getattr(_c.reasoning_type, "value", _c.reasoning_type), _c.confidence)
+            if ranked_conclusions:
+                logger.info("reasoning: %d conclusion(s) kept of %d derived; answering with %r (%s, conf=%.2f)",
+                            len(ranked_conclusions), len(all_conclusions), str(ranked_conclusions[0].statement)[:160],
+                            getattr(ranked_conclusions[0].reasoning_type, "value",
+                                    ranked_conclusions[0].reasoning_type), ranked_conclusions[0].confidence)
+            else:
+                logger.info("reasoning: NOTHING survived -- %d derived, %d past the filter",
+                            len(all_conclusions), len(filtered_conclusions))
+
             result.conclusions = ranked_conclusions
             result.total_inferences = len(all_conclusions)
             
@@ -2056,19 +2102,38 @@ class AbstractReasoningEngine:
         """Select applicable reasoning strategies for the context"""
         
         applicable = []
-        
+        # WHICH KINDS, AND WHY NOT THE REST. This said `Selected 0 reasoning strategies` and nothing else, which is
+        # the one case where the count answers nothing: 0 can mean the context allowed no kind, or that it allowed
+        # kinds none of which said it could help, and those are different faults with different fixes. A substrate
+        # that answered nothing logged `Selected 0 reasoning strategies` right after `tried deductive` and there was
+        # no way to tell whether deductive had been excluded or had declined (2026-11-02).
+        not_allowed, declined = [], []
+
         for reasoning_type, strategy in self.strategies.items():
-            if (reasoning_type in context.allowed_reasoning_types and
-                strategy.is_applicable(context)):
+            if reasoning_type not in context.allowed_reasoning_types:
+                not_allowed.append(reasoning_type.value)
+            elif not strategy.is_applicable(context):
+                declined.append(reasoning_type.value)
+            else:
                 applicable.append((reasoning_type, strategy))
-        
+
         # If no specific types are allowed, use all applicable
         if not context.allowed_reasoning_types:
+            not_allowed, declined = [], []
             for reasoning_type, strategy in self.strategies.items():
                 if strategy.is_applicable(context):
                     applicable.append((reasoning_type, strategy))
-        
-        logger.info(f"Selected {len(applicable)} reasoning strategies")
+                else:
+                    declined.append(reasoning_type.value)
+
+        if applicable:
+            logger.info("reasoning: %d kind(s) will be tried: %s",
+                        len(applicable), ", ".join(t.value for t, _ in applicable))
+        else:
+            logger.info("reasoning: NO kind will be tried -- %d held; %s; %s",
+                        len(self.strategies),
+                        f"not allowed here: {', '.join(not_allowed)}" if not_allowed else "every kind was allowed",
+                        f"said it could not help: {', '.join(declined)}" if declined else "none declined")
         return applicable
     
     async def _validate_conclusion(self, conclusion: ReasoningConclusion, context: ReasoningContext) -> bool:
@@ -2509,6 +2574,45 @@ class AbstractReasoningEngine:
             }
             for result in history
         ]
+
+
+# EVERY KIND OF THINKING SAYS IT IS THINKING, AND WHAT IT COST.
+#
+# Eight of the twelve strategies held NOT ONE logger call: causal reasoning is 113 lines and said nothing, spatial
+# 80 and said nothing, counterfactual 80 and said nothing. So a question could be reasoned about at length and the
+# only trace was the engine's own count of how many kinds it picked -- never which kind ran, what it looked at, how
+# long it took, or whether it concluded anything. `no kind of thinking settled this (tried deductive)` was the whole
+# of what a failed reasoning said about itself.
+#
+# Wrapped here, once, over the kinds the engine registers, so the log shows the order they were tried in and where
+# the time went. `is_applicable` is wrapped too, because the interesting answer is often that a kind declined before
+# it did any work at all. Entry and cost are at DEBUG; a kind that takes longer than `SLOW_STEP_MS` says so at INFO,
+# and one still running says so from a thread while it runs (`trace_step`) -- which is the only way a kind that does
+# not finish can be named, since reasoning is CPU-bound and holds the event loop while it thinks.
+#
+# NOTHING IS CAPPED, BOUNDED OR TIMED OUT HERE. A kind that thinks for an hour still thinks for an hour.
+from core.learning.performance_profiler import trace_step as _trace_step
+
+for _strategy_class in (DeductiveReasoningStrategy, InductiveReasoningStrategy, AbductiveReasoningStrategy,
+                        AnalogicalReasoningStrategy, CausalReasoningStrategy, CounterfactualReasoningStrategy,
+                        SpatialReasoningStrategy, FuzzyReasoningStrategy, LogicalReasoningStrategy,
+                        ProbabilisticReasoningStrategy, TemporalReasoningStrategy):
+    #: `DeductiveReasoningStrategy` -> `deductive`, which is what the engine and the log already call the kind.
+    _kind = _strategy_class.__name__.replace("ReasoningStrategy", "").lower()
+    for _part in ("reason", "is_applicable"):
+        _was = _strategy_class.__dict__.get(_part)
+        if callable(_was):
+            setattr(_strategy_class, _part, _trace_step("thinking", f"{_kind}.{_part}")(_was))
+del _strategy_class, _kind, _part, _was
+
+# The engine's own pipeline, in the order `reason()` runs it: choose the kinds, run each, keep what validates, then
+# filter, rank, score, learn and store. A name not on the class is skipped rather than guessed at.
+for _part in ("reason", "_select_strategies", "_validate_conclusion", "_filter_conclusions", "_rank_conclusions",
+              "_calculate_result_quality", "_update_learning", "_store_in_memory"):
+    _was = AbstractReasoningEngine.__dict__.get(_part)
+    if callable(_was):
+        setattr(AbstractReasoningEngine, _part, _trace_step("reasoning", _part)(_was))
+del _part, _was
 
 
 # Export main classes and functions
