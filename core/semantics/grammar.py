@@ -2259,6 +2259,13 @@ class Reading:
     #: The words of the sentence MEMORY DOES NOT HOLD, each once, in the order first met (`words_not_held`): read
     #: anyway, by reading the sentence around them, and now said instead of passed over in silence.
     unheld: Tuple[str, ...] = ()
+    #: THE SHARE THE READER'S OWN RANKING GIVES THIS READING, logged (nats): as `sure`, but over the quantity the
+    #: grammar actually ranks by (`score` with `_said_so`), not `score` alone. What a listener weighs as the
+    #: reading's structure where it holds no link of its own (`derived_reader.Reading.structure`). Handed
+    #: `log(sure)` instead, a listener with no other evidence re-sorted the readings by a DEGRADED copy of the
+    #: reader's order and took the right one less often than the reader's own first did: 32.8% against 33.5% over
+    #: 400 held-out sentences, losing an available right reading 21 times (2026-11-03).
+    ranked: float = 0.0
 
 
 #: The categories a whole sentence may be read as, and what the speaker wants by each.
@@ -3667,14 +3674,31 @@ class Grammar:
         # where it does not; as an order as often as what is said is one (`_said_so`).
         ranked = sorted(whole, reverse=True,
                         key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
+        # WHAT KIND OF UTTERANCE THIS IS, THE READER DECIDES, AND HANDS UP NO ALTERNATIVE TO IT: of two readings as
+        # sure, a sentence before a thing said alone (`_rank`), and that is not a meaning a listener can weigh --
+        # it weighs what was said, not whether anything was. Handed readings of every wholeness at once, a listener
+        # whose other evidence was silent re-decided it on the words' score alone and took the phrase: "My dog bit
+        # Tom." read as a thing called "dog bit" that Tom is (12.5 nats surer by the words), "The phone rang." as
+        # a telephone called "rang", "The public demands answers." as a public demand called "answers" -- which is
+        # the very reading `_rank` was written to stop ("Contact Dana." as a contact, 2026-10-24). It overruled a
+        # reader that was right on 4 of 400 held-out sentences and gained nothing anywhere (2026-11-03).
+        kind = _rank(ranked[0].cat)
+        ranked = [s for s in ranked if _rank(s.cat) == kind]
         # HOW SURE: the reading's share of every reading of the whole, by how surely each reads its words.
         top = max(s.score for s in whole)
         shares = sum(math.exp(s.score - top) for s in whole)
+        # AND THE SHARE OF THE READER'S OWN RANKING, which is not the same quantity: a sentence is read as one
+        # wherever the grammar reads it so, and `_said_so` is part of why this reading stands above that one. A
+        # listener handed `sure` is handed the ranking with that term missing (`Reading.ranked`).
+        by_rank = {id(s): s.score + self._said_so(s.cat) for s in whole}
+        high = max(by_rank.values())
+        every = sum(math.exp(v - high) for v in by_rank.values())
         out: List[Reading] = []
         said: Set[str] = set()
         for sign in ranked:
             reading = Reading(tokens, sign, None, unheld=unheld)
             reading.sure = math.exp(sign.score - top) / shares
+            reading.ranked = math.exp(by_rank[id(sign)] - high) / every
             try:
                 reading.meaning = self._spell_out(sign, tokens, reading)
             except ValueError as error:

@@ -183,6 +183,8 @@ class _AsMemorysGrammar:
         self._meaning, self._compose = meaning, compose
         self.sign = None
         self.sure = 1.0
+        # The share the reader's own ranking gives it, which is what a listener weighs as its structure.
+        self.ranked = 1.0
         # Why nothing was said, as a real reading carries it: `_read_by_composing` says why an utterance came back
         # unread, and reads it from here where the meaning language could say nothing (2026-11-03).
         self.why = ""

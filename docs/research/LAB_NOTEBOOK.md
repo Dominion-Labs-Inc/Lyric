@@ -159,6 +159,47 @@ no antecedent (the possessive refusal of entry 108, found by bisecting readings 
 refusing a whole sentence for one unsayable part (`Said.gaps`, 26.5% of gold train); and `Grammar.readings` itself,
 which keeps `Reading.decided`, `sure` and `why` and logs none of them.
 
+### The listener tested on a store, and the 4.6 points it cannot reach
+
+*"OK run it."* `listener_on_store.py` drives the two functions that decide — `Grammar.readings`, then `listening`
+and `meant` as `_read_by_composing` and the conversation call them — keeping each grammar sign beside its composed
+reading so the gold is scored the way every earlier GRAMMAR-01 number was (`senses_aside` renames the gold by the
+reading's own word names and cannot be computed from a composed reading alone). `POSTGRES_DATABASE=lyric_dev`,
+reads only.
+
+| readings asked for | the reader's own first is right | the right reading is among those handed up | the listener took the right one |
+|---|---:|---:|---:|
+| 1 | 33.2% | 33.2% | 33.2% |
+| 6 | 33.5% | 35.0% | 33.5% |
+| 25 | 33.5% | **37.8%** | 33.5% |
+
+**The listener has never been given a chance to choose.** Every one of the 400 sentences traced the same way —
+*memory asked, knew nothing of any reading* — and all ten learned worths on this store are **+0.00**, so `known`,
+`defined` and `fit` weigh at nothing and `selected` and `related` came back empty. The store holds **1** sentence
+record against 4,856 word records, and `listening_worths` is learned from taught lessons. So the 4.6 points between
+33.2% and 37.8% sit available and unclaimed, and this store cannot say whether the listener could claim them. 35 of
+the 400 say nothing at all here, and the 33.2% baseline is not comparable to the files-only 54.2%: only the deltas
+within the run are.
+
+**Two defects of mine, found by the trace, in the number handed to the listener.** First it carried `log(sure)`,
+built from `score` alone, where the reader ranks by `score` with `_said_so`; fixing that to `Reading.ranked` changed
+**nothing** — 32.8% and the same losses, which refuted the diagnosis. The trace then named the real one by printing
+the sentences where the reader was right and the listener overruled it, and all four were one thing: the reader's
+sort key is lexicographic with **wholeness first** (`_rank`: of two readings as sure, a sentence before a thing said
+alone), and a listener handed a scalar that dropped that term re-decided wholeness on the words' score and took the
+phrase. *My dog bit Tom.* went to a thing called "dog bit" that Tom is, 12.5 nats surer by the words; *The phone
+rang.* to a telephone called "rang"; *The public demands answers.* to a public demand called "answers" — the very
+reading `_rank` was written to stop (*Contact Dana.* as a contact, 2026-10-24).
+
+So `Grammar.readings` hands up only readings of the **same wholeness as the one it puts first**. What kind of
+utterance this is, the reader decides; the listener weighs what was said, not whether anything was. Overrulings went
+from 4 to **0** at every width and the listener now equals the reader exactly, which is the property it must have
+before any of this is turned on: with no evidence, reproduce the reader; never lose to it.
+
+I had also called this run evidence that the objective is mis-ordered. It is not: the raw word-score does rank the
+nonsense above the clause in those four, and the reader correctly overrides it. The mis-ordering shown earlier
+(`nbest.py`, the reader's own choice flat from six readings to fifty) stands on its own evidence.
+
 ### What this leaves
 
 - `nbest.py` holds the sweep; `nbest_dev_standard.json` holds its numbers.

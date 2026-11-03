@@ -5418,7 +5418,7 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
             refused["a question that asks for nothing"] += 1
             continue
         made.append(Reading(_said_by_words(read), (), meaning, composed=True,
-                            structure=math.log(read.sure) if read.sure > 0 else 0.0))
+                            structure=math.log(read.ranked) if read.ranked > 0 else 0.0))
     # WHY AN UTTERANCE CAME BACK UNREAD, SAID. Each refusal above returned the utterance unchanged and silently, so a
     # sentence the grammar read whole at sureness 1.00 and then could not say was indistinguishable from one no
     # grammar rule reached: seven of the taught set read as nothing for one such refusal, and finding which took a
