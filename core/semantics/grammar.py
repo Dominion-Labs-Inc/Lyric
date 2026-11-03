@@ -45,7 +45,8 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
 
-from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
+from core.semantics.derived_reader import (Meaning, MeaningFact, is_variable,
+                                           _ARITHMETIC_ROLES)
 from core.semantics.relation_types import is_worded, worded
 from core.semantics.sentence_machine import _ADDRESS
 
@@ -5464,7 +5465,16 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         """
         kind = kinds[t][2] if t in kinds else t if isinstance(t, str) and t in kind_of.values() else None
         written = isinstance(t, str) and _number(t) is not None
-        return written or (kind is not None and "number" in [kind] + words.kinds(kind, "NOUN"))
+        if written:
+            return True
+        # A NUMBER BUILT FROM NUMBERS IS A NUMBER, whatever kind its words gave it. "two plus three" states an
+        # augend and an addend and no kind at all, so `kinds` holds nothing for it; asked of the words alone,
+        # "What is two plus three?" said `same_as` -- one thing under two descriptions -- where it is two values
+        # being one number. Of the lessons' arithmetic faults 80 were this, every `What is <number> plus
+        # <number>?` among them (2026-11-03).
+        if any(f.relation in _ARITHMETIC_ROLES and f.subject == term(t) for f in facts):
+            return True
+        return kind is not None and "number" in [kind] + words.kinds(kind, "NOUN")
     bes: List[Piece] = [p for p in pieces if p[0] == "be"]
     holders: Dict[Term, Term] = {p[3]: p[1] for p in pieces if p[0] == "quality"}
     holders.update({p[3]: p[1] for p in bes})
