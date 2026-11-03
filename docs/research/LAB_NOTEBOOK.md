@@ -240,6 +240,50 @@ the listener's own learning pass on the taught store so `known` and `defined` ha
 evidence channel that compares whole structures rather than sense sets. The first writes beliefs to a store and is
 his to start.
 
+### The listener's worths taught, and why nothing was counted
+
+`scripts/teach.py --source listening` is THE entry point for this and I wrote a duplicate of it before finding it;
+the duplicate is deleted. It boots its own substrate (`start()`, as every entry point here does — `ask.py` says
+"about three and a half minutes"), re-learned the 6,137 sentences in **810 s** against the resident's 915 s, so
+routing `chart` through `charts` costs nothing measurable, and then read all 3,054 lesson sentences in 281 s.
+
+    listening counted : {'observed': 0, 'withdrawn': 0, 'refused': 0, 'total': 20, 'sentences': 3054}
+
+**Refused nothing and counted nothing.** `listening_counts` only counts a sentence that reads more than one way:
+
+    found = weighed(readings, view, heard=await listening((readings,)))
+    if len(found) > 1 and any(w.reading.meaning.canonical() == taught for w in found):
+
+`COMPOSED_READINGS` is 1, so every composed sentence hands up exactly one meaning, `len(found)` is 1, and the gate
+never opens. **The circuit is closed on itself**: the reader hands up one reading → the listener never has a choice
+→ the pass never sees a choice to count → the worths stay zero → given choices at last, the listener weighs what
+memory knows at nothing. Every link breaks at the same place, the reader handing up one reading, which is what
+`Grammar.readings` now makes changeable.
+
+`LYRIC_COMPOSED_READINGS=6` is **the wrong lever** and was tried: composing is also the path a start reads its 139
+tools by (`ready_to_read` → `_tools_by_doing` → `read_text`), so each tool description built a chart of six squared
+the combinations and a start that takes 29 s had not finished reading its tools in 20 minutes. Scoping it to the
+counting pass (a contextvar, as `grammar.py` scopes `_TEACHES`) is the shape that would work; it was written and
+reverted unused, because it is not on the path to the bar.
+
+### What this is worth, which is the thing to read first
+
+| | of 400 held-out |
+|---|---:|
+| right words, JOINED WRONG | **25.5%** |
+| WRONG WORDS NAMED | **18.2%** |
+| said nothing at all | 3.0% |
+| selection: the right reading available and not chosen | 5.2% |
+
+**The listener is the smallest of these and the day went into it.** It is worth at most 5.2 points of a gap of
+about 52, and every one of those points is behind the closed circuit above. The two that matter are the top rows,
+and only the words row breaks into named mechanisms: a nationality adjective read as the inhabitant noun (~9
+sentences: `Italian` → *an inhabitant of Italy*), a pronoun or possessive named as a concept of its own (~7), clock
+times (3), `Let's` (3), `what kind of` and do-support (2 each). The first is general — `teaching_sources.py`
+assembles a word's senses unsorted so NLTK's noun-first order governs, and nothing constrains the sense by the
+category the word is actually read in; a word read as `n/n` should take an adjective sense. That rule touches every
+modifier in the corpus and is where the next session should start.
+
 ### What this leaves
 
 - `nbest.py` holds the sweep; `nbest_dev_standard.json` holds its numbers.

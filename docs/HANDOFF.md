@@ -1,4 +1,4 @@
-# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-11-01)
+# Handoff: Lyric reading and understanding English (2026-10-14, updated 2026-11-03)
 
 For an engineer, and their Claude Code session, picking this work up. Read this first, then the lab notebook entries
 2026-10-13 (4), 2026-10-14 (1), 2026-10-16 (1), 2026-10-16 (2), 2026-10-16 (6) to (10), 2026-10-17 (11) to
@@ -6,7 +6,70 @@ For an engineer, and their Claude Code session, picking this work up. Read this 
 to 2026-10-28 (67) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-11-01)
+## 0. Where it stands (2026-11-03)
+
+**THE WHOLE GAP, ACCOUNTED FOR.** 400 held-out PMB dev sentences, every failure put in exactly one bucket by whether
+the reader named the wrong things or named the right things and joined them wrong (lab notebook (109)):
+
+| | of 400 |
+|---|---:|
+| read right | 53.2% |
+| right words, **JOINED WRONG** | **25.5%** |
+| **WRONG WORDS NAMED** | **18.2%** |
+| said nothing at all | 3.0% |
+| (of which: the right reading was available and not chosen) | 5.2% |
+
+**Only the words row breaks into recurring mechanisms.** A nationality adjective read as the inhabitant noun (~9:
+*Romano Prodi wins Italian primaries.* names `inhabitant`, never `italian`), a pronoun or possessive named as a
+concept of its own (~7: *My stomach aches after meals.* names `my`), clock times (3), `Let's` read as the verb "let"
+(3), `what kind of` and do-support (2 each). The first is general and is **where to start**:
+`teaching_sources.py` assembles a word's senses unsorted, so NLTK's noun-first order governs and nothing constrains
+the sense by the category the word is read in. A word read as `n/n` should take an adjective sense. That rule
+touches every modifier in the corpus, not a list of demonyms. The joined-wrong 25.5% has **no** comparable families
+in it; three candidate mechanisms were each measured and each refuted (verb valency — the gold category is available
+for 95.8% of aligned words; the kind-versus-particular level — 11 of 94; the negation's scope — 2 of 94).
+
+**FOUR CANDIDATE FIXES WERE TESTED AND THREE REFUTED (109).** The chart was Viterbi's — one reading of each category
+of each stretch — so the 61.8% the exhaustive chart reaches was never at the root to choose between.
+`Grammar.charts(tokens, how_many)` and `Grammar.readings(tokens, how_many)` keep and hand up more, `chart` and
+`read` keep their exact contracts by asking for one, and `_read_by_composing` hands the listener every reading
+instead of wrapping one. Swept, the right reading being **available** climbs without plateau (54.2% at one, 56.2% at
+six, 58.7% at fifty on 150 sentences, against 61.8% exhaustive) while **the reader's own choice never moves** — 79
+of 150 at every width from six to fifty. So the points wait entirely on the choosing. `COMPOSED_READINGS` is **1**.
+
+**AND THE CHOOSER CANNOT CHOOSE, FOR TWO REASONS BOTH MEASURED.** On `lyric_db` with all 6,137 taught sentences the
+listener took the reader's own first reading at every width (43.0%, 42.0%, 41.8% against 43.0%, 44.8%, 48.2%
+available). `listening_worths` is **0 of 10 non-zero on every store**, so `known`, `defined` and `fit` are
+multiplied by zero. And `related` and `selected`, which need no worths, are computed over the things each reading
+names *that the others do not* — empty when readings differ in structure rather than word sense, since
+`owns(spider, leg)` and `has_part(spider, leg)` name spider and leg either way. The listener's evidence was built
+for which thing a word names; a wide chart hands it readings that differ in structure.
+
+**THE WORTHS CANNOT BE LEARNED EITHER, AND IT IS CIRCULAR.** `scripts/teach.py --source listening` ran clean on the
+live store and counted nothing: `{'observed': 0, 'refused': 0, 'total': 20, 'sentences': 3054}`. `listening_counts`
+only counts a sentence that reads more than one way, and with `COMPOSED_READINGS` at 1 no composed sentence does.
+Reader hands up one reading → listener never has a choice → the pass never sees a choice to count → the worths stay
+zero. `LYRIC_COMPOSED_READINGS=6` is the wrong lever: composing is also how a start reads its 139 tools
+(`ready_to_read` → `_tools_by_doing`), and a start that takes 29 s had not finished reading them in 20 minutes.
+Scope it to the counting pass instead (a contextvar, as `grammar.py` scopes `_TEACHES`).
+
+**READING NOW SAYS WHAT IT DID.** `derived_reader` had no logger at all. The listener reports what it weighed, each
+channel beside what it was **worth** (the two come apart: a row reading "known 2" over a total memory moved not at
+all is the whole story), the margin over the runner-up, and the one thing that decided; the reader names each of
+the three refusals that used to return an utterance unchanged and silently. `core.semantics` already routes to the
+substrate panel, so no routing was added. This found two of its own author's bugs within the hour.
+
+**EVERY ENTRY POINT BOOTS ITS OWN SUBSTRATE.** `teach.py` and `ask.py` both `start()` one (~3.5 min, or 810 s when a
+grammar edit invalidates `RULES`, which hashes `grammar.py`, `grammar_words.py` and `english.json`). The running
+instance's door accepts only `/health /check /attach /detach /pass /take` — **nothing teaches**. So a teaching run
+boots a rival substrate while a warm one is up. That is a real gap and worth closing.
+
+**A STOP SWEEP THAT MATCHES NOTHING.** The resident runs as `Python -m core.main`; a sweep for
+`python.*lyric|python.*core/main.py` matches **zero** real processes (module form, and no "lyric" on the command
+line) while happily matching any shell whose path contains "Lyric". `python.*core[./]main` matches it.
+`runtime/lyric_main.pid` and `runtime/instances/<stamp>-<pid>.json` (door, database) are the reliable check.
+
+## 0a. Where it stood (2026-11-01)
 
 **THE BAR IS 95% AND NOTHING IS DONE BEFORE IT IS MET (the owner, 2026-10-26).** Steps landed are "landed,
 measured", never done; every result is reported against the bar. UNDERSTANDS-PROSE-02's "sentences understood" counts
