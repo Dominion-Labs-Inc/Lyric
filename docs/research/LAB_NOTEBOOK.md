@@ -49,13 +49,24 @@ every composed reading of a sentence weighs alike on structure, because a compos
 | 4 | 54.0% | 54.8% | 2.2 | 0.15 |
 | 6 | 54.0% | 56.2% | 2.7 | 0.22 |
 
-**A wider beam is not the fix.** It recovers 2.0 of the 7.6 points at five and a half times the reader's time, and
-it bounds any chooser: a listener that never erred would gain 0.3 points at three readings and 2.0 at six. Only 2.7
-distinct meanings reach the root even at six, so nothing is truncated at the hand-off — the right reading is simply
-not in the chart. The readings the oracle found are **not the next best-scoring ones**, and the reader's own choice
-got slightly *worse* as the beam widened (54.2% → 54.0%): the score over words puts wrong derivations above right
-ones, and no beam width mends an objective that is mis-ordered (Toutanova et al. 2002; Clark and Curran 2004).
-`COMPOSED_READINGS` is therefore **1**, so the capability costs nothing until something earns it.
+Swept wider over the first 150 of that sample, where the reader's own choice is right for 52.7%: **54.7%** available
+at six, 55.3% at twelve, 57.3% at twenty-five, **58.7% at fifty**, at 0.15, 0.36, 1.06 and 2.11 s a sentence.
+
+**It does not plateau, and that is worth +6.0 points.** Fifty readings of each category reach about two thirds of
+the headroom between the reader's own choice and the exhaustive chart's 61.8% — the largest lever measured on the
+reader to date, larger than any family in the words layer below. I had called a wider beam dead on the strength of
+the six-reading figure alone, which was wrong: availability keeps climbing.
+
+What the sweep does establish is **where the gain must come from**. The reader's own choice is 79 of 150 at every
+width from six to fifty — perfectly flat — so a wider search is worth exactly what a chooser can make of it and
+nothing by itself. (The 54.2% → 54.0% at widths three and four over 400 sentences is one sentence, not a trend; the
+score over words neither improves nor degrades with more of it to rank.) And the readings that matter arrive **at
+the top of the list**: at fifty, of the nine newly available right readings, seven rank first and one each second
+and fifth. So the chooser weighs a handful of readings, not a haystack, which is the regime `meant` was built for.
+
+`COMPOSED_READINGS` stays **1** until the chooser is measured, because this run is files only and `meant` weighs
+what memory knows of what each reading says — the one evidence channel absent here. That measurement needs a store,
+and it is now justified where it was not: the readings the listener would receive carry 6.0 points.
 
 ### Three hypotheses about what joins wrong, each refuted by its own measurement
 

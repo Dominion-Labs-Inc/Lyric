@@ -5364,13 +5364,14 @@ COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 #: listener to take one as meant (`meant`). One, and the listener is handed the reader's own choice and weighs
 #: nothing. `LYRIC_COMPOSED_READINGS` sets it; an experiment may.
 #:
-#: ONE, UNTIL A CHOOSER EARNS MORE. Asking for more costs the chart `how_many` squared in the combinations it tries,
-#: and over the PMB's held-out dev part what it buys is bounded by how often the right reading is among those asked
-#: for at all: 54.2% at one, 54.5% at three, 56.2% at six, against 54.2% the reader already chooses right
-#: (`experiments/GRAMMAR-01/diagnostics/nbest.py`, 2026-11-03). So even a chooser that never erred would gain 0.3
-#: points at three and 2.0 at six, for three and five and a half times the reader's time. The readings the oracle
-#: found (61.8%) are not the next best-scoring ones: a wider beam left the reader's OWN choice slightly worse
-#: (54.0%), which is the score over words putting wrong derivations above right ones, and no beam width mends that.
+#: ONE, UNTIL A CHOOSER IS MEASURED. Asking for more costs the chart `how_many` squared in the combinations it tries,
+#: and buys only what a chooser can make of it: over the PMB's held-out dev part the reader's own choice is right for
+#: 52.7% of 150 sentences AT EVERY WIDTH FROM SIX TO FIFTY, flat, while the right reading being among those handed up
+#: climbs 54.7%, 55.3%, 57.3%, 58.7% at six, twelve, twenty-five and fifty, for 0.15, 0.36, 1.06 and 2.11 s a
+#: sentence (`experiments/GRAMMAR-01/diagnostics/nbest.py`, 2026-11-03). Two thirds of the way to the 61.8% the
+#: exhaustive chart holds, so **6.0 points wait on the choosing**, and they arrive within reach: of the nine readings
+#: fifty makes newly available, seven rank first. What `meant` would take of them is untested here, because it weighs
+#: what memory knows of what each reading says and a files-only reading has no memory.
 COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 
 

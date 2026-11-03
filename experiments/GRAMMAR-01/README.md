@@ -344,10 +344,13 @@ is what any separation of causes needs first.
 `20261103T210000Z` (files only, 400 `dev/standard`). `Grammar.chart` kept one reading of each category of each
 stretch — Viterbi's — so the 61.8% the exhaustive chart reaches was never at the root to choose between.
 `Grammar.charts(tokens, how_many)` and `Grammar.readings(tokens, how_many)` keep and hand up more, and
-`_read_by_composing` gives the listener all of them instead of wrapping one. Swept, a beam of six takes the right
-reading being **available** from 54.2% to 56.2% at 5.5× the reader's time, while the reader's own choice falls from
-54.2% to 54.0%: the score over words ranks wrong derivations above right ones, so a wider beam cannot help much and
-`COMPOSED_READINGS` stays 1. The capability remains for a chooser that earns it (`diagnostics/nbest.py`).
+`_read_by_composing` gives the listener all of them instead of wrapping one. Swept, the right reading being
+**available** climbs without plateau — 54.2% at one, 56.2% at six, and on the first 150 of the sample 52.7% at one
+against **58.7% at fifty**, two thirds of the way to the exhaustive chart's 61.8%, for 2.11 s a sentence. The reader
+alone gains nothing from it (79 of 150 at every width from six to fifty), so the **+6.0 points are worth exactly
+what a chooser can make of them**; when the right reading does appear it ranks first in seven of nine new cases, so
+the chooser weighs a handful. `COMPOSED_READINGS` stays 1 until the listener is measured against them, which needs
+memory and so a store (`diagnostics/nbest.py`).
 
 Splitting all 187 held-out errors by layer: **25.5%** of the 400 name the right things and join them wrong, **18.2%**
 name the wrong things, 3.0% say nothing. Only the words layer breaks into families — a nationality adjective read as
