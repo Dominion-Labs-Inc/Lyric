@@ -200,6 +200,46 @@ I had also called this run evidence that the objective is mis-ordered. It is not
 nonsense above the clause in those four, and the reader correctly overrides it. The mis-ordering shown earlier
 (`nbest.py`, the reader's own choice flat from six readings to fifty) stands on its own evidence.
 
+### Candidate one, run on the taught store, and the two defects that block it
+
+*"do one first."* `POSTGRES_DATABASE=lyric_db`, reads only, the same 400 held-out sentences, memory warm 526 s,
+**12,228 word records and 6,137 sentence records** — the store the resident runs on.
+
+| readings asked for | the reader's own first is right | the right reading is among those handed up | the listener took the right one |
+|---|---:|---:|---:|
+| 1 | 43.0% | 43.0% | 43.0% |
+| 6 | 42.0% | 44.8% | 42.0% |
+| 25 | 41.8% | **48.2%** | 41.8% |
+
+**5.2 points available at twenty-five readings, none of it claimed, and the listener took the reader's own first
+reading every single time.** At twenty-five it held the right reading 193 times and took it 167. Every sentence
+traced the same: *memory asked, knew nothing of any reading*. The reader's own choice falls as the beam widens
+(43.0% → 41.8%), as it did on files.
+
+`listening_evidence.py` shows this is neither a wiring fault nor an empty store. In one process `memory_agent()` is
+the warmed agent, `word_kinds('dog')` answers with five kinds, and `listening` still returns every field empty. Two
+defects, and neither is a beam width or a scorer:
+
+1. **`listening_worths` is 0 of 10 non-zero on BOTH stores**, including the one with all 6,137 taught sentences. The
+   three channels those gate — `known`, `defined`, `fit` — are multiplied by zero, so what memory holds of a
+   reading's facts counts for nothing however firmly it holds it. The pass that learns them is built and has
+   evidently never been run: `listening_counts` counts each evidence level by whether it was the one meant,
+   `unified_learning_system` holds each count as a `listening_claim` belief, and `listening_worths` makes worths of
+   them. The 4.7 and 6.3 nats quoted in `meant`'s own docstring were measured in an experiment on 2026-10-14 and
+   never landed on a store.
+
+2. **The two channels needing no worths cannot see structural alternatives at all.** `related` and `selected` are
+   computed over `senses` — the things each reading names that the others do not (`for terms in own.values():
+   senses.update(terms)`). Readings that differ in how the words go together name the SAME things, so `senses` is
+   empty by construction: `owns(spider, leg)` against `has_part(spider, leg)` names spider and leg either way. The
+   listener's evidence was built for which thing a word names, and a wide chart hands it readings that differ in
+   structure.
+
+So the 5.2 points are real and unreachable as the listener stands. The repair that follows is not a new scorer: run
+the listener's own learning pass on the taught store so `known` and `defined` have a worth at all, and give it an
+evidence channel that compares whole structures rather than sense sets. The first writes beliefs to a store and is
+his to start.
+
 ### What this leaves
 
 - `nbest.py` holds the sweep; `nbest_dev_standard.json` holds its numbers.
