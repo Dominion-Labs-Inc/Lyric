@@ -16,6 +16,221 @@ Conventions:
 
 ---
 
+## 2026-11-03 (108) — Every error in the held-out reading accounted for, and the one that was a single line: a possessive's open owner was required to stand before itself like a reflexive
+
+**Objective.** *"?????? why havent you restarted. And that's not an answer to my question or a measurement"*, then
+*"OK I'm not understanding if we can properly see everything. Why the fuck is it not at the 95% bar have we not
+diagnosed all errors already?"*, and at the end *"selection was never solved? and the 10 english contructions has no
+readings?! how, so what is the teaching lacking."*
+
+### The resident restarted, and what the old one had been doing
+
+The resident on PID 70933 was carrying the grammar from before the four fixes of 11-02, and it had been **hung for
+3.9 hours inside one answer**: over that stretch ~245 heartbeats were due (`core/main.py:1504`, one a minute) and
+`grep -c "System heartbeat"` returned **2**. A synchronous spin inside `_reasoned_answers` blocked the event loop.
+The profiler's "STILL INSIDE" ticks had been read as evidence the loop was alive; they are not — the nag fires from
+a `threading.Timer` (`performance_profiler.py:1087`) and says nothing about the loop. Ruled out by measurement as
+the cause: the concept-graph walk (`unified.concept_relations` holds 2,318 rows, `concepts` 1,402, `isa` 201,
+`instance of` 109 — far too small to blow up) and `word_held_as_both` (~60k cheap iterations). Not pinned further:
+that needs the `trace_step` list in `autonomous_coordinator.py` widened, and editing a protected module while a
+substrate runs halts the constitution in that store.
+
+Stopped and relaunched with the same environment. Ready at 751 s with **`6137 learned now and 6137 kept with their
+sentences`** where the hung boot had said `0 learned now` — the full grammar re-learn is the proof a grammar change
+is live, and `0 learned now` is the proof it is not.
+
+### The measure: 490 held-out dev sentences every word of which is taught
+
+`taught_now_test.json` (490 drawn, 842 taught words) read on `lyric_db` (12,228 word records, 6,137 sentence
+records). Reads only.
+
+| measure | right | short of 95% |
+|---|---:|---:|
+| reads *a* whole structure | 480/490 (98.0%) | — |
+| strict | 134/490 (27.3%) | 67.7 |
+| senses aside | 180/490 (36.7%) | 58.3 |
+| kinds aside | 210/490 (42.9%) | 52.1 |
+| by their words, pronouns as unknowns | 277/490 (56.5%) | 38.5 |
+
+Per-fact accuracy 78.8% (1,666/2,113) over 4.3 facts a sentence, so ~98.8% per fact is needed for 95% of sentences
+whole. Errors cluster in the reader's favour: independent faults predict 35.9% of sentences right where 60.6%
+actually are. Pronoun binding alone is worth 29 points (27.3% → 56.5%). The figure quoted for weeks as "52%" is
+56.5%.
+
+### Every fault accounted for, each in exactly one bucket
+
+568 faults over the 213 wrong sentences, partitioned exhaustively (pairing each missed fact against a spurious one
+in priority order: same link and variable pattern with one named concept different → wrong concept; same arguments
+different link → wrong link; same link different arguments → attachment; remainder → outright):
+
+| | faults | |
+|---|---:|---:|
+| link missed outright | 192 | 33.8% |
+| link invented outright | 185 | 32.6% |
+| attachment (right link, wrong arguments) | 64 | 11.3% |
+| wrong concept named | 55 | 9.7% |
+| wrong link (right arguments) | 47 | 8.3% |
+| wrong act | 18 | 3.2% |
+| no reading at all | 7 | 1.2% |
+| **accounted for** | **568** | **100%** |
+
+So two thirds of the gap is the reader building a **structurally different** set of facts, not a slightly wrong one.
+23 sentences are one fact from right. Only 6 are wrong purely about when the event happened. `done_to`↔`done_by` is
+12 of the 47 wrong-link faults. Of the 55 wrong-concept faults, roughly 32 are multi-word boundary errors in both
+directions — taking too much (`pickup`→`pickup truck`, `cell`→`cell phone`, `container`→`plastic container`) or too
+little (`orange juice`→`juice`, `electric guitar`→`guitar`, `square root`→`root`, `grow up`→`grow`, `look for`→`look`).
+
+### Four errors of mine, with their causes
+
+1. **"19 sentences read nothing at all."** Seven do. The 19 came from a grouping that did not test
+   `read_words` emptiness; the sentences I listed as unread (`How slow you are!`, `You guys were lucky.`,
+   `"Whose tools are these?"`) read something wrong. Cause: a count reported from one script's output while the
+   claim was about another's field.
+2. **"Sense selection was never solved."** It was built on 2026-10-01 and is recorded in `WORD_SENSES.md` §7, all
+   six parts, measured by SENSE-SAID-01 at **58.3% / 58.8%** against most-frequent-sense 56.6% / 57.4%. Cause: a
+   memory note written 2026-09-30 that said "proposal (not built)" was never updated, and I repeated the note
+   instead of reading §7. **Read the code and the doc, not the note.**
+3. **"99.0% of the gold corpus is refused by the teaching source."** It is 26.5%. Cause: I called
+   `pmb_meanings.meaning_of` with a stub `name_of` returning `None` for every sense, which manufactures thousands
+   of `sense:` gaps. The real source passes `WordNetSource()._sense_names()`. With it, `sense:` gaps fall from
+   thousands to 53. **Call a function the way its own caller calls it.**
+4. **"301 links invented."** An artifact of diffing fact tuples without aligning free variable names, so every
+   renamed variable counted once as missing and once as invented. Fixed with a bijection search over the free
+   variables maximising overlap; it also showed 4 sentences right once aligned. The same error recurred later in the
+   session on the time faults (20 spurious became 13 after alignment), which is why alignment now runs first in
+   every diff script.
+
+### What the teaching lacks: the meaning language, not the sentences
+
+`pmb_meanings.py` names what it cannot say and refuses the whole sentence rather than guess (`Said.gaps`, one gap
+anywhere → `meaning=None`), by design, so the composer is never taught a meaning that is not the sentence's.
+
+| split | sentences | sayable | refused |
+|---|---:|---:|---:|
+| train | 9,552 | 7,019 (73.5%) | 2,533 (26.5%) |
+| dev | 1,194 | 911 (76.3%) | 283 (23.7%) |
+| test | 1,194 | 858 (71.9%) | 336 (28.1%) |
+
+Reasons over train, a sentence counted under each gap it has: universal quantification 327, the Theme and Co-Theme
+roles 242 + 214, a proposition another clause holds 182, comparison 166, possibility and necessity 150 + 50,
+quantity 150. **1,710 of the 2,533 refused sentences have exactly one gap** — one missing term each.
+
+**And the same refusal applies to the exam.** A dev sentence with no sayable gold is skipped by the measure, so the
+95% bar is measured on the 76.3% of English the meaning language can write down. Any claim about reading English has
+to state which three quarters.
+
+### The seven that read nothing were one construction, and it was taught
+
+All seven are a third-person possessive whose owner is never named, so the possessive must introduce the owner
+itself and choose the link from what is owned: `part_of` for a body part, `owned_by` for a possession, `creates` for
+behaviour, a joke, a complaint.
+
+The teaching holds this abundantly: **874 of the 1,146 possessive sentences in gold train teach an ownership link**
+(`owned_by` 472, `part_of` 276, `creates` 142, `has_member` 46), and 67 train sentences open with
+his/her/their/its with a free-variable owner — 43 with a copula, 24 with another verb (`His head ached.`,
+`Her toe bleeds.`, `His speech bored me.`, `His dog ran in the yard.`). `memory_hot` was queried directly: the store
+holds `Her hair is long.`, `His biceps are huge.`, `His head ached.`, `His speech bored me.`,
+`His dog ran in the yard.`, and the dev twins `My eyes itch.` and `Her toe bleeds.` are correctly absent, so the
+split is honest.
+
+Asked of the reader itself (`Reading.why`, `Reading.missing`), every one of them **reads WHOLE at sureness 1.00 and
+is then given no meaning** — including the six taught ones the store holds. One word decides it:
+
+| | |
+|---|---|
+| `The stomach growls.` / `The teeth are yellow.` / `The behavior troubles us.` | a meaning |
+| `His stomach growls.` / `His teeth are yellow.` / `His behavior troubles me.` | nothing |
+| `He acknowledged his faults.` / `Tom is stirring his coffee.` | a meaning — the owner stands before it |
+| `My eyes itch.` | a meaning — "my" is `?speaker`, so there is no pronoun piece at all |
+
+### The cause: one line, written for reflexives
+
+`spell_out` in `core/semantics/grammar.py`. A possessive makes two pieces — `('poss', 1000080, 1000002, 0)` for the
+link, and `('pron', 1000002, 'his', 'own', 0)` for the owner, marked as standing for something of this very
+sentence. At what was line 5199, a pronoun so marked had to find a thing before it in the sentence or the **whole
+reading was discarded**; the comment there records why, added 2026-10-30 so `Themselves are intelligent.` would stop
+reading. A third-person possessive opening a sentence has nothing before it and is good English all the same, so the
+reflexive rule took it.
+
+Reading was refusing what saying is built to allow: the binding code at line 4126 states in as many words that *"the
+owner a word leaves open ('her', ''s') is left open here, as what takes it decides which thing it is."* An internal
+contradiction, which is what made it a root cause rather than a symptom.
+
+**Scope, measured.** `my`/`your`/`our`: 0 of 57 read nothing. `his`/`her`/`their`: 7 of 13. Across the corpus, 13 of
+911 sayable dev sentences, 11 of 858 test, and **129 of the 7,019 the grammar was itself taught** — it could not
+read back 129 of its own lessons.
+
+**The fix.** `owned = {p[2] for p in pieces if p[0] == "poss"}` before the loop, and the refusal exempts a pronoun
+piece that is a possessive's owner. A reflexive with nothing before it still reads as nothing, because it is the
+owner of no possessive.
+
+### Verified, with a control
+
+| | before | after |
+|---|---:|---:|
+| given a meaning | 471 | **478** |
+| strict | 134 (27.3%) | 134 (27.3%) |
+| senses aside | 180 (36.7%) | 180 (36.7%) |
+| kinds aside | 210 (42.9%) | 210 (42.9%) |
+| by their words, pronouns as unknowns | 277 (56.5%) | **279 (56.9%)** |
+| per-fact recall, strict | 57.7% | **58.5%** |
+| per-fact recall, senses aside | 71.9% | **73.3%** |
+| per-fact recall, kinds aside | 82.4% | **83.8%** |
+
+All 7 read; 2 right outright; **nothing that was right became wrong**. `Themselves are intelligent.` and
+`Himself is tall.` still read nothing. `Yourself'm vain.` reads — and a **control run against the unmodified file**
+(the fix copied aside, `git checkout`, run, restored) showed it read before the fix too, so it is the pre-existing
+agreement defect the `say` docstring already names, not a regression. Claimed without the control it would have been
+a guess.
+
+The 5 still wrong are **one fault each**, and every fault is in a family already on the list: a present read as past
+(`His stomach growls.`, `His behavior troubles us.`, `His joke borders on insult.`) and a multi-word name cut or
+over-run (`cell phone` for `cell`, `border` for `border on`, `tired` for `tired of`). Independent confirmation that
+those families are real.
+
+**Worth being plain about the size:** +2 sentences on the bar, 0.4 points. The value is that the reader no longer
+throws away a reading it built correctly, and that 129 taught sentences became readable.
+
+Resident restarted onto it: ready at 915 s, `6137 learned now`.
+
+### What is left, ranked and measured
+
+The 377 outright-structural faults do **not** collapse to one site. 98 of the 213 wrong sentences are plain short
+declaratives with no distinguishing construction at all (`She forgave him.`, `He broke the law.`, `Packing sucks.`).
+Named families, with free variables aligned:
+
+| family | sentences | points |
+|---|---:|---:|
+| a time fact added or missed | **34** | 6.9 |
+| — of which the `let` construction, all missing `follows(?v0, ?now)` | 5 | 1.0 |
+| — a habitual or stative present read as past | 7 | 1.4 |
+| — a progressive missing `during ?now` | 5 | 1.0 |
+| — a clock time or year not read as a time | 4 | 0.8 |
+| senses alone (right senses aside, wrong strict) | 46 | 9.4 |
+| multi-word boundaries | ~32 faults | — |
+| `isa` built where `instance_of` was wanted | 14 invented | — |
+| `same_as` invented (F1 20.0%, the weakest link measured) | 12 | — |
+| `has_degree` invented | 8 | — |
+
+Weakest links by F1: `same_as` 20.0%, `isa` 42.1%, `located_in` 55.6%, `creates` 56.0%, `comes_from` 37.5%, with
+`member_of` 0/4 and `made_of` 0/1 never read at all.
+
+Two cautions for whoever takes this next. Several time faults look like **consequences** of other families rather
+than tense faults: all three "you guys" sentences lose their time fact, and both money-amount sentences lose theirs,
+and both constructions were already failing for other reasons — so the genuinely tense-mechanical set is smaller
+than 34 and should be re-measured after those land. And `owned_by` where the gold says `part_of` is **not a grammar
+fault at all**: `lexicon.inherited("poss", thing[2], "NOUN", ...)` picks the link from what memory holds the noun to
+be, and it gets `My eyes itch.` right and `My butt hurts.` wrong purely because memory holds "eye" as a body part
+and not "butt". That one is fixed by teaching, and it shows the possessive link is already kind-sensitive the way
+the gold wants.
+
+**Verified against the real system.** Every number above from `./venv_lyric/bin/python3` against real Postgres on
+`lyric_db`: the measure via `experiments/GRAMMAR-01/on_store.py` (reads only), the coverage tables by calling
+`pmb_meanings.meaning_of` exactly as `PMBSource.taught_sentences` calls it, the store's holdings by `psql` against
+`memory_hot`, and the reader's behaviour by reading sentences through `GrammarView` after a warm.
+
+---
+
 ## 2026-11-02 (107) — All of English's treebank vocabulary taught, and four language fixes behind it: a compound's second word, the word a thing is spoken of by, do-support on an auxiliary that carries its own tense, and "a" and "an" counted as the one word they are
 
 **Objective.** *"thats not really that many words to teach so why not jsut teach all of them. we will fix what fails
