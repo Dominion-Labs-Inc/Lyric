@@ -1802,7 +1802,18 @@ class Lexicon:
             first = dict(self.words.uses(tokens[i]))
             if "NOUN" in first or "NOUN:compound" in first:
                 second = self._evidence(tokens, i + 1).get("NOUN")
-                if second is not None and tokens[i].lower() not in self.closed:
+                # NEITHER WORD OF A COMPOUND IS A CLOSED-CLASS WORD. The first was checked and the second was not,
+                # and a compound's second word is its head: "Is iron a metal?" read as `isa(iron a, metallic
+                # element)`, "iron a" being read as one thing the way "cell phone" is, because "a" is used as a noun
+                # 12 times in the treebanks against 8,852 as a determiner and so is OFFERED one. It was said back as
+                # "Is iron a a metal?" at sureness 1.000 -- nothing about the reading was uncertain, it was wrong --
+                # and it appeared only once 8,566 words were taught, `iron` having had no noun before then for a
+                # compound to start from (2026-11-02).
+                #
+                # A determiner is never the head of a compound, so the guard belongs on both words. Asked of the
+                # first alone it was half a test.
+                if second is not None and tokens[i].lower() not in self.closed \
+                        and tokens[i + 1].lower() not in self.closed:
                     score = estimate(first, self.words.like(tokens[i], "uses"),
                                      set(first) | {"NOUN:compound"})["NOUN:compound"] + second
                     # NAMED BY THE THING MEMORY HOLDS THE TWO WORDS AS, where it holds one: "hair dryer" is
