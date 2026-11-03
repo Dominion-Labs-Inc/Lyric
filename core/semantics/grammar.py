@@ -382,6 +382,13 @@ class Words:
         other way (`Grammar.say`). Nothing where memory holds no word for it."""
         return []
 
+    def used_for(self, name: str, cls: str) -> Mapping[str, float]:
+        """HOW OFTEN EACH OF THOSE WORDS IS USED FOR THAT THING (`MemoryAgent.used_for`), which is what `words_for`
+        orders by: `iron` as a noun, "iron" 17 and "fe" 2. Saying weighs the words for a thing against the word used
+        most for it by this (`Grammar._say`). Empty where nothing is held of it, and then saying weighs them only by
+        how surely each word is read as a word of that kind."""
+        return {}
+
     def kinds(self, name: str, cls: str) -> List[str]:
         """What memory holds the word's thing to be a kind of, nearest first."""
         return []
@@ -2750,6 +2757,13 @@ class Grammar:
             if joined is not None:
                 out.append(joined)
             return out
+        # A FORM OF "DO" IS NOT GIVEN AN AUXILIARY TO CARRY, BY ANY RULE (`_do_support_on_an_auxiliary`): in
+        # application alone, "Does a dog be a mammal?" was composed instead -- "Does a dog"
+        # (`S[q]/(S[b]\NP)`) with "be" (`(S[b]\NP)/NP`) by forward composition, which then took "a mammal" --
+        # and read whole at sureness 1.000 as before. The two words say nothing English says together, so the pair
+        # is refused here rather than rule by rule.
+        if isinstance(lc, Fn) and _do_support_on_an_auxiliary(left, right, lc.arg):
+            return out
         # Application.
         if isinstance(lc, Fn) and lc.slash == "/":
             s: Dict[int, Term] = {}
@@ -3775,9 +3789,15 @@ class Grammar:
             # A THING SAID A SECOND TIME, standing in a place of its happening it has already filled.
             again = (concept, cls) in said_already
             said_already.add((concept, cls))
-            written = [] if cls == "PRONOUN" else words.words_for(concept, cls) or []
+            # HOW OFTEN EACH WORD IS USED FOR THE THING (`Words.used_for`), which is both the words for it, in the
+            # order it orders them by, and the weight each is said under (below): asked once, because asking memory
+            # is a pass over every word record it holds, and saying asks it of each thing a sentence names.
+            used = {} if cls == "PRONOUN" else words.used_for(concept, cls)
+            written = list(used) if used else \
+                ([] if cls == "PRONOUN" else words.words_for(concept, cls) or [])
             if cls == "NAME":
                 written = [" ".join(w[:1].upper() + w[1:] for w in str(concept).split())]
+                used = {}
             options: List[Tuple[int, Entry]] = []
             # Bound only where the meaning holds one thing of the kind: of two cats, either word may be either.
             of_it = of_kind.get((concept, cls), set())
@@ -3799,6 +3819,7 @@ class Grammar:
                     bound_at[len(tokens)] = {str(ref): thing}
                     options.append((len(tokens), entry))
                     tokens.append(word)
+            at_form: Dict[int, str] = {}
             for form in written:
                 for _, entry in self.lexicon.entries((form,), 0):
                     if entry.cls == cls:
@@ -3811,8 +3832,29 @@ class Grammar:
                         for way in ways:
                             if way:
                                 bound_at[len(tokens)] = way
+                            at_form[len(options)] = form
                             options.append((len(tokens), entry))
                             tokens.append(form)
+            # EACH WORD FOR A THING AS OFTEN AS IT IS USED FOR THAT THING (`Words.used_for`), against the word used
+            # most for it among the words offered here -- as each grammar word is weighed against the surest word
+            # saying the same piece (`share_of`, below), and for the same reason: of several words that all say the
+            # thing, the sentence must prefer the one the thing is spoken of by.
+            #
+            # A WORD'S ENTRY CARRIES HOW SURELY THE WORD IS READ AS A WORD OF ITS KIND AND NOTHING OF THE THING
+            # (`Lexicon.entries`: `evidence`), so a word used for nothing else beat a word used for this thing:
+            # "fe", a noun and never anything else, was said for iron, which memory holds used for iron 2 against
+            # "iron" 17 ("Fe is a metallic element."); "creature" (18) for `animal` (78); "tel" (20) for
+            # `telephone` (26). `words_for` has handed back the word used most for the thing first all along, and
+            # saying built an option for every word and let the chart choose, which is where the order was lost
+            # (lyric_db, 2026-11-02).
+            if used and at_form:
+                offered = set(at_form.values())
+                total = sum(used.get(f, 0.0) for f in offered)
+                of_thing = {f: math.log((used.get(f, 0.0) + 0.5) / (total + 0.5 * len(offered))) for f in offered}
+                most = max(of_thing.values())
+                options = [(at, replace(entry, score=entry.score + of_thing[at_form[i]] - most)
+                                if i in at_form else entry)
+                           for i, (at, entry) in enumerate(options)]
             if not options:
                 # NO WORD FOR THIS THING, or none the grammar has an entry for as that kind of word. The thing's own
                 # name is already what memory falls back to (`MemoryAgent.words_for`), so reaching here means memory
@@ -3846,6 +3888,28 @@ class Grammar:
                   if isinstance(e, Mapping) and "use" in e and "cat" in e}
         of_use: Dict[str, Tuple[float, int]] = {}
 
+        def written_as(word: str, use: str) -> float:
+            """HOW OFTEN THE WORD IS WRITTEN IN THAT USE, counting every form of it the analysts mark nothing apart
+            as the one word they are: "a" and "an" (`Words.said_before`) are one word whose form the first sound of
+            the word after it decides (`Lexicon._sound_after`), so each stands as often as the word does.
+
+            Counted apart, they shared the one `det` use and were weighed against each other by how often each is
+            written -- "an" 1,500 against "a" 8,848, so "an" was offered 1.8 nats worse, which no sound rule can
+            make up. It cost the RIGHT WORD FOR THE THING: of a thing memory holds spoken of by a vowel-initial
+            word 78 times and a consonant-initial word 18, which is 1.4 nats the other way (`used_for`), "Dogs are
+            a bird." was said before "Dogs are an owl."; and so lyric_db said "Is a dog a creature?" before "Is a
+            dog an animal?" (`animal` 78, `creature` 18) while the word weight was right and pointed the other way.
+
+            COUNTED TOGETHER AND NOT TAKEN OUT OF THEIR GROUP. Giving each its own group instead (`among`) made them
+            the surest of a group of one, which took the most written determiner out of the group the others are
+            weighed against -- so every other determiner lost its reference and got cheaper, and "Roy painted any
+            wall?" and "Roy painted some wall?" were said third and fourth of eight where neither had been among
+            them at all ("some" is 612 of the determiners' uses against "a" 8,848; lyric_db, 2026-11-02)."""
+            forms = words.said_before(word)
+            if len(forms) > 1:
+                return sum(words.uses(form).get(use, 0.0) for form in forms)
+            return words.uses(word).get(use, 0.0)
+
         def share_of(word: str, entry: Entry) -> Optional[float]:
             use = use_of.get((word, entry.cat))
             if use is None:
@@ -3854,7 +3918,7 @@ class Grammar:
                 held = [words.uses(w).get(use, 0.0) for w in {w for (w, _), e in use_of.items() if e == use}]
                 of_use[use] = (sum(held), len(held))
             total, n = of_use[use]
-            return math.log((words.uses(word).get(use, 0.0) + 0.5) / (total + 0.5 * max(n, 1)))
+            return math.log((written_as(word, use) + 0.5) / (total + 0.5 * max(n, 1)))
         links_said: Dict[str, Tuple[Counter, float]] = {}
 
         def said_for(word: str, link: str, entry: Entry) -> Entry:
@@ -3902,7 +3966,11 @@ class Grammar:
             speaker; agreement is never better than nothing, so it could not make that up however well "I" and "am"
             agree. "Me are intelligent." was said of the speaker being intelligent, and "I am intelligent." was
             never built at all -- the two pack together once the subject is taken, and the surer was kept (lyric_db,
-            2026-10-30)."""
+            2026-10-30).
+
+            A FORM THE SOUND AFTER IT DECIDES IS NOT TAKEN OUT OF ITS GROUP for the same reason: it is counted as
+            the one word it is a form of instead (`written_as`), so "a" and "an" stand alike here and the others
+            keep the reference they are weighed against."""
             return k, self._agrees_as(word)
         for word, entry, spends in chosen:
             share = shares[(word, entry.cat)]
@@ -4867,6 +4935,63 @@ class Grammar:
 def _verb_phrase(cat: Cat) -> bool:
     return isinstance(cat, Fn) and cat.slash == "\\" and isinstance(cat.res, Atom) and cat.res.base == "S" \
         and isinstance(cat.arg, Atom) and cat.arg.base == "NP"
+
+def _first_entry(sign: Sign) -> str:
+    """The entry of the first word of the stretch, as the lexicon labels it (`Entry.label`): "do:q" of "Does a dog",
+    "be:np" of "be an animal". Empty where the stretch does not begin with a word of its own."""
+    while sign.kids:
+        sign = sign.kids[0]
+    return sign.entry if sign.rule == "lex" else ""
+
+
+def _entry_at(sign: Sign, at: int) -> str:
+    """The entry of the word at that place in the stretch, as the lexicon labels it (`Entry.label`); empty where the
+    place is outside it. Read down the part that holds the place, so the entry is the one THIS reading gave the
+    word and not another the word also has."""
+    if sign.rule == "lex":
+        return sign.entry if sign.start <= at < sign.end else ""
+    for kid in sign.kids:
+        if kid.start <= at < kid.end:
+            return _entry_at(kid, at)
+    return ""
+
+
+#: The entries of a form of "do" standing in for a verb that cannot carry its own tense (do-support). `do:order` is
+#: not among them: an order is the one place English does give "do" an auxiliary to carry ("Do be careful.").
+_DO_SUPPORT = frozenset({"do", "do:q"})
+
+#: The entries of a word that carries its own tense, which is why do-support never carries it for them: the copula
+#: ("be:np", "be:adj", "be:pp", "be:ng", "be:pss") and the perfect ("have:perfect"). "have:owns" is NOT one of
+#: them -- that "have" is a verb like any other, and "Does he have a car?" is English.
+_CARRIES_ITS_OWN_TENSE = ("be:", "have:perfect")
+
+
+def _do_support_on_an_auxiliary(left: Sign, right: Sign, arg: Cat) -> bool:
+    r"""WHETHER A FORM OF "DO" IS BEING GIVEN AN AUXILIARY TO CARRY, which English does not do. Do-support is there
+    for a verb that cannot carry its own tense (last-resort do-support, Chomsky 1957), and the copula and the
+    perfect carry their own: "Is a dog an animal?" and "Has Roy painted a wall?", never "Does a dog be an animal?"
+    or "Does Roy have painted a wall?". An ORDER is the one place English does it ("Do be careful.", "Don't be
+    late."), and that is a different entry (`do:order`), which this leaves alone -- as it leaves alone every other
+    word that takes a bare phrase and may take an auxiliary's ("can be", "will be", "to be", "please be"), and the
+    "have" that is a verb of its own ("Does he have a car?").
+
+    REFUSED IN READING AS WELL AS IN SAYING, because reading accepting it is why saying produced it: one grammar,
+    used both ways. "Does a dog be an animal?" and "A dog does be a mammal." both read whole at sureness 1.000,
+    since `S[b].e\NP.x` is what do-support takes and `S[b].p\NP.x` what the copula's bare form gives, and the two
+    unify -- nothing in the categories stood in the way. Of the eight sentences saying offered for
+    `ask isa(dog, animal)` the first four began "Does a dog be": "does" read as `do:q` is weighed -0.007 and "be" as
+    `be:np` -0.878, against -1.929 for "is" asked first, so the two words beat the one word by a nat, and did so in
+    four of the seven sentences checked. With the copula refused, "Does Roy have painted a wall?" was still said
+    third of eight for `ask done_by(?v, roy) & ...` (lyric_db, 2026-11-02).
+
+    THE WORD WANTING THE BARE PHRASE IS THE STRETCH'S HEAD, which is neither always its first word nor always its
+    last: of "A dog does" the head is "does" and the first word "A" (a subject raised and composed with its verb,
+    `>T>B`), of "Does a dog" the head is "Does". Asked of the first word, "A dog does be a mammal." still read
+    whole; asked of EVERY word of the stretch, "Does a dog want to be a mammal?" would be refused for holding
+    "Does" somewhere, where what wants the bare phrase is "to" -- which the head rightly is."""
+    return _whole(arg) == "order" and _first_entry(right).startswith(_CARRIES_ITS_OWN_TENSE) \
+        and _entry_at(left, left.head) in _DO_SUPPORT
+
 
 def _asks_its_subject(cat: Cat) -> bool:
     r"""WHETHER THE CATEGORY TAKES ITS SUBJECT TO THE RIGHT BECAUSE IT ASKS: a question puts the word that makes it

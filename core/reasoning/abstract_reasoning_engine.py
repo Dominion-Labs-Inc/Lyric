@@ -1899,6 +1899,22 @@ class AbstractReasoningEngine:
                 logger.info("reasoning:   given %d. %s", _n, str(_premise)[:200])
             if not context.premises:
                 logger.info("reasoning:   NOTHING WAS GIVEN TO REASON FROM")
+            # THE WORKING TRAVELS WITH THE ANSWER, not only in the log. What was asked, what was given, what every
+            # kind concluded, what was refused and at which step belong to the answer that came of them
+            # (`ReasoningResult.intermediate_results`, which the bridge already carries out): a log is read by
+            # whoever is watching the process, and in production nobody is, so an answer whose working exists only
+            # at INFO has no working at all. Showing your work is the same answer with its working shown.
+            working: List[Dict[str, Any]] = [{
+                # Named as it is written, never as the enum object: the working is carried out of here into what the
+                # bridge hands on, and an enum there is a value nothing downstream can write out.
+                "asked": getattr(context.problem_type, "value", context.problem_type),
+                "domain": context.domain,
+                "given": [str(_p) for _p in (context.premises or ())],
+                "facts": len(context.facts or ()),
+                "rules": len(context.rules or ()),
+                "depth_at_most": context.max_inference_depth,
+                "confidence_at_least": context.confidence_threshold,
+            }]
 
             self.active_contexts[context.context_id] = context
             
@@ -1928,19 +1944,36 @@ class AbstractReasoningEngine:
                     # `no kind of thinking settled this`.
                     if not strategy_conclusions:
                         logger.info("reasoning:   %s concluded nothing", reasoning_type.value)
+                        working.append({"kind": reasoning_type.value, "concluded": None})
                     for conclusion in strategy_conclusions:
                         # Validate conclusion
                         _ok = await self._validate_conclusion(conclusion, context)
-                        logger.info(
-                            "reasoning:   %s %s %r  conf=%.2f valid=%.2f evidence=%.2f coherence=%.2f "
-                            "(via %s, from %d premise(s), %d step(s))",
-                            reasoning_type.value, "concluded" if _ok else "concluded BUT WAS REFUSED",
-                            str(conclusion.statement)[:160], conclusion.confidence, conclusion.logical_validity,
-                            conclusion.evidence_strength, conclusion.coherence_score,
-                            getattr(conclusion.inference_method, "value", conclusion.inference_method),
-                            len(conclusion.supporting_premises or ()), len(conclusion.reasoning_steps or ()))
+                        # THAT IT CONCLUDED AND WHETHER IT WAS REFUSED is the line a reader needs, and stays here.
+                        # The numbers it was judged by and the steps it took are the working, which goes on the
+                        # answer (above) and is said here only to whoever asked for every detail.
+                        logger.info("reasoning:   %s %s %r (conf=%.2f, via %s)", reasoning_type.value,
+                                    "concluded" if _ok else "concluded BUT WAS REFUSED",
+                                    str(conclusion.statement)[:160], conclusion.confidence,
+                                    getattr(conclusion.inference_method, "value", conclusion.inference_method))
+                        logger.debug("reasoning:     valid=%.2f evidence=%.2f coherence=%.2f from %d premise(s), "
+                                     "%d step(s)", conclusion.logical_validity, conclusion.evidence_strength,
+                                     conclusion.coherence_score, len(conclusion.supporting_premises or ()),
+                                     len(conclusion.reasoning_steps or ()))
                         for _n, _step in enumerate(conclusion.reasoning_steps or (), 1):
-                            logger.info("reasoning:       step %d. %s", _n, str(_step)[:200])
+                            logger.debug("reasoning:       step %d. %s", _n, str(_step)[:200])
+                        working.append({
+                            "kind": reasoning_type.value,
+                            "concluded": str(conclusion.statement),
+                            "kept": bool(_ok),
+                            "refused_by": None if _ok else "validation",
+                            "confidence": conclusion.confidence,
+                            "logical_validity": conclusion.logical_validity,
+                            "evidence_strength": conclusion.evidence_strength,
+                            "coherence": conclusion.coherence_score,
+                            "method": getattr(conclusion.inference_method, "value", conclusion.inference_method),
+                            "from_premises": [str(_p) for _p in (conclusion.supporting_premises or ())],
+                            "steps": [str(_s) for _s in (conclusion.reasoning_steps or ())],
+                        })
                         if _ok:
                             all_conclusions.append(conclusion)
 
@@ -1966,10 +1999,15 @@ class AbstractReasoningEngine:
             # conclusion lost at the filter looked exactly like one never derived.
             if len(filtered_conclusions) != len(all_conclusions):
                 _gone = {id(c) for c in filtered_conclusions}
+                _kept_statements = {str(c.statement) for c in filtered_conclusions}
                 for _c in all_conclusions:
                     if id(_c) not in _gone:
                         logger.info("reasoning:   filtered out %r (%s, conf=%.2f)", str(_c.statement)[:140],
                                     getattr(_c.reasoning_type, "value", _c.reasoning_type), _c.confidence)
+                        for _entry in working:
+                            if _entry.get("concluded") == str(_c.statement) and _entry.get("kept") \
+                                    and str(_c.statement) not in _kept_statements:
+                                _entry["kept"], _entry["refused_by"] = False, "the filter"
             if ranked_conclusions:
                 logger.info("reasoning: %d conclusion(s) kept of %d derived; answering with %r (%s, conf=%.2f)",
                             len(ranked_conclusions), len(all_conclusions), str(ranked_conclusions[0].statement)[:160],
@@ -1980,6 +2018,7 @@ class AbstractReasoningEngine:
                             len(all_conclusions), len(filtered_conclusions))
 
             result.conclusions = ranked_conclusions
+            result.intermediate_results = working
             result.total_inferences = len(all_conclusions)
             
             # Calculate quality metrics

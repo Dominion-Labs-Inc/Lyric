@@ -161,7 +161,7 @@ def test_a_verbnet_frames_places_are_linked_as_the_pmb_links_their_roles():
 def test_a_verbs_frames_are_held_by_sense_and_say_each_place_by_the_places_said_with_it():
     """A verb recorded with its VerbNet frames and each sense's classes (`WordRecord.frames_said`): a sense's frames
     are its classes' and those they are part of; the word's every frame. The grammar holds them (`frames_said`),
-    links a place by them (`Lexicon.framed`), and takes them back whole."""
+    links a place by them (`Lexicon.places_framed`), and takes them back whole."""
     from core.agents.memory_agent import MemoryAgent
     from core.learning.teaching_sources import WordForm, WordRecord, WordSense
     from core.semantics.grammar_words import HeldWords
@@ -181,9 +181,18 @@ def test_a_verbs_frames_are_held_by_sense_and_say_each_place_by_the_places_said_
     view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
     view.hold_word(peck)
     lexicon, name = view.grammar.lexicon, view.words.name("peck", "VERB")
-    assert lexicon.framed(name, "peck", ["subject", "pp:at"], "pp:at") == "done_to"
-    assert lexicon.framed(name, "nag", ["subject", "pp:at"], "pp:at") == "done_to", "after a preposition, the word's"
-    assert lexicon.framed(name, "nag", ["subject", "object"], "object") is None, "its object, the sense's frames alone"
+    # ASKED FOR THE WHOLE HAPPENING'S PLACES AT ONCE, which is the only way a frame may be read (`places_framed`:
+    # a frame is one analysis of a happening, never a place at a time, which is what `Lexicon.framed` answered
+    # before it was taken out).
+    assert lexicon.places_framed(name, "peck", ["subject", "pp:at"]).get("pp:at") == "done_to"
+    assert lexicon.places_framed(name, "nag", ["subject", "pp:at"]).get("pp:at") == "done_to", \
+        "a sense with no frames of its own is read by the word's"
+    # A SENSE'S OWN FRAMES ARE THE WHOLE OF WHAT IT SAYS: `peck` has the conative frame, which names no object, so
+    # no object is said of it and the word's transitive frame does not reach in. `nag` has frames of none of its
+    # own, and is read by the word's, object and all.
+    assert lexicon.places_framed(name, "peck", ["subject", "object"]) == {"subject": "done_by"}
+    assert lexicon.places_framed(name, "nag", ["subject", "object"]) == {"subject": "done_by",
+                                                                        "object": "done_to"}
     assert not lexicon.taught_role(name, "subject"), "what its PropBank places say is no sentence taught"
     view.drop_word(peck)
     assert not any(lexicon.frames_said[name].values())

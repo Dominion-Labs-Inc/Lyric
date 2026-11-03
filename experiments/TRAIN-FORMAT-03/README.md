@@ -376,3 +376,77 @@ the tally counts `said[0]` alone -- ranking is the next thing to measure.
 Two corrections to (97): its 11/57/26/7/1 baseline were cells of the two-order joint table, not marginals (the
 marginals are 11/61/28/7/1, so the charged estimate was identical to the order as it stands, not worse); and `isa`
 was wrongly counted as a missing link, since `_piece_says`'s `be` kind covers it.
+
+## All of the treebank vocabulary taught, and what saying then got wrong (2026-11-02, lab notebook (107))
+
+`build.py` gained `VOCABULARY=treebank`: the UD English EWT and GUM vocabulary rather than the PMB's sentences, with
+`NEW_ONLY` skipping the words already held, `TREEBANK` choosing the set and `FLOOR` how often a word must be written
+to be taken. **8,566 records, 61.6 MB, 1,808 s, 0 failures, 721 words refused for having no form.** Taught into
+`lyric_db`: 3,662 → 12,228 records, warm words 7,462 → 18,477, 9,038 read back, 0 refused, competence 0.9428 →
+0.9529.
+
+`check.py` now prints four things it did not before, each because the thing under test was invisible without it:
+
+- **PIECES / TOKENS / FUSED** — how the sentence machine cut the sentence up, before anything is said about what it
+  means, and for a token holding a space, whether each of its parts is held. `"Is iron a metal?"` came back
+  `"I don't hold iron a yet"`, a word that does not exist; nothing in the reply, the meaning or the sureness said
+  where "iron a" came from, and the tokens did it in one line.
+- **USED FOR** — how often each word is used for each thing the meaning names (`Words.used_for`), with **both halves
+  of the weight it is said under**: the entry's own score, which is how surely the WORD is read as a word of that
+  kind and says nothing of the thing, and the weight for how often it is used FOR THE THING. Which of the two
+  decides the word said is the whole question, and the word said alone does not say which it was.
+- **The ranked eight** — every sentence said, not three, and where the sentence Lyric was given sits among them.
+  `SAID_AT_MOST` is 8, so a word weighed down can fall off the end; that is a ranking, not a refusal.
+- **`WORDS="is,does,be"`** — how a grammar word is used and what each of its entries scores. This is what decides
+  between two ways of saying one piece with different words, and it is what explained the malformed question.
+
+### Three fixes, each verified here
+
+**A compound's second word is a word too** (`1f900d4d`). `"Is iron a metal?"` read `isa(iron a, metallic element)`
+at sureness 1.000 — "iron a" read as one thing, the way "cell phone" is. The compound rule tested its first word
+against the closed classes and never its second, which is its head. "a" is a noun 12 times in the treebanks against
+8,852 as a determiner.
+
+**The word a thing is spoken of by.** `words_for` had ordered the words most-used-first all along; `_say` built an
+option for every word and let the chart choose, and the chart scores a word by how surely THE WORD takes the class.
+"fe" is a noun and never anything else, so it beat "iron", which memory holds used for iron 17 times against "fe" 2.
+`used_for` now keeps the counts and `_say` weighs each word against the most-used word offered.
+
+**Do-support takes no auxiliary that carries its own tense.** `"Does a dog be a mammal?"` read whole at sureness
+**1.000** — this was a reading defect, and saying produced it because reading accepted it. "does" as `do:q` is
+weighed -0.007 and "be" as `be:np` -0.878 against -1.929 for "is" asked first, so two words beat one by a nat.
+
+**A form the sound after it decides is not weighed by how often it is written.** `"Is a dog a creature?"` was still
+said first with the three fixes above in. Printing **both halves** of the weight refuted both hypotheses at once:
+the entry scores are all zero (`animal` -0.000, `creature` 0.000) and the word weight was right, favouring `animal`
+by 1.45 nats. What beat it was the determiner — "a" and "an" are one word the analysts mark nothing apart, sharing
+the one `det` use, so "an" (written 1,500 against "a" 8,848) is offered **1.8 nats** worse. 1.8 beats 1.45, so the
+determiner decided which word the thing was spoken of by. `among` already said a form agreement decides must not be
+weighed by frequency, and knew only about a finite verb's subject. Counting the forms **together** is the fix
+(`written_as`): "a" and "an" are one word written 10,348 times, standing alike against "the" and "some", with the
+sound rule deciding between them. Giving each its own group instead took the most-written determiner out of the
+group the others are weighed against, and every other determiner got cheaper -- "Roy painted any wall?" and "Roy
+painted some wall?" were said third and fourth of eight where neither had been among them at all.
+
+Rank of the sentence Lyric was given, among the 8 it says (`results/check_used_for_only.log`,
+`results/check_used_for_and_do_support.log`; warm 507 s then 518 s). No run was made before the word weight, so the
+first column already carries it — what the table isolates is do-support:
+
+| asked | the word weight | + do-support | + "a"/"an" as one word |
+|---|---|---|---|
+| `Is a dog an animal?` | not among the 8 | 5th | **1st** |
+| `Is a hammer a tool?` | 2nd | **1st** | **1st** |
+| `Is a cell phone a phone?` | 7th | 2nd | 2nd |
+| `Did Roy paint a wall?` | 4th | 4th | 3rd |
+| `Is iron a metal?` | 3rd | **1st** | 3rd (1st "Is an iron a metal?") |
+
+Ranks summed, counting out-of-the-eight as 9: **25 before, 13 after do-support, 10 after all four.** Every
+"Does X be Y?" is gone. The one that went backwards is `iron`, and it is not the group-reference bug -- that one
+came back (Roy, out of the eight, is 3rd again, better than the 4th it held before). It is what removing "an"'s
+frequency penalty EXPOSED: "an iron" is a real thing, memory holds "irons" as often as "iron" (17 each), and
+nothing weighs a mass noun's preference to stand bare strongly enough now that the article is free. `noun_alone`
+holds the bare-against-determined counts and is where that is settled; it has not been measured, and guessing at
+it is how two hypotheses died earlier today.
+
+`"Does Roy have painted a wall?"` is what widened the do-support fix from the copula to every auxiliary that carries
+its own tense.

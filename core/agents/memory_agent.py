@@ -35,7 +35,7 @@ import time
 
 from core.structural_defects import raise_if_structural
 import uuid
-from typing import Callable, Dict, Any, FrozenSet, List, Optional, Sequence, Set, Tuple, Union
+from typing import Callable, Dict, Any, FrozenSet, List, Mapping, Optional, Sequence, Set, Tuple, Union
 from datetime import datetime, timedelta
 
 # Memory storage implementations
@@ -7200,7 +7200,8 @@ class MemoryAgent(IMemoryConsolidation):
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
             view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms,
-                                         recorded=self.recorded_name, written_for=self.words_for),
+                                         recorded=self.recorded_name, written_for=self.words_for,
+                                         used_for=self.used_for),
                                structure=self._structure_view)
             for word in self._grammar_words:
                 view.hold_word(word)
@@ -7414,9 +7415,26 @@ class MemoryAgent(IMemoryConsolidation):
         it so (a word recorded whole with a sense of the class that is it; a word a sentence recorded whole named it
         by; the thing's own name, where memory names that word so), in every form memory holds the word written in,
         the word used most for it first. `partition`: "partition"; `coat paint`: "paint", "paints", "painted", ...
-        What `Grammar.say` says a thing with."""
+        What `Grammar.say` says a thing with. How often each is used for it is `used_for`, which this orders by."""
+        return list(self.used_for(name, word_class))
+
+    def used_for(self, name: str, word_class: str) -> Mapping[str, float]:
+        """HOW OFTEN EACH WORD IS USED FOR A THING as a word of the class, the word used most for it first: every word
+        `words_for` offers, with how many times memory holds it used for that very thing -- the uses of each sense of
+        it that is the thing, and of each name a word or sentence recorded whole gives it. Measured on lyric_db's
+        12,228 word records: `iron` as a noun, "iron" 17 and "fe" 2; `animal`, "animal" 78, "creature" 18, "beast"
+        6; `telephone`, "telephone" 26, "phone" 24, "tel" 20.
+
+        SAYING WEIGHS A WORD BY THIS and not by how surely the word takes the class (`Grammar._say`). A word's entry
+        carries only how surely the word itself is read as a word of that kind, which says nothing of the thing: "fe"
+        is a noun and nothing else, while "iron" is also a verb and an adjective, so the word used for iron twice was
+        said before the word used for it 17 times -- "Fe is a metallic element.", "A dog's a creature.", "A cell
+        phone's a tel." (lyric_db, 2026-11-02)."""
         folded = str(name).casefold().replace("_", " ")
         found: Counter = Counter()
+        # How often each form is written at all, of this thing and of anything else: the order's tiebreaker, and no
+        # count of the thing (below).
+        met: Counter = Counter()
         bases: Counter = Counter()
         for word in self._grammar_words:
             for sense in word.senses:
@@ -7440,11 +7458,19 @@ class MemoryAgent(IMemoryConsolidation):
                           or self.word_classes(folded).get(word_class, 0) > 0):
             bases[folded] += 1
             found[folded] += 1
+        # EVERY FORM OF A WORD USED FOR THE THING IS A WORD FOR IT, used for it as often as the word itself is. How
+        # often the form is WRITTEN is how often that spelling is met, of this thing and of everything else ("paints",
+        # a picture), so it counts no use of this thing and is kept apart (`met`), where it decides nothing but the
+        # order of words used for the thing equally often. Counted as uses of the thing, a common form of another
+        # word outweighs the word used for this one, and the weight saying takes from here would say the wrong word
+        # for exactly the reason it already said "fe" for iron (2026-11-02).
         for item in (self._word_forms.items() if self._word_forms is not None else ()):
             if item.base in bases and item.word_class == word_class:
                 for form, _, n in item.forms:
-                    found[form.lower()] += n
-        return [w for w, _ in found.most_common()]
+                    found[form.lower()] = max(found.get(form.lower(), 0), bases[item.base])
+                    met[form.lower()] += n
+        return {w: float(n) for w, n in sorted(found.items(),
+                                               key=lambda it: (-it[1], -met.get(it[0], 0), it[0]))}
 
     def recorded_name(self, word: str, word_class: str) -> Optional[str]:
         """What the words and sentences recorded whole name a word as a class (`_record_names`), the most named; None

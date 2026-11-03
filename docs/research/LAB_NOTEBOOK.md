@@ -16,6 +16,222 @@ Conventions:
 
 ---
 
+## 2026-11-02 (107) — All of English's treebank vocabulary taught, and four language fixes behind it: a compound's second word, the word a thing is spoken of by, do-support on an auxiliary that carries its own tense, and "a" and "an" counted as the one word they are
+
+**Objective.** *"thats not really that many words to teach so why not jsut teach all of them. we will fix what fails
+after"*, then *"So now we need to figure out why composition is unmoved and add proper logging. And the bug."*, and
+at the end *"OK so now we have our fixes let's make them."*
+
+### 8,566 word records taught, and what it exposed
+
+`TRAIN-FORMAT-03/build.py` gained `VOCABULARY=treebank`: the UD English EWT and GUM vocabulary rather than the PMB's
+sentences, `NEW_ONLY` skipping the words already held. 8,566 records, 61.6 MB, 1,808 s, 0 failures, 721 words refused
+for having no form. Taught into `lyric_db`: **3,662 → 12,228 records, warm words 7,462 → 18,477, 9,038 read back, 0
+refused, competence 0.9428 → 0.9529.**
+
+Three instruments were built and each paid for itself in its first use:
+
+- **PIECES / TOKENS / FUSED** in `check.py` — prints how the sentence machine cut the sentence up before any meaning
+  is spoken of. It killed the tokenizer hypothesis for `iron a` in one line: five clean tokens.
+- **`trace_step`** in `performance_profiler.py`, with a **`threading.Timer`** watchdog rather than asyncio, because
+  CPU-bound code holds the event loop and an asyncio watchdog cannot report the one thing worth reporting. It named
+  the step a 45-minute hang sat inside.
+- **The reasoning content log** in `abstract_reasoning_engine.py` — what was asked, what was given, what each kind
+  concluded, what was refused and at which step. In its first use it printed `NO kind will be tried` on 12 of 12
+  questions.
+
+### The reasoning finding, which is about rules and not about language
+
+With **zero** conditionals held, every taught sentence still read whole at sureness 1.000 and 6 of 6 well-formed
+taxonomy questions were answered right, 0 wrong. Nothing in `grammar.py` or `composition.py` reads
+`held_conditionals`; the only consumer is `neural_bridge.py:2750`. **Rules are world knowledge, not language
+knowledge** — which answers *"But [are] rules even needed for language, understanding and reading and responding"*:
+not for reading and saying. Restoring them is deferred: no corpus supplies them (43 lessons / 3,058 records hold zero
+conditionals; the six `"condition"` hits were the English noun).
+
+`_is_implication` was asking the *text* of a premise for an arrow. It now asks the premise what it is
+(`provenance_kind == "rule"`), and the three call sites in `_build_reasoning_context` pass the premise rather than
+`str(premise)`.
+
+**The working now travels with the answer.** *"Will not show in production"* — right: a log is read by whoever is
+watching the process, and in production nobody is. `ReasoningResult.intermediate_results` now carries what was
+asked, what was given, every conclusion with its confidence, validity, evidence, coherence, method, premises and
+numbered steps, and whether it was kept, refused by validation or dropped by the filter. The per-step enumeration
+moved to DEBUG; the lines that say a kind concluded, or concluded and was refused, stay at INFO. Exercised on one
+context: 3 entries, serialisable — `problem_type` had to be written as its value, since an enum is not.
+
+### Fix 1 — neither word of a compound is a closed-class word (`1f900d4d`)
+
+`"Is iron a metal?"` read `isa(iron a, metallic element)` — "iron a" as ONE THING, the way "cell phone" is — at
+sureness 1.000. The compound rule tested its **first** word against the closed classes and never its second, and a
+compound's second word is its head. "a" is a noun 12 times in the treebanks against 8,852 as a determiner, so it is
+offered one, and nothing refused it. **Four other explanations were tried first and each looked right from the
+source** (`tokens_of` fusing the pieces; `WordRecord.together`; `_name_runs`; the kind-and-name construction, whose
+guard was added and then reverted as dead code — `_held_evidence` offers a closed word no NAME at all). What settled
+it was asking the lexicon which classes it offers "a" at that position, rather than reading constructions and judging
+which looked guilty.
+
+### Fix 2 — the word a thing is spoken of by, not the word that can be nothing else
+
+Saying said "fe" for iron, "creature" for an animal, "tel" for a telephone. Two defects turned out to be behind
+that one complaint, and the second (fix 4, below) was what kept "creature" winning after this one was fixed. `MemoryAgent.words_for` had handed back
+the word used most for the thing **first** all along, and its docstring said so; `_say` then built an option for
+every word and let the chart choose, and the chart scores a word by `Lexicon.entries`' `evidence` — **how surely THE
+WORD is read as a word of that kind, which says nothing of the thing.** "fe" is a noun and never anything else;
+"iron" is also a verb and an adjective. So the order was lost exactly where the words were turned into options.
+
+The counts are now kept rather than only their order: `MemoryAgent.used_for` returns how often each word is held used
+for that very thing, `words_for` is defined as its order, `Words.used_for` is on the protocol (empty by default, so
+every file-held view behaves as before), and `_say` weighs each word against the most-used word **offered**, the same
+shape as the normalisation the grammar already applied to its own words (`share_of`). Asked once per thing, not
+twice: asking memory is a pass over every word record it holds.
+
+One correction inside `used_for`: how often a FORM is written is how often that spelling is met, of this thing and of
+everything else ("paints", a picture), so it counts no use of this thing. It is kept apart as a tiebreaker for the
+order and out of the weight. Counted as uses of the thing, a common form of another word outweighs the word used for
+this one — the same defect, one layer down.
+
+Measured on lyric_db (`results/check_used_for_only.log`): `iron` "iron" 17 / "irons" 17 / "fe" 2; `animal` "animal"
+78 / "creature" 18 / "beast" 6; `telephone` "telephone" 26 / "phone" 24 / "tel" 20; `metallic element` "metal" 23.
+
+### Fix 3 — do-support takes no auxiliary that carries its own tense
+
+The malformed question `"Does a dog be a creature?"` was **not** a scoring defect. `"Does a dog be a mammal?"` and
+`"A dog does be a mammal."` both **read whole at sureness 1.000**: `S[b].e\NP.x` is what do-support takes,
+`S[b].p\NP.x` what the copula's bare form gives, the two unify, and nothing in the categories stood in the way.
+Saying produced it because reading accepted it. The numbers say why it *won*: "does" as `do:q` is weighed **-0.007**
+and "be" as `be:np` **-0.878** against **-1.929** for "is" asked first, so two words beat one word by a nat.
+
+Do-support is there for a verb that cannot carry its own tense (last-resort do-support, Chomsky 1957). The copula and
+the perfect carry their own, so neither is ever given to "do" — outside an **order**, which is the one place English
+does it ("Do be careful.", "Don't be late.") and is a different entry (`do:order`). Refused in reading as well as in
+saying: one grammar, used both ways.
+
+**Three wrong placements, each found by measurement and not by reading:**
+
+1. Refused in forward application alone, the sentence was still built by **forward composition** — "Does a dog"
+   (`S[q]/(S[b]\NP)`) with "be" (`(S[b]\NP)/NP`), which then took "a mammal". The pair is now refused before any
+   rule gets it.
+2. Asked of the stretch's **first word**, `"A dog does be a mammal."` still read, because a subject raised and
+   composed with its verb (`>T>B`) puts its own words first: of "A dog does" the first word is "A".
+3. Asked of **every word** of the stretch, it would have wrongly refused `"Does a dog want to be a mammal?"` — what
+   wants the bare phrase there is "to". The grammar's own `Sign.head` names the functor exactly in all three cases
+   ("does", "Does", "to"), so that is what it asks.
+
+Widened once on evidence: with the copula alone refused, `"Does Roy have painted a wall?"` was still said **third of
+eight**. `have:perfect` carries its own tense too. `have:owns` does not qualify — that "have" is a verb like any
+other, and "Does he have a car?" is English.
+
+All six `do + be` occurrences in the taught data are orders ("don't be late for church", "Don't be so serious!"), all
+inside WordNet examples, and all still read.
+
+### Fix 4 — a form the sound after it decides is not weighed by how often it is written
+
+With fixes 2 and 3 in, `"Is a dog a creature?"` was still said before `"Is a dog an animal?"`. The instrument was
+extended to print **both halves of the weight** rather than let me guess which one decided, and it refuted both of
+my hypotheses at once: the entry scores are **all zero** (`animal` -0.000, `creature` 0.000), so what I had assumed
+was beating the word weight was not in play at all, and the word weight itself was right and pointed at `animal` by
+1.45 nats.
+
+The one asymmetry left between the two sentences is the determiner. **"a" and "an" are one word the analysts mark
+nothing apart**, whose form the first sound of the word after it decides, and they share the one `det` use — so
+weighed against each other by how often each is written ("a" 8,848, "an" 1,500) "an" is offered **1.8 nats** worse,
+which no sound rule can make up. 1.8 beats 1.45, so the determiner decided which word the thing was spoken of by.
+
+Reproduced in the fixture at the treebanks' own frequencies, with a thing held spoken of by a vowel-initial word 78
+times and a consonant-initial word 18: `"Dogs are a bird."` was said before `"Dogs are an owl."`, and with "a" and
+"an" written equally often `"Dogs are an owl."` led. That is the measurement that named the cause.
+
+**This is the same defect the code already fixed once and did not generalise.** `among`'s own docstring says a form
+agreement decides is not chosen by how often it is written — "am" against "are", 2.5 nats, "Me are intelligent."
+said of the speaker — and `among` knew only about a finite verb's subject. A form the sound after it decides is the
+same kind of thing.
+
+**The first implementation of it was wrong, and the store caught it.** Giving each such form its own group in
+`among` made it the surest of a group of one — which took the most-written determiner **out of the group every other
+determiner is weighed against**, so they all lost their reference and got cheaper. `"Roy painted any wall?"` and
+`"Roy painted some wall?"` were then said third and fourth of eight where neither had been among them at all ("some"
+is 612 of the determiners' uses against "a" 8,848), and `"Did Roy paint a wall?"` fell out of the eight entirely.
+The fix is to count the forms **together** instead (`written_as`, used by `share_of`): "a" and "an" are one word
+written 10,348 times, they stand alike against "the" and "some", and the sound rule decides between them. The group
+keeps its reference and `among` goes back to the two things it always weighed by.
+
+### Verified on the store
+
+`POSTGRES_DATABASE=lyric_db ... check.py` over seven sentences, warm 507 s then 518 s, 12,228 word records, 6,137
+sentence records. Rank of the sentence Lyric was given, among the 8 it says. **No run was made before fix 2, so the
+first column already carries the word weight** — what it isolates is fix 3:
+
+| asked | the word weight | + do-support | + "a"/"an" as one word |
+|---|---|---|---|
+| `Is a dog an animal?` | not among the 8 | 5th | **1st** |
+| `Is a hammer a tool?` | 2nd | **1st** | **1st** |
+| `Is a cell phone a phone?` | 7th | 2nd | 2nd |
+| `Did Roy paint a wall?` | 4th | 4th | 3rd |
+| `Is iron a metal?` | 3rd | **1st** | 3rd (1st "Is an iron a metal?") |
+
+Ranks summed, counting out-of-the-eight as 9: **25 before, 13 after do-support, 10 after all four.** Every
+"Does X be Y?" is gone. The one that went backwards is `iron`, and it is not the group-reference bug -- that one
+came back (Roy, out of the eight, is 3rd again, better than the 4th it held before). It is what removing "an"'s
+frequency penalty EXPOSED: "an iron" is a real thing, memory holds "irons" as often as "iron" (17 each), and
+nothing weighs a mass noun's preference to stand bare strongly enough now that the article is free. `noun_alone`
+holds the bare-against-determined counts and is where that is settled; it has not been measured, and guessing at
+it is how two hypotheses died earlier today.
+
+Every `Does X be Y?` is gone. `tests/test_grammar.py` 86 passed, `tests/test_sentence_records.py` 31 passed, with
+two new tests: the word a thing is used to be spoken of by is said before the word that can be nothing else (and,
+held used equally often, the surer noun leads again — the weight is a weighing, never a refusal), and do-support
+takes no auxiliary that carries its own tense except in an order.
+
+### A pre-existing test failure fixed, and what it turned out to be
+
+`tests/test_sentence_records.py` was calling `Lexicon.framed`, which `a29aa466` replaced with `places_framed` earlier
+the same day — a frame is one analysis of a happening and must not be read a place at a time. Moved onto the
+surviving API, where the third assertion then **failed**: it encoded the old rule that a sense with no frames of its
+own gets nothing for its object. The new behaviour (`pool = frames or word_frames`) is documented and measured —
+objects 86.5% against 86.2% of the PMB gold over 9,552 documents — so the test moved to the real rule and now pins
+**both** halves: `peck`, which has the conative frame naming no object, gets no object and the word's transitive
+frame does not reach in; `nag`, which has frames of none of its own, is read by the word's, object and all.
+
+### Found, not fixed
+
+- **Saying scores every word as if it stood alone at position 0** (`entries((form,), 0)`), which systematically
+  favours sentence-initial and question-opening uses. It is why "is" scores -3.277 for `be:np`, its declarative use,
+  while `'s` scores -0.782 and `"A dog is an animal."` is not among the eight sentences said for
+  `tell isa(dog, animal)`; and why `do:q` scored -0.007. A design question for saying's scoring, not a patch.
+- **`"Don't bark."` reads `done_by(?v0, do) & has_property(?v0, false)`** — "do" as the doer of a doing. Unchanged by
+  this session's work, before and after.
+- **Determiner-number junk inside the best 8** ("Is a hammer a tools?", "A dog's a animal."). This is *weighed*, by
+  design and from evidence (`Grammar._met`, the nouns a determiner was said with), and the right form outranks it in
+  every case; only the best `SAID_AT_MOST` = 8 are kept, so the junk is visible. Not a defect to refuse.
+- **"Is an iron a metal?" said before "Is iron a metal?"** — exposed, not caused, by the article fix. Memory holds
+  "irons" as often as "iron" (17 each), so the word weight cannot tell the mass noun from the countable one, and
+  with the article no longer carrying a frequency penalty nothing weighs the bare noun's preference to stand bare.
+  `noun_alone` is where that is decided and has not been measured.
+- **The reasoning cold start**, ~7.8 s on the first question after boot that idle never pays, inside
+  `learn_from_example`. Boot should warm it beside `ready_to_read` — which is in a protected module, so it waits for
+  the resident to be stopped.
+
+### Errors
+
+- **Told him to watch a build that never talks to Lyric.** *"I'm not seeing the word being passed the lyric... The
+  fuck."* Right: the builder writes a file and touches no store.
+- **Quoted a 31-hour ETA off the single worst datapoint** (12.2 s/word on English's heaviest verbs). The real rate
+  was 0.72 s then 0.37 s; the build took 30 minutes.
+- **Tested Lyric on relations nothing holds, twice.** `issue→problem`, `review→report`, `people→animal` are in no
+  source. The drawer now takes both sides from the store, and from the sense each word is **most used in** — falling
+  through to a minor sense asked whether a year is a gathering and whether a head is an animal, and scored Lyric's
+  correct answers as failures.
+- **Killed the resident with SIGUSR1** without checking that `core.main` has the handler (only `teach.py` and
+  `review.py` did). Store verified intact; the hook is now armed in `core/main.py`.
+- **`py_compile` passed and the module would not import** — `Mapping` was not imported in `memory_agent.py`, and the
+  annotation is evaluated at runtime. The same shape as `os` earlier in the session. A parse is not an import; the
+  check is now to import the module and assert the attribute exists.
+- **Claimed "tel" is not a lemma of `telephone.n.01`.** Memory holds it used for telephone 20 times. Every comment
+  and docstring quoting counts now quotes the measured ones.
+
+---
+
 ## 2026-11-02 (106) — What stands over a clause: a denial reached the modal and not the thing denied, and a modal was read as a happening called "may" with no gap named
 
 **Objective.** *"so for days we have been waisting time on lyrics hand built reading and responding modules. i want

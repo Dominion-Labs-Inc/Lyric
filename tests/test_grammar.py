@@ -827,6 +827,96 @@ def test_a_meaning_is_said_only_in_sentences_the_grammar_reads_back_to_it():
     assert g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "griffin", "mammal"),))) == []
 
 
+class UsedFor(Speaking):
+    """TWO WORDS FOR ONE THING, as memory holds them: "mammal", used for it 60 times and read as a verb as well, and
+    "beast", used for it once and read as nothing but a noun. How surely a word is read as a word of its kind is all
+    a word's entry carries, so the word that can be nothing else is the surer noun, and the word the thing is spoken
+    of by is the one memory has counted (`Words.used_for`)."""
+
+    def uses(self, word: str) -> Mapping[str, float]:
+        w = word.lower()
+        if w == "beast":
+            return {"NOUN": 10.0}
+        if w == "mammal":
+            return {"NOUN": 10.0, "VERB": 10.0}
+        return super().uses(word)
+
+    def name(self, word: str, cls: str) -> str:
+        return "mammal" if word.lower() == "beast" and cls == "NOUN" else super().name(word, cls)
+
+    def lexeme(self, word: str, cls: str) -> str:
+        return self.name(word, cls)
+
+    def words_for(self, name: str, cls: str):
+        return ["mammal", "beast"] if name == "mammal" and cls == "NOUN" else super().words_for(name, cls)
+
+    def used_for(self, name: str, cls: str) -> Mapping[str, float]:
+        return {"mammal": 60.0, "beast": 1.0} if name == "mammal" and cls == "NOUN" else super().used_for(name, cls)
+
+
+def test_the_word_a_thing_is_used_to_be_spoken_of_by_is_said_before_a_word_that_can_be_nothing_else():
+    """`Grammar._say` weighs each word for a thing by how often memory holds it used FOR THAT THING
+    (`Words.used_for`), against the word used most for it of those offered, as it weighs each grammar word against
+    the surest word saying the same piece. A word's entry carries only how surely the word itself is read as a word
+    of that kind, which says nothing of the thing, so the word that can be nothing else was said before the word the
+    thing is spoken of by: "Fe is a metallic element." of iron, which memory holds "iron" used for 17 times and
+    "fe" 2; "creature" (18) for `animal` (78); "tel" (20) for `telephone` (26). Both words are still said: the rarer
+    one is weighed below the other, never refused (lyric_db, 2026-11-02)."""
+    g = gm.Grammar(gm.Lexicon(UsedFor()))
+    meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),))
+    said = g.say(meaning)
+    assert said, "nothing said of a dog being a mammal"
+    for sentence in said:
+        assert read(g, sentence) == meaning.canonical(), sentence
+    assert "mammal" in said[0].lower(), said[:4]
+    # WEIGHED, NEVER REFUSED: held used for the thing as often as the other, the word that can be nothing else is
+    # the surer noun again and is said first, as it was before anything was held of what the thing is spoken of by.
+    # Only the best `SAID_AT_MOST` are made, so weighing a word down can leave it out of what is said; nothing
+    # about the word is refused, and it is said wherever the weight does not put another above it.
+    class Alike(UsedFor):
+        def used_for(self, name: str, cls: str) -> Mapping[str, float]:
+            return {"mammal": 30.0, "beast": 30.0} if name == "mammal" and cls == "NOUN" \
+                else super().used_for(name, cls)
+    alike = gm.Grammar(gm.Lexicon(Alike())).say(meaning)
+    assert "beast" in alike[0].lower(), alike[:4]
+    assert any("mammal" in s.lower() for s in alike), alike
+
+
+def test_do_support_takes_no_auxiliary_that_carries_its_own_tense_except_in_an_order():
+    """`_do_support_on_an_auxiliary`: the copula and the perfect carry their own tense, so English never gives
+    either to a form of "do" to carry -- "Is a dog a mammal?" and "Has Tom chased a cat?", never "Does a dog be a
+    mammal?" or "Does Tom have chased a cat?" -- outside an order, which is the one place it does ("Do be
+    careful."). Refused in reading as well as in saying, because reading accepting it is why saying produced it:
+    `S[b].e\\NP.x` is what do-support takes and `S[b].p\\NP.x` what the copula's bare form gives, the two unify,
+    and nothing in the categories stood in the way. Of the eight sentences saying offered for `ask isa(dog, animal)`
+    the first four began "Does a dog be", and with the copula alone refused "Does Roy have painted a wall?" was
+    still said third of eight (lyric_db, 2026-11-02)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+
+    def reads(sentence: str):
+        return g.read(gm.tokens_of(sentence, g.lexicon.words)).meaning
+
+    for sentence in ("Does a dog be a mammal?", "Did a dog be a mammal?", "A dog does be a mammal.",
+                     "Do dogs be mammals?", "Does Tom have chased a cat?", "Tom does have chased a cat."):
+        assert reads(sentence) is None, sentence
+    # EVERYTHING ELSE THAT TAKES A BARE PHRASE STILL TAKES THE COPULA'S, and do-support still carries a verb that
+    # cannot carry its own tense. An order is where English does give "do" the copula.
+    for sentence in ("Is a dog a mammal?", "A dog is a mammal.", "Dogs are mammals.", "A dog can be a mammal.",
+                     "Does a dog bark?", "Did a dog bark?", "A dog does bark.", "Do be a mammal.",
+                     # WHAT WANTS THE BARE PHRASE HERE IS "to", and the stretch holding it holds "Does" as well:
+                     # what wants it is the stretch's head (`_entry_at(left, left.head)`), never merely a word of it.
+                     "Does a dog want to be a mammal?", "Does a dog begin to be a mammal?",
+                     # THE PERFECT CARRIES ITS OWN TENSE TOO, and is still taken by everything else that may.
+                     "Tom has chased a cat.", "Has Tom chased a cat?", "Tom can have chased a cat.",
+                     "Don't be a mammal."):
+        assert reads(sentence) is not None, sentence
+    # AND IT IS NOT SAID EITHER, said by the one grammar that reads it: every sentence said reads back to the
+    # meaning, and one the grammar will not read is one it cannot say.
+    for act in ("ask", "tell"):
+        said = g.say(gm.Meaning(act, (gm.MeaningFact("isa", "dog", "mammal"),)))
+        assert said and not any(" be " in s or s.lower().startswith(("does ", "do ", "did ")) for s in said), said
+
+
 def test_a_happening_is_said_with_its_doer_and_what_it_was_done_to():
     """A sentence read, said again: the meaning it read to said by the same grammar, read back to the same meaning."""
     g = gm.Grammar(gm.Lexicon(Speaking()))
@@ -953,6 +1043,47 @@ class Agreeing(Sounding):
                     every[k] = every.get(k, 0.0) + n
             return every
         return self.PREDICATED.get(said, {})
+
+
+def test_a_form_the_sound_after_it_decides_is_not_weighed_by_how_often_it_is_written():
+    """`Grammar._say`'s `among`: "a" and "an" are one word the analysts mark nothing apart, whose form the first
+    sound of the word after it decides, and they share the one `det` use -- so weighed against each other by how
+    often each is written, "an" is offered 1.8 nats worse, which no sound rule can make up. It cost the right word
+    for the thing: of a thing memory holds spoken of by a vowel-initial word 78 times and a consonant-initial word
+    18, which is 1.4 nats the other way (`Words.used_for`), "Dogs are a bird." was said before "Dogs are an owl.",
+    and so "Is a dog a creature?" came before "Is a dog an animal?" on lyric_db (`animal` 78, `creature` 18) while
+    the word weight was right and pointed the other way (2026-11-02). Each such form is now weighed against itself
+    alone, as a form agreement decides already was."""
+    class Gap(Sounding):
+        """"a" and "an" written as often as the treebanks write them, and a thing spoken of by a vowel-initial word
+        far more often than by a consonant-initial one."""
+        def uses(self, word: str) -> Mapping[str, float]:
+            w = word.lower()
+            if w == "a":
+                return {"det": 8848.0}
+            if w == "an":
+                return {"det": 1500.0}
+            return {"NOUN": 10.0} if w in ("owl", "bird") else super().uses(word)
+
+        def name(self, word: str, cls: str) -> str:
+            return "fowl" if word.lower() in ("owl", "bird") and cls == "NOUN" else super().name(word, cls)
+
+        def lexeme(self, word: str, cls: str) -> str:
+            return self.name(word, cls)
+
+        def words_for(self, name: str, cls: str):
+            return ["owl", "bird"] if name == "fowl" and cls == "NOUN" else super().words_for(name, cls)
+
+        def used_for(self, name: str, cls: str) -> Mapping[str, float]:
+            return {"owl": 78.0, "bird": 18.0} if name == "fowl" and cls == "NOUN" \
+                else super().used_for(name, cls)
+
+    g = gm.Grammar(gm.Lexicon(Gap()))
+    meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "fowl"),))
+    said = g.say(meaning)
+    assert said and all(read(g, s) == meaning.canonical() for s in said)
+    assert "owl" in said[0], said[:4]
+    assert "an owl" in said[0], said[:4]
 
 
 def test_a_determiner_agrees_with_its_noun_and_a_thing_with_what_it_is_said_to_be():

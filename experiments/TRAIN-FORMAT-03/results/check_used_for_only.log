@@ -1,0 +1,320 @@
+store lyric_db: warm 507s, word records 12228, sentence records 6137, analysed sentences 6137
+
+── GIVEN ──
+Is iron a metal?
+    PIECES  ['Is', 'iron', 'a', 'metal', '?']
+    TOKENS  ['Is', 'iron', 'a', 'metal', '?']
+    READ  sure 1.000  ask: isa(iron, metallic element)  [0.0s]
+    USED FOR iron (NOUN): iron 17, irons 17, fe 2
+    USED FOR metallic element (NOUN): metal 23, metals 23
+    SAID  1 sure 1.000  'Does iron be metals?' <-- says first
+    SAID  2 sure 1.000  'Does iron be a metal?' 
+    SAID  3 sure 1.000  'Is iron a metal?' 
+    SAID  4 sure 1.000  'Does a fe be metals?' 
+    SAID  5 sure 1.000  'Does an iron be metals?' 
+    SAID  6 sure 1.000  'Does a fe be a metal?' 
+    SAID  7 sure 0.004  "Iron's metals?" 
+    SAID  8 sure 1.000  'Is iron metal?' 
+    8 sentence(s) said in 1.0s; THE SENTENCE IT WAS GIVEN IS THE 3 OF THEM
+Is a dog an animal?
+    PIECES  ['Is', 'a', 'dog', 'an', 'animal', '?']
+    TOKENS  ['Is', 'a', 'dog', 'an', 'animal', '?']
+    READ  sure 1.000  ask: isa(dog, animal)  [0.0s]
+    USED FOR animal (NOUN): animal 78, animals 72, creature 18, creatures 18, beast 6, beasts 6
+    USED FOR dog (NOUN): dog 138, dogs 54
+    SAID  1 sure 1.000  'Does a dog be animals?' <-- says first
+    SAID  2 sure 1.000  'Does a dog be a creature?' 
+    SAID  3 sure 1.000  'Is a dog a creature?' 
+    SAID  4 sure 1.000  'Does a dog be an animal?' 
+    SAID  5 sure 1.000  'Does a dog be creatures?' 
+    SAID  6 sure 0.836  "A dog's animals?" 
+    SAID  7 sure 1.000  'Does a dog be a beast?' 
+    SAID  8 sure 1.000  'Does a dog be beasts?' 
+    8 sentence(s) said in 1.5s; the sentence it was given is NOT among them
+Is a hammer a tool?
+    PIECES  ['Is', 'a', 'hammer', 'a', 'tool', '?']
+    TOKENS  ['Is', 'a', 'hammer', 'a', 'tool', '?']
+    READ  sure 1.000  ask: isa(hammer, tool)  [0.1s]
+    USED FOR hammer (NOUN): hammer 6
+    USED FOR tool (NOUN): tool 18, tools 17
+    SAID  1 sure 1.000  'Does a hammer be a tool?' <-- says first
+    SAID  2 sure 1.000  'Is a hammer a tool?' 
+    SAID  3 sure 1.000  'Does a hammer be tools?' 
+    SAID  4 sure 1.000  "A hammer's a tool?" 
+    SAID  5 sure 1.000  'Does a hammer be a tools?' 
+    SAID  6 sure 0.997  "A hammer's tools?" 
+    SAID  7 sure 1.000  'Is a hammer a tools?' 
+    SAID  8 sure 1.000  'Does hammer be a tool?' 
+    8 sentence(s) said in 1.4s; THE SENTENCE IT WAS GIVEN IS THE 2 OF THEM
+Is a cell phone a phone?
+    PIECES  ['Is', 'a', 'cell', 'phone', 'a', 'phone', '?']
+    TOKENS  ['Is', 'a', 'cell', 'phone', 'a', 'phone', '?']
+    READ  sure 1.000  ask: isa(cell phone, telephone)  [0.1s]
+    USED FOR cell phone (NOUN): cell phone 1
+    USED FOR telephone (NOUN): telephone 26, phone 24, tel 20, telephones 20, phones 15
+    SAID  1 sure 1.000  'Does a cell phone be a telephone?' <-- says first
+    SAID  2 sure 1.000  'Does a cell phone be a phone?' 
+    SAID  3 sure 1.000  'Does a cell phone be a tel?' 
+    SAID  4 sure 1.000  'Does a cell phone be tel?' 
+    SAID  5 sure 1.000  'Does a cell phone be telephone?' 
+    SAID  6 sure 1.000  'Is a cell phone a telephone?' 
+    SAID  7 sure 1.000  'Is a cell phone a phone?' 
+    SAID  8 sure 1.000  'Does cell phone be a telephone?' 
+    8 sentence(s) said in 5.2s; THE SENTENCE IT WAS GIVEN IS THE 7 OF THEM
+Did Roy paint a wall?
+    PIECES  ['Did', 'Roy', 'paint', 'a', 'wall', '?']
+    TOKENS  ['Did', 'Roy', 'paint', 'a', 'wall', '?']
+    READ  sure 1.000  ask: done_by(?v0, roy) & done_to(?v0, ?v1) & instance_of(?v0, coat paint) & instance_of(?v1, wall) & precedes(?v0, ?now)  [0.1s]
+    USED FOR coat paint (VERB): painted 51, paint 38, painting 14, paints 14
+    USED FOR wall (NOUN): wall 177, walls 84
+    SAID  1 sure 1.000  'Roy painted a wall?' <-- says first
+    SAID  2 sure 1.000  'Roy has painted a wall?' 
+    SAID  3 sure 1.000  'Does Roy have painted a wall?' 
+    SAID  4 sure 1.000  'Did Roy paint a wall?' 
+    SAID  5 sure 1.000  'Roy painted walls?' 
+    SAID  6 sure 1.000  'Roy painted a walls?' 
+    SAID  7 sure 1.000  'Roy has painted walls?' 
+    SAID  8 sure 1.000  'Roy painted wall?' 
+    8 sentence(s) said in 0.9s; THE SENTENCE IT WAS GIVEN IS THE 4 OF THEM
+A dog is an animal.
+    PIECES  ['A', 'dog', 'is', 'an', 'animal', '.']
+    TOKENS  ['A', 'dog', 'is', 'an', 'animal', '.']
+    READ  sure 1.000  tell: isa(dog, animal)  [0.0s]
+    USED FOR animal (NOUN): animal 78, animals 72, creature 18, creatures 18, beast 6, beasts 6
+    USED FOR dog (NOUN): dog 138, dogs 54
+    SAID  1 sure 0.836  "A dog's animals." <-- says first
+    SAID  2 sure 1.000  "A dog's a creature." 
+    SAID  3 sure 1.000  "A dog's an animal." 
+    SAID  4 sure 0.827  "A dog's creatures." 
+    SAID  5 sure 1.000  "A dog's a beast." 
+    SAID  6 sure 0.883  "A dog's beasts." 
+    SAID  7 sure 0.346  "A dog's animal." 
+    SAID  8 sure 1.000  "A dog's a animal." 
+    8 sentence(s) said in 1.0s; the sentence it was given is NOT among them
+Iron is a metal.
+    PIECES  ['Iron', 'is', 'a', 'metal', '.']
+    TOKENS  ['Iron', 'is', 'a', 'metal', '.']
+    READ  sure 1.000  tell: isa(iron, metallic element)  [0.0s]
+    USED FOR iron (NOUN): iron 17, irons 17, fe 2
+    USED FOR metallic element (NOUN): metal 23, metals 23
+    SAID  1 sure 0.004  "Iron's metals." <-- says first
+    SAID  2 sure 1.000  "Iron's a metal." 
+    SAID  3 sure 0.005  "Iron's metal." 
+    SAID  4 sure 0.998  "A fe's metals." 
+    SAID  5 sure 0.725  "An iron's metals." 
+    SAID  6 sure 1.000  "A fe's a metal." 
+    SAID  7 sure 0.998  "A fe's metal." 
+    SAID  8 sure 1.000  "Iron's a metals." 
+    8 sentence(s) said in 0.9s; the sentence it was given is NOT among them
+
+── 'is' ──
+    USED  be:np 2016, be:adj 1510, be:ng 619, be:pss 596, be:pp 488, be:there 162, be:aux 82, be:q:np 72, be:q:adj 51, be:there:pp 43   (5709 in all)
+      -0.341  GRAMMAR   be:q:adj       (S[q].q/(S[adj].q\NP.x))/NP.x
+      -1.929  GRAMMAR   be:q:np        (S[q].p/NP.y)/NP.x
+      -2.747  GRAMMAR   be:q:ng        (S[q].e/(S[ng].e\NP.x))/NP.x
+      -3.277  GRAMMAR   be:np          (S[dcl].p\NP.x)/NP.y
+      -3.697  GRAMMAR   be:pp          (S[dcl].p\NP.x)/(S[pp].p\NP.x)
+      -4.758  GRAMMAR   be:adj         (S[dcl].q\NP.x)/(S[adj].q\NP.x)
+      -5.061  GRAMMAR   be:ng          (S[dcl].e\NP.x)/(S[ng].e\NP.x)
+      -6.829  GRAMMAR   be:pss         (S[dcl].e\NP.x)/(S[pss].e\NP.x)
+      -7.600  GRAMMAR   be:there       (S[dcl].p\THERE)/NP.y
+      -7.987  GRAMMAR   be:q:pp        (S[q].p/(S[pp].p\NP.x))/NP.x
+     -10.123  GRAMMAR   be:there:pp    ((S[dcl].p\THERE)/(S[pp].p\NP.y))/NP.y
+     -10.820  GRAMMAR   be:q:pss       (S[q].e/(S[pss].e\NP.x))/NP.x
+     -19.910  GRAMMAR   be:q:there     (S[q].p/NP.y)/THERE
+     -21.096  GRAMMAR   be:q:there:pp  ((S[q].p/(S[pp].p\NP.y))/NP.y)/THERE
+     -24.243  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+
+── "'s" ──
+    USED  poss 1169, be:np 545, be:adj 401, be:pp 195, be:ng 124, be:there 99, be:aux 86, pron 77, be:pss 48, be:there:pp 23   (2782 in all)
+      -0.782  GRAMMAR   be:np          (S[dcl].p\NP.x)/NP.y
+      -1.457  GRAMMAR   be:pp          (S[dcl].p\NP.x)/(S[pp].p\NP.x)
+      -2.158  GRAMMAR   be:adj         (S[dcl].q\NP.x)/(S[adj].q\NP.x)
+      -2.193  GRAMMAR   poss           (NP.x/N.x)\NP.o
+      -2.852  GRAMMAR   be:ng          (S[dcl].e\NP.x)/(S[ng].e\NP.x)
+      -4.535  GRAMMAR   be:there       (S[dcl].p\THERE)/NP.y
+      -5.050  GRAMMAR   have:perfect   (S[dcl].e\NP.x)/(S[pt].e\NP.x)
+      -5.451  GRAMMAR   be:pss         (S[dcl].e\NP.x)/(S[pss].e\NP.x)
+      -6.148  GRAMMAR   be:q:pp        (S[q].p/(S[pp].p\NP.x))/NP.x
+      -6.833  GRAMMAR   be:there:pp    ((S[dcl].p\THERE)/(S[pp].p\NP.y))/NP.y
+     -11.553  GRAMMAR   be:q:ng        (S[q].e/(S[ng].e\NP.x))/NP.x
+     -12.127  GRAMMAR   be:q:np        (S[q].p/NP.y)/NP.x
+     -15.723  GRAMMAR   be:q:adj       (S[q].q/(S[adj].q\NP.x))/NP.x
+     -17.729  GRAMMAR   be:q:pss       (S[q].e/(S[pss].e\NP.x))/NP.x
+     -19.852  GRAMMAR   be:q:there:pp  ((S[q].p/(S[pp].p\NP.y))/NP.y)/THERE
+     -21.892  GRAMMAR   be:q:there     (S[q].p/NP.y)/THERE
+
+── 'are' ──
+    USED  be:adj 617, be:ng 409, be:np 396, be:pss 366, be:pp 254, be:there 145, be:q:ng 53, be:there:pp 47, be:aux 41, be:q:adj 26   (2400 in all)
+      -0.584  GRAMMAR   be:q:adj       (S[q].q/(S[adj].q\NP.x))/NP.x
+      -1.318  GRAMMAR   be:q:ng        (S[q].e/(S[ng].e\NP.x))/NP.x
+      -1.942  GRAMMAR   be:q:np        (S[q].p/NP.y)/NP.x
+      -4.472  GRAMMAR   be:np          (S[dcl].p\NP.x)/NP.y
+      -4.500  GRAMMAR   be:pp          (S[dcl].p\NP.x)/(S[pp].p\NP.x)
+      -5.560  GRAMMAR   be:adj         (S[dcl].q\NP.x)/(S[adj].q\NP.x)
+      -5.885  GRAMMAR   be:ng          (S[dcl].e\NP.x)/(S[ng].e\NP.x)
+      -6.659  GRAMMAR   be:there       (S[dcl].p\THERE)/NP.y
+      -7.584  GRAMMAR   be:pss         (S[dcl].e\NP.x)/(S[pss].e\NP.x)
+      -8.406  GRAMMAR   be:there:pp    ((S[dcl].p\THERE)/(S[pp].p\NP.y))/NP.y
+      -8.411  GRAMMAR   be:q:pp        (S[q].p/(S[pp].p\NP.x))/NP.x
+     -19.193  GRAMMAR   be:q:there     (S[q].p/NP.y)/THERE
+     -19.500  GRAMMAR   be:q:pss       (S[q].e/(S[pss].e\NP.x))/NP.x
+     -22.350  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+     -22.638  GRAMMAR   be:q:there:pp  ((S[q].p/(S[pp].p\NP.y))/NP.y)/THERE
+
+── 'am' ──
+    USED  be:adj 144, be:ng 144, be:pp 50, be:np 41, be:pss 26, be:aux 16, be:q:ng 4, be:q:pss 2, NAME 2, be:q:adj 1   (433 in all)
+      -0.368  GRAMMAR   be:pp          (S[dcl].p\NP.x)/(S[pp].p\NP.x)
+      -2.273  GRAMMAR   be:adj         (S[dcl].q\NP.x)/(S[adj].q\NP.x)
+      -2.280  GRAMMAR   be:ng          (S[dcl].e\NP.x)/(S[ng].e\NP.x)
+      -2.330  GRAMMAR   be:np          (S[dcl].p\NP.x)/NP.y
+      -5.296  GRAMMAR   be:pss         (S[dcl].e\NP.x)/(S[pss].e\NP.x)
+      -8.296  GRAMMAR   be:q:ng        (S[q].e/(S[ng].e\NP.x))/NP.x
+      -9.653  GRAMMAR   be:q:adj       (S[q].q/(S[adj].q\NP.x))/NP.x
+     -11.320  GRAMMAR   be:q:np        (S[q].p/NP.y)/NP.x
+     -14.385  GRAMMAR   be:q:pss       (S[q].e/(S[pss].e\NP.x))/NP.x
+     -15.472  GRAMMAR   be:there:pp    ((S[dcl].p\THERE)/(S[pp].p\NP.y))/NP.y
+     -15.500  GRAMMAR   be:there       (S[dcl].p\THERE)/NP.y
+     -16.189  GRAMMAR   be:q:pp        (S[q].p/(S[pp].p\NP.x))/NP.x
+     -16.835  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+     -17.122  GRAMMAR   be:q:there:pp  ((S[q].p/(S[pp].p\NP.y))/NP.y)/THERE
+     -19.163  GRAMMAR   be:q:there     (S[q].p/NP.y)/THERE
+
+── 'was' ──
+    USED  be:pss 861, be:adj 710, be:np 678, be:ng 327, be:pp 287, be:aux 78, be:there 65, be:there:pp 23, be:q:pp 14, be:q:np 14   (3070 in all)
+      -0.317  GRAMMAR   be:q:adj       (S[q].q/(S[adj].q\NP.x))/NP.x
+      -2.081  GRAMMAR   be:q:np        (S[q].p/NP.y)/NP.x
+      -2.942  GRAMMAR   be:pp          (S[dcl].p\NP.x)/(S[pp].p\NP.x)
+      -3.360  GRAMMAR   be:np          (S[dcl].p\NP.x)/NP.y
+      -3.548  GRAMMAR   be:pss         (S[dcl].e\NP.x)/(S[pss].e\NP.x)
+      -4.040  GRAMMAR   be:adj         (S[dcl].q\NP.x)/(S[adj].q\NP.x)
+      -4.555  GRAMMAR   be:ng          (S[dcl].e\NP.x)/(S[ng].e\NP.x)
+      -6.727  GRAMMAR   be:q:pss       (S[q].e/(S[pss].e\NP.x))/NP.x
+      -6.842  GRAMMAR   be:there       (S[dcl].p\THERE)/NP.y
+      -8.924  GRAMMAR   be:q:pp        (S[q].p/(S[pp].p\NP.x))/NP.x
+     -13.815  GRAMMAR   be:there:pp    ((S[dcl].p\THERE)/(S[pp].p\NP.y))/NP.y
+     -14.538  GRAMMAR   be:q:ng        (S[q].e/(S[ng].e\NP.x))/NP.x
+     -18.569  GRAMMAR   be:q:there:pp  ((S[q].p/(S[pp].p\NP.y))/NP.y)/THERE
+     -19.532  GRAMMAR   be:q:there     (S[q].p/NP.y)/THERE
+     -21.715  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+
+── 'does' ──
+    USED  do 230, VERB 72, do:q 43, do:order 26, NOUN 0   (371 in all)
+      -0.007  GRAMMAR   do:q           (S[q].e/(S[b].e\NP.x))/NP.x
+      -5.809  VERB      third:intransitive S[dcl].e\NP.x
+      -6.005  VERB      third:transitive (S[dcl].e\NP.x)/NP.y
+      -6.698  GRAMMAR   do             (S[dcl].e\NP.x)/(S[b].e\NP.x)
+      -7.485  VERB      third:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+      -9.147  NOUN      bash           N.x
+     -11.186  VERB      participle:intransitive S[pt].e\NP.x
+     -11.383  VERB      participle:transitive (S[pt].e\NP.x)/NP.y
+     -11.383  VERB      participle:transitive S[pss].e\NP.y
+     -11.383  VERB      participle:transitive (S[pss].e\NP.y)/PP[by].x
+     -11.563  VERB      past:intransitive S[dcl].e\NP.x
+     -11.759  VERB      past:transitive (S[dcl].e\NP.x)/NP.y
+     -12.862  VERB      participle:ditransitive ((S[pt].e\NP.x)/NP.y)/NP.z
+     -12.862  VERB      participle:ditransitive (S[pss].e\NP.z)/NP.y
+     -12.971  GRAMMAR   do:order       S[imp].e/(S[b].e\NP.?listener)
+     -13.239  VERB      past:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+     -13.528  VERB      third:to       (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -14.217  VERB      third:told to  ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -14.903  VERB      third:that     (S[dcl].e\NP.x)/S[em].c
+     -18.905  VERB      participle:to  (S[pt].e\NP.x)/(S[to].c\NP.x)
+     -19.162  VERB      third:ing      (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+     -19.282  VERB      past:to        (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -19.594  VERB      participle:told to ((S[pt].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -19.971  VERB      past:told to   ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -20.088  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+     -20.281  VERB      participle:that (S[pt].e\NP.x)/S[em].c
+     -20.658  VERB      past:that      (S[dcl].e\NP.x)/S[em].c
+     -24.540  VERB      participle:ing (S[pt].e\NP.x)/(S[ng].c\NP.x)
+     -24.916  VERB      past:ing       (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+
+── 'do' ──
+    USED  do 684, VERB 634, do:order 205, do:q 203, NAME 5, NOUN:compound 3, NOUN 1   (1735 in all)
+      -0.253  ADVERB    adv:after      (S[F].e\NP.x)\(S[F].e\NP.x)
+      -0.253  ADVERB    adv:before     (S[F].e\NP.x)/(S[F].e\NP.x)
+      -0.253  ADVERB    adv:opening    S[F].e/S[F].e
+      -1.722  GRAMMAR   do:q           (S[q].e/(S[b].e\NP.x))/NP.x
+      -3.610  VERB      base:intransitive S[b].e\NP.x
+      -4.796  VERB      base:transitive (S[b].e\NP.x)/NP.y
+      -5.586  VERB      present:intransitive S[dcl].e\NP.x
+      -5.879  VERB      third:intransitive S[dcl].e\NP.x
+      -6.772  VERB      present:transitive (S[dcl].e\NP.x)/NP.y
+      -7.064  VERB      third:transitive (S[dcl].e\NP.x)/NP.y
+      -7.859  VERB      base:told to   ((S[b].e\NP.x)/(S[to].c\NP.y))/NP.y
+      -8.263  GRAMMAR   do             (S[dcl].e\NP.x)/(S[b].e\NP.x)
+      -8.833  NOUN      bash           N.x
+      -9.835  VERB      present:told to ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -10.127  VERB      third:told to  ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -10.316  VERB      past:intransitive S[dcl].e\NP.x
+     -11.502  VERB      past:transitive (S[dcl].e\NP.x)/NP.y
+     -11.616  VERB      base:to        (S[b].e\NP.x)/(S[to].c\NP.x)
+     -11.675  VERB      participle:intransitive S[pt].e\NP.x
+     -12.861  VERB      participle:transitive (S[pt].e\NP.x)/NP.y
+     -12.861  VERB      participle:transitive S[pss].e\NP.y
+     -12.861  VERB      participle:transitive (S[pss].e\NP.y)/PP[by].x
+     -13.592  VERB      present:to     (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -13.884  VERB      third:to       (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -13.888  GRAMMAR   do:order       S[imp].e/(S[b].e\NP.?listener)
+     -14.283  VERB      base:ditransitive ((S[b].e\NP.x)/NP.y)/NP.z
+     -14.324  VERB      base:ing       (S[b].e\NP.x)/(S[ng].c\NP.x)
+     -14.328  VERB      base:that      (S[b].e\NP.x)/S[em].c
+     -14.565  VERB      past:told to   ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -15.923  VERB      participle:told to ((S[pt].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -16.259  VERB      present:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+     -16.300  VERB      present:ing    (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+     -16.304  VERB      present:that   (S[dcl].e\NP.x)/S[em].c
+     -16.551  VERB      third:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+     -16.592  VERB      third:ing      (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+     -16.596  VERB      third:that     (S[dcl].e\NP.x)/S[em].c
+     -18.322  VERB      past:to        (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -19.681  VERB      participle:to  (S[pt].e\NP.x)/(S[to].c\NP.x)
+     -20.989  VERB      past:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+     -21.030  VERB      past:ing       (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+     -21.034  VERB      past:that      (S[dcl].e\NP.x)/S[em].c
+     -22.348  VERB      participle:ditransitive ((S[pt].e\NP.x)/NP.y)/NP.z
+     -22.348  VERB      participle:ditransitive (S[pss].e\NP.z)/NP.y
+     -22.389  VERB      participle:ing (S[pt].e\NP.x)/(S[ng].c\NP.x)
+     -22.393  VERB      participle:that (S[pt].e\NP.x)/S[em].c
+     -23.068  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+
+── 'did' ──
+    USED  do 357, VERB 215, do:q 67, do:order 34   (673 in all)
+      -0.089  GRAMMAR   do:q           (S[q].e/(S[b].e\NP.x))/NP.x
+      -2.756  VERB      past:intransitive S[dcl].e\NP.x
+      -3.942  VERB      past:transitive (S[dcl].e\NP.x)/NP.y
+      -6.937  GRAMMAR   do             (S[dcl].e\NP.x)/(S[b].e\NP.x)
+      -7.004  VERB      past:told to   ((S[dcl].e\NP.x)/(S[to].c\NP.y))/NP.y
+      -8.880  VERB      participle:intransitive S[pt].e\NP.x
+     -10.066  VERB      participle:transitive (S[pt].e\NP.x)/NP.y
+     -10.066  VERB      participle:transitive S[pss].e\NP.y
+     -10.066  VERB      participle:transitive (S[pss].e\NP.y)/PP[by].x
+     -10.762  VERB      past:to        (S[dcl].e\NP.x)/(S[to].c\NP.x)
+     -13.129  VERB      participle:told to ((S[pt].e\NP.x)/(S[to].c\NP.y))/NP.y
+     -13.429  VERB      past:ditransitive ((S[dcl].e\NP.x)/NP.y)/NP.z
+     -13.470  VERB      past:ing       (S[dcl].e\NP.x)/(S[ng].c\NP.x)
+     -13.474  VERB      past:that      (S[dcl].e\NP.x)/S[em].c
+     -16.886  VERB      participle:to  (S[pt].e\NP.x)/(S[to].c\NP.x)
+     -19.553  VERB      participle:ditransitive ((S[pt].e\NP.x)/NP.y)/NP.z
+     -19.553  VERB      participle:ditransitive (S[pss].e\NP.z)/NP.y
+     -19.594  VERB      participle:ing (S[pt].e\NP.x)/(S[ng].c\NP.x)
+     -19.598  VERB      participle:that (S[pt].e\NP.x)/S[em].c
+     -20.315  GRAMMAR   tag            (S[q].a\S[dcl].a)/NP.x
+
+── 'be' ──
+    USED  be:adj 639, be:pss 629, be:np 378, be:pp 258, be:ng 149, be:there 41, be:there:pp 7, be:q:pp 2, be:q:np 2, NOUN:compound 1   (2108 in all)
+      -0.830  GRAMMAR   be:pp          (S[b].p\NP.x)/(S[pp].p\NP.x)
+      -0.878  GRAMMAR   be:np          (S[b].p\NP.x)/NP.y
+      -2.244  GRAMMAR   be:adj         (S[b].q\NP.x)/(S[adj].q\NP.x)
+      -3.374  GRAMMAR   be:pss         (S[b].e\NP.x)/(S[pss].e\NP.x)
+      -4.821  GRAMMAR   be:ng          (S[b].e\NP.x)/(S[ng].e\NP.x)
+
+── 'been' ──
+    USED  be:pss 282, be:ng 135, be:np 95, be:adj 88, be:pp 85, be:there 22, be:there:pp 8, be:aux 4, VERB 0, NOUN 0   (719 in all)
+      -0.244  GRAMMAR   be:pp          (S[pt].p\NP.x)/(S[pp].p\NP.x)
+      -2.064  GRAMMAR   be:pss         (S[pt].e\NP.x)/(S[pss].e\NP.x)
+      -2.727  GRAMMAR   be:ng          (S[pt].e\NP.x)/(S[ng].e\NP.x)
+      -3.988  GRAMMAR   be:adj         (S[pt].q\NP.x)/(S[adj].q\NP.x)
+      -5.186  GRAMMAR   be:np          (S[pt].p\NP.x)/NP.y
+
