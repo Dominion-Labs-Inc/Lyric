@@ -72,6 +72,7 @@ import hashlib
 import functools
 import heapq
 import itertools
+import logging
 import math
 import os
 import re
@@ -82,6 +83,10 @@ from typing import (AbstractSet, Any, Awaitable, Callable, Collection, Dict, Fro
 
 from core.semantics.relation_types import SemanticRelation, is_worded, worded
 from core.semantics.literals import classify_literal
+
+#: `core.observability.channels` routes `core.semantics` to the substrate panel, so reading says what it did beside
+#: the rest of Lyric thinking, with no routing to add.
+logger = logging.getLogger(__name__)
 from core.semantics.sentence_machine import QUOTED, Piece, form_of, surface_of
 
 #: English is a domain like any subject: its constructions are what the substrate knows of it, and its competence
@@ -5389,24 +5394,44 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
     from core.agents import memory_agent as _memory
     agent = _memory._memory_agent
     if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
+        logger.debug("composing: %r left unread (%s)", utterance.text,
+                     "memory is not up in this process" if agent is None else "no word to read")
         return utterance
     from core.semantics.composition import ASKING
     first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
     made: List[Reading] = []
+    offered, refused = 0, Counter()
     for read in agent.grammar_view().readings(surface_of(utterance.pieces), COMPOSED_READINGS):
+        offered += 1
         meaning = read.meaning
-        if meaning is None or all(f.given for f in meaning.facts):
+        if meaning is None:
+            refused[read.why or "the meaning language cannot say what it read"] += 1
+            continue
+        if all(f.given for f in meaning.facts):
             # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
+            refused["says only what is known already"] += 1
             continue
         if meaning.act == "ask" and not meaning.asked and first in ASKING:
             # A QUESTION THAT ASKS FOR SOMETHING, COMPOSED ASKING FOR NOTHING, IS NOT ITS READING: "How many engineers
             # did the company hire?" composed without the count or the engineers asked whether the company hired, and
             # was answered "Yes." once the hiring was held (2026-10-19).
+            refused["a question that asks for nothing"] += 1
             continue
         made.append(Reading(_said_by_words(read), (), meaning, composed=True,
                             structure=math.log(read.sure) if read.sure > 0 else 0.0))
+    # WHY AN UTTERANCE CAME BACK UNREAD, SAID. Each refusal above returned the utterance unchanged and silently, so a
+    # sentence the grammar read whole at sureness 1.00 and then could not say was indistinguishable from one no
+    # grammar rule reached: seven of the taught set read as nothing for one such refusal, and finding which took a
+    # day of bisecting readings by hand (2026-11-03, the possessive's open owner).
     if not made:
+        logger.info("composing: %r read %d way%s, none said anything: %s", utterance.text, offered,
+                    "" if offered == 1 else "s",
+                    "; ".join(f"{n} × {r}" for r, n in refused.most_common())
+                    or "the grammar read no whole of it")
         return utterance
+    logger.debug("composing: %r read %d way%s, %d said something%s", utterance.text, offered,
+                 "" if offered == 1 else "s", len(made),
+                 "; " + "; ".join(f"{n} × {r}" for r, n in refused.most_common()) if refused else "")
     return Utterance(utterance.pieces, tuple(made), utterance.partial, utterance.unknown)
 
 
@@ -6201,23 +6226,102 @@ def _best_packed(readings: Sequence[Reading], view: PatternInventory, heard: "He
     return [r for score, r in ranked if score == ranked[0][0]]
 
 
-def _meant_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard") -> Optional[Reading]:
+#: How much of a meaning a trace line carries; the whole of it is kept in `why` for whoever asked.
+_SAID_AT_MOST = 220
+
+
+def _memory_said(heard: Optional["Heard"]) -> str:
+    """WHETHER MEMORY WAS ASKED, and whether it answered. Four of the five channels that tell readings apart are
+    memory's (`held`, `related`, `selected`, `defined`), so a listener with no memory at hand decides on structure
+    alone — and a decision made on structure alone reads exactly like a decision made on evidence."""
+    if heard is None:
+        return "memory not asked"
+    held, related, selected, _, defined = heard
+    if not (held or related or selected or defined):
+        return "memory asked, knew nothing of any reading"
+    return (f"memory holds {len(held)} of their facts, defines {len(defined)}, "
+            f"selects {len(selected)}, raises {len(related)} things")
+
+
+def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]], took: Optional[Reading],
+                    how: str, heard: Optional["Heard"], why: Optional[Dict[str, Any]],
+                    worths: Optional[Mapping[Tuple[str, int], float]] = None) -> None:
+    """WHAT THE LISTENER RECEIVED, WEIGHED AND TOOK, said where it can be read: filled into `why` where a caller
+    passed one, and said on the substrate channel.
+
+    THE LISTENER WAS THE SILENT HALF OF READING. Which reading it took, by what margin, over what, and on which of
+    its evidence were all worked out and then thrown away, so the only way to see any of it was to infer it from how
+    often whole runs came out right. A day went into establishing, from aggregate scores alone, what one line would
+    have said outright: that the grammar handed the listener ONE reading and it returned before weighing anything
+    (2026-11-03). Every component that decides something silently costs that same day the first time it is wrong.
+
+    One reading is nothing chosen, and is said at debug; a real choice is said at info with the margin over the
+    runner-up, which is what tells a flat decision from a confident one. `how` is the one thing that decided, never
+    a guess after the fact, as `Grammar.say` fills its own `why`.
+
+    EACH CHANNEL IS SAID BESIDE WHAT IT WAS WORTH (`listening_worths`, learned), because the two come apart and the
+    difference is invisible otherwise: memory holding a reading's fact firmly counts for exactly nothing until the
+    listener has measured what holding it is worth, and a row reading "known 2" over a total that memory moved not
+    at all is the whole of that story in one line."""
+    memory = _memory_said(heard)
+    if why is not None:
+        why.clear()
+        why.update({
+            "readings": given, "took": took.meaning.canonical() if took is not None else None, "how": how,
+            "memory": memory,
+            "weighed": [{"meaning": w.reading.meaning.canonical(), "known": w.known, "defined": w.defined,
+                         "fit": w.fit, "activation": round(w.activation, 4), "structure": round(w.derivation, 4),
+                         "total": total, "composed": w.reading.composed,
+                         "worth": {evidence: round((worths or {}).get((evidence, level), 0.0), 4)
+                                   for evidence, level in listening_levels(w).items()}}
+                        for w, total in (rows or ())],
+        })
+    if given < 2 and not logger.isEnabledFor(logging.DEBUG):
+        return
+    said = took.meaning.canonical()[:_SAID_AT_MOST] if took is not None else "nothing"
+    if given < 2:
+        logger.debug("listening: %d reading%s, nothing to weigh (%s): %s", given,
+                     "" if given == 1 else "s", memory, said)
+        return
+    if not rows or len(rows) < 2:
+        # A PACKED READING STANDS FOR MANY, so there is no row for each meaning to show; what chose among them is
+        # `_best_packed`, over each choice of its words' senses.
+        logger.info("listening: %d readings, %s (%s): %s", given, how, memory, said)
+        return
+    w = rows[0][0]
+    worth = {evidence: (worths or {}).get((evidence, level), 0.0) for evidence, level in listening_levels(w).items()}
+    moved = sum(worth.values())
+    logger.info("listening: %d readings, %s by %.2f nats over the next of %d (known %d worth %.2f, defined %d worth "
+                "%.2f, fit %d worth %.2f, met+raised %.2f, structure %.2f%s; %s): %s",
+                given, how, rows[0][1] - rows[1][1], len(rows), w.known, worth.get("known", 0.0), w.defined,
+                worth.get("defined", 0.0), w.fit, worth.get("fit", 0.0), w.activation, w.derivation,
+                "" if moved else " — NOTHING MEMORY KNOWS IS WORTH ANYTHING YET", memory, said)
+
+
+def _meant_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard",
+                  why: Optional[Dict[str, Any]] = None) -> Optional[Reading]:
     """`meant`, where some readings are packed: the meaning the listener weighs highest (`_best_packed`); where two
-    score alike, asked about, unless they differ only in senses that are one coarse sense."""
+    score alike, asked about, unless they differ only in senses that are one coarse sense. Says what it did
+    (`_listening_said`)."""
+    def said(took: Optional[Reading], how: str) -> Optional[Reading]:
+        _listening_said(len(readings), None, took, how, heard, why)
+        return took
     tied = _best_packed(readings, view, heard)
     if len(tied) <= 1:
-        return next(iter(tied), None)
+        return said(next(iter(tied), None), "took the only meaning weighed highest")
     if len({_worded(r, view) for r in tied}) > 1:
-        return None
+        return said(None, f"could not tell: {len(tied)} weigh alike and say different things")
     senses, _ = _senses(tied)
     things = [senses[r.meaning.canonical()] for r in tied]
     one = all(frozenset((a, b)) in heard.together for i, mine in enumerate(things) for theirs in things[i + 1:]
               for a in mine for b in theirs if a != b)
-    return tied[0] if one else None
+    return said(tied[0] if one else None,
+                f"{len(tied)} weigh alike, of one coarse sense" if one
+                else f"could not tell: {len(tied)} weigh alike, of senses not one")
 
 
 def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = None, *,
-          heard: Optional[Heard] = None) -> Optional[Reading]:
+          heard: Optional[Heard] = None, why: Optional[Dict[str, Any]] = None) -> Optional[Reading]:
     """Which reading of an utterance was meant, as a listener takes it; None when the listener cannot tell.
 
     The reader reports every meaning the words can have (`read`); this is the listener's half. Every reading is
@@ -6244,15 +6348,24 @@ def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = N
 
     Readings that weigh alike are asked about unless they differ only in things that are one coarse sense
     (`together`: one a near kind of the other, or both of one thing), which a listener has understood without
-    telling them apart. With no memory at hand (`heard` None), nothing memory would say is weighed."""
+    telling them apart. With no memory at hand (`heard` None), nothing memory would say is weighed.
+
+    WHAT IT WEIGHED AND WHAT DECIDED IT are said on the substrate channel and filled into `why` where a caller
+    passes one (`_listening_said`), as `Grammar.say` fills its own: the readings received, each one's evidence and
+    total, which was taken, the margin over the next, and whether memory was asked at all."""
     if any(reading.senses for reading in readings):
         view = inventory if inventory is not None else _live_inventory()
-        return _meant_packed(readings, view, heard if heard is not None else Heard())
+        return _meant_packed(readings, view, heard if heard is not None else Heard(), why)
     best: Dict[str, Reading] = {}
     for reading in readings:
         best.setdefault(reading.meaning.canonical(), reading)
     if len(best) < 2:
-        return next(iter(best.values()), None)
+        # NOTHING WEIGHED, AND SAID SO. One meaning is not a choice, and for an utterance English's grammar composed
+        # this was every utterance until 2026-11-03: the reader handed up the one reading its own score put first,
+        # and none of the evidence below ever ran.
+        one = next(iter(best.values()), None)
+        _listening_said(len(best), None, one, "the only meaning the words have", heard, why)
+        return one
     view = inventory if inventory is not None else _live_inventory()
     worths = view.listening_worths()
 
@@ -6260,23 +6373,30 @@ def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = N
         return round(w.activation + w.derivation + sum(worths.get((evidence, level), 0.0)
                                                        for evidence, level in listening_levels(w).items()), 6)
     ranked = sorted(weighed(list(best.values()), view, heard=heard), key=score, reverse=True)
+    rows = [(w, score(w)) for w in ranked]
+
+    def said(took: Optional[Reading], how: str) -> Optional[Reading]:
+        _listening_said(len(best), rows, took, how, heard, why, worths)
+        return took
     if score(ranked[0]) != score(ranked[1]):
-        return ranked[0].reading
+        return said(ranked[0].reading, "took the one weighed highest")
     tied = [w.reading for w in ranked if score(w) == score(ranked[0])]
     if all(r.composed for r in tied):
         # READINGS THAT DIFFER IN HOW THE WORDS GO TOGETHER ARE NOT ASKED ABOUT: the speaker can say which thing they
         # meant by a word, and not which of two structures the grammar built of their sentence. Weighing them alike,
         # the listener leaves the reader's own first standing, which is the reading it had before the others were
         # handed to it at all (`_read_by_composing`); told None, the conversation learns nothing from the sentence.
-        return tied[0]
+        return said(tied[0], f"{len(tied)} weigh alike and differ in structure: the reader's own first stands")
     if len({_worded(r, view) for r in tied}) > 1:
-        return None
+        return said(None, f"could not tell: {len(tied)} weigh alike and say different things")
     together = (heard if heard is not None else Heard()).together
     senses, _ = _senses(tied)
     things = [senses[r.meaning.canonical()] for r in tied]
     one = all(frozenset((a, b)) in together for i, mine in enumerate(things) for theirs in things[i + 1:]
               for a in mine for b in theirs if a != b)
-    return tied[0] if one else None
+    return said(tied[0] if one else None,
+                f"{len(tied)} weigh alike, of one coarse sense" if one
+                else f"could not tell: {len(tied)} weigh alike, of senses not one")
 
 
 async def listening(utterances: Iterable[Sequence[Reading]], context: Iterable[str] = ()) -> Heard:

@@ -124,6 +124,41 @@ list of words.
 sample, the bar is ~42 points away, and 25.5 points of joined-wrong has no few recurring constructions in it. That is
 the answer to *"research a proper fix"*: there is not one, there is a ranked tail, and the ranking is now measured.
 
+### The listener was the silent half, and that is what the day cost
+
+*"So why not add proper logging to the listener so that way we can actually see what it's picking and doing just
+like we should be doing all components that are silent or seem silent"* — and the accounting for this session is the
+argument. A day went into establishing, by inference from aggregate scores, two facts that one line each would have
+said outright: that the grammar hands the listener ONE reading and it returns before weighing anything, and that an
+utterance the grammar read whole and then could not say comes back indistinguishable from one no rule reached.
+
+`derived_reader` had **no logger at all**. `core.observability.channels` already routes `core.semantics` to the
+substrate panel, so `logging.getLogger(__name__)` lands beside the rest of Lyric thinking with no routing to add.
+
+**The listener says what it weighed and what decided it** (`_listening_said`, used by both `meant` and
+`_meant_packed`), filled into a `why` dict where a caller passes one, as `Grammar.say` fills its own. One reading is
+said at debug — nothing was chosen; a real choice at info, with the margin over the runner-up, each evidence channel,
+and `how`: the one thing that decided, never a guess after the fact. Its exits now name themselves: *took the one
+weighed highest*, *N weigh alike and differ in structure: the reader's own first stands*, *N weigh alike, of one
+coarse sense*, *could not tell: N weigh alike and say different things*.
+
+**Each channel is said beside what it was worth** (`listening_worths`, learned), because the two come apart. The
+first run of the trace showed it: memory holding `has_part(spider, leg)` at firmness 2 against a reading of `owns`
+over particulars gave the row `known 2` and moved the total **by zero**, because an unlearned listener values
+knowing at nothing. The line says so outright — *NOTHING MEMORY KNOWS IS WORTH ANYTHING YET*. In this files-only
+harness that is expected; whether the live store's worths are learned is now one line to read instead of a day to
+infer, and that is the whole point.
+
+**The reader says why an utterance came back unread.** `_read_by_composing` had three silent `return utterance`
+paths. Each refusal is now counted and named: *a number is neither a kind nor a quality*, *says only what is known
+already*, *a question that asks for nothing*, *the grammar reads no whole; no word held for frobnicate*. Checked on
+all four, driven as the tests drive it.
+
+The other deciders still silent, in the order they have cost time: `_spell_out` returning None where a piece finds
+no antecedent (the possessive refusal of entry 108, found by bisecting readings by hand); `pmb_meanings.meaning_of`
+refusing a whole sentence for one unsayable part (`Said.gaps`, 26.5% of gold train); and `Grammar.readings` itself,
+which keeps `Reading.decided`, `sure` and `why` and logs none of them.
+
 ### What this leaves
 
 - `nbest.py` holds the sweep; `nbest_dev_standard.json` holds its numbers.
