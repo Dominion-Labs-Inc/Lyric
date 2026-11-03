@@ -5178,6 +5178,13 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
     order.sort(key=lambda o: o[0])
     names: Dict[Term, Term] = {}
     previous_taken = False
+    # THE OWNER A POSSESSIVE LEAVES OPEN is not a thing the sentence says: "his", "her", "their" and "'s" name no
+    # owner of their own, and the possessive's own binding already holds the owner open for whatever takes it ("her
+    # room" of Alice's room). Its pronoun piece is marked of this very sentence, so the rule below required it to
+    # stand before itself like a reflexive, and every sentence a third-person possessive opened read as nothing:
+    # 7 of the 490 taught-set dev sentences said nothing at all, and the grammar could not read back 129 of the
+    # 7,019 it was itself taught (2026-11-03).
+    owned = {p[2] for p in pieces if p[0] == "poss"}
     for p in sorted((p for p in pieces if p[0] == "pron"), key=lambda p: p[-1]):
         x, word, own, at = p[1], p[2], p[3] == "own", p[-1]
         want = _pronoun_kind(word)
@@ -5189,7 +5196,7 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                     break
         if found is not None:
             names[x] = names.get(found, found)
-        elif own and type(x) is int:
+        elif own and type(x) is int and x not in owned:
             # A PRONOUN OF ITS OWN SENTENCE SAYS A THING STANDING BEFORE IT IN THAT SENTENCE, so where nothing does
             # there is no sentence to read: "Themselves are intelligent." took the one spoken of before, as a
             # pronoun of another sentence does, and read as surely as "They are intelligent." -- and saying, which
