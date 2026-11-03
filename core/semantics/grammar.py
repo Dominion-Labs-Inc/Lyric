@@ -3497,7 +3497,26 @@ class Grammar:
         return out
 
     def chart(self, tokens: Sequence[str]) -> Dict[Tuple[int, int], Dict[str, Sign]]:
-        """Every reading of every stretch the grammar allows, one of each category, the surest."""
+        """Every reading of every stretch the grammar allows, one of each category, the surest (`charts`)."""
+        cells: Dict[Tuple[int, int], Dict[str, Sign]] = defaultdict(dict)
+        for span, cell in self.charts(tokens, 1).items():
+            cells[span] = {k: signs[0] for k, signs in cell.items()}
+        return cells
+
+    def charts(self, tokens: Sequence[str], how_many: int = 1) -> Dict[Tuple[int, int], Dict[str, List[Sign]]]:
+        """Every reading of every stretch the grammar allows, `how_many` of each category, the surest first.
+
+        ONE OF EACH CATEGORY IS VITERBI'S CHART, and it throws a reading away before anything can choose it: a
+        stretch read two ways in one category keeps only the surer, so a reading of the whole sentence that needed
+        the other is never built, and the listener is handed the one reading that survived. Over the PMB's held-out
+        dev part the grammar chose right for 54.2% of sentences where a chart keeping every reading of every stretch
+        held the right one for 61.8%: 7.6 points the reader threw away inside the chart (GRAMMAR-01, 2026-11-03).
+        Keeping more of each category keeps those readings alive to the root, where the listener weighs whole
+        meanings by what memory knows of what they say (`derived_reader.meant`), which no score over words can see.
+
+        The cost is `how_many` squared in the combinations tried, so this is what the reader can afford and not what
+        an oracle would want: the exhaustive chart holds a median of 18 readings of a sentence of that dev part and
+        2,058 of the worst, and had to be guarded against never finishing."""
         n = len(tokens)
         self._tokens = tuple(tokens)
         self._weighed, self._marking, self._asking, self._agreeing = None, frozenset(), frozenset(), {}
@@ -3505,7 +3524,8 @@ class Grammar:
             classes, self._weighed = self.structure.joins(tuple(str(t) for t in tokens))
             self._marking = frozenset(i for i, c in enumerate(classes) if c in MARKING)
             self._asking = frozenset(i for i, c in enumerate(classes) if c in ("PRONOUN", "ADVERB"))
-        cells: Dict[Tuple[int, int], Dict[str, Sign]] = defaultdict(dict)
+        how_many = max(1, how_many)
+        cells: Dict[Tuple[int, int], Dict[str, List[Sign]]] = defaultdict(dict)
 
         def keep(sign: Sign) -> bool:
             if sign.word < 0:
@@ -3513,18 +3533,22 @@ class Grammar:
             k = _key(sign.cat)
             cell = cells[(sign.start, sign.end)]
             held = cell.get(k)
-            if held is None or sign.score > held.score + 1e-9:
-                if sign.binding is not None:
-                    # WHAT A COMBINATION MEANS IS MADE ONLY FOR ONE KEPT: its parts' pieces, all of them, with the
-                    # variables bound. Made for every combination, most of them never kept, it was the half of a
-                    # paragraph's grammar it took (34 million pieces bound reading Wikipedia's Photosynthesis lead,
-                    # lyric_dev, 2026-10-23).
-                    left, right = sign.kids
-                    sign.pieces = _substitute(left.pieces + right.pieces, sign.binding)
-                    sign.binding = None
-                cell[k] = sign
-                return True
-            return False
+            if held is None:
+                cell[k] = held = []
+            elif len(held) >= how_many and sign.score <= held[-1].score + 1e-9:
+                return False
+            if sign.binding is not None:
+                # WHAT A COMBINATION MEANS IS MADE ONLY FOR ONE KEPT: its parts' pieces, all of them, with the
+                # variables bound. Made for every combination, most of them never kept, it was the half of a
+                # paragraph's grammar it took (34 million pieces bound reading Wikipedia's Photosynthesis lead,
+                # lyric_dev, 2026-10-23).
+                left, right = sign.kids
+                sign.pieces = _substitute(left.pieces + right.pieces, sign.binding)
+                sign.binding = None
+            held.append(sign)
+            held.sort(key=lambda s: -s.score)
+            del held[how_many:]
+            return True
         apart = {k for start, end, joined in self.lexicon.hyphened(tokens) if joined is None
                  for k in range(start + 1, end, 2)}
         for i, t in enumerate(tokens):
@@ -3550,8 +3574,8 @@ class Grammar:
                     lefts, rights = cells.get((start, mid)), cells.get((mid, end))
                     if not lefts or not rights:
                         continue
-                    for left in list(lefts.values()):
-                        for right in list(rights.values()):
+                    for left in [s for signs in list(lefts.values()) for s in signs]:
+                        for right in [s for signs in list(rights.values()) for s in signs]:
                             made.extend(self._combine(left, right))
                 for sign in made:
                     if keep(sign):
@@ -3612,33 +3636,61 @@ class Grammar:
 
     # ── reading a sentence ──
     def read(self, tokens: Sequence[str]) -> Reading:
+        """The one reading of this sentence the grammar puts first (`readings`)."""
+        return self.readings(tokens, 1)[0]
+
+    def readings(self, tokens: Sequence[str], how_many: int = 1) -> List[Reading]:
+        """EVERY MEANING THE GRAMMAR READS THIS SENTENCE TO, the one it puts first first, up to `how_many` of them,
+        each said once: the readings a listener may choose between (`derived_reader.meant`), where asking for one
+        gives the reader's own choice alone and nothing to weigh it against.
+
+        The first is always the reading the grammar puts first, whether the meaning language could say it or not, so
+        that asking for one is what `read` always answered. The rest are the readings under it that say something of
+        their own; two readings of one meaning are one reading here, as the listener weighs meanings and not
+        derivations (CCG derives one meaning many ways)."""
         tokens = tuple(tokens)
         if not tokens:
-            return Reading(tokens, None, None, "no words")
+            return [Reading(tokens, None, None, "no words")]
         # WHAT OF THIS SENTENCE MEMORY DOES NOT HOLD, worked out whether it reads or not: a sentence may fail to read
         # BECAUSE of a word nobody taught, and that was the one thing a reading never said either way.
         unheld = words_not_held(tokens, self.lexicon)
-        cells = self.chart(tokens)
-        whole = [s for s in cells.get((0, len(tokens)), {}).values() if _whole(s.cat) is not None]
+        cells = self.charts(tokens, how_many)
+        whole = [s for signs in cells.get((0, len(tokens)), {}).values() for s in signs if _whole(s.cat) is not None]
         if not whole:
             covered = sorted(((e - s, s, e) for (s, e), cell in cells.items() if cell
-                              and any(not (isinstance(x.cat, Atom) and x.cat.base == "punct") for x in cell.values())),
-                             reverse=True)
-            return Reading(tokens, None, None,
-                           "the grammar reads no whole" + (f"; no word held for {', '.join(unheld)}" if unheld else ""),
-                           tuple((s, e) for _, s, e in covered[:3]), unheld=unheld)
+                              and any(not (isinstance(x.cat, Atom) and x.cat.base == "punct")
+                                      for signs in cell.values() for x in signs)), reverse=True)
+            return [Reading(tokens, None, None,
+                            "the grammar reads no whole" + (f"; no word held for {', '.join(unheld)}" if unheld else ""),
+                            tuple((s, e) for _, s, e in covered[:3]), unheld=unheld)]
         # A sentence is read as one wherever the grammar reads it so; as a phrase alone ("What a feast!") only
         # where it does not; as an order as often as what is said is one (`_said_so`).
-        best = max(whole, key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
-        reading = Reading(tokens, best, None, unheld=unheld)
+        ranked = sorted(whole, reverse=True,
+                        key=lambda s: (_rank(s.cat) == 2, s.score + self._said_so(s.cat), _rank(s.cat)))
         # HOW SURE: the reading's share of every reading of the whole, by how surely each reads its words.
         top = max(s.score for s in whole)
-        reading.sure = math.exp(best.score - top) / sum(math.exp(s.score - top) for s in whole)
-        try:
-            reading.meaning = self._spell_out(best, tokens, reading)
-        except ValueError as error:
-            reading.why = str(error)
-        return reading
+        shares = sum(math.exp(s.score - top) for s in whole)
+        out: List[Reading] = []
+        said: Set[str] = set()
+        for sign in ranked:
+            reading = Reading(tokens, sign, None, unheld=unheld)
+            reading.sure = math.exp(sign.score - top) / shares
+            try:
+                reading.meaning = self._spell_out(sign, tokens, reading)
+            except ValueError as error:
+                reading.why = str(error)
+            key = reading.meaning.canonical() if reading.meaning is not None else None
+            if not out:
+                out.append(reading)
+            elif key is not None and key not in said:
+                out.append(reading)
+            else:
+                continue
+            if key is not None:
+                said.add(key)
+            if len(out) >= max(1, how_many):
+                break
+        return out
 
     # ── saying a meaning ──
     def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
@@ -6443,18 +6495,28 @@ class GrammarView:
         self.learned_from += 1
 
     def read(self, sentence: str) -> Reading:
-        """A sentence read by the grammar (`Reading`), after learning from what is waiting. A word written lowercase
-        read as a name ("the function sorted") is heard as one from then on."""
+        """A sentence read by the grammar (`Reading`), the one reading it puts first (`readings`)."""
+        return self.readings(sentence, 1)[0]
+
+    def readings(self, sentence: str, how_many: int = 1) -> List[Reading]:
+        """Every meaning the grammar reads a sentence to, the one it puts first first (`Grammar.readings`), after
+        learning from what is waiting. A word written lowercase read as a name ("the function sorted") is heard as
+        one from then on.
+
+        READING TEACHES FROM THE FIRST ALONE, the reading the grammar itself chose: which of the rest a listener
+        takes as meant is decided after, by what memory knows of what each says (`derived_reader.meant`), and is not
+        known here."""
         self.learn_waiting()
         tokens = tokens_of(sentence, self.words)
-        reading = self.grammar.read(tokens)
+        out = self.grammar.readings(tokens, how_many)
+        reading = out[0]
         if reading.meaning is not None and reading.sign is not None:
             named = [str(p[1]) for p in reading.sign.pieces if p[0] == "named"]
             for name in named:
                 self.grammar.lexicon.heard[name] += 1
             if _TEACHES.get():
                 self._learn_from_reading(sentence, tokens, reading, named)
-        return reading
+        return out
 
     def say(self, meaning: Meaning, named: Optional[Mapping[str, str]] = None,
             why: Optional[Dict[str, Any]] = None,

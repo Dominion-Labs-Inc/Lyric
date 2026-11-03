@@ -338,3 +338,19 @@ is measured against.
 **The harness's own cost is the bottleneck on finding out:** of `20261031T220938Z`'s 3,707s, **3,674s is recording
 the 6,986 words** and 33s is reading the dev split. Caching the records would make a variant run about a minute, and
 is what any separation of causes needs first.
+
+## 2026-11-03 — a wider chart is worth 2.0 points, and the errors are two layers
+
+`20261103T210000Z` (files only, 400 `dev/standard`). `Grammar.chart` kept one reading of each category of each
+stretch — Viterbi's — so the 61.8% the exhaustive chart reaches was never at the root to choose between.
+`Grammar.charts(tokens, how_many)` and `Grammar.readings(tokens, how_many)` keep and hand up more, and
+`_read_by_composing` gives the listener all of them instead of wrapping one. Swept, a beam of six takes the right
+reading being **available** from 54.2% to 56.2% at 5.5× the reader's time, while the reader's own choice falls from
+54.2% to 54.0%: the score over words ranks wrong derivations above right ones, so a wider beam cannot help much and
+`COMPOSED_READINGS` stays 1. The capability remains for a chooser that earns it (`diagnostics/nbest.py`).
+
+Splitting all 187 held-out errors by layer: **25.5%** of the 400 name the right things and join them wrong, **18.2%**
+name the wrong things, 3.0% say nothing. Only the words layer breaks into families — a nationality adjective read as
+the inhabitant noun (~9), a pronoun or possessive named as a concept (~7), clock times (3), `Let's` (3), `what kind
+of` (2), do-support (2) — and the largest is 2.25 points. Valency, the kind-versus-particular level and the
+negation's scope were each measured and each refuted as the general cause.

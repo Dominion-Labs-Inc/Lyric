@@ -173,11 +173,16 @@ class _AsMemorysGrammar:
     The live path asks `agent.grammar_view().read(...)` and takes the reading's `meaning`, so the stubs raised
     AttributeError and four tests of `_read_by_composing` had been failing since. The assertions are unchanged; only
     what the stub answers to is (2026-10-30).
+
+    It asks `readings(...)` now, for every meaning the grammar reads the sentence to and not the one it chose, so
+    that a listener has something to choose between (2026-11-03). This stub reads one way, as it always did, and
+    says it is wholly sure of it (`Reading.sure`, what the composed reading carries of the grammar's ranking).
     """
 
     def __init__(self, meaning=None, compose=None):
         self._meaning, self._compose = meaning, compose
         self.sign = None
+        self.sure = 1.0
 
     def grammar_view(self):
         return self
@@ -185,6 +190,9 @@ class _AsMemorysGrammar:
     def read(self, words):
         self.meaning = self._compose(" ".join(str(w) for w in words)) if self._compose is not None else self._meaning
         return self
+
+    def readings(self, words, how_many=1):
+        return [self.read(words)]
 
 
 def test_an_utterance_no_frame_reads_is_composed_only_where_composing_is_on(monkeypatch):

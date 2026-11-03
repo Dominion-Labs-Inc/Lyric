@@ -16,6 +16,113 @@ Conventions:
 
 ---
 
+## 2026-11-03 (109) — Four candidate fixes for the reader, three of them refuted by measurement, and what the held-out errors actually are: 18.2 points of words named wrong and 25.5 of right words joined wrong
+
+**Objective.** *"OK, so what will it take to fix it Claude. We're not gonna continue going through and fixing
+individual sentences or individual cases ... we need to research a proper fix for this because this is ridiculous."*
+Then, after two and a half hours of it: *"OK, so what's the next step? How do we move forward from here. I'm tired of
+spending all this time on this. We've been doing nothing but measuring."*
+
+### The chart was Viterbi's, and that was not worth what it looked like
+
+`Grammar.chart`'s own docstring held the diagnosis: *"Every reading of every stretch the grammar allows, one of each
+category, the surest."* A stretch read two ways in one category kept only the surer, at every span, bottom-up, so a
+reading of the whole that needed the other was never built. The 61.8% oracle of entry (108) was measured on an
+**exhaustive** chart (every distinct reading per cell, median 18 readings of a sentence, 2,058 of the worst); the
+reader never had those readings at the root to choose between. The 7.6 points between 54.2% chosen and 61.8%
+available were not being dropped at the hand-off to the listener. They were being destroyed inside the chart.
+
+`Grammar.charts(tokens, how_many)` now keeps `how_many` readings of each category of each stretch, surest first, and
+`Grammar.readings(tokens, how_many)` ranks the whole readings, spells each out, drops duplicate meanings and hands
+them up; `chart` and `read` keep their exact contracts by asking for one. `_read_by_composing` hands up every reading
+instead of wrapping one in a 1-element tuple, so `meant` no longer returns before weighing anything, and each
+composed reading carries the grammar's own log share in `Reading.structure` for `_derivation` to weigh — without it
+every composed reading of a sentence weighs alike on structure, because a composed reading holds no link.
+
+**Swept over the 400 held-out dev sentences** (`experiments/GRAMMAR-01/diagnostics/nbest.py`):
+
+| readings kept of each category | the reader's own choice is right | the right reading is among those handed up | meanings handed up | s/sentence |
+|---|---|---|---|---|
+| 1 | 54.2% | 54.2% | 1.0 | 0.04 |
+| 2 | 54.2% | 54.2% | 1.5 | 0.08 |
+| 3 | 54.0% | 54.5% | 1.9 | 0.12 |
+| 4 | 54.0% | 54.8% | 2.2 | 0.15 |
+| 6 | 54.0% | 56.2% | 2.7 | 0.22 |
+
+**A wider beam is not the fix.** It recovers 2.0 of the 7.6 points at five and a half times the reader's time, and
+it bounds any chooser: a listener that never erred would gain 0.3 points at three readings and 2.0 at six. Only 2.7
+distinct meanings reach the root even at six, so nothing is truncated at the hand-off — the right reading is simply
+not in the chart. The readings the oracle found are **not the next best-scoring ones**, and the reader's own choice
+got slightly *worse* as the beam widened (54.2% → 54.0%): the score over words puts wrong derivations above right
+ones, and no beam width mends an objective that is mis-ordered (Toutanova et al. 2002; Clark and Curran 2004).
+`COMPOSED_READINGS` is therefore **1**, so the capability costs nothing until something earns it.
+
+### Three hypotheses about what joins wrong, each refuted by its own measurement
+
+Of the 94 dev sentences where no reading joins the right things, partitioned by the one general difference that would
+make the reading the gold (free variables aligned first):
+
+| | |
+|---|---|
+| the links themselves differ | 68 — 72.3% |
+| the same links, joined to other things: attachment | 13 — 13.8% |
+| whether a concept is named or made an instance: the level | 11 — 11.7% |
+| which facts carry `not`: the negation's scope | 2 — 2.1% |
+
+- **Verb valency** was refuted in entry (108): the gold category is available in the chart for 95.8% of aligned words
+  and chosen for 85.8%, so constraining categories by recorded valency reaches nothing.
+- **The level** — the gold joining kinds by name where the reading joins particulars of them, as `A spider has legs.`
+  reads `owns(?v1, ?v0)` over instances where the gold says `has_part(spider, leg)` — is **4 of 94** in this
+  direction and 11 counting both. `A spider has legs.` is a lesson-set shape, not the held-out failure mode.
+- **The negation's scope** — the gold putting every fact of a denied clause under `not` where the reading marks only
+  the verb's, as in *This story doesn't have a happy ending.* — is **2 of 94**.
+
+### What the held-out errors are, and it is two layers and a long tail
+
+Every one of the 187 dev sentences not read right, split by whether the reader **named the wrong things** or named
+the right things and **joined them wrong** — two layers that need different repairs:
+
+| | of the 187 | of all 400 |
+|---|---|---|
+| the right things named, JOINED WRONG | 102 — 54.5% | **25.5%** |
+| things named that are not there | 49 — 26.2% | 12.2% |
+| some named that are not there, some there not named | 18 — 9.6% | 4.5% |
+| things there it never named | 6 — 3.2% | 1.5% |
+| said nothing at all | 12 — 6.4% | 3.0% |
+
+**18.2 points are words named wrong**, and that bucket does break into recurring families, which the joined-wrong
+bucket does not. Grouped by the thing invented and the thing missed:
+
+| family | sentences | e.g. |
+|---|---|---|
+| a nationality adjective read as the inhabitant noun | ~9 | *Romano Prodi wins Italian primaries.* names `inhabitant`, never `italian`; *Charlotte Brontë was a British novelist.* names `refer`, never `british`; *I am Bulgarian.* names `bulgarian`, never `bulgaria` |
+| a pronoun or possessive named as a concept of its own | ~7 | *My stomach aches after meals.* names `my`; *I'm a professional photographer.* never names `i` |
+| a clock time | 3 | *We'll eat at six o'clock.* names `o'clock` |
+| `Let's` read as the verb "let" | 3 | *Let's climb to the top of this mountain.* names `let` |
+| `what kind of X` | 2 | *What's your favorite kind of apple?* names `kind` |
+| do-support in a question | 2 | *What do you wanna eat?* names `do` |
+| `all of a sudden` | 2 | |
+
+The nationality family is the sense ordering found on 11-02: `teaching_sources.py` assembles a word's senses with no
+sort, so NLTK's order governs and nouns come first — "Italian" takes *an inhabitant of Italy* before the adjective.
+The mechanism is general to every word read as a modifier, not special to demonyms, which is why it is the first
+repair: largest measured contribution of any family, and a rule about the category a word is read in rather than a
+list of words.
+
+**No single fix reaches the bar.** The largest nameable family is worth 2.25 points of a 400-sentence held-out
+sample, the bar is ~42 points away, and 25.5 points of joined-wrong has no few recurring constructions in it. That is
+the answer to *"research a proper fix"*: there is not one, there is a ranked tail, and the ranking is now measured.
+
+### What this leaves
+
+- `nbest.py` holds the sweep; `nbest_dev_standard.json` holds its numbers.
+- The listener was measured without memory (files only), so what it would *choose* among readings is untested. The
+  availability curve bounds it at +2.0 points regardless, which is why it was not worth a store run.
+- Carried, unadvanced: `Let's` 0/28 read-back (now also 3 dev sentences), "times"/"minus"/"multiplied by" unread as
+  arithmetic, the four arithmetic questions the "a number is neither a kind nor a quality" guard refuses,
+  `ready_to_read` reasoning cold start.
+- `RULES` hashes `grammar.py`'s bytes, so the next resident start re-learns all 6,137 sentences (~915s).
+
 ## 2026-11-03 (108) — Every error in the held-out reading accounted for, and the one that was a single line: a possessive's open owner was required to stand before itself like a reflexive
 
 **Objective.** *"?????? why havent you restarted. And that's not an answer to my question or a measurement"*, then

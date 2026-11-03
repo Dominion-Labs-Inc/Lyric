@@ -3707,6 +3707,11 @@ class Reading:
     senses: Tuple[Packed, ...] = ()
     #: How many numbers it puts where numbers of their size never stood, of `apart`, its packed words' aside.
     sized: int = 0
+    #: HOW PROBABLE ENGLISH'S GRAMMAR MADE THIS READING'S STRUCTURE, in nats, of a reading it composed (`composed`):
+    #: its share of every reading of the whole the grammar found, logged (`grammar.Reading.sure`). A composed reading
+    #: holds no construction and no link, so `_derivation` has nothing of its own to weigh and every reading handed
+    #: up weighed alike; the grammar's own ranking would be thrown away by passing them on without it.
+    structure: float = 0.0
 
     @property
     def pattern(self) -> Pattern:
@@ -5355,28 +5360,53 @@ _ENDS_SPANNED = 3
 #: `LYRIC_COMPOSE=0` turns it off; an experiment may set it.
 COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 
+#: HOW MANY MEANINGS THE GRAMMAR IS ASKED FOR of an utterance no taught frame read (`_read_by_composing`), for the
+#: listener to take one as meant (`meant`). One, and the listener is handed the reader's own choice and weighs
+#: nothing. `LYRIC_COMPOSED_READINGS` sets it; an experiment may.
+#:
+#: ONE, UNTIL A CHOOSER EARNS MORE. Asking for more costs the chart `how_many` squared in the combinations it tries,
+#: and over the PMB's held-out dev part what it buys is bounded by how often the right reading is among those asked
+#: for at all: 54.2% at one, 54.5% at three, 56.2% at six, against 54.2% the reader already chooses right
+#: (`experiments/GRAMMAR-01/diagnostics/nbest.py`, 2026-11-03). So even a chooser that never erred would gain 0.3
+#: points at three and 2.0 at six, for three and five and a half times the reader's time. The readings the oracle
+#: found (61.8%) are not the next best-scoring ones: a wider beam left the reader's OWN choice slightly worse
+#: (54.0%), which is the score over words putting wrong derivations above right ones, and no beam width mends that.
+COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
+
 
 def _read_by_composing(utterance: "Utterance") -> "Utterance":
-    """An utterance no taught frame read, read by English's grammar (`COMPOSING`); as it was where memory is not up
-    in this process, the grammar reads no whole, or the meaning language cannot say what it read."""
+    """An utterance no taught frame read, read by English's grammar (`COMPOSING`): EVERY MEANING THE GRAMMAR READS IT
+    TO (`COMPOSED_READINGS`), for the listener to take one as meant (`meant`); unread where memory is not up in this
+    process, the grammar reads no whole, or the meaning language cannot say any reading of it.
+
+    HANDED THE GRAMMAR'S ONE CHOICE, THE LISTENER HAD NOTHING TO CHOOSE. A taught frame reading an utterance several
+    ways hands all of them up and the listener weighs them by what memory knows of what each says; the grammar handed
+    up the reading its own score over words put first, and `meant` returned it without weighing anything (one reading
+    is returned before any evidence is counted). Over the PMB's held-out dev part the grammar's own choice was right
+    for 54.2% of sentences where a chart keeping every reading held the right one for 61.8% (GRAMMAR-01,
+    2026-11-03): what the listener was never shown."""
     from core.agents import memory_agent as _memory
     agent = _memory._memory_agent
     if agent is None or not any(not _is_mark(p.text) for p in utterance.pieces):
         return utterance
-    read = agent.grammar_view().read(surface_of(utterance.pieces))
-    meaning = read.meaning
-    if meaning is None or all(f.given for f in meaning.facts):
-        # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
-        return utterance
     from core.semantics.composition import ASKING
     first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
-    if meaning.act == "ask" and not meaning.asked and first in ASKING:
-        # A QUESTION THAT ASKS FOR SOMETHING, COMPOSED ASKING FOR NOTHING, IS NOT ITS READING: "How many engineers did
-        # the company hire?" composed without the count or the engineers asked whether the company hired, and was
-        # answered "Yes." once the hiring was held (2026-10-19).
+    made: List[Reading] = []
+    for read in agent.grammar_view().readings(surface_of(utterance.pieces), COMPOSED_READINGS):
+        meaning = read.meaning
+        if meaning is None or all(f.given for f in meaning.facts):
+            # A meaning of known things alone says nothing of them: told, nothing is told; asked, nothing is asked.
+            continue
+        if meaning.act == "ask" and not meaning.asked and first in ASKING:
+            # A QUESTION THAT ASKS FOR SOMETHING, COMPOSED ASKING FOR NOTHING, IS NOT ITS READING: "How many engineers
+            # did the company hire?" composed without the count or the engineers asked whether the company hired, and
+            # was answered "Yes." once the hiring was held (2026-10-19).
+            continue
+        made.append(Reading(_said_by_words(read), (), meaning, composed=True,
+                            structure=math.log(read.sure) if read.sure > 0 else 0.0))
+    if not made:
         return utterance
-    return Utterance(utterance.pieces, (Reading(_said_by_words(read), (), meaning, composed=True),),
-                     utterance.partial, utterance.unknown)
+    return Utterance(utterance.pieces, tuple(made), utterance.partial, utterance.unknown)
 
 
 def _said_by_words(read: Any) -> Tuple["Lexical", ...]:
@@ -5746,7 +5776,14 @@ def _derivation(reading: Reading, view: PatternInventory) -> float:
     kind of telephone exchange. Weighed by its slots alone, a frame learned from one sentence, matching much of
     another word for word, has few slots to fill and outweighs the general frames: "One hundred and twenty-three
     trillion ..." read as another number. So it tells apart only structures that supposed as little as each other
-    (`meant`); which structures reach the listener is still the reader's least supposed (2026-10-13)."""
+    (`meant`); which structures reach the listener is still the reader's least supposed (2026-10-13).
+
+    A reading English's grammar composed holds no link, so what it carries of the grammar's own ranking is what is
+    weighed here (`Reading.structure`): every composed reading of one sentence supposes exactly as little as the
+    others (no link proposed, no word read through another), so without it the listener would have nothing of
+    structure to tell them apart and would choose on what memory knows alone."""
+    if reading.composed:
+        return reading.structure
     return _derivation_of(reading.links, reading.proposed, view)
 
 
@@ -6225,6 +6262,12 @@ def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = N
     if score(ranked[0]) != score(ranked[1]):
         return ranked[0].reading
     tied = [w.reading for w in ranked if score(w) == score(ranked[0])]
+    if all(r.composed for r in tied):
+        # READINGS THAT DIFFER IN HOW THE WORDS GO TOGETHER ARE NOT ASKED ABOUT: the speaker can say which thing they
+        # meant by a word, and not which of two structures the grammar built of their sentence. Weighing them alike,
+        # the listener leaves the reader's own first standing, which is the reading it had before the others were
+        # handed to it at all (`_read_by_composing`); told None, the conversation learns nothing from the sentence.
+        return tied[0]
     if len({_worded(r, view) for r in tied}) > 1:
         return None
     together = (heard if heard is not None else Heard()).together
