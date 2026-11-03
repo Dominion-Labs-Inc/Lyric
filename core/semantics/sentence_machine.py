@@ -222,6 +222,19 @@ _MATH_NAMES = frozenset({"sin", "cos", "tan", "cot", "sec", "csc", "arcsin", "ar
 _ADDRESS = re.compile(r"(?:[A-Za-z][A-Za-z0-9+.\-]*://|~/|\.{1,2}/|/)\S*[^\s.,;:!?)\]}\"'”’]")
 
 
+def _letters_at(text: str, at: int) -> str:
+    """The run of letters beginning at `at`, letters as `str.isalpha` counts them.
+
+    ONE NOTION OF A LETTER, NOT TWO. `_spans` asked `isalpha`, which every letter answers, and then matched
+    `[A-Za-z]`, which only an unaccented one does, so an apostrophe before any other letter read as a word with no
+    letters after it at all and reading the text raised AttributeError: "l'été", "d'État", "l'Hôpital" (2026-11-03).
+    """
+    end = at
+    while end < len(text) and text[end].isalpha():
+        end += 1
+    return text[at:end]
+
+
 def _spans(text: str) -> List[Tuple[int, int]]:
     """Where each piece of `text` begins and ends: a run of letters and digits, joined through an apostrophe, a
     full stop or a hyphen between two of them, or any other character that is not a space; a number written in
@@ -255,7 +268,7 @@ def _spans(text: str) -> List[Tuple[int, int]]:
                       and text[i - 1].isalnum()):
                     i += 1
                 elif (text[i] in _APOSTROPHES and i + 1 < n and text[i + 1].isalpha() and text[i - 1].isalpha()
-                      and (re.match(r"[A-Za-z]+", text[i + 1:]).group().lower() not in _CLITICS)):
+                      and _letters_at(text, i + 1).lower() not in _CLITICS):
                     # An apostrophe begins a piece only before a word a treebank writes apart ("We'll", "it's",
                     # "don't"): "o'clock" and "O'Brien" are one word each, and split, "six o'clock" was "o" and a
                     # "'clock" that was its owner's (UD's EWT and GUM write "o'clock" one word, 2026-10-29).

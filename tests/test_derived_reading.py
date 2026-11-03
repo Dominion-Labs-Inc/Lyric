@@ -74,6 +74,11 @@ def no_memory_up(monkeypatch):
     # One word where the treebanks write one: "o'clock", "O'Brien", a time of the clock.
     ("We'll eat at six o'clock.", ["We", "'ll", "eat", "at", "six", "o'clock", "."]),
     ("O'Brien left at 8:00.", ["O'Brien", "left", "at", "8:00", "."]),
+    # A LETTER IS A LETTER, ACCENTED OR NOT. `_spans` asked `isalpha`, which every letter answers, then matched
+    # `[A-Za-z]`, which only an unaccented one does, so an apostrophe before any other letter raised AttributeError
+    # and the whole text read as nothing (2026-11-03).
+    ("l'été is warm.", ["l'été", "is", "warm", "."]),
+    ("He studied d'État affairs.", ["He", "studied", "d'État", "affairs", "."]),
     ("The ratio is 3:1.", ["The", "ratio", "is", "3", ":", "1", "."]),
 ])
 def test_a_sentence_splits_into_its_pieces_with_nothing_lost(text, pieces):
