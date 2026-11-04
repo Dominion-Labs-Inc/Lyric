@@ -21156,6 +21156,18 @@ def _not_known(meaning, named: Optional[Dict[str, str]] = None,
         asked = meaning.asked[0]
         if any(f.relation in ("isa", "instance_of") and f.obj == asked for f in meaning.facts):
             return None
+        # NOT SAID WHERE WHAT WAS ASKED STANDS IN A CLAUSE OF ITS OWN. "I do not know where the dog is." says the
+        # not-knowing OF A QUESTION, and a question is said in the place of a thing only by a construction nothing
+        # taught here holds: no verb frame takes an embedded question (`data/grammar/english.json`'s `verbs` take a
+        # thing, a `to`, an `-ing` or a `that`), and of the 6,137 sentences taught not one says a knowing of one.
+        # Asked for it anyway, saying searched every way of putting the words and ended none: "Which continent is
+        # larger than Africa?" held the agenda 58 minutes, and "Who stabbed Tom?" spent 29.6 hours over 1,750,455
+        # sentences made and 273,692 read back (lyric_db, 2026-11-03/04). Where what was asked is a thing the
+        # question names and nothing more, it is still said, as it always was. Lift this when a frame that takes a
+        # question is taught, and the measure that says it can be said.
+        if any(asked in (f.subject, f.obj) and not (f.relation in ("isa", "instance_of") and f.subject == asked)
+               for f in meaning.facts):
+            return None
         facts += [MeaningFact("done_to", knowing, asked), *(f.renamed(turned) for f in meaning.facts)]
     else:
         if len(meaning.facts) != 1 or meaning.facts[0].condition or meaning.facts[0].alternative:
@@ -24209,7 +24221,11 @@ class Conversation:
         # names most of what was asked (`say`); handed only recall's top three,
         # after two turns about the kelt "Did the blip run?" had three about the
         # kelt to choose from, and "The kelt said that the blip ran." was fourth.
-        harvest = await recall.harvest(limit=_RECALLED, about=subject, claim=sentence)
+        # WHAT IT WAS READ TO MEAN IS HANDED OVER, never read again: `_read` keeps its reading, so what the
+        # sentence means is already here, and recall read the same text through the whole reader a second
+        # time to take its shape.
+        harvest = await recall.harvest(limit=_RECALLED, about=subject, claim=sentence,
+                                       claimed=self._meaning(sentence))
 
         # REASON OVER WHAT IS HELD, as a first-class peer to the direct lookup
         # above -- NOT a fallback gated on it having failed. Whatever the store

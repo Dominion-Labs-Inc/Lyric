@@ -2277,6 +2277,23 @@ WHOLE = {"S[dcl]": "tell", "S[q]": "ask", "S[wq]": "ask", "S[imp]": "tell", "S":
 #: How many sentences saying a meaning are read back to it and said (`Grammar.say`), the best its making ranks first:
 #: a reply says the first; the rest are there to compare against.
 SAID_AT_MOST = 8
+#: HOW MANY ITEMS SAYING MAKES WITHOUT GETTING ANY FURTHER before it stops with what it has (anytime realization,
+#: White 2004; Carroll and Oepen 2005, which `Grammar._say` builds by: a realizer stops at the first good ones,
+#: never every way of saying it). Getting further is a sentence READ BACK to the meaning, or more of the meaning
+#: covered than any item before it; making more of what says the same amount and reads back to something else is
+#: not.
+#:
+#: `SAID_AT_MOST` stops a saying that SUCCEEDS. Nothing stopped one that cannot, and an agenda is unbounded in
+#: practice: "Who stabbed Tom?" made 1,750,455 sentences over 29.6 hours and read 273,692 of them back, every one
+#: refused; "Which continent is larger than Africa?" held it 58 minutes; `I do not know whether Africa is a
+#: continent.` 36 minutes; `Your arm's broken.` 267 s; "Roy painted the box for Tom." ten minutes. Each was traced
+#: to a cause of its own -- a construction nothing holds, a form never taught, a reading that disagrees -- and
+#: guarding the callers one cause at a time was defeated by the next one every time (2026-10-28 to 2026-11-04).
+#:
+#: Every saying that worked did so far inside this: 196, 210, 417 and 962 items. What was made when it stops is
+#: still said, best first, which is what anytime realization means; where nothing was made, it says so and says
+#: how far it got (`give_up`).
+MADE_WITHOUT_GETTING_FURTHER = 5000
 #: Punctuation that closes a sentence, and what it says the speaker wants.
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
@@ -4531,11 +4548,22 @@ class Grammar:
 
         def by_no_shape(cat: Cat) -> bool:
             return (isinstance(cat, Atom) and cat.base in ("conj", "punct")) or (isinstance(cat, Fn) and cat.slash == "&")
+        # STOPPED ONCE IT IS NO LONGER GETTING ANY FURTHER (`MADE_WITHOUT_GETTING_FURTHER`), which is the stop the
+        # realization this is built by has and this did not: `SAID_AT_MOST` ends a saying that succeeds, and a
+        # saying that cannot succeed ended only when the agenda was spent, which is hours.
+        covered_most, kept_most, since_further, stopped_going = -1, 0, 0, False
         while agenda and len(sentences) < SAID_AT_MOST:
+            if since_further > MADE_WITHOUT_GETTING_FURTHER:
+                stopped_going = True
+                break
             item = heapq.heappop(agenda)[-1]
             filled, used, sign, said, order, key = item
             if held[key] is not item:
                 continue
+            since_further += 1
+            covered = bin(filled).count("1")
+            if len(sentences) > kept_most or covered > covered_most:
+                covered_most, kept_most, since_further = max(covered, covered_most), len(sentences), 0
             n = len(done)
             done.append(item)
             whole_as = _whole(sign.cat)
@@ -4618,12 +4646,16 @@ class Grammar:
                 said_any |= key[0]
             why.clear()
             why.update({
-                "why": ("made whole and reading took them to mean something else" if refused
+                "why": (f"made {MADE_WITHOUT_GETTING_FURTHER} items without getting any further" if stopped_going
+                        else "made whole and reading took them to mean something else" if refused
                         else "no whole sentence was ever made"),
                 "unsaid": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted) if not said_any >> k & 1],
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         done_with("the search")
+        if stopped_going:
+            logger.info("saying: STOPPED GOING -- %d items made without getting further, %d said, %d read back "
+                        "otherwise", MADE_WITHOUT_GETTING_FURTHER, len(sentences), len(refused))
         logger.info("saying: %.1fs -- %s", time.perf_counter() - began,
                     ", ".join(f"{part} {seconds:.1f}s" for part, seconds in took.items() if seconds >= 0.05)
                     or "all of it under a tenth of a second")

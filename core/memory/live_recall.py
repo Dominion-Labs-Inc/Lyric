@@ -316,11 +316,21 @@ class LiveRecall:
             existing.reached_by.add(query)
 
     async def harvest(self, limit: int = 3, about: str = "",
-                      claim: str = "") -> Harvest:
+                      claim: str = "", claimed: Optional[Any] = None) -> Harvest:
         """What has landed FOR THIS SUBJECT. Leaves anything slower running.
 
         `claim` is the sentence being answered; each memory is marked as
         agreeing with it, contradicting it, or unreadable.
+
+        `claimed` is what the caller has ALREADY READ that sentence to mean
+        (`Conversation._meaning`, which keeps its reading). Given, the sentence
+        is not read a second time here. The one reader had read it moments
+        before and recall read the very same text again through the whole of
+        it: "The continent is surrounded by the Mediterranean Sea to the north,
+        the Arabian plate and the Gulf of Suez to the northeast, the Indian
+        Ocean to the southeast and the Atlantic Ocean to the west." was read
+        twice at thirteen minutes each (lyric_db, 2026-11-04). None where the
+        caller could not tell what it meant, and then it is read here as before.
         """
         subject = (about or "").strip().lower()
         started = time.monotonic()
@@ -360,7 +370,7 @@ class LiveRecall:
                     return ClaimShape()
                 return shape_of(Meaning("tell", facts)) if facts else ClaimShape()
 
-            asked_shape = read_shape(claim)
+            asked_shape = shape_of(claimed) if claimed is not None else read_shape(claim)
             for recalled in own.values():
                 recalled.agrees = asked_shape.agrees_with(stored_shape(recalled))
 
