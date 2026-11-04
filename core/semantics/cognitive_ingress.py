@@ -314,6 +314,32 @@ class CognitiveIngress:
                              domain: str = "language",
                              word_class_of=None,
                              quality: float = 1.0) -> Admission:
+        """WHAT THE ONE DOOR LET THROUGH, AND WHAT IT TURNED AWAY (`_admitting`, which decides it).
+
+        `Admission` has counted every part of this from the beginning -- what was admitted, what was already held,
+        the concepts made and reinforced, the contradictions, the refusals -- and the authority that writes
+        semantics said none of it. A run could be read end to end without learning whether a sentence it was told
+        had been taken in at all: 50 sentences of the Africa text were told and the run recorded only that 22 were
+        read, never what any of them put in the store (2026-11-04)."""
+        admission = await self._admitting(subject, relation, obj, surface, provenance, positive,
+                                          description, domain, word_class_of, quality)
+        logger.info("ingress: %s(%s, %s)%s -- %s", relation, subject, obj,
+                    "" if positive else " [denied]",
+                    "admitted" if admission.admitted else
+                    ("already held" if admission.already_present else "NOT ADMITTED"))
+        if admission.refusals:
+            logger.info("ingress:   turned away: %s", "; ".join(admission.refusals[:4]))
+        if admission.contradicts:
+            logger.info("ingress:   CONTRADICTS what is held: %s", admission.contradicts)
+        return admission
+
+    async def _admitting(self, subject: str, relation: str, obj: str,
+                         surface: str, provenance: Provenance,
+                         positive: bool = True,
+                         description: str = "",
+                         domain: str = "language",
+                         word_class_of=None,
+                         quality: float = 1.0) -> Admission:
         """Admit a proposition already split into its parts.
 
         The atom form (`cup_in_cabinet`) is one way to say a proposition and a

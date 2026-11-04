@@ -20,6 +20,12 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent.parent
+# A question that spins at full CPU and logs nothing can only be read from its stack, and reading another process's
+# stack takes root on macOS. Registered here, the run writes its own on `kill -USR1 <pid>` and goes on running.
+sys.path.insert(0, str(ROOT))
+from core.utils.stack_dump import dump_stacks_on_signal  # noqa: E402
+dump_stacks_on_signal("prose02", ROOT / "logs")
+
 _spec = importlib.util.spec_from_file_location("understands_prose_01", ROOT / "experiments" / "UNDERSTANDS-PROSE-01" / "experiment.py")
 prose = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(prose)

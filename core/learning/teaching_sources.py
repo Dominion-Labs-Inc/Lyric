@@ -3853,6 +3853,84 @@ def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
     return cache["meant"]
 
 
+#: THE FORMS ENGLISH GIVES A VERB beside the one it is written as, each with the features the treebanks write on it
+#: (`WordForm`): what one does now, what was done, what was done to something, and the doing itself. The same form
+#: stands twice where English writes one for two (`surrounded` a past and a participle), as the treebanks record it.
+_VERB_FORMS_ENGLISH: Tuple[Tuple[str, str], ...] = (
+    ("s", "Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin"),
+    ("ed", "Mood=Ind|Number=Sing|Person=3|Tense=Past|VerbForm=Fin"),
+    ("ed", "Tense=Past|VerbForm=Part|Voice=Pass"),
+    ("ing", "VerbForm=Ger"),
+    ("ing", "Tense=Pres|VerbForm=Part"),
+)
+
+
+def _written_with(word: str, ending: str) -> str:
+    """The word written with an ending as English spells it: "es" after a hiss, a consonant and "y" turned to "ie"
+    before "s" and to "ied" before "ed", a silent "e" dropped before a vowel. Where English writes it otherwise --
+    a last letter doubled ("stopped", "barred", "preferred"), a form of its own ("went") -- WordNet holds that form
+    as an exception, so what is written here is not read back and is not kept (`_forms_english_gives`)."""
+    if ending == "s":
+        if re.search(r"(s|x|z|ch|sh|o)$", word):
+            return word + "es"
+        if re.search(r"[^aeiou]y$", word):
+            return word[:-1] + "ies"
+        return word + "s"
+    if re.search(r"[^aeiou]y$", word) and ending == "ed":
+        return word[:-1] + "ied"
+    if word.endswith("e") and len(word) > 2 and not re.search(r"(ee|oe|ye)$", word):
+        # A WORD OF TWO LETTERS KEEPS ITS "e": dropped, "be" was written "bing", which the dictionary holds as a
+        # word of its own and would have kept. So does a word whose "e" follows a vowel ("see", "free", "hoe"),
+        # which keeps it before "ing" ("seeing") and would otherwise have been written "seing" and lost.
+        return word[:-1] + ending
+    return word + ending
+
+
+def _written_otherwise(form: str, ending: str) -> bool:
+    """Whether a form English writes otherwise stands where this ending would: what one does now ends in "s", the
+    doing itself in "ing", and what was done in neither of them ("bought", "knew", "gone")."""
+    third = form.endswith("s") and not form.endswith("ss")
+    if ending == "s":
+        return third
+    if ending == "ing":
+        return form.endswith("ing")
+    return not third and not form.endswith("ing")
+
+
+def _forms_english_gives(word: str, cache: Dict[str, Any]) -> List[Tuple[str, str]]:
+    """EVERY FORM ENGLISH GIVES THE VERB that no treebank here wrote, with the features a treebank writes on it.
+
+    Where English writes a form otherwise than a rule would -- a last letter doubled ("stopped"), a form of its own
+    ("knew", "went") -- WordNet holds that form as an exception, and it is taken in the rule's place. Where English
+    writes TWO of them there ("knew" and "known", "went" and "gone"), nothing WordNet holds says which is which, so
+    neither is taken and the treebanks are left to say it: a form written wrong is worse than a form missing.
+
+    Otherwise the rule writes it (`_written_with`), kept only where the CMU Pronouncing Dictionary says it is a word
+    (`_pronounced`, which the record already reads for how each form is said). WordNet's own `morphy` cannot be asked
+    instead: it reads the ending off and asks only whether what is left is a word, so it takes "stoped", "goed" and
+    "hited" for real ones.
+
+    A word's forms were those the treebanks happened to write and nothing else: 2,264 of the 3,106 verbs taught held
+    fewer than the four a regular verb has, and "bark" held none but the word itself. `A dog barked.` was read whole
+    (`instance_of(?v0, utter bark) & done_by(?v0, ?v1)`) and could not be said at all, while `Tom chased a cat.`,
+    whose verb the treebanks had written every way, was said straight back in a second (lyric_db, 2026-11-04)."""
+    from nltk.corpus import wordnet as wn
+    wn.ensure_loaded()
+    said = _pronounced(cache)
+    otherwise = {form for form, bases in wn._exception_map["v"].items() if word in bases and form != word}
+    out: List[Tuple[str, str]] = []
+    for ending, features in _VERB_FORMS_ENGLISH:
+        stands_there = sorted(f for f in otherwise if _written_otherwise(f, ending))
+        if stands_there:
+            if len(stands_there) == 1:
+                out.append((stands_there[0], features))
+            continue
+        form = _written_with(word, ending)
+        if form != word and form in said:
+            out.append((form, features))
+    return out
+
+
 def _base_written(word: str, cls: str, treebanks: Sequence[str], cache: Dict[str, Any]) -> Counter:
     """How often UD's English treebanks wrote a word as its own base, as a word of this class, with each set of
     features: "like" as a verb `VerbForm=Inf` and `Mood=Ind|Tense=Pres|VerbForm=Fin`."""
@@ -4679,6 +4757,14 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 forms.append(WordForm(word, cls, features, n))
         for (form, features), n in sorted(inflected[cls].items(), key=lambda x: (-x[1], x[0])):
             forms.append(WordForm(form, cls, features, n))
+        if cls == "VERB":
+            # AND EVERY OTHER FORM ENGLISH GIVES IT (`_forms_english_gives`), counted none, so a form a treebank
+            # actually wrote stands before one only English gives, and a word written every way is unchanged.
+            held = {(f.form, f.features) for f in forms if f.word_class == cls}
+            for form, features in _forms_english_gives(word, _cache):
+                if (form, features) not in held:
+                    forms.append(WordForm(form, cls, features, 0))
+                    held.add((form, features))
     # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator; of a class
     # whose words take forms (`_FORMED_CLOSED`), each form the analysts gave the word as its base, with its features
     # ("is", "am", "was" of `be` as an auxiliary; "an" of `a`). Without them "is", "am" and "are" were one word to
@@ -4828,6 +4914,16 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         ("SemCor", "tags"): sum(len(s.seen_with) for s in senses),
         ("STREUSLE", "SNACS"): len(joins_things), ("PMB", "meaning"): len(means), ("PMB", "derivation"): 0}
     layers["covered"] = tuple((source, column, n) for (source, column), n in carried.items())
+    # WHAT EACH SOURCE GAVE FOR THIS WORD, AND WHICH GAVE NOTHING. The record has counted this all along
+    # (`carried`, kept as `covered`) and the teaching module never said it, so a word taught with half its sources
+    # silent looked exactly like a word taught whole, and the shortfall showed up only much later as something the
+    # substrate could not do: "bark" was built with the treebanks having written one form of it, nothing said so,
+    # and `A dog barked.` was read and could not be said at all (2026-11-04).
+    gave_nothing = sorted(f"{source}/{column}" for (source, column), n in carried.items() if not n)
+    logger.info("teaching: built %r -- %d forms, %d senses, %d of %d source columns filled",
+                word, len(forms), len(senses), len(carried) - len(gave_nothing), len(carried))
+    if gave_nothing:
+        logger.info("teaching:   gave nothing for %r: %s", word, ", ".join(gave_nothing))
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
                       tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "

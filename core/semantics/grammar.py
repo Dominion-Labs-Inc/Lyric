@@ -38,8 +38,10 @@ import hashlib
 import heapq
 import itertools
 import json
+import logging
 import math
 import re
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field, replace
 from pathlib import Path
@@ -49,6 +51,8 @@ from core.semantics.derived_reader import (Meaning, MeaningFact, is_variable,
                                            _ARITHMETIC_ROLES)
 from core.semantics.relation_types import is_worded, worded
 from core.semantics.sentence_machine import _ADDRESS
+
+logger = logging.getLogger(__name__)
 
 #: The grammar of English as taught: its grammar words, the categories of each kind of word, the default links.
 ENGLISH = Path(__file__).resolve().parents[2] / "data" / "grammar" / "english.json"
@@ -2431,7 +2435,7 @@ SAYS_NOTHING_OF_FACTS = frozenset({"polite", "npi", "gap", "event", "role"})
 #: HOLD, not in what saying can say, and it is fixed by giving the meaning language a universal, not here.
 NOT_YET_SAID = frozenset({"prep", "every"})
 
-def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
+def _piece_says(piece: Tuple, meaning: Meaning, linking: Optional[Mapping[str, str]] = None) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
     facts it may say (a thing known, `given`; a time before now, `past`, going on now, `now`, after now, `future`;
     what one thing is of another, `be`: `isa`, `equals`, or a named thing of a kind; what a thing is owned by,
@@ -2450,6 +2454,30 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
     if kind in SAYS_NOTHING_OF_A_MEANING:
+        return None
+    # THE DOING A VERB NAMES, which `spell_out` makes of an `event` piece (`add("instance_of", e, meant)`): a kind
+    # said of a thing that stands in a happening. Counted by the kind alone it would be any thing's kind; counted
+    # by the word's own name it would miss the sense the reader gives ("bark" names `utter bark`), so it is counted
+    # by what the fact's thing DOES.
+    if kind == "event":
+        doings = {f.subject for f in facts if f.relation in _HAPPENING_LINKS}
+        # A WORD THAT NAMES ITS OWN DOING ("hello" a greeting) says only THAT doing; a verb's frame writes "@" for
+        # the word itself, whose kind the reader gives by its sense ("bark" names `utter bark`), so that one is
+        # counted by what the thing DOES. Counted alike, "hello" was offered for a dog's barking.
+        named = piece[2] if len(piece) > 2 else "@"
+        if named != "@":
+            return sum(1 for f in facts if f.relation == "instance_of" and f.obj == named)
+        return sum(1 for f in facts if f.relation == "instance_of" and f.subject in doings)
+    # A PLACE A DOING TAKES, by the link reading gives its slot (`Lexicon.linking`, which `spell_out` reads the
+    # same way: `subject` is who did it, `object` and `passive` what was done to, `second` who received it).
+    if kind == "role":
+        if linking is None or len(piece) < 4:
+            return None
+        said = linking.get(piece[3])
+        return sum(1 for f in facts if f.relation == said) if said else None
+    # A CLAUSE A DOING TAKES says no fact of its own: it marks whether what it takes is asserted
+    # (`spell_out`'s `_clause_spans`), which is not something the meaning holds.
+    if kind == "clause":
         return None
     if kind == "given":
         return sum(1 for f in facts if f.given)
@@ -2548,14 +2576,15 @@ def _piece_says(piece: Tuple, meaning: Meaning) -> Optional[int]:
     return 0
 
 
-def _says_of(entry: Entry, meaning: Meaning) -> Optional[Dict[Tuple[str, ...], int]]:
+def _says_of(entry: Entry, meaning: Meaning,
+             linking: Optional[Mapping[str, str]] = None) -> Optional[Dict[Tuple[str, ...], int]]:
     """WHAT A GRAMMAR WORD'S ENTRY SAYS OF A MEANING (`Grammar.say`), as what it spends: each piece saying something
     the meaning holds (`_piece_says`), with how often the meaning holds it; ONE FOR EVERY WORD SAYING IT ("is", "was"
     and "'s" all say one `be`, so a meaning of one kind said of another has one of them). None where a piece says
     what the meaning does not hold; empty for an entry saying nothing."""
     out: Dict[Tuple[str, ...], int] = {}
     for piece in entry.sem:
-        n = _piece_says(piece, meaning)
+        n = _piece_says(piece, meaning, linking)
         if n is None:
             continue
         if n == 0:
@@ -3752,8 +3781,21 @@ class Grammar:
         kept with the standing of a sentence said well, every alternative reading of it unasked. Reading keeps how
         sure it is of what it reads and teaches from what it read as much as it was sure (`_learn_from_reading`);
         saying computed the same number at the very place it decided and threw it away (2026-10-30)."""
+        # WHERE SAYING SPENDS ITS TIME, said by saying itself. Saying a meaning of ONE fact took 644.6 s and
+        # popped 196 items, and took 645.5 s and popped none at all -- so almost none of it is the search, and
+        # nothing said which part of the rest it was (2026-11-04). Each stretch is timed and said below, so a
+        # slow reply names the stretch that was slow instead of being timed from outside.
+        began = time.perf_counter()
+        took: Dict[str, float] = {}
+
+        def done_with(part: str) -> None:
+            took[part] = time.perf_counter() - began - sum(took.values())
+
         def give_up(reason: str, **of: Any) -> List[str]:
             """Nothing said, and why. The reason is the first thing that stopped it, never a guess after the fact."""
+            logger.info("saying: nothing said after %.1fs -- %s; %s", time.perf_counter() - began, reason,
+                        ", ".join(f"{part} {seconds:.1f}s" for part, seconds in took.items() if seconds >= 0.05)
+                        or "no stretch of it took a tenth of a second")
             if why is not None:
                 why.clear()
                 why.update(of)
@@ -3939,6 +3981,7 @@ class Grammar:
                 return give_up("no word for a thing it must say", thing=f"{concept} ({cls})",
                                written=list(written)[:6])
             places.append(options)
+        done_with("words for the things")
         # THE GRAMMAR'S OWN WORDS, each spending what it says, as often as the meaning holds it, with every other word
         # saying the same (`_says_of`); a link a preposition names, once for each fact of it.
         budget: Dict[Tuple[str, ...], int] = {}
@@ -4012,7 +4055,8 @@ class Grammar:
                 cat = parse_category(entry.cat)
                 if meaning.act != "ask" and _whole((_comes_to(cat) or [cat])[-1]) == "ask":
                     continue
-                says = _says_of(entry, whole if any(p[0] == "other" for p in entry.sem) else meaning)
+                says = _says_of(entry, whole if any(p[0] == "other" for p in entry.sem) else meaning,
+                                self.lexicon.linking)
                 if says:
                     budget.update(says)
                     chosen.append((word, entry, {k: 1 for k in says}))
@@ -4158,6 +4202,7 @@ class Grammar:
             k = takes(parse_category(entry.cat))
             if budget.get(k):
                 chosen.append((word, entry, {k: 1}))
+        done_with("the grammar's own words")
         spending = sorted({k for _, _, spends in chosen for k in spends})
         if (("?speaker" in situation and ("situation", "?speaker") not in spending)
                 or ("?listener" in situation and ("situation", "?listener") not in spending)
@@ -4237,6 +4282,31 @@ class Grammar:
             return give_up("a thing's every word takes something no word here can make",
                            thing=next(f"{c} ({cls})" for (c, cls), options in zip(wanted, places) if not options))
         extra = [(at, entry, spends) for at, entry, spends in extra if self._takes_from(entry, made_here)]
+        # WHETHER ANYTHING HERE SAYS THE LINKS THE MEANING HOLDS, asked before the search rather than discovered by
+        # it. Saying gives up where it holds no WORD for a thing (above); it never asked whether it holds a WAY to
+        # say what the meaning holds OF those things. `full` counts the things named, never the facts said, so a
+        # link nothing here says is simply never spent: a sentence is whole once its things are named, reading
+        # takes it to mean something else, every one is refused, nothing reads back, and `SAID_AT_MOST` never
+        # stops the agenda. Nothing said and no end to the saying of it: "I do not know where the dog is." searched
+        # 20,000 items in 51 s, and one question of UNDERSTANDS-PROSE-02 held the agenda 58 minutes before it was
+        # stopped by hand (2026-11-03). Asked of `_piece_says`, which settles what a piece says, so nothing here
+        # keeps a second account of it; a fact that does not stand alone (an alternative, a condition, a number
+        # held as a kind) is not judged alone.
+        offered = [entry for options in places for _, entry in options] + [entry for _, entry, _ in extra]
+
+        def nothing_says(fact: MeaningFact) -> bool:
+            try:
+                one = Meaning(meaning.act, (fact,))
+            except ValueError:
+                return False
+            return not any(_piece_says(piece, one, self.lexicon.linking)
+                           for entry in offered for piece in entry.sem)
+        unsaid = [f for f in meaning.facts
+                  if f.relation in _ASSERTED and not f.condition and not f.alternative and nothing_says(f)]
+        if unsaid:
+            return give_up("nothing here says a link the meaning holds",
+                           unsaid=[f.render() for f in unsaid][:6])
+        done_with("what the words can make")
         full = (1 << len(places)) - 1
         # THE CHART, over which words are used, not where they stand: (places filled, what the grammar words spent,
         # what it means and its category (`_meant`)) -> the surest such sign, with its words in order and where each
@@ -4553,6 +4623,10 @@ class Grammar:
                 "unsaid": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted) if not said_any >> k & 1],
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
+        done_with("the search")
+        logger.info("saying: %.1fs -- %s", time.perf_counter() - began,
+                    ", ".join(f"{part} {seconds:.1f}s" for part, seconds in took.items() if seconds >= 0.05)
+                    or "all of it under a tenth of a second")
         return [_written(said, closing) for said in ranked]
 
     @staticmethod
@@ -6519,8 +6593,21 @@ class GrammarView:
         self.learned_from += 1
 
     def read(self, sentence: str) -> Reading:
-        """A sentence read by the grammar (`Reading`), the one reading it puts first (`readings`)."""
-        return self.readings(sentence, 1)[0]
+        """A sentence read by the grammar (`Reading`), the one reading it puts first (`readings`).
+
+        SAYS WHAT IT READ AND WHY NOT, where it read nothing. `Reading` has carried `why` and `missing` all along
+        and nothing ever said them, so a sentence read as nothing was told apart from one read wrongly only by
+        asking the reader again from outside: six of the Africa text's ten sentences went unread and the run
+        recorded that they had, never which words broke it (2026-11-04)."""
+        reading = self.readings(sentence, 1)[0]
+        if reading.meaning is None:
+            logger.info("reading: NOTHING READ of %r%s%s", sentence,
+                        f" -- {reading.why}" if reading.why else "",
+                        f"; broke at {[sentence[a:b] for a, b in reading.missing[:4]]}" if reading.missing else "")
+        else:
+            logger.info("reading: %r -> %s: %s", sentence, reading.meaning.act,
+                        " & ".join(f.render() for f in reading.meaning.facts))
+        return reading
 
     def readings(self, sentence: str, how_many: int = 1) -> List[Reading]:
         """Every meaning the grammar reads a sentence to, the one it puts first first (`Grammar.readings`), after
@@ -6549,7 +6636,20 @@ class GrammarView:
         sentence that reads back to exactly it, the surest first. `why` is filled with why nothing was said, and
         `how_surely` with how sure it is of each sentence it says."""
         self.learn_waiting()
-        return self.grammar.say(meaning, named, why, how_surely)
+        # SAYS WHAT IT SAID AND WHY NOT, where it said nothing. `_say` fills `why` with the first thing that stopped
+        # it and every caller threw it away, so a meaning the grammar cannot say and one it can say badly came back
+        # the same empty list: `A dog barked.` was read whole and said as nothing, and which of the seven reasons
+        # it was could only be had by calling `say` again from outside (2026-11-04).
+        reason: Dict[str, Any] = {} if why is None else why
+        said = self.grammar.say(meaning, named, reason, how_surely)
+        if said:
+            logger.info("saying: %s -> %r%s", " & ".join(f.render() for f in meaning.facts), said[0],
+                        f" (and {len(said) - 1} more)" if len(said) > 1 else "")
+        else:
+            logger.info("saying: NOTHING SAID of %s -- %s",
+                        " & ".join(f.render() for f in meaning.facts),
+                        "; ".join(f"{k}: {v}" for k, v in reason.items()) or "no reason given")
+        return said
 
     def _learn_from_reading(self, sentence: str, tokens: Sequence[str], reading: Reading, named: List[str]) -> None:
         """READING TEACHES, as a book teaches its reader (`reading_teaches`): how the sentence's reading used each of its

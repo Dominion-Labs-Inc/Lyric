@@ -7113,11 +7113,24 @@ class MemoryAgent(IMemoryConsolidation):
                     self._record_names.setdefault((f.form.lower(), cls), Counter())[name] += 1
 
     def _hold_word_record(self, word) -> None:
-        """A word recorded whole, each layer handed to the part of reading that learns from it."""
+        """A word recorded whole, each layer handed to the part of reading that learns from it.
+
+        SAYS WHAT LYRIC TOOK OF IT, beside what the teaching module says it built (`teaching_sources`): a record
+        handed over and a record taken in looked the same from outside, so a layer that learned nothing from one
+        said nothing and a word could be taught and change nothing at all. Both halves speak now, and a word whose
+        record carried a thing Lyric did not take is told apart from one whose record never carried it
+        (2026-11-04)."""
+        forms = {f.form for f in word.forms}
+        classes = {f.word_class for f in word.forms}
         self._learn_word_record(word, self._word_class_index, self.word_forms(), self.structure_view())
         self._grammar_words.append(word)
         if self._grammar_view is not None:
             self._grammar_view.hold_word(word)
+        logger.info("teaching: Lyric took %r -- %d forms (%s) as %s, %d senses; %s",
+                    getattr(word, "word", "?"), len(forms), ", ".join(sorted(forms)[:6]),
+                    "/".join(sorted(classes)) or "no class", len(getattr(word, "senses", ()) or ()),
+                    "English's grammar holds it" if self._grammar_view is not None
+                    else "English's grammar is not open, so it holds nothing of it")
 
     def _drop_word_record(self, word) -> None:
         """A word recorded whole, taken back from English's grammar (recorded otherwise since)."""
