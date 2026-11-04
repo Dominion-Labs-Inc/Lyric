@@ -1084,7 +1084,12 @@ def trace_step(component_name: str, operation_name: str = None):
 
             def nag():
                 waited[0] += SLOW_STEP_MS / 1000.0
-                logger.info("%s: STILL INSIDE %s after %.0fs", component_name, name, waited[0])
+                # SAID RARELY ENOUGH TO BE READ. Every step over the threshold said so every two seconds, and a
+                # step that is watched from two places said it twice, so a run's screen was this line and the
+                # reading, admitting, thinking and saying it was there to point at scrolled past unread
+                # (2026-11-04). The first is said at once; after that, every tenth of a minute.
+                if waited[0] <= SLOW_STEP_MS / 1000.0 or waited[0] % 6.0 < SLOW_STEP_MS / 1000.0:
+                    logger.info("%s: STILL INSIDE %s after %.0fs", component_name, name, waited[0])
                 timer[0] = threading.Timer(SLOW_STEP_MS / 1000.0, nag)
                 timer[0].daemon = True
                 timer[0].start()

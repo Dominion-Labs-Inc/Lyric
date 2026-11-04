@@ -3230,10 +3230,20 @@ class WordSense:
     #: sense of the word, the classes listing the word alone): their frames say what each of its places is
     #: (`WordRecord.frames_said`).
     verbnet_classes: Tuple[str, ...] = ()
+    #: WHICH OF `kind_of` WORDNET MARKS THE SENSE AN INSTANCE OF rather than a kind of, as Lyric names them (its
+    #: instance hypernyms): Oceania is one archipelago, Germany one European country, neither a kind of anything.
+    #: A sense naming one thing is a name, and reading weighs a word written capitalised inside a sentence by what
+    #: memory holds its thing to be (`GraphKnowledge.capitalized`: a thing held an instance of a kind is a name, one
+    #: held a kind of a kind a common noun). Recorded as kinds alike, 518 of the 666 names taught were read as
+    #: common nouns, and for 505 of them no treebank had ever seen the word written as one: "Germany" was a kind of
+    #: thing 27 times over against the treebanks' 17 sayings of it as a name, "Jesus" 189 against 7, and "Africa"
+    #: stayed a name by nine (2026-11-04).
+    one_of: Tuple[str, ...] = ()
 
     def to_dict(self) -> Dict[str, Any]:
         return ({"key": self.key} if self.key else {}) | ({"related": [list(r) for r in self.related]}
                                                           if self.related else {}) | (
+            {"one_of": list(self.one_of)} if self.one_of else {}) | (
             {"pertains_to": [[sense, name, list(kinds)] for sense, name, kinds in self.pertains_to]}
             if self.pertains_to else {}) | (
             {"verbnet_classes": list(self.verbnet_classes)} if self.verbnet_classes else {}) | {
@@ -3255,7 +3265,8 @@ class WordSense:
                    tuple(int(c) for c in data.get("covers") or ()), str(data.get("key") or ""),
                    tuple((str(r[0]), str(r[1]), str(r[2]), str(r[3])) for r in data.get("related") or ()),
                    tuple((str(p[0]), str(p[1]), tuple(str(k) for k in p[2])) for p in data.get("pertains_to") or ()),
-                   tuple(str(c) for c in data.get("verbnet_classes") or ()))
+                   tuple(str(c) for c in data.get("verbnet_classes") or ()),
+                   tuple(str(k) for k in data.get("one_of") or ()))
 
 
 @dataclass(frozen=True)
@@ -4538,6 +4549,13 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             frontier = nxt
         return tuple(out)
 
+    def names_one(synset: Any) -> Tuple[str, ...]:
+        """WHICH OF ITS KINDS WORDNET MARKS THE SENSE AN INSTANCE OF, as Lyric names them (`WordSense.one_of`):
+        Oceania is one archipelago, not a kind of one. Empty for a sense that is a kind, and for one whose instance
+        hypernyms are senses nothing tells apart from their word's others (`named`), which nothing is taught of."""
+        return tuple(dict.fromkeys(named(h) for h in WordNetSource._ordered(synset.instance_hypernyms())
+                                   if named(h)))
+
     # A WORD OF SEVERAL WORDS ("make it", "pass away") is WordNet's lemma written with underscores, its first word the
     # one inflected ("made it").
     lemma_name = word.replace(" ", "_")
@@ -4585,7 +4603,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                                 tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames,
                                 covers=(tuple(covered[c] for c in [s.name()] + [k for k, _ in kinds])
                                         if cls == "NOUN" else ()), key=lemma.key(), related=related,
-                                pertains_to=pertains_to))
+                                pertains_to=pertains_to, one_of=names_one(s)))
     # VERBNET: each class the word is a member of, the WordNet senses the membership is (`wn` keys), and what each of
     # the class's roles may be filled with.
     classes_of: Dict[str, Set[str]] = {}

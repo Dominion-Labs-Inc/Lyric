@@ -6318,12 +6318,21 @@ class GrammarView:
         # WHAT EACH OF ITS SENSES IS A KIND OF, as the grammar asks what a thing is deciding a link by it
         # (`Lexicon.inherited`, `selected`): "coating paint" a coating, the verb `paint` an act of creating. Asked of
         # memory's concepts alone, a word taught only as a word was a kind of nothing.
+        #
+        # AND WHAT A SENSE NAMING ONE THING IS AN INSTANCE OF, never a kind of (`WordSense.one_of`, WordNet's
+        # instance hypernyms): Oceania is one archipelago. Recorded as a kind, a name taught is read as a common
+        # noun written capitalised inside a sentence, as `GraphKnowledge.capitalized` weighs a thing held a kind of
+        # a kind against one held an instance of it: "Africa is ahead of Oceania." read `isa(africa, oceania)` and
+        # said back "Africa's an oceania", where untaught it read `about(africa, oceania)` whole. 518 of the 666
+        # names taught were so read, 505 of them with no treebank ever having seen the word as a noun (2026-11-04).
         knowledge = getattr(words, "knowledge", None)
         if knowledge is not None and hasattr(knowledge, "discard"):
             for sense in word.senses:
+                one_of = frozenset(getattr(sense, "one_of", ()) or ())
                 for _, kind in sense.kind_of:
                     if kind:
-                        (knowledge.add if times > 0 else knowledge.discard)(sense.concept, "isa", kind)
+                        (knowledge.add if times > 0 else knowledge.discard)(
+                            sense.concept, "instance_of" if kind in one_of else "isa", kind)
                 # An adjective is weighed by what it is of, as one memory holds defined with a thing ("British", the
                 # United Kingdom; `GraphKnowledge.kinds`): "Norwegian" by Norway and what Norway is a kind of.
                 for _, of, kinds in getattr(sense, "pertains_to", ()):
