@@ -125,8 +125,14 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
     the numbers in `only` where it is given (`part` names them), and writes the run to `here`/results. Each text is told in a conversation of its own, so a run stopped between texts goes on exactly
     from the next."""
     (here / "results").mkdir(exist_ok=True)
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                        handlers=[logging.FileHandler(here / "results" / "run.log", mode="w")])
+    # WHAT THE SUBSTRATE IS DOING IS SEEN WHILE IT DOES IT, not read out of a file afterwards. Kept to the file
+    # alone, a run showed its ten lines of told-and-asked and nothing of the reading, the admitting, the saying or
+    # why any of them gave up, and work in the substrate was done by reading the log from outside with the run
+    # already over (2026-11-04). The stream is taken here, so what the harness quietens for its own output
+    # (`redirect_stdout`) does not quieten this.
+    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(name)s: %(message)s',
+                        handlers=[logging.FileHandler(here / "results" / "run.log", mode="w"),
+                                  logging.StreamHandler(sys.stdout)])
     from experiments._evidence import RunRecord
     EV = RunRecord(experiment, claim=claim, hypothesis="each measure reaches its bar, fixed before the run (BARS)",
                    results_dir=here / "results")

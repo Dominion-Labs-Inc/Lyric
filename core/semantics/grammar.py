@@ -3619,7 +3619,19 @@ class Grammar:
                 if keep(sign):
                     for u in self._unary(sign):
                         keep(u)
+        # SAYS HOW FAR IT HAS READ WHILE IT READS. A chart is `how_many` squared in the combinations it tries and
+        # the sentences it cannot afford are the long ones: "The continent is surrounded by the Mediterranean Sea
+        # to the north, the Arabian plate and the Gulf of Suez to the northeast, the Indian Ocean to the southeast
+        # and the Atlantic Ocean to the west." is 35 words and took 675 s, and said nothing for all of it -- the
+        # whole of it was a wait with no word from the reader. Stretches are read shortest first, so which width it
+        # has reached says how far through it is. Quiet under ten seconds, so a sentence read quickly says nothing.
+        began, said_at = time.perf_counter(), 0.0
         for length in range(2, n + 1):
+            spent = time.perf_counter() - began
+            if spent - said_at >= 10.0:
+                said_at = spent
+                logger.info("reading: stretches of %d word(s) of %d, %d read of them so far, %.0fs",
+                            length, n, sum(len(held) for cell in cells.values() for held in cell.values()), spent)
             for start in range(0, n - length + 1):
                 end = start + length
                 made: List[Sign] = []
@@ -6602,12 +6614,24 @@ class GrammarView:
         what is still waiting at once (`learn_waiting`), and nothing is learned twice. Returns how many."""
         from core.utils.give_way import GiveWay
         give_way, learned = GiveWay(), 0
+        # SAYS HOW FAR IT HAS GOT WHILE IT GOES. This is minutes of work -- 6,137 sentences at about nine a second
+        # -- and it said nothing at all until it was done, so a start looked indistinguishable from a hang and had
+        # to be watched from outside the substrate to be seen at all (2026-11-04).
+        waiting, began, said_at = len(self._waiting), time.perf_counter(), 0.0
+        logger.info("learning: %d sentence(s) waiting, under rules %s", waiting, self.rules)
         while self._waiting:
             taught = self._waiting.pop(0)
             self._waiting_keys.discard(taught.key())
             self._learn_one(taught)
             learned += 1
+            spent = time.perf_counter() - began
+            if spent - said_at >= 10.0:
+                said_at = spent
+                rate = learned / spent if spent else 0.0
+                logger.info("learning: %d of %d, %d left, %.1f/s%s", learned, waiting, len(self._waiting), rate,
+                            f", about {(waiting - learned) / rate / 60:.0f} min to go" if rate > 0 else "")
             await give_way()
+        logger.info("learning: learned from %d sentence(s) in %.1fs", learned, time.perf_counter() - began)
         return learned
 
     def _learn_one(self, taught: Any) -> None:
@@ -6627,10 +6651,14 @@ class GrammarView:
     def read(self, sentence: str) -> Reading:
         """A sentence read by the grammar (`Reading`), the one reading it puts first (`readings`).
 
+        SAYS WHAT IT IS ABOUT TO READ BEFORE IT READS IT, not only what it made of it after: a long sentence is
+        minutes of work and naming it afterwards leaves those minutes blank on the screen of whoever is waiting.
+
         SAYS WHAT IT READ AND WHY NOT, where it read nothing. `Reading` has carried `why` and `missing` all along
         and nothing ever said them, so a sentence read as nothing was told apart from one read wrongly only by
         asking the reader again from outside: six of the Africa text's ten sentences went unread and the run
         recorded that they had, never which words broke it (2026-11-04)."""
+        logger.info("reading: %r…", sentence[:120])
         reading = self.readings(sentence, 1)[0]
         if reading.meaning is None:
             logger.info("reading: NOTHING READ of %r%s%s", sentence,

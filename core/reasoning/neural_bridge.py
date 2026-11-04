@@ -1891,6 +1891,18 @@ class NeuralSymbolicBridge:
                     result.metadata = md
         except Exception as _ue:
             logger.debug("uncertainty annotation skipped: %s", _ue)
+        # WHAT WAS ASKED OF REASONING AND WHAT CAME BACK, in one line, every time. Each part of the way said
+        # something of its own -- what would not formalize, which kinds were not allowed, which declined -- and
+        # nothing said what the whole call came to, so a question answered and a question abandoned looked the
+        # same from outside and 43 of 45 "not answered" said nothing about where they stopped (2026-11-04).
+        logger.info("reasoning: asked %r -- %s by %s, %d step(s), %d given, %.1fs%s",
+                    str(getattr(request, "query", ""))[:90],
+                    "ANSWERED" if getattr(result, "answer", None) else "nothing settled it",
+                    (getattr(result, "metadata", None) or {}).get("route") or "no route",
+                    len(getattr(result, "reasoning_steps", None) or ()),
+                    len(getattr(request, "context", None) or ()),
+                    _time.monotonic() - _t0,
+                    f" -- {str(getattr(result, 'answer', ''))[:80]}" if getattr(result, "answer", None) else "")
         return result
 
     async def _reason_impl(self, request: ReasoningRequest) -> ReasoningResult:
