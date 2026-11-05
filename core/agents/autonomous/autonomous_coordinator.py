@@ -24421,10 +24421,18 @@ class Conversation:
             + [str(a.about) for a in answers]
             + [o for a in answers for o in a.others]
             + [w for text in harvest.texts() for w in str(text).split()])
-        # WHAT EACH PARTICULAR THING THE REPLY NAMES IS, so it is said "the trel".
+        # WHAT EACH PARTICULAR THING THE REPLY NAMES IS, so it is said "the trel" -- and ONLY a particular, asked
+        # the one way it is asked (`_the_stores_own_name`), which this loop went around while the other filler of
+        # this same map asked it. Anything holding an `instance_of` went in, its own name or not, and an entry for
+        # a thing with a name of its own does not make it said as its kind: it makes it said as NOTHING. `isa`
+        # rewritten by `as_known` leaves a meaning of one given fact, which says nothing at all, so
+        # `_said("africa", "isa", "continent")` answered "Africa's a continent." with no entry and None with
+        # `{'africa': 'continent'}` (lyric_db, 2026-11-05). A reply that cannot be said is not said, so the cost
+        # was silence about a thing held under its own name.
         for item in resolved:
             for relation, other in item.relations:
-                if _link_kind(relation) == ("instance_of", False):
+                if _link_kind(relation) == ("instance_of", False) \
+                        and _the_stores_own_name(item.phrase, other):
                     understanding.kinds.setdefault(item.phrase, str(other))
         # AND WHAT EACH THING A TELLING JUST MADE IS, which was asked only of what an ANSWER names. A telling is
         # acknowledged by saying back what was stored, and the things it stored are the ones the substrate had to
