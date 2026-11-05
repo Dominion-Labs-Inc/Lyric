@@ -48,8 +48,14 @@ CLAIM = ("the substrate reads prose as its sources write it and reasons over wha
 
 #: Fixed before the run: what a reader that understood would reach. Reading and understanding are held to 95%, the
 #: standing bar, which this experiment had written as 90% without a reason -- raised 2026-11-05 on being told so.
+#:
+#: "said back as told" was reported without a bar on its first run (2026-11-05) so that no bar was chosen once the
+#: number was known. It came back 3/25 = 12.0%, and it is the measure that sees what the other two cannot: a
+#: reading of six facts said back as one ("It does not change the original list." -> "The list's original.").
+#: It is held to the same 95%.
 BARS = {
     "sentences understood": (0.95, False),
+    "said back as told": (0.95, False),
     "questions answered right": (0.80, False),
     "questions answered wrong (must be low)": (0.02, True),
 }
@@ -323,6 +329,7 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
 
     asked = sum(tally.values())
     values = {"sentences understood": (read, sentences),
+              "said back as told": (said_as_told, had_a_reply),
               "questions answered right": (tally["right"], asked),
               "questions answered wrong (must be low)": (tally["wrong"], asked)}
     say("\nresults:")
@@ -335,15 +342,12 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
                  f"{k}/{n} = {value:.1%} (95% interval {low:.1%} to {high:.1%})")
         EV.metric(label, round(value, 4), unit="fraction", note=f"{k}/{n}; 95% interval {low:.1%} to {high:.1%}")
         say(f"  {label:42} {k}/{n} = {value:.1%}  [{low:.1%}, {high:.1%}]  (bar {'≤' if must_be_low else '≥'} {bar:.0%})")
-    # SAID BACK AS TOLD, reported and given no bar: it is new on 2026-11-05 and a bar is fixed BEFORE a run, not
-    # chosen once the number is known. It is a measure of SAYING, which the sentences-understood bar is not.
-    EV.metric("said back as told", round(said_as_told / max(1, had_a_reply), 4), unit="fraction",
-              note=f"{said_as_told}/{had_a_reply} acknowledgements read back to the meaning of the telling")
-    say(f"  {'said back as told (no bar: new)':42} {said_as_told}/{had_a_reply} = "
-        f"{said_as_told / max(1, had_a_reply):.1%}")
     EV.note("sentences understood is asked of the READING: that the reader made a meaning of every part of the "
             "sentence. These texts carry no meaning taught with them, so nothing here judges whether that meaning "
-            "is the sentence's, and a reading that is confident and wrong passes it.")
+            "is the sentence's, and a reading that is confident and wrong passes it. SAID BACK AS TOLD is the "
+            "measure that sees what that one cannot, and it under-reports rather than flatters: its denominator "
+            "counts only the tellings acknowledged with a sentence of their own to read, and a reply carrying more "
+            "than it was told counts against it.")
     EV.check("nothing told or asked stopped the conversation", stopped + tally["stopped"] == 0,
              f"{stopped} told, {tally['stopped']} asked")
     EV.metric("told or asked and stopped", stopped + tally["stopped"], unit="sentences")
