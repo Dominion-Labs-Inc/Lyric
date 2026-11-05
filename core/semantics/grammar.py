@@ -2367,7 +2367,15 @@ def _things_said(meaning: Meaning) -> List[Tuple[str, str]]:
             out += [((t, "NOUN"), t) for t in (f.subject, f.obj) if not is_variable(t)]
             continue
         if f.relation == "has_property" and not is_variable(f.obj):
-            out.append(((f.obj, "ADVERB" if f.subject in events or f.subject in qualities else "ADJECTIVE"), None))
+            # A DENIED HAPPENING IS SAID BY THE WORDS THAT DENY IT AND NOT BY A WORD OF ITS OWN. `has_property(e,
+            # "false")` is how reading writes "does not change" (`spell_out`); asked for as a word, it was the
+            # English word "false" said as an adverb, and the only sign that ever covered the whole of "It does not
+            # change the original list." was `S[adj]` "false although Sorted might change a list original" -- so
+            # the sentence came back as nothing and its reply said one fact of six (2026-11-05). The `deny` piece
+            # of "not" and "n't" says it, as the conjunction says a group and a doing's own form says its time.
+            if not (f.obj == "false" and f.subject in events):
+                out.append(((f.obj, "ADVERB" if f.subject in events or f.subject in qualities
+                             else "ADJECTIVE"), None))
             terms = (f.subject,)
         else:
             terms = (f.subject, f.obj)
@@ -2540,7 +2548,15 @@ def _piece_says(piece: Tuple, meaning: Meaning, linking: Optional[Mapping[str, s
         # sentence for any of them (2026-10-31).
         return sum(1 for f in facts if f.relation == OWNED_BY)
     if kind == "deny":
-        return sum(1 for f in facts if not f.positive)
+        # A DENIED HAPPENING IS WRITTEN `has_property(e, "false")`, NOT AS A FACT MADE NEGATIVE. Reading writes a
+        # denial that way (`spell_out`), and this counted `not f.positive` alone, so the `deny` piece of "not" and
+        # "n't" never matched a denial that was read. `deny_arg` (the piece of "no", "nobody") was given both
+        # shapes and this was not. "It does not change the original list." read its six facts rightly, the denial
+        # among them, and the only sign that ever covered them all was `S[adj]` "false although Sorted might
+        # change a list original" -- the English word "false", said as an adverb, because nothing else would say
+        # the denial (UNDERSTANDS-PROSE-01, 2026-11-05).
+        return sum(1 for f in facts if not f.positive
+                   or (f.relation == "has_property" and f.obj == "false"))
     if kind == "other":
         return sum(1 for f in facts if f.relation == "same_as" and not f.positive)
     if kind == "pron":
@@ -4613,6 +4629,14 @@ class Grammar:
         best_filled = 0
         #: Signs that said the whole meaning and were no sentence: what each stood as, and its words.
         whole_never: List[Tuple[str, str]] = []
+        #: WHETHER A WHOLE SENTENCE WAS EVER BUILT AT ALL, and the most any one said. `said_all_and_was_no_sentence`
+        #: says what covered everything and was no sentence; it cannot say whether anything that WAS a sentence was
+        #: made, nor how much it managed to say. Without that, a saying that fails looks the same whether no
+        #: sentence was built or sentences were built and none could say enough -- and those want opposite fixes.
+        #: Four facts say `Sorted changes the list.`; the same meaning with `during(?e, ?now)` added, which needs no
+        #: word of its own, says nothing and only participles cover everything (lyric_db, 2026-11-05).
+        sentences_tried, most_a_sentence_said = 0, -1
+        sentence_tries: List[Tuple[str, str]] = []
         while agenda and len(sentences) < SAID_AT_MOST:
             if since_further > MADE_WITHOUT_GETTING_FURTHER:
                 stopped_going = True
@@ -4640,6 +4664,12 @@ class Grammar:
                 # covered all four of its things and never made a sentence of them (lyric_db, 2026-11-05).
                 if len(whole_never) < 6:
                     whole_never.append((_key(sign.cat), " ".join(said)))
+            if whole_as is not None:
+                sentences_tried += 1
+                if covered > most_a_sentence_said:
+                    most_a_sentence_said, sentence_tries = covered, []
+                if covered == most_a_sentence_said and len(sentence_tries) < 6:
+                    sentence_tries.append((_key(sign.cat), " ".join(said)))
             if filled == full and whole_as is not None and said not in sentences and said not in refused:
                 read_back(said, sign.score)
             offers, (after, before) = _offers(sign.cat), _wants(sign.cat)
@@ -4726,6 +4756,9 @@ class Grammar:
                 "never_with_those": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted)
                                      if not best_filled >> k & 1],
                 "said_all_and_was_no_sentence": whole_never,
+                "sentences_made": sentences_tried,
+                "the_most_a_sentence_said": f"{most_a_sentence_said} of {len(wanted)} thing(s) that need a word",
+                "the_best_sentences": sentence_tries,
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         done_with("the search")
