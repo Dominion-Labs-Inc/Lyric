@@ -46,9 +46,10 @@ os.chdir(ROOT)
 CLAIM = ("the substrate reads prose as its sources write it and reasons over what it read: it understands the "
          "sentences, answers what they say and what follows, and does not answer wrongly what it did not understand")
 
-#: Fixed before the run: what a reader that understood would reach.
+#: Fixed before the run: what a reader that understood would reach. Reading and understanding are held to 95%, the
+#: standing bar, which this experiment had written as 90% without a reason -- raised 2026-11-05 on being told so.
 BARS = {
-    "sentences understood": (0.90, False),
+    "sentences understood": (0.95, False),
     "questions answered right": (0.80, False),
     "questions answered wrong (must be low)": (0.02, True),
 }

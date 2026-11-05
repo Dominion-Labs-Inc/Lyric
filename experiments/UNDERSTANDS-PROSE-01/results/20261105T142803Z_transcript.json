@@ -1,0 +1,268 @@
+[
+ {
+  "text": "whales",
+  "told": "Whales are mammals.",
+  "read": true,
+  "reply": "Noted - Whales's a mammals.",
+  "said_back_as_told": true,
+  "readings": [
+   [
+    "composed: tell: isa(whales, mammals)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "They live in the ocean.",
+  "read": true,
+  "reply": "Noted - In the ocean Whales lives.",
+  "said_back_as_told": false,
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, ?previous) & given instance_of(?v1, ocean) & instance_of(?v0, populate) & located_in(?v0, ?v1)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "A whale breathes air through a blowhole.",
+  "read": true,
+  "reply": "Noted - For the air Large Person Giant breathe across the blowhole.",
+  "said_back_as_told": false,
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, large person giant) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, blowhole) & moves_through(?v0, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "Whales feed their young with milk.",
+  "read": true,
+  "reply": "Noted - The young's with the milk.",
+  "said_back_as_told": false,
+  "readings": [
+   [
+    "composed: tell: done_by(?v0, whales) & instance_of(?v0, feed) & instance_of(?v1, animal young) & instance_of(?v2, milk) & owned_by(?v1, whales) & received_by(?v0, ?v1) & word_with(?v1, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "told": "The blue whale is the largest animal on Earth.",
+  "read": false,
+  "reply": "",
+  "said_back_as_told": null,
+  "readings": [
+   [
+    "composed: tell: given instance_of(?v0, whale) & greatest_of(?v1, animal) & has_degree(?v0, ?v1) & has_property(?v0, blue) & instance_of(?v0, animal) & instance_of(?v1, ample large) & instance_of(?v2, earth) & located_in(?v0, ?v2)"
+   ]
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Are whales mammals?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "",
+  "readings": [
+   [
+    "composed: ask: isa(large person giant, mammals)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "isa(large person giant, mammals)"
+    ],
+    "answer": "Not entailed by the premises: large_person_giant_mammal",
+    "route": null,
+    "steps": [
+     "1. large_person_giant_large_person  [Premise]",
+     "2. large_person_giant_person  [Premise]",
+     "3. large_person_giant_causal_agent  [Premise]",
+     "4. large_person_giant_organism  [Premise]",
+     "5. large_person_giant_physical_entity  [Premise]",
+     "6. large_person_giant_living_thing  [Premise]",
+     "7. large_person_giant_entity  [Premise]",
+     "8. large_person_giant_object_whole  [Premise]"
+    ]
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales live in the ocean?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, large person giant) & given instance_of(?v1, ocean) & instance_of(?v0, populate) & located_in(?v0, ?v1)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, populate)",
+     "instance_of(ocean_1, ocean)",
+     "done_by(?v0, large person giant)",
+     "located_in(?v0, ocean_1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Do whales breathe air?",
+  "gold": "yes",
+  "result": "right",
+  "reply": "Yes.",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, large person giant) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air)"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "breathe_f8c594b7",
+    "relation": "",
+    "others": [],
+    "verdict": true,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, breathe)",
+     "instance_of(?v1, air)",
+     "done_by(?v0, large person giant)",
+     "done_to(?v0, ?v1)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Where do whales live?",
+  "gold": [
+   "ocean",
+   "sea"
+  ],
+  "result": "not answered",
+  "reply": "",
+  "readings": [
+   [
+    "composed: ask: done_by(?v0, large person giant) & instance_of(?v0, populate) & located_in(?v0, ?v1) ? ?v1"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, populate)",
+     "located_in(?v0, ?v1)",
+     "done_by(?v0, large person giant)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "What is the largest animal on Earth?",
+  "gold": [
+   "blue whale"
+  ],
+  "result": "wrong",
+  "reply": "Whale.",
+  "readings": [
+   [
+    "composed: ask: greatest_of(?v0, animal) & has_degree(?v1, ?v0) & instance_of(?v0, ample large) & instance_of(?v1, animal) & instance_of(?v2, earth) & located_in(?v1, ?v2) ? ?v1"
+   ]
+  ],
+  "answers": [
+   {
+    "about": "ample_large_041039ad",
+    "relation": "",
+    "others": [
+     "whale"
+    ],
+    "verdict": null,
+    "support": [],
+    "conclusion": ""
+   }
+  ],
+  "reasoned": [
+   {
+    "asked": [
+     "instance_of(?v0, earth)",
+     "has_degree(?v1, ?v2)",
+     "instance_of(?v2, ample large)",
+     "greatest_of(?v2, animal)",
+     "located_in(?v1, ?v0)",
+     "instance_of(?v1, animal)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ },
+ {
+  "text": "whales",
+  "asked": "Is a blue whale an animal?",
+  "gold": "yes",
+  "result": "not answered",
+  "reply": "",
+  "readings": [
+   [
+    "composed: ask: has_property(large person giant, blue) & isa(large person giant, animal)"
+   ]
+  ],
+  "answers": [],
+  "reasoned": [
+   {
+    "asked": [
+     "has_property(large person giant, blue)",
+     "isa(large person giant, animal)"
+    ],
+    "answer": "",
+    "route": [
+     "substrate",
+     "kinds_of_thinking",
+     "unsettled"
+    ],
+    "steps": []
+   }
+  ]
+ }
+]

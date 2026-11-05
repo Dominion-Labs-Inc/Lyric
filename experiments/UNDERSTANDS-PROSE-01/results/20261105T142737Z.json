@@ -1,0 +1,133 @@
+{
+  "experiment": "UNDERSTANDS-PROSE-01",
+  "claim": "the substrate reads prose as its sources write it and reasons over what it read: it understands the sentences, answers what they say and what follows, and does not answer wrongly what it did not understand",
+  "hypothesis": "each measure reaches its bar, fixed before the run (BARS)",
+  "started_at": "2026-11-05T14:27:37.765770+00:00",
+  "duration_seconds": 202.333,
+  "environment": {
+    "python": "3.11.14",
+    "executable": "/Users/stefan/Dominion Labs/Lyric/venv_lyric/bin/python3",
+    "platform": "macOS-26.5.2-arm64-arm-64bit",
+    "cwd": "/Users/stefan/Dominion Labs/Lyric",
+    "shadow_mode": null,
+    "git_commit": "e3e319552247993b7cfe1a2a99fb9a0323c5ef49",
+    "postgres": {
+      "host": "localhost",
+      "port": 5433,
+      "database": "lyric_db",
+      "environment": "development",
+      "release": null,
+      "databases": {
+        "runtime": "lyric_db",
+        "model": "lyric_db",
+        "user_context": "lyric_db",
+        "learning": "lyric_db"
+      },
+      "user": "stefan",
+      "configuration_source": {
+        "host": "dotenv:.env.postgres",
+        "port": "environment",
+        "database": "environment",
+        "user": "environment",
+        "password": "dotenv:.env.postgres",
+        "pool_min_size": "dotenv:.env.postgres",
+        "pool_max_size": "dotenv:.env.postgres",
+        "pool_idle_seconds": "dotenv:.env.postgres",
+        "environment": "default",
+        "release": "default"
+      }
+    },
+    "git_uncommitted_changes": 9,
+    "database_verified": "lyric_db",
+    "database_verified_reason": "asked the server"
+  },
+  "summary": {
+    "checks": 6,
+    "passed": 2,
+    "failed": 4,
+    "outcome": "FAIL"
+  },
+  "metrics": [
+    {
+      "name": "sentences understood",
+      "value": 0.8,
+      "unit": "fraction",
+      "note": "4/5; 95% interval 37.6% to 96.4%"
+    },
+    {
+      "name": "questions answered right",
+      "value": 0.1667,
+      "unit": "fraction",
+      "note": "1/6; 95% interval 3.0% to 56.4%"
+    },
+    {
+      "name": "questions answered wrong (must be low)",
+      "value": 0.1667,
+      "unit": "fraction",
+      "note": "1/6; 95% interval 3.0% to 56.4%"
+    },
+    {
+      "name": "said back as told",
+      "value": 0.25,
+      "unit": "fraction",
+      "note": "1/4 acknowledgements read back to the meaning of the telling"
+    },
+    {
+      "name": "told or asked and stopped",
+      "value": 0,
+      "unit": "sentences",
+      "note": ""
+    }
+  ],
+  "checks": [
+    {
+      "label": "the run is on the store it says",
+      "passed": true,
+      "detail": "connected to lyric_db",
+      "at": "2026-11-05T14:28:03.214186+00:00",
+      "reads": []
+    },
+    {
+      "label": "sentences understood \u2265 90%",
+      "passed": false,
+      "detail": "4/5 = 80.0% (95% interval 37.6% to 96.4%)",
+      "at": "2026-11-05T14:30:59.084606+00:00",
+      "reads": []
+    },
+    {
+      "label": "questions answered right \u2265 80%",
+      "passed": false,
+      "detail": "1/6 = 16.7% (95% interval 3.0% to 56.4%)",
+      "at": "2026-11-05T14:30:59.084630+00:00",
+      "reads": []
+    },
+    {
+      "label": "questions answered wrong (must be low) \u2264 2%",
+      "passed": false,
+      "detail": "1/6 = 16.7% (95% interval 3.0% to 56.4%)",
+      "at": "2026-11-05T14:30:59.084643+00:00",
+      "reads": []
+    },
+    {
+      "label": "nothing told or asked stopped the conversation",
+      "passed": true,
+      "detail": "0 told, 0 asked",
+      "at": "2026-11-05T14:30:59.084663+00:00",
+      "reads": []
+    },
+    {
+      "label": "the reading and the questions wrote nothing to the store",
+      "passed": false,
+      "detail": "unified.affect_state +3; unified.component_health +200; unified.long_term_baselines +70; unified.queue_instances +6; unified.system_control_status +444",
+      "at": "2026-11-05T14:31:00.101588+00:00",
+      "reads": []
+    }
+  ],
+  "notes": [
+    "reading by English's grammar on: an utterance no taught frame reads is read by the grammar memory reads with (core/semantics/grammar.py; on by default, LYRIC_COMPOSE=0 turns it off)",
+    "an utterance every frame reads only by supposing more than any lesson read as taught is read by the grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)",
+    "texts 1 to 1 only, of 10: the rest run apart",
+    "sentences understood is asked of the READING: that the reader made a meaning of every part of the sentence. These texts carry no meaning taught with them, so nothing here judges whether that meaning is the sentence's, and a reading that is confident and wrong passes it.",
+    "encyclopedia: sentences 4/5, questions right 1/6, wrong 1"
+  ]
+}
