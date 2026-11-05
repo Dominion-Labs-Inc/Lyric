@@ -21108,6 +21108,146 @@ def _said(subject: str, relation: str, obj: str, positive: bool = True,
     return sentences[0] if sentences else None
 
 
+def _the_stores_own_name(name: Any, kind: Any) -> bool:
+    """WHETHER THIS IS THE STORE'S OWN NAME FOR A THING OF THIS KIND, and so nobody's word for anything: the kind,
+    then a mark. Both of the substrate's two ways of naming a thing it met write one -- the one "the equator" picked
+    out is `equator_1` (`Conversation._known_of`: `kelt_1`, `printer_1`), a happening told of is
+    `straddle_776e5238` (`teaching.told_events`: the kind and eight hex digits of the sentence and its meaning) --
+    so saying is given a variable for it and its kind said of it (`derived_reader.as_known`), never the name.
+
+    A THING HELD ONE OF A KIND UNDER A NAME OF ITS OWN IS NOT ONE: West Africa, held an instance of a geographical
+    area, is said "West Africa" and answered "Where did the Tichitt Tradition flourish?" with "Geographical area."
+    (UNDERSTANDS-PROSE-02, 2026-10-22). The kind is what the thing's own `instance_of` says it is, from the store
+    (`Conversation._kind_of`) or from the edges in hand, so this asks only whether the NAME was made from it.
+
+    Asked here by both the one that reads a name (`_kind_of`) and the one that says a doing whole
+    (`_said_together`), which judged it by its shape alone (`.+_[0-9a-f]{8}`) and so took `equator_1` for a word
+    somebody said: of "Africa straddles the equator." the reply was "Noted - Africa straddles Equator 1."
+    (lyric_db, 2026-11-04)."""
+    from core.semantics.cognitive_ingress import normalize_term
+    stem = (normalize_term(str(kind)) or str(kind)) + "_"
+    return str(name).startswith(stem) and str(name)[len(stem):].isalnum()
+
+
+#: A TIME WRITTEN AS AN INSTANT, as the store keeps one ("2026-11-05T02:36:44Z").
+_AN_INSTANT = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
+
+
+def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] = None,
+                   framed: FrozenSet[str] = frozenset(),
+                   kinds: Optional[Mapping[str, str]] = None) -> Dict[int, List[str]]:
+    """EVERY FACT OF ONE DOING SAID AS ONE SENTENCE; a thing that is no happening is left to `_said`, one
+    sentence for each of its facts.
+
+    A VERB'S PLACES ARE NOT SEPARATE CLAIMS. `done_by` is the doer of a doing, and nothing says it without the
+    doing's own word -- so a meaning holding that edge ALONE holds no verb at all, and saying answers, truthfully,
+    that nothing here says the link (`grammar._say`, `nothing_says`). Handed the store's edges one at a time,
+    every doing came back as nothing however well it had been read: told "Africa straddles the equator and the
+    prime meridian.", seven facts were read, each of `instance_of`, `done_by`, `done_to`, `received_by` and both
+    `has_member` was handed over alone, NOT ONE of the eight said anything, and the reply was EMPTY -- a telling
+    acknowledged with silence (lyric_db, 2026-11-04).
+
+    GROUPED BY LABEL AND NOT BY ITEM. One thing is several `Acquired` items, one relation each: the same
+    `straddle_29a83f52` arrived four times, as its kind, its doer, what it was done to and what received it.
+    Grouped by item, a doing's meaning got ONE fact and was no better off than before -- measured, not reasoned
+    about (2026-11-04).
+
+    A NAME OF THE STORE'S OWN IS A VARIABLE, ITS KIND SAID OF IT. `straddle_29a83f52` is the store's name for a
+    thing it met and no word for anything (`_the_stores_own_name`), so each such thing is given a variable and its
+    kind is said of it: GIVEN for a thing ("the equator") and not for a happening, which is how reading writes it.
+    The kind is what `kinds` answers for it (`Conversation._kind_of`), else what the edges in hand say it is one
+    of. A GROUP IS GIVEN NO KIND AT ALL -- it is dissolved into its members for a conjunction to rebuild
+    (`grammar._coordinate`); given one, the straddling was said of "the group".
+
+    WHICH NAMES THOSE ARE WAS JUDGED BY THEIR SHAPE, and the judgment was wrong for half of them: a name made of
+    the kind and eight hex digits was taken for one and `equator_1` -- the one "the equator" picked out, which the
+    store answered 'equator' for the whole time -- was taken for a word somebody said and spelled into the reply.
+    Told "Africa straddles the equator.", with `kinds` holding exactly `{'equator_1': 'equator'}`, the reply was
+    "Noted - Africa straddles Equator 1." (lyric_db, 2026-11-05).
+
+    THE SPEAKER'S OWN ORDER IS KEPT. A group's members are said in the order its edges arrive, which is the order
+    they were told in, because `has_member` says nothing of which came first and saying prefers the order the
+    meaning lists (`grammar._say`, `as_told`).
+
+    NOTHING THAT IS SAID TODAY STOPS BEING SAID: a label counts as spoken for only where a sentence was actually
+    made of it, so a doing that says nothing still has every edge offered on its own by the caller, as it was.
+    """
+    from core.semantics.derived_reader import Meaning, MeaningFact, say
+    from core.semantics.grammar import _HAPPENING_LINKS
+
+    edges: Dict[str, List[Tuple[str, str]]] = {}
+    order: List[str] = []
+    for item in items:
+        label = str(item.label)
+        if label not in edges:
+            edges[label], _ = [], order.append(label)
+        edges[label] += [(str(relation).strip(), str(other)) for relation, other in item.relations]
+    # WHAT EACH THING IS: what the store answered for it (`kinds`, `Conversation._kind_of`) before what the edges
+    # in hand say, since the store knows a thing this telling only mentioned.
+    kind_of = {label: other for label, rels in edges.items() for relation, other in rels
+               if relation == "instance_of"}
+    kind_of.update({str(name): str(kind) for name, kind in (kinds or {}).items()})
+    groups = {label for label, rels in edges.items() if any(r == "has_member" for r, _ in rels)}
+    doings = {label for label, rels in edges.items() if {r for r, _ in rels} & _HAPPENING_LINKS}
+
+    def the_stores_own(name: str) -> bool:
+        """WHETHER THIS NAME IS THE STORE'S AND NOT A WORD SOMEBODY SAID, by what the thing is held to be
+        (`_the_stores_own_name`). Judged by the SHAPE of the name alone, `equator_1` -- the one "the equator"
+        picked out -- was taken for a word and spelled out into the reply as "Equator 1", while `equator_dcf864eb`,
+        the same thing named by a telling instead, was not (lyric_db, 2026-11-04)."""
+        return name in kind_of and _the_stores_own_name(name, kind_of[name])
+
+    def about(label: str) -> List[str]:
+        """The doing and every thing of the store's own naming it reaches, a group through to its members."""
+        # REACHED WHETHER OR NOT THIS TELLING SAID ANYTHING OF IT. A thing already held is picked out, not made
+        # again (`_known_of`), so it arrives with no edges of its own -- and skipped for that, the one thing whose
+        # name most needed saying as its kind was the one left spelled out.
+        wanted, reached = [label], []
+        while wanted:
+            at = wanted.pop(0)
+            if at in reached:
+                continue
+            reached.append(at)
+            wanted += [other for _, other in edges.get(at, ()) if the_stores_own(other)]
+        return reached
+
+    said_for: Dict[str, List[str]] = {}
+    spoken: Set[str] = set()
+    for label in order:
+        if label in spoken or label in groups or label not in doings:
+            continue
+        reached = about(label)
+        names = {at: f"?g{k}" for k, at in enumerate(sorted(reached))}
+        facts = []
+        for at in sorted(reached):
+            if at in kind_of and at not in groups:
+                facts.append(MeaningFact("instance_of", names[at], kind_of[at], given=at not in doings))
+            for relation, other in edges.get(at, ()):
+                if relation == "instance_of":
+                    continue
+                said_as = names.get(other)
+                if said_as is None:
+                    # A TIME THE STORE WROTE AS AN INSTANT IS "BEFORE NOW", WHICH IS WHAT THE TENSE MEANS.
+                    # Reading reads a past tense as `precedes(?v0, ?now)`; the store keeps the instant the turn
+                    # happened at instead (`precedes(sing_97d3fd8d, "2026-11-05T02:36:44Z")`), and saying has no
+                    # word for an instant -- so the WHOLE clause carrying one said nothing, however well it had
+                    # been read. "Ken and Yumi sang." was read right, stored, and answered with an empty reply.
+                    # The same facts said with `?now` are "Ken and Yumi sang."; with no time at all they are
+                    # "Ken and Yumi sings.", the wrong tense (lyric_db, 2026-11-04).
+                    said_as = ("?now" if relation == "precedes" and _AN_INSTANT.match(other)
+                               else other.replace("_", " "))
+                facts.append(MeaningFact(relation, names[at], said_as, True))
+        try:
+            meaning = Meaning("tell", tuple(dict.fromkeys(facts)))
+        except ValueError:
+            continue
+        sentences = say(meaning, named=named, framed=framed)
+        if sentences:
+            said_for[label] = [sentences[0]]
+            spoken.update(reached)
+    return {id(item): said_for.pop(str(item.label), []) for item in items if str(item.label) in spoken}
+
+
 def _said_rule(rule, named: Optional[Dict[str, str]] = None, framed: FrozenSet[str] = frozenset(),
                kinds: Optional[Mapping[str, str]] = None) -> Optional[str]:
     """One held rule, said with what the substrate was taught to say a rule with
@@ -21893,15 +22033,12 @@ class Conversation:
         Africa, held an instance of a geographical area, answered "Where did the
         Tichitt Tradition flourish?" as "Geographical area."
         (UNDERSTANDS-PROSE-02, 2026-10-22)."""
-        from core.semantics.cognitive_ingress import normalize_term
         if name in self._particulars:
             return self._particulars[name][0]
         held = await self.resolve_name(name)
         for relation, other in held.relations:
             kind, denied = _link_kind(relation)
-            stem = (normalize_term(str(other)) or str(other)) + "_"
-            if kind == "instance_of" and not denied and str(name).startswith(stem) \
-                    and str(name)[len(stem):].isalnum():
+            if kind == "instance_of" and not denied and _the_stores_own_name(name, other):
                 return str(other)
         return None
 
@@ -24289,7 +24426,18 @@ class Conversation:
             for relation, other in item.relations:
                 if _link_kind(relation) == ("instance_of", False):
                     understanding.kinds.setdefault(item.phrase, str(other))
-        for name in dict.fromkeys([str(a.about) for a in answers] + [str(o) for a in answers for o in a.others]):
+        # AND WHAT EACH THING A TELLING JUST MADE IS, which was asked only of what an ANSWER names. A telling is
+        # acknowledged by saying back what was stored, and the things it stored are the ones the substrate had to
+        # name itself -- so this map, the one record of what each particular is and saying's only way to say one as
+        # the known thing it is (`derived_reader.as_known`), was EMPTY at exactly the turns whose reply was built
+        # from names nobody had a word for: told "Africa straddles the equator.", `understanding.kinds` was `{}`
+        # while `_kind_of` answered 'equator' for `equator_dcf864eb` and 'straddle' for `straddle_776e5238` when
+        # asked (lyric_db, 2026-11-05). Asked of the one that answers it, so nothing here keeps a second account.
+        told_of = [str(i.label) for i in understanding.acquired if i.stored and not i.rule]
+        told_of += [str(other) for i in understanding.acquired if i.stored and not i.rule
+                    for _relation, other in i.relations]
+        for name in dict.fromkeys([str(a.about) for a in answers] + [str(o) for a in answers for o in a.others]
+                                  + told_of):
             if name and name not in understanding.kinds:
                 kind = await self._kind_of(name)
                 if kind:
@@ -24613,6 +24761,12 @@ class Conversation:
 
         # SAY WHAT JUST CHANGED. A turn that quietly stored something, or
         # quietly failed to, is a turn you cannot trust twice.
+        #
+        # A DOING IS SAID WHOLE, never one of its places at a time
+        # (`_said_together`): the sentence it makes is held by the item that
+        # holds the doing, and a group it dissolved says nothing of its own.
+        together = _said_together([i for i in understanding.acquired if i.stored and not i.rule],
+                                  named=named, framed=framed, kinds=understanding.kinds)
         for item in understanding.acquired:
             if item.stored and understanding.asked:
                 # WITHOUT THE STORE'S NAME FOR IT. This opened "I did not have
@@ -24629,6 +24783,8 @@ class Conversation:
                 if item.rule:
                     said = [s for s in (_said_rule(item.rule, named=named, framed=framed,
                                                    kinds=understanding.kinds),) if s]
+                elif id(item) in together:
+                    said = together[id(item)]
                 else:
                     said = [s for s in (_said(item.label, relation, other, named=named, framed=framed,
                                               kinds=understanding.kinds)

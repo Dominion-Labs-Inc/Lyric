@@ -3425,6 +3425,15 @@ class Grammar:
             group = self._new()
             members = (("member", group, lc.ref, left.start), ("member", group, joined.ref, right.start),
                        ("group", group, word, right.start))
+            # WHAT "OR" JOINS ARE ALTERNATIVES HERE TOO, as they are of anything else it joins (below): one of
+            # them holds, and the meaning must say so. The joining word reached the meaning ONLY as the name in
+            # the `group` piece, which `spell_out` keeps in `groups[g]` and never makes a fact of -- so a group
+            # of things said with "or" meant EXACTLY what one said with "and" meant. "Ken and Yumi sang." and
+            # "Ken or Yumi sang." read to byte-identical meanings (lyric_db, 2026-11-04), which cost saying the
+            # only check it has: a sentence is kept where it READS BACK to the meaning, so nothing could refuse
+            # "or" for a group that was joined by "and", and `Ken or Yumi sang.` was said back of both.
+            members += (("alternatives", left.start, left.end, right.start, right.end,
+                         left.start),) if word == "or" else ()
             return Sign(Atom(lc.base, _walk(lc.feat, s), group), _substitute(left.pieces + pieces, s) + members,
                         left.score + right.score, left.start, right.end, "&", (left, right), left.head)
         # Of anything else the places are one, what each makes its own.
@@ -4024,6 +4033,10 @@ class Grammar:
         # 2026-10-28).
         situation = Counter(t for f in meaning.facts for t in (f.subject, f.obj)
                             if t in ("?speaker", "?listener", "?previous"))
+        # HOW MANY WORDS JOIN WHAT THE MEANING HOLDS A GROUP OF: a group of two takes one word to join it, of three
+        # two ("Ken, Bill and Yumi"), so it is every member of a group beyond the first.
+        grouped = [f for f in meaning.facts if f.relation == "has_member"]
+        joiners = len(grouped) - len({f.subject for f in grouped})
         # EACH GRAMMAR WORD AS SURELY AS IT IS SAID FOR WHAT IT SAYS (lexical choice by how often a word is used so,
         # Belz 2008): a word saying a piece against the surest word saying the same ("some" 612 of the determiners'
         # uses against "a" 8,848); a word saying nothing, its share of the uses of words used as it is, said or not;
@@ -4095,6 +4108,19 @@ class Grammar:
                 elif says is not None and isinstance(cat, Atom) and cat.ref in situation and not says:
                     budget[("situation", cat.ref)] = situation[cat.ref]
                     chosen.append((word, entry, {("situation", cat.ref): 1}))
+                elif says is not None and isinstance(cat, Atom) and cat.base == "conj" and joiners:
+                    # A WORD THE RULES CONSUME IS OFFERED BY WHAT THEY MAKE OF IT, never by a piece of its own: a
+                    # conjunction says nothing itself (`_says_of` empty, its entry carries no `sem`) and takes
+                    # nothing (`conj[@]` is an atom, no `Fn`), so the word that SPENDS what the meaning holds and
+                    # the word something NEEDS both passed over it, and no conjunction was ever in the agenda at
+                    # all. `_coordinate` makes a group's `member` pieces from the RULE and needs its conjunction
+                    # there for the rule to fire, and the chart already tries such a word with everything it kept
+                    # (`by_no_shape`), so the hole was the offering alone -- and NOTHING THE MEANING HELD A GROUP
+                    # OF COULD BE SAID BACK, by any meaning, ever. "Ken and Yumi sang." made 23,309 items and
+                    # refused none, because not one whole sentence was built to read back, and said nothing, while
+                    # "Africa straddles the equator." said itself straight back (lyric_db, 2026-11-04).
+                    budget[("group",)] = joiners
+                    chosen.append((word, entry, {("group",): 1}))
                 elif says is not None and isinstance(cat, Fn) and not _leaves_as_is(cat):
                     # A WORD SAYING NOTHING ENTERS WHERE SOMETHING NEEDS IT (Carroll, Copestake, Flickinger and
                     # Poznański 1999; Carroll and Oepen 2005): one that leaves what it takes as it was ("the" before a
@@ -4504,6 +4530,20 @@ class Grammar:
                      for k in range(p[3], p[4])}
             return sum(1 for k, w in enumerate(said) if w.lower() in named.values()
                        or (k in verbs and words.lexeme(w, "VERB") in own_verbs))
+        # AND THE SPEAKER'S OWN ORDER IS THEIR WORDING AS MUCH AS THEIR OWN WORDS ARE (`own`, above). A group holds
+        # its members as one fact each and no fact says which was said first, so `canonical()` sorts them and "Ken
+        # and Yumi sang." means exactly what "Yumi and Ken sang." means -- rightly, it does: the two are one
+        # meaning and both say it truly. But both also read back to it tied on every term this ranks by, and saying
+        # returned the SAME list whichever way it was told: told "Ken and Yumi sang.", the first said was "Yumi and
+        # Ken sang.", all six said at how-surely 1.00 (lyric_db, 2026-11-05). Reading builds a group's members in
+        # the order they are said, so that order is in the meaning's FACTS -- the one place `canonical()` does not
+        # reach -- and the sentence reading back with them in the same order is the one the speaker used. It ranks
+        # under the speaker's own words and over everything else: which words say it is settled before their order.
+        told_members = tuple(f.obj for f in whole.facts if f.relation == "has_member")
+
+        def as_told(read: Meaning) -> int:
+            return int(bool(told_members)
+                       and tuple(f.obj for f in read.facts if f.relation == "has_member") == told_members)
         # MADE BEST FIRST, READ BACK AS SOON AS WHOLE, AND MADE NO FURTHER ONCE ENOUGH ARE SAID (anytime realization,
         # White 2004; Carroll and Oepen 2005: a realizer builds the most complete, surest first and stops at the first
         # good ones, never every way of saying it): the agenda takes first what is surest with the most the rest of
@@ -4533,7 +4573,7 @@ class Grammar:
             # and `I've lost my sunglasses.` was put before `I lost my sunglasses.`, which saying had made surer:
             # the right sentence was said THIRD and every count of what saying gets right reads the first alone
             # (2026-10-31).
-            sentences[said] = (own(said, reading.sign), made,
+            sentences[said] = (own(said, reading.sign), as_told(reading.meaning), made,
                                reading.sign.score if reading.sign is not None else 0.0, reading.sure)
         # TWO STRETCHES SAYING NOTHING ARE NOT COMBINED (Eisner 1996, normal-form CCG): what both say nothing of the
         # meaning (no word for a thing, nothing spent the meaning holds) combine only with what says something, every
@@ -4644,10 +4684,10 @@ class Grammar:
                         combined.score += beside
                         hold(filled | other_filled, together, combined, words_said, words_order)
         ranked = sorted(sentences, key=lambda said: (-sentences[said][0], -sentences[said][1],
-                                                     -sentences[said][2]))
+                                                     -sentences[said][2], -sentences[said][3]))
         if how_surely is not None:
             how_surely.clear()
-            how_surely.update({_written(said, closing): sentences[said][3] for said in ranked})
+            how_surely.update({_written(said, closing): sentences[said][4] for said in ranked})
         if not sentences and why is not None:
             # SEARCHED AND FOUND NOTHING, which is two different things: no whole sentence was ever made, or some were
             # and reading took every one of them to mean something else. The second is the grammar disagreeing with
