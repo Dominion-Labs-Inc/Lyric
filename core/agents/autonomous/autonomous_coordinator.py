@@ -22795,7 +22795,25 @@ class Conversation:
                 # asked yes or no, yes; asked what, what fills it, by its name, a particular by its kind. Dropped
                 # unsaid, "Do whales live in the ocean?" went unanswered with the living found (UNDERSTANDS-PROSE-01,
                 # 2026-10-18, by `scripts/trace_question.py`).
-                found = tuple(kinds.get(filled[a], filled[a]) for a in meaning.asked if a in filled)
+                #
+                # A PARTICULAR IS NAMED BY ITS KIND AND BY WHAT IS HELD OF IT, NEVER BY ITS KIND ALONE. Told
+                # "The blue whale is the largest animal on Earth.", the thing is held a whale with the quality
+                # `blue`, and "What is the largest animal on Earth?" came back "Whale." against "blue whale":
+                # the reading was right and the finding was right, and the one quality that picks the thing out
+                # of the whales was dropped on the way to being said (UNDERSTANDS-PROSE-01, 2026-11-05). The
+                # qualities the question itself names are left out, as they are for a happening above -- an
+                # answer that says back only what the question said says nothing.
+                found = []
+                for a in meaning.asked:
+                    if a not in filled:
+                        continue
+                    named = kinds.get(filled[a], filled[a])
+                    asked_of = {held.plain(f.obj) for f in facts
+                                if f.subject == a and f.relation == "has_property"}
+                    of_it = [held.plain(q) for kind, q in await held.out(way[a])
+                             if kind == "has_property" and held.plain(q) not in asked_of]
+                    found.append(" ".join(dict.fromkeys(of_it + [held.plain(named)])) if of_it else named)
+                found = tuple(found)
                 if not meaning.asked or found:
                     answers.append(Answer(candidate, "", found, verdict=None if meaning.asked else True))
         return answers or qualified
