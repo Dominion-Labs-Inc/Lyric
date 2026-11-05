@@ -86,8 +86,11 @@ stop_process "$MAIN_PID_FILE" "Main Lyric System"
 echo ""
 echo -e "${YELLOW}Checking for remaining Lyric processes...${NC}"
 
-# Find all Python processes with 'lyric' or 'core/main.py' in command line
-REMAINING_PIDS=$(ps aux | grep -i "[p]ython.*lyric\|[p]ython.*core/main.py" | awk '{print $2}' || true)
+# THE RESIDENT ITSELF, AND NOTHING ELSE THAT MENTIONS IT. This read "[p]ython.*lyric", which matches any command
+# line holding both words -- including the SHELL a benchmark or a script is run from, whose line carries the
+# folder's name. It killed a running experiment on 2026-11-05 by killing its parent shell, and the run looked as
+# though it had failed of its own accord. A stop stops the resident; it does not sweep the machine.
+REMAINING_PIDS=$(ps aux | grep -i "[p]ython[0-9.]* -m core\.main\|[p]ython.*core/main\.py" | awk '{print $2}' || true)
 
 if [ -n "$REMAINING_PIDS" ]; then
     echo -e "${ORANGE}Found remaining processes, cleaning up...${NC}"
@@ -134,7 +137,7 @@ echo -e "${GREEN}✓ Runtime cleanup complete${NC}"
 
 # Verify everything is stopped
 echo ""
-STILL_RUNNING=$(ps aux | grep -i "[p]ython.*lyric\|[p]ython.*core/main.py" | wc -l || echo "0")
+STILL_RUNNING=$(ps aux | grep -i "[p]ython[0-9.]* -m core\.main\|[p]ython.*core/main\.py" | wc -l || echo "0")
 if [ "$STILL_RUNNING" -gt 0 ]; then
     echo -e "${RED}⚠️  Warning: Some Lyric processes may still be running${NC}"
     echo -e "${YELLOW}Run 'ps aux | grep python | grep lyric' to check${NC}"

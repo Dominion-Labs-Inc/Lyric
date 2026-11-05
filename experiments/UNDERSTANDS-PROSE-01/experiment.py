@@ -5,9 +5,15 @@ documentation, mathematics, premises and a rule, history, a paper abstract, a se
 (`texts.json`) -- each told sentence by sentence in a conversation of its own, then asked questions that need what
 it said: what it says outright, and what follows from it (the Eiffel Tower is in France because it is in Paris).
 
-Scored as a reader is: how many sentences it understood whole; and of the questions, how many it answered right,
-how many it did not answer (it does not know, or did not read), and how many it answered WRONG -- a wrong answer is
-worse than none, and is counted apart.
+Scored as a reader is: how many sentences it understood whole; how many it said back as it was told; and of the
+questions, how many it answered right, how many it did not answer (it does not know, or did not read), and how
+many it answered WRONG -- a wrong answer is worse than none, and is counted apart.
+
+A SENTENCE UNDERSTOOD WHOLE IS ONE THE READER MADE A MEANING OF, asked of the reading. It was asked of the
+reply's wording until 2026-11-05 -- any reply holding none of six phrases like "I don't know '" counted -- which
+tests that something was said, not that anything was read, and passed everything confident
+(`understood_whole`). These texts carry no meaning taught with them, so nothing here can judge that the meaning
+is the SENTENCE'S: a reading that is confident and wrong passes, and that limit is reported with the number.
 
 WHAT EACH WAS READ AS, AND WHY EACH ANSWER WAS GIVEN, is kept in the transcript: each reading (marked where it was
 composed), and what the reasoner was asked and said for each question. A sentence or question that
@@ -71,11 +77,59 @@ def readings_of(conversation, text):
         return f"STOPPED: {type(e).__name__}: {e}"
 
 
-def understood_whole(understanding) -> bool:
-    """Whether a told sentence was read whole, as the reply to it says: a telling taken in is "Noted", and has no
-    reading of its own to show."""
+#: How a telling is acknowledged with what was stored (`autonomous_coordinator`): the sentences said back follow it.
+SAID_BACK = "Noted - "
+
+
+def said_back(conversation, sentence, reply, readings):
+    """Whether what it said back MEANS what it was told: the acknowledgement read again, against the reading of
+    the telling. True, False, or None where it acknowledged with no sentence of its own to read.
+
+    A reader shows what it took a sentence to mean by saying it back, and a reply that means something else is a
+    failure no count of readings can see: "Ken or Yumi sang." is a whole reading, and a whole reading of the
+    wrong thing, for a telling joined by "and". Compared as meanings and not as words, so a sentence said back
+    in other words of the same meaning counts ("Ken and Yumi were singing.").
+
+    IT UNDER-REPORTS RATHER THAN FLATTERS. Only the first line is read, and only up to what the acknowledgement
+    says; a reply carrying more than it was told (what the store already held, an opposite on record) compares
+    as False, and a meaning said back that this cannot line up counts against saying, never for it."""
+    said = (reply or "").strip().splitlines()[0].strip() if (reply or "").strip() else ""
+    if not said.startswith(SAID_BACK):
+        return None
+    said = said[len(SAID_BACK):].strip()
+    if not said or not isinstance(readings, list) or not readings:
+        return None
+    told = {meaning for utterance in readings for meaning in utterance}
+    back = readings_of(conversation, said)
+    if not isinstance(back, list) or not back:
+        return False
+    return {meaning for utterance in back for meaning in utterance} == told
+
+
+def understood_whole(understanding, readings=None) -> bool:
+    """Whether a told sentence was read whole: THE READER MADE A MEANING OF EVERY PART OF IT (`readings`, as
+    `readings_of` gives them), and the reply does not say it failed to.
+
+    ASKED OF THE READING AND NOT OF THE REPLY'S WORDING. This was the reply alone -- a non-empty reply holding
+    none of six phrases like "I don't know '" counted as understood -- which is a test that something was said,
+    not that anything was read. Everything confident passed it. Measured on 2026-11-05, it scored
+    "Noted - Africa straddles Equator 1." as understood (the store's own name for a thing, spelled into the
+    reply); it scored "Noted - Yumi and Ken sang." as understood of "Ken and Yumi sang."; it scored
+    "Noted - Ken or Yumi sang." as understood of a telling joined by "and"; and it scores
+    "Africa is the second-largest continent." as understood of a reading that asserts Africa is the LARGEST
+    continent. Three defects were found and fixed that day and this number could not have moved for any of them,
+    nor for breaking them again.
+
+    `readings` is what `readings_of` gave for the same sentence: one list of readings for each utterance of it,
+    each written canonically, or a string where the reading stopped. A sentence is read whole where every
+    utterance has a reading -- that the reader produced a meaning of it, which is the thing being claimed. It
+    does NOT say the meaning is the sentence's: these texts carry no meaning taught with them to compare
+    against, so nothing here can judge that, and a reading that is confident and wrong still passes. That is a
+    limit of this measure and is reported with it, not hidden."""
     reply = (understanding.reply or "").strip()
-    return bool(reply) and not any(marker in reply for marker in UNREAD)
+    if not reply or any(marker in reply for marker in UNREAD):
+        return False
+    return isinstance(readings, list) and bool(readings) and all(bool(r) for r in readings)
 
 
 def said(word, reply) -> bool:
@@ -197,6 +251,7 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
             return None, f"{type(e).__name__}: {e} ({where})"
 
     sentences = read = stopped = 0
+    said_as_told = had_a_reply = 0
     tally = {"right": 0, "not answered": 0, "wrong": 0, "stopped": 0}
     by_kind = {}
     transcript = []
@@ -224,7 +279,9 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
         for sentence in text["text"]:
             started = time.perf_counter()
             u, stop = await understand(conversation, sentence)
-            whole = u is not None and understood_whole(u)
+            # READ ONCE AND USED FOR BOTH, the judgment and the transcript, so the sentence is not read twice.
+            readings = readings_of(conversation, sentence)
+            whole = u is not None and understood_whole(u, readings)
             sentences += 1
             read += whole
             stopped += stop is not None
@@ -233,8 +290,16 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
             reply = (u.reply or "") if u is not None else f"STOPPED: {stop}"
             line = f"  told  {'read  ' if whole else 'UNREAD'} {sentence!r} ({time.perf_counter() - started:.1f}s)"
             say(line + (f"\n          -> {reply.strip()[:160]!r}" if not whole else ""))
+            # AND WHETHER WHAT IT SAID BACK MEANS WHAT IT WAS TOLD. A telling is acknowledged by saying back what
+            # was stored, so the reply is the one place a reader shows what it took the sentence to mean -- and
+            # a reply meaning something else is a failure no count of READINGS can see: "Ken or Yumi sang." is a
+            # whole reading of a telling joined by "and". Reported beside the reading, never folded into it:
+            # a sentence read right and said back badly is a defect of saying, and the two are not one number.
+            faithful = said_back(conversation, sentence, reply, readings)
+            said_as_told += faithful is True
+            had_a_reply += faithful is not None
             kept({"text": text["name"], "told": sentence, "read": whole, "reply": reply,
-                               "readings": readings_of(conversation, sentence)})
+                  "said_back_as_told": faithful, "readings": readings})
         for question in text["questions"]:
             started = time.perf_counter()
             del reasoned[:]
@@ -269,6 +334,15 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
                  f"{k}/{n} = {value:.1%} (95% interval {low:.1%} to {high:.1%})")
         EV.metric(label, round(value, 4), unit="fraction", note=f"{k}/{n}; 95% interval {low:.1%} to {high:.1%}")
         say(f"  {label:42} {k}/{n} = {value:.1%}  [{low:.1%}, {high:.1%}]  (bar {'≤' if must_be_low else '≥'} {bar:.0%})")
+    # SAID BACK AS TOLD, reported and given no bar: it is new on 2026-11-05 and a bar is fixed BEFORE a run, not
+    # chosen once the number is known. It is a measure of SAYING, which the sentences-understood bar is not.
+    EV.metric("said back as told", round(said_as_told / max(1, had_a_reply), 4), unit="fraction",
+              note=f"{said_as_told}/{had_a_reply} acknowledgements read back to the meaning of the telling")
+    say(f"  {'said back as told (no bar: new)':42} {said_as_told}/{had_a_reply} = "
+        f"{said_as_told / max(1, had_a_reply):.1%}")
+    EV.note("sentences understood is asked of the READING: that the reader made a meaning of every part of the "
+            "sentence. These texts carry no meaning taught with them, so nothing here judges whether that meaning "
+            "is the sentence's, and a reading that is confident and wrong passes it.")
     EV.check("nothing told or asked stopped the conversation", stopped + tally["stopped"] == 0,
              f"{stopped} told, {tally['stopped']} asked")
     EV.metric("told or asked and stopped", stopped + tally["stopped"], unit="sentences")

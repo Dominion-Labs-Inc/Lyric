@@ -4604,6 +4604,15 @@ class Grammar:
         # realization this is built by has and this did not: `SAID_AT_MOST` ends a saying that succeeds, and a
         # saying that cannot succeed ended only when the agenda was spent, which is hours.
         covered_most, kept_most, since_further, stopped_going = -1, 0, 0, False
+        #: THE MOST ANY ONE SIGN EVER SAID AT ONCE, which is a different thing from what SOMETHING said
+        #: (`unsaid`, below, is the OR over every item kept). A saying that never completes refuses nothing, so
+        #: `refused 0` with nothing unsaid says only that the hole is structural and not which hole it is: a
+        #: group in a doing of two filled places made 27,053 items, refused none and left nothing unsaid, while
+        #: the same group in a doing of one place said itself (lyric_db, 2026-11-05). What the best sign held
+        #: TOGETHER names the things that could never be put in one sentence.
+        best_filled = 0
+        #: Signs that said the whole meaning and were no sentence: what each stood as, and its words.
+        whole_never: List[Tuple[str, str]] = []
         while agenda and len(sentences) < SAID_AT_MOST:
             if since_further > MADE_WITHOUT_GETTING_FURTHER:
                 stopped_going = True
@@ -4614,6 +4623,8 @@ class Grammar:
                 continue
             since_further += 1
             covered = bin(filled).count("1")
+            if covered > bin(best_filled).count("1"):
+                best_filled = filled
             if len(sentences) > kept_most or covered > covered_most:
                 covered_most, kept_most, since_further = max(covered, covered_most), len(sentences), 0
             n = len(done)
@@ -4621,6 +4632,14 @@ class Grammar:
             whole_as = _whole(sign.cat)
             if asserting and isinstance(sign.cat, Atom) and sign.cat.base == "NP":
                 whole_as = None
+            if filled == full and whole_as is None:
+                # SAID EVERYTHING AND WAS NOT A SENTENCE. Covering the whole meaning and reading back to it are
+                # two different things, and a saying that covers everything yet refuses nothing has done the
+                # first and never reached the second -- so what such a sign WAS is the whole of the question.
+                # Kept for `why` alone, a few, since one shape repeats: a group in a doing of two filled places
+                # covered all four of its things and never made a sentence of them (lyric_db, 2026-11-05).
+                if len(whole_never) < 6:
+                    whole_never.append((_key(sign.cat), " ".join(said)))
             if filled == full and whole_as is not None and said not in sentences and said not in refused:
                 read_back(said, sign.score)
             offers, (after, before) = _offers(sign.cat), _wants(sign.cat)
@@ -4702,6 +4721,11 @@ class Grammar:
                         else "made whole and reading took them to mean something else" if refused
                         else "no whole sentence was ever made"),
                 "unsaid": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted) if not said_any >> k & 1],
+                "said_together_at_most": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted)
+                                          if best_filled >> k & 1],
+                "never_with_those": [f"{c} ({cls})" for k, (c, cls) in enumerate(wanted)
+                                     if not best_filled >> k & 1],
+                "said_all_and_was_no_sentence": whole_never,
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         done_with("the search")
