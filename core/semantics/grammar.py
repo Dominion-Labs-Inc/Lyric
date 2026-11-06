@@ -879,6 +879,13 @@ class Lexicon:
         self.number_scales: Dict[str, int] = dict(self.grammar.get("number_scales", {}))
         self.phrases: Dict[str, str] = dict(self.grammar.get("phrases", {}))
         self.together: Dict[str, Mapping[str, Any]] = self.grammar.get("together", {})
+        #: EACH ORDINAL THE GRAMMAR'S OWN WORDS DECLARE, with the rank it says ("second": "2"): the closed words
+        #: whose whole meaning is `has_rank` of what they stand before. Read from the grammar's data rather than
+        #: written again here, so an ordinal taught there is known here too.
+        self.ranks: Dict[str, str] = {
+            word: str(piece[3]) for word, entries in self.closed.items() for entry in entries
+            for piece in (entry.get("sem") or ())
+            if len(piece) > 3 and piece[0] == "fact" and piece[1] == "has_rank"}
         self._runs_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
         self._numbers_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
         self._hyphened_of: Tuple[Tuple[str, ...], List[Tuple[int, int, Optional[str]]]] = ((), [])
@@ -4386,6 +4393,8 @@ class Grammar:
         # for "A wall is a partition.", lyric_dev2, 2026-10-27).
         Item = Tuple[int, Tuple[int, ...], Sign, Tuple[str, ...], Tuple[int, ...], Tuple]
         held: Dict[Tuple, Item] = {}
+        #: Whole sentences packing kept nothing of, each with the one that held its cell (`hold`, below).
+        packed_away: List[Tuple[str, str]] = []
         agenda: List[Tuple[float, int, int, Item]] = []
         pushed = itertools.count()
         none = tuple(0 for _ in spending)
@@ -4511,6 +4520,14 @@ class Grammar:
                 (said[-1] if said[-1] in alike else "",
                  first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
             if key in held and held[key][2].score >= sign.score:
+                # AND WHAT A WHOLE SENTENCE WAS PACKED AWAY BY, kept for `why` alone. Packing keeps the surer of
+                # two signs that say the same things in the same shape, and `taking_subject` holds a finite verb
+                # apart only until its subject is taken -- so once the subject is in, "Sorted changes the original
+                # list" and "Sorted might change the original list" stand in one cell and the surer is all that
+                # goes on. A saying that never completes shows nothing of this: the plain sentence is not refused,
+                # it is never read back at all (UNDERSTANDS-PROSE-01, 2026-11-05).
+                if len(packed_away) < 8 and _whole(sign.cat) is not None:
+                    packed_away.append((" ".join(said), " ".join(held[key][3])))
                 return
             held[key] = item = (filled, used, sign, said, order, key)
             heapq.heappush(agenda, (-(sign.score + to_come(filled)), -bin(filled).count("1"), next(pushed), item))
@@ -4759,6 +4776,7 @@ class Grammar:
                 "sentences_made": sentences_tried,
                 "the_most_a_sentence_said": f"{most_a_sentence_said} of {len(wanted)} thing(s) that need a word",
                 "the_best_sentences": sentence_tries,
+                "packed_away_by": packed_away,
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         done_with("the search")
@@ -5392,6 +5410,34 @@ def _words_of_terms(pieces: Iterable[Piece]) -> Dict[Term, int]:
 
 # ── spelling a reading out in the meaning language ────────────────────────────────────────────────────────────────
 
+def _ranked_at(lexicon: Lexicon, pieces: Sequence[Tuple], tokens: Sequence[str], x: Term) -> Optional[str]:
+    """THE RANK AN ORDINAL STANDING BEFORE A THING SAYS OF IT ("the second-largest continent": "2"), by the word it
+    is written as and else by what it names; None where no ordinal stands there. An ordinal is a word the grammar's
+    own data declares a `has_rank` of what it stands before (`Lexicon.ranks`), so this knows every one it is taught
+    and no list is written here. Its declared entry is looked for first, where that is the reading taken; where it
+    is not, the ordinal is read as a plain quality of the thing and the word itself is what says it."""
+    for q in pieces:
+        if q[0] == "fact" and len(q) > 3 and q[1] == "has_rank" and q[2] == x:
+            return str(q[3])
+    for q in pieces:
+        if q[0] != "quality" or len(q) < 4 or q[1] != x:
+            continue
+        at = q[-1] if isinstance(q[-1], int) and q[-1] < FIRST_VARIABLE else -1
+        written = str(tokens[at]).lower() if 0 <= at < len(tokens) else ""
+        found = lexicon.ranks.get(written) or lexicon.ranks.get(str(q[2]).lower())
+        if found:
+            return found
+    return None
+
+
+def _greatest_on(pieces: Sequence[Tuple], x: Term) -> bool:
+    """Whether a thing is said to have the greatest degree of some quality of its kind's ("the largest continent"):
+    a quality of it compared as "most"."""
+    return any(q[0] == "quality" and len(q) > 3 and q[1] == x
+               and any(c[0] == "compared" and c[1] == q[3] and c[2] == "most" for c in pieces)
+               for q in pieces)
+
+
 def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Reading) -> Optional[Meaning]:
     """The meaning of a reading of the whole, in the meaning language (`docs/TEACHING.md`): each piece of each word's
     meaning said with the terms its places were filled by. Raises ValueError where the meaning language cannot say
@@ -5902,6 +5948,14 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
             add("has_property", x, name, at=at)
         elif what == "quality":
             _, x, name, q = p[:4]
+            # AN ORDINAL BEFORE A SUPERLATIVE RANKS THE DEGREE AND IS NO QUALITY OF THE THING: of "the
+            # second-largest continent" it is the LARGENESS that ranks second, and Africa is no more "second" than
+            # it is "large". The superlative below says it (`_ranked_at`), so nothing is said here; standing before
+            # anything else ("the second continent") an ordinal is still read as it was.
+            if _greatest_on(pieces, x) and (
+                    lexicon.ranks.get(str(tokens[at]).lower() if 0 <= at < len(tokens) else "")
+                    or lexicon.ranks.get(str(name).lower())):
+                continue
             # WHICH SENSE OF THE QUALITY IS MEANT, by the thing it is said of (`quality_sense_of`): what the meaning
             # says it is. The link it makes is still learned under the name the word is read as (`inherited`), which
             # is what every taught sentence taught it under.
@@ -5930,10 +5984,23 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                     add("exceeds", a_, b_, positive=q not in denied, at=at)
             elif compared == "most" and x in kinds:
                 # "the most careful boy", "the biggest city": its degree the greatest of its kind's.
+                #
+                # A RANK OVER A SUPERLATIVE IS NOT THE SUPERLATIVE. "Africa is the second-largest continent." was
+                # read `greatest_of(?v1, continent) & has_degree(?v0, ?v1) & has_property(?v0, second)` at
+                # how-surely 1.00 -- which asserts outright that Africa's largeness is the greatest of any
+                # continent's, so the reader held a FALSEHOOD as sure as anything it was told (2026-11-05). An
+                # ordinal standing before a superlative ranks the degree among its kind's; only "first" ranks it
+                # greatest. "second" is declared `N.x/N.x` with `has_rank` in english.json and that entry does not
+                # win: read as a plain adjective it makes a `quality` piece like any other, so `_ranked_at` looks
+                # for both shapes and goes by the word written where the piece only names a sense.
                 held = fresh()
                 add("has_degree", x, held, at=at)
                 add("instance_of", held, quality, at=at)
-                add("greatest_of", held, kinds[x][2], at=at)
+                ranked = _ranked_at(lexicon, pieces, tokens, x)
+                if ranked is None or ranked == "1":
+                    add("greatest_of", held, kinds[x][2], at=at)
+                else:
+                    add("has_rank", held, ranked, at=at)
             elif asked_degree is not None:
                 # "How big is the dog?": a degree of bigness, the dog's, asked.
                 add("has_degree", x, asked_degree, at=at)

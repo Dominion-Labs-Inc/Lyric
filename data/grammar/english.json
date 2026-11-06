@@ -4279,7 +4279,7 @@
     "label": "neg:asked"
    },
    {
-    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "cat": "((S[F].e\\NP.x)/(S[G].c\\NP.y))\\((S[F].e\\NP.x)/(S[G].c\\NP.y))",
     "sem": [
      [
       "deny",
@@ -4290,16 +4290,26 @@
     "only": true
    },
    {
-    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "cat": "((S[F].p\\NP.x)/NP.y)\\((S[F].p\\NP.x)/NP.y)",
     "sem": [
      [
       "deny",
-      "e"
+      "p"
      ]
     ],
     "use": "neg",
-    "label": "neg:after",
-    "crossing": true
+    "label": "neg:after"
+   },
+   {
+    "cat": "((S[F].p\\THERE)/NP.y)\\((S[F].p\\THERE)/NP.y)",
+    "sem": [
+     [
+      "deny",
+      "p"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:after"
    }
   ],
   "not": [
