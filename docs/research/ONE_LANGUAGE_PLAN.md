@@ -259,11 +259,34 @@ word classes. A grammar on `lyric_dev` has learned from one sentence, so any rea
 against a near-untaught grammar. Reading-quality conclusions drawn on `lyric_dev` need re-measuring on `lyric_db`
 before they mean anything.
 
+**RESOLVED 2026-11-06, AND IT WAS NOT A GAP IN THE STANDARD.** `RecordSource.records()` returned `iter(())`, and
+`patterns` is filled only from that stream, so the one format Lyric is taught from never called `learn_patterns`.
+Nothing was missing from the record: a `SentenceRecord` already carries `text` and `meaning()`, which is all a
+pattern is learned from, and a `WordRecord` already teaches the frames, links and prepositions its word takes. The
+source threw it away before it reached the learner.
+
+Two things were wrong and both are fixed (`59d5009f`):
+
+1. the source now yields each sentence recorded whole with its meaning, `example` set so its facts are not taught
+   twice, and with the record's own term-to-word alignment as the words its concepts are written with;
+2. the loop that holds words and sentences recorded whole now runs BEFORE `_teach`, which learns the patterns. It
+   ran after, so every sentence was read against a grammar holding none of its words, failed, and had a repair
+   proposed for it — the opposite of the taught order (TRAIN-FORMAT-02: a sentence teaches how KNOWN words go
+   together).
+
+Measured on `lyric_dev`, one sentence recorded whole: `records read` 0 → 1, `patterns` "none taught" → `learned 1,
+repair_holophrase 1`, rows tagged `language_pattern` 0 → 1. Taught again it reports `already 1, understood 1` — it
+reads through the construction where before nothing read it.
+
+**What this does NOT show.** What it learned is a holophrase, the whole sentence, which is the weakest construction
+there is and generalises to nothing. One sentence into a store holding one sentence cannot produce an item-based
+construction. The wiring is proven; the worth is not, and a real batch is what would settle it.
+
 - **Certified by:** a count of `language_pattern` rows per store, which is one indexed query and belongs in
   `ONE-LANGUAGE-01` alongside the conformance checks: a store holding none cannot be read through constructions,
   and a run on it is measuring composition alone.
-- **Needs your decision:** whether the standard gains a construction record, and whether the lessons and the PMB
-  pairs are taught through `learn_patterns` into a store before any further reading measurement is believed.
+- **Still yours:** whether a reteach of main happens before or after the rest of this plan, given main was taught
+  on 2026-10-30 and `teaching_sources.py` has changed seven times since.
 
 ---
 
@@ -583,9 +606,10 @@ reachable by not trusting the first two passes.
    read the git history for why it left before recommending either way, and that reading needs no approval; wiring
    it does.
 4. **The record format gaining a questions layer** (step 5), one sample first.
-4a. **The record format gaining a construction layer** (§2.7), and whether to teach the lessons and the PMB pairs
-   through `learn_patterns` into a store. No store holds a construction today, so every reading measured so far is
-   composition alone. One sample record first, per the standing rule.
+4a. **A reteach of main** (§2.7). Not the record format: constructions were a wiring gap in `RecordSource` and are
+   fixed (`59d5009f`). But main was taught on 2026-10-30 and the standard has changed seven times since, so every
+   number measured on it describes records written under a superseded standard, and no store holds a construction
+   yet. One sample first, per the standing rule.
 5. **Any run.** Nothing in this plan has been run beyond the read-only pure-function comparison in 2.1 and the
    parsing of a transcript already on disk. `UNDERSTANDS-PROSE-02` on `lyric_db` is read-only but is still yours to
    start.
