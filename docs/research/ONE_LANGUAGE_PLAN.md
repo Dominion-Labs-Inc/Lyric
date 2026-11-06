@@ -228,9 +228,24 @@ full tag combination shows `word_record` (12,240), `sentence_record` (6,137), `w
 `COMPOSED_READINGS` readings — one — so `meant` returns *"the only meaning the words have"* before weighing
 anything. Twelve sentences tried, including `A whale is a mammal.` and `The empire was in the west.`, all came back
 `composed=True`, `senses=[]`, one reading. The listener's ACT-R activation, `said_selection`, spreading activation,
-`listening_worths` and all four memory channels of `Heard` are unreachable, not unused. `nbest.py` (2026-11-03)
-puts the reader's own choice at 52.7% flat from width 6 to 50 against 61.8% for an exhaustive chart: **6.0 points
-wait on a choosing that cannot happen while this holds.**
+`listening_worths` and all four memory channels of `Heard` are unreachable, not unused.
+
+**WIDENING IS NOT THE FIX, AND IT IS ALREADY MEASURED.** `nbest.py` puts the reader's own choice at 52.7% flat
+from width 6 to 50 against 61.8% for an exhaustive chart, and it is tempting to read 6 points as waiting to be
+claimed. They are not: that is what an oracle would take, not what the listener does.
+`GRAMMAR-01/diagnostics/listener_on_store.json` (2026-11-03, 400 sentences, memory up) ran it —
+
+| width | right reading available | right reading taken | readings handed up | seconds |
+|---:|---:|---:|---:|---:|
+| 1 | 172 | **172** | 390 | 23.4 |
+| 6 | 179 | **168** | 592 | 107.9 |
+
+— so making the right reading available more often got it taken **less**, with 11 cases of the listener overruling
+a right reader, at 4.6x the time. In that run too, every sentence reports *"memory asked, knew nothing of any
+reading"*: the listener ranks by structure alone, because a composed reading carries no packed senses and memory
+holds nothing about what a composed reading says. **That is the argument for constructions, and against widening
+without them** — the choosing cannot pay until there is evidence to choose on, and constructions are what carry
+it.
 
 **Why it belongs in this plan and not beside it.** It is the same pathology in section 1, one layer earlier: the
 standard governs what goes in, so a layer it has no record for is a layer nothing can teach, and no TRAIN-FORMAT
