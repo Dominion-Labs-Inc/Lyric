@@ -41,7 +41,7 @@ import random
 import re
 from dataclasses import dataclass, field
 from typing import (Any, Dict, FrozenSet, Iterable, Iterator, List, Optional,
-                    Protocol, Sequence, Tuple)
+                    Protocol, Sequence, Set, Tuple)
 
 from core.utils.give_way import GiveWay
 
@@ -237,11 +237,26 @@ class Report:
     derived: Dict[str, int] = field(default_factory=dict)
     word_records: Dict[str, int] = field(default_factory=dict)
     sentence_records: Dict[str, int] = field(default_factory=dict)
+    #: WHAT THIS SOURCE DOES NOT TEACH AT ALL, by report field. A source is asked for each kind of thing it might
+    #: teach and skipped where it has none to give, and the field then keeps its empty default -- which printed as
+    #: "none taught", the same words as a source that was asked, ran, and taught nothing. The two are not the same
+    #: and the difference is the whole of why `patterns` read "none taught" for a week: `RecordSource.records()`
+    #: returns an empty iterator by design, so `learn_patterns` is never called, and the report said what a failed
+    #: run says. A thing nothing offered is said so.
+    not_offered: Dict[str, str] = field(default_factory=dict)
     sampled: bool = False
     limit: Optional[int] = None
     #: Whether what the source states about its whole vocabulary was cut to the sample's words (a small pass).
     small: bool = False
     seconds: float = 0.0
+
+    def _said(self, field_name: str, value: Any, empty: str) -> str:
+        """What a report line says of one kind of thing: what was taught, or that this source teaches none of it,
+        or that it was asked and taught none. Never the last two in the same words."""
+        if value:
+            return str(value)
+        why = self.not_offered.get(field_name)
+        return f"NOT TAUGHT HERE -- {why}" if why else empty
 
     def lines(self) -> List[str]:
         how = (f"a uniform sample of {self.limit:,} drawn across the whole source"
@@ -257,21 +272,21 @@ class Report:
             f"records read      : {self.read:,}",
             f"below quality floor: {self.below_floor:,}",
             f"facts             : {self.taught}",
-            f"word classes      : {self.word_classes or 'none stated'}",
-            f"patterns          : {self.patterns or 'none taught'}",
-            f"meaning facts     : {self.meanings or 'none given'}",
-            f"word usage        : {self.usage or 'none counted'}",
+            f"word classes      : {self._said('word_classes', self.word_classes, 'none stated')}",
+            f"patterns          : {self._said('patterns', self.patterns, 'none taught')}",
+            f"meaning facts     : {self._said('meanings', self.meanings, 'none given')}",
+            f"word usage        : {self._said('usage', self.usage, 'none counted')}",
             f"listening counted : {self.listening or 'nothing'}",
-            f"said of           : {self.said or 'none counted'}",
-            f"pronunciations    : {self.pronunciations or 'none stated'}",
-            f"sentences analysed: {self.structure or 'none given'}",
-            f"arguments given   : {self.arguments or 'none given'}",
-            f"meanings to learn : {self.taught_sentences or 'none given'}",
-            f"word groups       : {self.word_groups or 'none given'}",
-            f"word forms        : {self.word_forms or 'none given'}",
-            f"derived by hand   : {self.derived or 'none given'}",
-            f"words recorded    : {self.word_records or 'none given'}",
-            f"recorded whole    : {self.sentence_records or 'none given'}",
+            f"said of           : {self._said('said', self.said, 'none counted')}",
+            f"pronunciations    : {self._said('pronunciations', self.pronunciations, 'none stated')}",
+            f"sentences analysed: {self._said('structure', self.structure, 'none given')}",
+            f"arguments given   : {self._said('arguments', self.arguments, 'none given')}",
+            f"meanings to learn : {self._said('taught_sentences', self.taught_sentences, 'none given')}",
+            f"word groups       : {self._said('word_groups', self.word_groups, 'none given')}",
+            f"word forms        : {self._said('word_forms', self.word_forms, 'none given')}",
+            f"derived by hand   : {self._said('derived', self.derived, 'none given')}",
+            f"words recorded    : {self._said('word_records', self.word_records, 'none given')}",
+            f"recorded whole    : {self._said('sentence_records', self.sentence_records, 'none given')}",
             f"seconds           : {self.seconds:.1f}",
         ]
 
@@ -556,6 +571,9 @@ class TeachingPass:
                 ("word_records", learning.learn_word_records, "words recorded whole", "word_records"),
                 ("sentence_records", learning.learn_records, "sentences recorded whole", "sentence_records")):
             if not hasattr(self.source, method):
+                # ASKED AND NOT OFFERED IS NOT TAUGHT AND NONE. Said apart, so a source that cannot teach a kind
+                # of thing never reads as one that tried and got nowhere (`Report.not_offered`).
+                report.not_offered[field_name] = f"this source states no {phase}"
                 continue
             items = await asyncio.to_thread(list, getattr(self.source, method)())
             if self.limit is not None:
@@ -763,6 +781,17 @@ class TeachingPass:
             for key, value in (counts or {}).items():
                 taught_patterns[key] = taught_patterns.get(key, 0) + int(value)
             await self._flush()
+
+        if not patterns:
+            # A SOURCE WHOSE RECORDS CARRY NO MEANING TEACHES NO PATTERN, and that is not a pattern run that taught
+            # none. `RecordSource.records()` returns an empty iterator by design -- the standardised records are
+            # taught through `learn_records` and `learn_word_records`, which never reach `learn_patterns` -- so
+            # every run of it reported "patterns: none taught", in the words of a run that was asked and failed.
+            report.not_offered["patterns"] = (
+                "this source gives no record with a meaning, so there is no sentence to learn a pattern from"
+                if read_claims or unread or buckets else
+                "this source yields no records at all; what it teaches is learned by its own kind (`learn_records`, "
+                "`learn_word_records`, `learn_derived`), none of which reaches `learn_patterns`")
 
         from core.agents.memory_agent import memory_agent
         from core.learning.unified_learning_system import Evidence
