@@ -3384,6 +3384,22 @@ class Grammar:
         # no case to get wrong -- came out right (lyric_db, 2026-10-30).
         if any(f for f in out):
             out.pop("", None)
+        if not any(f for f in out) and cls == "NAME":
+            # A NAME NAMES ONE THING, AND WHAT NUMBER THAT THING IS, THE WORD SAYS AS A NOUN. A name held with no
+            # number of its own stood as `(NAME, "")`, which no finite verb has been written with, so `_agreed` gave
+            # "is" and "are" the same flat nothing and the words alone decided: asked "Is Sanskrit a language?",
+            # Lyric found the right fact with the right support and said "Sanskrit're a language." (lyric_db,
+            # 2026-11-06). `sanskrit` and `bhutan` are held as names with no features at all and as nouns
+            # `Number=Sing`; `is` took a singular name 475 times. The number is a property of the thing, not of the
+            # class the word is read as, so the one the word has as a noun is the one the name has.
+            #
+            # Only where the name says nothing itself: "Beatles" is held `Number=Plur` as a name and keeps it, as do
+            # "Tom", "Africa" and "Netherlands", which say their own.
+            for features, n in self.lexicon.words.form_features(str(self._tokens[k]), "NOUN").items():
+                kept = "|".join(f for f in features.split("|") if f and f.split("=")[0] in shared)
+                if kept:
+                    out[kept] += n
+            out.pop("", None)
         self._agreeing[(cls, k, tuple(sorted(shared)))] = out
         return out
 
