@@ -21382,6 +21382,30 @@ def _quoted(texts: Sequence[str]) -> str:
     return texts[0] if len(texts) == 1 else ", ".join(texts[:-1]) + " and " + texts[-1]
 
 
+def _worth_told(margin: Optional[float], unweighed: float) -> float:
+    """WHAT A READING IS WORTH AS EVIDENCE, by the margin the listener took it over the next by
+    (`derived_reader.meant`, `why["margin"]`, in nats).
+
+    `None` where nothing was weighed against it -- the words had one meaning, and one meaning is not a doubt -- and
+    then a telling is worth what a telling read is worth, as it always was.
+
+    A margin of `m` nats says the meaning taken is `exp(m)` times as likely as the next by everything the listener
+    weighs, so between the two of them the one taken holds `1 / (1 + exp(-m))` of the weight. A telling read that
+    way is worth that share of what a telling read with nothing against it is worth.
+
+    NOTHING IS CHOSEN HERE. Both numbers are already the substrate's: `Telling.quality`'s own default, and the
+    gate's own floor (`cognitive_ingress.MIN_ADMIT_QUALITY`, 0.5), which is what decides. Where they cross -- a
+    margin of 0.223 nats, the meaning taken 1.25 times as likely as the next -- is where the gate stops admitting,
+    and it was not picked to land there. Measured on lyric_dev 2026-11-06: "A whale is a mammal." is taken by
+    23.233 nats, "The dog barked." by 2.375 and "Whales are mammals." by 0.446, each read rightly and each
+    admitted; "At its peak it is estimated that Africa had around 10,000 polities, with most following traditional
+    religions." is taken by 0.055 nats and reads wrongly, and is refused."""
+    import math
+    if margin is None:
+        return unweighed
+    return unweighed / (1.0 + math.exp(-float(margin)))
+
+
 def _which_meant(readings) -> str:
     """What the reply asks of an utterance that read whole when the listener cannot tell which of its meanings was
     meant (`derived_reader.meant` decided none).
@@ -23463,11 +23487,11 @@ class Conversation:
 
         agent = await get_memory_agent()
         acquired: List[Acquired] = []
-        async for utterance, told, notes in self._told_each(sentence, dict(self._situation(sentence))):
+        async for utterance, told, notes, margin in self._told_each(sentence, dict(self._situation(sentence))):
             acquired.extend(notes)
             if told is None:
                 continue
-            telling = self._telling_of(utterance.text, told)
+            telling = self._telling_of(utterance.text, told, margin=margin)
             taken = await agent.take_in_telling(telling)
             acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
                             for kind, it, decision in taken)
@@ -23475,8 +23499,10 @@ class Conversation:
 
     async def _told_each(self, sentence: str, situation: Dict[str, str]):
         """Each utterance of `sentence` heard as a telling, in order: `(utterance, told, notes)`, `told` what `_told`
-        makes of it, None where it tells nothing that can be held, and `notes` what of it cannot be. Taken in by
-        nobody here: what is told goes to memory (`teach`), what a text states to what it is held as (`stated`).
+        makes of it, None where it tells nothing that can be held, `notes` what of it cannot be, and `margin` how
+        much the listener took this meaning over the next by, in nats (None where nothing was weighed against it),
+        which is what the telling is worth as evidence (`_worth_told`). Taken in by nobody here: what is told goes
+        to memory (`teach`), what a text states to what it is held as (`stated`).
 
         ONE TEXT, ONE THREAD: each utterance is heard after the ones before it. Its "it" or "they" points back to what
         was last spoken of, an utterance before it included ("My dog is not a cat, he is a dog."); its "the X" is the X
@@ -23488,9 +23514,10 @@ class Conversation:
         for utterance in self._read(sentence):
             if not utterance.understood:
                 continue
-            chosen = meant(utterance.readings, heard=heard)
+            why: Dict[str, Any] = {}
+            chosen = meant(utterance.readings, heard=heard, why=why)
             if chosen is None:
-                yield utterance, None, [Acquired(utterance.text, detail=_which_meant(utterance.readings))]
+                yield utterance, None, [Acquired(utterance.text, detail=_which_meant(utterance.readings))], None
                 continue
             if chosen.meaning.act != "tell":
                 continue
@@ -23511,7 +23538,7 @@ class Conversation:
                 place = place_spoken_of(Meaning(chosen.meaning.act, told[0])) if told[0] else None
                 if place:
                     self._last_place = situation["?there"] = place
-            yield utterance, told, notes
+            yield utterance, told, notes, why.get("margin")
 
     async def stated(self, text: str) -> List[Tuple[Any, str]]:
         """What a written text states between named things, heard as this conversation hears a telling and taken in
@@ -23523,7 +23550,7 @@ class Conversation:
         situation = {variable: value for variable, value in self._situation(text).items()
                      if variable not in ("?speaker", "?listener")}
         out: List[Tuple[Any, str]] = []
-        async for utterance, told, _ in self._told_each(text, situation):
+        async for utterance, told, _, _ in self._told_each(text, situation):
             if told is not None:
                 out.extend((fact, utterance.text) for fact in told[0])
         return out
@@ -23540,29 +23567,42 @@ class Conversation:
         situation = dict(self._situation(sentence))
         taken: List[Tuple[str, Any, Any]] = []
         for utterance in utterances:
-            chosen = meant(utterance.readings)
+            why: Dict[str, Any] = {}
+            chosen = meant(utterance.readings, why=why)
             if chosen is None or chosen.meaning.act != "tell":
                 continue
-            telling, _ = await self._telling(utterance.text, chosen, situation, confirmed=confirmed)
+            telling, _ = await self._telling(utterance.text, chosen, situation, confirmed=confirmed,
+                                             margin=why.get("margin"))
             if telling is not None:
                 taken.extend(await agent.take_in_telling(telling))
         return taken
 
-    async def _telling(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
+    async def _telling(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True,
+                       margin: Optional[float] = None):
         """One utterance told, as memory takes it in (`Telling`), and what of it
         cannot be held, said (`Acquired` notes). `confirmed` False tells each
         fact the other way: "That's wrong." of what was just said
-        (`_take_feedback`). None where nothing in it can be held."""
+        (`_take_feedback`). `margin` is what the listener took this meaning over
+        the next by (`_worth_told`). None where nothing in it can be held."""
         told, notes = await self._told(said, chosen, situation, confirmed=confirmed)
-        return (None if told is None else self._telling_of(said, told)), notes
+        return (None if told is None else self._telling_of(said, told, margin=margin)), notes
 
-    def _telling_of(self, said: str, told) -> Any:
+    def _telling_of(self, said: str, told, *, margin: Optional[float] = None) -> Any:
         """What `_told` made of an utterance, as memory takes it in from the
-        person who told it (`Telling`)."""
+        person who told it (`Telling`), worth what the listener's own margin
+        over the next meaning makes it worth (`_worth_told`).
+
+        THE GATE WAS ALREADY THERE AND HAD NOTHING TO JUDGE: every telling came
+        in at `Telling.quality`'s default however it was read, so a sentence
+        whose meaning was a coin flip and one with a single meaning were worth
+        the same to the one floor that refuses a claim
+        (`cognitive_ingress.MIN_ADMIT_QUALITY`)."""
         from core.memory.utils.interfaces import Telling
         facts, rules, theirs, names = told
+        unweighed = Telling.__dataclass_fields__["quality"].default
         return Telling(sentence=said, origin=self._origin("conversation"), facts=facts, rules=rules,
-                       speaker=self._session, theirs=theirs, names=names)
+                       speaker=self._session, theirs=theirs, names=names,
+                       quality=_worth_told(margin, unweighed))
 
     async def _told(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
         """What one utterance tells as so, `(facts, rules, theirs, names)` as a
