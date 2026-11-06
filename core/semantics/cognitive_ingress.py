@@ -115,6 +115,26 @@ MAX_TERM_WORDS = 4
 MAX_RELATION_WORDS = 4
 
 
+def _made_suffix(word: str) -> bool:
+    """Whether this last part of a term is a suffix the store itself generated, which is no word of the name.
+
+    A PARTICULAR IS NAMED `<kind>_<made>`, and the kind is what `MAX_TERM_WORDS` is about. `teaching.told_events`
+    puts eight hex digits of the telling after the kind, so the same sentence names the same happening
+    (`straddle_776e5238`), and `teaching.known_in_lesson` puts a number after it (`kelt_1`). Counted as a word,
+    the suffix refused every particular of a FOUR-WORD KIND: "cardinal compass point west" is admissible as a
+    concept and `cardinal_compass_point_west_0b06fb62` was refused as "5 words is a clause, not a name", so
+    "The continent is surrounded by the Mediterranean Sea to the north ... and the Atlantic Ocean to the west."
+    was answered "I did not take that as a fact - subject 'cardinal_compass_point_west_0b06fb62' not admitted"
+    and what it said of the west was never held (UNDERSTANDS-PROSE-02, texts 1 and 4, 2026-11-06). Seven such
+    kinds read over that half, "cardinal compass point west", "plan of action system" and "get the better of"
+    among them.
+
+    A clause stapled together with underscores is refused as it always was: `which_lines_belong_to_which_block`
+    ends in a word, not in digits, and counts six.
+    """
+    return word.isdigit() or (len(word) == 8 and all(c in "0123456789abcdef" for c in word))
+
+
 def admissible(term: str) -> Tuple[bool, str]:
     """Whether a term may name a concept, and why not when it may not.
 
@@ -136,8 +156,11 @@ def admissible(term: str) -> Tuple[bool, str]:
     words = [w for w in cleaned.replace("_", " ").split() if w]
     if not words:
         return False, "empty"
-    if len(words) > MAX_TERM_WORDS:
-        return False, f"{len(words)} words is a clause, not a name"
+    # WHAT THE STORE PUT THERE ITSELF IS NOT COUNTED (`_made_suffix`): the name of a particular is its kind and a
+    # suffix naming which one, and only the kind is a name that could be a clause.
+    named = words[:-1] if len(words) > 1 and _made_suffix(words[-1]) else words
+    if len(named) > MAX_TERM_WORDS:
+        return False, f"{len(named)} words is a clause, not a name"
     # WHAT NAMES NOTHING IS WHAT ENGLISH TAUGHT BUILDS SENTENCES WITH: a word the
     # substrate holds only as part of its sentence forms, and that no taught
     # meaning uses as a concept's name ("the", "is", "my"). Nothing is listed here.
