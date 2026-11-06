@@ -6162,7 +6162,8 @@ def _made(weighing: _Weighing, chosen: Sequence[int], view: PatternInventory) ->
                                           enumerate(zip(weighing.words, chosen))}, view)
 
 
-def _best_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard") -> List[Reading]:
+def _best_packed(readings: Sequence[Reading], view: PatternInventory, heard: "Heard",
+                 ranked_out: Optional[List[Tuple[float, Reading]]] = None) -> List[Reading]:
     """Where some readings are packed, the meanings the listener weighs highest, alike: each reading's best senses
     found over its structure (`_choices`), and the meanings these make weighed as `meant` weighs them, each by the
     reading of it the reader puts first (`_best_first`), as the reader hands the listener one reading of each meaning.
@@ -6223,6 +6224,10 @@ def _best_packed(readings: Sequence[Reading], view: PatternInventory, heard: "He
         best *= 2
     # Alike, in the order the reader hands them (`_best_first`), as the listener weighs them in that order.
     ranked = sorted(scored.values(), key=lambda pair: (-pair[0], _best_first(pair[1])))
+    # WHAT IT WEIGHED, NOT ONLY WHAT IT TOOK: every meaning scored, best first, for a caller that asked
+    # (`_meant_packed`). A packed reading stands for many, so this is the only place the runner-up exists.
+    if ranked_out is not None:
+        ranked_out[:] = ranked
     return [r for score, r in ranked if score == ranked[0][0]]
 
 
@@ -6245,7 +6250,8 @@ def _memory_said(heard: Optional["Heard"]) -> str:
 
 def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]], took: Optional[Reading],
                     how: str, heard: Optional["Heard"], why: Optional[Dict[str, Any]],
-                    worths: Optional[Mapping[Tuple[str, int], float]] = None) -> None:
+                    worths: Optional[Mapping[Tuple[str, int], float]] = None,
+                    margin: Optional[float] = None) -> None:
     """WHAT THE LISTENER RECEIVED, WEIGHED AND TOOK, said where it can be read: filled into `why` where a caller
     passed one, and said on the substrate channel.
 
@@ -6269,6 +6275,9 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
         why.update({
             "readings": given, "took": took.meaning.canonical() if took is not None else None, "how": how,
             "memory": memory,
+            # HOW MUCH THE ONE TAKEN BEAT THE NEXT, in nats: None where nothing was weighed against it. A margin
+            # of 0.2 nats and a margin of 20 are the same decision from the outside and are not the same decision.
+            "margin": margin,
             "weighed": [{"meaning": w.reading.meaning.canonical(), "known": w.known, "defined": w.defined,
                          "fit": w.fit, "activation": round(w.activation, 4), "structure": round(w.derivation, 4),
                          "total": total, "composed": w.reading.composed,
@@ -6286,7 +6295,9 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
     if not rows or len(rows) < 2:
         # A PACKED READING STANDS FOR MANY, so there is no row for each meaning to show; what chose among them is
         # `_best_packed`, over each choice of its words' senses.
-        logger.info("listening: %d readings, %s (%s): %s", given, how, memory, said)
+        logger.info("listening: %d readings, %s%s (%s): %s", given, how,
+                    "" if margin is None else f", by {margin:.3f} nats over the next",
+                    memory, said)
         return
     w = rows[0][0]
     worth = {evidence: (worths or {}).get((evidence, level), 0.0) for evidence, level in listening_levels(w).items()}
@@ -6303,10 +6314,13 @@ def _meant_packed(readings: Sequence[Reading], view: PatternInventory, heard: "H
     """`meant`, where some readings are packed: the meaning the listener weighs highest (`_best_packed`); where two
     score alike, asked about, unless they differ only in senses that are one coarse sense. Says what it did
     (`_listening_said`)."""
+    order: List[Tuple[float, Reading]] = []
+
     def said(took: Optional[Reading], how: str) -> Optional[Reading]:
-        _listening_said(len(readings), None, took, how, heard, why)
+        _listening_said(len(readings), None, took, how, heard, why,
+                        margin=(order[0][0] - order[1][0]) if len(order) > 1 else None)
         return took
-    tied = _best_packed(readings, view, heard)
+    tied = _best_packed(readings, view, heard, order)
     if len(tied) <= 1:
         return said(next(iter(tied), None), "took the only meaning weighed highest")
     if len({_worded(r, view) for r in tied}) > 1:
@@ -6376,7 +6390,8 @@ def meant(readings: Sequence[Reading], inventory: Optional[PatternInventory] = N
     rows = [(w, score(w)) for w in ranked]
 
     def said(took: Optional[Reading], how: str) -> Optional[Reading]:
-        _listening_said(len(best), rows, took, how, heard, why, worths)
+        _listening_said(len(best), rows, took, how, heard, why, worths,
+                        margin=(rows[0][1] - rows[1][1]) if len(rows) > 1 else None)
         return took
     if score(ranked[0]) != score(ranked[1]):
         return said(ranked[0].reading, "took the one weighed highest")
