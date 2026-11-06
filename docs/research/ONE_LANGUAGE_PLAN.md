@@ -13,8 +13,13 @@ structured sources (UD CoNLL-U, PMB CCG Prolog, PMB SBN, lessons JSON, PropBank,
 groups, ConceptNet) bridged by hand-written conventions, so what it knew of a word depended on which corpus
 happened to carry it.
 
-**That problem is solved.** There is one record per word and one per sentence, every layer by word position, and
-`lyric_db` now holds 12,228 word records and 6,137 sentence records. The source problem is closed.
+**That problem is solved for words and sentences.** There is one record per word and one per sentence, every layer
+by word position, and `lyric_db` now holds 12,228 word records and 6,137 sentence records.
+
+**It is not solved for constructions, and that was not known when this plan was written.** The standard defines
+`SentenceRecord`, `WordRecord`, `RecordWord`, `RecordFact` and `RecordSource`, and no record for a construction.
+Nothing teaches one as a record; constructions exist only as a side effect of `learn_patterns` consuming raw
+`(sentence, meaning)` pairs. Measured 2026-11-06: **no store holds a single construction** (§2.7).
 
 **It was the wrong half.** The standard governs what goes IN. It says nothing about the language Lyric's own
 components speak to each other. So the ten corpora became one format, and inside the system reading, understanding,
@@ -23,11 +28,11 @@ because every TRAIN-FORMAT check reads the record back through the same componen
 
 Two different problems. One was solved and the other was never stated:
 
-| | the source problem | the interchange problem |
-|---|---|---|
-| question | how must data be structured to teach Lyric? | what language do Lyric's parts speak to each other? |
-| answer | `SentenceRecord` / `WordRecord` | **never decided** |
-| status | solved, on `lyric_db` | **this plan** |
+| | the source problem | the construction problem | the interchange problem |
+|---|---|---|---|
+| question | how must data be structured to teach Lyric? | what teaches Lyric a construction? | what language do Lyric's parts speak to each other? |
+| answer | `SentenceRecord` / `WordRecord` | **no record exists** | **never decided** |
+| status | solved for words and sentences | **§2.7, found 2026-11-06** | **this plan** |
 
 This is the standing architecture rule applied where it was never applied — *one observation, one canonical
 interpretation, many consumers* — and the pathology is the one already written down: *capability exists → local
@@ -93,7 +98,7 @@ So the divergence is **real as code and latent in production, not actively corru
 a defect and still step 2, for three reasons: the only thing standing between the two vocabularies is that one is
 unreachable, the unreachable one is what the tests exercise (2.6), and the moment anyone wires the long-prose
 reader — which is work this plan recommends — the two meet. Stating it as a live corruption would have been wrong,
-and section 2.7 shows what is live.
+and section 2.8 shows what is live.
 
 ### 2.2 A second reader exists and is tested, but production does not call it — *corrected on the third pass*
 
@@ -177,7 +182,7 @@ Four formalizer classes exist: `PassthroughFormalizer` (454), `DeterministicExtr
 *"LAST IN THE CHAIN, DELIBERATELY"* and records the measurement that justified it: *"Measured before this existed:
 0 of 86 sentences of nineteen words or more produced any reading at all."* It breaks a long sentence into the
 claims it carries and reads each. **That is the long-prose capability, built and measured, sitting unwired** —
-while section 2.7 shows 28 of 50 passage sentences going unread. Nobody should delete this; somebody should find
+while section 2.8 shows 28 of 50 passage sentences going unread. Nobody should delete this; somebody should find
 out why it is not in the chain.
 
 **`DeterministicExtractor` has no production caller either**, but it is exercised by four test files
@@ -200,7 +205,54 @@ explanations must stay true."* The explanations did not stay true. Correcting th
 not a tidy-up after it: a wrong authority document reproduces the defect in the next engineer, which is exactly
 what it did here.
 
-### 2.7 What this costs, measured
+### 2.7 The construction layer has no record in the standard, and no store holds one
+
+`derived_reader` reads an utterance through the constructions the substrate was taught — holophrases, item-based
+constructions, lexicals, phrases and links — each held as one semantic memory tagged `PATTERN_TAG`
+(`"language_pattern"`). That is the layer `PatternInventory` serves and `meant` weighs over.
+
+Measured 2026-11-06, read-only, every one of the 14 databases on `localhost:5433` (`lyric_db`, `lyric_dev`,
+`lyric_dev2`, `lyric_bench`, `lyric_bench_home` and the nine per-store production and staging databases):
+
+| | |
+|---|---:|
+| rows tagged `language_pattern`, all 14 databases | **0** |
+| `MemoryAgent.taught_patterns()` on `lyric_dev` | **0** |
+| `pattern_inventory()` after a full warm | `patterns=0 holophrases=0 item_based=0 lexicals=0 phrases=0` |
+
+The query is sound: the same form returns 94,528 `word_class` rows on `lyric_dev`, and a breakdown of `lyric_db` by
+full tag combination shows `word_record` (12,240), `sentence_record` (6,137), `word_class` (266), `read_english`
+(28) and no construction under any tag.
+
+**What follows from it.** Every utterance falls to `_read_by_composing`, which asks the grammar for
+`COMPOSED_READINGS` readings — one — so `meant` returns *"the only meaning the words have"* before weighing
+anything. Twelve sentences tried, including `A whale is a mammal.` and `The empire was in the west.`, all came back
+`composed=True`, `senses=[]`, one reading. The listener's ACT-R activation, `said_selection`, spreading activation,
+`listening_worths` and all four memory channels of `Heard` are unreachable, not unused. `nbest.py` (2026-11-03)
+puts the reader's own choice at 52.7% flat from width 6 to 50 against 61.8% for an exhaustive chart: **6.0 points
+wait on a choosing that cannot happen while this holds.**
+
+**Why it belongs in this plan and not beside it.** It is the same pathology in section 1, one layer earlier: the
+standard governs what goes in, so a layer it has no record for is a layer nothing can teach, and no TRAIN-FORMAT
+check would ever show it because every check reads back a record that exists. The question layer in step 5 and this
+one are the same omission twice — the standard certifies that a sentence was read, never that what reading needs in
+order to work was taught.
+
+**A measurement hazard this exposes, and it affects work already done.** The two stores are near-opposites:
+`lyric_db` holds 6,137 taught sentences and 266 word classes; `lyric_dev` holds **1** taught sentence and 94,528
+word classes. A grammar on `lyric_dev` has learned from one sentence, so any reading judged wrong there is judged
+against a near-untaught grammar. Reading-quality conclusions drawn on `lyric_dev` need re-measuring on `lyric_db`
+before they mean anything.
+
+- **Certified by:** a count of `language_pattern` rows per store, which is one indexed query and belongs in
+  `ONE-LANGUAGE-01` alongside the conformance checks: a store holding none cannot be read through constructions,
+  and a run on it is measuring composition alone.
+- **Needs your decision:** whether the standard gains a construction record, and whether the lessons and the PMB
+  pairs are taught through `learn_patterns` into a store before any further reading measurement is believed.
+
+---
+
+### 2.8 What this costs, measured
 
 The last end-to-end run, `UNDERSTANDS-PROSE-02` `20261102T150052Z` (after the `same_as` fix of notebook entry 103):
 
@@ -268,7 +320,7 @@ resolved in opposite directions:
 
 **`SegmentedReadingFormalizer` — wire it or say why not.** It is the long-prose capability: it splits a long
 sentence into the claims it carries so each can be read, and its docstring carries the measurement that *0 of 86
-sentences of nineteen words or more produced any reading at all* without it. Section 2.7 shows **28 of 50 passage
+sentences of nineteen words or more produced any reading at all* without it. Section 2.8 shows **28 of 50 passage
 sentences unread**. This is the most likely single cause of that and it is already written.
 
 - **First find out why it is not in the chain.** It may have been left out deliberately — git history on
@@ -276,7 +328,7 @@ sentences unread**. This is the most likely single cause of that and it is alrea
   a reason, the reason matters more than the capability.
 - If it is wired, it must first be moved onto the one atom vocabulary (step 2) and the one reader, or it reintroduces
   the divergence of 2.1 live, on exactly the prose path where it would matter most.
-- **Certified by:** passage sentences read, on the same 50 as section 2.7. Today 22.
+- **Certified by:** passage sentences read, on the same 50 as section 2.8. Today 22.
 
 **`DeterministicExtractor` — retire it, and repoint its tests.** It has no production caller and four test files
 plus one experiment keep it alive. Deleting the class without repointing those tests deletes coverage; repointing
@@ -495,7 +547,7 @@ asked: *is the defect reachable in the running system?*
 
 **One new finding, which may matter more than anything else in this plan:** `SegmentedReadingFormalizer` —
 the long-prose capability, built, measured (*0 of 86 long sentences read without it*), documented as belonging in
-the chain — **is referenced by nothing at all.** Section 2.7 shows 28 of 50 passage sentences unread. These are
+the chain — **is referenced by nothing at all.** Section 2.8 shows 28 of 50 passage sentences unread. These are
 very likely the same fact. It is section 2.6 and step 3.
 
 **What this pass says about the plan as a whole:** the live blocker narrows to one thing — step 4, the guards that
@@ -516,6 +568,9 @@ reachable by not trusting the first two passes.
    read the git history for why it left before recommending either way, and that reading needs no approval; wiring
    it does.
 4. **The record format gaining a questions layer** (step 5), one sample first.
+4a. **The record format gaining a construction layer** (§2.7), and whether to teach the lessons and the PMB pairs
+   through `learn_patterns` into a store. No store holds a construction today, so every reading measured so far is
+   composition alone. One sample record first, per the standing rule.
 5. **Any run.** Nothing in this plan has been run beyond the read-only pure-function comparison in 2.1 and the
    parsing of a transcript already on disk. `UNDERSTANDS-PROSE-02` on `lyric_db` is read-only but is still yours to
    start.
