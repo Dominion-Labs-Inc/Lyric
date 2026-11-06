@@ -280,15 +280,20 @@ def _finished(task: "asyncio.Task", key: int, level: int) -> None:
         logger.log(level, "background task cancelled after %.3fs: %s (%s)",
                    took, what, where)
         return
-    failure = task.exception()
-    if failure is not None:
-        # ERROR so this reaches the canonical failure record through the
-        # capture `core.main` already installs. A task that dies holding the
-        # only copy of its exception is the silence this whole section is for.
-        logger.error("background task FAILED after %.3fs: %s (%s): %s: %s",
-                     took, what, where, type(failure).__name__, failure,
-                     exc_info=failure)
-        return
+    # THE EXCEPTION IS DELIBERATELY NOT TOUCHED HERE. `task.exception()` marks
+    # it RETRIEVED, which silences asyncio's own "Task exception was never
+    # retrieved" -- the one signal that a failure actually went nowhere. Asking
+    # for it turned the only real detector off and replaced it with a worse one:
+    # every task that raises looked like a failure, including the ones whose
+    # awaiter handles the raise as its ANSWER. `ActiveDiscovery._check_port`
+    # opens a connection to see whether a port is listening, so a closed port
+    # raises OSError BY DESIGN; reporting those wrote 20 false rows onto the
+    # canonical failure record in one teaching run (2026-11-06).
+    #
+    # A refusal, a probe that found nothing, a cancelled wait -- none of these
+    # are failures. What IS one is an exception nobody ever collects, and
+    # `_loop_failure` below hears exactly those, from asyncio itself, and logs
+    # them at ERROR where the failure record picks them up.
     logger.log(level, "background task done in %.3fs: %s (%s)", took, what, where)
 
 

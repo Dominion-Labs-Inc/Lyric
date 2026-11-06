@@ -1,0 +1,398 @@
+# Teaching session — wordnet-classes
+
+Taught a LIVE substrate (`start()`, coordination cycle and reactive drain worker running), so what the learning authority announced was heard and reacted to.
+
+## The pass
+
+- source            : wordnet
+- domain            : general
+- coverage          : the whole source
+- records read      : 0
+- below quality floor: 0
+- facts             : {}
+- word classes      : {'told': 94208, 'skipped': 0, 'total': 94262, 'already': 54}
+- patterns          : none taught
+- meaning facts     : none given
+- word usage        : none counted
+- listening counted : nothing
+- said of           : none counted
+- pronunciations    : none stated
+- sentences analysed: none given
+- arguments given   : none given
+- meanings to learn : none given
+- word groups       : none given
+- word forms        : none given
+- derived by hand   : none given
+- words recorded    : none given
+- recorded whole    : none given
+- seconds           : 1277.4
+
+## The substrate, before and after
+
+| | before | after | change |
+|---|---:|---:|---:|
+| memory: admitted_proposition | 440 | 440 | +0 |
+| memory: affirms | 311 | 312 | +1 |
+| memory: document | 62 | 62 | +0 |
+| memory: domain | 8 | 8 | +0 |
+| memory: domain_existence | 8 | 8 | +0 |
+| memory: general | 4 | 5 | +1 |
+| memory: image | 1 | 1 | +0 |
+| memory: language | 5,681 | 99,889 | +94,208 |
+| memory: percept | 63 | 63 | +0 |
+| memory: read_english | 32 | 32 | +0 |
+| memory: reading | 62 | 62 | +0 |
+| memory: review | 4 | 5 | +1 |
+| memory: self_assessment | 4 | 5 | +1 |
+| memory: sentence_record | 1 | 1 | +0 |
+| memory: told_but_unread | 7 | 7 | +0 |
+| memory: vision | 1 | 1 | +0 |
+| memory: word_class | 320 | 94,528 | +94,208 |
+| memory: word_forms | 25 | 25 | +0 |
+| memory: word_record | 4,856 | 4,856 | +0 |
+| table: unified.appraisal_state | 1 | 1 | +0 |
+| table: unified.failure_events | 4 | 26 | +22 |
+| table: unified.long_term_baselines | 16 | 16 | +0 |
+| table: unified.domains | 8 | 8 | +0 |
+| table: memory_cold.memory_cold | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_07 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_06 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_05 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_04 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_03 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_02 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2027_01 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_12 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_11 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_10 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_09 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_08 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_07 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_06 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_05 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_04 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_03 | 0 | 0 | +0 |
+| table: unified.unified_metrics_2026_02 | 0 | 0 | +0 |
+| table: unified.unified_alerts | 0 | 0 | +0 |
+| table: unified.unified_actions | 0 | 0 | +0 |
+| table: unified.test_results | 0 | 0 | +0 |
+| table: unified.extraction_attempts | 0 | 0 | +0 |
+| table: unified.expert_forecasts | 0 | 0 | +0 |
+| table: unified.capability_tracking | 0 | 0 | +0 |
+| table: unified.capability_baseline_freezes | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_07 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_06 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_05 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_04 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_03 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_02 | 0 | 0 | +0 |
+| table: unified.unified_processes_2027_01 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_12 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_11 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_10 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_09 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_08 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_07 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_06 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_05 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_04 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_03 | 0 | 0 | +0 |
+| table: unified.unified_processes_2026_02 | 0 | 0 | +0 |
+| table: unified.tool_execution_events | 0 | 0 | +0 |
+| table: unified.task_queue | 0 | 0 | +0 |
+| table: unified.research_publications | 0 | 0 | +0 |
+| table: unified.research_predictions | 0 | 0 | +0 |
+| table: unified.knowledge_transfers | 0 | 0 | +0 |
+| table: unified.capability_drift_tracking | 0 | 0 | +0 |
+| table: unified.capability_benchmark_results | 0 | 0 | +0 |
+| table: unified.arguments | 0 | 0 | +0 |
+| table: unified.component_health | 43 | 43 | +0 |
+| table: unified.research_questions | 0 | 0 | +0 |
+| table: unified.improvement_events | 0 | 0 | +0 |
+| table: unified.fallacies | 0 | 0 | +0 |
+| table: unified.claims | 0 | 0 | +0 |
+| table: unified.benchmark_history | 0 | 0 | +0 |
+| table: unified.analogies | 0 | 0 | +0 |
+| table: unified.memory_media | 61 | 61 | +0 |
+| table: unified.tool_error_events | 0 | 0 | +0 |
+| table: unified.task_execution_history | 0 | 0 | +0 |
+| table: unified.plans | 0 | 0 | +0 |
+| table: unified.memory_operations | 0 | 0 | +0 |
+| table: unified.learned_rules | 0 | 0 | +0 |
+| table: unified.internal_directives | 0 | 0 | +0 |
+| table: unified.hypotheses | 0 | 0 | +0 |
+| table: unified.capability_reports | 0 | 0 | +0 |
+| table: unified.access_logs | 0 | 0 | +0 |
+| table: unified.system_failures | 0 | 0 | +0 |
+| table: unified.security_logs_2027_07 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_06 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_05 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_04 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_03 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_02 | 0 | 0 | +0 |
+| table: unified.security_logs_2027_01 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_12 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_11 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_10 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_09 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_08 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_07 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_06 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_05 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_04 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_03 | 0 | 0 | +0 |
+| table: unified.security_logs_2026_02 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_07 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_06 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_05 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_04 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_03 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_02 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2027_01 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_12 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_11 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_10 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_09 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_08 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_07 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_06 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_05 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_04 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_03 | 0 | 0 | +0 |
+| table: unified.performance_metrics_2026_02 | 0 | 0 | +0 |
+| table: unified.pending_approvals | 0 | 0 | +0 |
+| table: unified.meta_health_alerts | 0 | 0 | +0 |
+| table: unified.malware_analyses | 0 | 0 | +0 |
+| table: unified.directive_ab_tests | 0 | 0 | +0 |
+| table: unified.security_events | 0 | 0 | +0 |
+| table: unified.safety_assessments | 0 | 0 | +0 |
+| table: unified.meta_learning_tasks | 0 | 0 | +0 |
+| table: unified.improvement_cycles | 0 | 0 | +0 |
+| table: unified.generated_improvements | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_07 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_06 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_05 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_04 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_03 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_02 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2027_01 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_12 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_11 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_10 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_09 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_08 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_07 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_06 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_05 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_04 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_03 | 0 | 0 | +0 |
+| table: unified.chaos_metrics_2026_02 | 0 | 0 | +0 |
+| table: unified.chaos_experiments | 0 | 0 | +0 |
+| table: unified.chaos_adapter_state | 0 | 0 | +0 |
+| table: unified.beliefs_snapshot_20260920_predup | 0 | 0 | +0 |
+| table: unified.intrinsic_motivation | 0 | 0 | +0 |
+| table: unified.frozen_capability_benchmarks | 0 | 0 | +0 |
+| table: unified.cross_domain_queries | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_07 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_06 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_05 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_04 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_03 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_02 | 0 | 0 | +0 |
+| table: unified.auth_logs_2027_01 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_12 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_11 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_10 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_09 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_08 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_07 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_06 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_05 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_04 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_03 | 0 | 0 | +0 |
+| table: unified.auth_logs_2026_02 | 0 | 0 | +0 |
+| table: unified.watchdog_recoveries | 0 | 0 | +0 |
+| table: unified.test_sessions | 0 | 0 | +0 |
+| table: unified.meta_decision_records | 0 | 0 | +0 |
+| table: unified.llm_requests | 0 | 0 | +0 |
+| table: unified.governance_module_state | 0 | 0 | +0 |
+| table: unified.backup_records | 0 | 0 | +0 |
+| table: unified.api_keys | 0 | 0 | +0 |
+| table: unified.system_alerts | 0 | 0 | +0 |
+| table: unified.profiler_results | 0 | 0 | +0 |
+| table: unified.governance_patterns | 0 | 0 | +0 |
+| table: unified.causal_feedback_analyses | 0 | 0 | +0 |
+| table: unified.auth_tokens | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_07 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_06 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_05 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_04 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_03 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_02 | 0 | 0 | +0 |
+| table: unified.performance_logs_2027_01 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_12 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_08 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_07 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_06 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_05 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_04 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_03 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_02 | 0 | 0 | +0 |
+| table: unified.network_logs | 0 | 0 | +0 |
+| table: unified.llm_responses | 0 | 0 | +0 |
+| table: unified.directive_governance_evaluations | 0 | 0 | +0 |
+| table: unified.system_logs_2027_07 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_06 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_05 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_04 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_03 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_02 | 0 | 0 | +0 |
+| table: unified.system_logs_2027_01 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_12 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_11 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_10 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_09 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_08 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_07 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_06 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_05 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_04 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_03 | 0 | 0 | +0 |
+| table: unified.system_logs_2026_02 | 0 | 0 | +0 |
+| table: unified.intents | 1 | 1 | +0 |
+| table: unified.future_states | 0 | 0 | +0 |
+| table: unified.component_snapshots | 0 | 0 | +0 |
+| table: unified.argument_graphs | 0 | 0 | +0 |
+| table: unified.governance_violations | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_10 | 0 | 0 | +0 |
+| table: unified.performance_logs_2026_09 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_07 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_06 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_05 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_04 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_03 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_02 | 0 | 0 | +0 |
+| table: unified.operation_logs_2027_01 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_12 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_11 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_10 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_08 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_07 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_06 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_05 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_04 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_03 | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_02 | 0 | 0 | +0 |
+| table: unified.operator_demonstrations | 0 | 0 | +0 |
+| table: unified.operation_logs_2026_09 | 0 | 0 | +0 |
+| table: unified.known_unknowns | 0 | 0 | +0 |
+| table: unified.experience_pool | 80 | 80 | +0 |
+| table: unified.tool_usage_history | 0 | 0 | +0 |
+| table: unified.directive_applications | 0 | 0 | +0 |
+| table: unified.scoped_conditionals | 0 | 0 | +0 |
+| table: unified.novelty_detections | 0 | 0 | +0 |
+| table: unified.goals | 0 | 0 | +0 |
+| table: unified.directive_evolution_log | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_07 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_06 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_05 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_04 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_03 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_02 | 0 | 0 | +0 |
+| table: unified.chaos_events_2027_01 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_12 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_11 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_10 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_09 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_08 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_07 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_06 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_05 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_04 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_03 | 0 | 0 | +0 |
+| table: unified.chaos_events_2026_02 | 0 | 0 | +0 |
+| table: unified.regression_events | 0 | 0 | +0 |
+| table: unified.outbox | 0 | 0 | +0 |
+| table: unified.held_expectations | 0 | 0 | +0 |
+| table: unified.held_conditionals | 0 | 0 | +0 |
+| table: unified.domain_mappings | 0 | 0 | +0 |
+| table: unified.tool_tracking_state | 0 | 0 | +0 |
+| table: unified.motivation_history | 6 | 6 | +0 |
+| table: unified.scoped_beliefs | 2 | 2 | +0 |
+| table: unified.governance_monitor_snapshots | 0 | 0 | +0 |
+| table: unified.user_beliefs | 0 | 0 | +0 |
+| table: unified.security_training_examples | 0 | 0 | +0 |
+| table: unified.scoped_intents | 1 | 1 | +0 |
+| table: unified.storage_health_probe | 0 | 0 | +0 |
+| table: unified.rule_authority_events | 0 | 0 | +0 |
+| table: unified.mapping_usage_events | 0 | 0 | +0 |
+| table: unified.governance_audit_log | 0 | 0 | +0 |
+| table: unified.meta_parameter_snapshots | 0 | 0 | +0 |
+| table: unified.connector_connections | 0 | 0 | +0 |
+| table: unified.components | 299 | 299 | +0 |
+| table: unified.scoped_concept_relations | 2 | 2 | +0 |
+| table: unified.experiments | 0 | 0 | +0 |
+| table: unified.evidence | 0 | 0 | +0 |
+| table: unified.motivation_profile | 1 | 1 | +0 |
+| table: unified.affect_state | 1 | 1 | +0 |
+| table: unified.rule_projections | 0 | 0 | +0 |
+| table: unified.emergency_halts | 0 | 0 | +0 |
+| table: unified.system_control_commands | 0 | 0 | +0 |
+| table: unified.failed_task_fingerprints | 0 | 0 | +0 |
+| table: unified.clause_classifiers | 0 | 0 | +0 |
+| table: unified.reasoning_arguments | 0 | 0 | +0 |
+| table: memory_hot.archive_log | 0 | 0 | +0 |
+| table: unified.sense_taxonomy | 0 | 0 | +0 |
+| table: unified.improvement_metrics | 0 | 0 | +0 |
+| table: unified.reasoning_arg_fallacies | 0 | 0 | +0 |
+| table: unified.shared_learning_history | 0 | 0 | +0 |
+| table: unified.vision_instances | 0 | 0 | +0 |
+| table: unified.threat_intel_state | 0 | 0 | +0 |
+| table: unified.sound_instances | 0 | 0 | +0 |
+| table: unified.reasoning_arg_claims | 0 | 0 | +0 |
+| table: unified.prediction_results | 5 | 20 | +15 |
+| table: unified.concept_mappings | 0 | 0 | +0 |
+| table: unified.shared_learning | 0 | 0 | +0 |
+| table: unified.rule_identity_aliases | 0 | 0 | +0 |
+| table: unified.connector_clients | 0 | 0 | +0 |
+| table: unified.calibration_data | 0 | 0 | +0 |
+| table: unified.meta_learning_strategies | 18 | 18 | +0 |
+| table: unified.system_control_status | 0 | 0 | +0 |
+| table: unified.firewall_blocklist | 0 | 0 | +0 |
+| table: unified.domain_controllability | 0 | 0 | +0 |
+| table: unified.knowledge_refresh | 0 | 0 | +0 |
+| table: unified.schemas | 0 | 0 | +0 |
+| table: unified.reasoning_temporal_causal_links | 0 | 0 | +0 |
+| table: unified.work_authorizations | 0 | 0 | +0 |
+| table: unified.learned_rule_evidence | 0 | 0 | +0 |
+| table: unified.watchdog_stats | 0 | 0 | +0 |
+| table: unified.reasoning_temporal_propositions | 0 | 0 | +0 |
+| table: unified.rate_limit_events | 0 | 0 | +0 |
+| table: unified.metric_measurements | 0 | 0 | +0 |
+| table: unified.rule_supersessions | 0 | 0 | +0 |
+| table: unified.domain_volatility | 4 | 4 | +0 |
+| table: unified.queue_instances | 1 | 1 | +0 |
+| table: unified.operating_modes | 0 | 0 | +0 |
+| table: unified.knowledge_consumption | 0 | 0 | +0 |
+| table: unified.operator_induction_pending | 0 | 0 | +0 |
+| table: unified.reasoning_telemetry | 0 | 0 | +0 |
+| table: unified.reasoning_bridge_stats | 8 | 8 | +0 |
+| table: unified.concept_aliases | 1,570 | 1,570 | +0 |
+| table: unified.concept_identity_relations | 1,053 | 1,053 | +0 |
+| table: unified.concept_domains | 1,657 | 1,657 | +0 |
+| table: unified.belief_evidence | 1,175 | 1,175 | +0 |
+| table: unified.evidence_envelopes | 756 | 756 | +0 |
+| table: unified.concept_relations | 2,345 | 2,345 | +0 |
+| table: unified.concept_evidence | 2,859 | 2,859 | +0 |
+| table: unified.knowledge_updates | 5,333 | 5,333 | +0 |
+| table: unified.beliefs | 1,155 | 1,155 | +0 |
+| table: unified.performance_logs_2026_11 | 5,777 | 100,008 | +94,231 |
+| table: unified.concepts | 1,414 | 1,414 | +0 |
+| table: memory_hot.memory_hot | 5,756 | 99,965 | +94,209 |
+
+## What the substrate did about it
+
+- reacted for 8s after the last fact was taught
+- reviewed 4 of 4 things held as learned in `general`: asked 0, answered 0 right; missed: unread 0, misread 0, denied 0, not derived 0; no question taught for 4
+- competence in `general`: (0.7940889269679189, 12) -> (0.7940889269679189, 12) (posterior, update_count)
+- admissions the substrate was NOT told about: 0
