@@ -509,6 +509,41 @@ class TeachingPass:
         self._memory_for_classes = await get_memory_agent()
         await self._memory_for_classes.warm_word_classes()
 
+        # WORDS AND SENTENCES RECORDED WHOLE ARE HELD BEFORE ANY OF IT IS READ. A sentence teaches how KNOWN
+        # words go together and never a word memory does not hold (TRAIN-FORMAT-02, 2026-10-26), and the
+        # patterns a sentence is read through are learned inside `_teach` -- so learning them before this ran
+        # read every sentence against a grammar that held none of its words, failed, and proposed a repair for
+        # each. The order is the taught one now: the words, then the sentences, then what they state.
+
+        # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, from sentences whose happenings' arguments were annotated by hand
+        # (`argued()`: PropBank's), and WHAT A SENTENCE MEANS, from the lessons' sentences each with its taught meaning
+        # (`taught_sentences()`), for the composer; and WHICH WORDS KEEP THE SAME COMPANY, from words grouped by counting
+        # text (`word_groups()`), for the structure reader; and WHAT EACH WORD TAKES BESIDE THE WORDS AROUND IT, from
+        # sentences derived by hand in a categorial grammar (`derived()`: the PMB's), for English's grammar: each kept
+        # whole by memory, no belief and no domain made of it. A limited pass takes the first `limit`.
+        for method, learn, phase, field_name in (
+                ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
+                ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),
+                ("word_groups", learning.learn_word_groups, "word groups", "word_groups"),
+                ("word_forms", learning.learn_word_forms, "word forms", "word_forms"),
+                ("derived", learning.learn_derived, "sentences derived by hand", "derived"),
+                ("word_records", learning.learn_word_records, "words recorded whole", "word_records"),
+                ("sentence_records", learning.learn_records, "sentences recorded whole", "sentence_records")):
+            if not hasattr(self.source, method):
+                # ASKED AND NOT OFFERED IS NOT TAUGHT AND NONE. Said apart, so a source that cannot teach a kind
+                # of thing never reads as one that tried and got nowhere (`Report.not_offered`).
+                report.not_offered[field_name] = f"this source states no {phase}"
+                continue
+            items = await asyncio.to_thread(list, getattr(self.source, method)())
+            if self.limit is not None:
+                items = items[:self.limit]
+                report.limit, report.sampled = self.limit, False
+            setattr(report, field_name, await learn(
+                items, provenance=self.source.provenance(), quality=float(self.source.quality),
+                progress=(None if not self.progress else
+                          lambda done, of, phase=phase: self.progress(done, of, {"phase": phase}))))
+            await self._flush()
+
         if records:
             # ONE call, for the whole harvest, through the one authority --
             # which fans out to beliefs, the lexicon, the domain and memory.
@@ -556,34 +591,6 @@ class TeachingPass:
                           lambda done, of: self.progress(done, of, {"phase": "sentences analysed"})))
             await self._flush()
 
-        # WHICH PHRASES ARE A HAPPENING'S ARGUMENTS, from sentences whose happenings' arguments were annotated by hand
-        # (`argued()`: PropBank's), and WHAT A SENTENCE MEANS, from the lessons' sentences each with its taught meaning
-        # (`taught_sentences()`), for the composer; and WHICH WORDS KEEP THE SAME COMPANY, from words grouped by counting
-        # text (`word_groups()`), for the structure reader; and WHAT EACH WORD TAKES BESIDE THE WORDS AROUND IT, from
-        # sentences derived by hand in a categorial grammar (`derived()`: the PMB's), for English's grammar: each kept
-        # whole by memory, no belief and no domain made of it. A limited pass takes the first `limit`.
-        for method, learn, phase, field_name in (
-                ("argued", learning.learn_arguments, "arguments annotated", "arguments"),
-                ("taught_sentences", learning.learn_taught_sentences, "sentences with meanings", "taught_sentences"),
-                ("word_groups", learning.learn_word_groups, "word groups", "word_groups"),
-                ("word_forms", learning.learn_word_forms, "word forms", "word_forms"),
-                ("derived", learning.learn_derived, "sentences derived by hand", "derived"),
-                ("word_records", learning.learn_word_records, "words recorded whole", "word_records"),
-                ("sentence_records", learning.learn_records, "sentences recorded whole", "sentence_records")):
-            if not hasattr(self.source, method):
-                # ASKED AND NOT OFFERED IS NOT TAUGHT AND NONE. Said apart, so a source that cannot teach a kind
-                # of thing never reads as one that tried and got nowhere (`Report.not_offered`).
-                report.not_offered[field_name] = f"this source states no {phase}"
-                continue
-            items = await asyncio.to_thread(list, getattr(self.source, method)())
-            if self.limit is not None:
-                items = items[:self.limit]
-                report.limit, report.sampled = self.limit, False
-            setattr(report, field_name, await learn(
-                items, provenance=self.source.provenance(), quality=float(self.source.quality),
-                progress=(None if not self.progress else
-                          lambda done, of, phase=phase: self.progress(done, of, {"phase": phase}))))
-            await self._flush()
 
         # WHAT EACH WORD IS SAID OF, from a source that counted it in real use (`said_of()`): how English uses a word,
         # which the listener goes by where nothing it knows tells two things a word names apart.

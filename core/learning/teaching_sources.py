@@ -2866,7 +2866,30 @@ class RecordSource:
         return _provenance(self.name, os.path.basename(self.path))
 
     def records(self) -> Iterator[TaughtRecord]:
-        return iter(())
+        """EACH SENTENCE RECORDED WHOLE, WITH ITS MEANING, so the constructions it is read through are learned from
+        the same lesson as its words (`learn_patterns`).
+
+        This returned nothing at all, and that is why no store ever held a construction: `patterns` is filled only
+        from this stream, so `learn_patterns` was never called by the one format Lyric is taught from, and every
+        teaching session reported "patterns: none taught" in the words of a run that was asked and failed. Nothing
+        was missing from the standard -- a `SentenceRecord` already carries the sentence (`text`) and its meaning
+        (`meaning`), which is all a pattern is learned from.
+
+        `example` is set, so the facts are NOT taught again here: they are the record's own and reach memory through
+        `learn_records`, which holds every layer of it. Only the pattern is learned from this."""
+        for record in self.sentence_records():
+            # HOW THIS SENTENCE WRITES EACH THING ITS MEANING NAMES, from the record's own alignment of terms to
+            # word positions (`terms`): a run of words saying one thing is learned as that thing's name and never
+            # taken apart into a frame's word and a filler ("the medal" one thing, not a slot holding "medal").
+            at = {word.at: word.form for word in record.words}
+            written = tuple((term, " ".join(at[i] for i in places if i in at))
+                            for term, places in record.terms if any(i in at for i in places))
+            yield TaughtRecord(subject="", relation="", obj="",
+                               quality=float(self.quality),
+                               sentence=record.text,
+                               meaning=record.meaning(),
+                               words=tuple((term, word) for term, word in written if word),
+                               example=True)
 
     def sentence_records(self) -> Iterator[SentenceRecord]:
         """The sentences recorded whole of the file's split."""
