@@ -10,7 +10,8 @@
       "x"
      ]
     ],
-    "use": "det"
+    "use": "det",
+    "only": true
    },
    {
     "cat": "NP.x/NP.x",
