@@ -3269,6 +3269,26 @@ class WordSense:
                    tuple(str(k) for k in data.get("one_of") or ()))
 
 
+#: HOW OFTEN A SENSE MUST HAVE BEEN USED FOR ITS COUNT TO BE EVIDENCE (`WordRecord.names`). SemCor tags a sense's
+#: uses, and the count was taken as evidence however small it was, so ONE use beat NONE: "whale" as a noun named
+#: `large person giant` (`giant.n.04`, used 1) over the cetacean (`whale.n.02`, used 0), and the prose benchmark's
+#: whales text read `done_by(?v0, large person giant)` and said back "Large Person Giant lives in the ocean." --
+#: saying faithfully, the reading wrong (UNDERSTANDS-PROSE-01, 2026-11-05).
+#:
+#: Under the bar the count is silence, and what breaks the silence is the sense NAMED FOR THE WORD ITSELF, which is
+#: the basic sense of a word WordNet names a synset after. Not the whole rule on its own: asked of 5,370 pairs, that
+#: alone agreed 53.1% and differed 7.7%, and 135 of 411 disagreements overturned a CORRECT choice -- `seem` ->
+#: `be look` (607 against 0), `do` -> `make` (526 against 134), `begin` -> `start` (375 against 57). Every one of
+#: those failures has an overwhelming count, which is why a bar and not a preference.
+#:
+#: THREE, measured over all 13,867 (word, class) pairs the store holds: 827 change (5.96%), `whale` among them,
+#: and none of the cases the earlier measurement showed correct. Every change sampled at two and three is better or
+#: neutral -- `canary` from `fink` to the bird, `taurus` from `sanchez`, `programming` from `scheduling`,
+#: `differential` from `derivative`. FIVE begins to lose good choices ("o" from `oxygen`, "through" from `done`),
+#: and TWENTY loses more ("release" from `let go of`, "a" from `angstrom`), so the bar sits under them.
+USED_BEFORE_DECIDING = 3
+
+
 @dataclass(frozen=True)
 class WordUse:
     """A sense a verb is used in as PropBank annotates it that no VerbNet class joins to any WordNet sense of the word:
@@ -3600,11 +3620,17 @@ class WordRecord:
         return out
 
     def names(self) -> Dict[str, str]:
-        """What it names as each class: the thing its most used sense of the class means."""
+        """What it names as each class: the thing its most used sense of the class means, and where no sense of the
+        class was used often enough for that to be evidence (`USED_BEFORE_DECIDING`), the sense NAMED FOR THE WORD
+        ITSELF -- the one whose concept's own name is the word ("whale" of `whale.n.02`, where `giant.n.04` is named
+        `large person giant`)."""
         out: Dict[str, str] = {}
         for c in sorted({s.word_class for s in self.senses}):
             senses = [s for s in self.senses if s.word_class == c]
-            out[c] = max(senses, key=lambda s: (s.used, -senses.index(s))).concept
+            most = max(senses, key=lambda s: (s.used, -senses.index(s)))
+            itself = next((s for s in senses if str(s.concept).split()[-1:] == [str(self.word).lower()]), None)
+            spoken = max(s.used for s in senses) >= USED_BEFORE_DECIDING
+            out[c] = most.concept if spoken or itself is None else itself.concept
         return out
 
     def frames(self) -> Dict[str, int]:
