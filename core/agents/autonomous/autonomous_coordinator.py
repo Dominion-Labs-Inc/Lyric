@@ -25160,6 +25160,26 @@ def get_conversation(session: str, *, db=None, identity=None,
     the substrate's own work (AUTONOMOUS/SYSTEM) resolves to the shared mind,
     and only by stating it.
     """
+    # NOTHING LYRIC DOES SHOULD RUN UNLOGGED. `core.main` installs the
+    # observability apparatus for the resident, and the guardian for itself --
+    # so an EXPERIMENT, a script or a test brought the substrate up with no
+    # channel routing, no failure record and no account of its background work
+    # at all. A 462-second read said nothing about what it was doing for 461 of
+    # them because of exactly this.
+    #
+    # Armed here because this is the substrate's front door for conversing:
+    # every experiment resolves its conversation through it, so a harness
+    # written next year is covered without having to remember. Both installs
+    # are idempotent, so the resident's own arming is unaffected.
+    try:
+        from core.observability import channels as _channels
+        from core.observability import failure_capture as _failure_capture
+        _channels.install()
+        _failure_capture.install()
+    except Exception as _observability_error:
+        logger.warning("observability apparatus unavailable: %s",
+                       _observability_error)
+
     key = str(session)
     held = _conversations.get(key)
     if held is None:

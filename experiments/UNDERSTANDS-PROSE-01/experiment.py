@@ -207,7 +207,34 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
         EV.note("an utterance every frame reads only by supposing more than any lesson read as taught is read by the "
                 "grammar instead (on by default; LYRIC_COMPOSE_FORCED=0 turns it off)")
         say("utterances frames read only by supposing read by the grammar (LYRIC_COMPOSE_FORCED=0 turns it off)")
-    quiet = io.StringIO()
+    class _Printed(io.TextIOBase):
+        """Lyric's own printed output, kept off the harness's report but NOT lost.
+
+        This was an `io.StringIO` that nothing ever read: everything the
+        substrate printed while reading a sentence went into it and was
+        discarded at exit. Forwarding it to the logging system puts it where
+        the comment above says the substrate's work belongs -- seen while it
+        happens -- and it reaches the channel logs with everything else.
+        """
+
+        def __init__(self, name: str):
+            self._log = logging.getLogger(name)
+            self._held = ""
+
+        def write(self, text: str) -> int:
+            self._held += text
+            while "\n" in self._held:
+                line, self._held = self._held.split("\n", 1)
+                if line.strip():
+                    self._log.info("%s", line)
+            return len(text)
+
+        def flush(self) -> None:
+            if self._held.strip():
+                self._log.info("%s", self._held.strip())
+            self._held = ""
+
+    quiet = _Printed("core.semantics.printed")
     say("loading memory, the beliefs and the language view (no substrate is started)…")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
         from core.agents.autonomous.autonomous_coordinator import get_conversation
