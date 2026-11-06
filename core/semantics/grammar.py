@@ -3016,15 +3016,42 @@ class Grammar:
         forms = [f for f in self._features(cls, at) if f]
         if not forms:
             return False
-        if "every" not in self._agreeing:
-            self._agreeing["every"] = words.subjects()
-        every = self._agreeing["every"]
+        if "every" not in self._of_words:
+            self._of_words["every"] = words.subjects()
+        every = self._of_words["every"]
 
         def matched(held: Mapping[Tuple[str, str], float], features: str) -> float:
             return sum(n for (c, f), n in held.items() if c == cls and f == features)
         # Every form the subject could be is one THIS form of the verb never took, and one some subject somewhere
         # was written as -- so the absence is about this pairing and not about the feature.
         return all(matched(took, f) == 0 and matched(every, f) > 0 for f in forms)
+
+    @property
+    def _of_words(self) -> Dict[Any, Any]:
+        """THE AGREEMENT INDEXES THAT DEPEND ON THE WORDS MEMORY HOLDS AND NOT ON THE SENTENCE, kept for as long as
+        those words are, beside `_agreeing`, which is the sentence's own and is emptied for each read (`charts`).
+
+        `charts` emptied both, so every read scanned every subject memory holds back out of it and built the same
+        indexes again: the subjects of each form written alike (`_subjects_like`), what the verbs ending as a word
+        does say (`_written_like`), every subject, every object, the features a subject is marked by, and the rest.
+        Rebuilding them cost a third of the time of reading thirteen short sentences and a ninth of three long ones
+        (lyric_dev, 2026-11-06), and the cost grows with everything taught, since what is scanned is what is held.
+
+        THEY ARE KEPT ON THE WORDS THEMSELVES, whose lifetime is exactly theirs: `HeldWords` counts the subjects and
+        objects its analysed sentences took once, in its own making (`grammar_words.HeldWords._count`), and nothing
+        writes those tables again, so an index over them is good for as long as that object is. Memory builds a new
+        one whenever what it holds of English changes (`MemoryAgent.grammar_view`), and the indexes go with the old
+        one. Nothing here needs emptying, and nothing here can go stale while something that does is missed."""
+        words = self.lexicon.words
+        kept = getattr(words, "_agreeing_of_words", None)
+        if kept is None:
+            kept = {}
+            try:
+                setattr(words, "_agreeing_of_words", kept)
+            except (AttributeError, TypeError):
+                # Words that will not hold it fall back to the sentence's own: correct, and as slow as before.
+                return self._agreeing
+        return kept
 
     def _agreement(self, subject: Sign, doing: Sign) -> float:
         """HOW WELL A SUBJECT AGREES WITH ITS VERB, as a logarithm, never more than nothing: of the subjects the
@@ -3043,17 +3070,17 @@ class Grammar:
         finite = [p[-1] for p in doing.pieces if p[0] == "finite" and p[1] == hook]
         if not finite or not 0 <= min(finite) < len(tokens):
             return standing
-        if "every" not in self._agreeing:
-            self._agreeing["every"] = words.subjects()
-        every = self._agreeing["every"]
+        if "every" not in self._of_words:
+            self._of_words["every"] = words.subjects()
+        every = self._of_words["every"]
         ref = _subject_ref(subject.cat)
         found = self._said_by(subject.pieces, ref) if every and ref is not None else None
         if not found:
             return standing
         verb = ("took", str(tokens[min(finite)]))
-        if verb not in self._agreeing:
-            self._agreeing[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
-        return standing + self._agreed(self._agreeing[verb], every, *found)
+        if verb not in self._of_words:
+            self._of_words[verb] = words.subjects(verb[1]) or self._subjects_like(verb[1])
+        return standing + self._agreed(self._of_words[verb], every, *found)
 
     def _pronouns(self) -> List[Tuple[str, Entry, bool]]:
         """EVERY PRONOUN OF THE GRAMMAR THAT MAY SAY A THING OF THE MEANING, each with whether it is one of its own
@@ -3066,7 +3093,7 @@ class Grammar:
         speaker, the listener and the one spoken of before, so a thing of the sentence could never be said by one:
         "She misled her." was said back as nothing, and "Tom misled himself." as "Tom misled Tom." (lyric_db,
         2026-10-30)."""
-        if "pronouns" not in self._agreeing:
+        if "pronouns" not in self._of_words:
             out: List[Tuple[str, Entry, bool]] = []
             for word in sorted(self.lexicon.closed):
                 for _, entry in self.lexicon.entries((word,), 0):
@@ -3078,8 +3105,8 @@ class Grammar:
                     if not said or len(said) != len(entry.sem):
                         continue
                     out.append((word, entry, len(said[0]) > 3 and said[0][3] == "own"))
-            self._agreeing["pronouns"] = out
-        return self._agreeing["pronouns"]
+            self._of_words["pronouns"] = out
+        return self._of_words["pronouns"]
 
     @staticmethod
     def _says_its_own(thing: Sign) -> bool:
@@ -3146,9 +3173,9 @@ class Grammar:
         an object, so "They misled me." was said back as "They misled i." and "I misled them." as "I misled this."
         (lyric_db, 2026-10-30)."""
         words, tokens = self.lexicon.words, self._tokens
-        if "every object" not in self._agreeing:
-            self._agreeing["every object"] = words.objects()
-        every = self._agreeing["every object"]
+        if "every object" not in self._of_words:
+            self._of_words["every object"] = words.objects()
+        every = self._of_words["every object"]
         if not every or not 0 <= doing.head < len(tokens):
             return 0.0
         ref = _subject_ref(thing.cat)
@@ -3156,7 +3183,7 @@ class Grammar:
         if not found:
             return 0.0
         verb = ("object of", str(tokens[doing.head]))
-        if verb not in self._agreeing:
+        if verb not in self._of_words:
             # WHAT STOOD AFTER THIS VERB, COUNTED TOGETHER WITH WHAT STOOD AFTER EVERY VERB, never the verb's own
             # alone: `_agreed` gives a form no evidence names a flat penalty, so weighing by a verb's own handful
             # would throw away the only thing that tells a case apart -- "them" and "they" both scored -3.71 after
@@ -3165,17 +3192,17 @@ class Grammar:
             # preferences more sharply.
             held: Counter = Counter(every)
             held.update(words.objects(verb[1]))
-            self._agreeing[verb] = held
-        return self._agreed(self._agreeing[verb], every, *found)
+            self._of_words[verb] = held
+        return self._agreed(self._of_words[verb], every, *found)
 
     def _shared_features(self) -> Set[str]:
         """THE FEATURES A SUBJECT AND A VERB SHARE and a subject is marked by (number, person, case), as what memory
         holds of the subjects verbs took says them (`Words.subjects`): nothing else a form is written with is weighed
         for agreement, a tense or a mood saying nothing of what may stand before it."""
-        if "shared" not in self._agreeing:
-            self._agreeing["shared"] = {f.split("=")[0] for _, features in self.lexicon.words.subjects()
+        if "shared" not in self._of_words:
+            self._of_words["shared"] = {f.split("=")[0] for _, features in self.lexicon.words.subjects()
                                         for f in features.split("|") if f}
-        return self._agreeing["shared"]
+        return self._of_words["shared"]
 
     def _marking_features(self) -> Set[str]:
         """THE FEATURES THAT MARK WHERE A THING MAY STAND rather than what its verb agrees in (its case), as what
@@ -3188,14 +3215,14 @@ class Grammar:
         returned the same nothing for every subject, and the subject's CASE went unweighed with it:
         "We misled them." was said back as "Ourselves misled this." (lyric_db, 2026-10-30). Nothing where memory
         holds no form of any such verb, there being nothing to tell the two apart by."""
-        if "marking" not in self._agreeing:
+        if "marking" not in self._of_words:
             words, on_verbs = self.lexicon.words, set()
             for word in words.took_subjects():
                 for cls in ("VERB", "AUXILIARY"):
                     for features in words.form_features(word, cls):
                         on_verbs |= {f.split("=")[0] for f in features.split("|") if f}
-            self._agreeing["marking"] = (self._shared_features() - on_verbs) if on_verbs else set()
-        return self._agreeing["marking"]
+            self._of_words["marking"] = (self._shared_features() - on_verbs) if on_verbs else set()
+        return self._of_words["marking"]
 
     def _placed(self, held: Mapping[Tuple[str, str], float]) -> Counter:
         """What stood somewhere, counted by the features that mark the place alone (`_marking_features`): the
@@ -3211,12 +3238,12 @@ class Grammar:
         and it has to be every place rather than the place itself: a share weighed against itself tells nothing
         apart, and `ourselves`, accusative and 3 of main's 11,295 subjects, came out at -0.15 against `we` when it
         was (lyric_db, 2026-10-30)."""
-        if "places" not in self._agreeing:
+        if "places" not in self._of_words:
             words = self.lexicon.words
             held = self._placed(words.subjects())
             held.update(self._placed(words.objects()))
-            self._agreeing["places"] = held
-        return self._agreeing["places"]
+            self._of_words["places"] = held
+        return self._of_words["places"]
 
     def _standing(self, thing: Sign, place: str) -> float:
         """HOW WELL A THING IS WRITTEN FOR THE PLACE IT STANDS IN, as a logarithm, never more than nothing: of what
@@ -3229,10 +3256,10 @@ class Grammar:
         if not found:
             return 0.0
         key = ("standing", place)
-        if key not in self._agreeing:
+        if key not in self._of_words:
             words = self.lexicon.words
-            self._agreeing[key] = self._placed(words.subjects() if place == "subject" else words.objects())
-        return self._agreed(self._agreeing[key], self._places(), *found, names=marking)
+            self._of_words[key] = self._placed(words.subjects() if place == "subject" else words.objects())
+        return self._agreed(self._of_words[key], self._places(), *found, names=marking)
 
     def _agrees_as(self, word: str) -> str:
         """WHAT A FINITE VERB'S FORM SAYS OF ITS SUBJECT: the number and person memory holds this word written with
@@ -3243,7 +3270,7 @@ class Grammar:
         the subject is taken (`Grammar.say`), a form this decides is not chosen by how often it is written, and a
         verb memory holds no subject of is weighed by what the verbs written as it is took (`_subjects_like`). Of a
         word memory holds no form of at all, what the verbs ending as it does say (`_written_like`)."""
-        held = self._agreeing.setdefault("agrees as", {})
+        held = self._of_words.setdefault("agrees as", {})
         if word not in held:
             held[word] = self._held_agreement(word) or self._written_like(word)
         return held[word]
@@ -3278,7 +3305,7 @@ class Grammar:
         word's own last letters rather than a list of English endings here, as every other thing the grammar knows
         about a word's shape is counted and not stated."""
         words = self.lexicon.words
-        like = self._agreeing.setdefault("written like", {})
+        like = self._of_words.setdefault("written like", {})
         if not like:
             for other in words.took_subjects():
                 says = self._held_agreement(other)
@@ -3306,12 +3333,12 @@ class Grammar:
         forms and "stinks" not among them (lyric_db, 2026-10-30). What a form says of its subject is held of the
         form and not of the word, so the verbs written as it is are what is left to weigh it by."""
         of = self._agrees_as(word)
-        if "like" not in self._agreeing:
+        if "like" not in self._of_words:
             words, like = self.lexicon.words, defaultdict(Counter)
             for other in words.took_subjects():
                 like[self._agrees_as(other)].update(words.subjects(other))
-            self._agreeing["like"] = like
-        return self._agreeing["like"].get(of, {}) if of else {}
+            self._of_words["like"] = like
+        return self._of_words["like"].get(of, {}) if of else {}
 
     def _said_by(self, pieces: Sequence[Piece], ref: Term) -> Optional[Tuple[str, int]]:
         """The one word saying a thing among these pieces, its class and where it stands: a noun (its last word), a
@@ -3604,6 +3631,8 @@ class Grammar:
         2,058 of the worst, and had to be guarded against never finishing."""
         n = len(tokens)
         self._tokens = tuple(tokens)
+        # EMPTIED FOR EACH READ because it is keyed by where a word stands in THIS sentence (`_features`). What
+        # depends on the words memory holds and not on the sentence is kept across reads (`_of_words`).
         self._weighed, self._marking, self._asking, self._agreeing = None, frozenset(), frozenset(), {}
         if self.structure is not None and len(self.structure) and n:
             classes, self._weighed = self.structure.joins(tuple(str(t) for t in tokens))
