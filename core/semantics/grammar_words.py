@@ -576,9 +576,27 @@ class HeldWords(Words):
             if not held and word[:1].isupper():
                 # A capitalised word nothing holds is a name.
                 return {"NAME": 1.0}
-            if held:
-                return {c: 0.0 for c in held}
-            return {c: 0.0 for c in self.like(w, "uses") if c in ("NOUN", "VERB", "ADJECTIVE", "ADVERB", "NUMERAL")}
+            # NEVER BELOW THE FLOOR A WORD NOTHING HOLDS GETS. Returning `held`
+            # alone made a word memory has MET read worse than one it has never
+            # met: "east" and "west" are in identical states here -- no use in
+            # any held sentence, nothing claimed of them -- and differ only in
+            # that the lexeme loop above guessed "east" is a form of the verb
+            # "ease". That one guess took its other four readings away, and
+            # "The empire was in the east." then had NO MEANING AT ALL while
+            # the same sentence with "west" read at 1.0 (2026-11-06). Nonsense
+            # fared better than English: "zorblat" is offered NOUN and
+            # ADJECTIVE and reads.
+            #
+            # So what is held is laid OVER the floor rather than replacing it.
+            # A word with real evidence keeps its counts and stays preferred --
+            # these are all 0.0, the lowest weight, so nothing here outranks an
+            # attested way. A word whose only evidence is that guess gets back
+            # the readings the guess removed. A word that already reached the
+            # floor does not move.
+            ways = {c: 0.0 for c in self.like(w, "uses")
+                    if c in ("NOUN", "VERB", "ADJECTIVE", "ADVERB", "NUMERAL")}
+            ways.update({c: 0.0 for c in held})
+            return ways
         for c in held:
             counts.setdefault(c, 0.0)
         return counts
