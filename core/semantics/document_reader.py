@@ -128,9 +128,15 @@ def _joined(lines: Sequence[str], view) -> str:
     return text
 
 
-async def passages_stated(passages: Sequence[Tuple[str, str]], *, document: str) -> List[Dict[str, Any]]:
+async def passages_stated(passages: Sequence[Tuple[str, str]], *, document: str,
+                          unread: Optional[List[Dict[str, str]]] = None) -> List[Dict[str, Any]]:
     """Each fact the passages state between named things, read in order as ONE text, kept with the sentence it was
     read from (`said`) and where its passage stands (`at`).
+
+    WHAT IT COULD NOT READ IS SAID WHERE A CALLER ASKS FOR IT (`unread`, each sentence something was read from and
+    not held, with why), as `tables_stated` already says it of a row (`TablesRead.unread`). Prose said nothing: the
+    reader made a note of every fact it could not hold and `Conversation.stated` dropped it, so a document stated
+    what it stated and no count anywhere said how much of it went missing.
 
     A TEXT IS READ AS A LISTENER FOLLOWS ONE, by a conversation of its own (`Conversation.stated`): "the dog" is the
     dog it told of before, "it" and "they" what it last spoke of, and each happening it tells of is named, as this
@@ -148,10 +154,14 @@ async def passages_stated(passages: Sequence[Tuple[str, str]], *, document: str)
         if not passage.strip():
             continue
         await asyncio.sleep(0)
-        for fact, said in await reading.stated(passage):
+        notes: List[Any] = []
+        for fact, said in await reading.stated(passage, unread=notes):
             found.append({"subject": str(fact.subject), "relation": str(fact.relation),
                           "object": str(fact.obj), "positive": bool(fact.positive),
                           "said": said[:300], "at": at})
+        if unread is not None:
+            unread.extend({"said": str(note.label)[:300], "why": note.detail, "at": at}
+                          for note in notes if note.detail)
     return found
 
 

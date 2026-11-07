@@ -23540,17 +23540,26 @@ class Conversation:
                     self._last_place = situation["?there"] = place
             yield utterance, told, notes, why.get("margin")
 
-    async def stated(self, text: str) -> List[Tuple[Any, str]]:
+    async def stated(self, text: str, *, unread: Optional[List[Acquired]] = None) -> List[Tuple[Any, str]]:
         """What a written text states between named things, heard as this conversation hears a telling and taken in
         by nobody: each fact, with the sentence it was read from. Its sentences are one thread (`_told_each`), and a
         conversation that is given a text a passage at a time hears every passage after the ones before it.
+
+        WHAT IT COULD NOT TAKE IN IS SAID WHERE A CALLER ASKS FOR IT (`unread`, filled with the `Acquired` notes
+        `_told` makes). Those notes were made for every reading and then dropped here, so a document read by the
+        substrate stated what it stated and accounted for nothing it lost: twelve per cent of the facts the chosen
+        readings asserted over ten texts of UNDERSTANDS-PROSE-02 were not held, and two notes were made about
+        nineteen losses (2026-11-06). A table's unreadable rows were already reported this way
+        (`document_reader.TablesRead.unread`); prose had no equivalent.
 
         WRITTEN, NOT SAID TO LYRIC. A text's "I" is its writer and its "you" its reader, and nothing here names
         either, so nothing it says of them is held as said of the one this conversation is with or of Lyric."""
         situation = {variable: value for variable, value in self._situation(text).items()
                      if variable not in ("?speaker", "?listener")}
         out: List[Tuple[Any, str]] = []
-        async for utterance, told, _, _ in self._told_each(text, situation):
+        async for utterance, told, notes, _ in self._told_each(text, situation):
+            if unread is not None:
+                unread.extend(notes or ())
             if told is not None:
                 out.extend((fact, utterance.text) for fact in told[0])
         return out
@@ -23632,9 +23641,23 @@ class Conversation:
             then = [bound[f] for f in meaning.asserted if not f.given]
             if (len(condition) != 1 or len(then) != 1
                     or any(is_variable(t) for f in condition + then for t in f.terms())):
-                notes.append(Acquired(said, detail=(
-                    "I read that as a conditional, but a side of it is not a "
-                    "single proposition I can hold")))
+                # WHICH SIDE, AND WHAT IT COST. This refuses the whole utterance, so every fact it states goes with
+                # the rule -- said as one note that named neither the side nor the count, the largest quiet loss at
+                # this door: 18 of the 19 facts lost over ten texts of UNDERSTANDS-PROSE-02 went this way, on one
+                # sentence, under a note that reads like a single proposition was mislaid (2026-11-06).
+                because = []
+                if len(condition) != 1:
+                    because.append(f"what it supposes is {len(condition)} propositions, not one")
+                if len(then) != 1:
+                    because.append(f"what follows from it is {len(then)} propositions, not one")
+                unnamed = sorted({str(t) for f in condition + then for t in f.terms() if is_variable(t)})
+                if unnamed:
+                    because.append(f"I have no name for {', '.join(unnamed)}")
+                cost = len([f for f in meaning.asserted if not f.alternative])
+                detail = (f"I read that as a conditional I cannot hold -- {'; '.join(because)} -- so none of the "
+                          f"{cost} thing{'' if cost == 1 else 's'} it states was held")
+                notes.append(Acquired(said, detail=detail))
+                logger.info("read but not held: %s -- %s", said[:160], detail)
                 return None, notes
             if confirmed:
                 (ant,), (con,) = condition, then
@@ -23680,10 +23703,16 @@ class Conversation:
                     continue
                 fact = bound[fact_said].renamed(events)
                 if is_variable(fact.subject) or is_variable(fact.obj):
-                    notes.append(Acquired(said, detail=(
-                        "part of that is about something I have no name for yet, "
-                        "so I did not hold it")))
+                    # WHICH THING IT HAS NO NAME FOR, NOT THAT THERE WAS ONE. "part of that is about something I
+                    # have no name for yet" was true of every unbound term alike, so a reader of it could not tell
+                    # a pronoun pointing at nothing (`?previous`) from a description that found no referent, and
+                    # finding out which took reading the meaning by hand. The term and what was said of it name it.
+                    unnamed = ", ".join(str(t) for t in (fact.subject, fact.obj) if is_variable(t))
+                    detail = (f"part of that is about something I have no name for yet ({unnamed}, in what it "
+                              f"says of {fact.relation}), so I did not hold it")
+                    notes.append(Acquired(said, detail=detail))
                     self._not_taken_in.append(said)
+                    logger.info("read but not held: %s -- %s", said[:160], detail)
                     continue
                 # WHAT A KNOWN THING IS IS NOT WHAT A CORRECTION DENIES: "That's
                 # wrong." of "The printer is broken." says the printer is not

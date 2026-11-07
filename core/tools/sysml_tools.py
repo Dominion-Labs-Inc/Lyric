@@ -206,7 +206,8 @@ async def read_system(paths: Sequence[str]) -> SystemReading:
             continue
         form = read["kind"] if read["kind"] != "text" else (Path(path).suffix.lower().lstrip(".") or "text")
         passages = passages_of(read["pages"], form, view)
-        from_passages = await passages_stated(passages, document=read["sha256"])
+        not_held: List[Dict[str, str]] = []
+        from_passages = await passages_stated(passages, document=read["sha256"], unread=not_held)
         tables = tables_stated(read.get("tables") or [])
         for fact in from_passages + tables.facts:
             out.fact(fact, name)
@@ -216,7 +217,8 @@ async def read_system(paths: Sequence[str]) -> SystemReading:
             "document": name, "path": str(path), "kind": form, "sha256": read["sha256"],
             "passages": len(passages), "facts_from_passages": len(from_passages),
             "tables": len(read.get("tables") or []), "rows": tables.rows,
-            "facts_from_rows": len(tables.facts), "values": len(tables.values), "unread": tables.unread})
+            "facts_from_rows": len(tables.facts), "values": len(tables.values),
+            "unread": tables.unread + not_held})
     return out
 
 
