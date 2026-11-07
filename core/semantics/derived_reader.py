@@ -1131,6 +1131,13 @@ class PatternInventory:
         self._lexical_value: Dict[str, List[str]] = {}
         self._links: Dict[Tuple[str, str, str], str] = {}
         self._linked: Dict[Tuple[str, str], List[str]] = {}
+        #: THE ONE KIND A SLOT TAKES, as `admits_there` reads it off everything linked to the slot. `_linked` only
+        #: ever grows, so reading it per call made that scan the cost of a whole pass: teaching WordNet's 144,070
+        #: pairs spent 6h09m of a 14h run inside it, 65s per thousand pairs at the start and 460s at the end, while
+        #: the store it scanned grew from 12,558 constructions to 323,393. Held per slot, dropped for that slot
+        #: alone when a link or a filler arrives (`add`). Absent means not worked out yet; None means the slot takes
+        #: anything, which is what all but a mathematical slot does.
+        self._filler_kind: Dict[Tuple[str, str], Optional[bool]] = {}
         self._standing_at: Dict[Tuple[str, str], Tuple[int, FrozenSet[Tuple[str, str]]]] = {}
         self._sizes_at: Dict[Tuple[str, str], Tuple[int, FrozenSet[int]]] = {}
         self._frame_words: set = set()
@@ -1310,6 +1317,13 @@ class PatternInventory:
             return False
         self._by_key[key] = item
         self._added += 1
+        # WHAT A SLOT TAKES CHANGES when a link arrives on it, and when a filler already linked to it arrives: the
+        # kind is read off `_by_key` for every key linked there, so a filler held after its link moves it too.
+        if isinstance(item, Link):
+            self._filler_kind.pop((item.pattern, item.slot), None)
+        else:
+            for place in self._links_to.get(key, ()):
+                self._filler_kind.pop(place, None)
         if isinstance(item, (Pattern, Lexical, Phrase)):
             self._words.update(_folded(p.text for p in item.form if isinstance(p, Piece)))
             if isinstance(item, Pattern):
@@ -2388,11 +2402,15 @@ class PatternInventory:
         mathematics: "What is ?slot0?", taught with "2 + 3" and "x", asks what a quantity comes to, and "water" is no
         quantity. One that has held two or more, none of them mathematics, takes none: "What is ?slot0?", taught
         with "water" and "milk", asks what kind of thing it is, and "7 × 8" comes to a number."""
-        kinds = [kind for key in self._linked.get((pattern, slot), ())
-                 for kind in (_filler_mathematical(self._by_key.get(key)),) if kind is not None]
-        if len(kinds) < 2 or len(set(kinds)) != 1:
-            return True
-        return _mathematical(value) == kinds[0]
+        place = (pattern, slot)
+        if place in self._filler_kind:
+            kind = self._filler_kind[place]
+        else:
+            kinds = [kind for key in self._linked.get(place, ())
+                     for kind in (_filler_mathematical(self._by_key.get(key)),) if kind is not None]
+            kind = kinds[0] if len(kinds) >= 2 and len(set(kinds)) == 1 else None
+            self._filler_kind[place] = kind
+        return True if kind is None else _mathematical(value) == kind
 
     def sized_apart(self, pattern: str, slot: str, value: str) -> bool:
         """Whether a whole number stands apart from what a number phrase's slot is taught: every word linked to the
