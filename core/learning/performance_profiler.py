@@ -1054,6 +1054,10 @@ def get_performance_profiler() -> PerformanceProfiler:
 SLOW_STEP_MS = float(os.environ.get("LYRIC_SLOW_STEP_MS", "2000"))
 
 
+#: A STEP THAT RAISED RATHER THAN RETURNED, so what it came back with is not reported as nothing (`trace_step`).
+_RAN = object()
+
+
 def trace_step(component_name: str, operation_name: str = None):
     """Say a step is STARTING, then say what it cost. For work that can fail to finish.
 
@@ -1099,7 +1103,7 @@ def trace_step(component_name: str, operation_name: str = None):
             timer[0].start()
             return timer
 
-        def done(timer, started):
+        def done(timer, started, got=_RAN):
             if timer[0] is not None:
                 timer[0].cancel()
             spent = (time.perf_counter() - started) * 1000.0
@@ -1107,26 +1111,38 @@ def trace_step(component_name: str, operation_name: str = None):
                 logger.info("%s: %s took %.0fms", component_name, name, spent)
             else:
                 logger.debug("%s: %s took %.1fms", component_name, name, spent)
+            # AND WHETHER IT CAME BACK WITH ANYTHING. The entry line says where the work is; the cost says how long
+            # it took; neither says that a step answered nothing, which is the thing a person asks about afterwards.
+            # Answering holds 47 places that return no answer and not one of them said so, so "I don't know" could be
+            # read off the reply and nowhere else, and which step declined had to be inferred from the outside. Said
+            # at DEBUG, because a step that rightly has nothing to say is the ordinary case and a run's log stays
+            # clean; `got` is left as `_RAN` where the step raised, which the traceback already accounts for.
+            if got is not _RAN and (got is None or (isinstance(got, (list, tuple, dict, set)) and not got)):
+                logger.debug("%s: %s came back with nothing", component_name, name)
 
         if asyncio.iscoroutinefunction(func):
             @wraps(func)
             async def wrapper(*args, **kwargs):
                 logger.debug("%s: %s starting", component_name, name)
                 started, timer = time.perf_counter(), watching()
+                outcome = [_RAN]
                 try:
-                    return await func(*args, **kwargs)
+                    outcome[0] = await func(*args, **kwargs)
+                    return outcome[0]
                 finally:
-                    done(timer, started)
+                    done(timer, started, outcome[0])
             return wrapper
 
         @wraps(func)
         def wrapper(*args, **kwargs):
             logger.debug("%s: %s starting", component_name, name)
             started, timer = time.perf_counter(), watching()
+            outcome = [_RAN]
             try:
-                return func(*args, **kwargs)
+                outcome[0] = func(*args, **kwargs)
+                return outcome[0]
             finally:
-                done(timer, started)
+                done(timer, started, outcome[0])
         return wrapper
     return decorator
 
