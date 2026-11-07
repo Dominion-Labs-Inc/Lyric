@@ -3957,6 +3957,39 @@ def _written_otherwise(form: str, ending: str) -> bool:
     return not third and not form.endswith("ing")
 
 
+def _plural_english_gives(word: str, cache: Dict[str, Any]) -> Optional[str]:
+    """THE PLURAL ENGLISH GIVES THE NOUN that no treebank here wrote; None where English gives it none here.
+
+    The verb half of this was done on 2026-11-04 (`_forms_english_gives`) and the noun half was not, so a noun held
+    only what a treebank happened to write: "whale" is held `Number=Sing` and "whales" is held nothing at all, nor
+    is "mammal" held any number. A number is what tells "a mammal" from "a mammals", and the grammar already counts
+    what each determiner was said with -- "a" before a singular noun 7,339 times against a plural 170 -- so with no
+    number on the word the count cannot be used. Asked "Are whales mammals?", Lyric found the right fact and said
+    **"A whale's a mammals."** (lyric_db, 2026-11-06).
+
+    Where English writes the plural otherwise than a rule would ("children", "mice", "women"), WordNet holds that
+    form as an exception and it is taken in the rule's place; where it holds more than one, nothing it holds says
+    which, so neither is taken. Otherwise the rule writes it (`_written_with`, which spells a noun's plural
+    already: "es" after a hiss, a consonant and "y" turned to "ies").
+
+    KEPT ONLY WHERE THE CMU PRONOUNCING DICTIONARY SAYS IT IS A WORD, as the verb's forms are, and only where
+    WordNet's own morphology reads it back as this word. That is what keeps a noun English does not count from
+    being given one: "cattles" and "wheys" are in no pronouncing dictionary. WordNet's `morphy` cannot be asked
+    instead of CMU -- it reads the ending off and asks only whether what is left is a word."""
+    from nltk.corpus import wordnet as wn
+    wn.ensure_loaded()
+    if not word.isalpha() or word != word.lower() or len(word) < 3:
+        return None
+    otherwise = sorted({form for form, bases in wn._exception_map["n"].items()
+                        if word in bases and form != word})
+    if otherwise:
+        return otherwise[0] if len(otherwise) == 1 else None
+    form = _written_with(word, "s")
+    if form == word or form not in _pronounced(cache):
+        return None
+    return form if word in wn._morphy(form, wn.NOUN) else None
+
+
 def _forms_english_gives(word: str, cache: Dict[str, Any]) -> List[Tuple[str, str]]:
     """EVERY FORM ENGLISH GIVES THE VERB that no treebank here wrote, with the features a treebank writes on it.
 
@@ -4832,6 +4865,20 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                 if (form, features) not in held:
                     forms.append(WordForm(form, cls, features, 0))
                     held.add((form, features))
+        if cls == "NOUN":
+            # AND THE NUMBER ENGLISH GIVES A NOUN, BOTH OF THEM, counted none, the same way and for the same reason
+            # (`_plural_english_gives`): a noun held with no number cannot be told from one of the other number, and
+            # what a determiner was said with is counted and then cannot be weighed. "whale" was held `Number=Sing`
+            # and "whales" nothing; "mammal" was held no number at all.
+            held = {(f.form, f.features) for f in forms if f.word_class == cls}
+            said = _plural_english_gives(word, _cache)
+            if said is not None and (said, "Number=Plur") not in held:
+                forms.append(WordForm(said, cls, "Number=Plur", 0))
+                held.add((said, "Number=Plur"))
+            # The word itself is the singular, said where nothing wrote a number on it. A form a treebank wrote
+            # with its features stands before this, which is counted none.
+            if said is not None and not any(form == word and "Number=" in features for form, features in held):
+                forms.append(WordForm(word, cls, "Number=Sing", 0))
     # THE CLASSES WORDNET HAS NONE OF, as the treebanks used the word: "for" a preposition, a subordinator; of a class
     # whose words take forms (`_FORMED_CLOSED`), each form the analysts gave the word as its base, with its features
     # ("is", "am", "was" of `be` as an auxiliary; "an" of `a`). Without them "is", "am" and "are" were one word to
