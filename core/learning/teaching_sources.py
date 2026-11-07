@@ -4464,6 +4464,14 @@ def _semcor_sentences(cache: Dict[str, Any]) -> List[Tuple[Tuple[str, ...], Tupl
     return cache["semcor"]
 
 
+def _grouped(places: Sequence[Tuple[int, int]]) -> Iterator[Tuple[int, List[int]]]:
+    """Places in SemCor (`sentence`, `word`) gathered by their sentence, in the order the sentences stand."""
+    out: Dict[int, List[int]] = {}
+    for n, k in places:
+        out.setdefault(n, []).append(k)
+    return iter(out.items())
+
+
 def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
     """WHAT EACH SENSE OF A WORD WAS SEEN USED WITH in SemCor (Brown corpus text, each word tagged with its WordNet
     sense by hand), by the structure the reader learned from UD English EWT (`StructureView`).
@@ -4486,13 +4494,36 @@ def _semcor_seen(word: str, cache: Dict[str, Any]) -> Dict[str, Counter]:
             view.add(analysed)
         cache["structure"] = view
     out: Dict[str, Counter] = {}
-    for words, tags in cache["semcor"]:
-        at = [k for k, t in enumerate(tags) if t is not None and t.name().lower() == word
-              and t.synset().pos() in ("v", "a", "s", "r")]
+    # A SEMCOR SENTENCE IS READ ONCE, NOT ONCE FOR EVERY WORD TAGGED IN IT. What the structure says of a sentence
+    # depends on the sentence and not on the word being asked after, and a sentence of twenty words is asked after
+    # by each of them, so every sentence was read again for each: of 689.9s spent recording sixty words, 684.7s
+    # (99.2%) was this function, and of that 667.5s was 173 structural reads -- about three a word, every one of
+    # them a sentence another word had already read or would. Held by the sentence it is of, a sweep reads each of
+    # SemCor's sentences once and asks after it as often as it likes; a single word still reads only its own.
+    # None marks a sentence the structure read to a different length than SemCor tagged, which is passed over as
+    # it was before.
+    reads: Dict[int, Any] = cache.setdefault("semcor_read", {})
+    # AND THE SENTENCES A WORD IS TAGGED IN ARE LOOKED UP, NOT SEARCHED FOR. Every word walked all of SemCor to find
+    # which sentences tag it, so the walk was done once for each word asked after and all but a few hundred of its
+    # sentences tag no word being asked about. Held once, by the name the tag carries: a sweep over WordNet asks
+    # after 147,311 words and would have read every sentence's tags once for each of them.
+    if "semcor_at" not in cache:
+        where: Dict[str, List[Tuple[int, int]]] = {}
+        for n, (_, tags) in enumerate(cache["semcor"]):
+            for k, t in enumerate(tags):
+                if t is not None and t.synset().pos() in ("v", "a", "s", "r"):
+                    where.setdefault(t.name().lower(), []).append((n, k))
+        cache["semcor_at"] = where
+    for n, group in _grouped(cache["semcor_at"].get(word, ())):
+        words, tags = cache["semcor"][n]
+        at = list(group)
         if not at:
             continue
-        read = cache["structure"].read(words)
-        if len(read.heads) != len(tags):
+        if n not in reads:
+            got = cache["structure"].read(words)
+            reads[n] = got if len(got.heads) == len(tags) else None
+        read = reads[n]
+        if read is None:
             continue
         for k in at:
             of = tags[k].synset()
