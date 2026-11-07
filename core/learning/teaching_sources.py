@@ -3967,10 +3967,16 @@ def _plural_english_gives(word: str, cache: Dict[str, Any]) -> Optional[str]:
     number on the word the count cannot be used. Asked "Are whales mammals?", Lyric found the right fact and said
     **"A whale's a mammals."** (lyric_db, 2026-11-06).
 
-    Where English writes the plural otherwise than a rule would ("children", "mice", "women"), WordNet holds that
-    form as an exception and it is taken in the rule's place; where it holds more than one, nothing it holds says
-    which, so neither is taken. Otherwise the rule writes it (`_written_with`, which spells a noun's plural
-    already: "es" after a hiss, a consonant and "y" turned to "ies").
+    Where English writes the plural otherwise than a rule would ("children", "mice"), WordNet holds that form as an
+    exception and it is taken in the rule's place; where it holds more than one, nothing it holds says which, so
+    neither is taken. Otherwise the rule writes it (`_written_with`, which spells a noun's plural already: "es"
+    after a hiss, a consonant and "y" turned to "ies").
+
+    AND WHERE THE RULE WRITES NOTHING ENGLISH KEEPS, THE TWO FORMS IT CANNOT WRITE: the plain "s" where the rule
+    chose "es" ("tattoos", "videos", "casinos") and "man" -> "men" ("salesmen", "gunmen", "women"). Asking the
+    exceptions alone missed "women", which WordNet does not hold as one -- it reads it back to "woman" by a rule --
+    while the spelling rule wrote "womans" and the pronouncing dictionary refused it. Swept over the 54,891 nouns
+    WordNet holds, the two add a plural to 208 and change none (2026-11-06).
 
     KEPT ONLY WHERE THE CMU PRONOUNCING DICTIONARY SAYS IT IS A WORD, as the verb's forms are, and only where
     WordNet's own morphology reads it back as this word. That is what keeps a noun English does not count from
@@ -3985,9 +3991,23 @@ def _plural_english_gives(word: str, cache: Dict[str, Any]) -> Optional[str]:
     if otherwise:
         return otherwise[0] if len(otherwise) == 1 else None
     form = _written_with(word, "s")
-    if form == word or form not in _pronounced(cache):
-        return None
-    return form if word in wn._morphy(form, wn.NOUN) else None
+    if form != word and form in _pronounced(cache) and word in wn._morphy(form, wn.NOUN):
+        return form
+    # THE RULE FIRST, AND ONLY WHAT THE RULE CANNOT WRITE AFTER IT. Asked together they disagree wherever two of
+    # English's rules each write a form English keeps -- "belief" takes "beliefs" by the rule and "believes" by
+    # "ves" -> "f" -- and nothing in either says which is the plural, so 19 common words lost the plural they
+    # already had ("boys", "allies", "beliefs", "chefs"). Asked after it, most of the table is redundant: it reads
+    # "es" off a hiss and "ies" off a "y", which `_written_with` already spells. What is left is the plain "s"
+    # where the rule chose "es" ("tattooes" is in no pronouncing dictionary, "tattoos" is) and "man" -> "men",
+    # which no rule here spells. Read backwards the rest write what English does not: "grieves" for "grief",
+    # "reves" for "ref" (2026-11-06, swept over the 54,891 nouns WordNet holds: 235 gained, none lost).
+    written = {word + "s"} if not word.endswith("s") else set()
+    if word.endswith("man"):
+        written.add(word[:-3] + "men")
+    said = sorted(other for other in written
+                  if other != word and other in _pronounced(cache)
+                  and word in wn._morphy(other, wn.NOUN))
+    return said[0] if len(said) == 1 else None
 
 
 def _forms_english_gives(word: str, cache: Dict[str, Any]) -> List[Tuple[str, str]]:
