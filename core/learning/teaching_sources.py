@@ -3739,7 +3739,16 @@ _PLACE_LINKS = {
     **{("SRC", p): (f"pp:{p}", "moves_from") for p in ("from", "off", "out")},
     **{("DIR", p): (f"pp:{p}", "moves_to") for p in ("to", "into", "onto", "toward", "towards")},
     ("DIR", "from"): ("pp:from", "moves_from"),
-    **{("LOC", p): (f"pp:{p}", "located_in") for p in ("in", "on", "at", "inside", "within")},
+    # WHERE A THING IS AND WHAT IT IS IN ARE NOT ONE LINK. Every locative preposition was mapped to `located_in`, so
+    # "on the table" and "in the box" became the same relation, and the word said back was then whichever
+    # `Lexicon.saying` offered first for it: "The book is on the table." came back "The book in the table." and "The
+    # ring is in the box." came back "The ring on the box.", the two stores differing only in which guess won.
+    # `located_in` also chains ALWAYS, which `Transitivity` names unsound for "on" -- "the book on the table on the
+    # floor" -- so the collapse licensed the inference that enum warns against. Split as `relation_types` already
+    # states it and `propbank_roles` already reads it: containment `located_in`, support or position `located_at`,
+    # which chains NEVER.
+    **{("LOC", p): (f"pp:{p}", "located_in") for p in ("in", "inside", "within")},
+    **{("LOC", p): (f"pp:{p}", "located_at") for p in ("on", "at")},
     ("MNR", "with"): ("pp:with", "done_with"),
     ("PRP", "for"): ("pp:for", "has_purpose"), ("PNC", "for"): ("pp:for", "has_purpose"),
     **{("TMP", p): (f"pp:{p}", "during") for p in ("during", "in", "on", "at")},
