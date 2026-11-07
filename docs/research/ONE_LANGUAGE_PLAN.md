@@ -292,7 +292,9 @@ construction. The wiring is proven; the worth is not, and a real batch is what w
 
 ### 2.8 What this costs, measured
 
-The last end-to-end run, `UNDERSTANDS-PROSE-02` `20261102T150052Z` (after the `same_as` fix of notebook entry 103):
+The last run over all fifty texts, `UNDERSTANDS-PROSE-02` `20261102T150052Z` (after the `same_as` fix of
+notebook entry 103). **It is four days old and the code it ran is not the code in the tree**; it is kept here
+because no full run has replaced it, not because it is current:
 
 | | |
 |---|---:|
@@ -316,6 +318,21 @@ coordinator's held-fact route, not by the reasoning authority.
 
 This is why reading accuracy moving 41.4% → 43.6% over ten days changed nothing a person would feel: **no amount of
 reading accuracy survives a door that refuses the form reading produces.**
+
+A partial run since, `20261106T002538Z`, took texts 1 and 4 only — the half fixed against, twenty sentences, not a
+replacement for the table above and not comparable to it:
+
+| | |
+|---|---:|
+| sentences understood | 7/20 (35.0%), interval 18.1–56.7% |
+| said back as told | 0/14 (0.0%) |
+| questions answered right | 2/20 (10.0%) |
+| questions answered wrong | 0/20 (0.0%) |
+| wrote to the store | nothing |
+
+Its intervals are twenty sentences wide, so it settles nothing on its own. What it does establish is that the
+failure did not move: **the substrate still says back none of what it was told**, 0 of 14, which is the measure that
+sees what "understood" cannot.
 
 ---
 
