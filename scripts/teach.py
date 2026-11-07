@@ -41,6 +41,8 @@ So this starts the substrate and teaches it while it is running:
              wordnet-classes: every class WordNet holds each word in ("research" a noun and a verb), and each verb,
              quality and adverb of several words ("look up", "fed up", "in vain"), and nothing else, for a store
              taught each word only the one class it was tagged in most
+             wordnet-words: every word WordNet names, recorded whole, so a word has the forms English gives it and
+             not only the facts said of it (the forms layer reached 12,228 words against the facts layer's 147,306)
              listening: what the listener's evidence is worth, counted on the English lessons (data/lessons), whose
              meanings say which reading was meant; nothing else is taught
              treebank: how the words of a sentence go together, from sentences analysed by hand (the English Web
@@ -103,7 +105,8 @@ def build_source(args):
                                                 PMBDerivationSource, PMBSource, PropBankSource, RecordSource, TreebankSource,
                                                 WikidataSource,
                                                 WordNetClassesSource, WordNetExamplesSource,
-                                                WordGroupsSource, WordNetSource, WordNetUsageSource)
+                                                WordGroupsSource, WordNetSource, WordNetUsageSource,
+                                                WordNetWordsSource)
     if args.source == "conceptnet":
         relations = ConceptNetSource.RELATION_SETS.get(args.relations)
         if relations is None:
@@ -119,6 +122,8 @@ def build_source(args):
         return WordNetUsageSource(parts=tuple(args.part or ()))
     if args.source == "wordnet-classes":
         return WordNetClassesSource()
+    if args.source == "wordnet-words":
+        return WordNetWordsSource(parts=tuple(args.part or ()))
     if args.source == "listening":
         return ListeningSource()
     if args.source == "treebank":
@@ -297,6 +302,7 @@ async def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--source", required=True,
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "wordnet-classes",
+                                 "wordnet-words",
                                  "listening", "treebank", "propbank", "composition", "pmb", "pmb-derivations",
                                  "records", "word-groups", "wikidata", "closed-classes", "lesson"))
     parser.add_argument("--domain", default="general")

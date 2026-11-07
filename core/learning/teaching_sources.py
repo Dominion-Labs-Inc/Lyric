@@ -2129,6 +2129,57 @@ class WordNetClassesSource:
         return WordNetSource().word_classes()
 
 
+@dataclass
+class WordNetWordsSource:
+    """Every word WordNet names, RECORDED WHOLE (`word_record_of`), so a word has the forms English gives it and not
+    only the facts said of it.
+
+    THE FORMS LAYER REACHED 12,228 WORDS WHERE THE FACTS LAYER REACHED 147,306, and nothing but a door was missing.
+    `word_record_of` builds a whole record for any word, from WordNet's senses and the treebanks' forms, and its only
+    caller replayed a frozen `.jsonl` built from the words the corpus SENTENCES happened to use -- so 93% of the words
+    WordNet names were held named and numberless. A noun held no number cannot be told from one of the other number,
+    so the composer's weighing of what a determiner was said with has nothing to act on ("A whale's a mammals."), and
+    neither has the agreement a subject is asked for: of "A cat is not a dog." and "A whale is not a fish." taught in
+    one breath, the first came back "A cat never is a dog." and the second "A whale never are a fish.", `cat` being
+    recorded and `whale` not (lyric_dev, 2026-11-07).
+
+    A WORD THE CORPUS NEVER SAID STILL COMES OUT WHOLE, because the forms are English's morphology and not a tally:
+    `principality` is given both its numbers at a count of nought, `mammal` its plural at two. So the reach of this
+    source is WordNet's, not the treebanks'.
+
+    `parts` the parts of speech to state, WordNet's own letters ("n", "v", "a", "r"); every one when None. A lemma
+    written as several words is left to the sources that state it with its facts, as `WordNetClassesSource` leaves it.
+    """
+
+    parts: Optional[Tuple[str, ...]] = None
+    name: str = "wordnet"
+    quality: float = 0.9
+    curated: bool = True
+
+    def provenance(self):
+        return _provenance("wordnet", "wordnet_3.0")
+
+    def records(self) -> Iterator[TaughtRecord]:
+        return iter(())
+
+    def word_records(self) -> Iterator[WordRecord]:
+        from nltk.corpus import wordnet as wn
+        # THE WORDS ARE TAKEN BEFORE THE FIRST IS RECORDED. `all_lemma_names` walks WordNet's own lemma dictionary
+        # as a generator, and recording a word loads more of WordNet, which grows that dictionary under the walk:
+        # "RuntimeError: dictionary changed size during iteration" on the first word recorded. The list of every
+        # lemma is 147,311 strings and costs nothing to hold.
+        said: Set[str] = set()
+        words: List[str] = []
+        for part in (self.parts or ("n", "v", "a", "r")):
+            for lemma in list(wn.all_lemma_names(pos=part)):
+                word = str(lemma).replace("_", " ")
+                if word not in said and word.isalpha():
+                    said.add(word)
+                    words.append(word)
+        for word in words:
+            yield word_record_of(word)
+
+
 # ── Treebanks ───────────────────────────────────────────────────────────────
 
 #: A Universal Dependencies treebank's parts of speech, by the names Lyric's classes go by. A proper noun is a NAME;
