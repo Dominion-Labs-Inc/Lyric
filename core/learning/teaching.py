@@ -271,7 +271,7 @@ class Report:
             f"coverage          : {how}",
             f"records read      : {self.read:,}",
             f"below quality floor: {self.below_floor:,}",
-            f"facts             : {self.taught}",
+            f"facts             : {self._said('taught', self.taught, '{}')}",
             f"word classes      : {self._said('word_classes', self.word_classes, 'none stated')}",
             f"patterns          : {self._said('patterns', self.patterns, 'none taught')}",
             f"meaning facts     : {self._said('meanings', self.meanings, 'none given')}",
@@ -551,6 +551,18 @@ class TeachingPass:
             # a source states support per record, records are grouped by it so
             # no fact inherits another's standing.
             report.taught = await self._teach(learning, records, report)
+        else:
+            # NOTHING WAS ASKED OF THE ONE AUTHORITY, so no line may read as a run that asked and got none.
+            # `RecordSource.records()` returns an empty iterator by design -- standardised records are taught
+            # through `learn_records` and `learn_word_records`, neither of which reaches `consider_many` or
+            # `learn_patterns` -- and every such run reported "facts: {}", "patterns: none taught" and
+            # "meaning facts: none given". It cannot be said inside `_teach`, which runs only when there are
+            # records to teach from.
+            why = ("this source yields no records at all; what it teaches is learned by its own kind "
+                   "(`learn_records`, `learn_word_records`, `learn_derived`), none of which reaches "
+                   "`consider_many` or `learn_patterns`")
+            for skipped in ("taught", "patterns", "meanings"):
+                report.not_offered[skipped] = why
 
         # HOW OFTEN EACH WORD NAMES EACH THING, after the words are learned: a source that counted its words in real
         # use (`usage()`) says so, and the count lands on the construction that says the word names the thing.
@@ -791,14 +803,13 @@ class TeachingPass:
 
         if not patterns:
             # A SOURCE WHOSE RECORDS CARRY NO MEANING TEACHES NO PATTERN, and that is not a pattern run that taught
-            # none. `RecordSource.records()` returns an empty iterator by design -- the standardised records are
-            # taught through `learn_records` and `learn_word_records`, which never reach `learn_patterns` -- so
-            # every run of it reported "patterns: none taught", in the words of a run that was asked and failed.
+            # none. Both cases here have records -- a source with none says so at the call site, since `_teach`
+            # runs only under `if records:` -- so neither may say the source yields none.
             report.not_offered["patterns"] = (
                 "this source gives no record with a meaning, so there is no sentence to learn a pattern from"
                 if read_claims or unread or buckets else
-                "this source yields no records at all; what it teaches is learned by its own kind (`learn_records`, "
-                "`learn_word_records`, `learn_derived`), none of which reaches `learn_patterns`")
+                f"nothing came of the {len(records):,} record{'' if len(records) == 1 else 's'} read -- no claim, "
+                f"no fact, no meaning -- so there was no sentence to learn a pattern from")
 
         from core.agents.memory_agent import memory_agent
         from core.learning.unified_learning_system import Evidence
