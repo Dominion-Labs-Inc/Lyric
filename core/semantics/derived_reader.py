@@ -5549,9 +5549,10 @@ def _said_by_words(read: Any) -> Tuple["Lexical", ...]:
     return tuple(out.values())
 
 
-#: Whether an utterance the frames read only by supposing more than any lesson read as taught ever supposed is read
-#: by English's grammar instead (`_read_forced_by_composing`), with `COMPOSING`. On since UNDERSTANDS-PROSE-01 on main
+#: Whether an utterance the frames read only by supposing more than any lesson read as taught ever supposed is ALSO
+#: read by English's grammar (`_read_forced_by_composing`), with `COMPOSING`. On since UNDERSTANDS-PROSE-01 on main
 #: (2026-10-18): with it, "Do whales breathe air?" and "Does sorted return a new list?" answered, none wrongly.
+#: ALSO, not INSTEAD: the grammar's reading is put beside the frames' and the listener weighs them (2026-11-08).
 #: `LYRIC_COMPOSE_FORCED=0` turns it off.
 COMPOSING_FORCED = os.environ.get("LYRIC_COMPOSE_FORCED", "1") != "0"
 #: How many links never taught a reading of a lesson sentence read as taught proposes, at most: of the 3,054 lesson
@@ -5569,18 +5570,43 @@ def _forced(reading: Reading) -> bool:
 
 def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
     """An utterance every frame reads only by supposing more than the lessons ever did, read by English's grammar
-    (`COMPOSING_FORCED`); as it was where a frame reads it as taught reads, or the grammar gives it no meaning.
+    AS WELL (`COMPOSING_FORCED`): the grammar's readings are put beside the frames' own and the listener weighs
+    them all. As it was where a frame reads it as taught reads, or the grammar gives it no meaning.
 
     "A whale breathes air through a blowhole." fits no taught frame: its 36 readings each propose six links never
     taught and write fillers against their slots ("air through" one new name, the breathing done by the ocean told
     before), and the listener took one. The composer reads it as said, the whale breathing air through a blowhole,
     and "Do whales breathe air?" is answered (UNDERSTANDS-PROSE-01 on a copy of main, 2026-10-18). A question too, as
     the grammar reads it: the composer read questions worse and they stayed the frames'; the grammar reads them by the
-    words that ask and where they stand ("When was the Eiffel Tower built?" a building asked when, GRAMMAR-01)."""
+    words that ask and where they stand ("When was the Eiffel Tower built?" a building asked when, GRAMMAR-01).
+
+    BESIDE, NOT INSTEAD. This THREW THE FRAMES' READINGS AWAY, every one of them, and handed the listener the
+    grammar's alone -- and the grammar is asked for one reading (`COMPOSED_READINGS`), so the listener received one
+    meaning and weighed nothing. ONE WORD NOTHING HOLDS WAS ENOUGH TO DO IT: a word no filler holds stands as a new
+    name, which is more than any lesson supposed (`_forced`), so every reading of the sentence it stands in supposes
+    that much and `all` is true of them. "The note was long." was read by the frames to a packed reading holding
+    all three things memory holds for "note" -- a comment, a musical notation, a debt instrument -- and the three
+    were thrown away over "long", which that store holds the class of and holds a concept named but holds no filler
+    for; the listener was handed one grammar reading and said "the only meaning the words have". "The rock was
+    heavy." kept its four readings and chose among them, moving 7.123 -> 9.460 nats as the conversation turned from
+    a band to a cliff, for one reason: "heavy" is held, so its least reading supposed nothing new and `all` was
+    false. Of 21,195 adjectives whose class that store holds, 4,757 are held as a word that can stand anywhere, and
+    212 of 4,393 adverbs (lyric_db, 2026-11-08), so the words that fire this are ordinary ones.
+
+    Weighed instead of thrown away, HOW MUCH A READING SUPPOSED PAST ITS WORDS IS ALREADY EVIDENCE the listener
+    counts, at the worth it measured for it on what it was taught (`fit`, `listening_worths`, `Reading.supposed`),
+    and a composed reading proposes no link and takes no word as new, so it is weighed as supposing nothing. The
+    reader's business is to report every meaning the words can have; which one was meant is the listener's
+    (`meant`). A gate here decided it by the structure alone, before any evidence was counted."""
     if not utterance.readings or not all(not r.composed and _forced(r) for r in utterance.readings):
         return utterance
     composed = _read_by_composing(Utterance(utterance.pieces, (), utterance.partial, utterance.unknown))
-    return composed if composed.readings else utterance
+    if not composed.readings:
+        return utterance
+    # Best first, as every reading an utterance carries is (`_best_first`): the composed ones suppose nothing, so
+    # they stand first, and where the listener weighs one of them alike with a frame's it is theirs that stands.
+    return Utterance(utterance.pieces, tuple(sorted(composed.readings + utterance.readings, key=_best_first)),
+                     utterance.partial, utterance.unknown)
 
 
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
