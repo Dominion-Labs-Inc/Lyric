@@ -2277,6 +2277,15 @@ class Reading:
     #: reader's order and took the right one less often than the reader's own first did: 32.8% against 33.5% over
     #: 400 held-out sentences, losing an available right reading 21 times (2026-11-03).
     ranked: float = 0.0
+    #: THE THINGS ALREADY SPOKEN OF WHEN THIS WAS READ, by name, for the senses of its words to cohere with
+    #: (`spell_out`'s `around`). A sense is weighed by the information of the most specific kind it shares with
+    #: the other things named (Resnik 1995), and the only things ever offered were the ones named in the SAME
+    #: SENTENCE: `thing_sense_of` says so itself -- "every short sentence offered nothing ... so the sense the
+    #: word named most often was taken, whatever the doing said". A conversation that had just established a
+    #: valve and a pump answered "Is the tank full?" with "A tank's an armored vehicle.", the sense that settles
+    #: it having been said two turns earlier and never looked at (lyric_talk, 2026-11-07). Added to what the
+    #: sentence names, never in place of it, so a sentence that disambiguates itself reads as it did.
+    spoken_of: Tuple[str, ...] = ()
 
 
 #: The categories a whole sentence may be read as, and what the speaker wants by each.
@@ -3781,7 +3790,8 @@ class Grammar:
         """The one reading of this sentence the grammar puts first (`readings`)."""
         return self.readings(tokens, 1)[0]
 
-    def readings(self, tokens: Sequence[str], how_many: int = 1) -> List[Reading]:
+    def readings(self, tokens: Sequence[str], how_many: int = 1,
+                 spoken_of: Sequence[str] = ()) -> List[Reading]:
         """EVERY MEANING THE GRAMMAR READS THIS SENTENCE TO, the one it puts first first, up to `how_many` of them,
         each said once: the readings a listener may choose between (`derived_reader.meant`), where asking for one
         gives the reader's own choice alone and nothing to weigh it against.
@@ -3804,7 +3814,8 @@ class Grammar:
                                       for signs in cell.values() for x in signs)), reverse=True)
             return [Reading(tokens, None, None,
                             "the grammar reads no whole" + (f"; no word held for {', '.join(unheld)}" if unheld else ""),
-                            tuple((s, e) for _, s, e in covered[:3]), unheld=unheld)]
+                            tuple((s, e) for _, s, e in covered[:3]), unheld=unheld,
+                            spoken_of=tuple(spoken_of))]
         # A sentence is read as one wherever the grammar reads it so; as a phrase alone ("What a feast!") only
         # where it does not; as an order as often as what is said is one (`_said_so`).
         ranked = sorted(whole, reverse=True,
@@ -3831,7 +3842,7 @@ class Grammar:
         out: List[Reading] = []
         said: Set[str] = set()
         for sign in ranked:
-            reading = Reading(tokens, sign, None, unheld=unheld)
+            reading = Reading(tokens, sign, None, unheld=unheld, spoken_of=tuple(spoken_of))
             reading.sure = math.exp(sign.score - top) / shares
             reading.ranked = math.exp(by_rank[id(sign)] - high) / every
             try:
@@ -5822,7 +5833,8 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 # "the function sorted": what the named one is (`isa(sorted, function)`).
                 add("isa", x, p[2], at=p[-1])
             continue
-        around = [q[2] for y, q in kinds.items() if y != x and y not in events and isinstance(q[2], str)]
+        around = ([q[2] for y, q in kinds.items() if y != x and y not in events and isinstance(q[2], str)]
+                  + [name for name in reading.spoken_of if name != p[2]])
         meant = lexicon.thing_sense_of(p[2], around, fills.get(x, ()))
         if meant != p[2]:
             decided.append(("sense", p[2], "around", None))
@@ -6887,7 +6899,8 @@ class GrammarView:
                         " & ".join(f.render() for f in reading.meaning.facts))
         return reading
 
-    def readings(self, sentence: str, how_many: int = 1) -> List[Reading]:
+    def readings(self, sentence: str, how_many: int = 1,
+                 spoken_of: Sequence[str] = ()) -> List[Reading]:
         """Every meaning the grammar reads a sentence to, the one it puts first first (`Grammar.readings`), after
         learning from what is waiting. A word written lowercase read as a name ("the function sorted") is heard as
         one from then on.
@@ -6897,7 +6910,7 @@ class GrammarView:
         known here."""
         self.learn_waiting()
         tokens = tokens_of(sentence, self.words)
-        out = self.grammar.readings(tokens, how_many)
+        out = self.grammar.readings(tokens, how_many, spoken_of)
         reading = out[0]
         if reading.meaning is not None and reading.sign is not None:
             named = [str(p[1]) for p in reading.sign.pieces if p[0] == "named"]

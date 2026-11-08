@@ -5398,7 +5398,7 @@ COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 
 
-def _read_by_composing(utterance: "Utterance") -> "Utterance":
+def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = ()) -> "Utterance":
     """An utterance no taught frame read, read by English's grammar (`COMPOSING`): EVERY MEANING THE GRAMMAR READS IT
     TO (`COMPOSED_READINGS`), for the listener to take one as meant (`meant`); unread where memory is not up in this
     process, the grammar reads no whole, or the meaning language cannot say any reading of it.
@@ -5419,7 +5419,7 @@ def _read_by_composing(utterance: "Utterance") -> "Utterance":
     first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
     made: List[Reading] = []
     offered, refused = 0, Counter()
-    for read in agent.grammar_view().readings(surface_of(utterance.pieces), COMPOSED_READINGS):
+    for read in agent.grammar_view().readings(surface_of(utterance.pieces), COMPOSED_READINGS, named_before):
         offered += 1
         meaning = read.meaning
         if meaning is None:
@@ -5511,7 +5511,7 @@ def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
 
 
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
-              parts: bool = False) -> Tuple[Utterance, ...]:
+              parts: bool = False, named_before: Sequence[str] = ()) -> Tuple[Utterance, ...]:
     """A text as the consecutive utterances that cover it, each read on its own.
 
     An utterance can end wherever a held construction ends: that is all the substrate knows of where one ends, and
@@ -5528,7 +5528,7 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
         return ()
     # A QUOTATION IS A SENTENCE OF ITS OWN, read apart; what it says is what was said (`_with_quotation`).
     pieces, quoted = set_apart(pieces)
-    quoted_read = read_text(surface_of(quoted), view, parts=parts) if quoted else ()
+    quoted_read = read_text(surface_of(quoted), view, parts=parts, named_before=named_before) if quoted else ()
     ends = view.ends()
     cuts = [0] + [i + 1 for i, p in enumerate(pieces[:-1]) if _fold(p.text) in ends] + [len(pieces)]
     read_at: Dict[Tuple[int, int], Tuple[Reading, ...]] = {}
@@ -5573,7 +5573,15 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
         partial, unknown = _partial(said, view, charts) if parts else ((), ())
         out.append(Utterance(said, (), partial, unknown))
     if COMPOSING:
-        out = [u if u.readings else _read_by_composing(u) for u in out]
+        # WHAT THE TEXT HAS ALREADY NAMED IS WHAT THE REST OF IT MEANS ITS WORDS BY. The utterances a held
+        # construction read are read before any of the rest is composed, so their things are known by the time the
+        # rest is read, and a sense is weighed by the kinds it shares with the things around it (`spell_out`'s
+        # `around`, Resnik 1995). Offered only the one sentence's own things, a short sentence offered nothing and
+        # the sense its word names most often was taken whatever the text had just said.
+        named = tuple(dict.fromkeys(
+            str(f.obj) for u in out for r in u.readings if r.meaning is not None
+            for f in r.meaning.facts if f.relation in ("instance_of", "isa") and isinstance(f.obj, str)))
+        out = [u if u.readings else _read_by_composing(u, named + tuple(named_before)) for u in out]
         if COMPOSING_FORCED:
             out = [_read_forced_by_composing(u) for u in out]
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)
