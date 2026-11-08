@@ -53,52 +53,79 @@ _POS_CLASS = {"n": "NOUN", "v": "VERB", "a": "ADJECTIVE", "s": "ADJECTIVE",
 #: same; where they live is the whole point. Taught here, a determiner is
 #: knowledge the substrate holds and can be asked about, like everything else it
 #: knows.
+#: WHAT ENGLISH'S CLOSED CLASSES ACTUALLY HOLD, counted against the classes themselves. A closed class is finite,
+#: so unlike the open ones it can be stated whole and then checked whole -- and checked, this table held 65 of
+#: English's 83 one-word prepositions, 39 of its 68 pronouns, 12 of some 45 interjections (neither "wow" nor
+#: "ouch"), and 6 of the 7 coordinating conjunctions, wanting "for" (2026-11-08). A closed-class word is in nearly
+#: every sentence, so each one missing costs more than a noun missing does.
+#: AND A WORD IS EVERY KIND OF WORD IT IS HERE TOO (`WordNetSource._word_classes` says it of the open classes):
+#: "his", "this", "all", "both", "some" and "none" were held a determiner or a quantifier and never a pronoun,
+#: though "that's his" and "all are ready" are pronouns, and "no" was a determiner and never a negator.
+#: STILL NOT HERE: a preposition of several words -- "out of", "because of", "according to", "instead of", "in
+#: front of", "rather than". There are about thirty in ordinary use and this table has never held a word of
+#: several words in any class, so they are not data alone: the grammar must read the two as one
+#: (`grammar.Lexicon._together`), which is its own measurement.
 CLOSED_CLASSES: Dict[str, Tuple[str, ...]] = {
-    "COPULA": ("is", "are", "am", "was", "were", "be", "been", "being"),
-    "DETERMINER": ("a", "an", "the", "this", "that", "these", "those",
-                   "my", "your", "his", "her", "its", "our", "their",
-                   "each", "every", "no", "any", "both", "either", "neither",
-                   "another", "such", "what", "which", "whose"),
-    "NEGATOR": ("not", "never", "n't", "nor", "none"),
-    "PREPOSITION": (
-        "about", "above", "across", "after", "against", "along", "alongside",
-        "amid", "among", "amongst", "around", "as", "at", "atop", "before",
-        "behind", "below", "beneath", "beside", "besides", "between", "beyond",
-        "by", "concerning", "despite", "down", "during", "except", "for",
-        "from", "in", "inside", "into", "like", "near", "of", "off", "on",
-        "onto", "opposite", "out", "outside", "over", "past", "per",
-        "regarding", "round", "since", "through", "throughout", "till", "to",
-        "toward", "towards", "under", "underneath", "unlike", "until", "up",
-        "upon", "versus", "via", "with", "within", "without"),
-    "PRONOUN": ("i", "you", "he", "she", "it", "we", "they",
-                "me", "him", "her", "us", "them",
-                "mine", "yours", "hers", "ours", "theirs",
-                "myself", "yourself", "himself", "herself", "itself",
-                "ourselves", "yourselves", "themselves",
-                "someone", "somebody", "something", "anyone", "anybody",
-                "anything", "everyone", "everybody", "everything",
-                "nobody", "nothing", "one", "who", "whom"),
-    "RELATIVE": ("that", "which", "who", "whom", "whose", "where", "when"),
-    "QUANTIFIER": ("some", "most", "many", "few", "several", "much", "all",
-                   "every", "any", "enough", "plenty"),
-    "MODAL": ("can", "could", "may", "might", "must", "shall", "should",
-              "will", "would", "ought", "need", "dare"),
-    "AUXILIARY": ("do", "does", "did", "doing", "done", "have", "has", "had", "having"),
-    "CONJUNCTION": ("and", "or", "but", "nor", "yet", "so"),
-    "SUBORDINATOR": ("because", "although", "though", "unless", "while",
-                     "whereas", "since", "if", "when", "whenever", "where",
-                     "wherever", "after", "before", "until", "once", "whether",
-                     "lest", "provided", "as", "that"),
-    "INTERJECTION": ("yes", "no", "oh", "ah", "well", "hello", "goodbye",
-                     "please", "thanks", "sorry", "ok", "okay"),
-    "NUMERAL": ("zero", "one", "two", "three", "four", "five", "six", "seven",
-                "eight", "nine", "ten", "eleven", "twelve", "hundred",
-                "thousand", "million", "billion", "first", "second", "third"),
-    "PARTICLE": ("to", "up", "off", "out", "down", "away", "back", "over"),
-    "PUNCTUATION": (".", ",", "?", "!", ";", ":", "'", '"', "-", "--",
-                    "(", ")", "[", "]", "\u2014", "\u2013", "\u2026"),
+    'COPULA': ('is', 'are', 'am', 'was', 'were', 'be', 'been', 'being'),
+    'DETERMINER': (
+        'a', 'an', 'the', 'this', 'that', 'these', 'those', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
+        'each', 'every', 'no', 'any', 'both', 'either', 'neither', 'another', 'such', 'what', 'which', 'whose',
+        'all', 'some', 'many', 'much', 'few', 'several', 'enough', 'certain', 'half', 'last', 'next', 'other',
+        'same', 'various'
+    ),
+    'NEGATOR': ('not', 'never', "n't", 'nor', 'none', 'neither', 'no'),
+    'PREPOSITION': (
+        'about', 'above', 'across', 'after', 'against', 'along', 'alongside', 'amid', 'among', 'amongst', 'around',
+        'as', 'at', 'atop', 'before', 'behind', 'below', 'beneath', 'beside', 'besides', 'between', 'beyond', 'by',
+        'concerning', 'despite', 'down', 'during', 'except', 'for', 'from', 'in', 'inside', 'into', 'like', 'near',
+        'of', 'off', 'on', 'onto', 'opposite', 'out', 'outside', 'over', 'past', 'per', 'regarding', 'round',
+        'since', 'through', 'throughout', 'till', 'to', 'toward', 'towards', 'under', 'underneath', 'unlike',
+        'until', 'up', 'upon', 'versus', 'via', 'with', 'within', 'without', 'amidst', 'barring', 'but',
+        'considering', 'excepting', 'excluding', 'failing', 'following', 'given', 'including', 'minus',
+        'notwithstanding', 'pending', 'plus', 'save', 'than', 'unto', 'worth'
+    ),
+    'PRONOUN': (
+        'i', 'you', 'he', 'she', 'it', 'we', 'they', 'me', 'him', 'her', 'us', 'them', 'mine', 'yours', 'hers',
+        'ours', 'theirs', 'myself', 'yourself', 'himself', 'herself', 'itself', 'ourselves', 'yourselves',
+        'themselves', 'someone', 'somebody', 'something', 'anyone', 'anybody', 'anything', 'everyone', 'everybody',
+        'everything', 'nobody', 'nothing', 'one', 'who', 'whom', 'his', 'its', 'this', 'that', 'these', 'those',
+        'which', 'what', 'whose', 'all', 'both', 'each', 'either', 'neither', 'few', 'many', 'much', 'several',
+        'some', 'none', 'another', 'other', 'such', 'oneself', 'whoever', 'whomever', 'whatever', 'whichever'
+    ),
+    'RELATIVE': (
+        'that', 'which', 'who', 'whom', 'whose', 'where', 'when', 'whoever', 'whomever', 'whatever', 'whichever',
+        'why'
+    ),
+    'QUANTIFIER': (
+        'some', 'most', 'many', 'few', 'several', 'much', 'all', 'every', 'any', 'enough', 'plenty', 'both', 'each',
+        'either', 'neither', 'no', 'none', 'little', 'less', 'more', 'fewer'
+    ),
+    'MODAL': ('can', 'could', 'may', 'might', 'must', 'shall', 'should', 'will', 'would', 'ought', 'need', 'dare', 'used'),
+    'AUXILIARY': ('do', 'does', 'did', 'doing', 'done', 'have', 'has', 'had', 'having'),
+    'CONJUNCTION': ('and', 'or', 'but', 'nor', 'yet', 'so', 'for'),
+    'SUBORDINATOR': (
+        'because', 'although', 'though', 'unless', 'while', 'whereas', 'since', 'if', 'when', 'whenever', 'where',
+        'wherever', 'after', 'before', 'until', 'once', 'whether', 'lest', 'provided', 'as', 'that', 'albeit',
+        'assuming', 'supposing', 'given', 'how', 'why', 'whilst', 'than', 'except', 'save'
+    ),
+    'INTERJECTION': (
+        'yes', 'no', 'oh', 'ah', 'well', 'hello', 'goodbye', 'please', 'thanks', 'sorry', 'ok', 'okay', 'wow',
+        'ouch', 'ow', 'hey', 'hi', 'bye', 'hmm', 'huh', 'oops', 'ugh', 'uh', 'um', 'phew', 'alas', 'aha', 'ahem',
+        'aw', 'boo', 'bravo', 'damn', 'eh', 'er', 'gee', 'golly', 'gosh', 'hurray', 'hooray', 'jeez', 'nope',
+        'yeah', 'shh', 'whoa', 'yay', 'yikes'
+    ),
+    'NUMERAL': (
+        'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
+        'hundred', 'thousand', 'million', 'billion', 'first', 'second', 'third', 'thirteen', 'fourteen', 'fifteen',
+        'sixteen', 'seventeen', 'eighteen', 'nineteen', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy',
+        'eighty', 'ninety', 'trillion', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth', 'ninth', 'tenth'
+    ),
+    'PARTICLE': (
+        'to', 'up', 'off', 'out', 'down', 'away', 'back', 'over', 'along', 'apart', 'around', 'aside', 'forth',
+        'in', 'on', 'through', 'together'
+    ),
+    'PUNCTUATION': ('.', ',', '?', '!', ';', ':', "'", '"', '-', '--', '(', ')', '[', ']', '—', '–', '…'),
 }
-
 #: What each mark DOES, said as a sentence. A class alone says a full stop is
 #: punctuation; these say what it is FOR, which is the part the reader acts on
 #: every time it decides where one claim ends.
