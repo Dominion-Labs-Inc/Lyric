@@ -2232,7 +2232,20 @@ class PatternInventory:
         here = set(self._taken_at(pattern, slot))
         if self.takes_any_part(pattern, slot):
             here |= set(self.CLASS_PARTS.values())
-        taken = self.class_parts(item.words[0]) & here
+        # AND A WORD OBSERVED A NOUN STANDS WHERE THINGS DO. `CLASS_PARTS` holds ADJECTIVE and VERB and no NOUN, so
+        # `class_parts` could never answer `thing`, and no sense of a noun ever stood in a slot by its word's class.
+        # "The note was long." put ONE of the three senses of "note" memory holds to the listener: `comment note`,
+        # `musical notation note` and `debt instrument note` were each met, each counted, each marked as having stood
+        # as a thing, and all three refused, because "note" is held a noun AND a verb and the verb's `doing` was the
+        # whole of what its class could say against a slot taking `thing`. The listener then said "the only meaning
+        # the words have", which was true of what it was handed and not of what memory holds (lyric_talk,
+        # 2026-11-08). Taken here and not in `CLASS_PARTS`, which `_may_stand_new` also reads: a word never met
+        # standing as a thing anywhere is a fan-out over the vocabulary, where this offers only the senses of the
+        # words being read -- a word's own, three for "note".
+        parts = self.class_parts(item.words[0])
+        if self.word_classes.get(_fold(item.words[0]), {}).get("NOUN", 0) > 0:
+            parts = parts | {"thing"}
+        taken = parts & here
         # A SENSE STANDS BY ITS WORD'S CLASS ONLY IN A PART IT HAS STOOD IN, OR WHERE IT HAS STOOD NOWHERE, OR WHERE THE
         # WORD THAT NAMES IT IS OF THAT CLASS. A class is the word's, not each sense's: "glimpse" is a verb and a noun,
         # and its noun sense, a glance (`look glance`), stood only where things do; through its word's class the
@@ -3915,6 +3928,25 @@ def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int,
                                                 or view.builds_more_than_it_names(word[0].text)) for word in words)
 
 
+def _not_offered(pattern: Union[Pattern, "Phrase"], slot: str, pieces: Tuple[Piece, ...],
+                 lexical: Lexical, why: str) -> None:
+    """WHICH SENSE OF A WORD WAS NOT PUT TO THE LISTENER, AND WHICH TEST DROPPED IT (`_fillers`).
+
+    Every sense of the words read is supposed to reach the listener, which weighs them and says what it weighed
+    (`_read_pieces`, `meant`, `_listening_said`). What the listener never receives it cannot say anything about, and
+    `_fillers` dropped senses silently: "The note was long." was read ONE way on a store holding `comment note`,
+    `musical notation note` and `debt instrument note` for the word, each of them met and counted, and the listener
+    reported "the only meaning the words have" -- true of what it was handed, and not of what memory holds
+    (lyric_talk, 2026-11-08).
+
+    Said at debug, and built only when debug is on: this runs for every filler of every run of words of every
+    sentence read."""
+    if not logger.isEnabledFor(logging.DEBUG):
+        return
+    logger.debug("fillers: %r not offered as %r in %s of %s -- %s",
+                 " ".join(p.text for p in pieces), lexical.value, slot, str(pattern.key)[:12], why)
+
+
 def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[Piece, ...], *,
              extend: bool, loose: bool, first: bool = False) -> List[Tuple[Lexical, Optional[Link], str]]:
     """What may stand in one slot for these words: (filler, the link it stands through, how). A held link is
@@ -3933,17 +3965,46 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
     structure = len(pieces) == 1 and view.builds_more_than_it_names(words[0])
     for lexical in held:
         if not view.counts(lexical):
+            _not_offered(pattern, slot, pieces, lexical, "never met naming it")
             continue
         linked = view.link_between(pattern.key, slot, lexical.key)
         if linked is not None:
             out.append((lexical, linked, "linked"))
-        elif extend and not structure and alike(lexical.key) and view.admits_there(pattern.key, slot, lexical.value) \
-                and not (len(lexical.words) == 1
-                         and view.says_more(lexical.words[0], lexical.value, doing=view.stands_as_doing(lexical))
-                         and not _frame_says(pattern, slot, view.said_by(lexical.words[0], lexical.value))):
-            # A word that says more than its concept ("walked": a walking before now) stands as its concept only
-            # where the frame says the rest itself: "Only ?slot0 ?slot1." says its events were before now.
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("fillers: %r OFFERED as %r in %s of %s -- linked here",
+                             " ".join(p.text for p in pieces), lexical.value, slot, str(pattern.key)[:12])
+            continue
+        # EACH TEST NAMED, so which one dropped a sense can be read rather than inferred. Asked as one condition,
+        # "The note was long." put ONE of the three senses of "note" it holds to the listener -- every one met and
+        # counted -- and nothing said which test the other two failed (lyric_talk, 2026-11-08).
+        of_the_kind = extend and not structure and alike(lexical.key)
+        admitted = of_the_kind and view.admits_there(pattern.key, slot, lexical.value)
+        # A word that says more than its concept ("walked": a walking before now) stands as its concept only
+        # where the frame says the rest itself: "Only ?slot0 ?slot1." says its events were before now.
+        says_more = (admitted and len(lexical.words) == 1
+                     and view.says_more(lexical.words[0], lexical.value, doing=view.stands_as_doing(lexical))
+                     and not _frame_says(pattern, slot, view.said_by(lexical.words[0], lexical.value)))
+        if admitted and not says_more:
             out.append((lexical, link(pattern, slot, lexical), "kind"))
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("fillers: %r OFFERED as %r in %s of %s -- of its kind",
+                             " ".join(p.text for p in pieces), lexical.value, slot, str(pattern.key)[:12])
+        else:
+            _not_offered(pattern, slot, pieces, lexical,
+                         "no link held, and none may be proposed here" if not extend
+                         else "no link held, and its words build more than they name" if structure
+                         else ("no filler of this slot was ever read in a slot like it"
+                               f" (same_kind={view.same_kind(pattern.key, slot, lexical.key)}"
+                               f" of_its_class={view.of_its_class(pattern.key, slot, lexical.key)}"
+                               f" stood_beside={view.stood_beside(pattern.key, slot, lexical.key)}"
+                               f" | slot takes={sorted(view._taken_at(pattern.key, slot))}"
+                               f" any_part={view.takes_any_part(pattern.key, slot)}"
+                               f" word is={sorted(view.class_parts(lexical.words[0])) if len(lexical.words)==1 else '-'}"
+                               f" sense stood={sorted(view._parts_of.get(lexical.key) or ())}"
+                               f" classes={dict(view.word_classes.get(_fold(lexical.words[0]), {})) if len(lexical.words)==1 else '-'})"
+                               if logger.isEnabledFor(logging.DEBUG) else "") if not of_the_kind
+                         else "nothing of its kind was ever said in this place" if not admitted
+                         else "its word says more than its concept, and the frame does not say the rest")
     as_held = bool(out)
     if extend and len(pieces) == 1 and not structure:
         # A WORD WRITTEN IN A SHAPE LEARNED FROM THE FILLERS ("tables", where "table" is held), or a held concept's
@@ -5125,6 +5186,18 @@ def _read_pieces(pieces: Tuple[Piece, ...], view: PatternInventory,
         return supposed[:2]
 
     worded = {_worded(reading, view) for reading in found if reading.supposed == least}
+    if logger.isEnabledFor(logging.DEBUG):
+        # WHICH READING WAS CUT BEFORE THE LISTENER, AND BY WHICH TEST. A sense offered as a filler still has to
+        # suppose no more of its words' places than the best reading did, or say the same words as one that
+        # supposed as little. Of the three senses of "note" offered here, none reached `meant`.
+        for reading in found:
+            kept = reading.supposed == least or (settled(reading.supposed) == settled(least)
+                                                 and _worded(reading, view) in worded)
+            logger.debug("pieces: %s %r supposed=%s least=%s settled_alike=%s worded_known=%s",
+                         "KEPT " if kept else "CUT  ",
+                         reading.meaning.canonical() if reading.meaning is not None else None,
+                         reading.supposed, least, settled(reading.supposed) == settled(least),
+                         _worded(reading, view) in worded)
     best: Dict[str, Reading] = {}
     packed: List[Reading] = []
     for reading in found:
