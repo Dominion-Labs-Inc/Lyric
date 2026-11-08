@@ -4017,6 +4017,69 @@ def _written_otherwise(form: str, ending: str) -> bool:
     return not third and not form.endswith("ing")
 
 
+#: The endings of a scientific name above a species -- a family, a subfamily, an order -- which name one group and
+#: take no plural in English ("Melanthiaceae", "Nostocaceae", "Muridae").
+_TAXONOMIC_ENDINGS = ("aceae", "idae", "ales", "inae", "oideae", "aceous")
+#: The endings of an abstract noun English counts as a mass ("abrasiveness", "austerity", "ayurveda" by its kind):
+#: a plural written for one is a word English does not say.
+_MASS_ENDINGS = ("ness", "ity", "ism", "ology", "ics", "hood", "ship", "dom")
+#: How often real text must write a noun before how rarely it writes the plural is read as English not counting it
+#: ("cattle" 97 times in the Brown corpus and "cattles" never). Below it, a noun written three times and no plural
+#: says nothing -- "balustrade" is written three times there and takes "balustrades".
+_MASS_IF_NEVER_PLURAL = 8
+#: How often such a noun must be written in the plural, against its singular, for English to be counting it. A mass
+#: noun is written in the plural ALMOST never rather than never: "moneys" twice against "money" 265 times, where the
+#: nouns English counts are written 0.40 to 1.44 as often plural as singular ("car" 112/274, "year" 950/658). Asked
+#: as never, "moneys", "informations" and "equipments" were all written (2026-11-08).
+_COUNTED_IF_PLURAL_SHARE = 0.02
+
+
+def _uncounted(cache: Dict[str, Any]) -> Set[str]:
+    """The nouns NO plural is written for where the pronouncing dictionary has not heard of the word
+    (`_plural_english_gives`): a named individual, a scientific name, a noun the countability lexicon marks a mass,
+    and an abstract noun by its ending.
+
+    A NAMED INDIVIDUAL IS ONE THING AND HAS NO PLURAL: WordNet marks a sense of one by what it is an instance of
+    rather than a kind of (`instance_hypernyms`), so "Aquinas", "Baltimore", "Beatrice", "Clytemnestra", "Leyte" and
+    "Tewkesbury" are told from the nouns by the store's own structure and not by their spelling, which
+    `all_lemma_names` writes in lower case. 4,525 of the 42,498 the pronouncing dictionary refused are these. A word
+    that names an individual in one sense and a kind in another ("china" the country and the clay) is counted, and
+    takes the plural its kind sense has.
+
+    Worked out once for the pass: every noun sense is read to tell the individuals from the kinds, and the
+    countability lexicon is read for its labels."""
+    if "uncounted" in cache:
+        return cache["uncounted"]
+    from nltk.corpus import wordnet as wn
+    individual: Set[str] = set()
+    a_kind: Set[str] = set()
+    for synset in wn.all_synsets("n"):
+        into = individual if synset.instance_hypernyms() else a_kind
+        for lemma in synset.lemmas():
+            into.add(lemma.name().replace("_", " ").lower())
+    mass: Set[str] = set()
+    counted: Set[str] = set()
+    for synset, label in WordNetSource()._becl().items():
+        for lemma in synset.lemmas():
+            (mass if label == "mass" else counted).add(lemma.name().replace("_", " ").lower())
+    # AND A NOUN REAL TEXT WRITES OFTEN AND NEVER IN THE PLURAL IS ONE ENGLISH DOES NOT COUNT. The countability
+    # lexicon labels 9,537 senses, which leaves the common mass nouns it never reached: nothing in it says "cattle"
+    # or "whey" is a mass, and the rule wrote "cattles" and "wheys", the two the pronouncing dictionary was there to
+    # refuse. The Brown corpus writes "cattle" 97 times and "cattles" none, which says it where no lexicon does.
+    # Read only of a noun written `_MASS_IF_NEVER_PLURAL` times or more: below that, no plural is no evidence.
+    # A noun whose plural English writes otherwise ("child", "woman") is given it before this is asked.
+    from collections import Counter as _Counter
+    from nltk.corpus import brown
+    written = _Counter(w.lower() for w in brown.words())
+    by_use = {word for word, times in written.items()
+              if times >= _MASS_IF_NEVER_PLURAL and word.isalpha()
+              and _written_with(word, "s") != word
+              and written[_written_with(word, "s")] / times < _COUNTED_IF_PLURAL_SHARE}
+    out = (individual - a_kind) | (mass - counted) | by_use
+    cache["uncounted"] = out
+    return out
+
+
 def _plural_english_gives(word: str, cache: Dict[str, Any]) -> Optional[str]:
     """THE PLURAL ENGLISH GIVES THE NOUN that no treebank here wrote; None where English gives it none here.
 
@@ -4067,7 +4130,21 @@ def _plural_english_gives(word: str, cache: Dict[str, Any]) -> Optional[str]:
     said = sorted(other for other in written
                   if other != word and other in _pronounced(cache)
                   and word in wn._morphy(other, wn.NOUN))
-    return said[0] if len(said) == 1 else None
+    if said:
+        return said[0] if len(said) == 1 else None
+    # AND WHERE THE PRONOUNCING DICTIONARY HAS SIMPLY NOT HEARD OF THE WORD, the plural the rule writes, unless what
+    # the noun IS says English does not count it (`_uncounted`). CMU holds 123,455 words and was the only thing
+    # allowed to say a written plural is English, so it answered for the whole vocabulary: of WordNet's 55,191 single
+    # nouns only 11,635 were given a plural and 42,498 had one written and refused -- "backhands", "balustrades",
+    # "austerities", "behests", "applecarts", "barkeeps", "analysers", every one of them English (2026-11-08). A
+    # dictionary not listing a word is not evidence against it, where a named individual, a scientific name, a noun
+    # the countability lexicon marks a mass and an abstract noun's ending all are. Of the 42,498, that leaves 28,498
+    # a plural is written for and 14,000 it still is not.
+    rule = _written_with(word, "s")
+    if (rule != word and not word.endswith(_TAXONOMIC_ENDINGS) and not word.endswith(_MASS_ENDINGS)
+            and word not in _uncounted(cache) and word in wn._morphy(rule, wn.NOUN)):
+        return rule
+    return None
 
 
 def _forms_english_gives(word: str, cache: Dict[str, Any]) -> List[Tuple[str, str]]:
