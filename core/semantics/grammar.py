@@ -888,6 +888,7 @@ class Lexicon:
             if len(piece) > 3 and piece[0] == "fact" and piece[1] == "has_rank"}
         self._runs_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
         self._numbers_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
+        self._declared_of: Tuple[Tuple[str, ...], List[Tuple[int, int]]] = ((), [])
         self._hyphened_of: Tuple[Tuple[str, ...], List[Tuple[int, int, Optional[str]]]] = ((), [])
         #: The words heard as names though written lowercase ("the function sorted"), and how often: a name heard is
         #: one when said again ("Does sorted return a new list?").
@@ -1278,11 +1279,24 @@ class Lexicon:
                                      bool(e.get("crossing")))))
         inside = any(start <= i < end for start, end in self._name_runs(tokens))
         in_number = any(start <= i < end for start, end in self._number_runs(tokens))
+        declared = any(start <= i < end for start, end in self._declared_runs(tokens))
         for cls, p in evidence.items():
             if cls not in self.templates and cls != "VERB":
                 continue
             if cls == "NAME" and inside:
                 # A word of a name of several words is read as that name, never as a name of its own.
+                continue
+            if declared:
+                # A WORD OF A WORD THE GRAMMAR DECLARES OF SEVERAL WORDS IS NO OPEN-CLASS WORD OF ITS OWN, as a
+                # word of a name of several words is no name of its own and a word of a number said in several is
+                # no numeral. A word of several is weighed ONCE, where its words read apart are weighed one by
+                # one, so what English states of them cannot outbid them however plainly it is stated: `more` is
+                # held as a noun (Thomas More), and "Tom has more than three cats." was read as Tom owning Thomas
+                # More beside three cats of their own, "than" said by nothing (lyric_talk, 2026-11-09).
+                #
+                # ITS OWN ENTRIES STAND. Only the kinds of word are refused here, so a declared run standing where
+                # it does not compose is still read by its words ("He wanted more than anything.": `more` keeps
+                # the `N.x/N.x` its grammar entry gives it, and `than` keeps its own).
                 continue
             if cls == "NUMERAL" and in_number:
                 # A word of a number said in several words is read as that number ("thirty-two": 32, never 30
@@ -1909,6 +1923,22 @@ class Lexicon:
                                                   known, score, "known together")))
             break
         return out
+
+    def _declared_runs(self, tokens: Sequence[str]) -> List[Tuple[int, int]]:
+        """WHERE THE GRAMMAR'S OWN WORDS OF SEVERAL WORDS STAND ("more than", "no one", "how many", "in front
+        of"): each run's first word and the word after it, as `_name_runs` gives a name's. Read from the grammar's
+        data rather than written again here, so a word of several taught there is known here too."""
+        key = tuple(tokens)
+        if self._declared_of[0] != key:
+            runs: List[Tuple[int, int]] = []
+            low = [t.lower() for t in tokens]
+            for words in tuple(self.together) + tuple(self.phrases):
+                parts = words.split()
+                for i in range(len(low) - len(parts) + 1):
+                    if low[i:i + len(parts)] == parts:
+                        runs.append((i, i + len(parts)))
+            self._declared_of = (key, sorted(set(runs)))
+        return self._declared_of[1]
 
     def _number_runs(self, tokens: Sequence[str]) -> List[Tuple[int, int]]:
         key = tuple(tokens)

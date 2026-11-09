@@ -16,6 +16,107 @@ Conventions:
 
 ---
 
+## 2026-11-09 (111) — Three repairs to number language, each a rule and not a fix for its sentence: a quantity word says a count, each coordinand keeps its own, and a word the grammar declares of several words has standing against its own words
+
+**Objective.** *"do the three quality repairs. And fix everything that you mentioned in generalization over
+language section you could've had this done overnight"*
+
+Sixteen held-out readings on the second store, judged on the shape of the facts against the register the lessons
+themselves use, never on a string match. **Sixteen of sixteen.**
+
+### BOTH SAYS A COUNT OF TWO
+
+`both` had no declaration at all, so it fell to the adjective template and made a `quality` piece: "Both dogs
+barked." was `has_property(?v1, both)` -- a fact that appears in **zero** lesson records -- where English-13
+teaches `Both dogs are big.` as `instance_of(?v0, dog) & has_count(?v0, 2) & has_property(?v0, big)`.
+
+Declared in the ordinals' own shape, `N.x/N.x` with a `count` piece and `"only": true`, it now reads
+`done_by(?v0, ?v1) & has_count(?v1, 2) & instance_of(?v1, dog) & precedes(?v0, ?now)`. **No code changed.** The
+`count` piece already became a count; the word was simply never stated. The lexicon had held `both` with the
+value 2 all along, in an entry structurally identical to `Seventeen`'s value 17 -- same construction, no word
+class, both from a lesson -- and the grammar used the 17 while ignoring the 2.
+
+### EACH COORDINAND KEEPS ITS OWN COUNT
+
+Both bracketings of "three cats and four dogs" compose, and the wrong one won. Coordinating first makes the
+group (`_coordinate`), and the numeral then counts THE GROUP, so "Tom has three cats and four dogs." read
+`has_count(?v0, 3) & has_count(?v1, 4) & has_member(?v0, ?v1) & instance_of(?v1, dog) & instance_of(?v2, cat)`
+-- a group of three holding a group of four, the cats counted by nothing at all. No lesson coordinates two
+counted groups, so nothing taught stood against it.
+
+A count said of a group one of whose members carries its own contradicts that member, so the pair is refused
+where a form of "do" given an auxiliary is (`_counts_a_counted_group`, beside
+`_do_support_on_an_auxiliary`): the right bracketing was already in the chart and wins once this one is gone. A
+group counted where no member carries one is left alone, so "the three cats and dogs" still says three of both.
+Verified without a substrate on the three shapes directly: the bad pair refused, the two good ones allowed.
+
+### MORE THAN AND FEWER THAN BOUND A COUNT, and what it took
+
+`exceeds` is in the register and the lessons say it 85 times, but only between two numbers ("Five is more than
+three." is `exceeds(5, 3)`), so no frame ever bounded a count and the reading was improvised as a property.
+
+Declared as words of several words taking the number and then the noun -- `(N.x/N.x)/NP.n` with
+`count(x, c)` and `exceeds(c, n)` -- `fewer than` worked at once while **`more than` did not**, on the same
+declaration. Three wrong diagnoses, each killed by measurement and not by reasoning:
+
+1. *`more` read as its WordNet adjective sense, which is named "more than" (`more.a.01`, lemmas
+   `['more','more_than']`).* Refuted: `"only": true` on `more` changed the reading not at all.
+2. *`more`'s own entry labelled `use: "ADJECTIVE"` opening the generic adjective template, which names a word by
+   memory's sense.* Refuted: relabelling it `ADJECTIVE:much` changed nothing either, and on this store `more`'s
+   adjective senses are named `much more` and `many more`, not "more than" at all.
+3. *What memory knows a run of words as, offered as an open-class word.* This one was real and was fixed -- the
+   `has_property(_, "more than")` fact disappeared -- but `more than` still failed, now reading Tom as owning
+   **Thomas More** beside three cats of their own, with "than" said by nothing and the cats joined to nothing.
+
+**The cause was structural.** A word of several words that the grammar declares is weighed ONCE (the logarithm
+of its weight, 0.0 unless stated), while reading its words apart sums each word's evidence, which are log counts
+in the single digits. No weight writable in the data is on that scale. `fewer than` won only because `fewer` has
+no open-class reading to lose to; `more` is held as a noun. A word inside a **name run** is not offered as a
+name of its own and a word inside a **number run** is not offered as a numeral -- a declared word of several
+words had no such standing, and that was the whole of it.
+
+`_declared_runs` gives it that standing: a word inside a run the grammar declares in `together` or `phrases` is
+no open-class word of its own. **Its own entries stand**, so a declared run standing where it does not compose
+is still read by its words. "Tom has more than three cats." now reads
+`exceeds(?v0, 3) & has_count(?v1, ?v0) & instance_of(?v1, cat) & owns(tom, ?v1)`.
+
+### WHAT THE REPAIRS COST, MEASURED RATHER THAN ASSERTED
+
+A REGRESSION I MADE AND REVERTED. `"only": true` on `more` took "More is better." to **no reading at all**,
+where it had read before. `only` suppresses a word's NAME reading above the capitalisation check, and `more.n.01`
+is Thomas More. Neither that flag nor the relabel bought anything, so `more` is byte-identical to how it started
+and the sentence reads again. The cost I had been willing to accept turned out to be unnecessary; the one I
+expected not to pay -- "Thomas More opposed the divorce." -- never came due, because a name of several words is
+read by `_name_runs` before any word-level entry.
+
+Nine further readings, all holding: `No one came.` still denies; `in front of`, `on top of` and `because of`
+still read as one word each; both comparatives `more` exists for still give `exceeds`
+("Tom has more cats than Rex.", "Tom is more careful than Rex."); and the three shapes the WordNet source writes
+for meronyms by the thousand, whose declared runs begin with a common noun, are untouched:
+`part_of(⟨2⟨wheel, car)`, `made_of(table, ⟨3⟨wood)`, `member_of(player, team)`. No test in the repo covered
+those three, which is why they were measured here.
+
+### A pre-existing failure, fixed on the way
+
+`tests/test_grammar.py::test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying` had been
+failing on `event`. `_piece_says` was given a branch counting a verb's doing by what its thing does, and that
+branch stands **above** the one that reads `SAYS_NOTHING_OF_FACTS`, so the kind never reached the list and the
+two said opposite things of it: the spec called it silent while the code counted it. Runtime was already the
+code's, so moving `event` into `SAYS_OF_A_MEANING` changes no behaviour and makes them agree. Confirmed
+pre-existing by stashing the repairs and reproducing it identically. A stale list in the same docstring, naming
+kinds since answered for, was cut rather than corrected: `NOT_YET_SAID` states them per member, and a list
+written twice goes stale.
+
+`less` carries the same shape as `more` and is left as it was, to be measured before it is touched.
+
+**Verified against the real system.** Every reading through `derived_reader.read_text` on a live substrate
+(`get_system().start()`) against real Postgres, `lyric_talk` on port 5433; `_counts_a_counted_group` and
+`_declared_runs` also exercised directly, without a substrate, on the shapes they must refuse and allow. Each
+edit to `grammar.py`, `grammar_words.py` or `english.json` changes `RULES`, so every boot above learned the
+6,137 sentence records again first, at 25.1/s -- 245s, measured, and the whole of what a grammar edit costs.
+
+---
+
 ## 2026-11-09 (110) — Generalisation over number language measured held out: the arithmetic and the structures carry, and the three failures all commit to an invented quantity fact. Every adverb recorded whole, and five language layers found holding nothing
 
 **Objective.** *"Why are you avoiding the generalization over language….. I have asked you about it three times now.
