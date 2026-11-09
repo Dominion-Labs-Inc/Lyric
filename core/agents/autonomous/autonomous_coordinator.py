@@ -19759,8 +19759,20 @@ The substrate must realign with its constitutional responsibilities immediately.
             from core.tools import get_tool_registry
             registry = self.tool_registry = get_tool_registry()
         out: Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]] = {}
-        for name in sorted(set(registry.tools) | set(registry.tool_factories)):
+        names = sorted(set(registry.tools) | set(registry.tool_factories))
+        began = said_at = time.monotonic()
+        for how_far, name in enumerate(names, 1):
             await asyncio.sleep(0)
+            # WHERE A START IS WHILE IT READS WHAT ITS TOOLS DO. This loop reads 139 descriptions by the grammar and
+            # said nothing until it was done, so minutes of a start looked from outside like a hang -- and a start
+            # slowed by a reading width (`COMPOSED_AGAIN` fired at this door, 1.46x, 2026-11-09) could not be told
+            # from one stuck. The reader's own lines are no substitute: a description that reads cleanly prints
+            # nothing, so the quiet ones are exactly the ones that leave no trace. Said in the grammar's register
+            # (`Grammar.charts`): how far, of how many, how many said anything, how long.
+            if time.monotonic() - said_at >= 15.0:
+                said_at = time.monotonic()
+                logger.info("reading what Lyric's tools do: %d of %d, %d say so, %ds",
+                            how_far, len(names), len(out), int(said_at - began))
             tool = registry.get_tool(name)
             said = re.split(r"(?<=[.!?])\s+", str(getattr(tool, "description", "") or "").strip(), maxsplit=1)[0]
             if not said:
@@ -19780,8 +19792,8 @@ The substrate must realign with its constitutional responsibilities immediately.
             parameters = list(getattr(tool, "parameters", None) or ())
             out[name] = (doing, tuple(p.name for p in parameters if getattr(p, "required", True)),
                          tuple(p.name for p in parameters))
-        logger.info("Lyric's tools read for what they do: %d of %d say so", len(out),
-                    len(set(registry.tools) | set(registry.tool_factories)))
+        logger.info("Lyric's tools read for what they do: %d of %d say so, %ds", len(out), len(names),
+                    int(time.monotonic() - began))
         self._tool_doings = (taught, out)
         return out
 
