@@ -49,7 +49,7 @@ for which thing a word names; a wide chart hands it readings that differ in stru
 live store and counted nothing: `{'observed': 0, 'refused': 0, 'total': 20, 'sentences': 3054}`. `listening_counts`
 only counts a sentence that reads more than one way, and with `COMPOSED_READINGS` at 1 no composed sentence does.
 Reader hands up one reading → listener never has a choice → the pass never sees a choice to count → the worths stay
-zero. `LYRIC_COMPOSED_READINGS=6` is the wrong lever: composing is also how a start reads its 139 tools
+zero. `LYRIC_COMPOSED_READINGS=6` is the wrong lever: composing is also how a start reads its 251 tools
 (`ready_to_read` → `_tools_by_doing`), and a start that takes 29 s had not finished reading them in 20 minutes.
 Scope it to the counting pass instead (a contextvar, as `grammar.py` scopes `_TEACHES`).
 

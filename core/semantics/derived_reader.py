@@ -5560,7 +5560,7 @@ COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 #: HOW MANY THE GRAMMAR IS ASKED FOR OF WHAT A PERSON SAID (`AutonomousCoordinator._read`, through
 #: `composing_width`), which is not how many anything else is asked for.
 #:
-#: WHY THE WIDTH BELONGS AT THIS DOOR AND NOT AT THE DEFAULT. Composing is also how a start reads its 139 tool
+#: WHY THE WIDTH BELONGS AT THIS DOOR AND NOT AT THE DEFAULT. Composing is also how a start reads its 251 tool
 #: descriptions (`_tools_by_doing`), and those are not somebody speaking: they are fixed English indexed once, the
 #: first sentence of each description read as an order so a tool can be chosen from plain words. A wide chart buys
 #: nothing there and costs `how_many` squared on 139 long sentences -- at six, a start that takes 29 s had not
@@ -5599,7 +5599,7 @@ SPOKEN_READINGS = int(os.environ.get("LYRIC_SPOKEN_READINGS", "3"))
 #: ONE NUMBER ABOVE EVERY WIDTH WAS MEASURED WRONG THE DAY IT WAS WRITTEN. The guard was `COMPOSED_AGAIN > width`,
 #: so three stopped rescuing anything the moment a person's words began to be read at three -- and a person's words
 #: are where a mis-parse matters most -- while five, raised to cover that, began firing at the BOOT door, where the
-#: width buys nothing: 139 fixed tool descriptions, read once, of which four provably mis-parse. The same stretch of
+#: width buys nothing: 251 fixed tool descriptions, read once, of which four provably mis-parse. The same stretch of
 #: them took 5m19s at five against 3m38s at three, one store, the same four rescued in the same order: 1.46x of a
 #: multi-minute start spent to re-read fixed English nobody is speaking (2026-11-09).
 #:
@@ -5617,7 +5617,7 @@ COMPOSED_AGAIN_STEP = int(os.environ.get("LYRIC_COMPOSED_AGAIN_STEP", "2"))
 #: other path pays anything for this.
 #:
 #: WHY IT IS SCOPED AND NOT RAISED. `how_many` costs the chart `how_many` SQUARED in the combinations it tries, and
-#: composing is also the path a start reads its 139 tool descriptions by (`ready_to_read` -> `_tools_by_doing` ->
+#: composing is also the path a start reads its 251 tool descriptions by (`ready_to_read` -> `_tools_by_doing` ->
 #: `read_text`): at six, a start that takes 29 s had not finished reading its tools in 20 minutes (2026-11-03). The
 #: cost belongs to the one pass that needs the width, not to every utterance Lyric ever reads.
 _COMPOSED_WIDTH: "contextvars.ContextVar[int]" = contextvars.ContextVar("composed_width", default=0)

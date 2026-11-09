@@ -68,7 +68,7 @@ nothing was built to choose between.**
 
 **Mine, caught before it was made.** The obvious fix is to raise `COMPOSED_READINGS` to 3, which the constant's own
 docstring concluded on 2026-11-08 ("three is the least that hands up the right reading"). `docs/HANDOFF.md` refutes
-it as a DEFAULT: composing is also how a start reads its 139 tool descriptions (`ready_to_read` ->
+it as a DEFAULT: composing is also how a start reads its 251 tool descriptions (`ready_to_read` ->
 `_tools_by_doing`), each chart costing `how_many` squared, and at six a start that takes 29 s had not finished
 reading its tools in 20 minutes. The 2026-11-08 note retired two different objections and never addressed this one.
 
@@ -93,7 +93,7 @@ four tool descriptions rescued in the same order, timed from the first of them:
 | `Return a canonical implementation of a Gang-of-Four...` | +3:38 | **+5:19** |
 
 **1.46x of a multi-minute start, spent re-reading fixed English nobody is speaking.** Not the 20-minute wall a
-raised DEFAULT caused, because the rescue fires only on a provable mis-parse -- four of 139 descriptions -- but paid
+raised DEFAULT caused, because the rescue fires only on a provable mis-parse -- four of 251 descriptions -- but paid
 for nothing. Fixed by making the rescue RELATIVE to the door it rescues: `wider = min(width +
 COMPOSED_AGAIN_STEP, COMPOSED_AGAIN)`, step 2, ceiling 5. Boot at width 1 asks again at 3, exactly as before the
 raise; a person's words at 3 ask again at 5; the counting pass at 6 asks again not at all, the ceiling being below
@@ -109,6 +109,55 @@ door for conversing, `get_conversation(..., remembers=False)`, which is also wha
 edit was in the right place; only the probe asked the wrong object. A probe that cannot reach the door reports
 nothing and costs a boot, and the boot is what found the regression above, which is the only reason the hour paid
 for itself.
+
+### Verified through the real door, on main (2026-11-09, 21:16-21:41 UTC)
+
+A read-only probe, held not to remember, each sentence read at width 1 and at 3 in one boot through
+`get_conversation(..., remembers=False)` -> `Conversation._read`.
+
+**The case the width was built for.** "The note, the rock and the dog were heavy." At width 1, ONE reading, taken
+unweighed because one meaning is not a choice:
+
+```
+tell: given instance_of(?v0, dog) & given instance_of(?v1, personal letter note) & given instance_of(?v2, rock)
+    & has_member(?v1, ?v0) & instance_of(?v3, heavy) & precedes(?v3, ?now) & state_of(?v3, ?v1)
+```
+
+The NOTE has the DOG as a member, the rock is named and attached to nothing, and the heaviness is a state of the
+note alone. At width 3, two readings, and the listener took the group:
+
+```
+tell: has_member(?v0, ?v1) & has_member(?v0, ?v2) & has_member(?v0, ?v3) & instance_of(?v1, dog)
+    & instance_of(?v2, personal letter note) & instance_of(?v3, rock) & instance_of(?v4, heavy)
+    & precedes(?v4, ?now) & state_of(?v4, ?v0)
+```
+
+All three are members of one group and the group is what is heavy. The other reading offered at 3 was the mis-parse
+(`ask:` with `instance_of(?v0, and)` and `actor heavy`), and it was not taken: the width gave the listener
+something to reject and it rejected the right one.
+
+**A prediction of mine that did not reproduce.** I expected width 1 to return `done_to(?v0, ?v1) &
+instance_of(?v0, and)`, the form recorded on 2026-11-08. It does not; it returns the half-built group above. That
+form was measured BEFORE the five layers were taught. The mechanism holds -- at 1 the group is pruned, at 3 it is
+built -- but the wrong reading has moved, which is this entry's own thesis: the layers changed what the wrong answer
+IS, not whether there is one.
+
+**Nothing else moved.** Read at both widths, identical meaning taken: "The rock was heavy." (6 readings, 12 packed
+words, `material rock` + `heavy`), "Both dogs barked." (`has_count(?v1, 2)`), "Tom has more than three cats."
+(`exceeds(?v0, 3) & has_count(?v1, ?v0)`), "Tom has three cats and four dogs." (each coordinand its own count, both
+in the group), "A salmon is a fish." (`isa(salmon, fish)`). The three number repairs hold at the wider door.
+
+**The rescue, at both doors, from the substrate's own log:** 7 x `read 1 way at 1 ... asking again for 3` and 2 x
+`read 1 way at 3 ... asking again for 5`. `unified.failure_events`: none.
+
+**Per-sentence seconds in this run are NOT a width comparison.** Width 1 ran first on a cold cache: 126.48 s for the
+first sentence against 1.44 s for the same sentence at 3. That is the order, not the width.
+
+**What the new boot instrument said in its first boot, correcting a figure this notebook had carried for days.** It
+is 251 tools, not 139; 182 of them read for what they do and 69 say nothing and are chosen for nothing; and the
+loop took 849 s of a 1,050 s start -- **81% of a start is Lyric reading what its own tools do**, re-read at every
+boot, cached only on `len(live_view())`. Twenty-eight progress lines, continuous from 110 s to 847 s. This is now
+the largest known cost in a start, and it was invisible until the line was added.
 
 ### Why the listener cannot choose: a circle, verified on both stores
 

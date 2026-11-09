@@ -19763,7 +19763,7 @@ The substrate must realign with its constitutional responsibilities immediately.
         began = said_at = time.monotonic()
         for how_far, name in enumerate(names, 1):
             await asyncio.sleep(0)
-            # WHERE A START IS WHILE IT READS WHAT ITS TOOLS DO. This loop reads 139 descriptions by the grammar and
+            # WHERE A START IS WHILE IT READS WHAT ITS TOOLS DO. This loop reads 251 descriptions by the grammar and
             # said nothing until it was done, so minutes of a start looked from outside like a hang -- and a start
             # slowed by a reading width (`COMPOSED_AGAIN` fired at this door, 1.46x, 2026-11-09) could not be told
             # from one stuck. The reader's own lines are no substitute: a description that reads cleanly prints
