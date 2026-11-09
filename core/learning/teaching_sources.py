@@ -912,6 +912,16 @@ class WordNetSource:
               ("nothing", frozenset({3, 34})),
               ("someone to something", frozenset({10, 11})),
               ("something", frozenset({1, 4})))
+    #: WHAT WORDNET ITSELF CALLS A MANNER: an adverb whose definition begins "in a(n) ... manner" (or way, fashion,
+    #: style), which is WordNet's own way of saying that this adverb says of a doing what its adjective says of a
+    #: thing. 1,511 of its 3,621 adverb senses say so, 1,454 of them with the adjective named as well (a pertainym),
+    #: between them 1,948 of its 4,481 adverb words. A degree, a time, a place or a whole-sentence adverb says
+    #: nothing of the kind and is said in no frame the lessons hold: "Tom walked hardly." is not English.
+    _MANNER = re.compile(r"^in a[n]? .*\b(manner|way|fashion|style)\b", re.I)
+    #: THE DOING AN ADVERB IS SAID OF in these examples, and its past: the walking english_12 says an adverb of
+    #: ("The cat walked slowly."), as "Tom" is the doer of every verb's (`in_tense`). ONE doing for every adverb,
+    #: because the example asserts nothing -- it shows where an adverb stands and which quality it says.
+    _MANNER_OF = ("walk", "walked")
 
     def _brown_verb_forms(self) -> Dict[str, Dict[str, Dict[str, int]]]:
         """How the Brown corpus writes each verb in each of its forms, `{form: {verb: {written: times}}}` (`_VERB_TAGS`),
@@ -1885,7 +1895,17 @@ class WordNetSource:
             only, one for each word the sense is written with: the fact is taught once, by its own record. Said as
             `isa` or `similar_to`, the words stood where kinds do, and an adjective read through its slot was a kind
             ("Faith is central."); unsaid, almost no verb or adjective sense had a word to be read by (44 of 24,467
-            and 1,252 of 29,703, 2026-10-12)."""
+            and 1,252 of 29,703, 2026-10-12).
+
+            WRITTEN BY THE TEACHER, in english_41's own two frames, as a kind said of many is written (`in_plural`).
+            Left to the sayer, a rule was said only where a frame that says it was already held -- and the frame is
+            what english_41 teaches. WordNet's adjectives were taught into the main store at 2026-11-07 01:09 and
+            that lesson at 2026-11-08 00:07, so for seventeen hours every quality rule went unsaid and no word was
+            ever minted from one: 431 of 17,715 adjective senses had a word to be read by, and every filler the
+            frame had ever had was one of the lesson's own thirty words. Taught again into the talking store with
+            the frame held first, the same 4,000 records admitted no fact at all (3,104 of them already held) and
+            still said 855 sentences and minted 854 words -- nothing was missing but the English (2026-11-08).
+            A source that writes its own sentence cannot be undone by the order it is taught in."""
             child, parent = names.get(subject, ""), names.get(obj, "")
             if not (fits(child) and fits(parent)) or child == parent:
                 return None
@@ -1896,12 +1916,14 @@ class WordNetSource:
             if part == "doing":
                 said_as = (MeaningFact("instance_of", "?e", child, condition=True),
                            MeaningFact("done_by", "?e", "?x", condition=True), MeaningFact("instance_of", "?e", parent))
+                sentence = f"To {subject_word} is to {obj_word}."
             else:
                 said_as = (MeaningFact("has_property", "?x", child, condition=True),
                            MeaningFact("has_property", "?x", parent))
+                sentence = f"To be {subject_word} is to be {obj_word}."
             written = ((child, subject_word), (parent, obj_word))
             return TaughtRecord(subject=child, relation=relation, obj=parent, quality=self.quality,
-                                meaning=Meaning("tell", said_as), example=True,
+                                meaning=Meaning("tell", said_as), sentence=sentence, example=True,
                                 words=tuple((name, word) for name, word in written if name != word),
                                 uses=uses_of(((subject, subject_word), (obj, obj_word))))
 
@@ -1976,6 +1998,41 @@ class WordNetSource:
                                         example=True))
             return out
 
+        def in_manner(synset, word: str) -> Optional[TaughtRecord]:
+            """An adverb sense said of a doing, as english_12 says one ("The cat walked slowly."): its words are
+            taught for the QUALITY its adjective names, not for a concept of its own. That is what Lyric's meaning
+            language holds an adverb to be -- english_12 reads "The dog barked loudly." as `instance_of(?v0, bark) &
+            done_by(?v0, ?t0) & has_property(?v0, loud)`, the quality `loud` said of a doing where an adjective says
+            it of a thing -- so a sentence said of a doing and a sentence read from one agree on the same concept.
+
+            ONLY WHAT WORDNET CALLS A MANNER (`_MANNER`) AND DERIVES FROM AN ADJECTIVE (a pertainym): 1,454 of its
+            3,621 adverb senses, 1,948 of its 4,481 adverb words. WordNet gives an adverb no kind and no plural, so
+            nothing else in this source ever places one: 212 of 4,393 adverb words in the main store had any word
+            held of them and the four open classes' coverage ran nouns 70.4%, verbs 59.3%, adjectives 22.4%,
+            adverbs 4.8% (2026-11-08). The other 2,167 senses wait on a frame: no lesson says a degree, a time or a
+            place adverb of a doing, and an example in a frame nothing holds would teach English that is not
+            English."""
+            if " " in word or not word.isalpha() or word != word.lower():
+                return None
+            if not self._MANNER.match((synset.definition() or "").strip()):
+                return None
+            of = order([p.synset() for lemma in synset.lemmas() if self._written(lemma.name()) == word
+                        for p in lemma.pertainyms()])
+            quality = next((names.get(s, "") for s in of if fits(names.get(s, ""))), "")
+            doing, written = self._MANNER_OF
+            key = (quality, "manner", word)
+            if not quality or key in seen:
+                return None
+            seen.add(key)
+            return TaughtRecord(subject=quality, relation="has_property", obj="", quality=self.quality,
+                                meaning=Meaning("tell", (MeaningFact("instance_of", "?v0", doing),
+                                                         MeaningFact("done_by", "?v0", "tom"),
+                                                         MeaningFact("precedes", "?v0", "?now"),
+                                                         MeaningFact("has_property", "?v0", quality))),
+                                sentence=f"Tom {written} {word}.",
+                                words=((quality, word),) if quality != word else (),
+                                forms=((doing, written),), example=True)
+
         for synset in wn.all_synsets():
             if not fits(names.get(synset, "")):
                 continue
@@ -1990,6 +2047,11 @@ class WordNetSource:
                 # plurals of a noun's are said (below).
                 for written_word in words:
                     found.extend(in_tense(synset, written_word))
+            if pos == "r":
+                # EVERY WORD AN ADVERB SENSE IS WRITTEN WITH, said of a doing ("Tom walked slowly."), as a verb's
+                # forms are said of a doer: WordNet places an adverb no other way.
+                for written_word in words:
+                    found.append(in_manner(synset, written_word))
             for hypernym in order(synset.hypernyms()):
                 # What a thing is a kind of, said for a noun through "A robin is a bird."; a verb's kind as the rule
                 # it is over a doing, "To stroll is to walk." (english_41), for every word the sense is written with:
@@ -2089,12 +2151,13 @@ class WordNetExamplesSource:
     examples_only=True)`): the plural of every noun sense counted, said in a fact WordNet holds of it ("Hawks are
     raptors.", "Mice are rodents."); every verb sense's forms, said of a doer its frames give it ("Tom strolls.",
     "Tom strolled.", "Tom is strolling."); its verbs' kinds and its adjectives' likenesses said as rules ("To stroll is
-    to walk.", "To be lovely is to be beautiful.").
+    to walk.", "To be lovely is to be beautiful."); and every adverb WordNet calls a manner, said of a doing ("Tom
+    walked slowly.").
 
     For a store WordNet was taught to before these were said: it teaches the examples, not the facts again, and none
     of what WordNet's pass does besides its records (word classes, usage, what words are said of). `parts`: of those
-    parts of speech only ("n" the plurals, "v" the verbs' forms and kinds, "a" the adjectives' likenesses), as
-    `WordNetSource.parts`."""
+    parts of speech only ("n" the plurals, "v" the verbs' forms and kinds, "a" the adjectives' likenesses, "r" the
+    adverbs said of a doing), as `WordNetSource.parts`."""
 
     parts: Tuple[str, ...] = ()
     name: str = "wordnet"
@@ -4896,7 +4959,24 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             for other in WordNetSource._ordered(getattr(s, rel)()))
         pertains_to = tuple(dict.fromkeys((other.synset().name(), named(other.synset()), tuple(
             n for _, n in kinds_of(other.synset()))) for other in lemma.pertainyms() if named(other.synset())))
-        senses.append(WordSense(s.name(), cls, named(s), s.definition(), kinds, lemma.count(),
+        # AN ADVERB NAMES THE QUALITY ITS ADJECTIVE NAMES, wherever WordNet says which adjective it is of (a
+        # pertainym: 2,498 of its 3,621 adverb senses). Lyric's meaning language holds no adverb apart:
+        # `_role_of_term` takes whatever a thing OR A HAPPENING `has_property` as one part and names an adverb among
+        # its own examples, and english_12 reads "The dog barked loudly." as `has_property(?v0, loud)`. Named after
+        # its own sense, the record offered reading `slowly` where teaching had said `slow`, so teaching and reading
+        # could never resolve one sentence to one concept, however many senses were held.
+        #
+        # THE PERTAINYM AND NOT THE MANNER GLOSS, which is the guard the teaching route uses (`in_manner`) and is
+        # the wrong one here: that route must write true English, and "Tom walked hardly." is none, while this only
+        # answers which concept a word names. Asked for a manner gloss, the two adverbs english_12 itself teaches
+        # were missed -- "slowly" is glossed "without speed" and "loudly" "with relatively high volume", neither of
+        # them "in a ... manner" -- and 1,044 of the 2,498 with an adjective named went unbound. A degree adverb is
+        # no loss: a degree is said through `has_degree` and not through this, and where one does come this way the
+        # answer it had was a concept invented from its own spelling (2026-11-08).
+        concept = named(s)
+        if cls == "ADVERB" and pertains_to:
+            concept = pertains_to[0][1]
+        senses.append(WordSense(s.name(), cls, concept, s.definition(), kinds, lemma.count(),
                                 tuple(e for e in s.examples() if of_the_word(e, s.pos())), frames,
                                 covers=(tuple(covered[c] for c in [s.name()] + [k for k, _ in kinds])
                                         if cls == "NOUN" else ()), key=lemma.key(), related=related,

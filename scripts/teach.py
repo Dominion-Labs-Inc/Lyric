@@ -68,7 +68,7 @@ So this starts the substrate and teaches it while it is running:
   --definitions  (wordnet) also offer each definition as a sentence with no meaning given
   --sense S  (wordnet) only the facts the sense S is in (peoples.n.01), and what WordNet states about its vocabulary
              only for their words; given several times, several senses
-  --part P   (wordnet, wordnet-examples) only the senses of part of speech P (n, v, a): their facts and the
+  --part P   (wordnet, wordnet-examples) only the senses of part of speech P (n, v, a, r): their facts and the
              sentences they are said in, or their examples only; given several times, several parts
   --lesson F (lesson) a lesson file; given several times, the lessons are taught in that order in one running
              substrate, each under its own name, then reviewed once
