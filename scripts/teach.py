@@ -326,8 +326,8 @@ async def main() -> int:
     parser.add_argument("--sense", action="append", default=None,
                         help="wordnet: teach only the facts this sense is in (peoples.n.01); give it several times")
     parser.add_argument("--part", action="append", default=None, choices=("n", "v", "a", "r"),
-                        help="wordnet, wordnet-examples: teach only the senses of this part of speech; give it several "
-                             "times")
+                        help="wordnet, wordnet-examples, wordnet-usage, wordnet-words: teach only the senses of this "
+                             "part of speech; give it several times")
     args = parser.parse_args()
     if args.small is not None:
         if args.limit is not None:
@@ -335,8 +335,8 @@ async def main() -> int:
         args.limit = args.small
     if args.sense and args.source != "wordnet":
         parser.error("--sense is WordNet's")
-    if args.part and args.source not in ("wordnet", "wordnet-examples", "wordnet-usage"):
-        parser.error("--part is WordNet's and its examples'")
+    if args.part and args.source not in ("wordnet", "wordnet-examples", "wordnet-usage", "wordnet-words"):
+        parser.error("--part is WordNet's, its examples' and its words'")
 
     from core.learning.teaching import TeachingPass
 
