@@ -68,6 +68,8 @@ NO MODEL IS INVOLVED AT ANY POINT.
 
 from __future__ import annotations
 
+import contextlib
+import contextvars
 import hashlib
 import functools
 import heapq
@@ -5573,6 +5575,28 @@ COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 #: then pay the squared cost, which is the whole of what made three dear (2026-11-08).
 COMPOSED_AGAIN = int(os.environ.get("LYRIC_COMPOSED_AGAIN", "3"))
 
+#: HOW MANY THE GRAMMAR IS ASKED FOR INSIDE ONE PIECE OF WORK (`composing_width`), where the work needs THE READINGS
+#: AN UTTERANCE HAS and not the one reading the reader would take of it. Unset, `COMPOSED_READINGS` stands, so no
+#: other path pays anything for this.
+#:
+#: WHY IT IS SCOPED AND NOT RAISED. `how_many` costs the chart `how_many` SQUARED in the combinations it tries, and
+#: composing is also the path a start reads its 139 tool descriptions by (`ready_to_read` -> `_tools_by_doing` ->
+#: `read_text`): at six, a start that takes 29 s had not finished reading its tools in 20 minutes (2026-11-03). The
+#: cost belongs to the one pass that needs the width, not to every utterance Lyric ever reads.
+_COMPOSED_WIDTH: "contextvars.ContextVar[int]" = contextvars.ContextVar("composed_width", default=0)
+
+
+@contextlib.contextmanager
+def composing_width(how_many: int):
+    """The grammar is asked for `how_many` readings of what is read inside this, instead of `COMPOSED_READINGS`
+    (`_read_by_composing`). For work that must see what an utterance can mean, where reading everything else that
+    wide would cost the squared chart for nothing."""
+    token = _COMPOSED_WIDTH.set(int(how_many))
+    try:
+        yield
+    finally:
+        _COMPOSED_WIDTH.reset(token)
+
 
 def _names_a_structure_word(meaning: "Meaning", closed: Any) -> bool:
     """Whether a reading makes a CONCEPT of a word English builds sentences with -- a conjunction, a determiner, a
@@ -5608,7 +5632,7 @@ def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = (),
     first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
     made: List[Reading] = []
     offered, refused = 0, Counter()
-    width = width or COMPOSED_READINGS
+    width = width or _COMPOSED_WIDTH.get() or COMPOSED_READINGS
     for read in agent.grammar_view().readings(surface_of(utterance.pieces), width, named_before):
         offered += 1
         meaning = read.meaning
@@ -6125,6 +6149,25 @@ class Weighed(NamedTuple):
 #: The listener's evidence it weighs by what it was measured to be worth, with how many levels each has (the last
 #: holding all above it): what memory knows, what definitions say, and how much a reading supposed past its words.
 LISTENING_LEVELS = {"known": 3, "defined": 3, "fit": 4}
+
+#: HOW MANY READINGS THE COUNTING PASS ASKS FOR (`listening_counts`), which is not how many anything else asks for
+#: (`composing_width`).
+#:
+#: THE CIRCLE THIS BREAKS, every link of it measured. `listening_counts` counts a sentence only where it reads MORE
+#: THAN ONE WAY, because what it learns is which evidence told the reading meant from the readings not meant; at
+#: `COMPOSED_READINGS` of one no composed sentence reads more than one way, so the pass ran clean over 3,054 lesson
+#: sentences and counted nothing ({'observed': 0, 'total': 20}, 2026-11-03). Nothing counted leaves every level
+#: worth `ln(1) = 0` (`listening_worths`, Laplace on two zeros), and `known`, `defined` and `fit` are multiplied by
+#: nothing, so the listener weighs only the grammar's own structural score and returns the grammar's own first
+#: choice. Verified against both stores: zero `listening_claim` beliefs held on either (2026-11-09). The reader
+#: hands up one reading, the listener never has a choice, the pass never sees a choice to count, the worths stay
+#: zero. Every link breaks at the same place.
+#:
+#: SIX, where the choices first exist to be counted. Over the PMB's held-out dev part the right reading is available
+#: for 54.2% of sentences at one, 56.2% at six and 58.7% at fifty, while the reader's own choice is flat from six to
+#: fifty (GRAMMAR-01, 2026-11-03): six is the least width that hands the pass readings to tell apart, and the pass is
+#: paid once, on short taught sentences, not on every utterance.
+LISTENING_WIDTH = int(os.environ.get("LYRIC_LISTENING_WIDTH", "6"))
 
 
 def listening_levels(weighed_reading: Weighed) -> Dict[str, int]:
@@ -6765,7 +6808,8 @@ async def listening(utterances: Iterable[Sequence[Reading]], context: Iterable[s
 
 
 async def listening_counts(pairs: Iterable[Tuple[str, Meaning]], inventory: Optional[PatternInventory] = None, *,
-                           give_way: Optional[Callable[[], Awaitable[None]]] = None) -> Counter:
+                           give_way: Optional[Callable[[], Awaitable[None]]] = None,
+                           width: int = 0) -> Counter:
     """What the listener's evidence was, on sentences whose meaning it was taught: for every sentence read one way
     with more than one meaning, the taught one among them, each meaning's level of each piece of evidence
     (`listening_levels`), counted by whether it was the one meant. What `listening_worths` makes worths of, as a
@@ -6774,7 +6818,10 @@ async def listening_counts(pairs: Iterable[Tuple[str, Meaning]], inventory: Opti
     view = inventory if inventory is not None else _live_inventory()
     counts: Counter = Counter()
     for sentence, meaning in pairs:
-        utterances = read_text(sentence, view)
+        # ASKED WIDE HERE AND NOWHERE ELSE (`LISTENING_WIDTH`): a sentence read one way gives the pass nothing to
+        # count, and reading everything this wide would cost the squared chart at every start.
+        with composing_width(width or LISTENING_WIDTH):
+            utterances = read_text(sentence, view)
         if len(utterances) == 1 and utterances[0].understood:
             # Every reading weighed as it is (`unpacked`): what the listener counts is each meaning's evidence.
             readings = unpacked(utterances[0].readings, view)

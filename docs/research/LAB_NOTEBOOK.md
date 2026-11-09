@@ -16,6 +16,107 @@ Conventions:
 
 ---
 
+## 2026-11-09 (112) — Why the language layers turned unread into misread: the layers reach the reader, one reading reaches the listener, and the listener's evidence is worth zero because the pass that would learn it cannot see a choice
+
+**Objective.** Four of the five language sources were taught into main (entry 110 found all five layers holding
+nothing). Across the four passes the substrate's own review of what it holds in `general` moved one question per pass
+from `unread` to `misread`. Diagnose why a sentence that produced no reading now produces a wrong one.
+
+### The drift is not sampling, which was the first thing to rule out
+
+`review_learned` takes `rng = _random.Random(seed)` and `teach.py` passes no seed, so the ORDER differs every pass.
+But `target = min(200, 288)` and `chunk = max(50, 800)`, so the single batch is all 288 and every askable fact is
+asked: the order never decides which. The same 288 facts, the same 14 askable, 3 right throughout:
+
+| pass | layer it filled | reaches a reader | unread | misread |
+|---|---|---|---:|---:|
+| composition | `taught_sentence` | yes | 5 | 6 |
+| propbank | `argued_sentence` | **no** | 5 | 6 |
+| pmb-derivations | `derived_sentence` | yes | 4 | 7 |
+| treebank | `analysed_sentence`, `word_forms` | yes | 3 | 8 |
+
+The 288 are WordNet definition links: `defined_with` 174, `similar_to` 92, `antonym_of` 13, `isa` 8, `follows` 1.
+274 have no question taught for them, which is why only 14 are asked.
+
+### A natural experiment nobody designed
+
+Exactly one of the four layers reaches no reader. `tests/test_understanding_reaches_the_reader.py` records
+`argued_sentence` in `NOT_ASKED`, and it was re-verified here rather than taken on the note's word: `argument_view`
+and `composition_view` appear ONLY in `memory_agent.py`, in neither `grammar.py` nor `derived_reader.py`.
+`CompositionView` does consult the arguments (`composition.py:771`), but nothing on the reading path consults
+`CompositionView`, so the chain ends there.
+
+**The one layer that reaches no reader moved nothing. Each layer that reaches the reader moved exactly one question
+from no reading to a wrong one.** That is the mechanism measured rather than inferred.
+
+### The mechanism, every link read out of the code
+
+1. `derived_sentence` 0 -> 8,679 reaches `Lexicon.hear_derived`, which fills `self.derived["uses"]`
+   (`grammar.py:1583-1609`), read by `_held_evidence` at `grammar.py:1419-1423`. An EMPTY table scores every closed
+   entry at its floor, so categories the grammar needed were never considered and no derivation completed.
+   `analysed_sentence` and `word_forms` do the same for the structure view and for a word memory holds nothing of.
+   So the grammar now BUILDS a derivation where it built none.
+2. `COMPOSED_READINGS = 1`, so exactly one reading reaches the listener.
+3. `meant` handed one reading returns it before weighing anything (`derived_reader.py:6653`), under "the only
+   meaning the words have". Its own comment: "One meaning is not a choice ... none of the evidence below ever ran."
+4. So a sentence that read as nothing now reads as whatever the grammar's own score put first.
+
+**The layers are doing their work. The choosing is what was missing, and was always missing; it could not show while
+nothing was built to choose between.**
+
+### Errors found and their causes
+
+**Mine, caught before it was made.** The obvious fix is to raise `COMPOSED_READINGS` to 3, which the constant's own
+docstring concluded on 2026-11-08 ("three is the least that hands up the right reading"). `docs/HANDOFF.md` refutes
+it as a DEFAULT: composing is also how a start reads its 139 tool descriptions (`ready_to_read` ->
+`_tools_by_doing`), each chart costing `how_many` squared, and at six a start that takes 29 s had not finished
+reading its tools in 20 minutes. The 2026-11-08 note retired two different objections and never addressed this one.
+
+**A trap in the same edit.** The rescue at `derived_reader.py:5660` is guarded by `COMPOSED_AGAIN > width`. Setting
+the width to 3 while `COMPOSED_AGAIN` is 3 would have made the guard false and silently removed the structure-word
+rescue altogether.
+
+### Why the listener cannot choose: a circle, verified on both stores
+
+`listening_counts` counts a sentence only where it reads MORE THAN ONE WAY (`derived_reader.py:6783`), because what
+it learns is which evidence told the reading meant from the readings not meant. At width 1 no composed sentence
+reads more than one way, so nothing is counted; `listening_worths` on no counts gives every level
+`ln(1) = 0` nats (Laplace on two zeros); `known`, `defined` and `fit` are multiplied by zero, leaving only the
+grammar's own structural score, so **the listener IS the reader's ranking**. Which is what was measured on
+`lyric_db`: it took the reader's own first reading at every width (43.0%, 42.0%, 41.8%).
+
+Checked directly here, not taken from the note: `select count(*) from unified.beliefs where claim like 'a reading
+heard with %'` returns **0 on main and 0 on dev**. No worth has ever been learned on either store.
+
+### Built
+
+The fix the research named and that was written and reverted last week as "not on the path to the bar". It is on
+the path now, because misreads are the live failure.
+
+- `composing_width(n)`, a contextvar as `grammar.py` scopes `_TEACHES`; `_read_by_composing` resolves
+  `width or _COMPOSED_WIDTH.get() or COMPOSED_READINGS`.
+- `LISTENING_WIDTH = 6`, read by `listening_counts` itself so no caller can forget it. Six because the right
+  reading is available for 54.2% of held-out sentences at one and 56.2% at six, flat from six to fifty
+  (GRAMMAR-01): six is the least width that hands the pass readings to tell apart, and the pass is paid once, on
+  short taught sentences.
+
+**It changes no default behaviour.** Verified: the width resolves to 1 outside the scope, 6 inside, and an explicit
+ask still wins, so the `COMPOSED_AGAIN` rescue is untouched. `RULES` hashes `grammar.py`, `grammar_words.py` and
+`data/grammar/english.json` only, so no grammar re-learn is triggered. 6 of 6 of
+`tests/test_understanding_reaches_the_reader.py` pass.
+
+### What this does and does not fix
+
+On its own, nothing observable: it is the prerequisite the circle was closed on. The sequence from here is
+`--source listening` so the worths stop being zero, then the listener's three learned channels carry weight for the
+first time, then raising the width becomes measurable instead of refuted. That next step writes to a store and is
+not started here.
+
+**Open, and not introduced here:** 10,495 `argued_sentence` records are held on main and change no reading. Either
+the composer belongs on the reading path or the layer should not be taught.
+
+---
+
 ## 2026-11-09 (111) — Three repairs to number language, each a rule and not a fix for its sentence: a quantity word says a count, each coordinand keeps its own, and a word the grammar declares of several words has standing against its own words
 
 **Objective.** *"do the three quality repairs. And fix everything that you mentioned in generalization over
