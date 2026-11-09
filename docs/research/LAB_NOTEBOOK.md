@@ -16,6 +16,124 @@ Conventions:
 
 ---
 
+## 2026-11-09 (110) — Generalisation over number language measured held out: the arithmetic and the structures carry, and the three failures all commit to an invented quantity fact. Every adverb recorded whole, and five language layers found holding nothing
+
+**Objective.** *"Why are you avoiding the generalization over language….. I have asked you about it three times now.
+This is not generalization over words! This generalization over language, sentences, numbers."* Then: *"ok lets do
+numbers on dev while main is going. i am also worried about language coverage."* And: *"So we're not done teaching
+language, and I specifically said all language."*
+
+### The adverb word records, over the whole of WordNet
+
+`--source wordnet-words --part r` on main: 3,630 of 3,630 words, 3h58m (4h23m with boot). 806 already right, **2,824
+corrected in place**, none refused, none below the quality floor, 0 admissions the substrate was not told about. The
+record count did not move (79,656), because the pass changed what each record says rather than adding records.
+
+Across all **4,623 adverb senses of 3,640 words**, every one of the 3,166 senses WordNet gives a pertainym is now
+named by that pertainym. Of the 1,457 with none, 767 name themselves (`not`, `here`, `never`, `now`) and 690 a
+synonym (`almost` -> `about`, `now` -> `immediately`). **No sense is named otherwise, none is self-named despite
+having a pertainym, and none carries a pertainym without a concept.** Before the pass the rule held for 1,818 and
+was skipped for 192.
+
+### Coverage, and why the rest of the adverbs are unreachable
+
+Against WordNet's one-word spellings per class (a spelling can belong to two classes, so these denominators sum past
+the vocabulary -- earlier figures in this log used the words source's own narrower totals):
+
+| class | readable | of | |
+|---|---:|---:|---:|
+| noun | 25,186 | 57,506 | 43.8% |
+| verb | 2,012 | 8,700 | 23.1% |
+| adjective | 13,711 | 20,983 | 65.3% |
+| adverb | 2,164 | 3,767 | 57.4% |
+
+**Error, and its cause.** I read 118 adverbs that had a manner gloss and no reading entry as a defect. They are not
+one. Replicating `in_manner`'s gates word by word accounted for every one: **116 because the lemma itself has no
+pertainym** (`badly`, `correctly`, `calmly`), 2 for spelling (`O.K.`, `so-so`), 2 because the pertainym's name
+exceeds the store's term limit (`restlessly`, `thirstily`). The cause of my mistake was reading the *sense's*
+`pertains_to`, which can come from a sibling lemma in the same synset: `badly`'s synset has pertainyms, `badly` does
+not. A second theory, that the manner-glossed sense was not sense 1, was refuted by measurement -- 89 of the 118 have
+it as sense 1, and 153 readable adverbs have it later.
+
+So of 1,476 unreadable adverbs, every one is accounted for and none is a defect: **918 have no manner gloss**, 440
+have neither, 116 no pertainym on the lemma, 4 spelling or length. The 918 are the real limit and it is structural:
+**WordNet places an adverb only as the manner of a doing, so every adverb of degree, time or place has no frame to be
+taught in.** No source closes that; only a lesson can.
+
+### Generalisation over number language, eight held-out structures
+
+Taught `lyric_talk` all 41 English lessons (2h11m, +7,223 language patterns), then read eight shapes checked against
+what the lessons actually contain. **Five read to the meaning the teacher's own register uses.**
+
+| held-out structure | read as | |
+|---|---|---|
+| an unseen number as the doer's count | `has_count(?v1, 17) & done_by(?v0,?v1) & instance_of(?v1, dog)` | pass |
+| how many, with a verb never taught for it | `ask: has_count(?v0,?v1) & owns(tom,?v0) ? ?v1` | pass |
+| a count of a thing's parts | `has_count(?v1,4) & instance_of(?v1, leg) & owns(?v0,?v1)` | pass |
+| hundreds, an unshown multiplier | `has_count(?v0,?v1) & has_factor(?v1,6) & has_factor(?v1,100)` | pass |
+| control, taught word for word | `has_count(?v0, many)` | pass |
+| **two counted groups coordinated** | 3 on the **container**, 4 on the dogs, **cats uncounted** | **fail** |
+| **`both` with a doing** | `has_property(?v1, both)`; English-13 teaches `has_count(_, 2)` | **fail** |
+| **more than a number** | `has_property(?v0, more than)`; the register has `exceeds` | **fail** |
+
+The hundreds case is the strongest result here: it produced **exactly** English-17's form for "There are two hundred
+balls.", generalising the multiplier from the shown two/three/five to an unshown six. `canonical()` renders that as
+`600` by design ("a number built from numbers is written as its value"), which is what made it look like a mismatch.
+
+**The three failures are one thing.** All three have `packed_words=0` -- the grammar **committed** to the invented
+fact rather than deferring a choice. `Both` is held in the lexicon with **`value = 2`**, in a lexical entry
+structurally identical to `Seventeen`'s `value = 17`: same construction, no word class, both from a lesson. In the
+same sentence frame the grammar uses the 17 and ignores the 2, emitting a `has_property(_, both)` fact that appears
+in **zero lesson records**. `exceeds` has 85 lesson uses and `has_factor` 371, but every `exceeds` frame compares two
+things and none bounds a count, so "more than three cats" had no template and was improvised the same way. The
+`Both` frame reading is worse than the composed one: `isa(Both dogs, covering bark)`, taking "Both dogs" as one name.
+
+So the composing grammar generalises **structure** and **arithmetic** and drops the lesson's **quantity semantics**.
+
+**Errors, and their causes.** My script printed 7 of 8. Two of its predicates were too loose -- the coordinated case
+passed on a crossed reading because the test asked only for two count facts plus the words `cat` and `dog`, and
+`both`/`more than` passed on `says(...)` string branches. One was too strict: `counted()` compared the amount against
+`f.obj`, which is the variable `?v1` when the count is built from factors. A blank predicate is not evidence.
+
+**A third error, corrected.** `⟨1⟨cats` is not an unread noun. It is a **packed word with the sense choice deferred**,
+and `Reading.senses` carries the candidates: for "There are many cats." one candidate, `value='cat'`; for the
+hundreds case three, with **`cat` ranked first, `held=True`, 0 misfits** against `computerized tomography` and `kat`
+(both `held=False`, 1 misfit). The right sense is first and held, so the packing never corrupted those readings.
+
+### Five language layers hold nothing, on both stores
+
+| layer | source that would teach it | records ready | held |
+|---|---|---:|---:|
+| `argued_sentence` | `--source propbank` | 10,495 | **0** |
+| `derived_sentence` | `--source pmb-derivations` | 8,679 | **0** |
+| `taught_sentence` | `--source composition` | 3,054 | **0** |
+| `word_group` | `--source word-groups` | needs a counting pass | **0** |
+| `analysed_sentence` | — | — | **0** |
+| `word_forms` | `--source treebank` | 3,512 | 25 |
+
+`--source wordnet-examples` has 60,000+ records ready and has never run. `composition` offering exactly 3,054 -- the
+lessons' own record count -- means the lessons' sentence-meaning pairs have never reached the composer. Only
+`wordnet`, `lesson` and `sentence_records` have ever written a structure into either store.
+
+The lessons' 195 `has_count` records yield only **47 structures** (44 item-based, 3 holophrase).
+
+### Two smaller things
+
+A shape error cost me two measurements: `metadata->'lexical'->'form'` is a list of `[token, is_slot]` pairs, not
+strings, so a regex over `jsonb_array_elements(...)` matches `["three", false]` and reported 0 number words held when
+both stores hold them. Counting distinct values is unaffected; matching them is not.
+
+Two stray lexical bindings from the corpus producer put a wrong value on a number word -- `three` -> `36` and `nine`
+-> `9:00 a.m.` -- neither traceable to WordNet (which gives no 36 for `three`) nor to the word record (whose sense
+concepts are `3`, `trey`, `3`). `one` -> `person` is correct, the generic pronoun.
+
+**Verified against the real system.** Every reading above was taken through `derived_reader.read_text` on a live
+substrate (`get_system().start()`) against real Postgres, `lyric_talk` on port 5433; every store figure by SQL
+against `lyric_db` and `lyric_talk`; the `in_manner` gates by replicating the function's own branches over WordNet
+and intersecting with the store's held spellings.
+
+---
+
 ## 2026-11-03 (109) — Four candidate fixes for the reader, three of them refuted by measurement, and what the held-out errors actually are: 18.2 points of words named wrong and 25.5 of right words joined wrong
 
 **Objective.** *"OK, so what will it take to fix it Claude. We're not gonna continue going through and fixing
