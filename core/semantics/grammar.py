@@ -1886,6 +1886,15 @@ class Lexicon:
                     or not all(t[:1].islower() for t in tokens[i + 1:i + length]):
                 continue
             said = [t.lower() for t in tokens[i:i + length]]
+            if " ".join(said) in self.together or " ".join(said) in self.phrases:
+                # THE GRAMMAR'S OWN WORD OF SEVERAL WORDS IS NOT ALSO READ AS WHATEVER MEMORY KNOWS THOSE WORDS
+                # AS, for the reason a grammar word is read only as its own (`only`, `_takes_way`): English states
+                # what "more than" or "no one" does, and memory's spelling of the same run is an open-class word
+                # that says something else. Offered both ways, memory's won: it is scored by the best evidence of
+                # each of its words while a declared word of several is scored once, so "Tom has more than three
+                # cats." was read `has_count(?v0, 3) & has_property(?v0, more than)` -- three cats with a property
+                # called "more than" -- although `more than` is declared to bound a count (lyric_talk, 2026-11-09).
+                continue
             held = dict(self.words.known_words(said))
             base = self.words.lexeme(said[-1], "NOUN")
             if base and base != said[-1]:
@@ -2481,14 +2490,17 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
 #: What a piece says of a meaning, counted here.
 SAYS_OF_A_MEANING = frozenset({"given", "past", "now", "future", "be", "poss", "deny", "other", "pron", "fact",
                                "asked", "degree_asked", "can", "may", "kind", "deny_arg", "compared",
-                               "quality", "counted", "than", "count", "during"})
+                               "quality", "counted", "than", "count", "during", "event"})
 #: What says nothing of a meaning and so disqualifies no word: how a word is written or inflected, not what it means.
 SAYS_NOTHING_OF_A_MEANING = frozenset({"indefinite", "finite", "some"})
 #: STILL UNANSWERED FOR, each one silencing its words. `every` (all, every, everybody) is why a universal quantifier
 #: is lost; `deny_arg` (no) is why "Nobody is intelligent." comes back "Nothing is intelligent."; `npi` is "any";
 #: `compared`, `quality`, `counted` and `than` are the comparatives; `count` is "times"; `during` is "when".
 #: What says nothing of a meaning's FACTS, so disqualifies no word: how a sentence is addressed or joined.
-SAYS_NOTHING_OF_FACTS = frozenset({"polite", "npi", "gap", "event", "role"})
+#: `event` WAS HELD HERE AFTER IT WAS ANSWERED FOR. `_piece_says` counts a verb's doing by what its thing does,
+#: and that branch stands above this one, so the kind never reached here and the two said opposite things of it:
+#: the spec called it silent while the code counted it. Runtime was already the code's; this says so.
+SAYS_NOTHING_OF_FACTS = frozenset({"polite", "npi", "gap", "role"})
 #: STILL UNANSWERED FOR, each knowingly and for a stated reason.
 #:
 #: `prep`: a preposition is offered by its link instead (`Lexicon.saying`, `Grammar.say`'s loop over the meaning's
@@ -2512,10 +2524,9 @@ def _piece_says(piece: Tuple, meaning: Meaning, linking: Optional[Mapping[str, s
     EVERY KIND `spell_out` MAKES A FACT FROM MUST BE KNOWN HERE. A kind this does not know returns nothing, and
     `_says_of` takes a nothing to mean the whole entry says nothing the meaning holds, so the word is offered for no
     meaning at all -- which is how saying came to have no present progressive, no future, no question word and no
-    possessive while reading read them all (2026-10-31). The kinds still unknown, each silencing its words:
-    `every` (all, every, everybody), `deny_arg` (no), `npi` (any), `compared`/`quality`/`counted`/`than` (more,
-    most, less, least), `count` (times), `during` (when), `kind` (everybody, everyone, everything), `polite`,
-    `event`, `gap`, `role`.
+    possessive while reading read them all (2026-10-31). WHICH KINDS ARE STILL UNKNOWN IS `NOT_YET_SAID`, each one
+    stated there with its reason; this said `event` was among them after the branch below came to count it, and a
+    list written twice is a list that goes stale.
     None for a piece saying nothing a meaning holds (`indefinite`, `finite`, `some`); a thing that is not another of
     its kind, `other`: a denied `equals`."""
     kind, facts = piece[0], meaning.facts
@@ -2874,6 +2885,11 @@ class Grammar:
         # and read whole at sureness 1.000 as before. The two words say nothing English says together, so the pair
         # is refused here rather than rule by rule.
         if isinstance(lc, Fn) and _do_support_on_an_auxiliary(left, right, lc.arg):
+            return out
+        # A COUNT IS NOT SAID OF A GROUP ONE OF WHOSE MEMBERS IS COUNTED ON ITS OWN: two numbers of the same
+        # things. Refused here for the same reason do-support on an auxiliary is -- the pair says nothing English
+        # says together, whichever rule would join them.
+        if isinstance(lc, Fn) and _counts_a_counted_group(left, right, lc.arg):
             return out
         # Application.
         if isinstance(lc, Fn) and lc.slash == "/":
@@ -5355,6 +5371,36 @@ _DO_SUPPORT = frozenset({"do", "do:q"})
 #: ("be:np", "be:adj", "be:pp", "be:ng", "be:pss") and the perfect ("have:perfect"). "have:owns" is NOT one of
 #: them -- that "have" is a verb like any other, and "Does he have a car?" is English.
 _CARRIES_ITS_OWN_TENSE = ("be:", "have:perfect")
+
+
+def _counts_a_counted_group(left: Sign, right: Sign, arg: Cat) -> bool:
+    r"""WHETHER A COUNT IS BEING SAID OF A GROUP ONE OF WHOSE MEMBERS ALREADY CARRIES ITS OWN, which says two
+    numbers of the same things. "three cats and four dogs" is three cats and four dogs; it is not three things of
+    which four are dogs.
+
+    BOTH BRACKETINGS COMPOSE. `(three cats) and (four dogs)` counts each coordinand, which is English;
+    `three (cats and four dogs)` coordinates first, so `_coordinate` makes the group and the numeral then counts
+    THE GROUP. The second won, and "Tom has three cats and four dogs." was read `has_count(?v0, 3) &
+    has_count(?v1, 4) & has_member(?v0, ?v1) & has_member(?v0, ?v2) & instance_of(?v1, dog) &
+    instance_of(?v2, cat) & owns(tom, ?v0)` -- a group of three holding a group of four, with the cats counted by
+    nothing at all (lyric_talk, 2026-11-09). No lesson coordinates two counted groups, so nothing taught stood
+    against it.
+
+    A group's own count contradicting its member's is no reading of English, so the pair is refused rather than
+    scored against: the right bracketing is already in the chart and wins once this one is gone. A group counted
+    where NO member carries a count of its own is left alone -- "the three cats and dogs" says three of both.
+    """
+    if not isinstance(arg, Atom) or arg.base not in ("N", "NP") or arg.ref is None:
+        return False
+    if not any(p[0] == "count" and p[1] == arg.ref for p in left.pieces):
+        return False
+    if not isinstance(right.cat, Atom):
+        return False
+    group = next((p[1] for p in right.pieces if p[0] == "group" and p[1] == right.cat.ref), None)
+    if group is None:
+        return False
+    members = {p[2] for p in right.pieces if p[0] == "member" and p[1] == group}
+    return any(p[0] == "count" and p[1] in members for p in right.pieces)
 
 
 def _do_support_on_an_auxiliary(left: Sign, right: Sign, arg: Cat) -> bool:

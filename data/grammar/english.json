@@ -79,6 +79,20 @@
     "use": "det"
    }
   ],
+  "both": [
+   {
+    "cat": "N.x/N.x",
+    "sem": [
+     [
+      "count",
+      "x",
+      "2"
+     ]
+    ],
+    "use": "ADJECTIVE:before",
+    "only": true
+   }
+  ],
   "some": [
    {
     "cat": "NP.x/N.x",
@@ -5214,6 +5228,66 @@
       "a"
      ]
     ]
+   }
+  ],
+  "more than": [
+   {
+    "cat": "(N.x/N.x)/NP.n",
+    "sem": [
+     [
+      "count",
+      "x",
+      "c"
+     ],
+     [
+      "fact",
+      "exceeds",
+      "c",
+      "n",
+      "-"
+     ]
+    ],
+    "label": "more than"
+   }
+  ],
+  "fewer than": [
+   {
+    "cat": "(N.x/N.x)/NP.n",
+    "sem": [
+     [
+      "count",
+      "x",
+      "c"
+     ],
+     [
+      "fact",
+      "exceeds",
+      "n",
+      "c",
+      "-"
+     ]
+    ],
+    "label": "fewer than"
+   }
+  ],
+  "less than": [
+   {
+    "cat": "(N.x/N.x)/NP.n",
+    "sem": [
+     [
+      "count",
+      "x",
+      "c"
+     ],
+     [
+      "fact",
+      "exceeds",
+      "n",
+      "c",
+      "-"
+     ]
+    ],
+    "label": "fewer than"
    }
   ],
   "what a": [
