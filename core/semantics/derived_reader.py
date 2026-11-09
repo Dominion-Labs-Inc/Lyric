@@ -2209,7 +2209,15 @@ class PatternInventory:
     #: The part of the meaning language each class of English word stands in: an adjective where qualities stand, a
     #: verb where doings do. A noun needs none: WordNet's kinds, said ("A robin is a bird."), put its nouns where
     #: things stand.
-    CLASS_PARTS = {"ADJECTIVE": "quality", "VERB": "doing"}
+    #: AN ADVERB AND AN ADJECTIVE ARE ONE PART. `_role_of_term` takes whatever a thing OR A HAPPENING
+    #: `has_property` as a `quality` and names an adverb among its own examples ("red", "warily"): a quality said of
+    #: a thing is written as an adjective and one said of a doing as an adverb, and the meaning language knows no
+    #: third part. Held with no entry here, `class_parts` answered nothing for a word whose only class is ADVERB,
+    #: `of_its_class` ends `return bool(taken) and ...`, and so an adverb could never stand where a quality stands
+    #: by its class -- while nothing could say it is no thing either: "Tom walked annoyingly." was read
+    #: `done_to(?v0, annoyingly)`, the adverb taken as the thing walked, with its ADVERB evidence held all along
+    #: (lyric_db, 2026-11-08).
+    CLASS_PARTS = {"ADJECTIVE": "quality", "VERB": "doing", "ADVERB": "quality"}
 
     def of_its_class(self, pattern: str, slot: str, lexical: str) -> bool:
         """Whether a held one-word filler stands where this slot's fillers do by its word's class: observed an
@@ -4040,6 +4048,17 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
                 role = "name"
             if not _may_stand_new(role, pieces, named, first):
                 return out
+            # A KIND TOO, AND NOT WHERE A FRAME SAYS WHAT IS A KIND OF WHAT. Asked of `thing` alone, the reading
+            # stood the adverb one slot over as a kind instead: "Tom walked annoyingly." came back
+            # `done_to(?v0, ?v1) & instance_of(?v1, annoyingly)`, a thing of the kind annoyingly (lyric_db,
+            # 2026-11-08). Both sides of `isa` are left alone, which is where a quality IS a kind and is said as
+            # one ("Red is a colour.", "Hot is the opposite of cold.").
+            if role in ("thing", "kind") and any(_never_a_thing(view, w) for w in words) \
+                    and not any(f.relation == "isa" and slot in (f.subject, f.obj)
+                                for f in _facts_of(pattern)):
+                _not_offered(pattern, slot, pieces, Lexical(pieces, named),
+                             "memory holds its word a quality and never a thing")
+                return out
             # A word never held, where the slot's fillers are written in a shape, is also the word that shape makes
             # it from: "jumped", where "barked" and "walked" stand, is `jump`.
             name = view.unshaped_in(pattern.key, slot, words[0]) if len(pieces) == 1 else None
@@ -4072,12 +4091,32 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
         # amble is to walk." read nothing (2026-10-12).
         role = _role_of_slot(pattern, slot)
         named = _named_as(pieces)
-        if role in ("quality", "doing") and role in view.class_parts(words[0]) \
-                and _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
-                and view.admits_there(pattern.key, slot, named) and _may_stand_new(role, pieces, named, first):
-            new = Lexical(pieces, named)
-            if not view.written_against(pattern.key, slot, new):
-                out.append((new, link(pattern, slot, new), "new"))
+        if role in ("quality", "doing") and role in view.class_parts(words[0]):
+            # AND THE SENSES IT IS HELD FOR STAND HERE, BESIDE THAT NAME, NOT INSTEAD OF IT. A word whose class
+            # stands here was given a concept named by its spelling and its own senses were dropped, so a word
+            # memory holds three meanings of reached the listener as one meaning it had never held: "The note was
+            # long." read `instance_of(?v1, long)`, a kind called long, while `agelong long` was held for that very
+            # word, met, counted, and of a class that stands where this slot's fillers do (lyric_talk, 2026-11-08).
+            # Offered through a link proposed, as a filler of the slot's kind is: the listener weighs the senses
+            # against the new name instead of being handed the name alone.
+            standing = {lexical.value for lexical, _, _ in out}
+            for lexical in held:
+                if lexical.value in standing or not view.counts(lexical):
+                    continue
+                if view.says_more(words[0], lexical.value, doing=view.stands_as_doing(lexical)) \
+                        and not _frame_says(pattern, slot, view.said_by(words[0], lexical.value)):
+                    continue
+                standing.add(lexical.value)
+                stands = Lexical(pieces, lexical.value)
+                out.append((stands, link(pattern, slot, stands), "kind"))
+                if logger.isEnabledFor(logging.DEBUG):
+                    logger.debug("fillers: %r OFFERED as %r in %s of %s -- held, and its class stands here",
+                                 " ".join(p.text for p in pieces), lexical.value, slot, str(pattern.key)[:12])
+            if _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
+                    and view.admits_there(pattern.key, slot, named) and _may_stand_new(role, pieces, named, first):
+                new = Lexical(pieces, named)
+                if not view.written_against(pattern.key, slot, new):
+                    out.append((new, link(pattern, slot, new), "new"))
     return out
 
 
@@ -4159,6 +4198,17 @@ def _role_of_term(facts: Iterable["MeaningFact"], term: str) -> str:
     return "thing"
 
 
+def _facts_of(construction: Any) -> Tuple["MeaningFact", ...]:
+    """The facts a construction states, whichever kind it is. A `Phrase` keeps them on `facts` and a `Pattern` on its
+    meaning's, and `_fillers` is handed either -- its slot's fillers are asked for by `_phrase_fillings` too, for all
+    that its own annotation says `Pattern`."""
+    if isinstance(construction, Pattern):
+        return tuple(construction.meaning.facts)
+    if isinstance(construction, Phrase):
+        return tuple(construction.facts)
+    return ()
+
+
 def _role_of_slot(construction: Any, slot: str) -> str:
     """What a construction takes what stands in its slot as (`_role_of_term`)."""
     if isinstance(construction, Pattern):
@@ -4218,6 +4268,27 @@ def _new_stands(meaning: "Meaning", new: Iterable["Lexical"], first_word: str) -
                                    for f in meaning.facts):
             return False
     return True
+
+
+def _never_a_thing(view: PatternInventory, word: str) -> bool:
+    """Whether memory holds a word as a QUALITY and never as a thing: observed an ADJECTIVE or an ADVERB (net of what
+    refuted it) and never a NOUN, a NAME or a NUMERAL.
+
+    `_may_stand_new` judges a word never met by its WRITING alone, and writing allows any word to stand as a thing,
+    so a word's class was never asked in the one role that takes anything. "Tom walked annoyingly." was read
+    `done_to(?v0, annoyingly)`, the adverb taken as the thing walked, with ADVERB held of it all along -- and the
+    verb is no help, since `walk` does take a thing ("walk the dog"). Only where memory POSITIVELY says the word is
+    a quality and says nothing of it as a thing: English does make a thing of a quality ("the poor"), and a word
+    nothing is held of stands as anything, as it must.
+
+    ASKED OF EVERY WORD OF A RUN, as a structure word is (the run that is no name because it holds one). Asked of a
+    run's first word alone, the reading moved one word over and swallowed both: refused "annoyingly" as the thing
+    walked, "Tom walked annoyingly." came back `isa(tom, walked annoyingly)` and `instance_of(?v0, snuff out)` with
+    "walked annoyingly" minted as one two-word name (lyric_db, 2026-11-08)."""
+    classes = view.word_classes.get(_fold(word), {})
+    if any(classes.get(c, 0) > 0 for c in ("NOUN", "NAME", "NUMERAL")):
+        return False
+    return any(classes.get(c, 0) > 0 for c in ("ADJECTIVE", "ADVERB"))
 
 
 def _may_stand_new(role: str, pieces: Tuple[Piece, ...], named: str, first: bool) -> bool:
@@ -5468,10 +5539,55 @@ COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 #: exhaustive chart holds, so **6.0 points wait on the choosing**, and they arrive within reach: of the nine readings
 #: fifty makes newly available, seven rank first. What `meant` would take of them is untested here, because it weighs
 #: what memory knows of what each reading says and a files-only reading has no memory.
+#:
+#: THREE, MEASURED THROUGH THE REAL DOOR WITH MEMORY UP (2026-11-08). Both halves of the reason for one have since
+#: changed: the gate that threw the whole chart away when every frame reading was forced is gone, so the listener now
+#: weighs the grammar's readings beside the frames' own; and asked of main rather than of files, the FIRST reading
+#: handed up is not the same at one as at three. "The note, the rock and the dog were heavy." came back at one as
+#: `done_to(?v0, ?v1) & instance_of(?v0, and)`, the joining word made a concept, and at three as the group it is:
+#: `has_member(?v1, ?v0) & has_member(?v1, ?v2) & has_member(?v1, ?v3) & state_of(heavy, ?v1)`. The experiment above
+#: could not see this, having measured from six upward, where the reader's own choice is flat.
+#:
+#: THREE AND NOT MORE: at three, five and ten the best reading is the same for three coordinated things, three
+#: clauses and three doings, while the reading costs 2.78 s, 4.94 s, 7.16 s and 12.85 s over eight sentences at one,
+#: three, five and ten. So three is the least that hands up the right reading, and the 6.0 points the exhaustive
+#: chart holds still wait on measuring what `meant` makes of a wider set -- which is now something that can be
+#: measured, memory being reachable where it was not.
 COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 
+#: HOW MANY THE GRAMMAR IS ASKED FOR AGAIN, where what it read first MAKES A CONCEPT OF A WORD ENGLISH BUILDS
+#: SENTENCES WITH (`_names_a_structure_word`). `LYRIC_COMPOSED_AGAIN` sets it; 0 asks again never.
+#:
+#: `how_many` is TWO things at once and only one of them is dear. It is how many readings reach the listener, which
+#: costs a meaning each; and it is how many signs of a category the chart keeps, which costs `how_many` SQUARED in
+#: the combinations tried (`Grammar.charts`). The second is why one was the default -- and the second is also what
+#: decides whether the right reading is BUILT AT ALL, so no ranking could recover it: at one, "The note, the rock
+#: and the dog were heavy." was read `done_to(?v0, ?v1) & instance_of(?v0, and)`, and the group it is
+#: (`has_member` of all three) was pruned mid-chart and never ranked.
+#:
+#: SO IT IS PAID FOR ONLY WHERE A READING SHOWS IT IS WRONG. A conjunction, a determiner or a preposition standing
+#: where a thing goes is no judgement call: English builds sentences with those words and never names things by
+#: them, so such a reading has mis-parsed, and asking again with a wider chart is worth its cost. Where the cheap
+#: reading names no such word, nothing more is asked and nothing more is paid. A sentence the grammar reads no
+#: whole of is NOT asked again either: a wider chart may find a whole, but every long sentence nothing reads would
+#: then pay the squared cost, which is the whole of what made three dear (2026-11-08).
+COMPOSED_AGAIN = int(os.environ.get("LYRIC_COMPOSED_AGAIN", "3"))
 
-def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = ()) -> "Utterance":
+
+def _names_a_structure_word(meaning: "Meaning", closed: Any) -> bool:
+    """Whether a reading makes a CONCEPT of a word English builds sentences with -- a conjunction, a determiner, a
+    preposition, a form of "be" -- which is a mis-parse on its face: those words say how what is said goes together
+    and never name a thing. `closed` is what the grammar holds of them (`Lexicon.closed`)."""
+    if not closed:
+        return False
+    for fact in meaning.facts:
+        for term in (fact.subject, fact.obj):
+            if isinstance(term, str) and term and not is_variable(term) and _fold(term) in closed:
+                return True
+    return False
+
+
+def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = (), width: int = 0) -> "Utterance":
     """An utterance no taught frame read, read by English's grammar (`COMPOSING`): EVERY MEANING THE GRAMMAR READS IT
     TO (`COMPOSED_READINGS`), for the listener to take one as meant (`meant`); unread where memory is not up in this
     process, the grammar reads no whole, or the meaning language cannot say any reading of it.
@@ -5492,7 +5608,8 @@ def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = ())
     first = next((_fold(p.text) for p in utterance.pieces if not _is_mark(p.text)), "")
     made: List[Reading] = []
     offered, refused = 0, Counter()
-    for read in agent.grammar_view().readings(surface_of(utterance.pieces), COMPOSED_READINGS, named_before):
+    width = width or COMPOSED_READINGS
+    for read in agent.grammar_view().readings(surface_of(utterance.pieces), width, named_before):
         offered += 1
         meaning = read.meaning
         if meaning is None:
@@ -5514,6 +5631,15 @@ def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = ())
     # sentence the grammar read whole at sureness 1.00 and then could not say was indistinguishable from one no
     # grammar rule reached: seven of the taught set read as nothing for one such refusal, and finding which took a
     # day of bisecting readings by hand (2026-11-03, the possessive's open owner).
+    closed = getattr(getattr(agent.grammar_view(), "grammar", None), "lexicon", None)
+    closed = getattr(closed, "closed", None)
+    if made and COMPOSED_AGAIN > width and all(_names_a_structure_word(r.meaning, closed) for r in made):
+        # EVERY READING IT GAVE MAKES A CONCEPT OF A STRUCTURE WORD, so the chart pruned the reading that does not.
+        logger.info("composing: %r read %d way%s, every one naming a structure word -- asking again for %d",
+                    utterance.text, offered, "" if offered == 1 else "s", COMPOSED_AGAIN)
+        again = _read_by_composing(utterance, named_before, COMPOSED_AGAIN)
+        if again.readings:
+            return again
     if not made:
         logger.info("composing: %r read %d way%s, none said anything: %s", utterance.text, offered,
                     "" if offered == 1 else "s",
@@ -5609,6 +5735,12 @@ def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
                      utterance.partial, utterance.unknown)
 
 
+def _one_sentence(pieces: Tuple[Piece, ...]) -> bool:
+    """Whether these pieces are one sentence: nothing closes a sentence before their last piece. A text of several
+    is read as the utterances that cover it, one for each, and is not handed to the grammar whole."""
+    return not any(p.text in (".", "?", "!") for p in pieces[:-1])
+
+
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
               parts: bool = False, named_before: Sequence[str] = ()) -> Tuple[Utterance, ...]:
     """A text as the consecutive utterances that cover it, each read on its own.
@@ -5638,6 +5770,26 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
             read_at[(a, b)] = _read_pieces(pieces[a:b], view, charts)
         return read_at[(a, b)]
 
+    # A SENTENCE THE GRAMMAR READS WHOLE IS ONE UTTERANCE, AND IS ASKED FOR BEFORE IT IS CUT UP.
+    #
+    # The spans below are chosen by what TAUGHT FRAMES read -- `_read_pieces` returns nothing where no frame reads a
+    # stretch -- and English's grammar is asked only afterwards (`COMPOSING`, below), of whatever fragments that
+    # choice left. So a sentence no frame covers whole was cut at the ends frames happen to know, and the grammar,
+    # which reads it, was never offered it: "The note was long, the rock was heavy and the dog barked." came back as
+    # three utterances ('The note was long ,' | 'the rock' | 'was heavy and the dog barked .') whose last reading was
+    # `instance_of(?v0, and)` and `isa(barked, dog)`, while the grammar reads the whole of it to all three clauses at
+    # sureness 0.128. Three coordinated things and three names went the same way; two of anything read whole, because
+    # a frame happened to cover two (lyric_db, 2026-11-08).
+    #
+    # ASKED ONCE, OF THE WHOLE, and only where this text is ONE sentence and no frame read it whole: a text of
+    # several sentences is still read as the utterances that cover it, which is what every caller is given, and the
+    # frames' own reading stands wherever there is one. The cost is one composing, in the case that had none.
+    if COMPOSING and _one_sentence(pieces) and not readings(0, len(pieces)):
+        whole = _read_by_composing(Utterance(pieces, ()), tuple(named_before))
+        if COMPOSING_FORCED and whole.readings:
+            whole = _read_forced_by_composing(whole)
+        if whole.readings:
+            return (_with_quotation(whole, quoted_read, view),) if quoted else (whole,)
     # best[k] covers pieces[:cuts[k]]: (pieces read, utterances read, utterances unread, where the last one began).
     # The most pieces read wins; then the fewest utterances reading them, so a reading that runs past an end beats
     # two that stop at it; then the most unread ones, so what nothing reads is still told apart at its ends.
