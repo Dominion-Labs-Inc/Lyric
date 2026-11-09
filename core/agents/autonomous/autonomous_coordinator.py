@@ -19761,6 +19761,19 @@ The substrate must realign with its constitutional responsibilities immediately.
         out: Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]] = {}
         names = sorted(set(registry.tools) | set(registry.tool_factories))
         began = said_at = time.monotonic()
+        # WHAT IT ALREADY READ, REMEMBERED. Reading these descriptions by the grammar was 849 s of a 1,051 s start
+        # (251 of them, measured on main 2026-11-09), and it was kept in `_tool_doings` -- a process attribute -- so
+        # every exit threw the reading away and every start did it again. The substrate remembers what it reads
+        # everywhere else; these are sentences it reads too. Good only while the sentence, the rules it was read by
+        # and what was taught are unchanged, so a description that changed, a grammar that changed, or anything
+        # newly taught is read again (`MemoryAgent.tool_doings`).
+        from core.semantics.grammar import RULES as rules
+        try:
+            remembered = await self.memory.tool_doings(rules, taught)
+        except Exception as not_remembered:              # reading them is the substrate's own work either way
+            logger.warning("what the tools do could not be recalled, reading them again: %s", not_remembered)
+            remembered = {}
+        recalled = 0
         for how_far, name in enumerate(names, 1):
             await asyncio.sleep(0)
             # WHERE A START IS WHILE IT READS WHAT ITS TOOLS DO. This loop reads 251 descriptions by the grammar and
@@ -19777,23 +19790,45 @@ The substrate must realign with its constitutional responsibilities immediately.
             said = re.split(r"(?<=[.!?])\s+", str(getattr(tool, "description", "") or "").strip(), maxsplit=1)[0]
             if not said:
                 continue
-            utterances = read_text(said if said[-1] in ".!?" else said + ".")
-            if not utterances or not utterances[0].readings:
+            said = said if said[-1] in ".!?" else said + "."
+            if said in remembered:
+                # READ BEFORE, AND REMEMBERED -- including read and found to say nothing, which two thirds of them
+                # are and which costs the most to find out again. Its parameters are taken from the tool as it is
+                # now, never from the memory: what it does is what was read, how it is called is not.
+                recalled += 1
+                doing = remembered[said]
+                if not doing:
+                    continue
+                parameters = list(getattr(tool, "parameters", None) or ())
+                out[name] = (doing, tuple(p.name for p in parameters if getattr(p, "required", True)),
+                             tuple(p.name for p in parameters))
                 continue
-            chosen = await heard(utterances[0].readings)
-            if chosen is None or chosen.meaning.act != "request":
-                continue
-            facts = chosen.meaning.facts
-            doing = next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
-                          and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
-                                  for g in facts)), None)
+            utterances = read_text(said)
+            doing = None
+            if utterances and utterances[0].readings:
+                chosen = await heard(utterances[0].readings)
+                if chosen is not None and chosen.meaning.act == "request":
+                    facts = chosen.meaning.facts
+                    doing = next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
+                                  and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
+                                          for g in facts)), None)
+            # REMEMBERED WHETHER IT SAID ANYTHING OR NOT. A description the grammar reads no order in is the dearest
+            # kind to read and two thirds of them are that kind, so a start that forgot only the failures would save
+            # almost nothing. What is remembered is the reading, not a verdict: an empty doing says this sentence was
+            # read and said nothing under these rules, with this much taught.
+            try:
+                await self.memory.remember_tool_doing(name, said, doing or "", rules, taught)
+            except Exception as not_kept:
+                if not getattr(self, "_said_tool_doings_unkept", False):
+                    self._said_tool_doings_unkept = True
+                    logger.warning("what the tools do is being read but not remembered: %s", not_kept)
             if doing is None:
                 continue
             parameters = list(getattr(tool, "parameters", None) or ())
             out[name] = (doing, tuple(p.name for p in parameters if getattr(p, "required", True)),
                          tuple(p.name for p in parameters))
-        logger.info("Lyric's tools read for what they do: %d of %d say so, %ds", len(out), len(names),
-                    int(time.monotonic() - began))
+        logger.info("Lyric's tools read for what they do: %d of %d say so, %d recalled and %d read, %ds",
+                    len(out), len(names), recalled, len(names) - recalled, int(time.monotonic() - began))
         self._tool_doings = (taught, out)
         return out
 

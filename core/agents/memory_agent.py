@@ -2583,6 +2583,63 @@ class MemoryAgent(IMemoryConsolidation):
     #: evidence against a word class there is.
     UNREAD_TELLING_TAG = "told_but_unread"
 
+    #: The tag on a memory of HAVING READ WHAT ONE OF LYRIC'S OWN TOOLS DOES --
+    #: the first sentence of a tool's description, with the doing it was read
+    #: as, the rules it was read by, and how much was taught when it was read.
+    #:
+    #: WHY THIS IS REMEMBERED WHERE A WORD'S CLASS IS NOT. A class follows from
+    #: the substrate's memory of the sentence that taught it, so a per-word
+    #: record would be a second authority beside memory. NOTHING remembered
+    #: this reading. The substrate reads its tool descriptions by the grammar at
+    #: every start -- 849 s of a 1,051 s start, 251 descriptions, measured on
+    #: main (2026-11-09) -- and kept the result in a process attribute, so every
+    #: exit threw away fourteen minutes of reading and every start did it again.
+    #: Here the memory IS the record, and it is the substrate remembering what
+    #: it read, which is what it does with everything else it reads.
+    #:
+    #: GOOD ONLY WHILE WHAT IT WAS READ FROM IS UNCHANGED (`tool_doings`): the
+    #: sentence, the rules it was read by (`_rules_written`), and how much was
+    #: taught. A reading made with less taught may be worse than what the
+    #: grammar would read now, so it is not offered; and after a wipe nothing
+    #: matches, so no memory of this kind can tell the substrate what a tool
+    #: does once it no longer knows.
+    TOOL_DOING_TAG = "tool_doing"
+
+    async def tool_doings(self, rules: str, taught: int) -> Dict[str, str]:
+        """What Lyric has read its own tools to do, `{first sentence: the doing it was read as}`, for every reading
+        made under `rules` with `taught` constructions held. An empty doing is a sentence READ AND FOUND TO SAY
+        NOTHING, kept so it is not read again for nothing: two thirds of the descriptions say nothing, and a
+        sentence the grammar reads no whole of is among the dearest it reads.
+
+        Keyed by the sentence, not by the tool, because the sentence is what was read: a description that moves
+        from one tool to another is the same reading, and a tool whose description changed has none."""
+        out: Dict[str, str] = {}
+        for item in await self._rows_tagged(self.TOOL_DOING_TAG):
+            meta = item.metadata or {}
+            if str(meta.get("rules") or "") != str(rules):
+                continue
+            try:
+                if int(meta.get("taught")) != int(taught):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            said = str(meta.get("said") or "")
+            if said:
+                out[said] = str(meta.get("doing") or "")
+        return out
+
+    async def remember_tool_doing(self, tool: str, said: str, doing: str, rules: str, taught: int) -> None:
+        """Remember reading `said`, the first sentence of `tool`'s description, as `doing` -- or as nothing, where
+        the grammar read no order in it. One memory per sentence read."""
+        from core.memory.utils.interfaces import Origin
+        await self.store_memory(
+            content=f"{said} is what {tool} does." if doing else said,
+            memory_type=MemoryType.SEMANTIC,
+            tags=["language", self.TOOL_DOING_TAG],
+            source_context={"tool": str(tool), "said": str(said), "doing": str(doing),
+                            "rules": str(rules), "taught": int(taught)},
+            origin=Origin.own("tools"))
+
     def word_class(self, word: str) -> Optional[str]:
         """The class this word has been OBSERVED to have, or None. Synchronous.
 
