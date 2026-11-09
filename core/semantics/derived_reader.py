@@ -5590,12 +5590,27 @@ SPOKEN_READINGS = int(os.environ.get("LYRIC_SPOKEN_READINGS", "3"))
 #: reading names no such word, nothing more is asked and nothing more is paid. A sentence the grammar reads no
 #: whole of is NOT asked again either: a wider chart may find a whole, but every long sentence nothing reads would
 #: then pay the squared cost, which is the whole of what made three dear (2026-11-08).
-#: ABOVE EVERY WIDTH IT RESCUES, OR IT RESCUES NOTHING: the guard is `COMPOSED_AGAIN > width`, so three stopped
-#: rescuing anything the moment a person's words began to be read at three (`SPOKEN_READINGS`, 2026-11-09) -- and
-#: a person's words are where a mis-parse matters most. Five is the next width measured. That five finds a whole
-#: three prunes is NOT measured; what is measured is that three finds what one prunes, and the argument carries up.
+#: A CEILING MEASURED FROM THE DOOR, NOT A NUMBER ABOVE EVERY DOOR. How far above the width in play the second
+#: reading is asked for is `COMPOSED_AGAIN_STEP`, and this is as wide as that may go: a door reading at one asks
+#: again at three, a person's words read at three (`SPOKEN_READINGS`) ask again at five, and the counting pass at
+#: six (`LISTENING_WIDTH`) asks again not at all, the ceiling being below its width -- a sentence already read six
+#: ways has not been pruned for want of room, and asking wider still would cost 64 combinations a sign.
+#:
+#: ONE NUMBER ABOVE EVERY WIDTH WAS MEASURED WRONG THE DAY IT WAS WRITTEN. The guard was `COMPOSED_AGAIN > width`,
+#: so three stopped rescuing anything the moment a person's words began to be read at three -- and a person's words
+#: are where a mis-parse matters most -- while five, raised to cover that, began firing at the BOOT door, where the
+#: width buys nothing: 139 fixed tool descriptions, read once, of which four provably mis-parse. The same stretch of
+#: them took 5m19s at five against 3m38s at three, one store, the same four rescued in the same order: 1.46x of a
+#: multi-minute start spent to re-read fixed English nobody is speaking (2026-11-09).
+#:
 #: It is paid only where every reading names a structure word and has therefore provably mis-parsed, which is rare.
 COMPOSED_AGAIN = int(os.environ.get("LYRIC_COMPOSED_AGAIN", "5"))
+
+#: HOW FAR ABOVE THE WIDTH IN PLAY the grammar is asked again, up to `COMPOSED_AGAIN`. Two is the only step ever
+#: measured: one to three is where "The note, the rock and the dog were heavy." stops naming a thing by "and" and
+#: reads as the group it is. That five finds a whole three prunes is NOT measured; what is measured is that three
+#: finds what one prunes, and the argument carries up. 0 asks again never, as a ceiling of 0 does.
+COMPOSED_AGAIN_STEP = int(os.environ.get("LYRIC_COMPOSED_AGAIN_STEP", "2"))
 
 #: HOW MANY THE GRAMMAR IS ASKED FOR INSIDE ONE PIECE OF WORK (`composing_width`), where the work needs THE READINGS
 #: AN UTTERANCE HAS and not the one reading the reader would take of it. Unset, `COMPOSED_READINGS` stands, so no
@@ -5679,11 +5694,15 @@ def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = (),
     # day of bisecting readings by hand (2026-11-03, the possessive's open owner).
     closed = getattr(getattr(agent.grammar_view(), "grammar", None), "lexicon", None)
     closed = getattr(closed, "closed", None)
-    if made and COMPOSED_AGAIN > width and all(_names_a_structure_word(r.meaning, closed) for r in made):
+    # ASKED AGAIN A STEP ABOVE THE WIDTH IN PLAY, up to the ceiling (`COMPOSED_AGAIN`): a door reading at one is
+    # rescued at three and a person's words read at three at five, where one number above every width either stopped
+    # rescuing the door that needs it most or made every other door pay for it.
+    wider = min(width + COMPOSED_AGAIN_STEP, COMPOSED_AGAIN)
+    if made and wider > width and all(_names_a_structure_word(r.meaning, closed) for r in made):
         # EVERY READING IT GAVE MAKES A CONCEPT OF A STRUCTURE WORD, so the chart pruned the reading that does not.
-        logger.info("composing: %r read %d way%s, every one naming a structure word -- asking again for %d",
-                    utterance.text, offered, "" if offered == 1 else "s", COMPOSED_AGAIN)
-        again = _read_by_composing(utterance, named_before, COMPOSED_AGAIN)
+        logger.info("composing: %r read %d way%s at %d, every one naming a structure word -- asking again for %d",
+                    utterance.text, offered, "" if offered == 1 else "s", width, wider)
+        again = _read_by_composing(utterance, named_before, wider)
         if again.readings:
             return again
     if not made:

@@ -76,6 +76,40 @@ reading its tools in 20 minutes. The 2026-11-08 note retired two different objec
 the width to 3 while `COMPOSED_AGAIN` is 3 would have made the guard false and silently removed the structure-word
 rescue altogether.
 
+**Mine, made, and then measured.** My repair for that trap was to raise `COMPOSED_AGAIN` from 3 to 5, which is the
+same error one level down: a single number above every width is a number at every door, and the rescue then began
+firing at the BOOT door, where the width buys nothing. Caught by the verification boot, in the substrate's own
+channel: `composing: 'Ask Dominion Labs team for clarification when stuck on INTERNAL Lyric tasks...' read 1 way,
+every one naming a structure word -- asking again for 5`. Measured against the boot before it, same store, the same
+four tool descriptions rescued in the same order, timed from the first of them:
+
+| landmark tool description | rescue 3 | rescue 5 |
+|---|---:|---:|
+| `Add or improve docstrings...` (phase start) | +0:00 | +0:00 |
+| `Detect anomalies in operational metrics...` | +0:39 | +0:53 |
+| `Ask Dominion Labs team for clarification...` | +0:52 | +1:16 |
+| `Create a compressed archive...` | +2:23 | +3:28 |
+| `Assemble a real requests-based API client...` | +3:18 | +4:50 |
+| `Return a canonical implementation of a Gang-of-Four...` | +3:38 | **+5:19** |
+
+**1.46x of a multi-minute start, spent re-reading fixed English nobody is speaking.** Not the 20-minute wall a
+raised DEFAULT caused, because the rescue fires only on a provable mis-parse -- four of 139 descriptions -- but paid
+for nothing. Fixed by making the rescue RELATIVE to the door it rescues: `wider = min(width +
+COMPOSED_AGAIN_STEP, COMPOSED_AGAIN)`, step 2, ceiling 5. Boot at width 1 asks again at 3, exactly as before the
+raise; a person's words at 3 ask again at 5; the counting pass at 6 asks again not at all, the ceiling being below
+its width, exactly as before. Nothing that rescued stops rescuing, and no other door pays.
+
+One number above every width had to be wrong in one direction or the other: below the widest door it rescues nothing
+there, above the narrowest it overcharges there. The width belongs to the door, and so does the rescue.
+
+**Not a measurement, a broken instrument.** The first verification probe reached for `_read` on the coordinator and
+raised `AttributeError` on all six sentences after a 23-minute boot. The door is `Conversation._read`
+(`autonomous_coordinator.py:21662`); `Conversation` is the class at 21537, reached through the substrate's own front
+door for conversing, `get_conversation(..., remembers=False)`, which is also what writes nothing. The production
+edit was in the right place; only the probe asked the wrong object. A probe that cannot reach the door reports
+nothing and costs a boot, and the boot is what found the regression above, which is the only reason the hour paid
+for itself.
+
 ### Why the listener cannot choose: a circle, verified on both stores
 
 `listening_counts` counts a sentence only where it reads MORE THAN ONE WAY (`derived_reader.py:6783`), because what
