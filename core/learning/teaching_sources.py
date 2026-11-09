@@ -456,6 +456,28 @@ def _term_words(name: str) -> int:
     return len(normalize_term(name).replace("_", " ").split())
 
 
+def _a_name_english_writes(name: str) -> bool:
+    """Whether a WordNet lemma is a name English writes: every word of it alphabetic, a hyphen allowed inside a
+    word, and no more words than the door admits (`MAX_TERM_WORDS`).
+
+    `.isalpha()` STOOD HERE AND WAS FALSE FOR EVERY NAME OF SEVERAL WORDS. The lemma's underscores are turned into
+    spaces the line above, and a string holding a space is not alphabetic, so 67,109 of WordNet's 147,306 names --
+    "pygmy chimpanzee", "king salmon", "body of water", "kick the bucket" -- were dropped there in silence and have
+    never been taught, 46% of the vocabulary. Hyphenated words went the same way, though `word_record_of` spells
+    them three ways on purpose.
+
+    NOTHING WAS MISSING BUT THE WORDS. `word_record_of` builds a whole record for a name of several words already
+    (it spells the lemma back with underscores to ask WordNet), and the reader has held such names all along --
+    `head` reads "body of water" as a body, not as water. Measured on a review of 200 questions: where both terms
+    were one word Lyric answered 33 of 33, and 0 of 24 where a term of several words was named; the review asked
+    "Is a pygmy chimpanzee a member of a genus Pan?" and misread it, while WordNet holds that very membership and
+    the builder extracts it whole (2026-11-09)."""
+    from core.semantics.cognitive_ingress import MAX_TERM_WORDS
+    words = name.split()
+    return (bool(words) and len(words) <= MAX_TERM_WORDS
+            and all(part.replace("-", "").isalpha() for part in words))
+
+
 def _provenance(producer: str, source_id: str, source_type: str = "IMPORTED_KNOWLEDGE"):
     from core.semantics.cognitive_ingress import Provenance
     return Provenance(producer=producer, source_id=source_id,
@@ -2263,7 +2285,7 @@ class WordNetWordsSource:
         for part in (self.parts or ("n", "v", "a", "r")):
             for lemma in list(wn.all_lemma_names(pos=part)):
                 word = str(lemma).replace("_", " ")
-                if word not in said and word.isalpha():
+                if word not in said and _a_name_english_writes(word):
                     said.add(word)
                     words.append(word)
         for word in words:
