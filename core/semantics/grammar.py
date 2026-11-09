@@ -1185,8 +1185,16 @@ class Lexicon:
         verb's places (`sense_of`) exists for one. The name the word is read under where it has no senses apart, or
         nothing was seen said of any of them."""
         used = self.quality_used.get((name, cls))
-        if not used or len(used) < 2:
+        if not used:
             return name
+        if len(used) < 2:
+            # ONE SENSE HELD IS THE ANSWER, AND THE WORD IS NOT. Returning the word read it under a concept named by
+            # its spelling, which is a DIFFERENT concept from the one sense memory holds wherever the two are not
+            # written alike: "slowly" came back `slowly` where english_12 teaches `has_property(?v0, slow)`, and
+            # every quality Lyric names with a qualifier came back bare ("emergent" for `nascent emergent`). Taught
+            # and read did not meet. Where the word and its one sense ARE written alike this returns what it always
+            # did (2026-11-08).
+            return next(iter(used))
         seen = self.quality_seen.get((name, cls)) or {}
         senses = list(used)
         total = sum(used.values())
@@ -1194,9 +1202,26 @@ class Lexicon:
         every: Counter = Counter()
         for counts in seen.values():
             every.update(counts)
+        def named_or_used() -> str:
+            """THE SENSE THE WORD NAMES, where nothing said of it chooses another; else the one used most.
+
+            That name is the teacher's where the teacher has spoken: `_sense_names` gives the bare word to the
+            sense a lesson STATES it is used in, over every tagged count, so the word "long" names `long.a.02`,
+            the spatial sense. Weighed by tagged use alone, reading took `long.a.01` instead (118 uses against
+            105) and "The note was long." came back about the temporal sense, a concept the teacher had named
+            something else -- teaching said one thing and reading another about one word (lyric_db, 2026-11-08)."""
+            return name if name in senses else max(senses, key=lambda c: (score[c], used[c]))
+
         if not every or not of:
-            return max(senses, key=lambda c: (score[c], used[c]))
-        kinds = [k for k in of if k]
+            return named_or_used()
+        # A KIND NOTHING WAS EVER SEEN WITH SAYS NOTHING, and must not be weighed as though it had. Of a kind no
+        # sense was seen with, the smoothed ratio is `log((said + n) / (under + n))`, which is LARGEST for the
+        # sense seen least: an unobserved thing chose the sense with the least evidence behind it, and did it over
+        # the teacher's own naming. A note is neither a `time period` nor a `linear unit foot`, and that is what
+        # settled "The note was long." (2026-11-08).
+        kinds = [k for k in of if k and every.get(k, 0)]
+        if not kinds:
+            return named_or_used()
         said = sum(every.values())
         for c in senses:
             mine = seen.get(c) or Counter()
