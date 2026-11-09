@@ -5557,6 +5557,23 @@ COMPOSING = os.environ.get("LYRIC_COMPOSE", "1") != "0"
 #: measured, memory being reachable where it was not.
 COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 
+#: HOW MANY THE GRAMMAR IS ASKED FOR OF WHAT A PERSON SAID (`AutonomousCoordinator._read`, through
+#: `composing_width`), which is not how many anything else is asked for.
+#:
+#: WHY THE WIDTH BELONGS AT THIS DOOR AND NOT AT THE DEFAULT. Composing is also how a start reads its 139 tool
+#: descriptions (`_tools_by_doing`), and those are not somebody speaking: they are fixed English indexed once, the
+#: first sentence of each description read as an order so a tool can be chosen from plain words. A wide chart buys
+#: nothing there and costs `how_many` squared on 139 long sentences -- at six, a start that takes 29 s had not
+#: finished reading its tools in 20 minutes (2026-11-03). So the default stays at one, and the width is asked for
+#: where a person is being read.
+#:
+#: THREE, measured through the real door with memory up: the FIRST reading handed up is not the same at one as at
+#: three ("The note, the rock and the dog were heavy." came back at one as `done_to(?v0, ?v1) &
+#: instance_of(?v0, and)`, the joining word made a concept, and at three as the group it is), while at three, five
+#: and ten the best reading is the same for three coordinated things, three clauses and three doings. Reading costs
+#: 2.78 s, 4.94 s, 7.16 s and 12.85 s over eight sentences at one, three, five and ten (2026-11-08).
+SPOKEN_READINGS = int(os.environ.get("LYRIC_SPOKEN_READINGS", "3"))
+
 #: HOW MANY THE GRAMMAR IS ASKED FOR AGAIN, where what it read first MAKES A CONCEPT OF A WORD ENGLISH BUILDS
 #: SENTENCES WITH (`_names_a_structure_word`). `LYRIC_COMPOSED_AGAIN` sets it; 0 asks again never.
 #:
@@ -5573,7 +5590,12 @@ COMPOSED_READINGS = int(os.environ.get("LYRIC_COMPOSED_READINGS", "1"))
 #: reading names no such word, nothing more is asked and nothing more is paid. A sentence the grammar reads no
 #: whole of is NOT asked again either: a wider chart may find a whole, but every long sentence nothing reads would
 #: then pay the squared cost, which is the whole of what made three dear (2026-11-08).
-COMPOSED_AGAIN = int(os.environ.get("LYRIC_COMPOSED_AGAIN", "3"))
+#: ABOVE EVERY WIDTH IT RESCUES, OR IT RESCUES NOTHING: the guard is `COMPOSED_AGAIN > width`, so three stopped
+#: rescuing anything the moment a person's words began to be read at three (`SPOKEN_READINGS`, 2026-11-09) -- and
+#: a person's words are where a mis-parse matters most. Five is the next width measured. That five finds a whole
+#: three prunes is NOT measured; what is measured is that three finds what one prunes, and the argument carries up.
+#: It is paid only where every reading names a structure word and has therefore provably mis-parsed, which is rare.
+COMPOSED_AGAIN = int(os.environ.get("LYRIC_COMPOSED_AGAIN", "5"))
 
 #: HOW MANY THE GRAMMAR IS ASKED FOR INSIDE ONE PIECE OF WORK (`composing_width`), where the work needs THE READINGS
 #: AN UTTERANCE HAS and not the one reading the reader would take of it. Unset, `COMPOSED_READINGS` stands, so no

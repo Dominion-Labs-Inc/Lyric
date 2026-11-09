@@ -21665,11 +21665,14 @@ class Conversation:
         and nothing else, a known thing taken as one talked of here where it can
         be (`_known_here`). Read once while what was taught and what was talked
         of are unchanged."""
-        from core.semantics.derived_reader import live_view, read_text
+        from core.semantics.derived_reader import (SPOKEN_READINGS, composing_width, live_view, read_text)
         key = self._reading_key(text)
         if self._last_read is not None and self._last_read[0] == key:
             return self._last_read[1]
-        utterances = self._known_here(read_text(str(text), live_view(), parts=True))
+        # ASKED WIDE HERE, WHERE A PERSON IS BEING READ (`SPOKEN_READINGS`), and nowhere else: handed the grammar's
+        # one choice the listener had nothing to choose and `meant` returned it before weighing anything.
+        with composing_width(SPOKEN_READINGS):
+            utterances = self._known_here(read_text(str(text), live_view(), parts=True))
         self._last_read = (key, utterances)
         return utterances
 
