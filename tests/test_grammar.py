@@ -2320,3 +2320,27 @@ def test_a_kind_named_before_a_things_own_name_is_read_as_the_one_thing_memory_h
     # as a name rather than as the thing memory holds those words as.
     assert read(g, "A credit card is a mammal.") == gm.Meaning(
         "tell", (gm.MeaningFact("isa", "credit card", "mammal"),)).canonical()
+
+
+def test_a_quality_before_a_noun_names_one_thing_only_where_memory_holds_that_name():
+    """"black haw", "royal palm", "blue elder": a quality before a noun usually says a property of the thing, and
+    sometimes names one thing with it. Read only the first way, a question asked of the thing memory holds under
+    `black haw` was answered against a reading that says something else -- 6 of the 29 membership questions a review
+    asked named such a run (2026-11-10).
+
+    OFFERED ONLY WHERE MEMORY HOLDS THE NAME, so nothing is coined: `red ball` is held by nothing and stays a ball
+    that is red."""
+    NOUNS.update({"haw": "haw", "haws": "haw"})
+    ADJECTIVES.update({"black": "black", "red": "red"})
+
+    class WithKinds(Speaking):
+        """Memory holding `black haw` as a thing, and nothing called `red ball`."""
+
+        def kinds(self, name: str, cls: str):
+            return ["shrub"] if name == "black haw" and cls == "NOUN" else []
+
+    g = gm.Grammar(gm.Lexicon(WithKinds()))
+    assert read(g, "A black haw is a mammal.") == gm.Meaning(
+        "tell", (gm.MeaningFact("isa", "black haw", "mammal"),)).canonical()
+    said = read(g, "A red ball is a mammal.")
+    assert said and "isa(red ball" not in said, said

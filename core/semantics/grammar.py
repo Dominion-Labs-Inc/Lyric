@@ -1858,7 +1858,14 @@ class Lexicon:
         if i + 1 < n and tokens[i].isalpha() and tokens[i + 1].isalpha() and tokens[i][:1].islower() \
                 and tokens[i + 1][:1].islower():
             first = dict(self.words.uses(tokens[i]))
-            if "NOUN" in first or "NOUN:compound" in first:
+            # A QUALITY BEFORE A NOUN NAMES ONE THING TOO, where memory holds that name as a thing: "black haw",
+            # "royal palm", "blue elder", "striped killifish". Read only as a haw that happens to be black, a
+            # question asked of the thing memory holds under `black haw` was answered against a reading that says
+            # something else and is not even wrong -- 6 of the 29 membership questions a review asked named such a
+            # run (2026-11-10). Offered BESIDE the quality's own reading for the listener to weigh, never instead of
+            # it, and only where memory holds the name, so "a red ball" gains nothing.
+            names_a_thing = "NOUN" in first or "NOUN:compound" in first
+            if names_a_thing or "ADJECTIVE" in first:
                 second = self._evidence(tokens, i + 1).get("NOUN")
                 # NEITHER WORD OF A COMPOUND IS A CLOSED-CLASS WORD. The first was checked and the second was not,
                 # and a compound's second word is its head: "Is iron a metal?" read as `isa(iron a, metallic
@@ -1885,9 +1892,13 @@ class Lexicon:
                     base = self.words.lexeme(tokens[i + 1], "NOUN")
                     name = (self.words.known_name(said) or self.words.known_name(said[:-1] + [base])
                             or f"{said[0]} {base}")
-                    for t in self.templates.get("NOUN", ()):
-                        out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN", name,
-                                                 score, "compound")))
+                    # A QUALITY'S RUN IS OFFERED ONLY WHERE MEMORY HOLDS THE NAME. A noun before a noun names one
+                    # thing by English's own rule and needs no permission; a quality before a noun usually says a
+                    # property of it, so the thing is offered only where memory holds something of that very name.
+                    if names_a_thing or self.words.kinds(name, "NOUN"):
+                        for t in self.templates.get("NOUN", ()):
+                            out.append((i + 2, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), "NOUN",
+                                                     name, score, "compound")))
         # WORDS MEMORY KNOWS AS ONE WORD, of each kind it holds them as: a thing ("credit card", "bus stop"), a
         # quality ("fed up", "in love"), an adverb ("kind of", "in vain"); as sure as its words are, each used as it
         # is used most. A verb of several words is read by the verb and its particle above, which says the form and
