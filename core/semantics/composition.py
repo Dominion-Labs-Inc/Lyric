@@ -99,6 +99,11 @@ class Laid:
     relations: Tuple[str, ...]
     names: Tuple[str, ...]
     under: Mapping[int, Tuple[int, ...]]
+    #: WHAT THE ARGUMENTS ANNOTATED SAY EACH WORD IS, for the happening it belongs to: {word: what it is said in}
+    #: (`argument_structure.ArgumentStructureView.arguments`, learned from PropBank's annotated sentences). Empty
+    #: for every word the arguments held say nothing of, which is what a store holding none gives -- and then every
+    #: situation below is exactly the situation it was before (`_word_situations`).
+    arguments: Mapping[int, str] = field(default_factory=dict)
 
     def __len__(self) -> int:
         return len(self.words)
@@ -114,9 +119,13 @@ class Laid:
 
 
 def lay(words: Sequence[str], classes: Sequence[str], heads: Sequence[int], relations: Sequence[str],
-        name_of: Callable[[str, str], str], known_name: Callable[[Sequence[str]], bool] = lambda _: False) -> Laid:
+        name_of: Callable[[str, str], str], known_name: Callable[[Sequence[str]], bool] = lambda _: False,
+        arguments: Optional[Mapping[int, str]] = None) -> Laid:
     """The sentence laid out (`Laid`), each word named by `name_of(word, class)`; a run joined as compound or flat
-    named as one, the head's, and an adjective with its noun where `known_name` knows the two."""
+    named as one, and an adjective with its noun where `known_name` knows the two.
+
+    `arguments` is what the arguments annotated say each word is for its happening, where any are held
+    (`MemoryAgent.lay_out`); none, and the composer decides exactly as it did before."""
     names = [name_of(w, c) for w, c in zip(words, classes)]
     under: Dict[int, List[int]] = defaultdict(list)
     for i, head in enumerate(heads):
@@ -137,7 +146,7 @@ def lay(words: Sequence[str], classes: Sequence[str], heads: Sequence[int], rela
         for k in joined:
             names[k] = ""
     return Laid(tuple(words), tuple(classes), tuple(heads), tuple(relations), tuple(names),
-                {k: tuple(v) for k, v in under.items()})
+                {k: tuple(v) for k, v in under.items()}, dict(arguments or {}))
 
 
 def offsets(laid: Laid, text: str) -> List[Optional[Tuple[int, int]]]:
@@ -672,7 +681,16 @@ class CompositionView:
         first = "first" if i == 0 else "-"
         asks = "?" if laid.words[-1] == "?" else "."
         adverbs = laid.children(i, ("advmod",))
-        return [("w", w, c, rel, det, aux, head_class, head_rel, first, asks, adverbs),
+        # WHAT THE ARGUMENTS ANNOTATED SAY THIS WORD IS, where any are held of it: PropBank's 10,495 annotated
+        # sentences were learned into a view nothing read, so what they say of a happening's arguments reached no
+        # reading (2026-11-10). Said here as a situation of its own, ahead of the rest, so where the composer has
+        # learned what a word standing as that argument stands for, that decides; and where it has not, or the
+        # arguments say nothing of this word, the situations below are exactly the situations they were.
+        role = laid.arguments.get(i) or ""
+        said_as: List[Tuple] = [("a", w, c, rel, role, det, aux, head_class, head_rel, asks),
+                                ("a", c, rel, role, det, head_class, head_rel, asks),
+                                ("a", c, rel, role)] if role else []
+        return said_as + [("w", w, c, rel, det, aux, head_class, head_rel, first, asks, adverbs),
                 ("w", w, c, rel, det, aux, head_class, head_rel, first, asks),
                 ("w", w, c, rel, det, head_class, head_rel, asks), ("w", w, c, rel, det, head_rel),
                 ("w", w, c, rel, det), ("w", w, c, rel), ("w", w, c),

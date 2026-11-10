@@ -358,3 +358,30 @@ def test_a_sentence_taught_again_with_a_corrected_meaning_corrects_its_memory():
     assert asyncio.run(agent.remember_taught_sentences([again]))["already"] == 1
     elsewhere = cp.TaughtSentence("Rex did not bark.", denied, "english_12")
     assert asyncio.run(agent.remember_taught_sentences([elsewhere]))["remembered"] == 1 and len(stored) == 2
+
+
+def test_what_the_arguments_annotated_say_reaches_the_composer():
+    """PropBank's 10,495 annotated sentences were learned into a view whose only readers were the fold that filled
+    it and one test, so what they say of a happening's arguments reached no reading -- a layer taught and dead
+    (2026-11-10). The sentence laid out now carries what they say (`lay(arguments=...)`,
+    `MemoryAgent._arguments_of`), and the composer asks it as a situation of its own, ahead of the rest.
+
+    ADDITIVE BY CONSTRUCTION: a word the arguments say nothing of stands in exactly the situations it stood in, so a
+    store holding no arguments decides every word as it did before."""
+    words = ["The", "dog", "chased", "a", "cat", "."]
+    classes = ["DETERMINER", "NOUN", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"]
+    heads, relations = [2, 3, 0, 5, 3, 3], ["det", "nsubj", "root", "det", "obj", "punct"]
+
+    def laid_with(arguments):
+        return cp.lay(words, classes, heads, relations, lambda w, c: w.lower(), arguments=arguments)
+
+    bare, said = laid_with(None), laid_with({1: "ARG0", 4: "ARG1"})
+    assert bare.arguments == {} and said.arguments == {1: "ARG0", 4: "ARG1"}
+
+    was = cp.CompositionView._word_situations(bare, 1)
+    now = cp.CompositionView._word_situations(said, 1)
+    # three situations of its own, first, and everything it stood in before, unchanged and in order
+    assert now[3:] == was and len(now) == len(was) + 3
+    assert all(s[0] == "a" for s in now[:3]) and all("ARG0" in s for s in now[:3])
+    # a word the arguments say nothing of is untouched
+    assert cp.CompositionView._word_situations(said, 3) == cp.CompositionView._word_situations(bare, 3)

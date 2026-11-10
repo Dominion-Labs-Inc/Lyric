@@ -7427,7 +7427,32 @@ class MemoryAgent(IMemoryConsolidation):
         if not words:
             return None
         read = self.structure_view().read(words)
-        return lay(read.words, read.classes, read.heads, read.relations, self.name_of, self.known_name)
+        return lay(read.words, read.classes, read.heads, read.relations, self.name_of, self.known_name,
+                   self._arguments_of(read))
+
+    def _arguments_of(self, read) -> Dict[int, str]:
+        """WHAT THE ARGUMENTS ANNOTATED SAY OF THIS SENTENCE: for each happening in it, which of its words is one of
+        its arguments and what it is said in, as the arguments held were annotated
+        (`argument_structure.ArgumentStructureView.arguments`). Empty where none are held.
+
+        THE VIEW WAS LEARNED AND READ BY NOTHING. PropBank's 10,495 annotated sentences were held and folded into a
+        view whose only readers were the fold itself and one test, so what they say reached no reading: a layer
+        taught and dead (2026-11-10). Asked here, where the sentence's words, classes, heads and relations are all
+        worked out and are exactly what it needs, and handed to the composer as a situation of its own.
+
+        ONE PASS OVER THE HAPPENINGS, and only where any arguments are held at all: a store holding none pays
+        nothing, and the view learns from what waits in it the first time it is asked (`said`)."""
+        view = self.argument_view()
+        if not len(view):
+            return {}
+        out: Dict[int, str] = {}
+        for at, word_class in enumerate(read.classes):
+            if word_class != "VERB":
+                continue
+            for word, said in view.arguments(read.words, read.classes, read.heads, read.relations, at).items():
+                # A word that is an argument of two happenings is said as the nearer one has it.
+                out.setdefault(word, said)
+        return out
 
     def word_meanings(self, name: str) -> List[Dict[str, Any]]:
         """WHAT A WORD MEANS, as the words recorded whole say it: every sense of each word one of whose senses is the

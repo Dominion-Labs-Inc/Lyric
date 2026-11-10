@@ -80,3 +80,29 @@ def test_memory_keeps_an_annotated_sentence_once_and_folds_it_into_its_view():
     again = asyncio.run(agent.remember_argued([argued]))
     assert (again["remembered"], again["already"]) == (0, 1) and len(stored) == 1
     assert again["held_already"] == [(argued, "m1")] and "\n" in stored[0]["content"]
+
+
+def test_the_memory_agent_asks_what_the_arguments_annotated_say_of_a_sentence():
+    """The view held 10,495 annotated sentences and its only readers were the fold that filled it and one test, so
+    nothing a reading does ever asked it (2026-11-10). The agent now asks it where a sentence's words, classes,
+    heads and relations are all worked out, and hands what it says to the composer (`lay(arguments=...)`).
+
+    A store holding no arguments is asked nothing and says nothing, so it pays for none of this."""
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    words, classes = ("Tom", "kicked", "the", "ball", "."), ("NAME", "VERB", "DETERMINER", "NOUN", "PUNCTUATION")
+    heads, relations = (2, 0, 4, 2, 2), ("nsubj", "root", "det", "obj", "punct")
+    said = {0: "fact:done_by", 3: "fact:done_to"}
+    view = ax.ArgumentStructureView()
+    for candidate in ax.candidates(heads, 1):
+        view.add(ax.situations(words, classes, heads, relations, 1, ax.phrase(candidate, heads)),
+                 said.get(candidate, ax.NONE))
+
+    agent = MemoryAgent()
+    agent._argument_view = view
+    read = SimpleNamespace(words=("Rex", "kicked", "the", "box", "."), classes=classes, heads=heads,
+                           relations=relations)
+    assert agent._arguments_of(read) == said
+
+    agent._argument_view = ax.ArgumentStructureView()
+    assert agent._arguments_of(read) == {}
