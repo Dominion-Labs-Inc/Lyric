@@ -1,6 +1,21 @@
 # UNDERSTANDS-WORDNET-01 — is what WordNet taught understood, shown in what the substrate answers?
 
-**Finding:** _pending the first run on the copy of main taught all of WordNet on 2026-10-10._
+**Finding (2026-10-13, `results/20261013T220542Z.md`, FAIL at 9/13 checks): where the question can be READ, it is
+answered; where it cannot, nothing else gets a turn.** Inference 95% (95/100), "What is a X?" 99% right, senses
+84%, and nothing invented -- 0/200 yes to unrelated pairs, 0/50 to nonce words, all fifty of which came back
+unknown. The three failures are reading, not answering: opposites 14% with **66 of 100 UNREAD**, the plural form
+("Are flagons vessels?") 35 of 57 unread, and parts 77% with 14 "recalled, gave no verdict". The reply that marks
+them is "I know these words, but not this way of putting them together" -- a construction never held, not a fact
+never learned. P7 asks about adjectives, which hold words for 2.4% of themselves.
+
+This also settles what the end-of-pass review cannot say. That review calls `answer_over_graph` directly and never
+builds a conversation, so it measures graph traversal: it reported the eleven kinds of thinking used zero times
+across 200 questions, while this run, through `Conversation.understand`, reasons its way to 95 of 100. The number
+to improve is this one.
+
+**Stale as of 2026-11-10** -- it predates the grammar reader rebuilt (10-21), the composer rebuilt (10-20), the
+word classes taught (11-06/07), PropBank's arguments and the word groups reaching the reader, and the multi-word
+reading fixes (11-10). Every one of those bears on the unread rates. Re-run before acting on these figures.
 
 KNOWS-WORDNET-01 asks whether a fact is held. Holding is not understanding. This asks the substrate questions, in
 English, the way a person asks them, in forms the teaching never used, and reads its own verdict on each.
@@ -35,11 +50,16 @@ and "what is"; at most 2% "yes" to unrelated pairs and none to nonce words.
 - **Things only.** Nouns under WordNet's `object` (artifacts, organisms, people, body parts, natural objects), which
   English asks about with "a". Abstract and mass nouns ("Is a sternness a severeness?") are out of scope, not asked
   badly. Common words (met in SemCor) and rare ones are reported apart.
-- **Never on main.** Conversation remembers every turn, so the experiment refuses `lyric_db`; it runs on a copy.
+- **On main, remembering nothing.** Each conversation is held with `remembers=False`: it reads, recalls and answers
+  as any other, and stores no turn and takes in nothing it is told. No substrate is started, since its own loops
+  write -- only memory, the beliefs and the language view are loaded. The store's write counters
+  (`pg_stat_user_tables`) are read before and after, any table written to while the questions were asked is
+  reported, and the run fails its first check. **It did fail it on 2026-10-13: `unified.knowledge_consumption` took
+  426 rows**, so something on the asking path still writes, and that is a defect of its own.
 
 ## Run
 
-    POSTGRES_DATABASE=lyric_check PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-WORDNET-01/experiment.py [N]
+    POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 experiments/UNDERSTANDS-WORDNET-01/experiment.py [N]
 
 `N` (default 100) sets the sample per probe; P1 asks 4N. Seed `20261010`. Each run writes `results/<UTC>.json` and
 `.md` through `_evidence.RunRecord`, and its log to `results/run.log`.
