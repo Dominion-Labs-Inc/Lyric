@@ -101,7 +101,10 @@ def test_every_field_of_a_pass_report_reaches_the_lines_it_prints():
 
     from core.learning.teaching import Report
 
-    printed = inspect.getsource(Report.lines)
+    # THE WHOLE PRINTED PATH, not `lines` alone. A field reported THROUGH the helper every line uses (`_said`,
+    # which says "NOT TAUGHT HERE -- ..." out of `not_offered`) reaches the lines a pass prints, and reading only
+    # `lines` called it unreported -- the real run prints it ten times over.
+    printed = inspect.getsource(Report.lines) + inspect.getsource(Report._said)
     unreported = [f.name for f in dataclasses.fields(Report) if f"self.{f.name}" not in printed]
     assert not unreported, f"a pass writes these and never reports them: {unreported}"
 
