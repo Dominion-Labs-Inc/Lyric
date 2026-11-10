@@ -19,7 +19,6 @@ from __future__ import annotations
 import gzip
 import json
 import logging
-import pathlib
 import math
 import os
 import re
@@ -4085,92 +4084,6 @@ def _held_tuple(value: Any) -> Any:
     return tuple(_held_tuple(v) for v in value) if isinstance(value, list) else value
 
 
-#: Where what the PMB's sentences taught a grammar is kept between processes (`_pmb_learned`). Under `runtime/`,
-#: which git ignores: it is derived from files held elsewhere and made again whenever those files or the grammar's
-#: own rules change, so it is never a second authority on what the PMB says.
-_PMB_KEPT = pathlib.Path(__file__).resolve().parent.parent.parent / "runtime" / "pmb_learned.json"
-
-
-def _pmb_inputs() -> str:
-    """A FINGERPRINT OF EVERYTHING THE PMB'S LEARNING WAS DERIVED FROM: the grammar's own rules (`grammar.RULES` --
-    what a sentence taught is kept under, and learned again once they change), the treebank file the words are read
-    from, the PMB's own listing of which documents are in the training part, and the directories those documents sit
-    in.
-
-    WHAT IT DOES NOT CATCH, SAID PLAINLY: a document edited in place under a directory whose own mtime does not move.
-    Walking the PMB is 638,018 files and 14.5 seconds measured -- most of what keeping the learning saves -- so the
-    listing and the directories are stated instead of every file. Delete `runtime/pmb_learned.json` to have it
-    learned again from the files as they are."""
-    import hashlib
-    from core.semantics import grammar as gm
-    marks = [gm.RULES]
-    for path in (pathlib.Path(EWT_TRAIN),
-                 pathlib.Path(PMB_DATA) / "split" / "en" / "train" / "gold.sbn",
-                 pathlib.Path(PMB_DATA) / "split" / "en",
-                 pathlib.Path(PMB_DATA) / "data" / "en" / "gold",
-                 pathlib.Path(PMB_DERIVATIONS_DATA) / "data" / "en" / "gold"):
-        try:
-            stat = path.stat()
-            marks.append(f"{path.name}:{stat.st_size}:{stat.st_mtime_ns}")
-        except OSError:
-            marks.append(f"{path.name}:gone")
-    return hashlib.sha256("|".join(marks).encode("utf-8")).hexdigest()[:32]
-
-
-def _pmb_learned(words: Any, ewt: Any) -> Dict[str, Counter]:
-    """What the PMB's gold sentences taught a grammar, KEPT BETWEEN PROCESSES.
-
-    Learning it charts 7,019 sentences and tries 95.9 million combinations -- about sixteen minutes, profiled
-    2026-11-10 -- and it was done again in EVERY process that recorded so much as one word: every teaching pass,
-    every probe, every test. Nothing about it changes while the rules it was learned under and the files it was
-    learned from are the same (`_pmb_inputs`), so it is kept and read back under a fingerprint of both.
-
-    Kept as the counts alone. The words are read from the treebank each time, which is seconds, and an object held
-    in a file would be a second way of saying what the treebank already says."""
-    import json
-    from core.semantics import grammar as gm
-    of = _pmb_inputs()
-    try:
-        kept = json.loads(_PMB_KEPT.read_text(encoding="utf-8"))
-        if kept.get("of") == of:
-            learned: Dict[str, Counter] = {}
-            for first, entries in (kept.get("learned") or {}).items():
-                learned[first] = Counter({(str(table), _held_tuple(key), _held_tuple(said)): int(n)
-                                          for table, key, said, n in entries})
-            logger.info("what the PMB taught the grammar: recalled, %d word(s), under %s", len(learned), of[:8])
-            return learned
-    except (OSError, ValueError, TypeError, KeyError) as not_kept:
-        logger.info("what the PMB taught the grammar is being learned again (%s)", not_kept)
-
-    view = gm.GrammarView(words, structure=file_structure(ewt))
-    for item in PMBDerivationSource().derived():
-        view.hold_derived(item)
-    for taught in PMBSource.of("gold").taught_sentences():
-        view.hold(taught)
-    view.learn_waiting()
-    by_first: Dict[str, Counter] = defaultdict(Counter)
-    for entries in view._counted.values():
-        for table, key, said in entries:
-            if table in _MEANT_BY and key and isinstance(key[0], str):
-                by_first[key[0]][(table, tuple(key), said)] += 1
-    learned = dict(by_first)
-
-    # KEPT ATOMICALLY, so a process reading it never sees half of it.
-    try:
-        _PMB_KEPT.parent.mkdir(parents=True, exist_ok=True)
-        beside = _PMB_KEPT.with_suffix(".json.part")
-        beside.write_text(json.dumps({"of": of, "learned": {
-            first: [[table, list(key), list(said) if isinstance(said, tuple) else said, n]
-                    for (table, key, said), n in counted.items()]
-            for first, counted in learned.items()}}), encoding="utf-8")
-        beside.replace(_PMB_KEPT)
-        logger.info("what the PMB taught the grammar: kept, %d word(s), under %s", len(learned), of[:8])
-    except (OSError, TypeError, ValueError) as not_kept:
-        logger.warning("what the PMB taught the grammar could not be kept, so it will be learned again: %s",
-                       not_kept)
-    return learned
-
-
 def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
     """WHAT THE PARALLEL MEANING BANK'S GOLD TRAINING SENTENCES TEACH A GRAMMAR, as main's grammar learns from them
     (`GrammarView.hold`, `Grammar.learn`, with the PMB's derivations held first, as GRAMMAR-01 learns): the grammar's
@@ -4181,7 +4094,18 @@ def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
         from core.semantics import grammar as gm
         ewt = Path(SYNTAX_DATA) / "UD_English-EWT" / "en_ewt-ud-train.conllu"
         words = file_words(ewt, gm.closed_uses())
-        cache["meant"] = (words, _pmb_learned(words, ewt))
+        view = gm.GrammarView(words, structure=file_structure(ewt))
+        for item in PMBDerivationSource().derived():
+            view.hold_derived(item)
+        for taught in PMBSource.of("gold").taught_sentences():
+            view.hold(taught)
+        view.learn_waiting()
+        by_first: Dict[str, Counter] = defaultdict(Counter)
+        for entries in view._counted.values():
+            for table, key, said in entries:
+                if table in _MEANT_BY and key and isinstance(key[0], str):
+                    by_first[key[0]][(table, tuple(key), said)] += 1
+        cache["meant"] = (words, dict(by_first))
     return cache["meant"]
 
 
