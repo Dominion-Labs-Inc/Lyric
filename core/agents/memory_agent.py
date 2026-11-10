@@ -96,6 +96,11 @@ class _KeylessWrites:
         return getattr(self._db, name)
 
 
+#: Handed back by `next` when a stream of things to learn is spent, so an item that is itself falsy is not mistaken
+#: for the end of the stream.
+_NOTHING_MORE = object()
+
+
 class MemoryAgent(IMemoryConsolidation):
     """
     Memory Agent - Primary Memory Coordination Interface
@@ -6927,6 +6932,7 @@ class MemoryAgent(IMemoryConsolidation):
         `remember_argued`."""
         held = await self._remember_whole(
             forms, view=self.word_forms, tag=self.WORD_FORMS_TAG, field="word_forms", progress=progress,
+            total=len(forms) if hasattr(forms, "__len__") else 0,
             content=lambda item: item.said(), add=lambda view, item: view.hold(item))
         self.pattern_inventory().held_forms = self.word_forms().bases_of
         return held
@@ -6938,6 +6944,7 @@ class MemoryAgent(IMemoryConsolidation):
         `remember_argued`."""
         held = await self._remember_whole(
             groups, view=self.word_groups, tag=self.WORD_GROUP_TAG, field="word_group", progress=progress,
+            total=len(groups) if hasattr(groups, "__len__") else 0,
             content=lambda item: item.said(), add=lambda view, item: view.hold(item))
         if held["remembered"]:
             self.structure_view().group_by(self.word_groups().grouping())
@@ -7054,6 +7061,7 @@ class MemoryAgent(IMemoryConsolidation):
         `corrected` and counts, as `remember_argued`."""
         return await self._remember_whole(
             derived, view=lambda: None, tag=self.DERIVED_TAG, field="derived", progress=progress,
+            total=len(derived) if hasattr(derived, "__len__") else 0,
             content=lambda item: item.said(), add=lambda _, item: self._hold_derived(item),
             drop=lambda _, item: self._drop_derived(item))
 
@@ -7092,6 +7100,7 @@ class MemoryAgent(IMemoryConsolidation):
         whole = [r for r in records if not r.problems()]
         held = await self._remember_whole(
             whole, view=self.composition_view, tag=self.RECORD_TAG, field="record", progress=progress,
+            total=len(whole) if hasattr(whole, "__len__") else 0,
             content=lambda item: item.said(), add=self._hold_record, drop=self._drop_record)
         held["refused"] = refused
         return held
@@ -7131,11 +7140,21 @@ class MemoryAgent(IMemoryConsolidation):
         its classes and names to the word classes and names memory holds, its frames and its places to English's
         grammar. One held already is not held again; one recorded otherwise corrects it. A record that does not hold
         together (`WordRecord.problems`) is refused, never held. Returns as `remember_records`."""
-        records = list(records)
-        refused = [(r.word, r.problems()) for r in records if r.problems()]
-        whole = [r for r in records if not r.problems()]
+        # JUDGED AS EACH ARRIVES. A record that does not hold together is refused where it is built, so nothing is
+        # built twice and nothing waits on the whole set being built first.
+        refused: List[Tuple[str, Any]] = []
+
+        def whole():
+            for record in records:
+                problems = record.problems()
+                if problems:
+                    refused.append((record.word, problems))
+                    continue
+                yield record
+
         held = await self._remember_whole(
-            whole, view=lambda: None, tag=self.WORD_RECORD_TAG, field="word_record", progress=progress,
+            whole(), view=lambda: None, tag=self.WORD_RECORD_TAG, field="word_record", progress=progress,
+            total=len(records) if hasattr(records, "__len__") else 0,
             content=lambda item: item.said(), add=lambda _, item: self._hold_word_record(item),
             drop=lambda _, item: self._drop_word_record(item))
         held["refused"] = refused
@@ -7608,6 +7627,7 @@ class MemoryAgent(IMemoryConsolidation):
         `remembered`, `already`, `total`."""
         return await self._remember_whole(
             argued, view=self.argument_view, tag=self.ARGUED_TAG, field="argued", progress=progress,
+            total=len(argued) if hasattr(argued, "__len__") else 0,
             content=lambda item: item.said(), add=lambda view, item: view.hold(item))
 
     async def remember_taught_sentences(self, taught, progress: Optional[Callable[[int, int], None]] = None
@@ -7617,10 +7637,12 @@ class MemoryAgent(IMemoryConsolidation):
         corrected (`_correct_whole`). Returns `kept`, `corrected` and counts, as `remember_argued`."""
         return await self._remember_whole(
             taught, view=self.composition_view, tag=self.TAUGHT_SENTENCE_TAG, field="taught", progress=progress,
+            total=len(taught) if hasattr(taught, "__len__") else 0,
             content=lambda item: item.said(), add=self._hold_taught, drop=self._drop_taught)
 
     async def _remember_whole(self, items, *, view, tag: str, field: str, content, add, drop=None,
-                              progress: Optional[Callable[[int, int], None]]) -> Dict[str, Any]:
+                              progress: Optional[Callable[[int, int], None]],
+                              total: int = 0) -> Dict[str, Any]:
         """Keep each item whole, one memory each, as `remember_analysed` keeps sentences analysed, and fold it into
         the view (`view()`, asked after memory is warm: a warm builds the view anew). AN ITEM TAUGHT AGAIN, CORRECTED,
         corrects the memory holding what it said before: an item that says what it is about (`identity()`: a
@@ -7631,7 +7653,6 @@ class MemoryAgent(IMemoryConsolidation):
         if not self._word_classes_warm:
             await self.warm_word_classes()
         view = view()
-        items = list(items)
         held: Dict[str, str] = {}
         about: Dict[Any, Tuple[str, Dict[str, Any], Any]] = {}
         for row in await self._rows_tagged(tag):
@@ -7645,10 +7666,20 @@ class MemoryAgent(IMemoryConsolidation):
         kept: List[Tuple[Any, str]] = []
         already: List[Tuple[Any, str]] = []
         corrected: List[Tuple[Any, str, Any]] = []
-        counts = {"remembered": 0, "already": 0, "corrected": 0, "total": len(items)}
-        for done, item in enumerate(items, 1):
+        counts = {"remembered": 0, "already": 0, "corrected": 0, "total": 0}
+        # ONE ITEM AT A TIME, BUILT OFF THE LOOP. `items` is the source's own iterable, and building an item is CPU
+        # work (a word record reads WordNet, the treebanks and VerbNet), so each is pulled in a thread rather than
+        # held against the loop the substrate reacts on. Held in a list first, 144,612 word records cost 2.4 hours
+        # and 19.5 GB before one word was taught, and left nothing durable if the pass died (2026-11-10).
+        coming, done = iter(items), 0
+        while True:
+            item = await asyncio.to_thread(next, coming, _NOTHING_MORE)
+            if item is _NOTHING_MORE:
+                break
+            done += 1
+            counts["total"] = done
             if progress is not None and done % 1000 == 0:
-                progress(done, len(items))
+                progress(done, total)          # 0 where the source does not say how many there will be
             if item.key() in held:
                 already.append((item, held[item.key()]))
                 counts["already"] += 1

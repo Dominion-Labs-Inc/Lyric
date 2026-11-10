@@ -35,6 +35,7 @@ parsing.
 from __future__ import annotations
 
 import asyncio
+import itertools
 import logging
 import math
 import random
@@ -534,9 +535,14 @@ class TeachingPass:
                 # of thing never reads as one that tried and got nowhere (`Report.not_offered`).
                 report.not_offered[field_name] = f"this source states no {phase}"
                 continue
-            items = await asyncio.to_thread(list, getattr(self.source, method)())
+            # EACH ITEM IS BUILT AS IT IS TAUGHT, never all of them first. This was `list(...)` in a thread, so a
+            # source yielding 144,612 word records built and held every one before a word was taught: 2.4 hours of a
+            # pass and 19.5 GB before the first thing learned, and nothing durable if it died (2026-11-10). What is
+            # handed down is the source's own iterable; whoever consumes it pulls one item at a time, off the loop
+            # (`MemoryAgent._remember_whole`), and says how many there will be where the source knows (`Built`).
+            items = getattr(self.source, method)()
             if self.limit is not None:
-                items = items[:self.limit]
+                items = list(itertools.islice(iter(items), self.limit))
                 report.limit, report.sampled = self.limit, False
             setattr(report, field_name, await learn(
                 items, provenance=self.source.provenance(), quality=float(self.source.quality),

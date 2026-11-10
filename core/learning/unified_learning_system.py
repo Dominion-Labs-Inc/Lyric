@@ -4351,13 +4351,17 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         from core.memory import knowledge_ledger as _ledger
         from core.memory import get_memory_agent
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY
-        items = list(items)
-        if self._refused_while_frozen(f"{remember} ({len(items)})"):
-            return {"remembered": 0, "already": 0, "refused": len(items), "total": len(items)}
+        # NOT MATERIALISED. `items` is the source's own iterable and each item is built as it is taught; this held
+        # every one of them first (2.4 hours and 19.5 GB for 144,612 word records, 2026-11-10). How many there will
+        # be is taken where the source says so cheaply (`Built`), and is 0 -- unknown -- otherwise. A pass refused
+        # here builds nothing at all, which is the point of refusing before teaching.
+        how_many = len(items) if hasattr(items, "__len__") else 0
+        if self._refused_while_frozen(f"{remember} ({how_many or 'streamed'})"):
+            return {"remembered": 0, "already": 0, "refused": how_many, "total": how_many}
         if quality < MIN_ADMIT_QUALITY:
-            logger.info("%s REFUSED for %d item(s): evidence quality %.3f < floor %.2f", what, len(items), quality,
-                        MIN_ADMIT_QUALITY)
-            return {"remembered": 0, "already": 0, "refused": len(items), "total": len(items)}
+            logger.info("%s REFUSED for %s item(s): evidence quality %.3f < floor %.2f", what,
+                        f"{how_many:,}" if how_many else "streamed", quality, MIN_ADMIT_QUALITY)
+            return {"remembered": 0, "already": 0, "refused": how_many, "total": how_many}
         producer = getattr(provenance, "producer", "learning")
         source_id = getattr(provenance, "source_id", None) or "you"
         agent = await get_memory_agent()

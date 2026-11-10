@@ -456,6 +456,29 @@ def _term_words(name: str) -> int:
     return len(normalize_term(name).replace("_", " ").split())
 
 
+class Built:
+    """ITEMS BUILT ONE AT A TIME, THAT STILL SAY HOW MANY THERE WILL BE.
+
+    The teaching spine materialised every item before teaching the first (`list(...)` at four places down the
+    chain), so 144,612 word records were built and held before one word was taught: 2.4 hours and 19.5 GB of a
+    pass, and nothing durable if it died (2026-11-10). A word is taught as it is recorded.
+
+    What is known cheaply is HOW MANY -- the names are listed before any record is built -- so progress still says
+    where a pass is. `__iter__` makes the items afresh each time, so a second pass over it is a second build, never
+    a stale list held in memory."""
+
+    __slots__ = ("_make", "_how_many")
+
+    def __init__(self, make: Any, how_many: int) -> None:
+        self._make, self._how_many = make, int(how_many)
+
+    def __len__(self) -> int:
+        return self._how_many
+
+    def __iter__(self):
+        return iter(self._make())
+
+
 def _a_name_english_writes(name: str) -> bool:
     """Whether a WordNet lemma is a name English writes: every word of it alphabetic, a hyphen allowed inside a
     word, and no more words than the door admits (`MAX_TERM_WORDS`).
@@ -2274,12 +2297,14 @@ class WordNetWordsSource:
     def records(self) -> Iterator[TaughtRecord]:
         return iter(())
 
-    def word_records(self) -> Iterator[WordRecord]:
+    def word_records(self) -> "Built":
+        """Every word WordNet names, each RECORDED AS IT IS TAUGHT (`Built`), never all of them first."""
         from nltk.corpus import wordnet as wn
         # THE WORDS ARE TAKEN BEFORE THE FIRST IS RECORDED. `all_lemma_names` walks WordNet's own lemma dictionary
         # as a generator, and recording a word loads more of WordNet, which grows that dictionary under the walk:
         # "RuntimeError: dictionary changed size during iteration" on the first word recorded. The list of every
-        # lemma is 147,311 strings and costs nothing to hold.
+        # lemma is 147,311 strings and costs nothing to hold -- which is also how many there will be, said without
+        # building one of them.
         said: Set[str] = set()
         words: List[str] = []
         for part in (self.parts or ("n", "v", "a", "r")):
@@ -2288,8 +2313,7 @@ class WordNetWordsSource:
                 if word not in said and _a_name_english_writes(word):
                     said.add(word)
                     words.append(word)
-        for word in words:
-            yield word_record_of(word)
+        return Built(lambda: (word_record_of(word) for word in words), len(words))
 
 
 # ── Treebanks ───────────────────────────────────────────────────────────────

@@ -365,8 +365,11 @@ async def main() -> int:
 
     def progress(done, total, counts):
         at = time.strftime("%H:%M:%S")
+        # A source that builds each item as it is taught need not know how many there will be; where it does say
+        # (`teaching_sources.Built`), the count is exact without an item being built to get it.
+        how_far = f"{done:,}/{total:,}" if total else f"{done:,}"
         if counts.get("phase"):
-            print(f"  {at}  {counts['phase']}: {done:,}/{total:,}", flush=True)
+            print(f"  {at}  {counts['phase']}: {how_far}", flush=True)
             return
         print(f"  {at}  facts: {done:,}/{total:,}  admitted={counts.get('admitted', 0):,} "
               f"refused={counts.get('refused', 0):,}", flush=True)
