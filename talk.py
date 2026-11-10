@@ -13,11 +13,14 @@ os.environ.setdefault("TRANSFORMERS_VERBOSITY", "error")
 os.environ.setdefault("HF_HUB_DISABLE_PROGRESS_BARS", "1")
 logging.disable(logging.INFO)
 
-from core.semantics.conversation import Conversation  # noqa: E402
+from core.semantics.conversation import get_conversation  # noqa: E402
 
 
 async def main() -> int:
-    conversation = Conversation()
+    # THROUGH THE SUBSTRATE'S OWN FRONT DOOR, not a bare `Conversation()`. The front door keys the thread by
+    # session so two speakers are two threads, shares one in-flight lookup across them, and arms the observability
+    # apparatus -- which a bare construction skips, so this CLI ran with the logging spine switched off.
+    conversation = get_conversation("talk")
     if len(sys.argv) > 1:
         print((await conversation.understand(" ".join(sys.argv[1:]))).reply)
         return 0
