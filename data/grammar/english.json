@@ -4325,6 +4325,29 @@
     ],
     "use": "neg",
     "label": "neg:after"
+   },
+   {
+    "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "only": true
+   },
+   {
+    "cat": "(S[F].e\\NP.x)\\(S[F].e\\NP.x)",
+    "sem": [
+     [
+      "deny",
+      "e"
+     ]
+    ],
+    "use": "neg",
+    "label": "neg:after",
+    "crossing": true
    }
   ],
   "not": [
