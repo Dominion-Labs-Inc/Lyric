@@ -126,23 +126,40 @@ def normalise(label: str) -> str:
 
 
 _NOUN_LEMMAS: Optional[FrozenSet[str]] = None
+_WORDNET_LEMMAS: Optional[FrozenSet[str]] = None
 
 
 def _wordnet_singular(word: str) -> Optional[str]:
-    """What WordNet says a word is as a noun: itself, where WordNet lists it ("proboscis", "news", "aesthetics");
-    the noun it is a plural of, where WordNet knows one ("cacti", `cactus`; "boxes", `box`); None where WordNet does
-    not know the word. Raises if WordNet is not installed: the door does not guess where it was told to know.
+    """What WordNet says a word is: the noun it is a plural of, where WordNet knows one ("cacti", `cactus`;
+    "boxes", `box`); itself, where WordNet lists the word as a word of its own in ANY class ("proboscis", "news",
+    "aesthetics", "zealous", "always"); None where WordNet does not know the word. Raises if WordNet is not
+    installed: the door does not guess where it was told to know.
 
     THE PLURAL FIRST. A word WordNet knows as another noun's plural is that noun, even where WordNet also lists the
     word itself ("humans", a sense of its own: kept apart, "Socrates is a human." and "All humans are mortal." name
     two things and nothing follows). A word with no such noun behind it stays as written ("proboscis": "probosci"
     names nothing). Not yet told apart: a thing named by a plural of its own beside the singular's ("blues", the
-    music, as `blue`), merged as the spelling rule merged it."""
-    global _NOUN_LEMMAS
+    music, as `blue`), merged as the spelling rule merged it.
+
+    EVERY CLASS, NOT NOUNS ALONE. Only a noun has a plural, so the question asked here was once about nouns alone --
+    and a word WordNet knows only as an adjective or an adverb got no answer, fell through to the spelling rule
+    below, and had its final "s" taken off as though it were a plural. "-ous" is an adjective ending, never a
+    plural: 954 of WordNet's adjectives were held under a name that is not a word ("zealous" as `zealou`,
+    "abstemious" as `abstemiou`, "predaceous" as `predaceou`), and 63 other words with them ("always" as `alway`,
+    "besides" as `beside`, "indoors" as `indoor`, "bogus" as `bogu`, "isosceles" as `isoscele`, "interspecies" as
+    `interspecy` -- that last one by the "-ies" rule, which this answer also comes before). 1,017 words in all, and
+    almost every one of them an adjective, which is the class the store is thinnest in: of the words taught, 2.4%
+    of adjectives had one. Two words WordNet knows only as verbs are spared with them, rightly -- `nonplu` and
+    `refocu` name nothing either. A word WordNet lists at all is a word of its own; only a word WordNet does not
+    know is left to spelling, and the 615 real plurals here still reduce, because the plural is asked first."""
+    global _NOUN_LEMMAS, _WORDNET_LEMMAS
     from nltk.corpus import wordnet as wn
     if _NOUN_LEMMAS is None:
         _NOUN_LEMMAS = frozenset(lemma.lower() for synset in wn.all_synsets("n")
                                  for lemma in synset.lemma_names() if "_" not in lemma)
+        _WORDNET_LEMMAS = _NOUN_LEMMAS.union(
+            lemma.lower() for word_class in ("v", "a", "s", "r") for synset in wn.all_synsets(word_class)
+            for lemma in synset.lemma_names() if "_" not in lemma)
     # A plural made with "s" never ends in "ss" (one ending in "s" takes "es": "bosses"), so "boss" is no plural of
     # `bos`, the genus of cattle, however WordNet's rule strips it; and no plural ends in "ing", whatever WordNet's
     # list of exceptions holds ("crying" for `cry`).
@@ -150,7 +167,7 @@ def _wordnet_singular(word: str) -> Optional[str]:
                  and not (word.endswith("ss") and form == word[:-1]) and not word.endswith("ing")]
     if plural_of:
         return plural_of[0]
-    return word if word in _NOUN_LEMMAS else None
+    return word if word in _WORDNET_LEMMAS else None
 
 
 def singularise(word: str) -> str:
