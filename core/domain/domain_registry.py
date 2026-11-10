@@ -1055,8 +1055,13 @@ class DomainRegistry:
                                         else mapping.success_rate)
                 mapping.last_used = mapping.last_used or prior.last_used
                 mapping.created_at = prior.created_at
-                # A re-derivation that judged nothing is not a verdict.
-                if mapping.validated is None:
+                # A re-derivation that judged nothing is not a verdict -- but a
+                # judge that ruled INDETERMINATE did judge, and its ruling is a
+                # verdict that must land. `validated is None` cannot tell those
+                # apart, so it asked `judged` instead: without this, a mapping
+                # accepted on evidence later withdrawn could never be corrected
+                # through this writer, because the correction arrives as None.
+                if mapping.validated is None and not mapping.judged:
                     mapping.validated = prior.validated
                     mapping.validation_score = prior.validation_score
                 if self._serialize_mapping(prior) == self._serialize_mapping(mapping):
@@ -1479,6 +1484,7 @@ class DomainRegistry:
             "transformation_rules": mapping.transformation_rules,
             "context_requirements": mapping.context_requirements,
             "validated": mapping.validated,
+            "judged": mapping.judged,
             "validation_score": mapping.validation_score,
             "usage_count": mapping.usage_count,
             "success_rate": mapping.success_rate,

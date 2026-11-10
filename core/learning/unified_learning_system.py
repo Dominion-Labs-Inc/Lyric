@@ -2392,6 +2392,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     "target_concept_id": candidate.target_concept_id,
                 })
                 candidate.validation_score = float(verdict.get("confidence", 0.0) or 0.0)
+                # A VERDICT WAS REACHED, whichever of the three it is. Recorded
+                # so the store's writer can tell an INDETERMINATE ruling from a
+                # candidate nobody put to the test; both leave `validated` None.
+                candidate.judged = True
                 if verdict["verdict"] == "ACCEPTED":
                     candidate.validated = True
                     accepted.append(candidate)

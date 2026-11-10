@@ -286,6 +286,21 @@ class CrossDomainMapping:
     # a default of False marked every untested suggestion as refuted.
     validated: Optional[bool] = None
     validation_score: float = 0.0
+
+    #: Whether a validator actually RULED on this mapping, however it ruled.
+    #:
+    #: `validated` alone cannot say. The validator has three verdicts and the
+    #: third, INDETERMINATE -- too little structure to judge -- arrives here as
+    #: None, which is the same value a candidate that was never put to the test
+    #: carries. The registry carries a prior verdict forward whenever a
+    #: re-derivation comes back None, rightly, so that a freshly suggested
+    #: candidate cannot wipe a real verdict; but with the two Nones
+    #: indistinguishable it also meant a verdict that had genuinely CHANGED to
+    #: indeterminate could never be recorded over an existing row. Two mappings
+    #: accepted on evidence that was later withdrawn could not be corrected
+    #: through the one writer at all, and had to be cleared by hand
+    #: (2026-11-10). A judge that ran says so here, and its None is written.
+    judged: bool = False
     
     # Usage
     usage_count: int = 0
