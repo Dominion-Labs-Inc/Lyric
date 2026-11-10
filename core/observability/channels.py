@@ -55,6 +55,14 @@ ROUTES: Tuple[Tuple[str, str], ...] = (
     ("core.agents",         SUBSTRATE),
     ("core.intelligence",   SUBSTRATE),
     ("core.tools.execution_tools", SUBSTRATE),
+    # The domain MASTER decides what a subject is, whether two subjects
+    # correspond and what may transfer between them. That is substrate work, and
+    # it was reaching SYSTEM only because it happens to live under
+    # core.integration beside the Slack handlers -- so the concern was split
+    # across two channels, with the half that decides landing in the file where
+    # asyncpg's connection churn was 806 of the first 808 lines. Longest prefix
+    # wins, so the rest of core.integration stays on SYSTEM.
+    ("core.integration.universal_domain_master", SUBSTRATE),
 
     # SECURITY: what was permitted, refused, or recorded.
     ("core.security",       SECURITY),

@@ -12,7 +12,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from .domain_types import (
-    Domain, DomainConcept, DomainRelation, ConceptType, ConceptDimension
+    Domain, DomainConcept, DomainRelation, ConceptType, ConceptDimension,
+    READING_AID_RELATIONS
 )
 
 logger = logging.getLogger(__name__)
@@ -769,10 +770,26 @@ class UniversalOntology:
             async def edges(cid):
                 # DISTINCT: one relation to one concept is one edge, however
                 # many observations recorded it.
+                #
+                # A READING AID IS NOT STRUCTURE. This docstring worries that
+                # `isa` is 98% of relations; the flood is `defined with`, which
+                # is 439,099 of the 585,273 edges that name a concept at both
+                # ends -- 75% of the graph this test is measured on. It records
+                # which words a sense's definition used, so two concepts "share"
+                # it whenever two definitions happen to mention the same word.
+                # Both mappings this validator ever ACCEPTED were accepted on
+                # exactly one shared edge, and in both it was a `defined with`:
+                # `layered`/`unstratified` on `region_layer`, giving 1 of 2 and
+                # scraping the 50% bar, and `recursive`/`algorithmic` on `refer`.
+                # Left out, both are INDETERMINATE -- too little real structure
+                # to judge -- which is the honest answer and what the third
+                # verdict exists to say. Same constant the concept scorer reads,
+                # so one answer to "is this structure" serves both.
                 rows = await db.execute_query(
                     "SELECT DISTINCT relation, target_concept_id FROM unified.concept_relations "
-                    "WHERE source_concept_id = $1 AND target_concept_id IS NOT NULL",
-                    (cid,), fetch_all=True) or []
+                    "WHERE source_concept_id = $1 AND target_concept_id IS NOT NULL "
+                    "AND relation <> ALL($2::text[])",
+                    (cid, sorted(READING_AID_RELATIONS)), fetch_all=True) or []
                 # An edge to either side of the proposed mapping is not
                 # structure the two share.
                 return sorted((r["relation"], r["target_concept_id"]) for r in rows
@@ -781,7 +798,13 @@ class UniversalOntology:
             src_edges = await edges(source_id)
             tgt_edges = await edges(target_id)
         except Exception as e:
-            # Unmeasurable is not refuted.
+            # Unmeasurable is not refuted -- but it is not silent either. This
+            # returned INDETERMINATE with the reason buried in `issues`, which no
+            # caller reads, so a database fault was indistinguishable from two
+            # concepts that genuinely share too little structure.
+            logger.error("Cross-domain mapping %s -> %s could not be judged: the "
+                         "structure could not be read (%s); returning INDETERMINATE, "
+                         "which is not a refusal", source_id, target_id, e, exc_info=True)
             result["issues"].append(f"structure unavailable: {e}")
             return result
 
@@ -794,6 +817,10 @@ class UniversalOntology:
             result["issues"].append(
                 f"too few edges to judge ({len(src_edges)}/{len(tgt_edges)}; "
                 f"{self.MIN_EDGES_TO_JUDGE} needed on each side)")
+            logger.info("Mapping %s -> %s INDETERMINATE: %d and %d structural edge(s), "
+                        "%d needed on each side to judge",
+                        source_id, target_id, len(src_edges), len(tgt_edges),
+                        self.MIN_EDGES_TO_JUDGE)
             return result
 
         # EDGE PRESERVATION -- the load-bearing test: the same relation to the
@@ -832,6 +859,20 @@ class UniversalOntology:
                 result["suggestions"].append(
                     f"partial structure survives via {[list(e) for e in preserved]}")
 
+        # SAY THE VERDICT AND WHAT PRODUCED IT. Everything above is measured and
+        # was then returned to a caller that logs a count -- "N candidates -> X
+        # accepted, Y rejected" -- and drops the measurements. So the one thing
+        # worth knowing, WHICH pair was accepted on WHAT surviving structure,
+        # was computed on every pass and never written down. Reading it would
+        # have shown on the first run that both acceptances rested on a single
+        # shared reading aid.
+        logger.info(
+            "Mapping %s -> %s %s: %d of %d source edge(s) preserved at the target "
+            "(%.0f%%, bar %.0f%%), degree consistency %.2f, confidence %.2f; preserved %s",
+            source_id, target_id, result["verdict"], len(preserved), len(src_edges),
+            preservation * 100, self.RELATION_PRESERVATION_THRESHOLD * 100,
+            degree_ratio, result["confidence"],
+            [f"{relation} -> {target}" for relation, target in preserved] or "nothing")
         return result
 
 

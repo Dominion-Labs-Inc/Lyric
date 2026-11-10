@@ -2223,13 +2223,18 @@ class UniversalDomainMaster:
             result = await asyncio.to_thread(
                 _score_correspondence, src, tgt, threshold, depth, count_all)
         elapsed = time.monotonic() - started
-        if elapsed >= 1.0:
-            logger.info(
-                "Concept correspondence %s (%d) -> %s (%d) %s in %.1fs off the "
-                "event loop: %s pair(s) above %.2f",
-                source_domain_id, len(src.concept_ids), target_domain_id,
-                len(tgt.concept_ids), how, elapsed,
-                result["pairs"] if count_all else len(result["strongest"][:keep]), threshold)
+        # SAID WHETHER OR NOT IT WAS SLOW. This was behind `elapsed >= 1.0`,
+        # which makes a result log out of a performance log: a correspondence
+        # between two small domains finishes in milliseconds and so reported
+        # nothing, and "no pair corresponded" read exactly like "this never
+        # ran". The duration is still in the line, where it belongs. The result
+        # is cached per domain-pair version, so this is not a hot path.
+        logger.info(
+            "Concept correspondence %s (%d concept(s)) -> %s (%d) %s in %.3fs off the "
+            "event loop: %s pair(s) above %.2f",
+            source_domain_id, len(src.concept_ids), target_domain_id,
+            len(tgt.concept_ids), how, elapsed,
+            result["pairs"] if count_all else len(result["strongest"][:keep]), threshold)
         if (registry.concept_version(source_domain_id),
                 registry.concept_version(target_domain_id)) == version:
             self._correspondences[key] = (version, result)
@@ -2412,13 +2417,39 @@ class UniversalDomainMaster:
         await self.embed_pending_concepts(ids)
 
     async def record_mapping(self, mapping: CrossDomainMapping) -> bool:
-        """The one writer of cross-domain mappings; the registry stores them."""
+        """The one writer of cross-domain mappings; the registry stores them.
+
+        IT SAYS WHAT IT WROTE. Being the one writer, this is the only place that
+        can report the store's cross-domain content as it changes, and it
+        reported nothing -- so every mapping the store holds arrived without a
+        line naming it. The three verdicts are written as words rather than as
+        True/False/None, because `verified` reads as a boolean and its third
+        value is the one that carries meaning: an untested proposal is not a
+        refuted one.
+        """
         registry = await self._registry()
-        return await registry.add_cross_domain_mapping(mapping)
+        stored = await registry.add_cross_domain_mapping(mapping)
+        verdict = {True: "accepted", False: "refuted", None: "untested"}.get(
+            mapping.validated, str(mapping.validated))
+        # A concept id already carries its domain, so the domains are not
+        # prefixed again -- doing so read as `plumbing:plumbing:clogged_pipe`.
+        logger.info("Mapping %s: %s -> %s, %s, strength %.3f%s",
+                    "stored" if stored else "NOT STORED",
+                    mapping.source_concept_id, mapping.target_concept_id,
+                    verdict, mapping.strength,
+                    "" if stored else " -- the store refused the write")
+        return stored
 
     async def record_knowledge_transfer(self, transfer) -> bool:
         registry = await self._registry()
-        return await registry.create_knowledge_transfer(transfer)
+        stored = await registry.create_knowledge_transfer(transfer)
+        logger.info("Knowledge transfer %s: %s -> %s, %s, effectiveness %.3f",
+                    "stored" if stored else "NOT STORED",
+                    getattr(transfer, "source_domain_id", "?"),
+                    getattr(transfer, "target_domain_id", "?"),
+                    getattr(transfer, "transfer_type", "?"),
+                    float(getattr(transfer, "effectiveness_score", 0.0) or 0.0))
+        return stored
 
     async def record_mapping_usage(self, mapping_ids: List[str], **usage) -> int:
         registry = await self._registry()
@@ -3691,18 +3722,36 @@ class UniversalDomainMaster:
         # ALREADY DECIDED, not merely already filed. A registered-but-undecided
         # domain is exactly what this function exists to rule on, so registration
         # can no longer short-circuit it.
+        # EVERY DECISION IS SAID, NOT ONLY THE ONE THAT SUCCEEDS. Three of the
+        # five outcomes below returned a status and logged nothing, and the
+        # question those three answer is the one that matters: no domain in the
+        # store carries the crystallized mark, so every call this has ever had
+        # ended in a silent refusal, and nothing recorded which refusal it was.
+        # A domain with no operators and a domain whose operators disagree are
+        # different problems with different fixes, and from the outside they
+        # looked identical -- like nothing having run at all.
         existing = registry.domains.get(provisional_domain_id)
         if existing is not None and self.is_crystallized(existing):
+            logger.info("crystallize: %s was already decided; nothing to rule on",
+                        provisional_domain_id)
             return {"status": "already_crystallized",
                     "domain_id": provisional_domain_id}
 
         rules = await self._domain_operators(provisional_domain_id)
         if not rules:
+            logger.info("crystallize: %s holds no operators, so there is no structure "
+                        "to judge it a subject by; it stays provisional",
+                        provisional_domain_id)
             return {"status": "empty", "domain_id": provisional_domain_id}
 
         if not self._operators_coherent(rules):
+            logger.info("crystallize: %s holds %d operator(s) that do not form one "
+                        "domain; it stays provisional",
+                        provisional_domain_id, len(rules))
             return {"status": "incoherent", "domain_id": provisional_domain_id,
                     "operators": len(rules)}
+        logger.info("crystallize: %s holds %d coherent operator(s); comparing against "
+                    "every learned domain's operators", provisional_domain_id, len(rules))
 
         # Compare against every registered LEARNED domain's operators. A
         # registered domain with no operators (a DomainType category) offers
