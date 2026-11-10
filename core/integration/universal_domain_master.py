@@ -2633,12 +2633,23 @@ class UniversalDomainMaster:
 
     #: The buckets knowledge arrives in when the producer named no subject.
     #: `general` is the default domain across the learning path; `conversation`
-    #: is the channel the conversational path teaches into. NEITHER IS A
-    #: SUBJECT -- they are holding areas that declarative discovery must split
-    #: into subjects, which is precisely what never happened: the idle sweep was
-    #: pointed at `conversation` alone (0 concepts on the live store) while
-    #: `general` held 82,676 and no scheduled caller ever touched it.
-    UNDIFFERENTIATED_CHANNELS: tuple = ("general", "conversation")
+    #: is the channel the conversational path teaches into; `english` is where
+    #: everything taught through language lands. NONE IS A SUBJECT -- they are
+    #: holding areas that declarative discovery must split into subjects, which
+    #: is precisely what never happened: the idle sweep was pointed at
+    #: `conversation` alone (0 concepts on the live store) while `general` held
+    #: 82,676 and no scheduled caller ever touched it.
+    #:
+    #: AND THE SAME FAULT AGAIN, ONE BUCKET ALONG. With `general` added, the
+    #: sweep surveyed it dutifully -- 51 concepts, just over the floor of 40 --
+    #: while 114,456 sat in `english`, every one of them taught on 2026-11-07
+    #: and never once examined. `_channel_concept_count` is `WHERE domain = $1`,
+    #: so a bucket not named here is not counted, not surveyed and not split,
+    #: and the survey's own log reads the same whether it looked at the whole
+    #: store or at 51 concepts of it. A salmon being a kind of fish is knowledge
+    #: of the world that arrived through language; filing it under `english`
+    #: makes the name of the door it came through stand in for its subject.
+    UNDIFFERENTIATED_CHANNELS: tuple = ("general", "conversation", "english")
 
     #: Written into a channel domain's `boundaries`: the concept count at the
     #: last taxonomic pass. The walk is over the whole isa graph, so it is run
