@@ -22,6 +22,7 @@ import logging
 import math
 import os
 import re
+import threading
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Dict, FrozenSet, Iterable, Iterator, List, Optional, Sequence, Set, Tuple
@@ -5018,6 +5019,39 @@ def records_written(_cache: Dict[str, str] = {}) -> str:
     return _cache["stamp"]
 
 
+#: Words between one account of what the sources are giving. 113,064 words were
+#: taught in the last whole-vocabulary pass, so this is about 113 lines for a
+#: pass against the 226,128 the per-word pair wrote.
+COVERAGE_EVERY: int = 1000
+
+#: words, columns filled, columns asked, and how often each column gave nothing.
+#: `word_record_of` runs on worker threads, so the tally is taken under a lock.
+_GAVE = {"words": 0, "filled": 0, "asked": 0, "silent": Counter()}
+_GAVE_LOCK = threading.Lock()
+
+
+def _tally_what_the_sources_gave(filled: int, asked: int, gave_nothing: Sequence[str]) -> None:
+    """Add one word to the run's account, and say the account every so often."""
+    with _GAVE_LOCK:
+        _GAVE["words"] += 1
+        _GAVE["filled"] += filled
+        _GAVE["asked"] += asked
+        _GAVE["silent"].update(gave_nothing)
+        if _GAVE["words"] % COVERAGE_EVERY:
+            return
+        words, silent = _GAVE["words"], _GAVE["silent"]
+        mean = _GAVE["filled"] / words
+        columns = _GAVE["asked"] / words
+        always_silent = sorted(name for name, n in silent.items() if n == words)
+        mostly = [f"{name} ({n * 100 // words}%)" for name, n in silent.most_common(6)
+                  if n < words]
+    logger.info("teaching: %d words built, %.1f of %.0f source columns filled on average; "
+                "silent for every one of them: %s; silent for most: %s",
+                words, mean, columns,
+                ", ".join(always_silent) or "none",
+                ", ".join(mostly) or "none")
+
+
 def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: str = "train",
                    _cache: Dict[str, Any] = {}) -> WordRecord:
     """A word recorded whole (`WordRecord`) from what was made by hand of it, never written here: its forms as UD's
@@ -5492,10 +5526,28 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     # substrate could not do: "bark" was built with the treebanks having written one form of it, nothing said so,
     # and `A dog barked.` was read and could not be said at all (2026-11-04).
     gave_nothing = sorted(f"{source}/{column}" for (source, column), n in carried.items() if not n)
-    logger.info("teaching: built %r -- %d forms, %d senses, %d of %d source columns filled",
-                word, len(forms), len(senses), len(carried) - len(gave_nothing), len(carried))
+    # PER WORD AT DEBUG, PER THOUSAND WORDS AT THE INSTALLED LEVEL. These two
+    # lines were at INFO, and they are written once per word: a pass over
+    # WordNet's vocabulary wrote 226,000 of them, the second carrying the same
+    # two dozen column names nearly every time. They were 143,718 of one
+    # 400,000-line stretch of the substrate channel -- more than a third of
+    # everything the substrate said -- so the detail this pair exists to give
+    # was the reason nothing else could be read.
+    #
+    # The detail is NOT lost, and it must not be: this pair was added because a
+    # word taught with half its sources silent looked exactly like a word taught
+    # whole, and "bark" was built with the treebanks having written one form of
+    # it, nothing said so, and `A dog barked.` could not be said at all
+    # (2026-11-04). Every word still says what it got, at DEBUG. What stands at
+    # the installed level is the same question answered over the run, which is
+    # the scope the "bark" failure was actually invisible at: one word's
+    # shortfall is noise, and a column silent across a thousand words is the
+    # finding.
+    logger.debug("teaching: built %r -- %d forms, %d senses, %d of %d source columns filled",
+                 word, len(forms), len(senses), len(carried) - len(gave_nothing), len(carried))
     if gave_nothing:
-        logger.info("teaching:   gave nothing for %r: %s", word, ", ".join(gave_nothing))
+        logger.debug("teaching:   gave nothing for %r: %s", word, ", ".join(gave_nothing))
+    _tally_what_the_sources_gave(len(carried) - len(gave_nothing), len(carried), gave_nothing)
     return WordRecord(word, tuple(forms), tuple(senses), tuple(uses), used_as,
                       tuple(sorted(joins.items(), key=lambda x: (-x[1], x[0]))),
                       "WordNet 3.0 (senses, definitions, kinds, counts, frames); UD English EWT and GUM (forms); "

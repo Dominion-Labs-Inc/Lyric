@@ -355,7 +355,14 @@ class PerformanceProfiler:
             # the caller. Profiling observes; it must not swallow.
             raise failure
 
-        logger.info(
+        # A SAMPLE PER CALL IS A MEASUREMENT, NOT A FINDING. This wrote one line
+        # per profiled call -- 16,876 for `memory_agent.store_memory` alone in a
+        # 200,000-line stretch -- so the profiler's own output buried the work it
+        # was profiling. The lines it keeps at the installed level are the ones
+        # that say something went wrong: a call that FAILED, and one that was
+        # cancelled. A successful sample is said at DEBUG, and the profiler's
+        # aggregates remain the way to read it in quantity.
+        logger.debug(
             "Profiled %s.%s: time=%.2fms, memory=%+.3fMB, cpu=%s",
             component_name, operation_name, execution_time_ms, memory_delta,
             "unmeasured" if cpu_percent is None else f"{cpu_percent:.1f}%")

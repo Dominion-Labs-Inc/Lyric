@@ -1291,7 +1291,13 @@ class MemoryAgent(IMemoryConsolidation):
 
             if success:
                 self.metrics["memories_stored"] += 1
-                logger.info(f"Memory {memory_id} stored to hot tier (filtered)")
+                # ONE MEMORY IS NOT NEWS. At the installed level this wrote a
+                # line per memory stored -- 16,956 of them in one 200,000-line
+                # stretch, and 113,064 in a whole-vocabulary pass, which says
+                # only what the caller already knows from the id it was handed
+                # back. The count that matters is reported by the caller over
+                # its batch. Still said at DEBUG, for following one memory.
+                logger.debug(f"Memory {memory_id} stored to hot tier (filtered)")
                 logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] ✓ SUCCESS - Memory {memory_id} stored")
                 # Retain attached media DATA so the substrate remembers the
                 # picture or the sound, not only a sentence about it.

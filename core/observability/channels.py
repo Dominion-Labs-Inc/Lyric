@@ -16,6 +16,7 @@ SYSTEM whether it is INFO or CRITICAL.
 """
 import asyncio
 import logging
+from logging.handlers import RotatingFileHandler
 import os
 import sys
 import threading
@@ -117,6 +118,14 @@ def log_dir() -> Path:
     return Path(os.getenv("LYRIC_HOME", ".")) / "logs" / "channels"
 
 
+#: How large one channel file may grow before it rolls over, and how many
+#: rolled files are kept beside it. 64 MB x 5 bounds each channel at 384 MB and
+#: every channel together at about 1.5 GB, against the 618 MB one unbounded file
+#: had already reached on its own.
+CHANNEL_MAX_BYTES: int = 64 * 1024 * 1024
+CHANNEL_KEEP: int = 5
+
+
 def install(level: int = logging.INFO) -> Dict[str, Path]:
     """Attach one file handler per channel to the root logger.
 
@@ -127,9 +136,13 @@ def install(level: int = logging.INFO) -> Dict[str, Path]:
     directory = log_dir()
     directory.mkdir(parents=True, exist_ok=True)
 
+    # A DATE ON EVERY LINE. This was "%H:%M:%S", and these files are append-only
+    # across days -- substrate.log reached 618 MB spanning four of them, so a
+    # line reading "13:46:02" could not be placed in time at all, and two runs a
+    # day apart interleaved on the page.
     formatter = logging.Formatter(
         "%(asctime)s %(levelname)-7s %(name)s | %(message)s",
-        datefmt="%H:%M:%S")
+        datefmt="%Y-%m-%d %H:%M:%S")
 
     root = logging.getLogger()
     paths: Dict[str, Path] = {}
@@ -141,7 +154,14 @@ def install(level: int = logging.INFO) -> Dict[str, Path]:
         if any(getattr(h, "_lyric_tag", None) == tag for h in root.handlers):
             paths[channel] = path
             continue
-        handler = logging.FileHandler(path)
+        # ROTATED. These were plain FileHandlers, which never roll over, so the
+        # channel files grew without limit: 618 MB of substrate, 202 MB of
+        # system, no bound and nothing to delete but the whole history. A
+        # rotating handler keeps the recent past readable and the disk finite,
+        # and the limits are stated here rather than left to a cron nobody
+        # wrote.
+        handler = RotatingFileHandler(path, maxBytes=CHANNEL_MAX_BYTES,
+                                      backupCount=CHANNEL_KEEP, encoding="utf-8")
         handler.setLevel(level)
         handler.setFormatter(formatter)
         handler.addFilter(ChannelFilter(channel))
@@ -215,6 +235,19 @@ def _level_for(name: str, level: int) -> int:
     if name == "__main__" or name == "core" or name.startswith("core."):
         return level
     return logging.DEBUG
+
+
+#: How long a task must have taken for its completion to be worth a line at the
+#: installed level. Below it the line goes to DEBUG with every other.
+#:
+#: The argument for watching tasks at all is "the work that takes 400 seconds",
+#: and that case is untouched by this. What it does end is the fan-out:
+#: `MemoryAgent.retrieve` starts six searchers at once and each writes a started
+#: line and a done line, so ONE retrieve wrote twelve lines, all of them
+#: milliseconds long -- 3,155 of each in a 200,000-line stretch. That is Lyric's
+#: own version of the 2%-signal problem `_level_for` was written for, and the
+#: same answer applies: the lines are real and still said at DEBUG.
+TASK_WORTH_SAYING: float = 0.1
 
 
 def _what(coro: Any) -> str:
@@ -302,7 +335,8 @@ def _finished(task: "asyncio.Task", key: int, level: int) -> None:
     # are failures. What IS one is an exception nobody ever collects, and
     # `_loop_failure` below hears exactly those, from asyncio itself, and logs
     # them at ERROR where the failure record picks them up.
-    logger.log(level, "background task done in %.3fs: %s (%s)", took, what, where)
+    logger.log(level if took >= TASK_WORTH_SAYING else logging.DEBUG,
+               "background task done in %.3fs: %s (%s)", took, what, where)
 
 
 def _watched_task_factory(level: int) -> Callable:
@@ -315,7 +349,12 @@ def _watched_task_factory(level: int) -> Callable:
         key = id(task)
         with _LIVE_LOCK:
             _LIVE[key] = (what, where, name, time.monotonic())
-        logging.getLogger(name).log(_level_for(name, level),
+        # A START CARRIES NO OUTCOME. It was logged at the installed level, which
+        # doubled the volume to say only that something had begun -- and the
+        # question it was meant to answer, "what is it doing right now", is
+        # answered better by the 30-second roster below, which names where every
+        # live thread actually is rather than what was started minutes ago.
+        logging.getLogger(name).log(logging.DEBUG,
                                     "background task started: %s (%s)",
                                     what, where)
         task.add_done_callback(lambda done: _finished(done, key, level))
