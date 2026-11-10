@@ -196,7 +196,10 @@ class _AsMemorysGrammar:
         self.meaning = self._compose(" ".join(str(w) for w in words)) if self._compose is not None else self._meaning
         return self
 
-    def readings(self, words, how_many=1):
+    def readings(self, words, how_many=1, named_before=()):
+        # The real view takes what the sentence named before it (`GrammarView.readings`); this double reads one way
+        # and has no use for it, but it must ACCEPT it or every composed reading raises TypeError here instead of in
+        # the reader (4 tests failed on the stale signature from 2ad24b99).
         return [self.read(words)]
 
 
@@ -241,8 +244,12 @@ def test_a_telling_read_only_by_supposing_more_than_the_lessons_is_composed(monk
     as_taught = dr.Reading((), (), told, proposed=("link",) * 2)
     asked = dr.Reading((), (), Meaning("ask", told.facts), proposed=("link",) * 6)
     for readings in [(forced,), (misfit,), (forced, misfit), (asked,)]:
-        reading, = dr._read_forced_by_composing(utterance(*readings)).readings
-        assert reading.composed and reading.meaning == composed
+        # BESIDE, NOT INSTEAD: the grammar's reading is put FIRST and every reading the frames gave is KEPT, for the
+        # listener to weigh them together. This asserted the grammar's reading was the ONLY one, which is the
+        # behaviour that was deliberately removed -- it handed the listener one meaning, so it weighed nothing.
+        composed_reading, *frames = dr._read_forced_by_composing(utterance(*readings)).readings
+        assert composed_reading.composed and composed_reading.meaning == composed
+        assert len(frames) == len(readings) and all(r in frames for r in readings)
     for readings in [(as_taught,), (forced, as_taught)]:
         assert dr._read_forced_by_composing(utterance(*readings)).readings == readings
     grammar._meaning = None       # the grammar gives it no meaning
@@ -347,7 +354,7 @@ def test_a_sentence_taught_again_with_a_corrected_meaning_corrects_its_memory():
     assert stored[0]["metadata"]["superseded"][-1]["was"] == first.to_dict()
     assert agent.composition_view()._waiting == [again]
     # English's grammar, not built yet, learns from the correction alone when it is.
-    assert agent._grammar_taught == [again]
+    assert list(agent._grammar_taught.values()) == [again]
     assert asyncio.run(agent.remember_taught_sentences([again]))["already"] == 1
     elsewhere = cp.TaughtSentence("Rex did not bark.", denied, "english_12")
     assert asyncio.run(agent.remember_taught_sentences([elsewhere]))["remembered"] == 1 and len(stored) == 2

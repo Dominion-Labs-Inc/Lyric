@@ -251,7 +251,7 @@ def test_memory_hands_reasoning_what_a_word_means():
     from core.agents.memory_agent import MemoryAgent
     agent = MemoryAgent()
     word = _word()
-    agent._grammar_words.append(word)
+    agent._grammar_words[word.key()] = word
     agent._word_record_ids[word.key()] = "m1"
     assert agent.word_kinds("coating paint") == [("coating", "m1")]
     assert agent.word_kinds("coat paint") == [("to coat", "m1")] and agent.word_kinds("wall") == []

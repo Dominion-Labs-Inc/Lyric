@@ -186,10 +186,14 @@ class MemoryAgent(IMemoryConsolidation):
         #: meanings (`_grammar_taught`).
         self._grammar_view = None
         self._grammar_links: List[Tuple[str, str, str]] = []
-        self._grammar_taught: List[Any] = []
+        #: HELD BY KEY, NOT IN A LIST. Dropping one rebuilt the list and asked every element for its `key()` --
+        #: a sha256 over the whole item serialised -- so correcting one item hashed every item held. With 79,656
+        #: word records held, one correction cost 3.81 s measured, and a pass correcting all of them 6.8 days
+        #: (2026-11-10). Insertion order is kept, which is all the readers below need.
+        self._grammar_taught: Dict[str, Any] = {}
         #: The sentences memory holds as derived by hand in a categorial grammar (`remember_derived`), which the
         #: grammar chooses each word's category by (`grammar.Derived`, `GrammarView.hold_derived`).
-        self._grammar_derived: List[Any] = []
+        self._grammar_derived: Dict[str, Any] = {}
         #: What each word names, as the sentences recorded whole name it ((word, class) -> names, counted): "medal"
         #: as a noun names `award decoration` (`name_of`).
         self._record_names: Dict[Tuple[str, str], Counter] = {}
@@ -197,7 +201,7 @@ class MemoryAgent(IMemoryConsolidation):
         #: a name apart from a noun (`_held_word_classes`): of these, what memory holds as a noun is no name.
         self._classes_apart: Set[str] = set()
         #: The words held recorded whole (`teaching_sources.WordRecord`), for English's grammar (`grammar_view`).
-        self._grammar_words: List[Any] = []
+        self._grammar_words: Dict[str, Any] = {}
         #: The memory holding each word recorded whole, by the record (`WordRecord.key`): what reasoning is handed
         #: of a word says where it came from (`word_kinds`).
         self._word_record_ids: Dict[str, str] = {}
@@ -3061,12 +3065,12 @@ class MemoryAgent(IMemoryConsolidation):
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
         # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
-        self._record_names, self._grammar_words, self._grammar_records = {}, [], []
+        self._record_names, self._grammar_words, self._grammar_records = {}, {}, []
         self._word_record_ids, self._classes_apart = {}, set()
         for row, word in await self._word_record_memories():
             await give_way()
             self._learn_word_record(word, index, forms, structure)
-            self._grammar_words.append(word)
+            self._grammar_words[word.key()] = word
             self._word_record_ids[word.key()] = row.memory_id
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
         for row, record in await self._record_memories():
@@ -3106,8 +3110,9 @@ class MemoryAgent(IMemoryConsolidation):
         self._said_view, self._said_spread = said, {}
         self._structure_view, self._word_groups, self._word_forms = structure, groups, forms
         self._argument_view, self._composition_view = arguments, composition
-        self._grammar_links, self._grammar_taught, self._grammar_view = grammar_links, taught_sentences, None
-        self._grammar_derived = derived
+        self._grammar_links, self._grammar_view = grammar_links, None
+        self._grammar_taught = {t.key(): t for t in taught_sentences}
+        self._grammar_derived = {d.key(): d for d in derived}
         self._fan_view, self._things_held = {}, None
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
@@ -7054,7 +7059,7 @@ class MemoryAgent(IMemoryConsolidation):
 
     def _hold_derived(self, item) -> None:
         """A sentence held as derived by hand, handed to English's grammar."""
-        self._grammar_derived.append(item)
+        self._grammar_derived[item.key()] = item
         if self._grammar_view is not None:
             self._grammar_view.hold_derived(item)
 
@@ -7180,7 +7185,7 @@ class MemoryAgent(IMemoryConsolidation):
         forms = {f.form for f in word.forms}
         classes = {f.word_class for f in word.forms}
         self._learn_word_record(word, self._word_class_index, self.word_forms(), self.structure_view())
-        self._grammar_words.append(word)
+        self._grammar_words[word.key()] = word
         if self._grammar_view is not None:
             self._grammar_view.hold_word(word)
         logger.info("teaching: Lyric took %r -- %d forms (%s) as %s, %d senses; %s",
@@ -7192,7 +7197,7 @@ class MemoryAgent(IMemoryConsolidation):
     def _drop_word_record(self, word) -> None:
         """A word recorded whole, taken back from English's grammar (recorded otherwise since)."""
         key = word.key()
-        self._grammar_words = [w for w in self._grammar_words if w.key() != key]
+        self._grammar_words.pop(key, None)
         self._word_record_ids.pop(key, None)
         self.structure_view().hold_joins(word.joined_as, word.related_as, times=-1)
         if self._grammar_view is not None:
@@ -7232,7 +7237,7 @@ class MemoryAgent(IMemoryConsolidation):
     def _drop_derived(self, item) -> None:
         """A sentence held as derived by hand, taken back from English's grammar (derived otherwise since)."""
         key = item.key()
-        self._grammar_derived = [d for d in self._grammar_derived if d.key() != key]
+        self._grammar_derived.pop(key, None)
         if self._grammar_view is not None:
             self._grammar_view.drop_derived(item)
 
@@ -7273,14 +7278,14 @@ class MemoryAgent(IMemoryConsolidation):
                                          recorded=self.recorded_name, written_for=self.words_for,
                                          used_for=self.used_for),
                                structure=self._structure_view)
-            for word in self._grammar_words:
+            for word in self._grammar_words.values():
                 view.hold_word(word)
             for record in self._grammar_records:
                 for use in record.verb_uses():
                     view.hold_use(*use)
-            for derived in self._grammar_derived:
+            for derived in self._grammar_derived.values():
                 view.hold_derived(derived)
-            for taught in self._grammar_taught:
+            for taught in self._grammar_taught.values():
                 _, counted, rules = self._grammar_learned.get(taught.key(), (None, None, None))
                 view.hold(taught, counted if rules == view.rules else None)
             for record in self._read_english:
@@ -7366,7 +7371,7 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is not None:
             self._grammar_view.hold(item)
         else:
-            self._grammar_taught.append(item)
+            self._grammar_taught[item.key()] = item
 
     def _drop_taught(self, view, item) -> None:
         """A sentence held with its taught meaning, taken back from the composer's view and English's grammar
@@ -7375,7 +7380,7 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is not None:
             self._grammar_view.drop(item)
         key = item.key()
-        self._grammar_taught = [t for t in self._grammar_taught if t.key() != key]
+        self._grammar_taught.pop(key, None)
 
     def argument_view(self):
         """The sentences held with their happenings' arguments, as the argument view. Synchronous; empty before the
@@ -7412,7 +7417,7 @@ class MemoryAgent(IMemoryConsolidation):
         The conversation answers "What does paint mean?" and "What is a wall?" by them (`_meanings_held`)."""
         folded = str(name).casefold().replace("_", " ")
         out: List[Dict[str, Any]] = []
-        for word in self._grammar_words:
+        for word in self._grammar_words.values():
             if word.word != folded and not any(s.concept == folded for s in word.senses):
                 continue
             for s in sorted(word.senses, key=lambda s: -s.used):
@@ -7432,7 +7437,7 @@ class MemoryAgent(IMemoryConsolidation):
         is made of it."""
         folded = str(name).casefold().replace("_", " ")
         out: List[Tuple[str, Optional[str]]] = []
-        for word in self._grammar_words:
+        for word in self._grammar_words.values():
             for s in word.senses:
                 if s.concept == folded:
                     out += [(kind, self._word_record_ids.get(word.key())) for _, kind in s.kind_of]
@@ -7446,7 +7451,7 @@ class MemoryAgent(IMemoryConsolidation):
         and Hirst 1991). Empty where no word recorded names it."""
         folded = str(name).casefold().replace("_", " ")
         out: List[str] = []
-        for word in self._grammar_words:
+        for word in self._grammar_words.values():
             classes = {s.word_class for s in word.senses if s.concept == folded}
             out += [s.concept for s in word.senses if s.word_class in classes]
         return list(dict.fromkeys(out))
@@ -7457,7 +7462,7 @@ class MemoryAgent(IMemoryConsolidation):
         `wall`. None where none is. What answers "Is a structure a wall?" (`Conversation._held_as_both`)."""
         a, b = (str(n).casefold().replace("_", " ") for n in (first, second))
         best = None
-        for word in self._grammar_words:
+        for word in self._grammar_words.values():
             for s in word.senses:
                 kinds = {s.concept} | {kind for _, kind in s.kind_of}
                 if a in kinds and b in kinds and (best is None or s.used > best.used):
@@ -7506,7 +7511,7 @@ class MemoryAgent(IMemoryConsolidation):
         # count of the thing (below).
         met: Counter = Counter()
         bases: Counter = Counter()
-        for word in self._grammar_words:
+        for word in self._grammar_words.values():
             for sense in word.senses:
                 if sense.word_class == word_class and sense.concept == folded:
                     bases[word.word] += sense.used + 1

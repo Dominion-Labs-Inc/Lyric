@@ -719,11 +719,12 @@ def test_memory_hands_the_sentences_it_holds_derived_to_the_grammar():
     from core.semantics.structure import StructureView
     agent = MemoryAgent()
     agent._structure_view = StructureView()
-    agent._grammar_derived = [_derived([("Tom", "n"), ("barked", "s:dcl\\np"), (".", ".")], ["NNP", "VBD", "."])]
+    _one = _derived([("Tom", "n"), ("barked", "s:dcl\\np"), (".", ".")], ["NNP", "VBD", "."])
+    agent._grammar_derived = {_one.key(): _one}
     taught = TaughtSentence("The dog barked.", Meaning("tell", (F("instance_of", "?v0", "bark"),
                                                                  F("done_by", "?v0", "?v1"),
                                                                  F("instance_of", "?v1", "dog", given=True))))
-    agent._grammar_taught = [taught]
+    agent._grammar_taught = {taught.key(): taught}
     agent._grammar_learned = {taught.key(): ("m1", [["verb", ["bark"], ""]], gm.RULES)}
     view = agent.grammar_view()
     assert view.grammar.lexicon.derived["uses"]["barked"] == {"VERB": 1}
