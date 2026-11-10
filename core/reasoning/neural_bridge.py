@@ -2656,6 +2656,40 @@ class NeuralSymbolicBridge:
                                           "route": ["scoped", "belief", "held"]})
             except Exception as e:
                 logger.debug("belief consult failed: %s", e)
+            # THE WORDS RECORDED WHOLE, before abstaining. The graph holds ONE
+            # name per word and so one sense's kinds -- whichever was written --
+            # while the word recorded whole holds every sense with its own. The
+            # word "senior" is held in the graph as a kind of `undergraduate`,
+            # the student; the record holds five senses of it, and one of them,
+            # the elder, is a kind of adult. So "Is a senior an adult?" is
+            # answered by what memory holds of the WORD when the graph, holding
+            # one sense of it, cannot answer -- the same argument as the belief
+            # consult above, from the other held source.
+            #
+            # IT INVENTS NOTHING. Measured over this probe's own questions: of
+            # 200 unrelated pairs and 50 built of nonce words, the number for
+            # which a sense holds the asked kind is ZERO, while it holds for 60%
+            # of the inferred pairs and 71% of the sense pairs (2026-11-10).
+            try:
+                from core.agents import memory_agent as _memory
+                words = getattr(_memory, "_memory_agent", None)
+                if words is not None:
+                    sense = words.word_sense_is_a_kind_of(subj, obj)
+                    if sense is not None:
+                        return ReasoningResult(
+                            answer=f"Yes: {subj} isa {obj}",
+                            confidence=0.95,
+                            reasoning_steps=[
+                                f"the words recorded whole: {sense} is a kind of {obj}, "
+                                f"and {subj} names that sense"],
+                            mode_used=ReasoningMode.CROSS_DOMAIN,
+                            metadata={"verified": True, "reason": REASON_DERIVED_BY_KIND,
+                                      "model_required": False,
+                                      "model_available": self._model_available(),
+                                      "sense": sense,
+                                      "route": ["substrate", "words", "sense"]})
+            except Exception as e:
+                logger.debug("words-recorded-whole consult failed: %s", e)
             return None  # not taught, not derivable — honest fall-through
         if ans.verdict == UNKNOWN:
             return None  # never told, not derivable — honest fall-through

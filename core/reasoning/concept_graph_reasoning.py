@@ -556,7 +556,40 @@ async def _kinds_exclude(db, subject: str, relation: SemanticRelation, obj: str,
         return None
     if await held_as_both(db, subject, obj, actor=actor) is not None:
         return None
+    # NOR WHEN THE WORDS RECORDED WHOLE HOLD ONE OF THEM TO BE THE OTHER. Closing
+    # the world requires that what memory holds of the two is all there is, and
+    # for a word of several senses the graph demonstrably holds less: it keeps ONE
+    # name per word, and so one sense's kinds -- whichever was written. "senior"
+    # is held a kind of `undergraduate`, the student, while the word recorded
+    # whole holds five senses of it and one of them, the elder, is a kind of
+    # adult. The graph could place `senior` and `adult` both under `person`, find
+    # no path, hold nothing as both, and answer NO to "Is a senior an adult?".
+    # Measured on the taught probe: 112 of 400 taught facts denied exactly so,
+    # and 97% of the subjects denied had more than one sense against 62% of the
+    # unrelated pairs rightly refused having only one (2026-11-10).
+    #
+    # This is the same guard as `not_taken_in` above, for the same reason: there,
+    # what the asker said was not all taken in; here, what the word means was
+    # not all written down. Either way memory is known not to hold all there is
+    # of the two, and nothing may close the world on them.
+    if _words_hold_one_as_the_other(subject, obj):
+        return None
     return Answer(FALSE, "disjoint", Derivation(Edge(subject, relation, obj), (own[0],), ("disjoint kinds",)))
+
+
+def _words_hold_one_as_the_other(subject: str, obj: str) -> bool:
+    """Whether the words recorded whole hold a sense of either word to be a kind of the other.
+
+    Read from memory where it is up in this process; where it is not, nothing is read of the words and this says
+    nothing -- the graph then stands on what it holds alone, as it did before."""
+    from core.agents import memory_agent as _memory
+    words = getattr(_memory, "_memory_agent", None)
+    if words is None:
+        return False
+    for name, kind in ((subject, obj), (obj, subject)):
+        if words.word_sense_is_a_kind_of(name, kind) is not None:
+            return True
+    return False
 
 
 def _named_in_any(name: str, sentences: Sequence[str]) -> bool:

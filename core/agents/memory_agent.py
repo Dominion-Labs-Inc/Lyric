@@ -7522,6 +7522,31 @@ class MemoryAgent(IMemoryConsolidation):
             out += [s.concept for s in word.senses if s.word_class in classes]
         return list(dict.fromkeys(out))
 
+    def word_sense_is_a_kind_of(self, name: str, kind: str) -> Optional[str]:
+        """THE SENSE A WORD MAY NAME THAT IS HELD TO BE A KIND OF `kind`, or None where none is. Of "senior" and
+        "adult": `elder`, because the word recorded whole holds five senses of "senior" and one of them, the elder,
+        is a kind of adult.
+
+        WHY THIS IS ASKED AT ALL. A word's senses are recorded whole, each with its own kinds, but the concept graph
+        holds ONE name per word and so one sense's kinds -- whichever was written. "senior" is held there as a kind
+        of `undergraduate`, the student, and nothing in the graph says an elder is an adult. So the graph could place
+        `senior` and `adult` under `person`, find no path between them, hold nothing as both, and close the world:
+        "Is a senior an adult?" came back NO, against what the words recorded whole plainly say (2026-11-10, 112 of
+        400 taught facts denied this way). This is what the graph must ask before it closes the world on a word.
+
+        ONE PASS over the words held, and only over the word that names the thing: `word_senses_alike` and
+        `word_kinds` compose to the same answer but scan every one of the 155,767 words held, once per sense, and
+        this is asked inside answering."""
+        folded = str(name).casefold().replace("_", " ")
+        wanted = str(kind).casefold().replace("_", " ")
+        for word in self._grammar_words.values():
+            if word.word != folded and not any(s.concept == folded for s in word.senses):
+                continue
+            for s in word.senses:
+                if any(str(k).casefold().replace("_", " ") == wanted for _, k in s.kind_of):
+                    return s.concept
+        return None
+
     def word_held_as_both(self, first: str, second: str) -> Optional[str]:
         """A THING THE WORDS RECORDED WHOLE HOLD TO BE BOTH: of every sense recorded, the most used that is, or is a
         kind of, each of the two things named: of `structure` and `wall`, `wall`; of `artifact` and `structure`,
