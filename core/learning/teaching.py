@@ -542,7 +542,12 @@ class TeachingPass:
             # (`MemoryAgent._remember_whole`), and says how many there will be where the source knows (`Built`).
             items = getattr(self.source, method)()
             if self.limit is not None:
-                items = list(itertools.islice(iter(items), self.limit))
+                # A SOURCE THAT BUILDS ITS ITEMS ONE AT A TIME IS NARROWED AS ONE (`Built.first`), never by taking
+                # items from it: `islice` over the iterable builds every item it takes and hands on a plain list, so
+                # a limited pass both materialised what it took and lost what the source could say about its items
+                # before building them -- and so stamped no record and skipped no word (2026-11-10).
+                items = (items.first(self.limit) if hasattr(items, "first")
+                         else list(itertools.islice(iter(items), self.limit)))
                 report.limit, report.sampled = self.limit, False
             setattr(report, field_name, await learn(
                 items, provenance=self.source.provenance(), quality=float(self.source.quality),

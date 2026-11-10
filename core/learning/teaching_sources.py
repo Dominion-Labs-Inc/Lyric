@@ -465,18 +465,57 @@ class Built:
 
     What is known cheaply is HOW MANY -- the names are listed before any record is built -- so progress still says
     where a pass is. `__iter__` makes the items afresh each time, so a second pass over it is a second build, never
-    a stale list held in memory."""
+    a stale list held in memory.
 
-    __slots__ = ("_make", "_how_many")
+    AND WHAT EACH ITEM WILL BE ABOUT, SAID WITHOUT BUILDING ONE (`named`, `build`). The names are in hand before the
+    first record is made, and memory holds, by name, every word it has a record of (`MemoryAgent._remember_whole`
+    reads each held item's `identity()` before the loop). So a source that says what it is about up front lets
+    memory answer "I hold that word, made under this same stamp" and never pay the build: 79,707 words were rebuilt
+    from WordNet, the treebanks, VerbNet and PropBank at 0.11s each -- 2.4 hours -- only to be found unchanged
+    (2026-11-10). A source that cannot name its items ahead says nothing here and is built one at a time, as before.
+    """
 
-    def __init__(self, make: Any, how_many: int) -> None:
+    __slots__ = ("_make", "_how_many", "_over", "_one")
+
+    def __init__(self, make: Any, how_many: int, *, over: Optional[Iterable[Any]] = None,
+                 one: Optional[Any] = None) -> None:
         self._make, self._how_many = make, int(how_many)
+        self._over = tuple(over) if over is not None else None
+        self._one = one
+        if (self._over is None) != (self._one is None):
+            raise ValueError("a source that names its items ahead must also say how to build one, and the other way")
 
     def __len__(self) -> int:
         return self._how_many
 
     def __iter__(self):
         return iter(self._make())
+
+    def named(self) -> Optional[Tuple[Any, ...]]:
+        """What each item will be about, in the order they are taught, each as the item's own `identity()` says it;
+        None where the source cannot say before building."""
+        return self._over
+
+    def build(self, identity: Any) -> Any:
+        """The one item that `identity` names, built now."""
+        if self._one is None:
+            raise RuntimeError("this source does not name its items ahead, so it cannot build one by name")
+        return self._one(identity)
+
+    def first(self, how_many: int) -> "Built":
+        """The first `how_many` of them, still built one at a time and still named ahead where this is (`--limit`).
+
+        A LIMIT NARROWS THE NAMES, NEVER THE ITEMS. Taking items from the iterable builds every one of them and
+        hands on a plain list, so a limited pass lost both of the things this class is for: it materialised what it
+        took, and what it handed on could no longer say what its items were about -- so no word was looked up before
+        it was built and no record was stamped, measured on a 500-word pass that stamped nothing (2026-11-10)."""
+        how_many = max(0, int(how_many))
+        if self._over is None:
+            import itertools
+            make = self._make
+            return Built(lambda: itertools.islice(iter(make()), how_many), min(how_many, self._how_many))
+        over, one = self._over[:how_many], self._one
+        return Built(lambda: (one(about_to) for about_to in over), len(over), over=over, one=one)
 
 
 def _a_name_english_writes(name: str) -> bool:
@@ -2313,7 +2352,12 @@ class WordNetWordsSource:
                 if word not in said and _a_name_english_writes(word):
                     said.add(word)
                     words.append(word)
-        return Built(lambda: (word_record_of(word) for word in words), len(words))
+        # AND WHAT EACH RECORD WILL BE OF, SAID BEFORE ONE IS MADE (`Built.named`), each as `WordRecord.identity`
+        # says it. Memory holds every word it has a record of by that same name, so a word it holds under the stamp
+        # records are made under now needs no record made to find that out.
+        return Built(lambda: (word_record_of(word) for word in words), len(words),
+                     over=tuple(("word", word) for word in words),
+                     one=lambda identity: word_record_of(identity[1]))
 
 
 # ── Treebanks ───────────────────────────────────────────────────────────────
@@ -4899,6 +4943,79 @@ def _rolesets(frame_file) -> "Iterator[Any]":
         return list(ET.parse(frame_file).iter("roleset"))
     except ET.ParseError:
         return []
+
+
+def _nltk_corpora() -> Tuple[str, ...]:
+    """Where nltk keeps the corpora a record is made from (WordNet, VerbNet, CMUdict, SemCor). Taken as the whole
+    corpora directory, not each corpus by name: WordNet and SemCor are read out of a `.zip` that `nltk.data.find`
+    does not answer for by their own name, and a directory walk sees the zip, the unpacked form, and anything a
+    re-fetch puts beside them."""
+    import nltk
+    return tuple(place for place in (os.path.join(p, "corpora") for p in nltk.data.path) if os.path.isdir(place))
+
+
+#: WHERE EACH SOURCE A WORD'S RECORD IS MADE FROM IS KEPT. Every source named in `_RECORD_COLUMNS` says its roots
+#: here, and one that says none stops this module importing (below): a source the stamp cannot see is a source whose
+#: change would never make a record be built again, and a correction would be skipped in silence. A root that is not
+#: there is passed over -- a source not fetched states nothing of a word, so it can change nothing -- and a fetch
+#: puts its files where the walk sees them.
+_RECORD_SOURCE_ROOTS: Dict[str, Any] = {
+    "UD": lambda: (os.path.join(SYNTAX_DATA, "UD_English-EWT"), os.path.join(SYNTAX_DATA, "UD_English-GUM")),
+    "PropBank": lambda: (os.path.join(SYNTAX_DATA, "propbank-release"),
+                         os.path.join(SYNTAX_DATA, "propbank-frames")),
+    "STREUSLE": lambda: (STREUSLE_DATA,),
+    "PMB": lambda: (PMB_DATA,),
+    "WordNet": _nltk_corpora,
+    "VerbNet": _nltk_corpora,
+    "CMUdict": _nltk_corpora,
+    "SemCor": _nltk_corpora,
+}
+
+_unstamped = sorted({source for source, _ in _RECORD_COLUMNS} - set(_RECORD_SOURCE_ROOTS))
+if _unstamped:
+    raise RuntimeError(
+        f"a word's record is made from {', '.join(_unstamped)}, and `_RECORD_SOURCE_ROOTS` does not say where "
+        f"{'it is' if len(_unstamped) == 1 else 'they are'} kept. Say so: a source the stamp cannot see is one whose "
+        f"change would never make a record be built again, so a word corrected at the source would stay wrong and "
+        f"nothing would report it.")
+del _unstamped
+
+
+def records_written(_cache: Dict[str, str] = {}) -> str:
+    """WHAT A WORD'S RECORD IS MADE UNDER: this module, which is every line that makes one, and every file of every
+    source it is made from, each by its size and when it was last written (`_RECORD_SOURCE_ROOTS`).
+
+    A record is held under the stamp it was made under (`MemoryAgent._remember_whole`), and a word held under THIS
+    stamp is not made again: nothing it is made from has changed, so it would come out the same. A word held under
+    another stamp, or under none, IS made again and compared, which is how a word corrected at the source is
+    corrected here -- 79,656 records were corrected after one change to how plurals are written (`694237cd`), and
+    every one of those corrections was right.
+
+    So the stamp is what decides whether a correction can be found, and it is built to miss nothing it could see:
+    the module's own bytes catch every change to how a record is made, and the file walk catches every re-fetch of
+    every corpus. It is the same way the grammar keeps what a sentence taught it under the rules it was taught
+    under (`grammar.RULES`), over more sources.
+
+    The walk is 17 seconds over 677,000 files, paid once a pass and never once a word."""
+    if "stamp" not in _cache:
+        import hashlib
+        import pathlib
+        digest = hashlib.sha256()
+        digest.update(pathlib.Path(__file__).read_bytes())
+        for source in sorted(_RECORD_SOURCE_ROOTS):
+            digest.update(f"<{source}>".encode("utf-8"))
+            for root in _RECORD_SOURCE_ROOTS[source]():
+                for base, within, files in os.walk(root):
+                    within.sort()
+                    for name in sorted(files):
+                        path = os.path.join(base, name)
+                        try:
+                            said = os.stat(path)
+                        except OSError:
+                            continue
+                        digest.update(f"{path}|{said.st_size}|{said.st_mtime_ns}".encode("utf-8"))
+        _cache["stamp"] = digest.hexdigest()[:16]
+    return _cache["stamp"]
 
 
 def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: str = "train",

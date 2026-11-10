@@ -7152,11 +7152,27 @@ class MemoryAgent(IMemoryConsolidation):
                     continue
                 yield record
 
+        def made(about_to):
+            """The record of the one word `about_to` names, judged as it arrives, as `whole` judges each."""
+            record = records.build(about_to)
+            problems = record.problems()
+            if problems:
+                refused.append((record.word, problems))
+                return None
+            return record
+
+        # EVERY WORD NAMED BEFORE ONE IS RECORDED, where the source can say so (`teaching_sources.Built.named`): a
+        # word memory holds, recorded under the stamp records are made under now, is not recorded again. The stamp
+        # walks every file of every source a record is made from, which is 17s once, against 0.11s a word.
+        from core.learning.teaching_sources import records_written
+        names = records.named() if hasattr(records, "named") else None
         held = await self._remember_whole(
             whole(), view=lambda: None, tag=self.WORD_RECORD_TAG, field="word_record", progress=progress,
             total=len(records) if hasattr(records, "__len__") else 0,
             content=lambda item: item.said(), add=lambda _, item: self._hold_word_record(item),
-            drop=lambda _, item: self._drop_word_record(item))
+            drop=lambda _, item: self._drop_word_record(item),
+            over=names, one=made if names is not None else None,
+            stamp=await asyncio.to_thread(records_written) if names is not None else "")
         held["refused"] = refused
         for item, memory_id, *_ in held["kept"] + held["held_already"] + held["corrected_items"]:
             self._word_record_ids[item.key()] = memory_id
@@ -7667,54 +7683,106 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def _remember_whole(self, items, *, view, tag: str, field: str, content, add, drop=None,
                               progress: Optional[Callable[[int, int], None]],
-                              total: int = 0) -> Dict[str, Any]:
+                              total: int = 0, over=None, one=None, stamp: str = "") -> Dict[str, Any]:
         """Keep each item whole, one memory each, as `remember_analysed` keeps sentences analysed, and fold it into
         the view (`view()`, asked after memory is warm: a warm builds the view anew). AN ITEM TAUGHT AGAIN, CORRECTED,
         corrects the memory holding what it said before: an item that says what it is about (`identity()`: a
         taught sentence's source and sentence) and a memory held before this pass about the same, holding it
         otherwise, is `_correct_whole`d, never kept beside it (the PMB's denied happenings said as the lessons say
-        them, 2026-10-20 (28)); the view drops the earlier one (`drop`)."""
+        them, 2026-10-20 (28)); the view drops the earlier one (`drop`).
+
+        AND AN ITEM MEMORY HOLDS, MADE UNDER THE SAME STAMP, IS NOT MADE AGAIN (`over`, `one`, `stamp`). What memory
+        holds is read by name here (`about`) before the first item is made, so it has always known WHICH words it
+        holds -- but the question was put as `item.key()` and `item.identity()`, both of them of the made item, so a
+        word was made from WordNet, the treebanks, VerbNet and PropBank (0.11s) only to be looked up in a dictionary
+        already in hand: 79,707 words, 2.4 hours of a pass, every one found unchanged (2026-11-10).
+
+        What memory did NOT hold is whether what it holds is still what the sources would say, and that is the whole
+        reason the item was made: making it IS the check. So each memory now says what it was made under
+        (`built_under`, `teaching_sources.records_written`), and only a `stamp` equal to it means "unchanged, do not
+        make it again". A stamp that differs, or a memory with none, is made and compared as before -- every one of
+        the 79,656 corrections after one change to how plurals are written was right (`694237cd`), and none may be
+        skipped in silence. Where a source cannot say what its items are about before making them (`over` None),
+        nothing changes.
+
+        `over` what each item will be about, in order, each as that item's own `identity()` says it
+        (`teaching_sources.Built.named`); `one` makes the one item an identity names, and may return None for an
+        item its maker refuses (counted by the caller, as a refusal always was)."""
         from core.memory.utils.interfaces import Origin
         if not self._word_classes_warm:
             await self.warm_word_classes()
         view = view()
         held: Dict[str, str] = {}
         about: Dict[Any, Tuple[str, Dict[str, Any], Any]] = {}
+        #: Each held item by what it holds, so an item made again and found unchanged can be stamped (`_stamp_whole`).
+        under: Dict[str, Tuple[str, Dict[str, Any], str]] = {}
+        #: What memory holds, made under this same stamp: nothing to make.
+        unchanged: Dict[Any, str] = {}
         for row in await self._rows_tagged(tag):
             data = (row.metadata or {}).get(field)
             if data:
                 was = self._whole_item(field, data)
+                metadata = dict(row.metadata or {})
+                made_under = str(metadata.get("built_under") or "")
                 held[was.key()] = row.memory_id
+                under[was.key()] = (row.memory_id, metadata, made_under)
                 identity = getattr(was, "identity", lambda: None)()
                 if identity is not None:
-                    about[identity] = (row.memory_id, dict(row.metadata or {}), was)
+                    about[identity] = (row.memory_id, metadata, was)
+                    if stamp and made_under == stamp:
+                        unchanged[identity] = row.memory_id
         kept: List[Tuple[Any, str]] = []
         already: List[Tuple[Any, str]] = []
         corrected: List[Tuple[Any, str, Any]] = []
-        counts = {"remembered": 0, "already": 0, "corrected": 0, "total": 0}
+        not_made: List[str] = []
+        counts = {"remembered": 0, "already": 0, "corrected": 0, "total": 0, "not_made": 0}
         # ONE ITEM AT A TIME, BUILT OFF THE LOOP. `items` is the source's own iterable, and building an item is CPU
         # work (a word record reads WordNet, the treebanks and VerbNet), so each is pulled in a thread rather than
         # held against the loop the substrate reacts on. Held in a list first, 144,612 word records cost 2.4 hours
         # and 19.5 GB before one word was taught, and left nothing durable if the pass died (2026-11-10).
-        coming, done = iter(items), 0
+        naming = iter(over) if over is not None else None
+        coming = iter(items) if naming is None else None
+        done = 0
         while True:
-            item = await asyncio.to_thread(next, coming, _NOTHING_MORE)
-            if item is _NOTHING_MORE:
-                break
-            done += 1
-            counts["total"] = done
-            if progress is not None and done % 1000 == 0:
-                progress(done, total)          # 0 where the source does not say how many there will be
+            if naming is not None:
+                about_to = next(naming, _NOTHING_MORE)
+                if about_to is _NOTHING_MORE:
+                    break
+                done += 1
+                if progress is not None and done % 1000 == 0:
+                    progress(done, total)
+                # HELD, AND MADE UNDER THIS SAME STAMP. Not made: nothing it is made from has changed, so it would
+                # come out as it is held. This is the 0.11s a word, and the only place it is not paid.
+                memory_id = unchanged.get(about_to)
+                if memory_id is not None:
+                    not_made.append(memory_id)
+                    counts["already"] += 1
+                    counts["not_made"] += 1
+                    continue
+                item = await asyncio.to_thread(one, about_to)
+                if item is None:               # refused where it was made; the caller counts it
+                    continue
+            else:
+                item = await asyncio.to_thread(next, coming, _NOTHING_MORE)
+                if item is _NOTHING_MORE:
+                    break
+                done += 1
+                if progress is not None and done % 1000 == 0:
+                    progress(done, total)      # 0 where the source does not say how many there will be
             if item.key() in held:
                 already.append((item, held[item.key()]))
                 counts["already"] += 1
+                # MADE AGAIN AND FOUND UNCHANGED: the memory holding it says what it was made under from now on, so
+                # the next pass does not make it to find that out again.
+                if stamp:
+                    await self._stamp_whole(under, item.key(), stamp=stamp)
                 continue
             identity = getattr(item, "identity", lambda: None)()
             earlier = about.pop(identity, None) if identity is not None else None
             if earlier is not None:
                 memory_id, metadata, was = earlier
                 await self._correct_whole(memory_id, metadata, field=field, item=item, was=was,
-                                          content=content(item))
+                                          content=content(item), stamp=stamp)
                 if drop is not None:
                     drop(view, was)
                 add(view, item)
@@ -7724,23 +7792,47 @@ class MemoryAgent(IMemoryConsolidation):
                 continue
             stored, memory_id = await self.store_memory(
                 content=content(item), memory_type=MemoryType.SEMANTIC, confidence_score=0.9,
-                tags=["language", tag], source_context={field: item.to_dict()}, origin=Origin.own("teaching"))
+                tags=["language", tag], origin=Origin.own("teaching"),
+                source_context=({field: item.to_dict(), "built_under": stamp} if stamp
+                                else {field: item.to_dict()}))
             if not stored or not memory_id:
                 raise RuntimeError(f"{content(item)[:80]!r} was not kept: the memory was declined")
             add(view, item)
             held[item.key()] = memory_id
             kept.append((item, memory_id))
             counts["remembered"] += 1
-        return {"kept": kept, "held_already": already, "corrected_items": corrected, **counts}
+        # WHAT WAS TAUGHT, not where the source got to: an item its maker refused is counted by the caller, as it
+        # always was, and was never counted here.
+        counts["total"] = counts["remembered"] + counts["already"] + counts["corrected"]
+        return {"kept": kept, "held_already": already, "corrected_items": corrected,
+                "held_unchanged": not_made, **counts}
+
+    async def _stamp_whole(self, under: Dict[str, Tuple[str, Dict[str, Any], str]], key: str, *,
+                           stamp: str) -> None:
+        """The memory holding an item that was made again and found unchanged says what it was made under, so the
+        next pass does not make it again to find out (`_remember_whole`, `teaching_sources.records_written`). An
+        item held under an older stamp is stamped afresh: it has just been shown to say what the sources say now."""
+        was = under.get(key)
+        if was is None:
+            return
+        memory_id, metadata, made_under = was
+        if made_under == stamp:
+            return
+        metadata = {**metadata, "built_under": stamp}
+        if not await self.update_memory(memory_id, {"metadata": metadata}):
+            raise RuntimeError(f"memory {memory_id} was not stamped {stamp}: the memory was not updated")
+        under[key] = (memory_id, metadata, stamp)
 
     async def _correct_whole(self, memory_id: str, metadata: Dict[str, Any], *, field: str, item, was,
-                             content: str) -> None:
+                             content: str, stamp: str = "") -> None:
         """The memory holding `was` says `item` instead, keeping what it said before (`metadata.superseded`, as
         `supersede` keeps a memory's earlier words): a memory that quietly became correct could not be told from one
-        always correct."""
+        always correct. It says what the correction was made under (`stamp`), as a memory kept afresh does."""
         history = list(metadata.get("superseded") or [])
         history.append({"was": was.to_dict(), "because": "taught again, corrected", "at": datetime.now().isoformat()})
         metadata = {**metadata, field: item.to_dict(), "superseded": history[-5:]}
+        if stamp:
+            metadata["built_under"] = stamp
         updates: Dict[str, Any] = {"content": content, "metadata": metadata}
         if self.embedding_service:
             embedding = self.embedding_service.generate_embedding(content)

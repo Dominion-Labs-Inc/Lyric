@@ -658,3 +658,142 @@ def test_what_a_verb_took_as_an_object_reaches_the_words_layer_from_a_word_recor
     # AND IT IS GIVEN BACK, as every other counted table is, so a word dropped leaves none of it behind.
     view.drop_word(misled)
     assert not view.words.objects("misled") and not view.words.objects()
+
+
+def test_a_word_memory_holds_under_the_same_stamp_is_not_recorded_again():
+    """`MemoryAgent.remember_word_records` with a source that names its words before recording one
+    (`teaching_sources.Built.named`): a word memory holds, recorded under the stamp records are made under now, is
+    NOT recorded again -- the record is never built, and the pass says so (`not_made`).
+
+    Memory has always known WHICH words it holds: it reads every held record by name (`about`) before the first
+    word is recorded. What it did not hold is whether what it holds is still what the sources say, so it recorded
+    every word from WordNet, the treebanks, VerbNet and PropBank (0.11s each) to look it up in a dictionary already
+    in hand: 79,707 words and 2.4 hours of a pass, every one found unchanged (2026-11-10).
+
+    AND A CORRECTION IS NEVER SKIPPED. A word held under another stamp, or under none, IS recorded again and
+    compared: every one of the 79,656 corrections after one change to how plurals are written was right
+    (`694237cd`), so only an equal stamp may stand for "unchanged"."""
+    import asyncio
+    from types import SimpleNamespace
+    from core.agents.memory_agent import MemoryAgent
+    from core.learning.teaching_sources import Built
+
+    word = _word()
+    built: list = []
+
+    def source(stamp_of):
+        """The word records source, standing in for WordNet: it names `paint` before recording it, and counts every
+        recording so a word not recorded can be told from one recorded and found unchanged."""
+        def one(about_to):
+            built.append(about_to)
+            return word
+        return Built(lambda: iter((word,)), 1, over=(("word", word.word),), one=one)
+
+    agent = MemoryAgent()
+    agent._word_classes_warm = True
+    stored: list = []
+    rows: dict = {}
+
+    async def store_memory(**kwargs):
+        stored.append(kwargs)
+        memory_id = f"m{len(stored)}"
+        rows[memory_id] = dict(kwargs["source_context"])
+        return True, memory_id
+
+    async def rows_tagged(tag):
+        return [SimpleNamespace(memory_id=k, metadata=v) for k, v in rows.items()]
+
+    async def update_memory(memory_id, updates):
+        rows[memory_id] = dict(updates["metadata"])
+        return True
+
+    agent.store_memory, agent._rows_tagged, agent.update_memory = store_memory, rows_tagged, update_memory
+    agent._hold_word_record = lambda item: None
+    agent._drop_word_record = lambda item: None
+
+    # THE STAMP IS WHAT A RECORD IS MADE UNDER, and the real one walks every file of every source. Stood in for here:
+    # what matters is that an equal stamp means "do not record again" and any other means "record it and compare".
+    import core.learning.teaching_sources as ts
+    at = {"stamp": "stamp-one"}
+    ts_written = ts.records_written
+    ts.records_written = lambda: at["stamp"]
+    try:
+        first = asyncio.run(agent.remember_word_records(source(at)))
+        assert (first["remembered"], first["already"]) == (1, 0), first
+        assert built == [("word", "paint")], "the first pass records the word it does not hold"
+        assert rows["m1"]["built_under"] == "stamp-one", "and the memory says what it was recorded under"
+
+        # HELD UNDER THE SAME STAMP: not recorded at all.
+        built.clear()
+        again = asyncio.run(agent.remember_word_records(source(at)))
+        assert (again["remembered"], again["already"], again["not_made"]) == (0, 1, 1), again
+        assert built == [], "a word held under the same stamp was recorded again"
+        assert len(stored) == 1 and again["held_unchanged"] == ["m1"]
+
+        # A STAMP THAT DIFFERS: recorded again and compared, which is how a correction is found.
+        at["stamp"] = "stamp-two"
+        built.clear()
+        moved = asyncio.run(agent.remember_word_records(source(at)))
+        assert (moved["remembered"], moved["already"], moved["not_made"]) == (0, 1, 0), moved
+        assert built == [("word", "paint")], "a word held under another stamp must be recorded again"
+        assert rows["m1"]["built_under"] == "stamp-two", "recorded again and unchanged: stamped afresh"
+
+        # AND HELD UNDER NO STAMP AT ALL, as every word held before this was: recorded again, then stamped, so the
+        # pass after it does not record it.
+        rows["m1"].pop("built_under")
+        built.clear()
+        unstamped = asyncio.run(agent.remember_word_records(source(at)))
+        assert (unstamped["already"], unstamped["not_made"]) == (1, 0), unstamped
+        assert built == [("word", "paint")], "a word held under no stamp must be recorded again"
+        assert rows["m1"]["built_under"] == "stamp-two"
+        built.clear()
+        assert asyncio.run(agent.remember_word_records(source(at)))["not_made"] == 1 and built == []
+    finally:
+        ts.records_written = ts_written
+
+
+def test_a_limited_pass_narrows_the_names_and_still_builds_one_at_a_time():
+    """`--limit` over a source that builds its items one at a time (`teaching_sources.Built`): the first N NAMES are
+    taken, and what is handed on is still a `Built` that builds one at a time and still says what each item will be
+    about.
+
+    Narrowing by taking items off the iterable built every item it took and handed on a plain list, so a limited
+    pass lost both things `Built` exists for: it materialised what it took, and the pass could no longer ask memory
+    about a word before building its record. Measured: a 500-word pass stamped nothing and skipped nothing, while
+    reading as though it had exercised the path (2026-11-10)."""
+    from core.learning.teaching_sources import Built
+
+    built: list = []
+
+    def one(about_to):
+        built.append(about_to)
+        return f"record of {about_to[1]}"
+
+    names = (("word", "paint"), ("word", "cat"), ("word", "dog"), ("word", "whale"))
+    source = Built(lambda: (one(about_to) for about_to in names), len(names), over=names, one=one)
+
+    narrowed = source.first(2)
+    assert isinstance(narrowed, Built), "a limited pass must hand on a source, not a list of built items"
+    assert len(narrowed) == 2 and narrowed.named() == names[:2]
+    assert built == [], "narrowing must not build a single item"
+
+    # AND IT STILL BUILDS ONE AT A TIME, in the order named.
+    assert list(narrowed) == ["record of paint", "record of cat"]
+    assert built == [("word", "paint"), ("word", "cat")]
+    # AND ONE BY NAME, which is what lets a word held already never be built.
+    built.clear()
+    assert narrowed.build(("word", "dog")) == "record of dog" and built == [("word", "dog")]
+
+    # A SOURCE THAT CANNOT NAME ITS ITEMS AHEAD is narrowed too, and still builds one at a time.
+    made: list = []
+
+    def make():
+        for n in range(5):
+            made.append(n)
+            yield n
+    plain = Built(make, 5).first(3)
+    assert isinstance(plain, Built) and len(plain) == 3 and plain.named() is None
+    assert made == [], "narrowing an unnamed source must not build an item either"
+    assert list(plain) == [0, 1, 2] and made == [0, 1, 2]
+    # ASKED HOW MANY, IT NEVER SAYS MORE THAN IT HAS.
+    assert len(Built(make, 2).first(9)) == 2

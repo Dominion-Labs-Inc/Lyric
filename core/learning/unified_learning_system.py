@@ -4391,6 +4391,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         counts = {"remembered": held["remembered"], "already": held["already"],
                   "corrected": held.get("corrected", 0), "refused": len(held.get("refused") or ()),
                   "total": held["total"] + len(held.get("refused") or ())}
+        # AND HOW MANY WERE NOT MADE AT ALL, memory holding them under the same stamp (`MemoryAgent._remember_whole`):
+        # a pass that says only `already` cannot be told from one that rebuilt every word to find that out.
+        if held.get("not_made"):
+            counts["not made"] = held["not_made"]
         if held.get("reviewed"):
             counts["reviewed"] = held["reviewed"]
         return counts
