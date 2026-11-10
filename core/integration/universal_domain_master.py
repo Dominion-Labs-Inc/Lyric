@@ -601,6 +601,14 @@ def _score_correspondence(src: _ConceptSide, tgt: _ConceptSide, threshold: float
             # Only a bound is needed from float32 blocks; pairs are rescored.
             semantic = np.multiply(desc_sim, CONCEPT_DESCRIPTION_WEIGHT, out=desc_sim)
         semantic += CONCEPT_NAME_WEIGHT * name_sim
+        # A BOUND, NOT THE DEFINITION. `concept_similarity_scores` gives an
+        # identical name the whole semantic term, and identity reaches these
+        # blocks as a name similarity of exactly 1.0 (written in above). So the
+        # weighted sum alone is NOT an upper bound on the exact score, and
+        # screening on it would drop the very pairs that name identity is there
+        # to catch. Taking the larger of the two keeps the bound above the score
+        # it screens for, which is what makes skipping a pair safe; it costs
+        # only a rescore of a pair that then does not pass.
         np.maximum(semantic, name_sim, out=semantic)
 
         bar = threshold

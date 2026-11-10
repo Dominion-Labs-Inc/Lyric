@@ -6,9 +6,12 @@ exact. Each test compares it against the definition written out pair by pair:
 
     per text: absent on either side -> 0, identical key -> 1,
               otherwise cosine clamped to [0, 1]
-    semantic = max(name, 0.3 name + 0.7 description)
-    score    = round(min(0.6 semantic + min(1, semantic / 0.35) * structure, 1), 4)
-    structure = 0.2 key-Jaccard + 0.1 type match + 0.1 (1 - |level difference|)
+    semantic  = 1 where the names are identical, else 0.3 name + 0.7 description
+    score     = round(min(0.6 semantic + min(1, semantic / 0.35) * structure, 1), 4)
+    structure = 0.2 relation-Jaccard + 0.1 type match + 0.1 (1 - |level difference|)
+
+A concept's relations for that Jaccard are the verbs in properties["relationships"],
+less the reading aids (`defined with`), which `concept_group` explains.
 
 No model is loaded: vectors are synthetic unit vectors.
 """
@@ -27,7 +30,15 @@ from core.integration import universal_domain_master as udm  # noqa: E402
 
 DIM = 8
 TYPES = [ConceptType.ENTITY, ConceptType.PROCESS]
-KEYSETS = [{}, {"relationships": [["isa", "x"]]}, {"source": 1, "relationships": 2}]
+#: Property dicts shaped as the registry writes them, so the relation sets the
+#: structural term reads actually differ: none, one relation, two, a different
+#: one, and a dict holding no relations at all. The `defined with` entries must
+#: make no difference to the group -- that is the point of leaving them out.
+KEYSETS = [{},
+           {"relationships": [["isa", "x"]]},
+           {"relationships": [["isa", "x"], ["part of", "y"], ["defined with", "z"]]},
+           {"relationships": [["similar to", "w"], ["defined with", "z"]]},
+           {"source": 1}]
 WORDS = ["pump", "heart", "valve", "  ", "", "Pump ", "pipe", "vessel"]
 
 
@@ -44,7 +55,7 @@ def _concepts(rng, prefix, n):
         c = DomainConcept(
             concept_id=f"{prefix}:{k}", name=name, domain_id=prefix,
             concept_type=TYPES[rng.integers(2)], description=desc,
-            properties=dict(KEYSETS[rng.integers(3)]),
+            properties=dict(KEYSETS[rng.integers(len(KEYSETS))]),
             abstraction_level=float(rng.choice([0.5, 0.2, 0.9])))
         concepts.append(c)
         vectors[c.concept_id] = (_unit(rng) if name.strip() else None,
@@ -62,8 +73,16 @@ def _reference(a, b, va, vb):
 
     name = text_sim(a.name, b.name, va[0], vb[0])
     desc = text_sim(a.description, b.description, va[1], vb[1])
-    semantic = max(name, 0.3 * name + 0.7 * desc)
-    ka, kb = set(a.properties), set(b.properties)
+    identical = bool(a.name.strip()) and bool(b.name.strip()) and \
+        a.name.strip().lower() == b.name.strip().lower()
+    semantic = 1.0 if identical else 0.3 * name + 0.7 * desc
+
+    def relations(c):
+        held = (c.properties or {}).get("relationships")
+        return {str(e[0]) for e in (held if isinstance(held, (list, tuple)) else ())
+                if isinstance(e, (list, tuple)) and e and str(e[0]) != "defined with"}
+
+    ka, kb = relations(a), relations(b)
     jaccard = len(ka & kb) / len(ka | kb) if ka and kb else 0.0
     structure = (0.2 * jaccard + 0.1 * (a.concept_type == b.concept_type)
                  + 0.1 * (1 - min(1.0, abs(a.abstraction_level - b.abstraction_level))))

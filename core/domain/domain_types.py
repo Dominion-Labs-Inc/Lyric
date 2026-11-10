@@ -9,7 +9,7 @@ import re
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Dict, List, Set, Optional, Any, Tuple, Union
+from typing import Dict, FrozenSet, List, Set, Optional, Any, Tuple, Union
 from datetime import datetime
 import json
 
@@ -362,8 +362,10 @@ def concept_structure_table(
 ) -> np.ndarray:
     """Structural term for every pair of structure groups.
 
-    A group is (property keys, concept type, abstraction level); the term is
-    0.20 * property-key Jaccard + 0.10 * type match + 0.10 * abstraction proximity.
+    A group is (structural relations, concept type, abstraction level); the term
+    is 0.20 * relation-set Jaccard + 0.10 * type match + 0.10 * abstraction
+    proximity. `concept_group` says what each part reads and which of them still
+    answer the same for every pair.
     """
     table = np.zeros((len(groups_a), len(groups_b)), dtype=np.float64)
     for i, (keys_a, type_a, level_a) in enumerate(groups_a):
@@ -376,9 +378,50 @@ def concept_structure_table(
     return table
 
 
+#: Relations that say how a word is READ, not what a thing IS. `defined with`
+#: is 439,123 of the store's 585,393 edges: it records which words a sense's
+#: definition used, which is a reading aid. Counted as structure it drowns
+#: everything else -- 57% of concepts carry {defined with, isa} and nothing
+#: more, so an overlap over the raw set reports that most of the store has the
+#: same shape. Left out, the remaining relations tell a kind from a part from a
+#: member from an opposite.
+READING_AID_RELATIONS: FrozenSet[str] = frozenset({"defined with", "defined_with"})
+
+
 def concept_group(concept: "DomainConcept") -> Tuple[frozenset, str, float]:
+    """The structural shape of a concept: which relations it stands in, what
+    kind of thing it is, how abstract it is.
+
+    THE RELATIONS, NOT THE PROPERTY DICT'S KEYS. This read
+    `frozenset(concept.properties.keys())`, and the registry writes exactly one
+    key into that dict (`{"relationships": verbs}`, or nothing where a concept
+    has no edges). So the first and largest part of the structural term -- 0.20
+    of a 0.40 budget -- was a one-bit field, and the term as a whole took two
+    values in the entire store: 0.40 or 0.20. Measured on the 30 recorded
+    correspondences it was 0.40 for every one of them. A constant cannot rank
+    anything, so the 0.60-weighted semantic term was deciding alone.
+
+    The relations were in that dict the whole time. `domain_registry` keeps the
+    verb beside the target (`verbs.append([r[0], r[1]])`) and this function
+    asked the dict for its keys, which threw them away. Read instead, they give
+    121 distinct shapes across the 115,191 concepts that have edges, against the
+    2 values the store had before.
+
+    STILL CONSTANT, AND NOT FIXED HERE: the other two terms. Every concept the
+    registry hydrates out of `unified.concepts` is typed ENTITY, because that
+    table records no type (114,927 of 115,902 rows), and none is given an
+    abstraction level, so all of them keep the 0.5 default. Both terms therefore
+    answer "the same" for every pair, 0.10 each. They are left alone rather than
+    guessed at: inventing a level would put a made-up number into the one place
+    that decides whether two subjects correspond.
+    """
     ctype = concept.concept_type
-    return (frozenset((concept.properties or {}).keys()),
+    held = (concept.properties or {}).get("relationships")
+    structural = frozenset(
+        str(edge[0]) for edge in (held if isinstance(held, (list, tuple)) else ())
+        if isinstance(edge, (list, tuple)) and edge
+        and str(edge[0]) not in READING_AID_RELATIONS)
+    return (structural,
             ctype.value if isinstance(ctype, Enum) else str(ctype),
             float(concept.abstraction_level))
 
@@ -400,8 +443,31 @@ def concept_similarity_scores(
     desc_sim = np.clip(description_cosine, 0.0, 1.0)
     desc_sim = np.where(description_identical, 1.0, desc_sim)
     desc_sim = np.where(description_absent, 0.0, desc_sim)
-    semantic = np.maximum(name_sim, CONCEPT_NAME_WEIGHT * name_sim
-                          + CONCEPT_DESCRIPTION_WEIGHT * desc_sim)
+    # THE SAME NAME IS DECISIVE; A NAME THAT MERELY LOOKS ALIKE IS NOT. This was
+    #     max(name_sim, 0.30 * name_sim + 0.70 * desc_sim)
+    # and that max fires whenever name_sim > desc_sim -- not only on the same
+    # name, but on any pair whose names resemble each other more than their
+    # meanings do. The description then contributes nothing, which contradicts
+    # the rule stated above: a cross-domain analogy has different names by
+    # definition. Measured on the 30 correspondences the store had recorded, the
+    # name won that max for 25 of them, and bought `python` -> `scrappy`
+    # (0.754), `notification` -> `bellied` (0.688), `generate_embedding` ->
+    # `self_generated` (0.675) and `go` -> `going`; the five the description
+    # carried were the sensible ones.
+    #
+    # Two domains naming a concept THE SAME WORD is different, and still counts
+    # for everything: that is one word used in two fields, which is the
+    # correspondence worth finding. So an identical name keeps the whole term,
+    # and every other pair is decided by the declared weights.
+    # Read off `name_sim`, not off `name_identical`: identity reaches this
+    # function two ways. The exact rescore passes the flag, while the counting
+    # path writes a similarity of exactly 1.0 into its blocks for matching text
+    # keys and passes all four flags as False. `name_sim` is clipped to [0, 1]
+    # and is 1.0 in both of those cases and in neither when a name is absent, so
+    # it is the one test that holds on both paths.
+    semantic = np.where(name_sim >= 1.0, 1.0,
+                        CONCEPT_NAME_WEIGHT * name_sim
+                        + CONCEPT_DESCRIPTION_WEIGHT * desc_sim)
     corroboration = np.minimum(1.0, semantic / CONCEPT_CORROBORATION_SATURATION)
     score = CONCEPT_SEMANTIC_WEIGHT * semantic + corroboration * structure
     return np.round(np.minimum(score, 1.0), 4)
