@@ -1994,6 +1994,67 @@ class UniversalDomainMaster:
     SUGGESTION_THRESHOLD: float = 0.6
     SUGGESTION_LIMIT: int = 10
 
+    #: A relation that REFUSES a correspondence rather than supporting one, and
+    #: the relation a refusal may be reached through in one step. The store
+    #: holds 3,553 `antonym of` edges and 21,220 `similar to`, and those were
+    #: enough to refute the one correspondence this system ever accepted:
+    #: `reading:layered` -> `english:unstratified`, scored 0.810 and built a
+    #: knowledge transfer on, is two hops from its own refutation --
+    #: `layered --similar to--> stratified --antonym of--> unstratified`. Both
+    #: hops were recorded by Lyric itself, in the concept rows the scorer was
+    #: already reading. Nothing asked.
+    CONTRADICTING_RELATION: str = "antonym of"
+    SAME_MEANING_RELATION: str = "similar to"
+
+    @staticmethod
+    def _reaches(concept, relation: str) -> frozenset:
+        """The names a concept reaches by `relation`, off its hydrated relations.
+
+        `domain_registry` keeps each edge as [verb, target] in
+        properties["relationships"], where the target is a NAME, so these are
+        names and are compared against names.
+        """
+        held = (getattr(concept, "properties", None) or {}).get("relationships")
+        return frozenset(
+            str(edge[1]) for edge in (held if isinstance(held, (list, tuple)) else ())
+            if isinstance(edge, (list, tuple)) and len(edge) >= 2 and str(edge[0]) == relation)
+
+    def _why_ineligible(self, source, target, by_name) -> Optional[str]:
+        """Why these two concepts may not be proposed as a correspondence, or None.
+
+        WHAT THE STORE ALREADY SAYS COMES FIRST. A score says two concepts look
+        alike; a held `antonym of` edge says they are opposites, and a held fact
+        outranks a resemblance. Checked directly and through one
+        `same meaning` step, which is the shape the one accepted mapping had.
+
+        A PAIR WITH NO STRUCTURE HAS NOTHING TO TRANSFER. `concept_group` reads
+        the relations a concept stands in, less the reading aids; where either
+        side stands in none of them, there is no structural claim to make and
+        the score is the semantic term alone. 711 concepts have no relations at
+        all and 36,357 hold nothing but a reading aid and an `isa`.
+
+        `by_name` maps a concept name to the concept, over both domains, so the
+        step through a shared meaning can be taken.
+        """
+        source_name, target_name = str(source.name), str(target.name)
+        if source_name == target_name:
+            return None   # one word used in two fields: the correspondence worth finding
+        opposed = self.CONTRADICTING_RELATION
+        if target_name in self._reaches(source, opposed) or \
+                source_name in self._reaches(target, opposed):
+            return f"{source_name} and {target_name} are held to be opposites"
+        for near, other, other_name in ((source, target, target_name),
+                                        (target, source, source_name)):
+            for middle_name in self._reaches(near, self.SAME_MEANING_RELATION):
+                middle = by_name.get(middle_name)
+                if middle is not None and other_name in self._reaches(middle, opposed):
+                    return (f"{near.name} means the same as {middle_name}, which is held "
+                            f"to be the opposite of {other_name}")
+        if not concept_group(source)[0] or not concept_group(target)[0]:
+            return (f"{source_name} or {target_name} stands in no relation that is not "
+                    f"a reading aid, so there is no structure to correspond")
+        return None
+
     async def suggest_mappings(self, source_domain_id: str, target_domain_id: str
                                ) -> List[CrossDomainMapping]:
         """Concept-level correspondences between two domains -- the mapping
@@ -2004,10 +2065,50 @@ class UniversalDomainMaster:
         UnknownDomain for an unregistered domain.
         """
         registry = await self._registry()
+        source_domain = registry.domains[source_domain_id]
+        target_domain = registry.domains[target_domain_id]
+        # NO SIZE FLOOR HERE. A floor on either domain was tried and taken back
+        # out: two small fields that genuinely share structure correspond, and
+        # `test_applying_a_mapping_counts_as_using_it` is that case, with three
+        # concepts a side and the same relation to the same concept in both.
+        # Size was a proxy for a different complaint -- that every mapping this
+        # store has recorded runs into `english`, which holds 114,456 of its
+        # 115,902 concepts and is not a subject but a bucket. That complaint is
+        # answered by refusing an UNDIFFERENTIATED_CHANNELS domain, which waits
+        # on those concepts being split into subjects, not by a count.
         found = await self._concept_correspondence(
             registry, source_domain_id, target_domain_id,
             threshold=self.SUGGESTION_THRESHOLD, keep=self.SUGGESTION_LIMIT,
             count_all=False)
+
+        # ELIGIBILITY, over the pairs the score put forward. A score is a
+        # resemblance; `_why_ineligible` asks what the store already HOLDS about
+        # the pair, and a held fact outranks a resemblance. Refusals are logged
+        # rather than dropped silently, because "nothing corresponded" and "the
+        # correspondence was refused on evidence" are different answers.
+        by_name = {}
+        for domain in (source_domain, target_domain):
+            for concept in (getattr(domain, "concepts", None) or {}).values():
+                by_name.setdefault(str(concept.name), concept)
+        eligible, refused = [], []
+        for score, source_concept, target_concept in found["strongest"]:
+            source = source_domain.concepts.get(source_concept)
+            target = target_domain.concepts.get(target_concept)
+            if source is None or target is None:
+                raise LookupError(
+                    f"correspondence named {source_concept!r} -> {target_concept!r}, "
+                    f"which {source_domain_id} / {target_domain_id} no longer hold")
+            why = self._why_ineligible(source, target, by_name)
+            if why is None:
+                eligible.append((score, source_concept, target_concept))
+                if len(eligible) >= self.SUGGESTION_LIMIT:
+                    break
+            else:
+                refused.append((source_concept, target_concept, why))
+        if refused:
+            logger.info("Correspondence %s -> %s: %d pair(s) refused on what is held; %s",
+                        source_domain_id, target_domain_id, len(refused),
+                        "; ".join(why for _, _, why in refused[:3]))
         return [
             CrossDomainMapping(
                 mapping_id=registry._mapping_key(
@@ -2022,7 +2123,7 @@ class UniversalDomainMaster:
                 confidence=score * 0.8,
                 validated=None,
             )
-            for score, source_concept, target_concept in found["strongest"][:self.SUGGESTION_LIMIT]
+            for score, source_concept, target_concept in eligible
         ]
 
     async def structural_similarities(self, source_domain_id: str, target_domain_id: str,
