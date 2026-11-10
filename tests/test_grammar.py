@@ -11,7 +11,7 @@ from core.semantics import grammar as gm
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
          "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit",
-         "hair": "hair", "dryer": "dryer", "dryers": "dryer", "curry": "curry"}
+         "hair": "hair", "dryer": "dryer", "dryers": "dryer", "curry": "curry", "genus": "genus"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
          "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain",
@@ -46,7 +46,11 @@ KNOWN = {("fed", "up"): {"ADJECTIVE": "disgusted"}, ("at", "last"): {"ADVERB": "
          ("credit", "card"): {"NOUN": "credit card"},
          #: A thing memory holds under a name that is not its words ("hair dryer" is `hand blower`), which is how
          #: WordNet names every sense but the one its word names most often.
-         ("hair", "dryer"): {"NOUN": "hand blower"}}
+         ("hair", "dryer"): {"NOUN": "hand blower"},
+         #: A KIND NAMED BEFORE A THING'S OWN NAME, as memory holds it on main (`"Genus Pan" names mammal genus
+         #: pan`): the second word is capitalised and the first is not, which is neither a compound of two
+         #: lowercase words nor a name whose every word is capitalised.
+         ("genus", "pan"): {"NOUN": "mammal genus pan"}}
 
 
 class Held(gm.Words):
@@ -2299,3 +2303,20 @@ def test_a_preposition_carried_along_with_the_wh_phrase_says_what_it_says_left_b
     assert "word_in(?v0, ?v2)" in carried and "instance_of(?v2, park)" in carried, carried
     # WHAT IS ASKED IS THE THING THE PREPOSITION TAKES, and the doing is still the doing.
     assert carried.endswith("? ?v2") and "instance_of(?v0, bark)" in carried, carried
+
+
+def test_a_kind_named_before_a_things_own_name_is_read_as_the_one_thing_memory_holds():
+    """"a genus Pan": English names the kind and then the thing's own name, and memory holds those two words as one
+    thing. Neither gate read it -- the one that reads what memory knows as one word required every word after the
+    first to be lowercase, and the one that reads a name of several words requires every word of the run to be
+    capitalised -- so a run with a lowercase first word and a capitalised second was read by nothing.
+
+    Held on main all along: `"Genus Pan" names mammal genus pan`. Of 29 `member_of` questions a review asked, 18
+    named such a run and it answered 0; where both terms were one word it answered 33 of 33 (2026-11-10)."""
+    g = gm.Grammar(gm.Lexicon(Speaking()))
+    assert read(g, "A genus Pan is a mammal.") == gm.Meaning(
+        "tell", (gm.MeaningFact("isa", "mammal genus pan", "mammal"),)).canonical()
+    # A RUN WHOSE FIRST WORD IS CAPITALISED TOO IS STILL LEFT TO THE NAME READER, which is what reads "Credit Card"
+    # as a name rather than as the thing memory holds those words as.
+    assert read(g, "A credit card is a mammal.") == gm.Meaning(
+        "tell", (gm.MeaningFact("isa", "credit card", "mammal"),)).canonical()

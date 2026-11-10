@@ -1894,10 +1894,21 @@ class Lexicon:
         # the frame too. Asked as written and with the last word as the word it is a form of, which is the spelling
         # a word of several words is held under ("gold medals" `gold medal`, "sleeping pills" `sleeping pill`).
         for length in (3, 2):
-            # THE FIRST WORD MAY BE CAPITALISED ("Easter egg", "At last, we arrived"): a run whose later words are
-            # written lowercase is no name of several words, which the capitalised run reads (`_name_runs`).
-            if i + length > n or not all(t.isalpha() for t in tokens[i:i + length]) \
-                    or not all(t[:1].islower() for t in tokens[i + 1:i + length]):
+            # THE FIRST WORD MAY BE CAPITALISED ("Easter egg", "At last, we arrived"), AND A LATER WORD MAY BE WHERE
+            # THE FIRST IS NOT: "a genus Pan", "a family Pieridae", "an order Thysanura". English names the kind and
+            # then the thing's own name, and the kind is the head. A run whose first word is capitalised as well is a
+            # name of several words, which `_name_runs` reads; this leaves that to it.
+            #
+            # BLOCKED BY CASE ALONE, such a run read as nothing memory holds. On main `"Genus Pan" names mammal genus
+            # pan` is held, and "Is a pygmy chimpanzee a member of a genus Pan?" still misread: the capital on "Pan"
+            # sent the run past this gate, and `_name_runs` wants every word of a run capitalised. Of the 29
+            # `member_of` questions a review asked, 18 named such a run ("order Thysanura", "family Pieridae",
+            # "genus Crotalus") and it answered 0 of them; where both terms were one word it answered 33 of 33
+            # (2026-11-10). Nothing is coined by relaxing this -- the run is offered only where memory holds those
+            # words as one word (`held` below), never guessed from their case.
+            if i + length > n or not all(t.isalpha() for t in tokens[i:i + length]):
+                continue
+            if tokens[i][:1].isupper() and not all(t[:1].islower() for t in tokens[i + 1:i + length]):
                 continue
             said = [t.lower() for t in tokens[i:i + length]]
             if " ".join(said) in self.together or " ".join(said) in self.phrases:
