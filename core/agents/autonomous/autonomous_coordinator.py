@@ -23457,9 +23457,16 @@ class Conversation:
             return dataclasses.replace(fact, subject=subject_named, obj=object_named)
         # THE OBJECT'S SENSES BY THE NAME EACH BEARS, so the fact is rewritten as the store holds it and not as the
         # plain words of it. The object as asked stands for itself.
-        named = {_Held.plain(sense): sense for sense in words.word_senses_any_class(object_named)}
+        def senses_of(side: str) -> List[str]:
+            """The senses that side may be meant in, nearest first: the ones its own word holds, then the ones a
+            word WRITTEN the same way holds. Each is reached from that side alone, so the two sides are never
+            crossed and a link is never read backwards."""
+            return list(dict.fromkeys([*words.word_senses_any_class(side),
+                                       *words.word_senses_written_alike(side)]))
+
+        named = {_Held.plain(sense): sense for sense in senses_of(object_named)}
         named[wanted] = object_named
-        for subject in (subject_named, *words.word_senses_any_class(subject_named)):
+        for subject in (subject_named, *senses_of(subject_named)):
             for kind, other in (as_asked if _Held.plain(subject) == _Held.plain(subject_named)
                                 else await links(subject)):
                 if kind == fact.relation and other in named:

@@ -7561,6 +7561,33 @@ class MemoryAgent(IMemoryConsolidation):
                 out += [s.concept for s in word.senses]
         return list(dict.fromkeys(out))
 
+    def word_senses_written_alike(self, name: str) -> List[str]:
+        """EVERY THING A WORD WRITTEN LIKE THIS ONE MAY NAME: the senses of each word whose own spelling is one of
+        the ways a word that names `name` is written.
+
+        A WORD THE QUESTION WROTE MAY BE A FORM OF ONE WORD AND A WORD OF ITS OWN BESIDES. "outgoing" is how
+        "outgo" is written as a participle, and it is also the adjective: "outgo" holds `outgo` and `surpass`,
+        "outgoing" holds `outgoing` and `extroverted`, and NO word holds a sense from both. Read as `surpass`,
+        nothing could reach the adjective the store holds `incoming antonym of outgoing` between -- not by class
+        (`word_senses_any_class` goes by the words that share a sense) and not by spelling
+        (`word_senses_written_so` starts from the name, which is `surpass`). So "Is outgoing the opposite of
+        incoming?" went unanswered with the edge held under exactly the words written (lyric_db, 2026-11-11).
+
+        This crosses by HOW THE WORD IS WRITTEN: from the thing named, to the words that name it, to every way
+        each is written, to the words written that way, to what those may name. It is the written form that the
+        question put on the page, and the one the reader had to choose a sense for."""
+        folded = str(name).casefold().replace("_", " ")
+        written: Set[str] = set()
+        for word in self._grammar_words.values():
+            if any(s.concept == folded for s in word.senses):
+                written.add(str(word.word).casefold())
+                written |= {str(form.form).casefold() for form in word.forms}
+        out: List[str] = []
+        for word in self._grammar_words.values():
+            if str(word.word).casefold() in written:
+                out += [s.concept for s in word.senses]
+        return list(dict.fromkeys(out))
+
     def word_sense_is_a_kind_of(self, name: str, kind: str) -> Optional[str]:
         """THE SENSE A WORD MAY NAME THAT IS HELD TO BE A KIND OF `kind`, or None where none is. Of "senior" and
         "adult": `elder`, because the word recorded whole holds five senses of "senior" and one of them, the elder,

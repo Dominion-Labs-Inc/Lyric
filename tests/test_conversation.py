@@ -780,6 +780,9 @@ async def test_a_question_is_also_asked_as_the_grammar_reads_it(talk, monkeypatc
         def word_senses_any_class(self, name):
             return []
 
+        def word_senses_written_alike(self, name):
+            return []
+
     async def known(meaning, *, telling=False):
         return {"?a": "account_1"}
 
@@ -958,9 +961,34 @@ async def test_what_a_speaker_told_points_at_a_thing_from_their_own_context():
                                                domain="conversation", surface="Tom kicked the ball.", source="told")
         told = await teller._incoming_relations(kicker)
         not_told = await other._incoming_relations(kicker)
-    assert decision.standing == "theirs", decision
-    assert (kicking, "done by", kicker, True) in told, told
-    assert not any(subject == kicking for subject, *_ in not_told), not_told
+        # WHAT CAME BACK, AND WHETHER IT WAS EVER PUT THERE. This failed once in twenty-three runs of the file
+        # and never again, and the message said only that `told` did not hold the fact -- which cannot tell a
+        # write that never landed from a read that missed one that did (2026-11-11). Working memory is a plain
+        # dict on the process's one memory agent, so what the write put there is readable here: if it holds the
+        # fact and `told` does not, the reading is at fault; if it does not, the holding is. Read inside
+        # `not_remembered()`, as the write was, and only ever rendered when an assertion has already failed.
+        held_now = agent.working_relations([agent.held_where(teller._actor, "personal", None)[0]])
+
+    def what_came_back() -> str:
+        owner, context, organization = agent.held_where(teller._actor, "personal", None)
+        which = ("the write never landed in working memory" if not held_now else
+                 "the write landed; what read it back did not find it")
+        return "\n".join((
+            "",
+            f"  looked for : {(kicking, 'done by', kicker, True)!r}",
+            f"  decision   : {decision}",
+            f"  teller     : actor={teller._actor!r} owner={owner!r} "
+            f"context={context!r} organization={organization!r}",
+            f"  other      : actor={other._actor!r}",
+            f"  working    : {held_now}",
+            f"  told       : {told}",
+            f"  not_told   : {not_told}",
+            f"  -> {which}",
+        ))
+
+    assert decision.standing == "theirs", what_came_back()
+    assert (kicking, "done by", kicker, True) in told, what_came_back()
+    assert not any(subject == kicking for subject, *_ in not_told), what_came_back()
 
 
 @pytest.mark.asyncio
