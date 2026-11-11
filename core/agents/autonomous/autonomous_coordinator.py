@@ -20590,6 +20590,15 @@ class Understanding:
     answers: List[Answer] = field(default_factory=list)
     acquired: List[Acquired] = field(default_factory=list)
     remembered: List[str] = field(default_factory=list)
+    #: WHY NOTHING WAS ANSWERED, from each path that was asked and found nothing: the path, the first thing that
+    #: stopped it in that path's own words, and what it was looking at. Empty where something was answered.
+    #:
+    #: Saying says why it said nothing (`GrammarView.say`'s `why`) and answering said only that there was none.
+    #: A question that goes unanswered in the running system named NO reason at all, so a person is told "I do
+    #: not know" and nobody can tell a question never read from one read and not found, from one found and
+    #: refused at a gate. Every fault worked on this week was found by reading saying's account and guessing at
+    #: answering's; three of the four guesses were wrong (2026-11-11).
+    why_not: List[Dict[str, Any]] = field(default_factory=list)
     #: What recall managed in the time available, and whether that was all of it.
     recall: Optional[Any] = None
     asked: bool = True
@@ -21632,6 +21641,9 @@ class Conversation:
         #: happening and each thing it tells of is named as told in (`teaching.told_events`), so "The dog barked." in
         #: two stories is two barkings, and the same story read again names the same one. Empty for talk.
         self._within = str(within or "")
+        #: WHY NOTHING WAS ANSWERED for the question being understood now, one entry per path that found nothing
+        #: (`_found_nothing`). Emptied as each question starts and carried out on its `Understanding`.
+        self._why_not: List[Dict[str, Any]] = []
         #: WHETHER THIS THREAD IS REMEMBERED. A conversation remembers every
         #: turn (`_hand_over`) and takes in what it is told (`teach`). One held
         #: with `remembers=False` remembers no turn, and holds what it is told
@@ -22663,7 +22675,8 @@ class Conversation:
         from core.semantics.derived_reader import is_variable
         meaning = self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
-            return []
+            return self._found_nothing("held relations", "it was not read as a question",
+                                       read=meaning is not None and meaning.act)
 
         kind_of = _link_kind
 
@@ -22676,7 +22689,9 @@ class Conversation:
             # original list?") is not one fact of named things: the list being original says nothing of a changing,
             # and was answered "Yes." of a changing told as not done (UNDERSTANDS-PROSE-01 on main, 2026-10-21). The
             # happenings told answer it (`_asked_of_events`).
-            return []
+            return self._found_nothing(
+                "held relations", "a yes or no asked of something the question does not name; "
+                                  "the happenings told answer it")
         # A QUESTION IS ALL IT ASKS AT ONCE. What it asks for, described by more than one fact ("In which journal did
         # the engineers publish?": a journal, and what the publishing was done in), is not answered by one of them:
         # any journal held answered it, said "Journal." (UNDERSTANDS-PROSE-02, 2026-10-22). What holds all of them is
@@ -22753,8 +22768,33 @@ class Conversation:
             if denied:
                 return denied
             if not all(any(answer.verdict for answer in found) for found in plain):
-                return []
-        return [answer for found in by_fact for answer in found]
+                return self._found_nothing(
+                    "held relations", "a yes is every part of the question held, and a part of it is not",
+                    parts=len(plain), parts_held=sum(1 for f in plain if any(a.verdict for a in f)))
+        standing = [answer for found in by_fact for answer in found]
+        # RAN AND FOUND NOTHING IS A REASON TOO. Returning an empty list built from what was looked at says
+        # the same as never having looked, and every place below was reached by a question that WAS read
+        # (2026-11-11). The facts asked are named, so the reason says which relations nothing stood in.
+        return standing or self._found_nothing(
+            "held relations", "nothing held stands in the relations the question asks",
+            asked=[f.render() for _, f in bound if not (f.condition or f.given)],
+            of_things=sorted(by_name))
+
+    def _found_nothing(self, path: str, reason: str, **of: Any) -> List["Answer"]:
+        """No answer from this path, and WHY -- kept where the person asking can be told, not only logged.
+
+        THE REASON IS THE FIRST THING THAT STOPPED IT, never a guess after the fact, which is how saying says
+        why it said nothing (`GrammarView.say`'s `why`). Answering said only that there was no answer: in the
+        running system a question that goes unanswered names no reason at all, so nothing tells a question
+        never read from one read and not found, and nothing tells either from one found and refused at a gate.
+        Each is a different fault and they want opposite fixes (2026-11-11).
+
+        Returns the empty list every one of these places already returned, so it is written at the `return`.
+        """
+        self._why_not.append({"path": path, "why": reason, **of})
+        logger.info("answering: %s found nothing -- %s%s", path, reason,
+                    "".join(f"; {name} {value!r}" for name, value in of.items()))
+        return []
 
     async def _held_ways(self, facts: Sequence[Any], held: "_Held") -> List[Dict[str, str]]:
         """EVERY WAY WHAT IS HELD MAKES ALL OF A QUESTION'S FACTS HOLD, each `{unknown: held thing}`: "What absorbs the
@@ -22822,11 +22862,13 @@ class Conversation:
         from core.semantics.derived_reader import EVENT_PARTICIPANTS, Meaning, MeaningFact, as_known, is_variable, say
         meaning = meaning if meaning is not None else self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
-            return []
+            return self._found_nothing("happenings told", "it was not read as a question",
+                                       read=meaning is not None and meaning.act)
         pairs = list(zip(meaning.facts, meaning.bound(self._situation(sentence), await self._known_of(meaning))))
         if any(said.condition or not said.positive for said, _ in pairs):
             # What follows from a supposition, and what is not so, are reasoned (`_reasoned_answers`), not found.
-            return []
+            return self._found_nothing(
+                "happenings told", "it supposes something, or says what is not so, which is reasoned and not found")
         # WHAT A KNOWN THING IS PICKED IT OUT (`_known_of`), and is not asked again.
         facts = [bound for said, bound in pairs
                  if said.obj != "?now" and not (said.given and not is_variable(bound.subject))]
@@ -22936,7 +22978,10 @@ class Conversation:
                 found = tuple(found)
                 if not meaning.asked or found:
                     answers.append(Answer(candidate, "", found, verdict=None if meaning.asked else True))
-        return answers or qualified
+        told = answers or qualified
+        return told or self._found_nothing(
+            "happenings told", "no happening held fills everything the question asks",
+            asked=[f.render() for _, f in pairs], happenings=sorted(happenings))
 
     async def _asked_of_events_composed(self, sentence: str) -> List["Answer"]:
         """A QUESTION IS ALSO ASKED AS ENGLISH'S GRAMMAR READS IT (`MemoryAgent.grammar_view`), of what was told here:
@@ -23308,7 +23353,8 @@ class Conversation:
         from core.semantics.derived_reader import Meaning, MeaningFact
         meaning = self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
-            return []
+            return self._found_nothing("reasoned", "it was not read as a question",
+                                       read=meaning is not None and meaning.act)
         bridge = get_neural_bridge()
         known = await self._known_of(meaning)
         bound = dict(zip(meaning.facts, meaning.bound(self._situation(sentence), known)))
@@ -23326,7 +23372,9 @@ class Conversation:
             # NOTHING IS LEFT TO ASK once every fact only named a thing found: a reading that asks nothing of what it
             # names is no question to derive an answer to. A composed reading can be one ("Is the valve closed?" as
             # the valve alone); taken as one, it stopped the conversation (UNDERSTANDS-PROSE-01, 2026-10-17).
-            return []
+            return self._found_nothing(
+                "reasoned", "every fact only named a thing already found, so nothing is left to ask",
+                found=sorted(known.values()))
         fact = goal_fact(Meaning(meaning.act, asked_of, meaning.asked))
         if fact is None:
             # ONE FACT BETWEEN KINDS, where the question named its kinds in facts of their own.
@@ -23359,7 +23407,9 @@ class Conversation:
                 task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
                                "remembers": self._remembers}))
             if not (result.metadata or {}).get("verified") or not result.answer:
-                return await self._held_as_both(fact)
+                return await self._held_as_both(fact) or self._found_nothing(
+                    "reasoned", "the reasoner settled nothing, and nothing held is both of the two",
+                    asked=fact.render())
             # Prefer the reasoning's OWN chain (robin → bird → … → animal) as the
             # reason, so a derived yes/no says the hops it walked.
             chain = (result.metadata or {}).get("chain") or []
@@ -23370,14 +23420,19 @@ class Conversation:
             # knowledge of THIS proposition -- a graph chain or premises it
             # actually used -- never a stored belief that merely shares a word.
             if not self._grounded(result, support):
-                return []
+                return self._found_nothing(
+                    "reasoned", "the reasoner's answer rests on nothing this substrate holds of the question",
+                    asked=fact.render() if hasattr(fact, "render") else str(fact),
+                    answered=str(result.answer)[:120])
             # FOLLOW THE REASONER'S VERDICT, not just the question's polarity: the
             # affirmative may have been PROVED or DISPROVED (a stored denial
             # disproves it), and a yes/no must say which.
             affirmed = self._affirmed(result.answer)
             if affirmed is None:
                 # The affirmative was neither proved nor disproved.
-                return await self._held_as_both(fact)
+                return await self._held_as_both(fact) or self._found_nothing(
+                    "reasoned", "the reasoner neither proved nor disproved it, and nothing held is both",
+                    asked=fact.render())
             claim = (chain[-1] if chain else
                      _said(fact.subject, fact.relation, fact.obj, fact.positive)
                      or f"{fact.subject} {fact.relation} {fact.obj}".replace("_", " "))
@@ -24450,6 +24505,8 @@ class Conversation:
             return await self._understand(sentence, look_up)
 
     async def _understand(self, sentence: str, look_up: bool = True) -> Understanding:
+        # A FRESH ACCOUNT FOR EACH QUESTION: what stopped the last one says nothing about this one.
+        self._why_not = []
         await self._listen(sentence)
         # ASKED ABOUT THIS EXCHANGE, ANSWERED FROM THIS EXCHANGE. Checked first
         # because every path below treats the sentence as being about the
@@ -24660,6 +24717,9 @@ class Conversation:
             remembered=harvest.texts(_RECALLED), recall=harvest,
             disposition=self._read_disposition(),
             named=dict(self._named), framed=frozenset(self._framed), looking_up=looking,
+            # WHY NOTHING WAS ANSWERED, where nothing was: carried out with the reply so a person asking, and
+            # anything reading the reply, is told which path stopped where instead of only that there is no answer.
+            why_not=[] if answers else list(self._why_not),
             pointed_at=frozenset(phrase for phrase, rows in incoming.items() if rows))
         # NUMBER FOR EVERY WORD THE REPLY MIGHT USE, in one pass, before the
         # sentence is built. Gathered here because it needs the store and `say()`

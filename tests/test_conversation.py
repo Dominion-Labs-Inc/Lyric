@@ -136,13 +136,37 @@ def test_a_phrase_is_read_as_a_phrase():
         "longest first, so the longest match wins the words"
 
 
+def _unanswered(understanding) -> str:
+    """What the substrate made of the question, where it answered nothing.
+
+    An assertion that prints only `[]`, or an Understanding whose repr is cut off before the interesting
+    part, says a question went unanswered and nothing about WHY -- which is the whole difference between a
+    sentence never read, one read and not found, and one found and refused at a gate. The substrate names
+    its own reason now (`Understanding.why_not`); this puts it where the failure is read.
+    """
+    phrases = [(r.phrase, r.concept_id) for r in understanding.resolved]
+    why = "\n".join(f"    [{e['path']}] {e['why']}"
+                     + ("   " + repr({k: v for k, v in e.items() if k not in ('path', 'why')})
+                        if len(e) > 2 else "")
+                    for e in understanding.why_not) or "    (no path said why -- one is still silent)"
+    return "\n".join((
+        "",
+        f"  read as  : {understanding.reading}",
+        f"  resolved : {phrases}",
+        f"  known    : {[r.phrase for r in understanding.known]}",
+        f"  answers  : {[(a.about, a.relation, a.verdict) for a in understanding.answers]}",
+        f"  reply    : {(understanding.reply or '')[:160]!r}",
+        "  why_not  :",
+        why,
+    ))
+
+
 @pytest.mark.asyncio
 async def test_it_understands_a_sentence_as_things_it_holds(talk):
     await _pressure_loss_is_held()
     understanding = await talk.understand("what causes pressure loss")
 
-    assert any(r.phrase == "pressure loss" for r in understanding.known), \
-        [r.phrase for r in understanding.resolved]
+    assert any(r.phrase == "pressure loss" for r in understanding.known), _unanswered(understanding)
     held = next(r for r in understanding.known if r.phrase == "pressure loss")
     assert held.description, "a name with nothing behind it is not understanding"
     assert held.domain
@@ -153,7 +177,7 @@ async def test_it_answers_the_question_rather_than_reciting_the_concept(talk):
     await _pressure_loss_is_held()
     understanding = await talk.understand("what causes pressure loss")
 
-    assert understanding.answers, "the question named a relation it holds"
+    assert understanding.answers, _unanswered(understanding)
     answer = understanding.answers[0]
     assert answer.about == "pressure loss"
     assert "cause" in answer.relation

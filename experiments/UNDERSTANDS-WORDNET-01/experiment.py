@@ -389,6 +389,9 @@ async def main() -> int:
             "answers": [{"about": a.about, "relation": a.relation, "others": list(a.others),
                          "verdict": a.verdict, "told": a.told, "conclusion": a.conclusion,
                          "support": list(a.support)} for a in answers],
+            # WHY NOTHING WAS ANSWERED, in the substrate's own words, one entry per path that found nothing.
+            # `why` above says what the REPLY looked like; this says where the answering stopped.
+            "why_not": list(understanding.why_not),
         })
         return verdict, understanding, took
 
