@@ -42,10 +42,11 @@ import logging
 import math
 import re
 import time
-from collections import Counter, defaultdict
+from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field, replace
 from pathlib import Path
-from typing import Any, Callable, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import (Any, Callable, Deque, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set,
+                    Tuple, Union)
 
 from core.semantics.derived_reader import (Meaning, MeaningFact, is_variable,
                                            _ARITHMETIC_ROLES)
@@ -927,6 +928,11 @@ class Lexicon:
         #: recorded whole (`GrammarView.hold_word`). WordNet gives an adjective no kinds, so neither the information
         #: a shared kind carries (`thing_sense_of`) nor a verb's places (`sense_of`) can be asked of one: what it was
         #: seen said of is all there is.
+        #: THE SENSES LAST TAKEN, newest last, bounded: the name read, what was said around it, the places of doings
+        #: it fills, the links the sentence asks it to stand in, and the sense taken. A sense taken wrongly is why a
+        #: question is answered wrongly, and nothing said which sense had been taken or on what, so a wrong answer
+        #: could not be told from a wrong reading (2026-11-11).
+        self.chosen: Deque[Tuple[str, Tuple[str, ...], Tuple[Any, ...], Tuple[str, ...], str]] = deque(maxlen=400)
         self.quality_used: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         self.quality_seen: Dict[Tuple[str, str], Dict[str, Counter]] = defaultdict(lambda: defaultdict(Counter))
         self._taking_pps: Optional[List[Cat]] = None
@@ -1099,7 +1105,8 @@ class Lexicon:
         return any(n > recorded.get(link, 0) for link, n in held.items())
 
     def thing_sense_of(self, name: str, around: Sequence[str],
-                       places: Sequence[Tuple[str, str, str]] = ()) -> str:
+                       places: Sequence[Tuple[str, str, str]] = (),
+                       asked_in: Sequence[str] = ()) -> str:
         """THE SENSE OF A NOUN A SENTENCE MEANS, by the other things it names and by the places of the doings it
         fills.
 
@@ -1118,10 +1125,30 @@ class Lexicon:
         every short sentence offered nothing -- "He ate the egg." names two things and neither is a kind of the other
         -- so the sense the word names most often was taken, whatever the doing said (2026-10-31).
 
+        BY THE LINK THE SENTENCE ASKS IT TO STAND IN (`asked_in`, each by its kind), of what memory holds of each
+        sense (`Knowledge.stands_in`): a sense the link asked is held of is meant, and one it is never held of is
+        not. THIS IS THE ONLY EVIDENCE A SHORT QUESTION GIVES. Both of the others need the sentence to say more
+        than a question says -- another thing whose kinds meet the sense's, or a doing whose place it fills -- so
+        for a question the sense a word is used in most often was taken, whatever was asked: "Is a study part of a
+        house?" was read of the `knowledge domain discipline` with `room_study part of house` held, and "What
+        causes dread?" of the `apprehension` with `frighten causes dread` held (lyric_db, 2026-11-11).
+
+        ASKED ONLY ONCE THE SENTENCE IS SPELLED OUT, and so asked twice: the link a preposition says is read after
+        the things it joins, so at the moment a thing's sense is first taken the sentence has not yet said what it
+        asks of it. `spell_out` takes each sense on what is said around the thing, spells the sentence out, and
+        takes it again on the same evidence with the links it turned out to stand in. Guessed before then, from
+        the verb links a sentence carries, "Is public the opposite of private?" asked `has_part` -- the link the
+        copula is most often taught as, from "A wheel is part of a car." -- and it fitted no sense of either word.
+
+        Weighed as the others are and not as an override: a sense standing in the link asked is evidence for it,
+        counted once however many links ask it, against the senses that stand in none. Where every sense stands in
+        it, or none does, it says nothing and the rest decide.
+
         The name the word is read under where it has no senses apart, or nothing it was seen with or said beside is
         of any kind its senses are."""
         used = self.thing_used.get(name)
         if not used or len(used) < 2:
+            self.chosen.append((name, tuple(around), tuple(places), tuple(asked_in), name))
             return name
         senses = list(used)
         covers = {c: self.thing_covers.get(name, {}).get(c, {}) for c in senses}
@@ -1168,7 +1195,17 @@ class Lexicon:
                 for c in senses:
                     score[c] += math.log(everything / shared[c]) \
                         * (uses[c] + 0.5) / (every + 0.5 * len(senses))
-        return max(senses, key=lambda c: (score[c], used[c]))
+        held = getattr(self.words, "knowledge", None)
+        if asked_in and held is not None and hasattr(held, "stands_in"):
+            stands = {c: any(held.stands_in(c, link) for link in asked_in) for c in senses}
+            # SAID OF SOME AND NOT OTHERS, or it tells the senses nothing apart.
+            if any(stands.values()) and not all(stands.values()):
+                for c in senses:
+                    if stands[c]:
+                        score[c] += math.log(len(senses))
+        took = max(senses, key=lambda c: (score[c], used[c]))
+        self.chosen.append((name, tuple(around), tuple(places), tuple(asked_in), took))
+        return took
 
     def quality_sense_of(self, name: str, cls: str, of: Sequence[str]) -> str:
         """THE SENSE OF A QUALITY OR AN ADVERB A SENTENCE MEANS, by what it is said of.
@@ -5929,6 +5966,9 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
     for e in as_link_unfilled:
         as_link.pop(e, None)
     meant_of: Dict[Term, str] = {}
+    #: Each thing spelled out -> the name its word was read under, what was said around it, the places of doings it
+    #: fills, and the sense taken of it. Kept to choose again once the links the sentence asks are known.
+    chose: Dict[str, Tuple[str, List[str], List[Tuple[str, str, str]], str]] = {}
     #: Each thing -> the places of doings it fills: (the doing's name, the sense meant of it, the place).
     fills: Dict[Term, List[Tuple[str, str, str]]] = {}
     for e, p in events.items():
@@ -5980,12 +6020,19 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
                 # "the function sorted": what the named one is (`isa(sorted, function)`).
                 add("isa", x, p[2], at=p[-1])
             continue
+        # WHAT ELSE THE SENTENCE NAMES, THE KINDS AMONG THEM: a thing said of a kind rather than of one of it is
+        # bound to the kind's name and dropped from `kinds` above, and `around` was read from `kinds` alone -- so
+        # the one word a short question gives the sense chooser to go on was the one word it could not see. "Is a
+        # study part of a house?" offered the study nothing, and the sense most used won; offered the house, the
+        # chooser takes `room study` on what the two share, with no other evidence needed (lyric_db, 2026-11-11).
         around = ([q[2] for y, q in kinds.items() if y != x and y not in events and isinstance(q[2], str)]
+                  + [k for k in kind_of.values() if isinstance(k, str) and k != p[2]]
                   + [name for name in reading.spoken_of if name != p[2]])
         meant = lexicon.thing_sense_of(p[2], around, fills.get(x, ()))
         if meant != p[2]:
             decided.append(("sense", p[2], "around", None))
         meant_of[x] = meant
+        chose[term(x)] = (p[2], list(around), list(fills.get(x, ())), meant)
         add("instance_of", x, meant, given_=x in given and isinstance(x, int), at=p[-1])
         # ANOTHER OF A KIND is one of it that is not one given (Heim 1982, Kamp and Reyle 1993; the Parallel Meaning
         # Bank writes "another woman" a woman not the same as a woman, `NEQ`): "Tom chased another cat." is a cat
@@ -6308,6 +6355,34 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         rename = {term(k): term(v) for k, v in merged.items()}
         facts = [f.renamed(rename) if any(t in rename for t in f.terms()) else f for f in facts]
         facts = list(dict.fromkeys(f for f in facts if f.subject != f.obj))
+        chose = {rename.get(x, x): v for x, v in chose.items()}
+    # THE LINK THE SENTENCE ASKS A THING TO STAND IN is known only once the sentence is spelled out, and a thing's
+    # sense is taken before that: the link a preposition says is read after the things it joins ("part of", "the
+    # opposite of": `prep_of`), and a verb said as a link is thrown away where its places are not all filled. So a
+    # question -- too short to name another thing whose kinds meet the sense's, or a doing whose place it fills --
+    # had nothing to go on and the sense the word is used in most often won, whatever was asked: "Is a study part
+    # of a house?" was read of the `knowledge domain discipline` with `room_study part of house` held, and "What
+    # causes dread?" of the `apprehension` with `frighten causes dread` held (lyric_db, 2026-11-11).
+    #
+    # So each sense is taken again here, by the same chooser on the same evidence with the links the thing stands
+    # in added (`Lexicon.thing_sense_of`), which only now can be said. Asked of the links alone and never of the
+    # kinds: a kind is what a thing IS, which every thing has and which no sentence asks of it.
+    asked_in: Dict[str, Set[str]] = defaultdict(set)
+    for f in facts:
+        if f.relation in ("instance_of", "isa"):
+            continue
+        for t in f.terms():
+            asked_in[t].add(f.relation)
+    for x, (name, around, places, was) in chose.items():
+        links = sorted(asked_in.get(x, ()))
+        if not links:
+            continue
+        now = lexicon.thing_sense_of(name, around, places, links)
+        if now == was:
+            continue
+        facts = [replace(f, obj=now) if f.relation == "instance_of" and f.subject == x and f.obj == was else f
+                 for f in facts]
+        decided.append(("sense", name, "link asked", None))
     if not facts:
         raise ValueError("nothing said")
     held = {t for f in facts for t in f.terms()}

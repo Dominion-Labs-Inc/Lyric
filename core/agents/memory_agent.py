@@ -7286,13 +7286,26 @@ class MemoryAgent(IMemoryConsolidation):
         """What memory holds of things that English's grammar asks of the words it reads (`grammar_words.Knowledge`):
         each thing's kinds (`isa`) and what particular ones are (`instance of`); and, for a thing held as a kind of
         nothing (an adjective's sense: "British"), what its definition is written with (`defined with`: the United
-        Kingdom), which the grammar takes as what it is of. Read once a warm, held in this process."""
+        Kingdom), which the grammar takes as what it is of.
+
+        AND THE LINKS THAT TELL ONE SENSE OF A WORD FROM ANOTHER (`GraphKnowledge.stands_in`). A sense is weighed
+        by what else the sentence names and by the places of a doing it fills, and a question is too short to give
+        either, so the sense a word is used in most often was taken whatever the sentence asked: "Is a study part
+        of a house?" was read of the `knowledge domain discipline` with `room study part of house` held, and "What
+        causes dread?" of the `apprehension` with `frighten causes dread` held (lyric_db, 2026-11-11). The link
+        asked settles each, and a kind is not the link asked.
+
+        Only the link KINDS a question asks of things, never `defined with` -- 439,123 of those are held and a
+        gloss term says nothing about which sense a sentence means. Read once a warm, held in this process."""
         rows = await self._memory_db().execute_query(
             "SELECT c1.name AS subject, cr.relation, COALESCE(c2.name, cr.target_surface) AS target"
             " FROM unified.concept_relations cr"
             " JOIN unified.concepts c1 ON c1.concept_id = cr.source_concept_id"
             " LEFT JOIN unified.concepts c2 ON c2.concept_id = cr.target_concept_id"
             " WHERE cr.polarity = 'positive' AND (cr.relation IN ('isa', 'is a', 'instance of', 'instance_of')"
+            "   OR cr.relation IN ('part of', 'part_of', 'has part', 'has_part', 'member of', 'member_of',"
+            "                      'antonym of', 'antonym_of', 'causes', 'caused by', 'caused_by',"
+            "                      'made of', 'made_of', 'requires', 'similar to', 'similar_to')"
             " OR (cr.relation IN ('defined with', 'defined_with') AND NOT EXISTS ("
             "  SELECT 1 FROM unified.concept_relations x WHERE x.source_concept_id = cr.source_concept_id"
             "  AND x.relation IN ('isa', 'is a', 'instance of', 'instance_of'))))",

@@ -55,6 +55,12 @@ class Knowledge:
     def is_time(self, term: str) -> Optional[str]:
         return None
 
+    def stands_in(self, name: str, relation: str) -> bool:
+        """Whether anything is held of this thing by this link, either way round: what tells one sense of a word
+        from another where the sentence is too short to say (`Lexicon.thing_sense_of`). False where nothing is
+        held, which tells the senses nothing apart, as every answer here is plain where nothing is held."""
+        return False
+
     def capitalized(self, word: str) -> Mapping[str, float]:
         return {}
 
@@ -102,6 +108,18 @@ class GraphKnowledge(Knowledge):
         self._isa: Dict[str, List[str]] = defaultdict(list)
         self._instance: Dict[str, List[str]] = defaultdict(list)
         self._defined: Dict[str, List[str]] = defaultdict(list)
+        #: EVERY OTHER LINK HELD OF A THING, BY ITS KIND, each way round: `{thing: {link: [other, ...]}}`.
+        #:
+        #: A WORD'S SENSES ARE TOLD APART BY THE LINK THE SENTENCE NAMES. A sense is weighed by what else the
+        #: sentence names and by the places of a doing it fills, and a question is too short to give either, so
+        #: the sense the word is used in most often is taken: "Is a study part of a house?" was read of the
+        #: `knowledge domain discipline`, with `room study part of house` held; "What causes dread?" of the
+        #: `apprehension`, with `frighten causes dread` held (lyric_db, 2026-11-11). The link asked settles
+        #: each of them, and nothing here could see a link that was not a kind.
+        #:
+        #: Held both ways round because a store writes one: `frighten causes dread` is what says the dread is
+        #: meant, and it is said OF the frightening.
+        self._links: Dict[str, Dict[str, List[str]]] = defaultdict(lambda: defaultdict(list))
         self._classes = classes
         self._names = names
         self._kinds: Dict[Tuple[str, str], List[str]] = {}
@@ -112,6 +130,18 @@ class GraphKnowledge(Knowledge):
         if table is not None:
             table[_concept(subject)].append(_concept(obj))
             self._kinds = {}
+            return
+        self._links[_concept(subject)][relation].append(_concept(obj))
+        self._links[_concept(obj)][relation].append(_concept(subject))
+
+    def stands_in(self, name: str, relation: str) -> bool:
+        """Whether anything at all is held of this thing by this link, either way round.
+
+        What tells one sense of a word from another where the sentence is too short to say: the sense the
+        link asked is held of. Asked of the link ALONE and not of what it joins -- a question names an
+        unknown on the other side, and the thing it will turn out to be is exactly what is not known yet.
+        """
+        return bool(self._links.get(_concept(name), {}).get(str(relation).replace(" ", "_")))
 
     def defined(self, name: str) -> List[str]:
         return [_plain(w) for w in self._defined.get(_concept(name), [])]
@@ -120,7 +150,13 @@ class GraphKnowledge(Knowledge):
         """A link taken back (a word recorded otherwise since): once, as it was added once."""
         relation = relation.replace(" ", "_")
         table = {"isa": self._isa, "instance_of": self._instance, "defined_with": self._defined}.get(relation)
-        held = table.get(_concept(subject)) if table is not None else None
+        if table is None:
+            for thing, other in ((subject, obj), (obj, subject)):
+                held = self._links.get(_concept(thing), {}).get(relation)
+                if held and _concept(other) in held:
+                    held.remove(_concept(other))
+            return
+        held = table.get(_concept(subject))
         if held and _concept(obj) in held:
             held.remove(_concept(obj))
             self._kinds = {}

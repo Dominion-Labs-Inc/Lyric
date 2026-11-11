@@ -20577,6 +20577,13 @@ class Answer:
     #: it with what was asked filled in ("The wug ate a fep."), after its verdict
     #: where the question asked for one.
     told: str = ""
+    #: WHICH SIDE THE QUESTION ASKED FOR. An answer is said as a sentence of its own subject ("Nella has a
+    #: wug."), so a question asking what HOLDS a relation to a named thing is about the holder, and one
+    #: asking what a named thing holds it TO is about the named thing. Where the sentence cannot be said,
+    #: the reply falls back to naming what was asked for, and naming the wrong side answers the wrong
+    #: question: "What causes dread?" was answered "Dread." with `frighten causes dread` found and held
+    #: (lyric_db, 2026-11-11).
+    about_was_asked_for: bool = False
 
 
 @dataclass
@@ -21038,8 +21045,8 @@ def _asked_between_kinds(asked_of: Sequence[Any], meaning: Any) -> Optional[Any]
     return dataclasses.replace(fact, subject=subject, obj=obj)
 
 
-def _as_the_relation_a_verb_names(meaning: Any) -> Optional[Any]:
-    """The question asked as the RELATION its verb names, or None where it names none.
+def _as_the_relation_a_verb_names(meaning: Any) -> Tuple[Any, ...]:
+    """The question asked as the RELATION its verb names, each way round; empty where it names none.
 
     "What causes pressure loss?" is read as a happening -- a causing (`?v0`), done to the pressure loss,
     done by what -- and the store holds the claim as a relation between two kinds, `pressure loss caused_by
@@ -21059,24 +21066,24 @@ def _as_the_relation_a_verb_names(meaning: Any) -> Optional[Any]:
     from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
     from core.semantics.relation_types import SPEC, _SURFACE
     if meaning is None or meaning.act != "ask" or meaning.condition:
-        return None
+        return ()
     if any(not f.positive or f.alternative for f in meaning.facts):
-        return None
+        return ()
     kinds = {f.subject: f.obj for f in meaning.facts
              if f.relation == "instance_of" and is_variable(f.subject) and not is_variable(f.obj)}
     doers = {f.subject: f.obj for f in meaning.facts if f.relation == "done_by"}
     done_to = {f.subject: f.obj for f in meaning.facts if f.relation == "done_to"}
     happenings = [h for h in kinds if h in doers and h in done_to]
     if len(happenings) != 1:
-        return None
+        return ()
     (happening,) = happenings
     #: NOTHING ELSE SAID OF THE HAPPENING, or the relation would say less than the question asks.
     if any(f.subject == happening and f.relation not in ("instance_of", "done_by", "done_to")
            for f in meaning.facts):
-        return None
+        return ()
     named = _SURFACE.get(str(kinds[happening]).strip().lower().replace("_", " "))
     if named is None:
-        return None
+        return ()
     turned = (SPEC.get(named) or None) and SPEC[named].inverse
 
     def as_held(term: str) -> str:
@@ -21085,13 +21092,18 @@ def _as_the_relation_a_verb_names(meaning: Any) -> Optional[Any]:
 
     doer, taken = as_held(doers[happening]), as_held(done_to[happening])
     if is_variable(doer) and is_variable(taken):
-        return None
-    facts = [MeaningFact(f.relation, f.subject, f.obj, given=True)
-             for f in meaning.facts
-             if f.relation == "instance_of" and f.subject != happening and f.subject in (meaning.asked or ())]
-    facts.append(MeaningFact(turned.value, taken, doer) if turned is not None
-                 else MeaningFact(named.value, doer, taken))
-    return Meaning("ask", tuple(facts), meaning.asked)
+        return ()
+    naming = [MeaningFact(f.relation, f.subject, f.obj, given=True)
+              for f in meaning.facts
+              if f.relation == "instance_of" and f.subject != happening and f.subject in (meaning.asked or ())]
+    # BOTH WAYS ROUND, TRIED IN TURN. A store may write either -- main holds `frighten causes dread`, a
+    # lesson held `pressure loss caused_by pipe friction` -- and only one of them is an edge said OF the
+    # thing asked about. They cannot go in ONE question: a term two facts describe is asked by neither
+    # ("a question is all it asks at once"), so asking both at once answers nothing (lyric_db, 2026-11-11).
+    said = [MeaningFact(named.value, doer, taken)]
+    if turned is not None:
+        said.append(MeaningFact(turned.value, taken, doer))
+    return tuple(Meaning("ask", tuple(naming) + (one,), meaning.asked) for one in said)
 
 
 def _words_held() -> Optional[Any]:
@@ -22782,7 +22794,8 @@ class Conversation:
                         str(subject) for subject, relation, obj, positive in pointing.get(fact.obj.lower(), ())
                         if positive and kind_of(relation) == (fact.relation, False)
                         and str(obj).lower().replace("_", " ") == target)
-                    answers.extend(Answer(holder, fact.relation, (fact.obj,), verdict=None) for holder in holders)
+                    answers.extend(Answer(holder, fact.relation, (fact.obj,), verdict=None,
+                                          about_was_asked_for=True) for holder in holders)
                 continue
             item = by_name.get(fact.subject.lower())
             if item is None:
@@ -23544,7 +23557,15 @@ class Conversation:
         (lyric_db, 2026-11-10).
         """
         from core.semantics.derived_reader import is_variable
-        if not fact.positive or is_variable(fact.subject) or is_variable(fact.obj):
+        if not fact.positive:
+            return fact
+        # ONE SIDE UNKNOWN IS STILL PLACED. "What causes dread?" asks `causes(?x, dread)`, and the word is read
+        # in the sense `apprehension` while the edge is held on `dread`, so the thing asked about is the one
+        # that has to be placed and the unknown stays unknown. Placed by whether a sense holds the link ASKED
+        # at all -- there is no second term to hold it to (lyric_db, 2026-11-11).
+        if is_variable(fact.subject) != is_variable(fact.obj):
+            return await self._side_in_the_sense_that_holds(fact, words, found)
+        if is_variable(fact.subject) or is_variable(fact.obj):
             return fact
         # A THING ALREADY FOUND IS NOT A WORD TO BE PLACED IN A SENSE. "Is the tank full?" asks `has_property` of
         # `tank_1`, the tank found in what was said here; a particular names no word and has no senses, and asking
@@ -23583,6 +23604,60 @@ class Conversation:
                                 else await links(subject)):
                 if kind == fact.relation and other in named:
                     return dataclasses.replace(fact, subject=subject, obj=named[other])
+        return fact
+
+    async def _placed_in_the_senses_that_hold(self, meaning):
+        """The question with each link it asks read in the senses that hold it, or None where nothing moved.
+
+        `_reasoned_answers` places the one fact it decides; a question answered from what is held plainly
+        never passed through that, so the senses the reader happened to take stood as the question. Kinds are
+        left alone: a kind asked is placed where it is decided, by what the thing bears on.
+        """
+        from core.semantics.derived_reader import Meaning
+        words = _words_held()
+        if meaning is None or meaning.act != "ask" or words is None:
+            return None
+        known = await self._known_of(meaning)
+        facts, moved = [], False
+        for fact in meaning.facts:
+            placed = fact
+            if fact.relation in _LINK_KINDS and fact.relation not in ("isa", "instance_of"):
+                placed = await self._in_the_sense_that_holds(fact, words, known.values())
+            moved = moved or placed is not fact
+            facts.append(placed)
+        return Meaning(meaning.act, tuple(facts), meaning.asked) if moved else None
+
+    async def _side_in_the_sense_that_holds(self, fact, words, found=()):
+        """`fact` with its ONE named side read in a sense that holds the link asked, or unchanged.
+
+        A question asking FOR something names only the thing it asks about, so there is no pair to look the
+        link up between: the side that IS named is placed by whether a sense of it stands in the asked link
+        at all, in either direction (`_Held._edges` turns what is held the other way round). Nothing is
+        guessed -- a sense is taken only where the store holds that link from it -- and the side asked for
+        is left exactly as it came.
+        """
+        from core.semantics.derived_reader import is_variable
+        asking_of_the_object = is_variable(fact.subject)
+        named = fact.obj if asking_of_the_object else fact.subject
+        if {_Held.plain(named)} & {_Held.plain(each) for each in found}:
+            return fact
+        reach = _Held(self, {})
+        # WHICH WAY ROUND THE NAMED SIDE STANDS. "What causes dread?" asks `causes(?x, dread)`: the things
+        # that cause it point AT it, so what the dread itself stands in is `caused_by`. Looked for as
+        # `causes` said OF the dread, nothing is ever found, because nothing is (lyric_db, 2026-11-11).
+        looked_for = (_Held._turned(fact.relation) or fact.relation) if asking_of_the_object else fact.relation
+
+        async def stands_in_it(name: str) -> bool:
+            return any(kind == looked_for for kind, _ in await reach._edges(name, {looked_for}))
+
+        if await stands_in_it(named):
+            return fact
+        for sense in (*words.word_senses_any_class(named), *words.word_senses_written_alike(named)):
+            if _Held.plain(sense) == _Held.plain(named):
+                continue
+            if await stands_in_it(sense):
+                return (dataclasses.replace(fact, obj=sense) if is_variable(fact.subject)
+                        else dataclasses.replace(fact, subject=sense))
         return fact
 
     def _what_a_kind_is(self, meaning, asked_of) -> List["Answer"]:
@@ -24717,6 +24792,20 @@ class Conversation:
                     resolved = await self.resolve(sentence)
 
         incoming = {r.phrase: await self._incoming_relations(r.phrase) for r in resolved if r.known}
+
+        async def also_pointing_at(asking) -> Dict[str, Any]:
+            """`incoming` with what points at any name this question uses that the first gathering missed.
+
+            What points at a thing is gathered for the names the sentence was READ with; a question placed in
+            another sense, or asked as the relation its verb names, names things that gathering never saw, and
+            a reverse question is answered from exactly that map."""
+            from core.semantics.derived_reader import is_variable as unknown
+            more = dict(incoming)
+            for term in {t for f in asking.facts for t in (f.subject, f.obj) if t and not unknown(t)}:
+                if term not in more:
+                    more[term] = await self._incoming_relations(term)
+            return more
+
         # ONE FACT HELD answers what it asks (`asked`); a question it does not answer is asked of what is held as a
         # whole (`_asked_of_events`), which would answer the one fact again in other words.
         answers = self.asked(sentence, resolved, incoming)
@@ -24726,9 +24815,23 @@ class Conversation:
             # ASKED AS THE RELATION ITS VERB NAMES. A question read as a happening ("what causes pressure
             # loss": a causing, done to the loss, done by what) is the same claim as the relation the store
             # writes it in (`pressure loss caused_by pipe friction`), and neither shape could meet the other.
-            as_relation = _as_the_relation_a_verb_names(self._meaning(sentence))
-            if as_relation is not None:
-                answers = self.asked(sentence, resolved, incoming, meaning=as_relation)
+            for as_relation in _as_the_relation_a_verb_names(self._meaning(sentence)):
+                for asking in (as_relation, await self._placed_in_the_senses_that_hold(as_relation)):
+                    if asking is None:
+                        continue
+                    answers = self.asked(sentence, resolved, await also_pointing_at(asking), meaning=asking)
+                    if answers:
+                        break
+                if answers:
+                    break
+        if not answers:
+            # AND ASKED IN THE SENSES THAT HOLD WHAT IT ASKS. A question already read as the relation it
+            # asks still names its things in whatever sense the reader took: "What causes dread?" is read
+            # `causes(?x, apprehension)` while the edge is held on `dread`, so nothing was found though the
+            # store holds the answer in one edge (lyric_db, 2026-11-11).
+            placed = await self._placed_in_the_senses_that_hold(self._meaning(sentence))
+            if placed is not None:
+                answers = self.asked(sentence, resolved, await also_pointing_at(placed), meaning=placed)
         if asked:
             answers += [a for a in await self._asked_of_events_composed(sentence)
                         if (a.about, a.relation, tuple(a.others)) not in
@@ -25277,8 +25380,9 @@ class Conversation:
                     # WHAT IT NAMES, IN THE SPEAKER'S WORDS for it where they named it (`named`): told "Roy fastened
                     # the medal with a pin.", "What did Roy fasten?" was answered with the thing's own name, "Award
                     # decoration." (TRAIN-FORMAT-01, lyric_dev2, 2026-10-26).
+                    spoken = (answer.about,) if answer.about_was_asked_for else answer.others
                     listed = ", ".join(str(named.get(str(o), named.get(str(o).replace("_", " "), o))).replace("_", " ")
-                                       for o in answer.others)
+                                       for o in spoken)
                 else:
                     said, listed = "", Conversation._render_atom(answer.conclusion or "")
                 if answer.alternative:
