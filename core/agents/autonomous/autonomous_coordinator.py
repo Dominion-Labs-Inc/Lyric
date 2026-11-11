@@ -21038,6 +21038,62 @@ def _asked_between_kinds(asked_of: Sequence[Any], meaning: Any) -> Optional[Any]
     return dataclasses.replace(fact, subject=subject, obj=obj)
 
 
+def _as_the_relation_a_verb_names(meaning: Any) -> Optional[Any]:
+    """The question asked as the RELATION its verb names, or None where it names none.
+
+    "What causes pressure loss?" is read as a happening -- a causing (`?v0`), done to the pressure loss,
+    done by what -- and the store holds the claim as a relation between two kinds, `pressure loss caused_by
+    pipe friction`. A happening-shaped question never meets a relation-shaped fact, so a question whose
+    answer is held plainly, in one edge, went unanswered and said "I hold nothing for causes"
+    (lyric_dev, 2026-11-11).
+
+    A VERB AND THE RELATION IT NAMES ARE ONE CLAIM. What a causing was done BY stands in `causes` to what it
+    was done TO, which is the same claim as what it was done to standing in `caused_by` to the doer
+    (`relation_types`' surface forms, and `inverse`). Asked in the direction the store writes, the held
+    relation answers it, and an unknown said to be of a kind is asked of the kind, as the store holds kinds.
+
+    None unless the question is exactly ONE happening of a verb that names a relation, with a doer and
+    something done to, and nothing else said of that happening -- so a question of several happenings, or
+    one that says more about its own than who did it, is never rewritten into a question it does not ask.
+    """
+    from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
+    from core.semantics.relation_types import SPEC, _SURFACE
+    if meaning is None or meaning.act != "ask" or meaning.condition:
+        return None
+    if any(not f.positive or f.alternative for f in meaning.facts):
+        return None
+    kinds = {f.subject: f.obj for f in meaning.facts
+             if f.relation == "instance_of" and is_variable(f.subject) and not is_variable(f.obj)}
+    doers = {f.subject: f.obj for f in meaning.facts if f.relation == "done_by"}
+    done_to = {f.subject: f.obj for f in meaning.facts if f.relation == "done_to"}
+    happenings = [h for h in kinds if h in doers and h in done_to]
+    if len(happenings) != 1:
+        return None
+    (happening,) = happenings
+    #: NOTHING ELSE SAID OF THE HAPPENING, or the relation would say less than the question asks.
+    if any(f.subject == happening and f.relation not in ("instance_of", "done_by", "done_to")
+           for f in meaning.facts):
+        return None
+    named = _SURFACE.get(str(kinds[happening]).strip().lower().replace("_", " "))
+    if named is None:
+        return None
+    turned = (SPEC.get(named) or None) and SPEC[named].inverse
+
+    def as_held(term: str) -> str:
+        """An unknown said to be of a kind, asked of that kind; what is asked FOR stays unknown."""
+        return term if term in (meaning.asked or ()) else kinds.get(term, term)
+
+    doer, taken = as_held(doers[happening]), as_held(done_to[happening])
+    if is_variable(doer) and is_variable(taken):
+        return None
+    facts = [MeaningFact(f.relation, f.subject, f.obj, given=True)
+             for f in meaning.facts
+             if f.relation == "instance_of" and f.subject != happening and f.subject in (meaning.asked or ())]
+    facts.append(MeaningFact(turned.value, taken, doer) if turned is not None
+                 else MeaningFact(named.value, doer, taken))
+    return Meaning("ask", tuple(facts), meaning.asked)
+
+
 def _words_held() -> Optional[Any]:
     """The memory agent, holding the words recorded whole (`word_kinds`, `word_senses_alike`), where memory is up in
     this process; None where it is not, and nothing is read of the words."""
@@ -22653,7 +22709,8 @@ class Conversation:
         return tuple(result.statements or [result.statement]), result.source
 
     def asked(self, sentence: str, resolved: Sequence["Resolved"],
-              incoming: Optional[Dict[str, Sequence[Tuple[str, str, str, bool]]]] = None) -> List["Answer"]:
+              incoming: Optional[Dict[str, Sequence[Tuple[str, str, str, bool]]]] = None,
+              meaning: Optional[Any] = None) -> List["Answer"]:
         """The held relations that answer what the question MEANS.
 
         A yes/no question asks whether all it says holds, and is answered yes by
@@ -22673,7 +22730,7 @@ class Conversation:
         """
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
         from core.semantics.derived_reader import is_variable
-        meaning = self._meaning(sentence)
+        meaning = meaning if meaning is not None else self._meaning(sentence)
         if meaning is None or meaning.act != "ask":
             return self._found_nothing("held relations", "it was not read as a question",
                                        read=meaning is not None and meaning.act)
@@ -24665,6 +24722,13 @@ class Conversation:
         answers = self.asked(sentence, resolved, incoming)
         if not answers:
             answers = await self._asked_of_events(sentence, incoming)
+        if not answers:
+            # ASKED AS THE RELATION ITS VERB NAMES. A question read as a happening ("what causes pressure
+            # loss": a causing, done to the loss, done by what) is the same claim as the relation the store
+            # writes it in (`pressure loss caused_by pipe friction`), and neither shape could meet the other.
+            as_relation = _as_the_relation_a_verb_names(self._meaning(sentence))
+            if as_relation is not None:
+                answers = self.asked(sentence, resolved, incoming, meaning=as_relation)
         if asked:
             answers += [a for a in await self._asked_of_events_composed(sentence)
                         if (a.about, a.relation, tuple(a.others)) not in

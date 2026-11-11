@@ -115,6 +115,16 @@ async def _pressure_loss_is_held():
     from core.memory import get_memory_agent
 
     await get_memory_agent()
+    # WORDS BEFORE THE PHRASE. The sandbox holds no English of its own -- no word recorded whole, no class
+    # told -- so the reader has nothing to read the question with, and read "pressure loss" as a loss that
+    # is a pressure: two things, neither of them the one thing the store holds. The lesson taught the FACT
+    # and never the WORDS it is said in. Taught through the one door that teaches a class, which counts a
+    # pair once however often it is told, so this is idempotent across runs (lyric_dev, 2026-11-11).
+    await get_learning_authority().learn_word_classes([
+        ("what", "PRONOUN"), ("cause", "VERB"), ("causes", "VERB"),
+        ("pressure", "NOUN"), ("loss", "NOUN"), ("pressure loss", "NOUN"),
+        ("pipe", "NOUN"), ("friction", "NOUN"), ("pipe friction", "NOUN"),
+    ])
     held = await Conversation().understand("what causes pressure loss", look_up=False)
     if any(r.phrase == "pressure loss" and any("caus" in relation for relation, _ in r.relations)
            for r in held.known):
