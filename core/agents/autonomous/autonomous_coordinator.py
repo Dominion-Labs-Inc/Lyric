@@ -23880,6 +23880,13 @@ class Conversation:
             why: Dict[str, Any] = {}
             chosen = meant(utterance.readings, heard=heard, why=why)
             if chosen is None:
+                # WHY THE LISTENER COULD NOT TELL, kept where the asker can be told. `meant` weighs every reading
+                # and fills `why` with what it received, what each weighed, and the one thing that decided --
+                # and this, its only caller that fails, threw all of it away and said "Which study do you mean?".
+                # A sentence that will not read is the costliest thing the system does silently (2026-11-11).
+                self._found_nothing("listening", str(why.get("how") or "the listener could not tell which"),
+                                    text=utterance.text, readings=why.get("readings"),
+                                    weighed=why.get("weighed"), asked_memory=why.get("memory"))
                 yield utterance, None, [Acquired(utterance.text, detail=_which_meant(utterance.readings))], None
                 continue
             if chosen.meaning.act != "tell":
