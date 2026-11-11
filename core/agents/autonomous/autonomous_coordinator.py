@@ -22920,11 +22920,18 @@ class Conversation:
                 for a in meaning.asked:
                     if a not in filled:
                         continue
-                    named = kinds.get(filled[a], filled[a])
+                    # A THING WITH A NAME OF ITS OWN IS SAID BY IT, AND BY NOTHING ELSE. The qualities below name
+                    # a thing said BY ITS KIND, where the kind alone may not pick it out ("Whale." against "blue
+                    # whale"). A thing found by its own name is already picked out by that name, and saying what
+                    # else is held of it answers something narrower than what is held: told chlorophyll is the
+                    # green pigment that absorbs the light, "What absorbs the light?" came back "green
+                    # chlorophyll", where the answer is chlorophyll.
+                    by_kind = kinds.get(filled[a])
+                    named = by_kind if by_kind is not None else filled[a]
                     asked_of = {held.plain(f.obj) for f in facts
                                 if f.subject == a and f.relation == "has_property"}
                     of_it = [held.plain(q) for kind, q in await held.out(way[a])
-                             if kind == "has_property" and held.plain(q) not in asked_of]
+                             if kind == "has_property" and held.plain(q) not in asked_of] if by_kind else []
                     found.append(" ".join(dict.fromkeys(of_it + [held.plain(named)])) if of_it else named)
                 found = tuple(found)
                 if not meaning.asked or found:
@@ -23434,10 +23441,15 @@ class Conversation:
             return fact
         subject_named, object_named = fact.subject, fact.obj
 
+        # HELD THE OTHER WAY ROUND IS STILL HELD (`_Held._edges`, `relation_algebra.inverse`): an opposite is
+        # symmetric and is written once, `private antonym of public` and nothing out of `public`, so reading only
+        # what is said OF a thing placed no sense for any opposite asked -- not even `antonym_of(public, private)`,
+        # whose two words are exactly what the store holds the edge between (lyric_db, 2026-11-11).
+        reach = _Held(self, {})
+
         async def links(name: str) -> List[Tuple[str, str]]:
-            held = await self.resolve_name(name)
-            return sorted({(kind, _Held.plain(other)) for relation, other in held.relations
-                           for kind, denied in (_link_kind(relation),) if not denied})
+            return sorted({(kind, _Held.plain(other))
+                           for kind, other in await reach._edges(name, {fact.relation})})
 
         wanted = _Held.plain(object_named)
         as_asked = await links(subject_named)
