@@ -20869,11 +20869,18 @@ class _Held:
 
     async def is_kind(self, thing: str, kind: str) -> bool:
         """Whether the thing is what `kind` names: it, what it equals, or one of that kind. A WORD ASKED MAY MEAN ANY
-        OF ITS SENSES (`MemoryAgent.word_senses_alike`), the one the thing told bears on: "Did Roy make something?",
-        of a painting told, asks in the sense the painting is a kind of (make or cause to be), not the one "make" is
-        most used in (engage in)."""
+        OF ITS SENSES (`MemoryAgent.word_senses_written_so`), the one the thing told bears on: "Did Roy make
+        something?", of a painting told, asks in the sense the painting is a kind of (make or cause to be), not the
+        one "make" is most used in (engage in).
+
+        THE SENSES OF THE WORD AS WRITTEN, AND OF NO OTHER WORD. Widened by every word one of whose senses is the
+        kind asked (`word_senses_alike`), "workplace" also asked about `product work`, `energy work` and `oeuvre` --
+        the other senses of "work" -- so an egret, held a book by a chain through `object`, answered YES to "Is an
+        egret a workplace?", and answered no in the same breath from the store's own denial (lyric_db,
+        2026-11-10)."""
         words = _words_held()
-        asked = {self.plain(kind)} | ({self.plain(s) for s in words.word_senses_alike(kind)} if words else set())
+        asked = ({self.plain(kind)}
+                 | ({self.plain(s) for s in words.word_senses_written_so(kind)} if words else set()))
         if asked & {self.plain(each) for each in await self.same(thing)}:
             return True
         return bool(asked & {self.plain(each) for each in await self.kinds(thing)})
@@ -20988,6 +20995,38 @@ class _Held:
             if await self.is_kind(other, obj):
                 return True
         return False
+
+
+def _asked_between_kinds(asked_of: Sequence[Any], meaning: Any) -> Optional[Any]:
+    """The ONE fact a yes or no asks, each unknown read as the kind it is said to be one of, or None.
+
+    "Is a flower part of an angiosperm?" is read `instance_of(?v0, angiosperm) & part_of(flower, ?v0)`: the part is
+    of SOME angiosperm, named by a fact of its own. `goal_fact` decides one fact between NAMED things and so
+    declines this -- and declining it skipped the whole sense-placing step for every "part of a Y" question there
+    is, the kind asked included. Of the parts asked, 44 of 88 are held only under a sense's own name and could not
+    be placed at all; three questions in a hundred-question probe were read as one fact and the rest as two
+    (UNDERSTANDS-WORDNET-01, 2026-11-10).
+
+    The question is still ONE fact once each unknown is read as the kind its own fact names, which is how the
+    store holds such a link in the first place: `reproductive_structure_flower part of angiosperm`.
+
+    None unless the question asks a yes or no, the one fact left names nothing unknown once its kinds are put in,
+    and no fact is left over -- so a question that asks FOR something, or that asks several things at once, is
+    never collapsed into one it does not mean.
+    """
+    from core.semantics.derived_reader import is_variable
+    if meaning.asked or meaning.condition:
+        return None
+    stands_for = {f.subject: f.obj for f in asked_of
+                  if f.relation == "instance_of" and is_variable(f.subject) and not is_variable(f.obj)}
+    rest = [f for f in asked_of if not (f.relation == "instance_of" and f.subject in stands_for)]
+    if len(rest) != 1:
+        return None
+    (fact,) = rest
+    subject, obj = stands_for.get(fact.subject, fact.subject), stands_for.get(fact.obj, fact.obj)
+    if is_variable(subject) or is_variable(obj):
+        return None
+    return dataclasses.replace(fact, subject=subject, obj=obj)
 
 
 def _words_held() -> Optional[Any]:
@@ -23282,6 +23321,9 @@ class Conversation:
             # the valve alone); taken as one, it stopped the conversation (UNDERSTANDS-PROSE-01, 2026-10-17).
             return []
         fact = goal_fact(Meaning(meaning.act, asked_of, meaning.asked))
+        if fact is None:
+            # ONE FACT BETWEEN KINDS, where the question named its kinds in facts of their own.
+            fact = _asked_between_kinds(asked_of, meaning)
         words = _words_held()
         if fact is not None and fact.relation in ("isa", "instance_of") and words is not None:
             # THE KIND ASKED IS READ IN THE SENSE THE THING BEARS ON (`MemoryAgent.word_senses_alike`), as a happening
@@ -23293,6 +23335,16 @@ class Conversation:
                 borne = next((s for s in words.word_senses_alike(fact.obj) if _Held.plain(s) in kinds), None)
                 if borne is not None:
                     fact = dataclasses.replace(fact, obj=borne)
+        elif fact is not None and words is not None and fact.relation in _LINK_KINDS:
+            # AND EVERY OTHER LINK IS READ IN THE SENSE THAT HOLDS IT, which the kind asked above is not alone in
+            # needing. `word_kinds` spans every sense of the SUBJECT, so a kind asked only ever had its object to
+            # place; no other link has such a span, and either side may be the one written as a different sense:
+            # what an angiosperm has is `reproductive_structure_flower`, while the word "flower" is held
+            # `english:flower`, so "Is a flower part of an angiosperm?" found no part, fell to the kind it did find
+            # and answered "A flower's a angiosperm." Of the parts asked, 44 of 88 are held only under a sense's
+            # own name, and 23 of 100 opposites; neither probe returned one `no` in 200 questions
+            # (UNDERSTANDS-WORDNET-01, 2026-11-10).
+            fact = await self._in_the_sense_that_holds(fact, words, known.values())
         if fact is not None:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
@@ -23346,6 +23398,61 @@ class Conversation:
             return self._what_a_kind_is(meaning, asked_of)
         return [Answer(about="", relation="", others=(), verdict=None,
                        support=support, conclusion=self._render_atom(result.answer))]
+
+    async def _in_the_sense_that_holds(self, fact, words, found=()):
+        """`fact` with each side read in the sense that HOLDS the link it asks of, or unchanged where none does.
+
+        A word is held in the graph under ONE of its senses -- whichever was written -- and its other senses hold
+        their own links under their own names. So a link asked between two words is invisible wherever either side
+        was written as a different sense, and the question is answered by whatever other link the named sense does
+        hold: asked whether a flower is part of an angiosperm, the part is held
+        `reproductive_structure_flower part of angiosperm` and the word is held `english:flower`, so nothing was
+        found and the kind was answered instead.
+
+        A SIDE SAID OF NO ONE THING IS ALREADY THE KIND IT IS SAID TO BE ONE OF when this is reached:
+        `_asked_between_kinds` puts the kinds in before the fact to decide is chosen, because "Is a flower part of
+        an angiosperm?" is read `instance_of(?v0, angiosperm) & part_of(flower, ?v0)` and `goal_fact` decides only
+        one fact between named things.
+
+        NOTHING IS GUESSED. A sense is taken only where the store holds THE ASKED LINK from it, and the fact asked
+        is tried first, so a question already answerable is returned exactly as it came and no answer can change.
+
+        THE CLASS IS NOT WHAT DECIDES HERE, THE LINK IS (`MemoryAgent.word_senses_any_class`). The kind asked is
+        placed among senses of one class, because a kind is read in the sense its neighbours bear on; a link is
+        often held between senses of a class the question never used. "Is public the opposite of private?" is read
+        of `populace` and `enlisted man private`, both nouns, and the store holds `private antonym of public`
+        between the adjectives -- held under exactly the names asked, and unreachable from the nouns
+        (lyric_db, 2026-11-10).
+        """
+        from core.semantics.derived_reader import is_variable
+        if not fact.positive or is_variable(fact.subject) or is_variable(fact.obj):
+            return fact
+        # A THING ALREADY FOUND IS NOT A WORD TO BE PLACED IN A SENSE. "Is the tank full?" asks `has_property` of
+        # `tank_1`, the tank found in what was said here; a particular names no word and has no senses, and asking
+        # the store for its links to place one only asked the reasoner something other than the one fact asked.
+        if {_Held.plain(fact.subject), _Held.plain(fact.obj)} & {_Held.plain(each) for each in found}:
+            return fact
+        subject_named, object_named = fact.subject, fact.obj
+
+        async def links(name: str) -> List[Tuple[str, str]]:
+            held = await self.resolve_name(name)
+            return sorted({(kind, _Held.plain(other)) for relation, other in held.relations
+                           for kind, denied in (_link_kind(relation),) if not denied})
+
+        wanted = _Held.plain(object_named)
+        as_asked = await links(subject_named)
+        if (fact.relation, wanted) in as_asked:
+            return dataclasses.replace(fact, subject=subject_named, obj=object_named)
+        # THE OBJECT'S SENSES BY THE NAME EACH BEARS, so the fact is rewritten as the store holds it and not as the
+        # plain words of it. The object as asked stands for itself.
+        named = {_Held.plain(sense): sense for sense in words.word_senses_any_class(object_named)}
+        named[wanted] = object_named
+        for subject in (subject_named, *words.word_senses_any_class(subject_named)):
+            for kind, other in (as_asked if _Held.plain(subject) == _Held.plain(subject_named)
+                                else await links(subject)):
+                if kind == fact.relation and other in named:
+                    return dataclasses.replace(fact, subject=subject, obj=named[other])
+        return fact
 
     def _what_a_kind_is(self, meaning, asked_of) -> List["Answer"]:
         """WHAT A KIND IS, asked of the kind itself and not of any one thing of it: "What is paint?" -> "A paint is

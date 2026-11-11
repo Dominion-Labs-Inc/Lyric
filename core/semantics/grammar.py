@@ -4544,6 +4544,17 @@ class Grammar:
         held: Dict[Tuple, Item] = {}
         #: Whole sentences packing kept nothing of, each with the one that held its cell (`hold`, below).
         packed_away: List[Tuple[str, str]] = []
+        #: HOW MANY WHOLE SENTENCES WERE PACKED AWAY ALTOGETHER, beside the sample `packed_away` keeps, so the
+        #: sample can be read for what it is.
+        packed_whole = [0]
+        #: AND WHICH OFFERED WORDS NEVER ENTERED THE CHART AT ALL, with what turned each away. A word offered and
+        #: dropped at the lexical stage is a word no sentence can ever use, and nothing said which: asked to say
+        #: that a uniform is distinct, saying OFFERED "is", "are" and "be", made 162 whole sentences, and not one
+        #: of them used a full copula -- which could not be told from "is" being offered and packed away, so a
+        #: whole day went on the packing (lyric_db, 2026-11-10).
+        #: All three are diagnostic only: they are read in `why` and nowhere else.
+        entered_chart: Set[str] = set()
+        turned_away: Dict[str, str] = {}
         agenda: List[Tuple[float, int, int, Item]] = []
         pushed = itertools.count()
         none = tuple(0 for _ in spending)
@@ -4664,7 +4675,12 @@ class Grammar:
 
         def hold(filled: int, used: Tuple[int, ...], sign: Sign, said: Tuple[str, ...], order: Tuple[int, ...]) -> None:
             if not completable(sign) or not timed(sign):
+                if len(said) == 1:
+                    turned_away.setdefault(said[0], "nothing it takes can be made here" if not completable(sign)
+                                           else "its time is not the meaning's")
                 return
+            if len(said) == 1:
+                entered_chart.add(said[0])
             key = (filled, used, _meant(sign, order, tokens), taking_subject(sign), standing_as(sign)) + (
                 (said[-1] if said[-1] in alike else "",
                  first_sound(said[0]) if any(_same_shape(sign.cat, c) for c in taken) else ()) if alike else ())
@@ -4675,8 +4691,14 @@ class Grammar:
                 # list" and "Sorted might change the original list" stand in one cell and the surer is all that
                 # goes on. A saying that never completes shows nothing of this: the plain sentence is not refused,
                 # it is never read back at all (UNDERSTANDS-PROSE-01, 2026-11-05).
-                if len(packed_away) < 8 and _whole(sign.cat) is not None:
-                    packed_away.append((" ".join(said), " ".join(held[key][3])))
+                if _whole(sign.cat) is not None:
+                    packed_whole[0] += 1
+                    dropped, kept = " ".join(said), " ".join(held[key][3])
+                    # AN IDENTICAL PAIR TELLS NOTHING. Two signs of the same words standing in one cell say the
+                    # same sentence, and EIGHT such pairs filled this list before one informative packing was
+                    # recorded (lyric_db, 2026-11-10). The packings worth keeping are those whose words DIFFER.
+                    if dropped != kept and len(packed_away) < 24:
+                        packed_away.append((dropped, kept))
                 return
             held[key] = item = (filled, used, sign, said, order, key)
             heapq.heappush(agenda, (-(sign.score + to_come(filled)), -bin(filled).count("1"), next(pushed), item))
@@ -4926,6 +4948,8 @@ class Grammar:
                 "the_most_a_sentence_said": f"{most_a_sentence_said} of {len(wanted)} thing(s) that need a word",
                 "the_best_sentences": sentence_tries,
                 "packed_away_by": packed_away,
+                "packed_whole_sentences_away": packed_whole[0],
+                "words_turned_away": {w: r for w, r in sorted(turned_away.items()) if w not in entered_chart},
                 "items": len(held), "refused": len(refused),
                 "read_back_otherwise": [_written(said, closing) for said in sorted(refused)[:3]]})
         done_with("the search")

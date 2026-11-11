@@ -7522,6 +7522,45 @@ class MemoryAgent(IMemoryConsolidation):
             out += [s.concept for s in word.senses if s.word_class in classes]
         return list(dict.fromkeys(out))
 
+    def word_senses_written_so(self, name: str) -> List[str]:
+        """EVERY THING THE WORD SPELLED `name` MAY NAME: the senses of the words WRITTEN that way, and of no others.
+
+        `word_senses_alike` takes every word one of whose senses is the thing named, which is what is wanted when
+        the thing was reached through the store and the word that said it is not known. It is NOT what is wanted
+        when the question itself wrote the word: `workplace` is one sense of the word "work", so asking what else
+        "workplace" may name gave back `product work`, `energy work` and `oeuvre` -- and "Is an egret a workplace?"
+        came back YES, an egret being held a book by a chain through `object` (lyric_db, 2026-11-10). A question
+        that wrote "workplace" asked about workplaces, whatever "work" may mean.
+
+        Empty where no word is written so, which is right: a thing named by no word of that spelling widens to
+        nothing."""
+        folded = str(name).casefold().replace("_", " ")
+        out: List[str] = []
+        for word in self._grammar_words.values():
+            if str(word.word).casefold().replace("_", " ") == folded:
+                out += [s.concept for s in word.senses]
+        return list(dict.fromkeys(out))
+
+    def word_senses_any_class(self, name: str) -> List[str]:
+        """EVERY THING A WORD MAY NAME, ITS CLASS ASIDE: each sense of every word recorded whole one of whose senses
+        is the thing `name` names, whatever class each is.
+
+        `word_senses_alike` keeps only the senses of the SAME class as the one named, which is right for reading a
+        word in the sense its neighbours bear on. It makes the other senses of a word unreachable from one of them,
+        and a link is often held between senses of a class the question did not use: "Is public the opposite of
+        private?" is read of `populace` and `enlisted man private`, both nouns, while the store holds `private
+        antonym of public` between the adjectives -- so nothing could reach from the one to the other, and the
+        question went unanswered though the edge was held under exactly the names asked (lyric_db, 2026-11-10).
+
+        Used where the LINK decides which sense is meant rather than the class: the sense taken is the one the
+        store holds the asked link between (`Conversation._in_the_sense_that_holds`)."""
+        folded = str(name).casefold().replace("_", " ")
+        out: List[str] = []
+        for word in self._grammar_words.values():
+            if any(s.concept == folded for s in word.senses):
+                out += [s.concept for s in word.senses]
+        return list(dict.fromkeys(out))
+
     def word_sense_is_a_kind_of(self, name: str, kind: str) -> Optional[str]:
         """THE SENSE A WORD MAY NAME THAT IS HELD TO BE A KIND OF `kind`, or None where none is. Of "senior" and
         "adult": `elder`, because the word recorded whole holds five senses of "senior" and one of them, the elder,

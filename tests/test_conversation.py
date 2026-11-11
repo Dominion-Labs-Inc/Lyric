@@ -774,6 +774,12 @@ async def test_a_question_is_also_asked_as_the_grammar_reads_it(talk, monkeypatc
         def word_senses_alike(self, name):
             return []
 
+        def word_senses_written_so(self, name):
+            return []
+
+        def word_senses_any_class(self, name):
+            return []
+
     async def known(meaning, *, telling=False):
         return {"?a": "account_1"}
 

@@ -35,6 +35,7 @@ and the run fails its first check.
 import asyncio
 import contextlib
 import io
+import json
 import logging
 import math
 import os
@@ -42,7 +43,7 @@ import random
 import re
 import sys
 import time
-from typing import Dict
+from typing import Any, Dict, List
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -324,6 +325,9 @@ async def main() -> int:
 
     asked_count = [0]
     examples = {}
+    #: Every question asked, with what came back: written beside the run record so a failing rate can be read
+    #: question by question instead of inferred from one example of each label.
+    asked_questions: List[Dict[str, Any]] = []
 
     async def ask(probe: str, sentence: str):
         """One question, in a conversation of its own: (verdict, understanding, seconds). Verdict: yes, no, unknown,
@@ -349,6 +353,7 @@ async def main() -> int:
         else:
             verdict = "unknown"
         reply = understanding.reply or ""
+        why = ""
         if verdict in ("unread", "unknown"):
             # WHY, in the substrate's own words: each is a different failure to fix.
             why = ("read two ways, would not guess" if "more than one way" in reply else
@@ -360,6 +365,31 @@ async def main() -> int:
             examples.setdefault((probe, f"{verdict}: {why}"), (sentence, reply[:160]))
         else:
             examples.setdefault((probe, verdict), (sentence, reply[:160]))
+        # EVERY QUESTION KEPT, NOT ONE EXAMPLE OF EACH. The tallies say 115 of P1's 121 non-answers said
+        # something that was not an answer, and one example of that cannot say what the 115 have in common:
+        # which relation each was answered through instead, whether the words resolved, what was said back. A day
+        # went on inferring from the samples what the record would have stated (2026-11-10). Written beside the run
+        # record, as UNDERSTANDS-PROSE-02 writes its transcript.
+        # WHAT THE QUESTION WAS READ TO MEAN, which is what tells a question answered through the wrong relation
+        # from one never read as the right one. Asked whether a flower is part of an angiosperm, the reply was
+        # "A flower's a angiosperm." -- an `isa` answer to a `part_of` question -- and nothing recorded said
+        # whether the part was asked for and not found, or never read at all (2026-11-10).
+        meant = conversation._meaning(sentence)
+        asked_questions.append({
+            "probe": probe, "question": sentence, "verdict": verdict, "why": why, "reply": reply,
+            "seconds": round(took, 3),
+            "meant": ([f.render() for f in meant.facts] if meant is not None else None),
+            "meant_act": (meant.act if meant is not None else None),
+            "read": list(understanding.reading) if understanding.reading else None,
+            # WHICH THING EACH WORD TURNED OUT TO BE, not merely that it was known. A word is held under one of its
+            # senses, and the link asked may be held under another, so the concept each phrase resolved to is what
+            # says whether the question could have been found at all.
+            "resolved": [{"phrase": r.phrase, "known": bool(r.known), "concept_id": r.concept_id, "how": r.how}
+                         for r in understanding.resolved],
+            "answers": [{"about": a.about, "relation": a.relation, "others": list(a.others),
+                         "verdict": a.verdict, "told": a.told, "conclusion": a.conclusion,
+                         "support": list(a.support)} for a in answers],
+        })
         return verdict, understanding, took
 
     tallies = {}
@@ -487,6 +517,11 @@ async def main() -> int:
           "; ".join(f"{name} +{n}" for name, n in sorted(moved.items())) or "no table written to")
     path = EV.write()
     say(f"\n  run record: {path}")
+    questions_path = str(path).replace(".json", "_questions.jsonl")
+    with open(questions_path, "w", encoding="utf-8") as record:
+        for asked_one in asked_questions:
+            record.write(json.dumps(asked_one, ensure_ascii=False) + "\n")
+    say(f"  every question: {questions_path}")
     return 0 if EV.failed == 0 else 1
 
 
