@@ -101,6 +101,11 @@ class _KeylessWrites:
 _NOTHING_MORE = object()
 
 
+#: The links `_grammar_knowledge` reads that say what a thing IS rather than what it stands in: every
+#: sense has kinds, so a kind tells no two senses apart (`_senses_memory_holds`).
+_NOT_A_LINK_ASKED = frozenset({"isa", "is a", "instance of", "instance_of", "defined with", "defined_with"})
+
+
 class MemoryAgent(IMemoryConsolidation):
     """
     Memory Agent - Primary Memory Coordination Interface
@@ -3117,6 +3122,7 @@ class MemoryAgent(IMemoryConsolidation):
         # The reader stands a word where its class's part stands (`PatternInventory.of_its_class`): the same index,
         # kept current as each proposition is taught (`note_taught_proposition`).
         inventory.word_classes = index
+        inventory.senses_memory_holds = self._senses_memory_holds(grammar_links)
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
         self._structure_view, self._word_groups, self._word_forms = structure, groups, forms
@@ -7281,6 +7287,27 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_derived.pop(key, None)
         if self._grammar_view is not None:
             self._grammar_view.drop_derived(item)
+
+    def _senses_memory_holds(self, links: Sequence[Tuple[str, str, str]]) -> Dict[str, Tuple[str, ...]]:
+        """Each word -> the senses of it memory holds a LINK of (`PatternInventory.senses_memory_holds`).
+
+        A sense reaches a reading only as it has been read: the reader's fillers are the senses that sentences
+        already read put in slots. So a word is read in the senses it has been read in, and a sense memory holds
+        something of waits on being read before it can be read. "Is a study part of a house?" put three senses of
+        "study" to the listener, memory holding nothing of any of them, and it could not tell them apart -- while
+        `room_study part of house`, the one fact that settles it, was of a sense never offered (2026-11-11).
+
+        THE LINKS AND NEVER THE KINDS. Every sense has kinds, so kinds separate nothing and would widen each word
+        to all of its senses; a link is held of some senses and not others, which is what tells them apart."""
+        from core.semantics.grammar_words import _concept
+        stands = {_concept(subject) for subject, relation, _ in links if relation not in _NOT_A_LINK_ASKED}
+        stands |= {_concept(obj) for _, relation, obj in links if relation not in _NOT_A_LINK_ASKED}
+        held: Dict[str, Tuple[str, ...]] = {}
+        for word in self._grammar_words.values():
+            senses = tuple(dict.fromkeys(s.concept for s in word.senses if _concept(s.concept) in stands))
+            if senses:
+                held[str(word.word).casefold()] = senses
+        return held
 
     async def _grammar_knowledge(self) -> List[Tuple[str, str, str]]:
         """What memory holds of things that English's grammar asks of the words it reads (`grammar_words.Knowledge`):

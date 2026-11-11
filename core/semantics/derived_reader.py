@@ -1174,6 +1174,14 @@ class PatternInventory:
         # The classes each word was observed in, with their net evidence (`MemoryAgent.word_classes`): given by the
         # memory that holds them, the same mapping it keeps current as it is taught; none in a view made without it.
         self.word_classes: Mapping[str, Mapping[str, int]] = {}
+        # THE SENSES OF A WORD MEMORY HOLDS LINKS FOR (`MemoryAgent.senses_memory_holds`): a word's senses reach a
+        # reading only as they have been READ -- its fillers are the senses sentences read put in slots -- so a sense
+        # never met cannot be put to the listener however much memory holds of it. "study" is recorded with 16
+        # senses, the lexicon weighs 12, and 5 are held as fillers; the listener was handed 3, memory holding nothing
+        # of any of them, and could not tell them apart -- while `room_study part of house`, the one fact that
+        # settles it, was of a sense it was never offered (lyric_db, 2026-11-11). Kept to those memory holds a link
+        # of, which are exactly the senses evidence can tell apart; none in a view made without memory.
+        self.senses_memory_holds: Mapping[str, Sequence[str]] = {}
         # The base words a written word is a form of, as memory holds the forms treebanks showed (`word_forms`,
         # `MemoryAgent.remember_word_forms`); none in a view made without memory.
         self.held_forms: Optional[Callable[[str], Sequence[str]]] = None
@@ -4032,6 +4040,22 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
                     named_here.add(base.value)
                     shaped = Lexical(pieces, base.value)
                     out.append((shaped, link(pattern, slot, shaped), "kind"))
+        # AND EACH SENSE MEMORY HOLDS A LINK OF, held as a filler or not. The senses above are the ones sentences
+        # read have already put in a slot, so a word is read in the senses it has been read in, and a sense memory
+        # holds something of waits on being read before it can be. It is offered in the slot's own kind, as a sense
+        # of its kind is, and weighed against the rest by the listener, which is what holding a link of it is for.
+        for sense in view.senses_memory_holds.get(_fold(words[0]), ()):
+            if sense in named_here:
+                continue
+            stands = Lexical(pieces, sense)
+            if not alike(stands.key) and not view.admits_there(pattern.key, slot, sense):
+                _not_offered(pattern, slot, pieces, stands, "memory holds a link of it, and it stands nowhere here")
+                continue
+            named_here.add(sense)
+            out.append((stands, link(pattern, slot, stands), "kind"))
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug("fillers: %r OFFERED as %r in %s of %s -- memory holds a link of it",
+                             " ".join(p.text for p in pieces), sense, slot, str(pattern.key)[:12])
     # A word held in another case is not a new word: it is read as the word it is, loosely.
     if extend and not held and not view.lexicals_with_words(_loose(words), loose=True):
         named = _named_as(pieces)
