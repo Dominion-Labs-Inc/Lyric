@@ -3839,6 +3839,15 @@ class Reading:
         the stuff, where "It will ?slot0 soon." holds "rain" for `raining`, supposes more than "snow" for `snowing`,
         which stood beside "rain" before."""
         proposed, misfits, apart = len(self.proposed) + self.said_for, self.misfits, self.apart
+        # A COMPOSED READING SUPPOSES ONE THING PER WORD IT NAMES: that this word stands for this thing HERE, with
+        # nothing taught saying so -- which is what a proposed link is. It holds no link to count, so every field
+        # here was zero and it was weighed as supposing nothing: it sorted ahead of every frame's reading
+        # (`_best_first`) and collected the worth measured for a reading that fit its words exactly (`fit` 0, +4.56
+        # nats) while the frame's reading of the same sentence paid -6.91 for the senses it had to suppose. The
+        # untaught filler is what forces the frames' reading to be weighed against a composed one at all
+        # (`_forced`), so it summoned the competitor and then lost to it on both channels (lyric_db, 2026-11-12).
+        if self.composed:
+            proposed += _composed_supposes(self)
         # Of a packed reading, the reading of it that supposes least: what each sense supposes adds to the rest, so
         # each word's least sense makes it.
         for _, options, _, _ in self.senses:
@@ -6227,8 +6236,52 @@ def _derivation(reading: Reading, view: PatternInventory) -> float:
     others (no link proposed, no word read through another), so without it the listener would have nothing of
     structure to tell them apart and would choose on what memory knows alone."""
     if reading.composed:
-        return reading.structure
+        # ON ONE SCALE WITH A FRAME'S READING, or it is not weighed against it at all. `Reading.structure` is what
+        # the grammar's own RANKING said of this reading among the readings it composed of the same sentence -- a
+        # few nats at most, and meant for telling those apart. Returned here as the whole of a composed reading's
+        # structure, it was summed against a frame reading's `_derivation_of`, which prices every link the frame had
+        # to propose as "of all the things of this kind, why this one?" over a 155,767-word vocabulary: about ten
+        # nats EACH. A rank was being compared with a probability, so a composed reading came out ten to twenty nats
+        # cheaper than any frame reading needing one proposed link, for a reason that is nothing to do with which
+        # reading is right.
+        #
+        # The frame was only ever consulted because its reading supposed something (`_forced`), so the untaught
+        # filler summons the composed reading and then loses to it on the scale. "Is public the opposite of
+        # private?" read as `antonym_of(populace, ?v0)` with `antonym_of(public, private)` on the table at the best
+        # score of its twelve readings, and of 14 held-but-untaught opposite pairs read, 4 lost this way -- the
+        # store holding 2,180 such pairs against the 16 that frame was taught with (lyric_db, 2026-11-12).
+        #
+        # A COMPOSED READING SUPPOSES THE SAME THING OF EVERY WORD IT NAMES: nothing taught says this word stands
+        # for this thing here, so each is priced as a proposed link is, by that sense's share of what was met where
+        # things of its part stand (`_share_of`) -- the branch `_derivation_of` already takes where nothing taught
+        # links a slot at all. The ranking is kept beside it, so composed readings are still told apart from each
+        # other, which is what it is for. Where no frame reads the utterance there is nothing to be weighed against
+        # and the price changes nothing ("A whale breathes air through a blowhole.").
+        total = reading.structure
+        for construction in reading.constructions:
+            if not isinstance(construction, Lexical) or len(construction.words) != 1:
+                continue
+            parts = sorted(view.class_parts(construction.words[0]) or ("thing",))
+            total += math.log(_share_of(view, construction, parts[0]))
+        return total
     return _derivation_of(reading.links, reading.proposed, view)
+
+
+def _composed_supposes(reading: Reading) -> int:
+    """How many things a reading English's grammar composed supposed: one for each single word it names, each
+    standing for a thing with no taught link saying it stands for it here (`_said_by_words`). Nothing to count in a
+    reading a frame read, whose suppositions are its proposed links."""
+    if not reading.composed:
+        return 0
+    return sum(1 for c in reading.constructions if isinstance(c, Lexical) and len(c.words) == 1)
+
+
+def _share_of(view: PatternInventory, filler: Optional[Item], part: str) -> float:
+    """How much of everything met where things of this part stand is this filler's, smoothed by one (`parts_met`):
+    "of all the things of this kind, why this one?". One scale for a link proposed (`_derivation_of`) and for a word
+    a composed reading names (`_derivation`), so readings of the two kinds can be weighed against each other."""
+    met, count = view.parts_met().get(part, (0.0, 0))
+    return ((_met(view, filler) if filler is not None else 0) + 1) / (met + count + 1)
 
 
 def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: PatternInventory) -> float:
@@ -6236,14 +6289,12 @@ def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: Patter
     # EACH LINK IS ONE SLOT FILLED, the same phrase filled again where it is used again ("?slot0 ?slot1" in "three
     # hundred and twelve billion five million"): looked up by its frame and slot, every use of a phrase took one
     # filler, and two bracketings of a number scored alike.
-    parts = view.parts_met()
     total = 0.0
     for link, held in [(link, True) for link in links] + [(link, False) for link in proposed]:
         filler = view._by_key.get(link.lexical)
         uses, fillers = view.slot_filled(link.pattern, link.slot)
         k = view.uses(link) if held else 0.0
-        met, count = parts.get((view._taken_at(link.pattern, link.slot) or ("thing",))[0], (0.0, 0))
-        share = ((_met(view, filler) if filler is not None else 0) + 1) / (met + count + 1)
+        share = _share_of(view, filler, (view._taken_at(link.pattern, link.slot) or ("thing",))[0])
         total += math.log((k + fillers * share) / (uses + fillers)) if uses + fillers else math.log(share)
     return total
 
@@ -6474,7 +6525,13 @@ def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: 
             not is_variable(term) and term in mine for f in construction.meaning.facts for term in f.terms())
     fixed = sum(math.log1p(_met(view, c)) for c in reading.constructions if not _stand_in(c) and naming(c))
     fixed += sum(related.get(term, 0.0) for term in _listened_terms(reading) - shared)
-    fixed += _derivation_of(reading.links, reading.proposed, view)
+    # THE ONE THAT KNOWS A COMPOSED READING FROM A FRAME'S (`_derivation`), not `_derivation_of` on its links.
+    # A composed reading holds no link, so `_derivation_of` returned 0 for it here and its own `structure` was never
+    # weighed on this path at all: it paid NOTHING for structure while a frame reading paid about ten nats for every
+    # link it had to propose. `meant`'s other path (`weighed`) called `_derivation` all along, so the two paths
+    # priced the same two readings differently, and the packed path is the one a frame's reading of several senses
+    # takes (lyric_db, 2026-11-12).
+    fixed += _derivation(reading, view)
     known = defined_count = 0
     listened_words = {t for f in listening_facts(reading.meaning) for t in f.terms() if t in at}
     facts = []
@@ -6506,7 +6563,8 @@ def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: 
             share += _derivation_of((sense.link,), (), view) if sense.held else _derivation_of((), (sense.link,), view)
             shares.append((share, sum(cost)))
         own.append(tuple(shares))
-    fit = len(reading.proposed) + reading.said_for + reading.misfits + reading.apart
+    fit = (len(reading.proposed) + reading.said_for + reading.misfits + reading.apart
+           + (_composed_supposes(reading) if reading.composed else 0))
     return _Weighing(reading, words, options, fixed, (known, defined_count, fit), tuple(own), tuple(facts))
 
 
@@ -6756,6 +6814,25 @@ def _meant_packed(readings: Sequence[Reading], view: PatternInventory, heard: "H
     def said(took: Optional[Reading], how: str) -> Optional[Reading]:
         _listening_said(len(readings), None, took, how, heard, why,
                         margin=(order[0][0] - order[1][0]) if len(order) > 1 else None)
+        # EVERY MEANING WEIGHED AND WHAT IT CAME TO, which `_listening_said` cannot show here: its rows are one per
+        # reading weighed and a packed reading stands for many, so it says the margin and nothing of what the margin
+        # was over. `_best_packed` ranks the MEANINGS, and its own note says that ranking is the only place the
+        # runner-up exists (`ranked_out`); thrown away, a listener that took a composed reading nothing has ever
+        # observed (its score the initial one, its uses none) over a taught frame's reading of the same sentence, by
+        # 23.8 nats, said only "took the only meaning weighed highest" -- true, and no help at all (lyric_db,
+        # 2026-11-12). Said beside each meaning's own score and uses, because a meaning weighed highest on a
+        # construction nothing has met is a different fact about reading than one weighed highest on a taught one.
+        if why is not None:
+            why["meanings"] = [{"meaning": r.meaning.canonical(), "total": total, "composed": r.composed,
+                                "score": round(r.score, 6), "uses": round(r.uses, 1), "misfits": r.misfits,
+                                "proposed": len(r.proposed), "new": len(r.new)} for total, r in order]
+        if len(order) > 1 and logger.isEnabledFor(logging.INFO):
+            (mine, best), (next_total, runner) = order[0], order[1]
+            logger.info("listening: of %d meaning%s weighed, took %s (%.3f, its own score %.3f on %.1f use(s)%s) "
+                        "over %s (%.3f, score %.3f on %.1f use(s))", len(order), "" if len(order) == 1 else "s",
+                        best.meaning.canonical()[:_SAID_AT_MOST], mine, best.score, best.uses,
+                        ", composed" if best.composed else "", runner.meaning.canonical()[:_SAID_AT_MOST],
+                        next_total, runner.score, runner.uses)
         return took
     tied = _best_packed(readings, view, heard, order)
     if len(tied) <= 1:

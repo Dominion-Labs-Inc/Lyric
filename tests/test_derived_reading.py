@@ -2390,3 +2390,30 @@ def test_a_word_memory_holds_a_naming_class_for_builds_no_frames():
         assert view.builds_more_than_it_names(word), f"{word} is what English builds its frames from"
     assert view.builds_more_than_it_names("unheld"), "memory holds no class of it: the shapes are all there is"
     assert not view.builds_more_than_it_names("never seen"), "no shapes, nothing held: it builds nothing"
+
+
+def test_a_reading_the_grammar_composed_supposes_one_thing_for_each_word_it_names():
+    """A composed reading holds no link, so every field of `Reading.supposed` was zero and the listener weighed it as
+    having supposed nothing: it sorted ahead of every frame's reading (`_best_first`) and collected the worth
+    measured for a reading that fit its words exactly, while the frame's reading of the same sentence paid for each
+    sense it had to suppose. The untaught filler is what forces a frame's reading to be weighed against a composed
+    one at all (`_forced`), so it summoned the competitor and then lost to it: "Is public the opposite of private?"
+    read as `antonym_of(populace, ?v0)` with `antonym_of(public, private)` on the table, and of 14 held-but-untaught
+    opposite pairs 4 went that way (lyric_db, 2026-11-12).
+
+    It supposes one thing for each word it names: that this word stands for this thing here, with nothing taught
+    saying so, which is what a proposed link is."""
+    from core.semantics.derived_reader import (Lexical, Meaning, MeaningFact as F, Reading, _composed_supposes)
+
+    public = Lexical((("public", True),), "populace")
+    private = Lexical((("private", True),), "enlisted man private")
+    meaning = Meaning("ask", (F("antonym_of", "populace", "?v0"),))
+    composed = Reading((public, private), (), meaning, composed=True, structure=-0.6931)
+    assert _composed_supposes(composed) == 2, "one for each word it names"
+    loose, new, proposed, misfits, apart = composed.supposed
+    assert proposed == 2, "counted where a frame's reading counts its proposed links"
+    assert not (loose or new or misfits or apart)
+
+    frame = Reading((public,), (), meaning, composed=False)
+    assert _composed_supposes(frame) == 0, "a frame's reading supposes its links, counted as links"
+    assert frame.supposed == (False, 0, 0, 0, 0)
