@@ -1246,7 +1246,7 @@ contract or award should be inferred from this document.**
 ## 21. Commercial Direction & Development Trajectory
 
 Lyric lands with a subscription and expands to the enterprise. Individuals and teams start on Lyric
-Starter, Pro or Max through LyricOS; organisations move to Lyric Enterprise on a dedicated instance with
+Free, Pro, Max or Teams through LyricOS; organisations move to Lyric Enterprise on a dedicated instance with
 single sign-on and autonomy set by their administrators. In each market, an action taken without a
 recorded reason, or a conclusion without traceable evidence, is itself the risk.
 

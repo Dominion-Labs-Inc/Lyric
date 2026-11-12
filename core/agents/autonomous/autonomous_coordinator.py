@@ -6940,6 +6940,9 @@ class AutonomousCoordinator:
         # idle_operator_induction poll). Coalescing state mirrors motivation above.
         self._induction_dirty: bool = False
         self._induction_drain_task: Optional[asyncio.Task] = None
+        #: The start's reading of what Lyric's tools do, awaited by whoever needs a tool before it is done
+        #: (`ready_to_read`, `_tools_by_doing`).
+        self._tool_reading_task: Optional[asyncio.Task] = None
         try:
             from core.learning.demonstration_store import set_on_pending as _set_on_pending
             _set_on_pending(self._wake_induction_drain)
@@ -8377,7 +8380,7 @@ class AutonomousCoordinator:
     #: one's task. `_react` is the only place they start; shutdown stops them all.
     _REACTIONS = ("_motivation_refresh_task", "_induction_drain_task",
                   "_domain_expansion_drain_task", "_domain_discovery_drain_task",
-                  "_pursuit_selection_task")
+                  "_pursuit_selection_task", "_tool_reading_task")
     #: Set on the coordinator when its shutdown begins; from then on no
     #: reaction starts.
     _stopping = False
@@ -19658,11 +19661,22 @@ The substrate must realign with its constitutional responsibilities immediately.
         view = agent.grammar_view()
         learned = await view.learn_waiting_in_turn()
         kept = await agent.keep_grammar_learning()
-        tools = len(await self._tools_by_doing())
+        # THE START BEGINS THE READING OF WHAT ITS TOOLS DO AND NO LONGER WAITS FOR IT. Where the rules those
+        # descriptions were last read under have changed, reading the 251 of them by the grammar is 1,192 s -- 84%
+        # of a 1,417 s start -- and it was awaited here, so after a grammar change nobody could speak for twenty
+        # minutes, while a start whose readings are all remembered is 141 s (main, 2026-11-12). The same work still
+        # begins at the same moment and the start is still what begins it; it is no longer between the start and a
+        # person. A request that needs a tool before it is done awaits this very task, which is what it did before,
+        # so no tool is choosable any later than it was (`_tools_by_doing`).
+        self._react("_tool_reading_task", self._read_tools_by_doing)
+        reading = getattr(self, "_tool_reading_task", None)
+        still_reading = reading is not None and not reading.done()
         logger.info("📖 Ready to read: the grammar holds what %d sentences taught it, %d learned now and %d kept with "
-                    "their sentences; %d tools read for what they do (%.0fs)",
-                    view.learned_from, learned, kept, tools, time.monotonic() - started)
-        return {"sentences_held": view.learned_from, "sentences_learned": learned, "kept": kept, "tools_read": tools}
+                    "their sentences; what Lyric's tools do is %s (%.0fs)",
+                    view.learned_from, learned, kept, "being read now" if still_reading else "read",
+                    time.monotonic() - started)
+        return {"sentences_held": view.learned_from, "sentences_learned": learned, "kept": kept,
+                "tools_reading": still_reading}
 
     async def _tools_for_request(self, task: Task) -> List[Dict[str, Any]]:
         """WHICH TOOLS DO WHAT A PERSON ASKED, decided from what they asked as Lyric read it (`metadata["requested"]`,
@@ -19748,12 +19762,29 @@ The substrate must realign with its constitutional responsibilities immediately.
         """Each of Lyric's tools by what it says it does, `{name: (doing, required parameters, parameters)}`: the first
         sentence of its own description read by the one reader as an order ("Read the contents of a file.": a
         reading), as a person's request is read. A tool whose description does not read as one says nothing here
-        yet, and is chosen for nothing. Read once while what was taught is unchanged."""
-        from core.semantics.derived_reader import heard, is_variable, live_view, read_text
+        yet, and is chosen for nothing. Read once while what was taught is unchanged.
+
+        THE READING ITSELF IS THE START'S, AND THIS AWAITS IT (`ready_to_read` -> `_read_tools_by_doing`): one
+        reading of the descriptions at a time, whoever asks first. Asked before the start began one -- or where
+        nothing can hold a task -- it reads them here, which is what this door always did."""
+        from core.semantics.derived_reader import live_view
         taught = len(live_view())
         held = getattr(self, "_tool_doings", None)
         if held is not None and held[0] == taught:
             return held[1]
+        self._react("_tool_reading_task", self._read_tools_by_doing)
+        reading = getattr(self, "_tool_reading_task", None)
+        if reading is None:
+            return await self._read_tools_by_doing()
+        return await reading
+
+    async def _read_tools_by_doing(self) -> Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]]:
+        """READ EVERY TOOL'S DESCRIPTION for what it says the tool does, recalling each reading made before under
+        these rules with this much taught, and remembering each one made here (`MemoryAgent.tool_doings`,
+        `remember_tool_doing`). What `_tools_by_doing` hands back; started by the start, awaited by whoever needs a
+        tool before it is done."""
+        from core.semantics.derived_reader import heard, is_variable, live_view, read_text
+        taught = len(live_view())
         registry = self.tool_registry
         if registry is None:
             from core.tools import get_tool_registry

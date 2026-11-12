@@ -209,6 +209,9 @@ class _Classes:
                 classes_of[word].add(cls)
                 met[word] += 1
         self._classes_of = {word: frozenset(cs) for word, cs in classes_of.items()}
+        #: How often each word was met, kept because it is what decides whether a word's situations count among
+        #: the ones a word never met is read by (`_RARE`), and `add` needs it to count one more sentence.
+        self._met = met
         known: Dict[Tuple, Counter] = defaultdict(Counter)
         unknown: Dict[Tuple, Counter] = defaultdict(Counter)
         for analysed in held:
@@ -220,6 +223,28 @@ class _Classes:
                     for situation in self.situations(words, classes, i, met=False):
                         unknown[situation][cls] += 1
         self._known, self._unknown = dict(known), dict(unknown)
+
+    def add(self, analysed: "Analysed") -> None:
+        """COUNT ONE MORE SENTENCE IN, rather than count every sentence again (`StructureView.add`). These are
+        counts, and a count is added to.
+
+        Not the same as counting all of them afresh, in one way worth saying: a word's situations count among the
+        ones a word never met is read by only while the word is rare (`_RARE`), and here that is decided by how
+        often it has been met SO FAR, where counting afresh decides it by how often it is met in the end. A word
+        that was rare and is now common keeps what it counted while it was rare. Counting afresh is still what a
+        start does (`StructureView._work_out`)."""
+        words, classes = analysed.words, analysed.classes
+        for word, cls in zip(words, classes):
+            self._met[word] += 1
+            held = self._classes_of.get(word)
+            if held is None or cls not in held:
+                self._classes_of[word] = (held or frozenset()) | {cls}
+        for i, cls in enumerate(classes):
+            for situation in self.situations(words, classes, i, met=True):
+                self._known.setdefault(situation, Counter())[cls] += 1
+            if self._met[words[i]] <= _RARE:
+                for situation in self.situations(words, classes, i, met=False):
+                    self._unknown.setdefault(situation, Counter())[cls] += 1
 
     def met(self, word: str) -> bool:
         return word in self._classes_of or word.lower() in self._classes_of
@@ -359,6 +384,33 @@ class _Pairs:
                    for situation, (n, joined_so) in situations.items()],
                   [(level, situation, relation, n) for level, situations in (held_said or {}).items()
                    for situation, relations in situations.items() for relation, n in relations.items()])
+
+    def add(self, analysed: "Analysed") -> None:
+        """COUNT ONE MORE SENTENCE'S PAIRS IN, rather than count every sentence's again
+        (`StructureView.add`): every situation here is a situation of ONE sentence (`_situation` reads nothing but
+        the sentence laid out), so these counts are added to exactly as a word record's are (`hold`).
+
+        One difference from counting afresh, worth saying: counting afresh drops a situation met fewer than
+        `KEPT_UNJOINED` times that was never joined, which is how eleven million situations are held in 0.4 GB
+        rather than 1.2. One sentence added keeps what it meets, since there is nothing yet to say it will stay
+        rare; a start counts them all again and drops them then (`_work_out`)."""
+        laid = self.laid(analysed.words, analysed.classes,
+                         self._groups(analysed.words) if self._groups is not None else None)
+        heads, relations = analysed.heads, analysed.relations
+        for at, level in enumerate(self.levels):
+            met, joined = self._met[at], self._joined[at]
+            for d in range(1, len(heads) + 1):
+                head = heads[d - 1]
+                for h in range(len(heads) + 1):
+                    if h == d:
+                        continue
+                    situation = hash(self._situation(laid, h, d, level))
+                    met[situation] = met.get(situation, 0) + 1
+                    if h == head:
+                        joined[situation] = joined.get(situation, 0) + 1
+        for d, head in enumerate(heads, 1):
+            for level, situation in zip(self._said, self._relation_situations(laid, head, d)):
+                level.setdefault(situation, Counter())[relations[d - 1]] += 1
 
     def hold(self, joined: Iterable[Tuple[str, Tuple, int, int]], said: Iterable[Tuple[str, Tuple, str, int]],
              times: int = 1) -> None:
@@ -604,12 +656,34 @@ class StructureView:
         return tuple(self._held.values())
 
     def add(self, analysed: Analysed) -> bool:
-        """Hold one analysed sentence. False if it was held."""
+        """Hold one analysed sentence. False if it was held.
+
+        COUNTED IN WHERE THE TABLES ARE ALREADY WORKED OUT, rather than every count discarded and every sentence
+        counted again. These are counts -- how often two words standing so were joined, how often a step was taken
+        in a situation -- and a count is added to, which is what `hold_joins` has always done with what a word
+        record says. Discarding them cost 110.3 s to rebuild from 18,681 sentences, 119,873,793 situations worked
+        out to arrive at what was already held, every time one sentence was added; teaching 245 words to a store of
+        6,137 ran over ten minutes on it (2026-10-28, and measured again 2026-11-12).
+
+        WHAT A SENTENCE COUNTED IN THIS WAY DOES NOT BRING: a start also counts each sentence as READING gives its
+        words their classes, from folds built out of the other sentences (`_as_read`), and that cannot be had for
+        one sentence without re-reading all of them. A sentence added here is counted as it was analysed; its read
+        self joins the counts at the next working out. Nor is a sentence TAKEN BACK counted back out -- nothing
+        takes one back -- and a new grouping still discards everything (`group_by`), since every situation it
+        names changes."""
         key = analysed.key()
         if key in self._held:
             return False
         self._held[key] = analysed
-        self._ready = False
+        if not self._ready:
+            return True
+        self._classes.add(analysed)
+        if self._pairs is not None:
+            self._pairs.add(analysed)
+        if analysed.projective():
+            for situations, step in self._steps_of(analysed):
+                for level, situation in zip(self._steps, situations):
+                    level.setdefault(situation, Counter())[step] += 1
         return True
 
     # ── what each step of the structure is ────────────────────────────────────

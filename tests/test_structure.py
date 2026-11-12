@@ -2,6 +2,8 @@
 and read as memory-based learning reads them. No store: the sentences are given here."""
 import pytest
 
+from collections import Counter
+
 from core.semantics.structure import Analysed, StructureView, words_of
 
 
@@ -362,3 +364,53 @@ def test_how_a_word_recorded_whole_was_joined_weighs_its_joins_and_is_taken_back
     assert view._pairs.relation(laid, 5, 4) == "amod"
     view.hold_joins(joined, said, times=-1)
     assert blue_to_hat() == pytest.approx(before)
+
+
+def test_one_sentence_added_counts_in_rather_than_every_sentence_counted_again():
+    """A sentence held once the tables are worked out is COUNTED IN (`StructureView.add`): the pair counts, the step
+    counts and what the classes say come out as they do when every sentence is counted again, because every one of
+    them is a count of one sentence and a count is added to.
+
+    Discarding them instead cost 110.3 s over 18,681 sentences -- 119,873,793 situations worked out to arrive at
+    what was already held -- and it was discarded on every single sentence added (lyric_db, 2026-11-12).
+
+    AND THE ONE THING IT DOES NOT BRING IS THE ONE THING STATED: a start counts each sentence as READING gives its
+    words their classes as well, from folds built out of all the others (`_as_read`), which cannot be had for one
+    sentence without re-reading every sentence. So the counts differ by exactly the read selves of what was added,
+    and this adds those by hand to show that the difference is only ever that."""
+    from core.semantics.structure import FOLDS, _Pairs
+    held = [Analysed(("Roy", "sleeps", "."), ("NAME", "VERB", "PUNCTUATION"), (2, 0, 2),
+                     ("nsubj", "root", "punct"), said_in=f"s{k}") for k in range(FOLDS + 2)]
+    last = Analysed(("Ann", "sleeps", "."), ("NAME", "VERB", "PUNCTUATION"), (2, 0, 2),
+                    ("nsubj", "root", "punct"), said_in="last")
+
+    counted_again = StructureView()
+    for analysed in held + [last]:
+        counted_again.add(analysed)
+    counted_again._work_out()
+
+    added_in = StructureView()
+    for analysed in held:
+        added_in.add(analysed)
+    added_in._work_out()                      # worked out WITHOUT the last one…
+    assert added_in._ready
+    added_in.add(last)                        # …which is then counted in, and nothing is discarded
+    assert added_in._ready, "holding one more sentence must not throw every count away"
+
+    laid = _Pairs.laid(last.words, last.classes)
+    assert added_in._pairs.relation(laid, 2, 1) == counted_again._pairs.relation(laid, 2, 1) == "nsubj"
+    assert added_in._classes.met("ann") or added_in._classes.met("Ann")
+    assert added_in._classes.read(last.words) == counted_again._classes.read(last.words)
+
+    # THE COUNTS AGREE ONCE THE READ SELVES OF WHAT WAS ADDED ARE COUNTED IN TOO, and the read selves are the
+    # whole of the difference: nothing else is missing and nothing is counted twice.
+    read_selves = [a for a in StructureView._as_read(list(counted_again._held.values()))
+                   if a.key() not in counted_again._held]
+    assert read_selves, "this store must read a word it has not met as another class, or it proves nothing"
+    for analysed in read_selves:
+        if analysed.projective():
+            for situations, step in added_in._steps_of(analysed):
+                for level, situation in zip(added_in._steps, situations):
+                    level.setdefault(situation, Counter())[step] += 1
+    for level, again in zip(added_in._steps, counted_again._steps):
+        assert level == again, "a sentence counted in must leave the step counts the counts of every sentence held"

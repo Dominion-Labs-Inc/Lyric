@@ -4190,6 +4190,19 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
             for lexical in held:
                 if lexical.value in standing or not view.counts(lexical):
                     continue
+                # AND ONLY THE SENSES THAT MAY STAND HERE, by the rule that decides exactly that question
+                # (`of_its_class`). Offered without it, a sense that has only ever stood as a THING stood where a
+                # doing stands: "nudge", held for the push `push nudge` and nothing else, was offered as that push
+                # where "To ?slot0 is to ?slot1." takes a doing, though `of_its_class` had refused it one line
+                # earlier for exactly that reason. It then cut the reading this branch exists to make -- the word
+                # standing as a doing of its own, which is what English makes of a noun -- because a word taken as
+                # a new name is ranked above everything in `Reading.supposed` and a held sense costs nothing there:
+                # (False, 1, 1, 0, 0) against (False, 0, 1, 0, 1), so the listener never weighed them at all
+                # (tests/test_derived_reading.py, passing 2026-10-16, failing 2026-11-12). `agelong long` for "The
+                # note was long." is of a class that stands where that slot's fillers do and still stands here,
+                # which is what this branch was written for.
+                if not view.of_its_class(pattern.key, slot, lexical.key):
+                    continue
                 if view.says_more(words[0], lexical.value, doing=view.stands_as_doing(lexical)) \
                         and not _frame_says(pattern, slot, view.said_by(words[0], lexical.value)):
                     continue
@@ -5720,16 +5733,37 @@ def composing_width(how_many: int):
         _COMPOSED_WIDTH.reset(token)
 
 
-def _names_a_structure_word(meaning: "Meaning", closed: Any) -> bool:
+def _names_a_structure_word(reading: "Reading", closed: Any) -> bool:
     """Whether a reading makes a CONCEPT of a word English builds sentences with -- a conjunction, a determiner, a
     preposition, a form of "be" -- which is a mis-parse on its face: those words say how what is said goes together
-    and never name a thing. `closed` is what the grammar holds of them (`Lexicon.closed`)."""
+    and never name a thing. `closed` is what the grammar holds of them (`Lexicon.closed`).
+
+    ASKED OF THE WORDS IT READ, not of the names it gave them. Asked of the names alone, a reading escaped this
+    whenever the thing it invented is not spelled like the word it invented it from: "Does sorted return a new
+    list?" read "Does" as the plural of "doe", the deer, and `doe` is no closed word, so a reading that made an
+    animal out of English's own question word was taken for sound and the grammar was never asked again
+    (lyric_db, 2026-11-12). The word is what says this is a mis-parse, so the word is what is asked. A word read
+    as the structure word it is never reaches here at all: `_said_by_words` holds the words signed as a thing, a
+    doing, a quality, a name or a number, so "Does" appears among a reading's words only where that reading made
+    something of it.
+
+    AND IT DOES NOT, ON ITS OWN, SAVE THAT SENTENCE. Measured with it in: the one reading at width 1 answers True,
+    the composer asks again for three, and the grammar does then read "Does" as the question word it is -- but the
+    two readings that do make a tax return of "return" and an enumerating of "list", and are ranked 1.6e-14 and
+    8.1e-15 against the deer's 0.333, some thirty nats behind. The listener weighs -12.60 against -40.73 and takes
+    the deer, rightly, of what it was offered (lyric_db, 2026-11-12). What is left open is the grammar's ranking of
+    the senses in a reading that has the function word right, not this check: the check now does what it says, and
+    the wider ask it releases is what any later fix to that ranking will arrive through."""
     if not closed:
         return False
-    for fact in meaning.facts:
+    for fact in reading.meaning.facts:
         for term in (fact.subject, fact.obj):
             if isinstance(term, str) and term and not is_variable(term) and _fold(term) in closed:
                 return True
+    for construction in reading.constructions:
+        if isinstance(construction, Lexical) and len(construction.words) == 1 \
+                and _fold(construction.words[0]) in closed:
+            return True
     return False
 
 
@@ -5783,7 +5817,7 @@ def _read_by_composing(utterance: "Utterance", named_before: Sequence[str] = (),
     # rescued at three and a person's words read at three at five, where one number above every width either stopped
     # rescuing the door that needs it most or made every other door pay for it.
     wider = min(width + COMPOSED_AGAIN_STEP, COMPOSED_AGAIN)
-    if made and wider > width and all(_names_a_structure_word(r.meaning, closed) for r in made):
+    if made and wider > width and all(_names_a_structure_word(r, closed) for r in made):
         # EVERY READING IT GAVE MAKES A CONCEPT OF A STRUCTURE WORD, so the chart pruned the reading that does not.
         logger.info("composing: %r read %d way%s at %d, every one naming a structure word -- asking again for %d",
                     utterance.text, offered, "" if offered == 1 else "s", width, wider)
@@ -6252,19 +6286,56 @@ def _derivation(reading: Reading, view: PatternInventory) -> float:
         # store holding 2,180 such pairs against the 16 that frame was taught with (lyric_db, 2026-11-12).
         #
         # A COMPOSED READING SUPPOSES THE SAME THING OF EVERY WORD IT NAMES: nothing taught says this word stands
-        # for this thing here, so each is priced as a proposed link is, by that sense's share of what was met where
-        # things of its part stand (`_share_of`) -- the branch `_derivation_of` already takes where nothing taught
-        # links a slot at all. The ranking is kept beside it, so composed readings are still told apart from each
-        # other, which is what it is for. Where no frame reads the utterance there is nothing to be weighed against
-        # and the price changes nothing ("A whale breathes air through a blowhole.").
+        # for this thing here, so each is priced as a proposed link is -- by the same estimator, asked of the word
+        # rather than of a slot's part, because the sentence hands the reader the word and the only thing left to
+        # choose is which of its senses stands here (`_share_among_senses`, which says what asking it over the part
+        # instead cost every imperative). The ranking is kept beside it, so composed readings are still told apart
+        # from each other, which is what it is for. Where no frame reads the utterance there is nothing to be
+        # weighed against and the price changes nothing ("A whale breathes air through a blowhole.").
         total = reading.structure
         for construction in reading.constructions:
             if not isinstance(construction, Lexical) or len(construction.words) != 1:
                 continue
-            parts = sorted(view.class_parts(construction.words[0]) or ("thing",))
-            total += math.log(_share_of(view, construction, parts[0]))
+            total += math.log(_share_among_senses(view, construction.words[0]))
         return total
     return _derivation_of(reading.links, reading.proposed, view)
+
+
+def _share_among_senses(view: PatternInventory, word: str) -> float:
+    """How much of everything this word was met naming is this sense's, smoothed by one: "of all the things THIS
+    WORD names, why this one?".
+
+    THE WORD IS GIVEN; THE SENSE IS THE CHOICE. Asked over everything met where things of its part stand
+    (`_share_of`) instead, naming one word cost about eleven nats -- the price of picking a thing out of a
+    155,767-word vocabulary -- and a composed reading paid it once per word: "Validate JSON data." was charged
+    -32.73 for its three words against -14.17 for `isa(Validate, JSON data)`, a frame reading that takes the
+    imperative verb for a name, and lost to it. Four of eight tool descriptions that read as an order on 11-10 read
+    as none for this reason (2026-11-12). But the sentence HANDS the reader the word: nothing is being picked out of
+    the vocabulary, and the only question left is which of that word's senses stands here. A slot is the other way
+    round -- it could take anything of its part -- which is why `_derivation_of` asks its question over the part and
+    this one asks it over the word.
+
+    HOW MANY SENSES THE WORD HAS, AND NOTHING ELSE. How often each sense was met is the listener's ACTIVATION,
+    the same `_met` counted there (`weighed`); priced here as well it was counted twice, and the second count
+    swamped what the listener knows: "Bats are clubs." took `bat` over `bat club` with memory holding
+    `isa(bat club, club)` twice, and "To nudge is to get." took `push nudge` over `nudge`
+    (tests/test_derived_reading.py, 2026-11-12). Two readings that take different senses of the SAME word make
+    the same structural choice, and a term that prices structure must not tell them apart at all -- which a
+    uniform share over the word's senses does not, while still saying that a word of many senses makes a less
+    certain choice than a word of one. It is the Laplace share with nothing observed, which is the honest prior
+    when what was observed is already weighed elsewhere.
+
+    ASKED OF A SLOT'S FILLER TOO (`_derivation_of`): a frame reading choosing among a word's senses is making the
+    same choice a composed reading makes, and the two are only on one scale if the same question is asked of both.
+    A word memory holds no sense of has no choice to make, and pays nothing.
+
+    AND ASKED OF THE WORD AS WRITTEN (`Link.lexical_surface`), never of the filler found for it, because a sense
+    that came by the widening memory's links allow has no held construction at all: `view._by_key` answers None
+    for it, so it fell to the floor over the part while the sense held beside it took a share. Both readings of
+    "Bats are clubs." fill the one slot from the one word, and `isa(bat club, club)` was charged -14.49 against
+    `isa(bat, club)`'s -8.63 for no structural reason -- which lost the sense memory holds a fact about
+    (tests/test_derived_reading.py, 2026-11-12)."""
+    return 1.0 / (len(view.holding(word)) + 1)
 
 
 def _composed_supposes(reading: Reading) -> int:
@@ -6294,7 +6365,17 @@ def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: Patter
         filler = view._by_key.get(link.lexical)
         uses, fillers = view.slot_filled(link.pattern, link.slot)
         k = view.uses(link) if held else 0.0
-        share = _share_of(view, filler, (view._taken_at(link.pattern, link.slot) or ("thing",))[0])
+        # THE SAME QUESTION AS A COMPOSED READING'S, WHERE A SLOT'S FILLER IS ONE WORD: the sentence hands the
+        # reader that word too, so the only thing left to choose is which of its senses stands here
+        # (`_share_among_senses`). Asked over the part, a frame reading paid about fourteen nats for each sense
+        # it had to propose while a composed reading naming the SAME senses paid nothing under this head:
+        # `antonym_of(absolute, relative)` came to -23.20 with a derivation of 0.000 and the best `fit` worth
+        # there is (+4.56), and lost by fifteen nats to a composed reading charged -4.64 (lyric_db, 2026-11-12).
+        # Pricing composing at eleven nats a word matched that figure and hid it; it cost every imperative
+        # instead, since an imperative is read by composing and names every word it has.
+        stood = str(link.lexical_surface or "").strip()
+        share = (_share_among_senses(view, stood) if stood and len(stood.split()) == 1
+                 else _share_of(view, filler, (view._taken_at(link.pattern, link.slot) or ("thing",))[0]))
         total += math.log((k + fillers * share) / (uses + fillers)) if uses + fillers else math.log(share)
     return total
 

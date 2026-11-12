@@ -6612,12 +6612,19 @@ def align_by_names(tokens: Sequence[str], meaning: Meaning, lexicon: "Lexicon") 
 
 
 def _rules_written() -> str:
-    """The grammar's rules as written: this module, how it counts how words are used (`grammar_words`), and the
-    grammar's own words (`data/grammar/english.json`). What a sentence taught it is kept under them, and learned again
-    once they change."""
+    """The rules a sentence is read by as written: this module, how it counts how words are used (`grammar_words`),
+    the grammar's own words (`data/grammar/english.json`), and the reader that chooses among what they offer
+    (`derived_reader`). What a sentence taught is kept under them, and learned again once they change.
+
+    THE READER IS AMONG THEM BECAUSE THE READER DECIDES THE READING. It was left out, and three commits changed it
+    between two generations of the remembered tool readings (`AutonomousCoordinator._tools_by_doing`): of the same
+    251 descriptions, 29 read differently, 17 gaining a doing and 11 losing one -- and had only the reader changed,
+    this would not have moved and every one of those readings would have been served as current (2026-11-12). A key
+    that misses what decides the answer keeps the wrong answer; it is the one thing a key must not do."""
     import hashlib
     digest = hashlib.sha256()
-    for path in (Path(__file__), Path(__file__).with_name("grammar_words.py"), ENGLISH):
+    for path in (Path(__file__), Path(__file__).with_name("grammar_words.py"),
+                 Path(__file__).with_name("derived_reader.py"), ENGLISH):
         digest.update(path.read_bytes())
     return digest.hexdigest()[:16]
 
