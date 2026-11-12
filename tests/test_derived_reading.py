@@ -2356,3 +2356,37 @@ def test_saying_goes_through_only_the_parts_of_a_meaning_memory_holds():
         parts[frozenset(k.items())] = k
     assert _held_within(parts, big, kinds) == [Counter({kinds[3]: 2}), Counter({kinds[0]: 1}),
                                                Counter({kinds[0]: 1, kinds[9]: 3})], "4^10 parts, three held"
+
+
+def test_a_word_memory_holds_a_naming_class_for_builds_no_frames():
+    """`builds_more_than_it_names` counted held shapes against the senses READING HAS PUT IN A SLOT, so four
+    sentences that merely say a word outweighed the two senses of it ever read as a filler. `_fillers` then dropped
+    every sense held of that word and skipped the senses memory holds a link of, in every frame: "Is public the
+    opposite of private?" read as `antonym_of(populace, ?v0)`, the populace, with ADJECTIVE 148 against NOUN 15 held
+    all along. "big", one of the sixteen adjectives that frame was taught with, went the same way (16 against 13),
+    and so did "house" (6 against 5) (lyric_db, 2026-11-11).
+
+    The class memory holds the word most says which it is, and nothing counted stands between the two: DETERMINER,
+    PREPOSITION, AUXILIARY, PARTICLE and CONJUNCTION build frames; NOUN, ADJECTIVE, ADVERB and VERB name. Where
+    memory holds no class of the word, the shapes stand against the fillers as they did."""
+    from core.semantics.derived_reader import PatternInventory
+
+    view = PatternInventory()
+    view._shapes.update({"public": 4, "big": 16, "house": 6, "a": 563, "is": 1301, "the": 1218,
+                         "in": 282, "and": 152, "unheld": 7})
+    view._fillers_by_word.update({"public": {"public", "common public"}, "big": set("abcdefghijklm"),
+                                  "house": set("abcde"), "a": set("abcdefghi"), "is": {"much"},
+                                  "in": set(), "the": set(), "and": set()})
+    view.word_classes = {
+        "public": {"ADJECTIVE": 148, "NOUN": 15, "NAME": 1}, "big": {"ADJECTIVE": 152, "ADVERB": 2, "VERB": 1},
+        "house": {"NOUN": 124, "NAME": 47, "VERB": 3}, "a": {"DETERMINER": 8876, "NAME": 18, "NOUN": 17},
+        "is": {"AUXILIARY": 5467, "VERB": 229, "COPULA": 1}, "the": {"DETERMINER": 22043, "NAME": 6, "VERB": 4},
+        "in": {"PREPOSITION": 7051, "SUBORDINATOR": 181, "ADVERB": 146},
+        "and": {"CONJUNCTION": 10933, "NOUN": 8, "ADVERB": 2}}
+
+    for word in ("public", "big", "house"):
+        assert not view.builds_more_than_it_names(word), f"{word} is held a naming class and builds no frame"
+    for word in ("a", "is", "the", "in", "and"):
+        assert view.builds_more_than_it_names(word), f"{word} is what English builds its frames from"
+    assert view.builds_more_than_it_names("unheld"), "memory holds no class of it: the shapes are all there is"
+    assert not view.builds_more_than_it_names("never seen"), "no shapes, nothing held: it builds nothing"

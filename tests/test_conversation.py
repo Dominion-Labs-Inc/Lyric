@@ -1042,3 +1042,22 @@ async def test_a_fact_a_telling_binds_twice_is_held_once(talk, monkeypatch):
                                {"?previous": "south_asia"})
     assert [f for f in told[0] if f.relation == "located_in"] == [MeaningFact_("located_in", "south_asia", "asia")]
     assert Meaning("tell", told[0]).facts == told[0]
+
+
+def test_one_fact_answered_twice_by_two_paths_is_one_answer():
+    """A question is looked up in what is held AND reasoned over it, as peers, and an answer one path reaches that
+    the other already said is dropped for it (`Conversation.understand`). Each layer spells a link its own way --
+    the store with spaces ("part of"), the reader with underscores (`part_of`) -- so keyed as written the two never
+    met: "Is a study part of a house?" came back answered twice, `('room study', 'part of', ('house',), True)` and
+    `('room study', 'part_of', ('house',), True)`, one fact said twice (lyric_db, 2026-11-11).
+
+    A DENIAL IS NOT THE SAME ANSWER as what it denies ("not isa" against "isa"), and two different links are two
+    answers."""
+    from core.agents.autonomous.autonomous_coordinator import Answer, _one_answer
+
+    looked_up = Answer("room study", "part of", ("house",), verdict=True)
+    reasoned = Answer("room_study", "part_of", ("House",), verdict=True,
+                      support=("room study → room → house",), conclusion="a study is part of a house")
+    assert _one_answer(looked_up) == _one_answer(reasoned)
+    assert _one_answer(Answer("room study", "not part of", ("house",), verdict=False)) != _one_answer(looked_up)
+    assert _one_answer(Answer("room study", "has part", ("house",), verdict=True)) != _one_answer(looked_up)

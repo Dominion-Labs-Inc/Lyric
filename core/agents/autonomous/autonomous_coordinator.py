@@ -20781,6 +20781,24 @@ def _link_kind(relation: str) -> Tuple[str, bool]:
     return (text[4:] if denied else text).strip().replace(" ", "_"), denied
 
 
+def _one_answer(answer: "Answer") -> Tuple[str, Tuple[str, bool], Tuple[str, ...]]:
+    """WHAT MAKES TWO ANSWERS ONE ANSWER: the thing it is about, the link it stands in and whether that link is
+    denied (`_link_kind`), and what it names besides -- each name read the one way, however the layer that found
+    it wrote it.
+
+    EVERY LAYER SPELLS A LINK ITS OWN WAY. The store writes it with spaces ("part of"), the reader with
+    underscores (`part_of`), and a name either way. Answering looks a question up and ALSO reasons it, as peers,
+    and drops a reasoned answer that says what a looked-up one already says -- but it compared the spellings, so
+    the two never met: "Is a study part of a house?" came back answered twice, `('room study', 'part of',
+    ('house',), True)` and `('room study', 'part_of', ('house',), True)`, one fact said twice (lyric_db,
+    2026-11-11). A DENIAL IS NOT THE SAME ANSWER as what it denies, so whether the link is denied is part of
+    what makes two answers one."""
+    def plain(name: Any) -> str:
+        return str(name).strip().lower().replace("_", " ")
+    return (plain(answer.about), _link_kind(answer.relation),
+            tuple(plain(other) for other in answer.others))
+
+
 #: The kinds said of a group itself, not of each one in it: "the team has five members", "the pair are dogs".
 _OF_THE_GROUP = frozenset({"has_member", "member_of", "has_count", "instance_of", "isa", "equals"})
 
@@ -24840,9 +24858,11 @@ class Conversation:
             if placed is not None:
                 answers = self.asked(sentence, resolved, await also_pointing_at(placed), meaning=placed)
         if asked:
-            answers += [a for a in await self._asked_of_events_composed(sentence)
-                        if (a.about, a.relation, tuple(a.others)) not in
-                        {(b.about, b.relation, tuple(b.others)) for b in answers}]
+            said = {_one_answer(a) for a in answers}
+            for composed in await self._asked_of_events_composed(sentence):
+                if _one_answer(composed) not in said:
+                    answers.append(composed)
+                    said.add(_one_answer(composed))
         # WAVE 3: the relation actually asked about, which is the most specific
         # thing the turn ever learns.
         recall.refine(*[f"{a.about} {a.relation}" for a in answers], about=subject)
@@ -24864,10 +24884,11 @@ class Conversation:
         # holds (concept relations and recalled memory alike); the two are merged,
         # and a derived answer that duplicates a direct one is dropped for it.
         if asked:
-            direct = {(a.about, a.relation, tuple(a.others)) for a in answers}
+            direct = {_one_answer(a) for a in answers}
             for derived in await self._reasoned_answers(sentence, resolved, harvest):
-                if (derived.about, derived.relation, tuple(derived.others)) not in direct:
+                if _one_answer(derived) not in direct:
                     answers.append(derived)
+                    direct.add(_one_answer(derived))
 
         # A KNOWLEDGE GAP DETECTED FROM THE QUESTION ITSELF. A question about a
         # subject the substrate HOLDS (resolved) and that lives in a crystallized

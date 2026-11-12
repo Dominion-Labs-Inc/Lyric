@@ -3123,6 +3123,23 @@ class MemoryAgent(IMemoryConsolidation):
         # kept current as each proposition is taught (`note_taught_proposition`).
         inventory.word_classes = index
         inventory.senses_memory_holds = self._senses_memory_holds(grammar_links)
+        # AND THE SCORES THE VIEW READS, WHICH ARE NOT IN IT. `PatternInventory` copies no score: every
+        # construction's score is its BELIEF's posterior, read as it stands (`derived_reader._held_score`), and the
+        # beliefs are brought up by `BayesianUncertaintySystem.load_from_db` -- called from `core/main.py` at boot,
+        # and from the reasoning bridge the first time answering needs it. A process that warms this view and reads
+        # is neither, so it read every construction at ONE score, by the order its chart was built; then answering
+        # woke the bridge, the beliefs arrived, and the NEXT sentence was read by the scores memory holds. Which
+        # sentence was asked first decided how it was read (lyric_db, 2026-11-11).
+        #
+        # Brought up here, with the view that reads them, so one warm is one reader. Where boot already did it,
+        # this costs the test and nothing else.
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        scores = get_uncertainty_system()
+        if not scores.beliefs:
+            at = time.perf_counter()
+            await scores.load_from_db()
+            logger.info("the scores the language view reads: %d belief(s) brought up in %.0fs",
+                        len(scores.beliefs), time.perf_counter() - at)
         self._pattern_inventory = inventory
         self._said_view, self._said_spread = said, {}
         self._structure_view, self._word_groups, self._word_forms = structure, groups, forms

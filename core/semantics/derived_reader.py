@@ -1076,14 +1076,36 @@ def _adjunct_of(shorter: Pattern, longer: Pattern, start: int, end: int) -> Opti
 Scorer = Callable[[Item], Tuple[float, int, bool]]
 
 
+#: WHETHER THIS PROCESS HAS BEEN TOLD THAT IT READS WITH NO CONSTRUCTION SCORES AT ALL (`_held_score`). Said once:
+#: it is true of the process, not of a construction.
+_SAID_UNSCORED = False
+
+
 def _held_score(item: Item) -> Tuple[float, int, bool]:
     """A construction's score, use count and standing, from its belief in this process: its posterior; how many uses
     the observations supporting it witnessed (one each, or as many as a corpus counted); and whether a witness's
     latest word on it is still a use, a taught pair still reading through it (`counts`). One nothing has observed
-    stands at the initial score, and in use, as the paper's new construction does."""
+    stands at the initial score, and in use, as the paper's new construction does.
+
+    A BELIEF STORE THAT IS NOT UP IS NOT A CONSTRUCTION NOTHING HAS OBSERVED. Both came back at the initial score,
+    so a process reading with EVERY construction scored alike could not be told from one reading with the scores
+    memory holds -- and the first reads by the order its chart was built, which is no evidence about English at
+    all. `BayesianUncertaintySystem.load_from_db` is called from `core/main.py` at boot and from the reasoning
+    bridge; a process that warms the language view and reads is neither, so it read 429,012 constructions at one
+    score and said nothing (lyric_db, 2026-11-11). Said once, where it is so."""
     from core.reasoning import bayesian_uncertainty as beliefs
     system = beliefs._uncertainty_system
-    belief = system.belief_for_claim(item.claim()) if system is not None else None
+    if system is None or not system.beliefs:
+        global _SAID_UNSCORED
+        if not _SAID_UNSCORED:
+            _SAID_UNSCORED = True
+            logger.warning(
+                "reading with NO construction scores: the beliefs are not up in this process (%s), so every "
+                "construction stands at %.2f and the reading falls to the order the chart was built. "
+                "BayesianUncertaintySystem.load_from_db() brings them up.",
+                "no belief system" if system is None else "the belief system holds none", INITIAL_SCORE)
+        return INITIAL_SCORE, 0, True
+    belief = system.belief_for_claim(item.claim())
     if belief is None:
         return INITIAL_SCORE, 0, True
     held = beliefs.BayesianUncertaintySystem
@@ -2010,8 +2032,31 @@ class PatternInventory:
         """Whether held frames are written with this word more often than it is held naming things: "a", in 158
         frames and naming seven things (the ampere, the angstrom, adenine ...), is English's article first. A
         structure word (`is_structure`) names none; WordNet taught "a", "in", "at" and "I" each a sense, and they
-        stopped counting as structure, so "a lockstitch" stood as one new name."""
+        stopped counting as structure, so "a lockstitch" stood as one new name.
+
+        A WORD MEMORY HOLDS A NAMING CLASS FOR BUILDS NOTHING, however many frames are written with it. Counted
+        against the senses READING HAS PUT IN A SLOT (`_shape_word`), four sentences that merely say the word ("The
+        problem puzzled the public.", "?slot0 dislikes speaking in public.") outweighed the two senses of "public"
+        ever read as a filler. `_fillers` then dropped every sense held of it and skipped the senses memory holds a
+        link of, in every frame, so "Is public the opposite of private?" read as `antonym_of(populace, ?v0)`, the
+        populace -- with ADJECTIVE 148 against NOUN 15 held of the word all along, and `of_its_class` ready to stand
+        a quality in that slot. A word reading has never put in a slot stands at nothing on the right, and this was
+        what stopped reading from ever putting it in one. "big" (16 shapes against 13) and "house" (6 against 5)
+        went the same way, and "big" is one of the sixteen adjectives that very frame was taught with (lyric_db,
+        2026-11-11).
+
+        WHICH CLASS A WORD IS MOST HELD AS is the evidence, and it parts them with nothing in between: DETERMINER
+        for "the" and "a", PREPOSITION for "in", "at", "of", "with", "for", "on" and "by", AUXILIARY for "is",
+        "was" and "be", PARTICLE for "to", CONJUNCTION for "and" and "or", PRONOUN for "that" -- against ADJECTIVE
+        for "public", "big", "red" and the sixteen opposites, and NOUN for "house", "study" and "bannister". Of 44
+        words read so, all sixteen English builds its frames from and all twenty-eight that name things fell on the
+        side they belong to. Counting a class at all cannot say it: "the" is held a VERB four times and an ADJECTIVE
+        fewer, so `class_parts` answers `doing` and `quality` of English's article. Where memory holds no class for
+        the word it has nothing to say, and the shapes stand against the fillers as before."""
         word = _fold(word)
+        classes = {c: n for c, n in (self.word_classes.get(word) or {}).items() if n > 0}
+        if classes and max(classes, key=lambda c: (classes[c], c)) in self.NAMING_CLASSES:
+            return False
         return self._shapes.get(word, 0) > len(self._fillers_by_word.get(word, ()))
 
     def ends(self) -> FrozenSet[str]:
@@ -2228,6 +2273,13 @@ class PatternInventory:
     #: `done_to(?v0, annoyingly)`, the adverb taken as the thing walked, with its ADVERB evidence held all along
     #: (lyric_db, 2026-11-08).
     CLASS_PARTS = {"ADJECTIVE": "quality", "VERB": "doing", "ADVERB": "quality"}
+
+    #: THE CLASSES THAT NAME SOMETHING, against the ones English builds its frames from (DETERMINER, PREPOSITION,
+    #: AUXILIARY, PARTICLE, CONJUNCTION, PRONOUN, SUBORDINATOR, COPULA). `CLASS_PARTS` says which part of the
+    #: meaning language a class stands in and holds no NOUN, because a noun's part is read from where its senses
+    #: stood (`of_its_class`); a word is held NAMING something by any of these. Read by
+    #: `builds_more_than_it_names`, which has only the shapes to go by for a word memory holds no class of.
+    NAMING_CLASSES = frozenset({"NOUN", "NAME", "NUMERAL", "ADJECTIVE", "ADVERB", "VERB"})
 
     def of_its_class(self, pattern: str, slot: str, lexical: str) -> bool:
         """Whether a held one-word filler stands where this slot's fillers do by its word's class: observed an
