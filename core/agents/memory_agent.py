@@ -2625,23 +2625,33 @@ class MemoryAgent(IMemoryConsolidation):
     #: does once it no longer knows.
     TOOL_DOING_TAG = "tool_doing"
 
-    async def tool_doings(self, rules: str, taught: int) -> Dict[str, str]:
+    async def tool_doings(self, rules: str) -> Dict[str, str]:
         """What Lyric has read its own tools to do, `{first sentence: the doing it was read as}`, for every reading
-        made under `rules` with `taught` constructions held. An empty doing is a sentence READ AND FOUND TO SAY
-        NOTHING, kept so it is not read again for nothing: two thirds of the descriptions say nothing, and a
-        sentence the grammar reads no whole of is among the dearest it reads.
+        made under `rules`. An empty doing is a sentence READ AND FOUND TO SAY NOTHING, kept so it is not read
+        again for nothing: two thirds of the descriptions say nothing, and a sentence the grammar reads no whole
+        of is among the dearest it reads.
 
         Keyed by the sentence, not by the tool, because the sentence is what was read: a description that moves
-        from one tool to another is the same reading, and a tool whose description changed has none."""
+        from one tool to another is the same reading, and a tool whose description changed has none.
+
+        AND BY THE READER, NOT BY HOW MUCH HAD BEEN TAUGHT. This also asked that the count of constructions held
+        be the SAME as when the reading was made, so that anything newly taught sent all 251 descriptions back to
+        the grammar. Lyric is taught constantly, so the count is never the same twice and the recall never hit:
+        the store holds a complete set of 251 readings under the reader in use, made at 428,873 constructions,
+        and they were being thrown away at 429,398 -- 525 constructions, not one of them a word in those
+        sentences (lyric_db, 2026-11-13). A cache that never hits is not caution, it is 849 s of every start
+        (`_read_tools_by_doing`) and the dead weight of remembering it anyway.
+
+        What decides whether a sentence reads the same is the READER, and `rules` is its hash
+        (`grammar.RULES`: the grammar, its words, the reader and English's own). A reader that changed sends them
+        all back, as it should and as the store shows it has -- nine complete sets, one per reader. What is
+        taught narrows a word rather than re-spelling the grammar, so a description read to a doing under this
+        reader is still read to that doing; one that has newly become readable is picked up when the reader
+        changes, or when its own sentence does."""
         out: Dict[str, str] = {}
         for item in await self._rows_tagged(self.TOOL_DOING_TAG):
             meta = item.metadata or {}
             if str(meta.get("rules") or "") != str(rules):
-                continue
-            try:
-                if int(meta.get("taught")) != int(taught):
-                    continue
-            except (TypeError, ValueError):
                 continue
             said = str(meta.get("said") or "")
             if said:
@@ -2867,7 +2877,8 @@ class MemoryAgent(IMemoryConsolidation):
                     f"SELECT memory_id, metadata FROM {table}"
                     " WHERE tags @> $1::jsonb AND COALESCE(user_id, '') = ANY($2::text[])"
                     " ORDER BY created_at",
-                    (json.dumps([PATTERN_TAG]), list(SUBSTRATE_OWNERS)), fetch_all=True, store=store) or []
+                    (json.dumps([PATTERN_TAG]), list(SUBSTRATE_OWNERS)), fetch_all=True, store=store,
+                    deadline=None) or []
                 for row in rows:
                     await give_way()
                     meta = row["metadata"]
@@ -3003,14 +3014,22 @@ class MemoryAgent(IMemoryConsolidation):
         # PUT WHERE READING LOOKS ONLY WHERE NOTHING IS HELD YET. A warm that rebuilds a view already built leaves
         # it standing until this one is whole, so a reader mid-warm never loses the classes and senses it had; a
         # first warm has none to lose, and the loop below cannot name a term rightly without the words just read.
-        if not len(self.pattern_inventory()):
+        words_arrived = not len(self.pattern_inventory())
+        if words_arrived:
             self._pattern_inventory = inventory
-        # AND NO NAME WORKED OUT WITHOUT THEM OUTLIVES THEM. A term is named once and kept (`canonical_term` is
-        # cached over 1,153,936 terms of a warm), and naming asks what Lyric holds -- so a name taken by spelling
-        # before the words arrived would be the name this process used ever after, and whether a word was read
-        # before or after the warm would decide what it is called. Dropped here, where the words land.
-        from core.semantics.lexical_normalization import canonical_term
-        canonical_term.cache_clear()
+            # AND NO NAME WORKED OUT WITHOUT THEM OUTLIVES THEM. A term is named once and kept (`canonical_term`
+            # is cached over 1,153,936 terms of a warm), and naming asks what Lyric holds -- so a name taken by
+            # spelling before the words arrived would be the name this process used ever after, and whether a
+            # word was read before or after the warm would decide what it is called. Dropped here, where the
+            # words land.
+            #
+            # ONLY WHERE THEY LAND, though. Cleared on every warm, a process that warms twice -- which a teaching
+            # pass does, once at its start and once before it reads any fact -- threw away a million names that
+            # were right and worked them all out again, and the second warm ran at 100% of a core for twenty-four
+            # minutes without reaching the pass (2026-11-13). A re-warm cannot have named anything without the
+            # words: it had them.
+            from core.semantics.lexical_normalization import canonical_term
+            canonical_term.cache_clear()
 
         index: Dict[str, Dict[str, int]] = {}
         unparsed = 0
@@ -8761,17 +8780,21 @@ class MemoryAgent(IMemoryConsolidation):
         propositions at a teaching pass's end); on a cold copy of the store it did not, and the view would not warm
         (2026-10-10). So: the ids and creation times first (the tag's index, no content), then the rows by id, a
         bounded number at a time."""
+        # NO DEADLINE ON EITHER READ. Both are fast at the server (306 ms and 14 ms on main, served from psql);
+        # what killed them was asyncpg's client-side `command_timeout`, counted in a process whose event loop a
+        # live teaching pass holds for long stretches (2026-11-13). A read this warm cannot do without is not
+        # made better by being cancelled.
         found = await db.execute_query(
             f"SELECT memory_id FROM {table} WHERE tags @> $1::jsonb AND COALESCE(user_id, '') = ANY($2::text[])"
             f" ORDER BY created_at, memory_id",
-            (json.dumps([tag]), list(owners)), fetch_all=True, store=store) or []
+            (json.dumps([tag]), list(owners)), fetch_all=True, store=store, deadline=None) or []
         ids = [row["memory_id"] for row in found]
         for start in range(0, len(ids), self._TAGGED_PAGE):
             batch = ids[start:start + self._TAGGED_PAGE]
             rows = await db.execute_query(
                 f"SELECT memory_id, created_at, content, metadata, thinking_state->'raw_event' AS raw_event"
                 f" FROM {table} WHERE memory_id = ANY($1::text[]) ORDER BY created_at, memory_id",
-                (batch,), fetch_all=True, store=store) or []
+                (batch,), fetch_all=True, store=store, deadline=None) or []
             for row in rows:
                 yield row
 

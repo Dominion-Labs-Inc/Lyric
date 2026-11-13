@@ -176,6 +176,10 @@ async def main() -> int:
     agent = await get_memory_agent()
     await agent.initialize()
     await get_uncertainty_system().load_from_db()
+    # THE WORDS BEFORE THE NAMES. `normalize_term` names a term from what Lyric holds (2026-11-13), and
+    # `initialize` only STARTS the warm; waited for here, so a name this repair writes is the name the system
+    # writes, not one the spelling rules reached for while the words were still being read.
+    await agent.warm_word_classes()
     print(f"{database}:", flush=True)
     await repair(senses=args.sense, apply=args.apply, report=lambda line: print(line, flush=True))
     if args.apply:

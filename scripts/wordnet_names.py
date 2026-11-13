@@ -8,12 +8,17 @@ name: counting a degree's kind as a thing's gave "fast" to fasting, and teaching
 have left both (2026-10-12). `data/lessons/wordnet_names.tsv.gz` holds the names the stores were taught under;
 `tests/test_lesson_terms.py` fails when the names differ from it.
 
-    ./venv_lyric/bin/python3 scripts/wordnet_names.py --diff [--was logs/renamed.json]
+    POSTGRES_DATABASE=lyric_db ./venv_lyric/bin/python3 scripts/wordnet_names.py --diff [--was logs/renamed.json]
         each sense named otherwise than the stores were taught; with --was, the file `repair_renamed_senses.py` reads
-    ./venv_lyric/bin/python3 scripts/wordnet_names.py --write
+    POSTGRES_DATABASE=lyric_db ./venv_lyric/bin/python3 scripts/wordnet_names.py --write
         record the names as they are now: only once every store has been repaired to them
+
+A SENSE IS NAMED AT THE DOOR, AND THE DOOR NAMES FROM WHAT LYRIC HOLDS (2026-11-13), so this reads a store's words
+before it names anything -- about four minutes, and the store is named in POSTGRES_DATABASE. Nothing is written to
+it: the agent is in shadow mode, so no background loop and no write queue runs.
 """
 import argparse
+import asyncio
 import gzip
 import json
 import sys
@@ -25,9 +30,33 @@ TAUGHT = ROOT / "data" / "lessons" / "wordnet_names.tsv.gz"
 
 
 def current() -> dict:
-    """`sense -> name`, as WordNet is taught now ("" for a sense not taught)."""
+    """`sense -> name`, as WordNet is taught now ("" for a sense not taught).
+
+    NEEDS LYRIC'S WORDS. A sense's name is written at the door, and the door names a term from what Lyric holds
+    (`lexical_normalization._held_singular`, 2026-11-13): with no words held it has only the spelling rules, which
+    write "acrobatics" `acrobatic` and "Mars" `mar`. Names so written would be recorded as the names to teach
+    under, and a store repaired to them. So this refuses rather than answer from spelling; `warmed()` below is
+    what the command line calls first."""
     from core.learning.teaching_sources import WordNetSource
+    from core.semantics.derived_reader import live_view
+    if not len(live_view()):
+        raise RuntimeError(
+            "the senses are named at the door, which names from what Lyric holds, and this process holds none of "
+            "its words: warm them first (MemoryAgent.warm_word_classes), as scripts/wordnet_names.py does")
     return {synset.name(): name for synset, name in WordNetSource()._sense_names().items()}
+
+
+async def warmed() -> None:
+    """Read Lyric's words into this process, so the door names a sense as the system names it."""
+    import os
+    for key, value in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WATCHDOG": "1",
+                       "LYRIC_SHADOW_MODE": "1"}.items():
+        os.environ.setdefault(key, value)
+    from core.agents.memory_agent import get_memory_agent
+    agent = await get_memory_agent()
+    await agent.initialize()
+    held = await agent.warm_word_classes()
+    print(f"{os.environ.get('POSTGRES_DATABASE', '(default)')}: {held:,} word(s) warmed", file=sys.stderr)
 
 
 def taught() -> dict:
@@ -47,6 +76,7 @@ def main() -> int:
     parser.add_argument("--was", default=None, help="with --diff: write the names taught under, for the repair")
     parser.add_argument("--write", action="store_true")
     args = parser.parse_args()
+    asyncio.run(warmed())
     now = current()
     if args.write:
         with gzip.open(TAUGHT, "wt", encoding="utf-8") as handle:

@@ -209,11 +209,17 @@ def _held_singular(word: str) -> Optional[str]:
     view = live_view()
     if not len(view):
         return None
-    folded = str(word).replace("_", " ").strip().lower()
+    # ASKED OF THE WORD AS LYRIC WRITES IT, ANSWERED AS IT WAS GIVEN. The view holds words written with spaces;
+    # a term reaches the logic path written with underscores (`SentenceReader._singular("solar_system")`). Folded
+    # for the asking and then handed back folded, the underscore was gone and the predicate was renamed by a
+    # function that is supposed to resolve grammar only (2026-11-13).
+    given = str(word)
+    folded = given.replace("_", " ").strip().lower()
+    joined = (lambda name: name.replace(" ", "_")) if "_" in given else (lambda name: name)
     if (view.used_as(folded) or view.use_of(folded)) != "plural":
-        return folded
+        return given
     if folded.endswith("ing") or folded.endswith("ly") or folded.endswith("ed"):
-        return folded
+        return given
     # A WORD THAT NAMES A THING IS THAT THING'S NAME AND NO FORM OF ANOTHER WORD. "news" is held writing three
     # concepts and one of them IS `news`, so it is a word in its own right, where undoing its "s" would hand the
     # door `new` -- the collapse that gave 599 names to two things each. Asked of the concept's own name and not
@@ -222,7 +228,7 @@ def _held_singular(word: str) -> Optional[str]:
     # nothing. It costs nothing that keeping the word did not already cost: a plural held as a concept's own
     # name is one whose singular nothing names anyway.
     if folded in _means(view, folded):
-        return folded
+        return given
     for name in view.names_of_shape(folded):
         if name == folded or len(name) < 2:
             continue
@@ -237,7 +243,7 @@ def _held_singular(word: str) -> Optional[str]:
         # wrong, so the figures are what goes.
         if any(c.isdigit() for c in name):
             continue
-        return name
+        return joined(name)
     # AND A PLURAL WHOSE SINGULAR NOTHING HELD NAMES KEEPS ITS OWN SPELLING. Handed to the spelling rules instead,
     # as this first did, it is a plural by Lyric's word and a plural's last "s" comes off by theirs: 184 of the
     # 789 names `lyric_db` holds that this door would write anew moved that way, "apparatus" to `apparatu`,
@@ -247,7 +253,7 @@ def _held_singular(word: str) -> Optional[str]:
     # concept where there are two. This module's own rule decides it: it must not over-merge, because a split can
     # be joined and a fusion cannot be undone (`canonical_term`). So the rules below reduce nothing a warm Lyric
     # has looked at; they answer for a word too short to ask about, and for a process with no substrate to ask.
-    return folded
+    return given
 
 
 def singularise(word: str) -> str:
@@ -306,7 +312,12 @@ def _singular_once(word: str) -> str:
 DETERMINER_PREFIXES = ("the_", "a_", "an_")
 
 
-@functools.lru_cache(maxsize=1 << 18)
+#: BIG ENOUGH FOR A WARM'S TERMS. A warm names 1,153,936 terms (below), and this held 262,144 -- a size chosen
+#: when naming a term was two frozenset lookups in WordNet and a miss cost nothing. Naming asks what Lyric holds
+#: now, so a miss is dear, and a cache smaller than the working set turns every one of those terms into a miss
+#: for whatever runs next: the start's reading of its 251 tool descriptions ran for 25 minutes behind a warm and
+#: never reached the teaching pass waiting on it (2026-11-13).
+@functools.lru_cache(maxsize=1 << 21)
 def canonical_term(label: str) -> str:
     """The identity-bearing form of a TERM: grammar only, no document heuristics.
 

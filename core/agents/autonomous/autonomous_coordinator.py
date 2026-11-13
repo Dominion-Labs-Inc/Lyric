@@ -19661,19 +19661,21 @@ The substrate must realign with its constitutional responsibilities immediately.
         view = agent.grammar_view()
         learned = await view.learn_waiting_in_turn()
         kept = await agent.keep_grammar_learning()
-        # THE START BEGINS THE READING OF WHAT ITS TOOLS DO AND NO LONGER WAITS FOR IT. Where the rules those
-        # descriptions were last read under have changed, reading the 251 of them by the grammar is 1,192 s -- 84%
-        # of a 1,417 s start -- and it was awaited here, so after a grammar change nobody could speak for twenty
-        # minutes, while a start whose readings are all remembered is 141 s (main, 2026-11-12). The same work still
-        # begins at the same moment and the start is still what begins it; it is no longer between the start and a
-        # person. A request that needs a tool before it is done awaits this very task, which is what it did before,
-        # so no tool is choosable any later than it was (`_tools_by_doing`).
-        self._react("_tool_reading_task", self._read_tools_by_doing)
+        # AND THE START DOES NOT READ WHAT ITS TOOLS DO. Where the rules those descriptions were last read under
+        # have changed, reading the 251 of them by the grammar is 1,192 s -- 84% of a 1,417 s start -- against
+        # 141 s for a start whose readings are all remembered (main, 2026-11-12). It was awaited here once, then
+        # merely begun here; begun is still a reading of 251 sentences by the grammar on this one loop, and
+        # everything else on it waits behind that. It is what a teaching pass waited behind six times over
+        # (2026-11-13), and `scripts/check_reading.py` has always cancelled it outright as "not this check's
+        # work". Nothing about a start needs it: a request that needs a tool asks `_tools_by_doing`, which begins
+        # the reading there and awaits it, which is what that door always did. So a start that is never asked for
+        # a tool never pays for one, and one that is pays a recall.
         reading = getattr(self, "_tool_reading_task", None)
         still_reading = reading is not None and not reading.done()
         logger.info("📖 Ready to read: the grammar holds what %d sentences taught it, %d learned now and %d kept with "
                     "their sentences; what Lyric's tools do is %s (%.0fs)",
-                    view.learned_from, learned, kept, "being read now" if still_reading else "read",
+                    view.learned_from, learned, kept,
+                    "being read now" if still_reading else "read when a tool is first needed",
                     time.monotonic() - started)
         return {"sentences_held": view.learned_from, "sentences_learned": learned, "kept": kept,
                 "tools_reading": still_reading}
@@ -19762,15 +19764,18 @@ The substrate must realign with its constitutional responsibilities immediately.
         """Each of Lyric's tools by what it says it does, `{name: (doing, required parameters, parameters)}`: the first
         sentence of its own description read by the one reader as an order ("Read the contents of a file.": a
         reading), as a person's request is read. A tool whose description does not read as one says nothing here
-        yet, and is chosen for nothing. Read once while what was taught is unchanged.
+        yet, and is chosen for nothing. Read once per reader, and remembered across starts.
 
-        THE READING ITSELF IS THE START'S, AND THIS AWAITS IT (`ready_to_read` -> `_read_tools_by_doing`): one
-        reading of the descriptions at a time, whoever asks first. Asked before the start began one -- or where
-        nothing can hold a task -- it reads them here, which is what this door always did."""
-        from core.semantics.derived_reader import live_view
-        taught = len(live_view())
+        AND THIS IS WHERE THE READING BEGINS. The start began it once and no longer does: reading 251 sentences
+        by the grammar is 1,192 s where nothing is remembered, and it holds the one loop everything else runs on
+        (`ready_to_read`). A tool is needed when a request needs one, so the reading begins when one is needed --
+        one reading at a time, whoever asks first -- and a start nobody asks a tool of never pays for it."""
+        # HELD FOR THE PROCESS, NOT UNTIL THE NEXT THING IS TAUGHT. This asked that the count of constructions be
+        # what it was when the descriptions were read, so one sentence taught anywhere sent all 251 of them back
+        # to the grammar in here too -- the same mistake the remembering made (`MemoryAgent.tool_doings`). What
+        # decides whether they read the same is the reader, and the reader cannot change inside a process.
         held = getattr(self, "_tool_doings", None)
-        if held is not None and held[0] == taught:
+        if held is not None:
             return held[1]
         self._react("_tool_reading_task", self._read_tools_by_doing)
         reading = getattr(self, "_tool_reading_task", None)
@@ -19870,12 +19875,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         # WHAT IT ALREADY READ, REMEMBERED. Reading these descriptions by the grammar was 849 s of a 1,051 s start
         # (251 of them, measured on main 2026-11-09), and it was kept in `_tool_doings` -- a process attribute -- so
         # every exit threw the reading away and every start did it again. The substrate remembers what it reads
-        # everywhere else; these are sentences it reads too. Good only while the sentence, the rules it was read by
-        # and what was taught are unchanged, so a description that changed, a grammar that changed, or anything
-        # newly taught is read again (`MemoryAgent.tool_doings`).
+        # everywhere else; these are sentences it reads too. Good while the sentence and the rules it was read by
+        # are unchanged, so a description that changed or a reader that changed is read again
+        # (`MemoryAgent.tool_doings`) -- and NOT while the count of what was taught is unchanged, which is what it
+        # asked at first and which meant the recall never once hit on a substrate that is taught every day.
         from core.semantics.grammar import RULES as rules
         try:
-            remembered = await self.memory.tool_doings(rules, taught)
+            remembered = await self.memory.tool_doings(rules)
         except Exception as not_remembered:              # reading them is the substrate's own work either way
             logger.warning("what the tools do could not be recalled, reading them again: %s", not_remembered)
             remembered = {}

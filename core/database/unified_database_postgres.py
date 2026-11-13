@@ -72,6 +72,12 @@ def _tier_schema(use_hot_tier: bool, use_cold_tier: bool) -> str:
     return 'unified'
 
 
+#: WHAT A READ THAT MUST NOT BE CUT OFF WAITS INSTEAD. asyncpg has no per-call "no timer": `timeout=None` asks
+#: for the connection's own, which is the pool's 60 s. An hour is no deadline on a read that takes a third of a
+#: second from psql; it is a tripwire on one that has stopped (`execute_query`, 2026-11-13).
+NO_DEADLINE = 3600.0
+
+
 class _DatabasePool:
     """One database's connection pool, and the event loop it belongs to.
 
@@ -867,8 +873,26 @@ class LyricUnifiedDatabasePostgres:
         commit: bool = False,
         *,
         store: Optional[str] = None,
+        deadline: Optional[float] = 60,
     ) -> Optional[Any]:
-        """
+        """`deadline`: how long this ONE read may take, the pool's own 60 s unless it says otherwise, and None
+        for a read that must not be cut off.
+
+        ASYNCPG'S TIMER IS THIS PROCESS'S, NOT THE SERVER'S. The pool is built with `command_timeout=60`, which
+        asyncpg counts in the client: a query whose answer is sitting in the socket while this process's event
+        loop is busy elsewhere is cancelled, however fast the server was. The warm reads every memory carrying a
+        tag -- 583,585 taught propositions on main -- and a teaching pass runs it inside a LIVE substrate, whose
+        start and reactive drain hold the loop for long stretches. Served from an idle psql the same reads take
+        306 ms and 14 ms; inside that pass they died on the 60 s timer three times (2026-11-13). The read was
+        never slow, so a deadline is the wrong instrument for it, and those reads pass None.
+
+        AND None IS NOT NO TIMER TO ASYNCPG. `conn.fetch(..., timeout=None)` is asyncpg's way of saying "the
+        connection's own", so passing it through left the pool's 60 s exactly where it was and the read died
+        again in the same place. Measured against this store with `command_timeout=1`: `SELECT pg_sleep(2)` with
+        `timeout=None` raises, with `timeout=30` returns. There is no per-call way to say "no timer", so None
+        here means NO_DEADLINE below -- an hour, which is not a deadline on a read that takes a third of a
+        second but a tripwire on one that has stopped.
+        
         Execute SQL query with optional fetch/commit
 
         Args:
@@ -929,15 +953,16 @@ class LyricUnifiedDatabasePostgres:
 
                 # Fetch results based on mode
                 result = None
+                waiting = NO_DEADLINE if deadline is None else deadline
                 if fetch_one:
                     # fetchrow returns single Record or None
-                    result = await conn.fetchrow(query, *params_list)
+                    result = await conn.fetchrow(query, *params_list, timeout=waiting)
                     # Convert Record to dict for compatibility with MySQL version
                     if result:
                         result = dict(result)
                 elif fetch_all:
                     # fetch returns list of Records
-                    result = await conn.fetch(query, *params_list)
+                    result = await conn.fetch(query, *params_list, timeout=waiting)
                     # Convert Records to dicts for compatibility
                     result = [dict(row) for row in result]
                 else:

@@ -55,7 +55,7 @@ def test_every_lesson_term_names_a_concept_wordnet_teaches_and_a_doing_names_a_d
     assert not wrong, "\n".join(f"{term!r} in {sentence!r}: {why}" for term, sentence, why in wrong)
 
 
-def test_wordnet_names_its_senses_as_the_stores_were_taught():
+def test_wordnet_names_its_senses_as_the_stores_were_taught(lyrics_words):
     """WordNet's names follow from WordNet, the stated senses and how the lessons use their words, and a store keeps
     the names it was taught under. An edit that renames a sense leaves it there under its old name, and the new name
     beside it: counting a degree's kind as a thing's gave "fast" to fasting (2026-10-12). A rename is made on purpose,
@@ -64,13 +64,13 @@ def test_wordnet_names_its_senses_as_the_stores_were_taught():
 
     THE NAMES COME FROM THE DOOR, AND THE DOOR NAMES FROM WHAT LYRIC HOLDS (2026-11-13). A process holding none
     of its words has only the spelling rules, which write "acrobatics" `acrobatic` and "apparatus" `apparatu`,
-    so every sense whose name ends so would read as moved. Nothing in `tests/` warms a view -- every test
-    process is `lyric_dev`, which holds no constructions -- so this is skipped where there are no words to name
-    from, rather than compared against names no substrate wrote."""
-    from core.semantics.derived_reader import live_view
-    if not len(live_view()):
+    so every sense whose name ends so would read as moved. The `lyrics_words` fixture warms a view for a run
+    that asks for one (`tests/conftest.py`); without it this says so and skips, rather than compare against
+    names no substrate wrote."""
+    if not lyrics_words:
         pytest.skip("the senses are named at the door, which names from what Lyric holds, and this process holds "
-                    "none of its words: the view is warmed from memory (MemoryAgent.warm_word_classes)")
+                    "none of its words: run it with POSTGRES_DATABASE naming a store that was taught and "
+                    "LYRIC_TEST_WORDS=1")
     import importlib.util
     spec = importlib.util.spec_from_file_location("wordnet_names", LESSONS.parents[1] / "scripts" / "wordnet_names.py")
     names = importlib.util.module_from_spec(spec)
