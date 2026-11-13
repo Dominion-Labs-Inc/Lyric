@@ -2977,6 +2977,41 @@ class MemoryAgent(IMemoryConsolidation):
         # subject, relation or object slot and so can be implied by nothing.
         stated = await self._rows_tagged(self.WORD_CLASS_TAG)
 
+        # THE TAUGHT PATTERNS, IN THE SAME PASS, AND BEFORE ANY CLASS IS IMPLIED FROM A SENTENCE. How English says
+        # things is language knowledge like a word's class, read from memory at the same events, so there is one
+        # warm and one view -- not a second one that can disagree with the first about what the substrate was
+        # taught.
+        #
+        # READ FIRST, BECAUSE IMPLYING A CLASS NAMES ITS TERMS. `classes_implied_by` reaches
+        # `cognitive_ingress.shape_proposition` -> `normalize_term` -> `canonical_term` -> `singularise`, and
+        # naming a term asks what Lyric holds for the word (`lexical_normalization._held_singular`). Built after
+        # that loop, as it was, the warm named terms in order to build the vocabulary naming consults, and the only
+        # thing standing in that circle was a word list bolted on beside the substrate it had already taught
+        # (WordNet, removed 2026-11-13).
+        from core.semantics.derived_reader import PatternInventory
+        # Added one at a time, as the constructor adds them, so the loop is given its turn between them.
+        inventory = PatternInventory()
+        for item in await self.taught_patterns():
+            inventory.add(item)
+            await give_way()
+        # AND WHAT A TREEBANK SHOWED A WORD TO BE A FORM OF, which `names_of_shape` answers with and naming a term
+        # therefore asks: read here with the words, not after the loop below, so a term named during the warm is
+        # named from the same account of English as one named after it. Read after, "came" was `come` to the
+        # reader and itself to the door, and which side of the warm a word arrived on decided what it was called.
+        forms = await self._word_form_memories()
+        inventory.held_forms = forms.bases_of
+        # PUT WHERE READING LOOKS ONLY WHERE NOTHING IS HELD YET. A warm that rebuilds a view already built leaves
+        # it standing until this one is whole, so a reader mid-warm never loses the classes and senses it had; a
+        # first warm has none to lose, and the loop below cannot name a term rightly without the words just read.
+        if not len(self.pattern_inventory()):
+            self._pattern_inventory = inventory
+        # AND NO NAME WORKED OUT WITHOUT THEM OUTLIVES THEM. A term is named once and kept (`canonical_term` is
+        # cached over 1,153,936 terms of a warm), and naming asks what Lyric holds -- so a name taken by spelling
+        # before the words arrived would be the name this process used ever after, and whether a word was read
+        # before or after the warm would decide what it is called. Dropped here, where the words land.
+        from core.semantics.lexical_normalization import canonical_term
+        canonical_term.cache_clear()
+
         index: Dict[str, Dict[str, int]] = {}
         unparsed = 0
         refuted = 0
@@ -3059,23 +3094,11 @@ class MemoryAgent(IMemoryConsolidation):
                 bucket = index.setdefault(word, {})
                 bucket[cls] = bucket.get(cls, 0) + 1
 
-        # THE TAUGHT PATTERNS, IN THE SAME PASS. How English says things is
-        # language knowledge like a word's class, read from memory at the same
-        # events, so there is one warm and one view -- not a second one that can
-        # disagree with the first about what the substrate was taught.
-        from core.semantics.derived_reader import PatternInventory
-        # Added one at a time, as the constructor adds them, so the loop is given its turn between them.
-        inventory = PatternInventory()
-        for item in await self.taught_patterns():
-            inventory.add(item)
-            await give_way()
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
         said = await self._said_memories()
         # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed; which phrases are a
         # happening's arguments; and the lessons' sentences with their meanings, which the composer learns from.
         groups = await self._word_group_memories()
-        forms = await self._word_form_memories()
-        inventory.held_forms = forms.bases_of
         structure = await self._analysed_memories(groups)
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)

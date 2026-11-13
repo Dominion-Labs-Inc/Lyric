@@ -125,73 +125,155 @@ def normalise(label: str) -> str:
     return s.strip().replace(" ", "_")
 
 
-_NOUN_LEMMAS: Optional[FrozenSet[str]] = None
-_WORDNET_LEMMAS: Optional[FrozenSet[str]] = None
+def _means(view, word: str) -> set:
+    """What the fillers written as this word write: the concepts it is a word FOR, as Lyric holds them."""
+    return {str(filler.value).strip().lower() for filler in view.holding(word)}
 
 
-def _wordnet_singular(word: str) -> Optional[str]:
-    """What WordNet says a word is: the noun it is a plural of, where WordNet knows one ("cacti", `cactus`;
-    "boxes", `box`); itself, where WordNet lists the word as a word of its own in ANY class ("proboscis", "news",
-    "aesthetics", "zealous", "always"); None where WordNet does not know the word. Raises if WordNet is not
-    installed: the door does not guess where it was told to know.
+def _held_singular(word: str) -> Optional[str]:
+    """WHAT LYRIC HOLDS FOR A WORD: itself, where what it holds says the word is not a plural ("proboscis",
+    "news", "physics", "bogus", "always", "Descartes"); the word it is the written plural of, where undoing a
+    change it was taught lands on a word it holds ("boxes", `box`; "cacti", `cactus`); itself again where it is
+    a plural and nothing it holds names the singular, which keeps its own spelling rather than lose a letter to
+    a rule; None only where this process holds no words at all, and then the spelling rules below decide the
+    whole of it, as they did before any word list was bolted on.
 
-    THE PLURAL FIRST. A word WordNet knows as another noun's plural is that noun, even where WordNet also lists the
-    word itself ("humans", a sense of its own: kept apart, "Socrates is a human." and "All humans are mortal." name
-    two things and nothing follows). A word with no such noun behind it stays as written ("proboscis": "probosci"
-    names nothing). Not yet told apart: a thing named by a plural of its own beside the singular's ("blues", the
-    music, as `blue`), merged as the spelling rule merged it.
+    ASKED OF WHAT WAS TAUGHT, NOT OF THE MATERIAL IT WAS TAUGHT FROM. This asked `nltk.corpus.wordnet` two
+    things -- whether a string is a word, and what noun it is the plural of -- while the substrate that had been
+    taught all of WordNet stood beside the question. Keeping the word list was keeping the teaching material
+    bolted to the thing it taught.
 
-    EVERY CLASS, NOT NOUNS ALONE. Only a noun has a plural, so the question asked here was once about nouns alone --
-    and a word WordNet knows only as an adjective or an adverb got no answer, fell through to the spelling rule
-    below, and had its final "s" taken off as though it were a plural. "-ous" is an adjective ending, never a
-    plural: 954 of WordNet's adjectives were held under a name that is not a word ("zealous" as `zealou`,
-    "abstemious" as `abstemiou`, "predaceous" as `predaceou`), and 63 other words with them ("always" as `alway`,
-    "besides" as `beside`, "indoors" as `indoor`, "bogus" as `bogu`, "isosceles" as `isoscele`, "interspecies" as
-    `interspecy` -- that last one by the "-ies" rule, which this answer also comes before). 1,017 words in all, and
-    almost every one of them an adjective, which is the class the store is thinnest in: of the words taught, 2.4%
-    of adjectives had one. Two words WordNet knows only as verbs are spared with them, rightly -- `nonplu` and
-    `refocu` name nothing either. A word WordNet lists at all is a word of its own; only a word WordNet does not
-    know is left to spelling, and the 615 real plurals here still reduce, because the plural is asked first."""
-    global _NOUN_LEMMAS, _WORDNET_LEMMAS
-    from nltk.corpus import wordnet as wn
-    if _NOUN_LEMMAS is None:
-        _NOUN_LEMMAS = frozenset(lemma.lower() for synset in wn.all_synsets("n")
-                                 for lemma in synset.lemma_names() if "_" not in lemma)
-        _WORDNET_LEMMAS = _NOUN_LEMMAS.union(
-            lemma.lower() for word_class in ("v", "a", "s", "r") for synset in wn.all_synsets(word_class)
-            for lemma in synset.lemma_names() if "_" not in lemma)
-    # A plural made with "s" never ends in "ss" (one ending in "s" takes "es": "bosses"), so "boss" is no plural of
-    # `bos`, the genus of cattle, however WordNet's rule strips it; and no plural ends in "ing", whatever WordNet's
-    # list of exceptions holds ("crying" for `cry`).
-    plural_of = [form for form in wn._morphy(word, wn.NOUN) if form != word and form in _NOUN_LEMMAS
-                 and not (word.endswith("ss") and form == word[:-1]) and not word.endswith("ing")]
-    if plural_of:
-        return plural_of[0]
-    return word if word in _WORDNET_LEMMAS else None
+    IS IT A PLURAL AT ALL: the question asked first, because every wrong answer here comes from reducing
+    something that was never plural. Lyric already answers it, of a word it holds (`used_as`, the most of a
+    held filler's uses) and of a word it does not (`use_of`, how the held words written and ending as this one
+    is are used, within Yang's tolerance) -- and `use_of` NEVER GUESSES A PLURAL FROM AN ENDING, which is what
+    keeps "bus", "lens" and "Descartes" whole without a word list to look them up in. A word used as anything
+    else is its own name: that is one rule where the list it replaces needed a noun lemma set, an any-class
+    lemma set, and a hand-written exception for "-ous".
+
+    THE WORD ITSELF FIRST, THE CHANGE SECOND. A word Lyric holds a concept of that same name for is that name;
+    only a word naming nothing is undone. Asked the other way round -- undo first, keep the word only where no
+    undoing lands -- "news" came out `new` and "scissors" `scissor`, a held word sitting one change from each.
+    Tried instead as "the undoing must name the same thing this word does", it failed on ordinary plurals,
+    because a plural writes one sense and its singular another ("Batteries" and "battery" share no concept):
+    the 1,500 plurals saying makes fell to 75.9% named as the old door named them, "menus", "humans", "ladders"
+    and "batteries" among the losses (2026-11-13). Not yet told apart: a thing named by a plural of its own
+    beside the singular's ("blues", the music, as `blue`), merged as the spelling rule merged it.
+
+    THE CHANGE IS UNDONE, NOT THE CONCEPT LOOKED UP. A word is held as the written form of a concept, and the
+    concept's NAME is not the word's singular: Lyric's names are its senses' ("aesthetics" writes `philosophy
+    aesthetics`, "humans" writes `homo`, "analyses" writes `analyze`), so reading the singular off the concept
+    turns morphology into synonymy, which is the one thing this module exists to refuse. What answers it is
+    `names_of_shape`, the reader's own account of the held words a word is written as -- the word written in a
+    productive change of a held word, the longest ending first. So the door names a term as the reader reads it,
+    from one account of English, not two.
+
+    THE CHANGE'S WRITTEN SIDE MUST END THE WORD. Taken from the whole set of productive changes ordered by their
+    name side, as this first did, an undoing is free to rewrite a word into any held word that ends as some
+    change's name does: "birds" came out `birdhouse`, "darts" `dartboard`, "whims" `whimper`, "officers"
+    `officeholder`, "men" `keeper` (2026-11-13). `names_of_shape` indexes by the written side, so only a change
+    this word actually ends in can touch it.
+
+    FOUR FACTS ABOUT ENGLISH PLURALS, kept because they are grammar and not a word list: no plural ends in
+    "ing"; none ends in "ly", that ending being an adverb's, and a plural of a word carrying it going to "-ies"
+    ("ally", "allies"); none ends in "ed", that ending being a participle's; and a plural made with "s" never
+    ends in "ss" (one ending in "s" takes "es": "bosses"), so "boss" is no plural of `bos`.
+
+    The middle two are worth their line. Saying holds an "-ly" adverb and an "-ed" participle as PLURALS, for
+    standing where a shape is taken, and the adjective or the verb is held one change away -- so of the 605
+    names in `lyric_db` that this door would otherwise write onto a name another concept already holds, 588 are
+    adverbs undone to adjectives ("abjectly" to `abject`, "abundantly" to `abundant`) and 9 are participles
+    undone to verbs ("closed" to `close`, "left handed" to `left hand`).
+
+    WHAT IT ALL COMES TO, measured against the whole of the door as it stood (its irregulars, mass nouns and
+    two-step guard with WordNet in its one place), on `lyric_db` warm: of 3,000 of WordNet's single-word nouns,
+    99.6% are named as the old door named them, and where they differ it is mostly this door being right where
+    the list was wrong ("Mars", "Shekels", "Lats", "Philippians", "Mithras", "Mayas", "Appalachians",
+    "Lepidoptera", "species" were all truncated and now are not). Of 1,500 plurals saying itself makes, 83.5%.
+    Of the 116,082 names the store holds, 14 move: two onto a name another concept already holds ("oldest"
+    `old`, "sent" `send`) and twelve onto a name nothing holds, every one of them a past form a treebank names
+    ("spat" `spit`, "flown" `fly`, "drunk" `drink`) or "clothes" `clothe`. `scripts/repair_door_rewrites.py`
+    takes back what was taught under a name the door no longer writes.
+
+    AND WHAT IT COSTS, which is teaching and not code: 406 of those 1,500 plurals are left as written, because
+    Lyric holds the plural and not the singular -- "trinkets", "disbursers", "chiggers", "warehousemen",
+    "budgies". The old door reduced them from a word list. This one will when they are taught (2026-11-13).
+
+    A PROCESS HOLDING NOTHING IS ASKED NOTHING, and gets None: the spelling rules below then decide the whole of
+    it, which is what this module did before a word list was bolted to it. A comparison, a lookup or a test with
+    no substrate behind it is entitled to grammar's answer, and saying so is not standing in for the substrate:
+    a warm that failed leaves the view empty and says so in the log (`MemoryAgent.begin_word_class_warm`), and a
+    name taken by spelling before the words arrived is dropped when they do, so no process keeps two answers for
+    one word (`_rebuild_word_class_view`)."""
+    from core.semantics.derived_reader import live_view
+    view = live_view()
+    if not len(view):
+        return None
+    folded = str(word).replace("_", " ").strip().lower()
+    if (view.used_as(folded) or view.use_of(folded)) != "plural":
+        return folded
+    if folded.endswith("ing") or folded.endswith("ly") or folded.endswith("ed"):
+        return folded
+    # A WORD THAT NAMES A THING IS THAT THING'S NAME AND NO FORM OF ANOTHER WORD. "news" is held writing three
+    # concepts and one of them IS `news`, so it is a word in its own right, where undoing its "s" would hand the
+    # door `new` -- the collapse that gave 599 names to two things each. Asked of the concept's own name and not
+    # of what it means, so this stays morphology: `news`, `scissors`, `goggles`, `headquarters`, `remains`,
+    # `thanks` and `clothes` are all names of things Lyric holds, and `batteries`, `menus` and `ladders` name
+    # nothing. It costs nothing that keeping the word did not already cost: a plural held as a concept's own
+    # name is one whose singular nothing names anyway.
+    if folded in _means(view, folded):
+        return folded
+    for name in view.names_of_shape(folded):
+        if name == folded or len(name) < 2:
+            continue
+        if folded.endswith("ss") and name == folded[:-1]:
+            continue
+        # AND A PLURAL'S NAME IS A WORD, NOT A NUMBER. A treebank's record of what a word is a form of is real
+        # morphological evidence and does most of the reducing here -- "geese" is `goose` by it, "cacti"
+        # `cactus` -- but it also holds a number word to be a form of its figure, and "fifty" is no plural of
+        # `50`. Asked only of the productive changes instead (`written_in_shape`), the forms went with it: the
+        # plurals saying makes fell from 75.8% named as the old door named them to 63.9%, 700 of 1,500 left as
+        # written, against 14 names moved in the store rather than 66 (2026-11-13). The figures are what is
+        # wrong, so the figures are what goes.
+        if any(c.isdigit() for c in name):
+            continue
+        return name
+    # AND A PLURAL WHOSE SINGULAR NOTHING HELD NAMES KEEPS ITS OWN SPELLING. Handed to the spelling rules instead,
+    # as this first did, it is a plural by Lyric's word and a plural's last "s" comes off by theirs: 184 of the
+    # 789 names `lyric_db` holds that this door would write anew moved that way, "apparatus" to `apparatu`,
+    # "calculus" to `calculu`, "status" to `statu`, "britches" to `britch`, "news" to `new` -- the same truncation
+    # the word list was bolted on to stop. Kept as written, the worst that follows is "trinkets" beside "trinket",
+    # two concepts where there should be one; written short, "apparatus" and a thing that is not a word become one
+    # concept where there are two. This module's own rule decides it: it must not over-merge, because a split can
+    # be joined and a fusion cannot be undone (`canonical_term`). So the rules below reduce nothing a warm Lyric
+    # has looked at; they answer for a word too short to ask about, and for a process with no substrate to ask.
+    return folded
 
 
 def singularise(word: str) -> str:
     """Reduce a plural to its singular. Grammatical variation only.
 
-    WORDNET DECIDES WHERE IT KNOWS THE WORD. Spelling cannot: "atlas" is one and "areas" many, "genus" one and
-    "menus" many. Stripping a final "s" by rule stored 4,213 of WordNet's nouns under another name ("proboscis" as
-    `probosci`, "genus" as `genu`) and gave 599 names to two things each ("news" and "new", "aesthetics" and
-    "aesthetic"), at the one door every fact enters through. A word WordNet lists as a noun stays as written; one it
-    knows as a noun's plural is that noun. The rules below decide only a word WordNet does not know.
+    WHAT LYRIC HOLDS DECIDES WHETHER THE WORD IS A PLURAL. Spelling cannot: "atlas" is one and "areas" many,
+    "genus" one and "menus" many. Stripping a final "s" by rule stored 4,213 nouns under another name
+    ("proboscis" as `probosci`, "genus" as `genu`) and gave 599 names to two things each ("news" and "new",
+    "aesthetics" and "aesthetic"), at the one door every fact enters through. A word Lyric does not use as a
+    plural stays as written; a plural it holds the singular of is that singular. The rules below reduce only a
+    plural whose singular nothing held names.
 
     A SINGULAR IS WRITTEN THE SAME AGAIN. A name written at the door is written again wherever it is taken in
     (`concept_ingestion` writes the label it is handed), so the singular must be one the door leaves as it is.
-    "peoples" is the plural of "people" (a people), and "people" of "person": one step at a time, WordNet's
-    peoples, the human beings of a particular nation, came in as `people` and was stored as `person`, and a person
-    was held a kind of group (2026-10-11). A word whose singular the door would read again as another word's plural
-    is its own: five of WordNet's ("peoples", "gentes", "limina", "terata", "ephemerae")."""
+    "peoples" is the plural of "people" (a people), and "people" of "person": one step at a time, the peoples of
+    WordNet's teaching -- the human beings of a particular nation -- came in as `people` and was stored as
+    `person`, and a person was held a kind of group (2026-10-11). A word whose singular the door would read again
+    as another word's plural is its own: five taught ("peoples", "gentes", "limina", "terata", "ephemerae")."""
     once = _singular_once(word)
     return once if once == word or _singular_once(once) == once else word
 
 
 def _singular_once(word: str) -> str:
-    """One step of `singularise`: the singular a word is the plural of, by WordNet where it knows the word, by
-    spelling where it does not."""
+    """One step of `singularise`: the singular a word is the plural of, by what Lyric holds -- whether the word
+    is used as a plural at all, and what it holds the plural written from -- and by spelling where it holds the
+    word to be a plural but names no singular for it."""
     if word in IRREGULAR_SINGULARS:
         return IRREGULAR_SINGULARS[word]
     if word in PLURAL_EXCEPTIONS:
@@ -203,9 +285,9 @@ def _singular_once(word: str) -> str:
         return word
     if word in ICS_MASS_NOUNS or word in MASS_PLURAL_FORMS:
         return word
-    # A word of three letters or fewer is left as written, as the rule below leaves it: "ms" and "ts" are units, and
-    # WordNet's "m" and "t" (letters) would take them.
-    known = _wordnet_singular(word) if len(word) > 3 else None
+    # A word of three letters or fewer is left as written, as the rule below leaves it: "ms" and "ts" are units,
+    # and the letters "m" and "t", held as words, would take them.
+    known = _held_singular(word) if len(word) > 3 else None
     if known is not None:
         return known
     if word.endswith("ies") and len(word) > 4:

@@ -235,7 +235,17 @@ def shape_proposition(subject: Any, relation: Any, obj: Any
     a clause for a relation) with `admitted=True`, and stored raw terms --
     `isoprobe wren isa an isoprobe bird` -- that the graph overlay, which walks
     canonical concept names, could never reach (measured 2026-09-26,
-    SYSTEM-CONVERSATION-01)."""
+    SYSTEM-CONVERSATION-01).
+
+    AND IT NAMES FROM WHAT LYRIC HOLDS, SO IT NAMES NOTHING BEFORE THE WORDS ARE READ. `normalize_term` asks what
+    Lyric holds -- whether the word is used as a plural at all, and what it holds the plural written from
+    (`lexical_normalization._held_singular`) -- and a process that holds none of them has only spelling, which
+    stores "proboscis" as `probosci` and gives "news" and "new" one name between them. That is the honest answer
+    where there is no substrate to ask (a comparison, a lookup, a test), and a defect only where there is one and
+    its words have not been read yet. The words are read at the head of the warm, before it names anything of its
+    own, and the names worked out without them are dropped there (`MemoryAgent._rebuild_word_class_view`), so no
+    name taken by spelling outlives the words arriving. A warm that fails says so in the log and leaves the view
+    empty; nothing here quietly stands in for it."""
     subject = normalize_term(str(subject or ""))
     obj = normalize_term(str(obj)) if obj else None
     relation = " ".join(str(relation or "").replace("_", " ").split())
