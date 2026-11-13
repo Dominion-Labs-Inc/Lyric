@@ -1,0 +1,122 @@
+{
+  "descriptions": {
+    "Add an IP address to the internal threat intelligence database.": {
+      "doing": "add",
+      "seconds": 50.0
+    },
+    "Add or improve docstrings for Python functions and classes.": {
+      "doing": "add",
+      "seconds": 0.4
+    },
+    "Add strategic logging statements to code using AST analysis.": {
+      "doing": "add",
+      "seconds": 2.9
+    },
+    "Add type hints to Python functions by static inference over the AST (literal defaults and return expressions).": {
+      "doing": "add",
+      "seconds": 32.1
+    },
+    "Aggregate data by grouping and applying operations.": {
+      "doing": "come aggregate",
+      "seconds": 0.3
+    },
+    "Analyze Python code quality (complexity, maintainability).": {
+      "doing": "analyze",
+      "seconds": 0.4
+    },
+    "Analyze Python code structure (imports, functions, classes, etc.).": {
+      "doing": null,
+      "seconds": 1.0
+    },
+    "Apply transformations to data (select fields, rename, etc.).": {
+      "doing": null,
+      "seconds": 0.7
+    },
+    "Detect anomalous behavior patterns in traffic, access patterns, and user activity.": {
+      "doing": "detect",
+      "seconds": 1.4
+    },
+    "Find TODO, FIXME, HACK, and XXX comments in code.": {
+      "doing": null,
+      "seconds": 0.6
+    },
+    "Generate Architecture Decision Records.": {
+      "doing": "generate",
+      "seconds": 0.1
+    },
+    "Generate cryptographically secure random password.": {
+      "doing": null,
+      "seconds": 0.1
+    },
+    "Sort data by field.": {
+      "doing": null,
+      "seconds": 0.2
+    },
+    "Validate JSON data.": {
+      "doing": "confirm validate",
+      "seconds": 0.1
+    },
+    "Validate XML data.": {
+      "doing": "confirm validate",
+      "seconds": 0.1
+    },
+    "Validate YAML data.": {
+      "doing": "confirm validate",
+      "seconds": 0.1
+    }
+  },
+  "opposites": {
+    "Is able the opposite of unable?": {
+      "answered": true,
+      "read": "ask: antonym_of(able, unable)",
+      "seconds": 0.0
+    },
+    "Is absolute the opposite of relative?": {
+      "answered": true,
+      "read": "ask: antonym_of(absolute, relative)",
+      "seconds": 0.1
+    },
+    "Is big the opposite of small?": {
+      "answered": true,
+      "read": "ask: antonym_of(big, small)",
+      "seconds": 0.1
+    },
+    "Is good the opposite of bad?": {
+      "answered": true,
+      "read": "ask: antonym_of(good, bad)",
+      "seconds": 0.1
+    }
+  },
+  "prose": {
+    "A whale breathes air through a blowhole.": {
+      "read": "tell: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, hole vent) & moves_through(?v0, ?v2)",
+      "readings": 1,
+      "reply": "Noted - The air.",
+      "seconds": 31.5
+    },
+    "Do whales breathe air?": {
+      "read": "ask: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air)",
+      "readings": 3,
+      "reply": "Yes.",
+      "seconds": 20.3
+    },
+    "Does sorted return a new list?": {
+      "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v2, new) & if done_to(?v3, ?v1) & if instance_of(?v1, doe) & if instance_of(?v3, choose screen) & instance_of(?v0, return) & instance_of(?v2, list)",
+      "readings": 2,
+      "reply": "A doe's a placental.\nA list's a database.",
+      "seconds": 34.8
+    },
+    "The note was long.": {
+      "read": "tell: given instance_of(?v0, musical notation note) & instance_of(?v1, long) & precedes(?v1, ?now) & state_of(?v1, ?v0)",
+      "readings": 5,
+      "reply": "I did not take that as a fact - insufficient support: quality 0.461 < floor 0.5. If I am wrong, correct me and I will we",
+      "seconds": 1.4
+    },
+    "The rock was heavy.": {
+      "read": "tell: given instance_of(?v0, material rock) & has_property(?v0, heavy)",
+      "readings": 6,
+      "reply": "Noted - All of the material rock is heavy.",
+      "seconds": 16.3
+    }
+  }
+}

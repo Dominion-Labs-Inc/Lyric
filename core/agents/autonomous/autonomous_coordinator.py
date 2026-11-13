@@ -19778,12 +19778,39 @@ The substrate must realign with its constitutional responsibilities immediately.
             return await self._read_tools_by_doing()
         return await reading
 
+    @staticmethod
+    def said_of(description: Any) -> str:
+        """THE SENTENCE A DESCRIPTION LEADS WITH, ended as a sentence is: what a tool says it does is read from its
+        first sentence and the rest is how to call it."""
+        said = re.split(r"(?<=[.!?])\s+", str(description or "").strip(), maxsplit=1)[0]
+        return (said if said[-1] in ".!?" else said + ".") if said else ""
+
+    async def doing_said(self, said: str) -> Optional[str]:
+        """WHAT ONE SENTENCE ASKS THE LISTENER TO DO, or None where it asks nothing: the sentence read, the reading
+        the listener takes of it, and the doing it is asked to do in that reading.
+
+        Reads only. `_read_tools_by_doing` does the recalling and the remembering around it, for every tool there
+        is; this is the reading itself, so that whoever wants one sentence read -- the start, or a check of
+        reading after the reader is changed (`scripts/check_reading.py`) -- asks for exactly that and writes
+        nothing."""
+        from core.semantics.derived_reader import heard, is_variable, read_text
+        utterances = read_text(said)
+        if not utterances or not utterances[0].readings:
+            return None
+        chosen = await heard(utterances[0].readings)
+        if chosen is None or chosen.meaning.act != "request":
+            return None
+        facts = chosen.meaning.facts
+        return next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
+                     and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
+                             for g in facts)), None)
+
     async def _read_tools_by_doing(self) -> Dict[str, Tuple[str, Tuple[str, ...], Tuple[str, ...]]]:
         """READ EVERY TOOL'S DESCRIPTION for what it says the tool does, recalling each reading made before under
         these rules with this much taught, and remembering each one made here (`MemoryAgent.tool_doings`,
         `remember_tool_doing`). What `_tools_by_doing` hands back; started by the start, awaited by whoever needs a
         tool before it is done."""
-        from core.semantics.derived_reader import heard, is_variable, live_view, read_text
+        from core.semantics.derived_reader import live_view
         taught = len(live_view())
         registry = self.tool_registry
         if registry is None:
@@ -19818,10 +19845,9 @@ The substrate must realign with its constitutional responsibilities immediately.
                 logger.info("reading what Lyric's tools do: %d of %d, %d say so, %ds",
                             how_far, len(names), len(out), int(said_at - began))
             tool = registry.get_tool(name)
-            said = re.split(r"(?<=[.!?])\s+", str(getattr(tool, "description", "") or "").strip(), maxsplit=1)[0]
+            said = self.said_of(getattr(tool, "description", ""))
             if not said:
                 continue
-            said = said if said[-1] in ".!?" else said + "."
             if said in remembered:
                 # READ BEFORE, AND REMEMBERED -- including read and found to say nothing, which two thirds of them
                 # are and which costs the most to find out again. Its parameters are taken from the tool as it is
@@ -19834,15 +19860,7 @@ The substrate must realign with its constitutional responsibilities immediately.
                 out[name] = (doing, tuple(p.name for p in parameters if getattr(p, "required", True)),
                              tuple(p.name for p in parameters))
                 continue
-            utterances = read_text(said)
-            doing = None
-            if utterances and utterances[0].readings:
-                chosen = await heard(utterances[0].readings)
-                if chosen is not None and chosen.meaning.act == "request":
-                    facts = chosen.meaning.facts
-                    doing = next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
-                                  and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
-                                          for g in facts)), None)
+            doing = await self.doing_said(said)
             # REMEMBERED WHETHER IT SAID ANYTHING OR NOT. A description the grammar reads no order in is the dearest
             # kind to read and two thirds of them are that kind, so a start that forgot only the failures would save
             # almost nothing. What is remembered is the reading, not a verdict: an empty doing says this sentence was
