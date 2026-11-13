@@ -212,12 +212,20 @@ async def prose() -> Dict[str, Any]:
     return out
 
 
-def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int]:
-    """Each case said against what was recorded of it: as recorded, better, or worse."""
-    kept = better = worse = 0
+def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, int]:
+    """Each case said against what was recorded of it: as recorded, better, worse, or CHANGED.
+
+    CHANGED IS ITS OWN ANSWER AND NOT A WORSE ONE. A description either names a doing or names none, and a pair is
+    either answered or not, so those two say which way they moved. A REPLY DOES NOT: it is a sentence, and whether
+    one sentence is better than another is not something this can read. Counted as worse, the day's two real
+    repairs to the reply were filed as regressions -- "Noted - All of the material rock is heavy.", one rock said
+    of all rock, became "Noted - The rock is heavy." and was reported WORSE (lyric_db, 2026-11-13). So a changed
+    reply is printed with both versions and counted apart, and the run still ends non-zero, because a changed reply
+    is exactly the thing a person has to look at."""
+    kept = better = worse = changed = 0
 
     def verdict(label: str, old: Any, new: Any, improved: Optional[bool]) -> None:
-        nonlocal kept, better, worse
+        nonlocal kept, better, worse, changed
         if old == new:
             kept += 1
             say(f"    as recorded  {label}")
@@ -229,7 +237,7 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int]:
             worse += 1
             say(f"    WORSE        {label}\n                   was {old!r}\n                   now {new!r}")
         else:
-            worse += 1
+            changed += 1
             say(f"    CHANGED      {label}\n                   was {old!r}\n                   now {new!r}")
 
     say("\n  THE DESCRIPTIONS")
@@ -259,7 +267,7 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int]:
             continue
         verdict(f"{said!r}", (before["read"], before.get("reply")),
                 (after["read"], after.get("reply")), None)
-    return kept, better, worse
+    return kept, better, worse, changed
 
 
 async def main() -> int:
@@ -311,10 +319,10 @@ async def main() -> int:
         say(f"\n  ({time.time()-t0:.0f}s all told)")
         return 0
 
-    kept, better, worse = compare(was, now)
-    say(f"\n  {kept} as recorded, {better} better, {worse} worse"
+    kept, better, worse, changed = compare(was, now)
+    say(f"\n  {kept} as recorded, {better} better, {worse} worse, {changed} changed"
         f"   ({time.time()-t0:.0f}s all told, against 4,742s for the whole sweep)")
-    return 1 if worse else 0
+    return 1 if worse or changed else 0
 
 
 if __name__ == "__main__":

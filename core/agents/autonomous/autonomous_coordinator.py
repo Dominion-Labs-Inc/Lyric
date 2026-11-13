@@ -19789,10 +19789,31 @@ The substrate must realign with its constitutional responsibilities immediately.
         """WHAT ONE SENTENCE ASKS THE LISTENER TO DO, or None where it asks nothing: the sentence read, the reading
         the listener takes of it, and the doing it is asked to do in that reading.
 
+        ASKED AGAIN AS WIDE AS A PERSON IS READ, WHERE THE ONE READING ASKS NOTHING OF ANYONE. The grammar is asked
+        for one reading here and not three (`COMPOSED_READINGS`, deliberately: a start reads 251 of these and the
+        chart costs the width squared, which at six left a 29 s start still reading its tools twenty minutes on).
+        One reading means the GRAMMAR'S OWN RANKING decides, with nothing handed to the listener to weigh -- and
+        where its first choice is not an order at all there is nothing else to take: "Generate cryptographically
+        secure random password." came back as a telling of someone called Generate procuring something, four words
+        of modifier taken for the predicate, while "Generate a random password." read as the order it is at the
+        same width (lyric_db, 2026-11-13). A tool's first sentence IS an order -- that is the premise of reading
+        them this way at all -- so a reading that asks nothing of the listener is on its face not a reading of this
+        sentence, and is asked again at `SPOKEN_READINGS`, the width a person's own words are read at. The width
+        costs only the descriptions that fail it, which is what keeps a start's reading affordable.
+
         Reads only. `_read_tools_by_doing` does the recalling and the remembering around it, for every tool there
         is; this is the reading itself, so that whoever wants one sentence read -- the start, or a check of
         reading after the reader is changed (`scripts/check_reading.py`) -- asks for exactly that and writes
         nothing."""
+        from core.semantics.derived_reader import SPOKEN_READINGS, composing_width
+        doing = await self._doing_asked(said)
+        if doing is None:
+            with composing_width(SPOKEN_READINGS):
+                doing = await self._doing_asked(said)
+        return doing
+
+    async def _doing_asked(self, said: str) -> Optional[str]:
+        """What one sentence asks the listener to do at the composing width in play (`doing_said`), or None."""
         from core.semantics.derived_reader import heard, is_variable, read_text
         utterances = read_text(said)
         if not utterances or not utterances[0].readings:
@@ -21327,14 +21348,28 @@ def _said(subject: str, relation: str, obj: str, positive: bool = True,
     text = str(relation).strip()
     if text.startswith("not "):
         text, positive = text[4:].strip(), not positive
-    spaced = {str(name).replace("_", " ").strip(): kind for name, kind in (kinds or {}).items()}
+    # THE NAME AND THE KIND ARE BOTH SAID AS WORDS. `kinds` answers with the store's own term on both sides, and
+    # spacing the name while leaving the kind underscored put the same thing in a meaning twice under two terms:
+    # "A whale breathes air through a blowhole." asked saying for `given instance_of(?v0, hole_vent) &
+    # instance_of(?v0, hole vent)` -- a thing given as one kind and asserted to be another, which nothing says and
+    # nothing should (lyric_db, 2026-11-13).
+    spaced = {str(name).replace("_", " ").strip(): str(kind).replace("_", " ").strip()
+              for name, kind in (kinds or {}).items()}
     try:
         fact = MeaningFact(text.replace(" ", "_"), str(subject).replace("_", " ").strip(),
                            str(obj).replace("_", " ").strip(), positive)
-        meaning = Meaning("tell", as_known((fact,), spaced) if spaced.keys() & set(fact.terms()) else (fact,))
+        facts = as_known((fact,), spaced) if spaced.keys() & set(fact.terms()) else (fact,)
     except ValueError:
         return None
-    sentences = say(meaning, named=named, framed=framed)
+    # A KNOWN THING'S OWN KIND SAYS NOTHING OF IT. Said as a known thing is said, `instance_of(air_adbc9a63, air)`
+    # is `given instance_of(?k0, air)` and nothing else: `as_known` drops the fact itself, because being an air is
+    # what makes it "the air" and not a claim beside it. Handed to saying, a meaning with nothing asserted is said
+    # as the noun phrase alone -- told "A whale breathes air through a blowhole.", six facts were held and the
+    # whole reply was "Noted - The air." (lyric_db, 2026-11-13), which reads as an acknowledgement of something
+    # when what it names is the thing, not anything said of it. Nothing asserted, nothing said.
+    if all(f.given for f in facts):
+        return None
+    sentences = say(Meaning("tell", facts), named=named, framed=framed)
     return sentences[0] if sentences else None
 
 
@@ -21416,9 +21451,21 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
     # in hand say, since the store knows a thing this telling only mentioned.
     kind_of = {label: other for label, rels in edges.items() for relation, other in rels
                if relation == "instance_of"}
-    kind_of.update({str(name): str(kind) for name, kind in (kinds or {}).items()})
+    # SAID AS THE WORD IT IS AND NOT AS THE STORE WRITES IT. `kinds` answers with the store's own term, which is
+    # written with underscores (`normalize_term`: `hole_vent`), and `hole_vent` is no concept saying has ever met.
+    # Handed one, the WHOLE doing said nothing: told "A whale breathes air through a blowhole.", the meaning offered
+    # to saying differed from the meaning read by that one term, and saying matches a construction by the meaning
+    # exactly -- so six facts were held and the reply was empty (lyric_db, 2026-11-13). Every other term here is
+    # spaced the same way (`_said`).
+    kind_of.update({str(name): str(kind).replace("_", " ").strip() for name, kind in (kinds or {}).items()})
     groups = {label for label, rels in edges.items() if any(r == "has_member" for r, _ in rels)}
     doings = {label for label, rels in edges.items() if {r for r, _ in rels} & _HAPPENING_LINKS}
+    # WHAT THIS TELLING SAID THE KIND OF IS NOT A THING IT ONLY PICKED OUT. A thing already held is picked out and
+    # arrives with no edges of its own (`about`), and saying it as the known thing it is -- `given`, "the equator" --
+    # is what that is for. A thing the telling itself told of arrives with its own `instance_of`, because the
+    # telling asserted it, and reading wrote it NOT given: "A whale breathes air through a blowhole." reads
+    # `instance_of(?v1, air)`, an air, not the air. Said back as given, the meaning was one no construction says.
+    said_its_kind = {label for label, rels in edges.items() if any(r == "instance_of" for r, _ in rels)}
 
     def the_stores_own(name: str) -> bool:
         """WHETHER THIS NAME IS THE STORE'S AND NOT A WORD SOMEBODY SAID, by what the thing is held to be
@@ -21451,7 +21498,8 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
         facts = []
         for at in sorted(reached):
             if at in kind_of and at not in groups:
-                facts.append(MeaningFact("instance_of", names[at], kind_of[at], given=at not in doings))
+                facts.append(MeaningFact("instance_of", names[at], kind_of[at],
+                                         given=at not in doings and at not in said_its_kind))
             for relation, other in edges.get(at, ()):
                 if relation == "instance_of":
                     continue
@@ -21486,7 +21534,9 @@ def _said_rule(rule, named: Optional[Dict[str, str]] = None, framed: FrozenSet[s
     called it by (`named`) and a particular as the known thing it is (`kinds`).
     None when nothing taught says it: then it is not said another way."""
     from core.semantics.derived_reader import Meaning, MeaningFact, as_known, say
-    spaced = {str(name).replace("_", " ").strip(): kind for name, kind in (kinds or {}).items()}
+    # Both sides said as words, as `_said` says them.
+    spaced = {str(name).replace("_", " ").strip(): str(kind).replace("_", " ").strip()
+              for name, kind in (kinds or {}).items()}
     try:
         facts = tuple(
             MeaningFact(str(relation).replace(" ", "_"), str(subject).replace("_", " ").strip(),

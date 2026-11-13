@@ -3037,14 +3037,16 @@ class Grammar:
             s = {}
             if _unify(rc.arg, lc.res, s):
                 made(Fn(rc.res, "/", lc.arg), s, "<Bx", left.head)
-        # AN ORDER SAID TO SOMEONE BY NAME is theirs to do: "Close the box, Tom.", "Tom, close the box.".
+        # AN ORDER SAID TO SOMEONE BY NAME is theirs to do: "Close the box, Tom.", "Tom, close the box.". Said to
+        # someone, so the noun phrase after the comma has to name them (`_addressed`): a comma continuing a list
+        # looks exactly like the comma that sets an address off, and read as one it made the list the doer.
         tokens = self._tokens
-        if _verb_phrase(lc) and lc.res.feat == "b" and isinstance(rc, Atom) and rc.base == "NP" \
+        if _verb_phrase(lc) and lc.res.feat == "b" and _addressed(right, rc) \
                 and 0 <= right.start < len(tokens) and tokens[right.start] == ",":
             s = {}
             if _unify(lc.arg, rc, s):
                 made(Atom("S", "imp", lc.res.ref), s, "said to", left.head)
-        if isinstance(lc, Atom) and lc.base == "NP" and _verb_phrase(rc) and rc.res.feat == "b" \
+        if _addressed(left, lc) and _verb_phrase(rc) and rc.res.feat == "b" \
                 and 0 < left.end <= len(tokens) and tokens[left.end - 1] == ",":
             s = {}
             if _unify(rc.arg, lc, s):
@@ -3966,7 +3968,17 @@ class Grammar:
         # AND THE SHARE OF THE READER'S OWN RANKING, which is not the same quantity: a sentence is read as one
         # wherever the grammar reads it so, and `_said_so` is part of why this reading stands above that one. A
         # listener handed `sure` is handed the ranking with that term missing (`Reading.ranked`).
-        by_rank = {id(s): s.score + self._said_so(s.cat) for s in whole}
+        #
+        # OVER THE READINGS THE READER KEEPS, AND NOT OVER THE ONES IT HAS JUST THROWN AWAY. What kind of utterance
+        # this is the reader decides and hands up no alternative to (above), so the readings of the other kinds are
+        # not readings the listener is choosing among: the share it is handed has to be conditioned on that
+        # decision, or it carries the mass of phrases that were rejected. Taken over `whole`, "Sort data by field."
+        # handed up eleven readings of the one kind holding 0.000007 of the ranking between them -- the rest on
+        # readings nobody would ever see -- so the order it is was charged -10.355 nats of structure and lost by
+        # six to a frame reading that made a thing called Sort the doer, for a reason that is nothing to do with
+        # either reading (lyric_db, 2026-11-13). `sure` is left over every reading of the whole, which is what it
+        # says it is and what its own callers read it as.
+        by_rank = {id(s): s.score + self._said_so(s.cat) for s in ranked}
         high = max(by_rank.values())
         every = sum(math.exp(v - high) for v in by_rank.values())
         out: List[Reading] = []
@@ -5455,6 +5467,35 @@ class Grammar:
 def _verb_phrase(cat: Cat) -> bool:
     return isinstance(cat, Fn) and cat.slash == "\\" and isinstance(cat.res, Atom) and cat.res.base == "S" \
         and isinstance(cat.arg, Atom) and cat.arg.base == "NP"
+
+
+def _addressed(sign: "Sign", cat: Cat) -> bool:
+    """WHETHER A NOUN PHRASE NAMES THE ONE SPOKEN TO, which is what an order said to someone is said to ("Close the
+    box, Tom.", "Shut it, you."): the phrase refers to a word read as a NAME, or to the listener. A thing picked
+    out by a description is not an address, nor is a kind said bare, nor is a list -- and a list is what a reader
+    that looks only for a comma cannot tell an address from.
+
+    ASKED OF THE WORD'S CLASS AND NOT OF ITS REFERENT ALONE. A name refers to itself (`Lexicon.named`: `NP.@`, the
+    name as the term) -- but so does a kind said bare, which is how a generic subject is written ("A whale
+    breathes air.": `done_by(?v0, whale)`). Asked only whether the referent was a name rather than a fresh
+    variable, "Find TODO, FIXME, HACK, and XXX comments in code." still read `done_by(?v0, comments)`, the
+    comments doing the finding, because "comments" refers to the kind (lyric_db, 2026-11-13). Every word read
+    leaves the class it was read under beside it (`("word", name, cls, ...)`, `Grammar._lexical`), so this asks
+    for that.
+
+    THE RULE'S OWN COMMENT SAID "BY NAME" AND THE CODE NEVER ASKED. Any noun phrase whose first token was a comma
+    was taken for the one addressed and unified with the verb's subject, so the comma that continues a LIST read as
+    the comma that sets off an address, and the list became the doer. Of 251 tool descriptions, the two carrying a
+    parenthetical -- "Analyze Python code structure (imports, functions, classes, etc.)." and "Apply
+    transformations to data (select fields, rename, etc.)." -- each read one way, with two doings and neither done
+    by anyone, on the commas inside their brackets; both read as the orders they are once an address has to name
+    someone, and nothing else in 25 recorded cases moved (`scripts/check_reading.py`: 23 as recorded, 2 better, 0
+    worse, lyric_db, 2026-11-13)."""
+    if not (isinstance(cat, Atom) and cat.base == "NP"):
+        return False
+    if cat.ref == "?listener":
+        return True
+    return any(p[0] == "word" and len(p) > 2 and p[1] == cat.ref and p[2] == "NAME" for p in sign.pieces)
 
 def _first_entry(sign: Sign) -> str:
     """The entry of the first word of the stretch, as the lexicon labels it (`Entry.label`): "do:q" of "Does a dog",
