@@ -19813,15 +19813,42 @@ The substrate must realign with its constitutional responsibilities immediately.
         return doing
 
     async def _doing_asked(self, said: str) -> Optional[str]:
-        """What one sentence asks the listener to do at the composing width in play (`doing_said`), or None."""
-        from core.semantics.derived_reader import heard, is_variable, read_text
+        """What one sentence asks the listener to do at the composing width in play (`doing_said`), or None.
+
+        THE QUESTION IS WHAT IT ASKS THE LISTENER, so where the listener's own first choice asks nothing and
+        another reading of the same sentence does, the listener is asked again OF THOSE READINGS. It weighs them
+        exactly as it weighs any others -- nothing is overridden and no ranking is rewritten here; the readings
+        that cannot answer the question being asked are simply not offered. A sentence no reading of which asks
+        the listener anything still answers None, as it did.
+
+        THE RIGHT READING WAS THERE AND CAME SECOND. "Find TODO, FIXME, HACK, and XXX comments in code." reads
+        three ways once it is read as wide as a person is read, and the one asking the listener to find them is
+        third by 9.2 nats behind one that has the comments doing the finding; "Generate cryptographically secure
+        random password." reads the order second by 2.7 nats behind a telling of someone called Generate procuring
+        something (lyric_db, 2026-11-13). Both differences are activation -- how often each sense has been met --
+        on words nothing attests in this use, which is the one thing that cannot be settled by reading harder.
+
+        This can only ever turn None into a doing: where the first reading already answers, it is the answer."""
+        from core.semantics.derived_reader import heard, read_text
         utterances = read_text(said)
         if not utterances or not utterances[0].readings:
             return None
-        chosen = await heard(utterances[0].readings)
-        if chosen is None or chosen.meaning.act != "request":
+        readings = tuple(utterances[0].readings)
+        doing = self._doing_of(await heard(readings))
+        if doing is not None:
+            return doing
+        asking = tuple(r for r in readings if self._doing_of(r) is not None)
+        if not asking or len(asking) == len(readings):
             return None
-        facts = chosen.meaning.facts
+        return self._doing_of(await heard(asking))
+
+    @staticmethod
+    def _doing_of(reading: Any) -> Optional[str]:
+        """The doing a reading asks the LISTENER to do, by its kind; None where it asks the listener nothing."""
+        from core.semantics.derived_reader import is_variable
+        if reading is None or reading.meaning is None or reading.meaning.act != "request":
+            return None
+        facts = reading.meaning.facts
         return next((f.obj for f in facts if f.relation == "instance_of" and not is_variable(f.obj)
                      and any(g.relation == "done_by" and g.subject == f.subject and g.obj == "?listener"
                              for g in facts)), None)
@@ -21394,6 +21421,28 @@ def _the_stores_own_name(name: Any, kind: Any) -> bool:
     return str(name).startswith(stem) and str(name)[len(stem):].isalnum()
 
 
+def _the_stores_own_kind(name: Any) -> Optional[str]:
+    """THE KIND A NAME OF THE STORE'S OWN CARRIES, where nothing else says what the thing is; None where the name
+    is not one of the store's.
+
+    ASKED ONLY WHERE THE KIND IS NOT KNOWN. What a thing is comes from the store (`Conversation._kind_of`) or from
+    the edges in hand, and judging by shape alone was wrong before (`_the_stores_own_name`): `equator_1` -- which
+    the store answered "equator" for the whole time -- was taken for a word somebody said. But a reply handed a
+    term NOTHING says the kind of has only the name, and spelled it out: told "Roy painted the wall.", with the
+    wall arriving as `wall_1` and no kind beside it, the reply was "Noted - Roy coat paint Wall 1."
+    (tests/test_no_stand_in_for_saying.py, which reaches this only once a view is warm enough for saying to say
+    anything at all). Both of the substrate's two ways of naming a thing it met write the kind and then a mark --
+    a number for the one this person's context holds (`_known_of`: `wall_1`), eight hex digits for a thing told of
+    (`teaching.told_events`: `straddle_776e5238`) -- so the name itself carries the kind, and that is better than
+    putting the store in front of a person."""
+    stem, _, mark = str(name or "").rpartition("_")
+    if not stem or not mark:
+        return None
+    if mark.isdigit() or (len(mark) == 8 and all(c in "0123456789abcdef" for c in mark.lower())):
+        return stem.replace("_", " ")
+    return None
+
+
 #: A TIME WRITTEN AS AN INSTANT, as the store keeps one ("2026-11-05T02:36:44Z").
 _AN_INSTANT = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
 
@@ -21471,8 +21520,17 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
         """WHETHER THIS NAME IS THE STORE'S AND NOT A WORD SOMEBODY SAID, by what the thing is held to be
         (`_the_stores_own_name`). Judged by the SHAPE of the name alone, `equator_1` -- the one "the equator"
         picked out -- was taken for a word and spelled out into the reply as "Equator 1", while `equator_dcf864eb`,
-        the same thing named by a telling instead, was not (lyric_db, 2026-11-04)."""
-        return name in kind_of and _the_stores_own_name(name, kind_of[name])
+        the same thing named by a telling instead, was not (lyric_db, 2026-11-04).
+
+        WHERE NOTHING SAYS WHAT IT IS, THE NAME ITSELF DOES (`_the_stores_own_kind`), and what it says is kept, so
+        the thing is said as its kind rather than spelled into the reply."""
+        if name in kind_of:
+            return _the_stores_own_name(name, kind_of[name])
+        kind = _the_stores_own_kind(name)
+        if kind is None:
+            return False
+        kind_of[name] = kind
+        return True
 
     def about(label: str) -> List[str]:
         """The doing and every thing of the store's own naming it reaches, a group through to its members."""
