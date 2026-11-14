@@ -2904,7 +2904,7 @@ class MemoryAgent(IMemoryConsolidation):
         # caller that cannot receive this result, and it should say so rather
         # than quietly building a loop nobody drives.
         task = asyncio.get_running_loop().create_task(
-            self._rebuild_word_class_view(), name="memory:warm_word_classes")
+            self._rebuilt_without_collecting(), name="memory:warm_word_classes")
 
         def _report(finished) -> None:
             if finished.cancelled() and self._stopping_loops:
@@ -2941,6 +2941,29 @@ class MemoryAgent(IMemoryConsolidation):
         """
         import asyncio
         return await asyncio.shield(self.begin_word_class_warm())
+
+    async def _rebuilt_without_collecting(self) -> int:
+        """The warm, with Python's cyclic collector off for as long as it runs.
+
+        WHAT THE WARM DOES IS ALLOCATE. It reads about 1.3 million memories -- 584,602 taught propositions,
+        429,398 constructions, 113,064 words recorded whole, and nine smaller sets -- and makes a Python object
+        of every one, which it then keeps. The collector runs every 700 allocations net of frees, and each run
+        walks the graph built so far; a warm therefore walks a growing graph some thousands of times, and almost
+        nothing it finds is garbage, because the warm keeps what it builds. Measured on main: the 113,064 word
+        records take 17.01 s to build with the collector running and 1.69 s with it off, the same work ten times
+        over (2026-11-13).
+
+        Off for the warm only, and put back however the warm ends. Nothing here makes a cycle it needs collected
+        -- it builds a view and returns it -- and what it leaves for the collector to look at afterwards it would
+        have left anyway."""
+        import gc
+        collecting = gc.isenabled()
+        gc.disable()
+        try:
+            return await self._rebuild_word_class_view()
+        finally:
+            if collecting:
+                gc.enable()
 
     async def _rebuild_word_class_view(self) -> int:
         """Rebuild the word-class view FROM THE SUBSTRATE'S OWN MEMORIES.
