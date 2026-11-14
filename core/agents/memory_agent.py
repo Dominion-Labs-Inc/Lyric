@@ -3034,6 +3034,33 @@ class MemoryAgent(IMemoryConsolidation):
         # reader and itself to the door, and which side of the warm a word arrived on decided what it was called.
         forms = await self._word_form_memories()
         inventory.held_forms = forms.bases_of
+        # AND THE WORDS RECORDED WHOLE, FOR THE SAME REASON AND IN THE SAME PLACE. `inventory.held_forms` IS
+        # `forms.bases_of` -- the one object, not a copy -- and `_learn_word_record` holds every form of every
+        # record in it. Read after the loop below, as this was, the 146,732 records' forms landed in the view
+        # AFTER the warm had named the terms of its taught propositions, so `names_of_shape` answered one way
+        # during the warm and another way afterwards, and `canonical_term` is cached per process: whichever came
+        # first was that process's name for the term ever after.
+        #
+        # It cost ten senses of a repair. "actor sellers" was named `actor_sellers` by the warm, which held no
+        # form saying "sellers" is written from `seller`, and `actor_seller` by the teaching pass that named it
+        # after the records were in; "academic degree honours" came out `academic_degree_honor` one side and
+        # `academic_degree_honour` the other. Four of ten senses had their facts filed back under the name the
+        # repair had just taken them off, because the pass and the measurement were two different accounts of
+        # English (lyric_db, 2026-11-14).
+        #
+        # So every name a process writes is now worked out from the whole of what Lyric holds. Where a name is
+        # still wrong it is wrong by what was taught and not by when it was asked -- "sellers" reduces because
+        # nothing holds it as a name of its own -- and that is a thing teaching can fix.
+        index: Dict[str, Dict[str, int]] = {}
+        groups = await self._word_group_memories()
+        structure = await self._analysed_memories(groups)
+        self._record_names, self._grammar_words, self._grammar_records = {}, {}, []
+        self._word_record_ids, self._classes_apart = {}, set()
+        for row, word in await self._word_record_memories():
+            await give_way()
+            self._learn_word_record(word, index, forms, structure)
+            self._grammar_words[word.key()] = word
+            self._word_record_ids[word.key()] = row.memory_id
         # PUT WHERE READING LOOKS ONLY WHERE NOTHING IS HELD YET. A warm that rebuilds a view already built leaves
         # it standing until this one is whole, so a reader mid-warm never loses the classes and senses it had; a
         # first warm has none to lose, and the loop below cannot name a term rightly without the words just read.
@@ -3054,7 +3081,6 @@ class MemoryAgent(IMemoryConsolidation):
             from core.semantics.lexical_normalization import canonical_term
             canonical_term.cache_clear()
 
-        index: Dict[str, Dict[str, int]] = {}
         unparsed = 0
         refuted = 0
         told = 0
@@ -3138,21 +3164,12 @@ class MemoryAgent(IMemoryConsolidation):
 
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
         said = await self._said_memories()
-        # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: the sentences held as analysed; which phrases are a
-        # happening's arguments; and the lessons' sentences with their meanings, which the composer learns from.
-        groups = await self._word_group_memories()
-        structure = await self._analysed_memories(groups)
+        # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: which phrases are a happening's arguments, and the
+        # lessons' sentences with their meanings, which the composer learns from. The sentences held as analysed
+        # are read above, with the words recorded whole that hold their joins.
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
-        # AND THE WORDS RECORDED WHOLE, before any sentence: each layer of each into the view that learns from it.
-        self._record_names, self._grammar_words, self._grammar_records = {}, {}, []
-        self._word_record_ids, self._classes_apart = {}, set()
-        for row, word in await self._word_record_memories():
-            await give_way()
-            self._learn_word_record(word, index, forms, structure)
-            self._grammar_words[word.key()] = word
-            self._word_record_ids[word.key()] = row.memory_id
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
         for row, record in await self._record_memories():
             await give_way()
