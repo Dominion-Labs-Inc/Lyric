@@ -53,7 +53,13 @@ def written_once(name: str) -> str:
         as `bomb` and "a-team" as `team` -- the thing fused with another the store cannot part again;
       * a count's plural had to be KEPT, so "15 minutes" was stored as `15_minute`;
       * short groups joined by a mark had to NAME a thing rather than operate, so "b-52" was stored as `b - 52`;
-      * a mark between two digits had to be kept as the BREAK it is, so "9/11" was stored as `911`.
+      * a mark between two digits had to be kept as the BREAK it is, so "9/11" was stored as `911`;
+      * and the words had to be READ, because a plural's singular is what Lyric holds and not what spelling
+        says: a door with nothing recorded to ask took the final "s" off by rule, so "acne vulgaris" was stored
+        `acne_vulgari`, "acanthosis nigricans" `acanthosis_nigrican` and "abo antibodies" `abo_antibody`. 969 of
+        WordNet's senses are held under such a name, and the door writes them rightly now that all 144,612 words
+        are recorded (2026-11-14). This is the one way a name has moved that cannot be replayed by asking the
+        system: the system is what changed, so the singular is taken by spelling alone (`asking=False`).
 
     Written out here rather than taken from the store, so a sense never taught is told apart from one taught
     under a name the door has since stopped writing."""
@@ -79,7 +85,7 @@ def written_once(name: str) -> str:
             break
     parts = [p for p in s.split("_") if p]
     if parts:
-        parts[-1] = lexical._singular_once(parts[-1])
+        parts[-1] = lexical._singular_once(parts[-1], asking=False)
     return "_".join(parts).strip("_")
 
 

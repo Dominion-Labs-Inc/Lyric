@@ -285,10 +285,17 @@ def singularise(word: str) -> str:
     return once if once == word or _singular_once(once) == once else word
 
 
-def _singular_once(word: str) -> str:
+def _singular_once(word: str, *, asking: bool = True) -> str:
     """One step of `singularise`: the singular a word is the plural of, by what Lyric holds -- whether the word
     is used as a plural at all, and what it holds the plural written from -- and by spelling where it holds the
-    word to be a plural but names no singular for it."""
+    word to be a plural but names no singular for it.
+
+    `asking` off answers BY SPELLING ALONE, without asking what Lyric holds. That is not a way to name anything:
+    it is how a door with no words read yet named things, and the only way to work out the name a term was
+    stored under then. "acne vulgaris" was stored `acne_vulgari`, "acanthosis nigricans" `acanthosis_nigrican`,
+    "abo antibodies" `abo_antibody` -- 969 of WordNet's senses are held under such a name, and the door writes
+    them rightly now that the words are recorded. A repair that must find them cannot ask the warm, because the
+    warm is what changed (`scripts/repair_door_rewrites.written_once`)."""
     if word in IRREGULAR_SINGULARS:
         return IRREGULAR_SINGULARS[word]
     if word in PLURAL_EXCEPTIONS:
@@ -302,7 +309,7 @@ def _singular_once(word: str) -> str:
         return word
     # A word of three letters or fewer is left as written, as the rule below leaves it: "ms" and "ts" are units,
     # and the letters "m" and "t", held as words, would take them.
-    known = _held_singular(word) if len(word) > 3 else None
+    known = _held_singular(word) if asking and len(word) > 3 else None
     if known is not None:
         return known
     if word.endswith("ies") and len(word) > 4:
