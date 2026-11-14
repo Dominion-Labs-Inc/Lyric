@@ -20,9 +20,25 @@ Ten experiments, each asking something different. Shared harness: `experiments/_
 | ENCODER-08 | Does an explicit unknown-term signal fix ENCODER-01's H5? | 2/5 — **no**, and it costs paraphrase |
 | ENCODER-09 | Does new teaching damage old knowledge? | 5/5 — no catastrophic interference |
 | ENCODER-10 | Cost and determinism in the acting path | 6/7 — **native wins**: 0.004 ms vs 4.445 ms, no cold start |
+| ENCODER-11 | Noisy input, a dose curve to 50% corruption | 3 — at 35%: **native 0.613**, MiniLM 0.418, structural 0.263 |
+| ENCODER-12 | Poisoned teaching, four kinds | 8 — structural separation holds: +0.832 clean → +0.831 at 50% |
+| ENCODER-13 | Chaotic, interleaved, out-of-order teaching | 10 — **order-invariant and chaos-tolerant** |
+| ENCODER-14 | Plausible falsehoods beside every truth | 9 — **native hallucinates 0.0%** over 29 trials |
+| ENCODER-15 | Retrieval that cannot saturate: the word from its definition | 4/5 — **native 0.550 against MiniLM 0.283**, floor 0.037 |
 
-**Decision: MiniLM stays.** The native encoder loses on discrimination and merge safety, which
-are the judgements that destroy data when wrong.
+**Decision: MiniLM stays — UNDER REVIEW as of 2026-11-14.** The native encoder loses on
+discrimination and merge safety, which are the judgements that destroy data when wrong. That
+decision was taken over 01…10 alone; 11…14 were run the same day and never entered this table,
+and ENCODER-15 answers the retrieval question this README said was unanswerable.
+
+**What has changed since.** ENCODER-15 built the measure the limitation below asks for -- one
+correct answer per question, no subject handed over -- and on it a representation taught from
+nothing but the substrate's own propositions retrieves at **0.550 against MiniLM's 0.283**, against
+a word-overlap floor of 0.037. 11…14 add that native is the most robust under corrupted input, the
+least poisonable, order-invariant, and the least hallucinating of the three. Discrimination and
+merge safety are still MiniLM's, and still the reason the model is in place: re-measuring
+ENCODER-03/04/05 at today's scale (584,753 admitted propositions, against a fraction of that in
+September) is what decides whether the model comes out or is demoted to a first-pass filter.
 
 **Three findings matter more than the comparison.**
 

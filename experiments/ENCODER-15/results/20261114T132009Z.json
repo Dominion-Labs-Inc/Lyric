@@ -1,0 +1,21 @@
+{
+  "experiment": "ENCODER-15 \u2014 a retrieval measure that does not saturate, on today's substrate",
+  "seed": 20260922,
+  "hypotheses": [
+    "H1  every encoder beats the subject-only floor",
+    "H2  the measure discriminates: best \u2212 worst > 0.05 p@1",
+    "H3  a native encoder's p@1 rises as it is taught more",
+    "H4  at the largest volume, a native encoder is within 0.05 p@1 of MiniLM"
+  ],
+  "data": {},
+  "checks": [
+    {
+      "name": "the task is big enough to measure",
+      "passed": false,
+      "detail": "only 6 questions; the store holds too few subjects with 6 relations"
+    }
+  ],
+  "passed": 0,
+  "total": 1,
+  "verdict": "not measurable: too few subjects with enough relations"
+}
