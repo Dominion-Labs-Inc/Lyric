@@ -189,6 +189,37 @@ class MemoryFilter:
         "teaching": "taught",
     }
 
+    #: THE DOORS A MEMORY COMES THROUGH THAT ARE NOT SOMETHING THAT HAPPENED.
+    #:
+    #: A memory of being told a thing and a memory of a thing happening are different records, and
+    #: only the second has a moment worth keeping: what was felt then, what was in view, what the
+    #: system's condition was, what else was believed, and why it was kept. A word's record, a
+    #: construction, a word's class and a fact a resource states have none of that -- the mood Lyric
+    #: was in while reading a dictionary means no more than the mood the dictionary was printed in.
+    #:
+    #: WHY IT IS ASKED OF THE DOOR AND NOT THE TAGS. `TAUGHT_LANGUAGE_TAGS` answers a different
+    #: question -- whether a thing is a lesson in how to read or say, rather than a claim about the
+    #: world -- and so it deliberately excludes the 584,753 admitted propositions, which are exactly
+    #: the largest group here (2,063 MB of snapshot). Asked of the door instead, both are one
+    #: answer: teaching and learning are Lyric being told, and perception, conversation, a task, a
+    #: tool and a reading are Lyric living.
+    #:
+    #: MEASURED (`lyric_db`, 2026-11-14): 1,413,672 of 1,416,185 memories came through these two
+    #: doors carrying 3,150 MB of episode apparatus that nothing reads back, against 2,513 memories
+    #: of things that actually happened carrying 2.4 MB. The cost is flat per item, so it is also
+    #: what a store of taught skills would pay before a skill is stored.
+    TAUGHT_ORIGINS = frozenset({"teaching", "learning", "lesson", "security training"})
+
+    @classmethod
+    def came_by_being_taught(cls, origin: Optional[Any] = None) -> bool:
+        """Whether this memory arrived by being taught or learned, rather than by happening.
+
+        `origin` is an `Origin` or the dict a memory keeps of one, read the same way
+        `exemption_for` reads it, so one door is named in one place."""
+        through = (origin.get("through") if isinstance(origin, dict)
+                   else getattr(origin, "through", None))
+        return str(through or "").strip().lower() in cls.TAUGHT_ORIGINS
+
     def exemption_for(
         self,
         tags: Optional[list] = None,

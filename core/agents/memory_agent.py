@@ -881,6 +881,37 @@ class MemoryAgent(IMemoryConsolidation):
             # Fail open - allow storage without metadata
             worthiness_metadata = None
 
+        # A TAUGHT ITEM IS NOT AN EPISODE, so nothing about the moment it arrived is stamped on it.
+        #
+        # What was felt, what was being perceived, what the system's condition was, what was
+        # believed, and why the memory was kept are an EPISODE's context: they are what makes a
+        # memory recallable as something that happened. A word's record, a construction, a word's
+        # class and a fact WordNet states are none of those. They are what Lyric knows, and the
+        # mood it was in when it was told carries no more meaning than the mood a dictionary was
+        # printed in.
+        #
+        # They reached every write by one decision, taken when the apparatus covered only the
+        # coordinator's ~10% of them ("THE SELF STAMPS ITS OWN STATE ON EVERY MEMORY IT FORMS",
+        # below). On a substrate taught a language that is 1,416,077 of 1,416,185 memories, and the
+        # cost is FLAT PER ITEM rather than proportional to it: 2,900 bytes of snapshot on a
+        # 150-byte word class, nineteen times the thing itself, and fifteen times for what was
+        # heard after what. Measured on `lyric_db`, 734 MB of language carried 3,160 MB of it --
+        # 1,027 MB of thinking state, 998 MB of admission, 986 MB of appraisal, 149 MB of system
+        # state -- and nothing in the system reads any of it back. A store of taught skills would
+        # pay the same, before a skill is stored (2026-11-14).
+        #
+        # NOTHING IS REMOVED AND NOTHING IS CAPTURED LESS. Every gate still runs and decides; an
+        # episode still carries everything it carried. What a taught item skips is the RECORDING of
+        # a moment it has no stake in.
+        #
+        # ASKED OF THE DOOR IT CAME THROUGH, in the one place that owns which doors those are
+        # (`MemoryFilter.TAUGHT_ORIGINS`). Asked of the tags instead -- `taught_language`, used
+        # below for a different question -- a word record is a taught item and the 584,753 facts
+        # beside it are not, because that register is about a lesson versus a claim about the world
+        # and these are claims. The door tells both at once.
+        from core.memory.utils.memory_filter import MemoryFilter as _Filter
+        taught_item = _Filter.came_by_being_taught((source_context or {}).get("origin"))
+
         # ========== STEP 2: EVALUATE FILTERING DECISION ==========
         memory_admission = None
         logger.debug(f"[MEMORY_AGENT.STORE_MEMORY] STEP 2: Evaluating filter decision...")
@@ -1006,10 +1037,14 @@ class MemoryAgent(IMemoryConsolidation):
                     "admitted_by": "memory_filter",
                 }
 
-                if thinking_state is None:
-                    thinking_state = {}
-                thinking_state["worthiness_metadata"] = memory_admission["worthiness_metadata"]
-                thinking_state["filter_decision"] = memory_admission["filter_decision"]
+                # Mirrored for an EPISODE only: this is the migration's copy of the admission, and
+                # a taught item does not carry the admission in its own field either
+                # (`taught_item`, above).
+                if not taught_item:
+                    if thinking_state is None:
+                        thinking_state = {}
+                    thinking_state["worthiness_metadata"] = memory_admission["worthiness_metadata"]
+                    thinking_state["filter_decision"] = memory_admission["filter_decision"]
 
             except Exception as e:
                 logger.error(f"Memory filtering error: {e}")
@@ -1034,8 +1069,12 @@ class MemoryAgent(IMemoryConsolidation):
         # Read the live belief graph via its singleton (the reasoning authority
         # owns it; the memory agent no longer constructs it, but this is a
         # reading, not driving).
+        #
+        # FOR AN EPISODE. What was believed at the time is why an episode can be read back as a
+        # moment; a taught item is a thing believed, and does not carry a census of the other
+        # 1,005,127 beside it (`taught_item`, above).
         from core.reasoning.bayesian_uncertainty import get_bayesian_uncertainty
-        _beliefs = get_bayesian_uncertainty()
+        _beliefs = None if taught_item else get_bayesian_uncertainty()
         if _beliefs is not None:
             try:
                 _bstats = _beliefs.get_statistics()
@@ -1118,9 +1157,11 @@ class MemoryAgent(IMemoryConsolidation):
             logger.debug("memory: acting percept unavailable: %s", e)
             percept_id = percept_digest = None
 
+        # FOR AN EPISODE: what was felt when it happened, and the mood and condition filled from it
+        # below. A taught item has no stake in the moment it arrived (`taught_item`, above).
         try:
             from core.agents.autonomous.appraisal import get_appraisal_system
-            _appraisal = get_appraisal_system().current_state
+            _appraisal = None if taught_item else get_appraisal_system().current_state
             if _appraisal is not None:
                 appraisal_snapshot = _appraisal.to_dict()
                 appraisal_snapshot["captured_at"] = datetime.now().isoformat()
@@ -1172,7 +1213,7 @@ class MemoryAgent(IMemoryConsolidation):
         # a stale percept is never stamped onto an unrelated memory. None when nothing
         # was perceived recently: a reading, never invented. This is how a recalled
         # memory carries what was perceived AND believed AND felt at that moment.
-        perceived = await self._perceptual_state(user_id)
+        perceived = None if taught_item else await self._perceptual_state(user_id)
         if perceived is not None:
             if thinking_state is None:
                 thinking_state = {}
@@ -1274,7 +1315,9 @@ class MemoryAgent(IMemoryConsolidation):
             system_state=system_state,  # System state at time of memory
             decision_factors=decision_factors,
             emotional_context=emotional_context,
-            memory_admission=memory_admission,
+            # WHY AN EPISODE WAS KEPT IS AN EPISODE'S RECORD. The gate still decided; a taught
+            # item simply does not carry the deciding (`taught_item`, above).
+            memory_admission=None if taught_item else memory_admission,
             appraisal_snapshot=appraisal_snapshot,
             # The pursuit this episode belonged to — a link, plus the version
             # that was current, so hindsight cannot rewrite what it was for.
