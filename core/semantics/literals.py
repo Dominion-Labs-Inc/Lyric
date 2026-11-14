@@ -87,9 +87,14 @@ _DECIMAL = re.compile(r"^[+-]?\d+\.\d+$")
 _CARDINAL = re.compile(r"^[+-]?\d+$")
 #: A whole number written in groups of three: 1,000,000.
 _GROUPED = re.compile(r"^[+-]?\d{1,3}(?:,\d{3})+$")
-#: Two numbers of one or two digits about a slash name a thing more often than they divide (`9/11`, `24/7`), and
-#: stay unread as the names they are.
-_SLASH_NAME = re.compile(r"^\d{1,2}/\d{1,2}$")
+#: SHORT GROUPS JOINED BY A MARK NAME A THING MORE OFTEN THAN THEY OPERATE, and stay unread as the names they
+#: are: `9/11`, `24/7`, `3-d`, `401-k`, `b-52`, `l-p`, `m-1`, `r-2`, `v-1`, `s/n`. This was the slash alone, and
+#: a hyphen was read as a subtraction whatever stood about it, so the door named "3-D" `3 - d` and "V-1"
+#: `v - 1` -- a name with a space in the middle of it, which no other way of naming a term can produce (9 of
+#: WordNet's lemmas, 2026-11-13). A sum is written with its operator apart ("x - y", "17 × 23", "x^2 - 16", as
+#: the lessons write every one of them), and a group of more than three characters or a year leading a date
+#: ("2026-09-29") is not this shape at all.
+_JOINED_NAME = re.compile(r"^[a-z0-9]{1,3}(?:[-/][a-z0-9]{1,3})+$", re.IGNORECASE)
 #: The marks and names that make an expression do something: without one, `3D` is a word with a number in it and
 #: `3pm` a time of day; `10 mod 3` and `log 100` do something by name.
 _OPERATES = re.compile(r"[-+*/^×÷·⋅−√∛!%|()]|\b(?:mod|sin|cos|tan|cot|sec|csc|log|ln|lg|exp|sqrt|cbrt|abs|lim)\b",
@@ -102,7 +107,7 @@ _ISO_MONTH_DAY = re.compile(r"^--(\d{2})-(\d{2})$")
 _ISO_MOMENT = re.compile(r"^(\d{4})-(\d{2})-(\d{2})t(\d{2}):(\d{2}):(\d{2})z$")
 #: A slash date is admitted ONLY with a year. `9/11` and `24/7` have none, are
 #: month/day-ambiguous, and are in fact the names of things -- so they stay
-#: unread here and the door refuses them as the proper names they are.
+#: unread here (`_JOINED_NAME`) and the door refuses them as the proper names they are.
 _SLASH_DATE = re.compile(r"^(\d{1,2})/(\d{1,2})/(\d{2,4})$")
 #: A clock time: hours and minutes ("7:30"), or an hour or hours and minutes with "a.m." or "p.m." ("7 p.m.",
 #: "7:30 a.m.", "7pm"), its periods written or not.
@@ -235,7 +240,7 @@ def classify_literal(term: str) -> Optional[Literal]:
         value = int(low.replace(",", ""))
         return Literal(CARDINAL, str(value), value, surface)
 
-    if _OPERATES.search(surface) and not _SLASH_NAME.match(surface):
+    if _OPERATES.search(surface) and not _JOINED_NAME.match(surface):
         from core.reasoning.arithmetic_reading import read_expression, render
         expression = read_expression(surface)
         if expression is not None:

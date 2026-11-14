@@ -33,6 +33,9 @@ from typing import Dict, FrozenSet, Optional
 
 _NORMALISE_STRIP = re.compile(r"[^a-z0-9 _-]+")
 _WS = re.compile(r"\s+")
+#: A full stop or a slash with a digit on each side (`1/2`, `20/20`, `9/11`, `section 1.2`): part of the writing
+#: of what it stands between, not punctuation to drop (`normalise`).
+_BETWEEN_DIGITS = re.compile(r"(?<=\d)[./](?=\d)")
 
 #: Irregulars, keyed by the form that ARRIVES. Both the plural (which must
 #: reduce) and the singular (which must not) appear, because the general `-s`
@@ -119,8 +122,14 @@ QUALIFIER_TAILS = ("_battery", "_material", "_system", "_device", "_technology")
 
 
 def normalise(label: str) -> str:
-    """Lowercase, strip punctuation, collapse whitespace to underscores."""
+    """Lowercase, strip punctuation, collapse whitespace to underscores.
+
+    A MARK BETWEEN TWO DIGITS IS PART OF HOW THE NUMBER IS WRITTEN, so it becomes the break between words rather
+    than being dropped. Dropped, "1/2" was named `12` -- a half fused with twelve -- "20/20" was named `2020` the
+    year, "9/11" `911` and "24/7" `247`, each of them a name joined to a number that has nothing to do with it
+    (2026-11-13). A mark anywhere else is punctuation still: "Dr. Smith" is `dr_smith` and "U.S.A." is `usa`."""
     s = _WS.sub(" ", str(label).strip().lower())
+    s = _BETWEEN_DIGITS.sub("_", s)
     s = _NORMALISE_STRIP.sub("", s)
     return s.strip().replace(" ", "_")
 
@@ -354,8 +363,13 @@ def canonical_term(label: str) -> str:
     if literal is not None:
         return literal.canonical
 
-    s = normalise(label).replace("-", "_")
-    s = re.sub(r"_+", "_", s).strip("_")
+    # A DETERMINER IS A WORD OF ITS OWN, so it comes off before a hyphen is read as a break between words. Taken
+    # off after, "a-bomb" was `a_bomb` and then `bomb` -- the atomic bomb fused with any bomb at all, in the one
+    # place this module exists to stop a fusing. So were "a-line" into `line`, "a-list" into `list`, "a-team"
+    # into `team`, "a-horizon" into `horizon` and "a-scan ultrasonography" into `scan_ultrasonography`: 312 of
+    # the 155,287 names WordNet gives, each a concept joined to another the store can never part again
+    # (main, 2026-11-13). A hyphen says the letter is not a word, and that is the whole of the test.
+    s = re.sub(r"_+", "_", normalise(label)).strip("_")
 
     for prefix in DETERMINER_PREFIXES:
         # `the_` off `the_ladder`, but never off `the_` alone or `then`.
@@ -363,8 +377,12 @@ def canonical_term(label: str) -> str:
             s = s[len(prefix):]
             break
 
+    s = re.sub(r"_+", "_", s.replace("-", "_")).strip("_")
     parts = [p for p in s.split("_") if p]
-    if parts:
+    # A COUNT BEFORE A WORD MAKES THE PLURAL THE COUNT'S, not one to undo: "15 minutes" is fifteen of them and
+    # "15 minute" is nothing, and "1 Kings" and "2 Chronicles" are the books' own names. Undone, eleven of
+    # WordNet's names lost the plural the number in them asks for (main, 2026-11-13).
+    if parts and not any(part.isdigit() for part in parts[:-1]):
         parts[-1] = singularise(parts[-1])
     return "_".join(parts).strip("_")
 
