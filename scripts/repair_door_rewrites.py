@@ -42,18 +42,55 @@ WITNESS = "wordnet_3.0"
 
 
 def written_once(name: str) -> str:
-    """A name as the door wrote it before a singular had to be one the door leaves as it is: one step of the
-    singular, the rest as `canonical_term` writes it."""
+    """A name as the door wrote it before the changes that have moved one, which is the name the store holds it
+    under.
+
+    Five changes have moved a name since the store was taught:
+
+      * a singular had to be one the door LEAVES AS IT IS -- WordNet's `peoples` came in as `people` and was
+        stored as `person` (`lexical_normalization.singularise`, 2026-11-13);
+      * a determiner had to come off BEFORE a hyphen was read as a break between words, so "a-bomb" was stored
+        as `bomb` and "a-team" as `team` -- the thing fused with another the store cannot part again;
+      * a count's plural had to be KEPT, so "15 minutes" was stored as `15_minute`;
+      * short groups joined by a mark had to NAME a thing rather than operate, so "b-52" was stored as `b - 52`;
+      * a mark between two digits had to be kept as the BREAK it is, so "9/11" was stored as `911`.
+
+    Written out here rather than taken from the store, so a sense never taught is told apart from one taught
+    under a name the door has since stopped writing."""
+    import re as _re
     from core.semantics import lexical_normalization as lexical
-    whole = lexical.canonical_term(name)
-    parts = whole.split("_")
-    last = lexical.normalise(name).replace("-", "_").split("_")[-1]
-    parts[-1] = lexical._singular_once(last)
-    return "_".join(parts)
+    from core.semantics.literals import _OPERATES, classify_literal
+    from core.reasoning.arithmetic_reading import read_expression, render
+    literal = classify_literal(name)
+    if literal is not None:
+        return literal.canonical
+    # The gate as it was: a slash name stayed unread, and a hyphen was read as a subtraction whatever stood
+    # about it (`literals._JOINED_NAME` asks it of both marks now).
+    if _OPERATES.search(name) and not _re.match(r"^\d{1,2}/\d{1,2}$", name):
+        expression = read_expression(name)
+        if expression is not None:
+            return render(expression)
+    s = lexical._WS.sub(" ", str(name).strip().lower())
+    s = lexical._NORMALISE_STRIP.sub("", s)
+    s = _re.sub(r"_+", "_", s.strip().replace(" ", "_").replace("-", "_")).strip("_")
+    for prefix in lexical.DETERMINER_PREFIXES:
+        if s.startswith(prefix) and len(s) > len(prefix):
+            s = s[len(prefix):]
+            break
+    parts = [p for p in s.split("_") if p]
+    if parts:
+        parts[-1] = lexical._singular_once(parts[-1])
+    return "_".join(parts).strip("_")
 
 
-async def repair(*, senses, apply: bool, report=print) -> dict:
-    """The repair, for `senses` (WordNet's names for them, `peoples.n.01`). Returns what it found and did."""
+async def repair(*, senses, apply: bool, take_back: bool = False, report=print) -> dict:
+    """The repair, for `senses` (WordNet's names for them, `peoples.n.01`). Returns what it found and did.
+
+    `take_back`: the names have NOT moved, and what was taught under them is taken back anyway so it can be
+    taught again. A name is only the first thing that can go wrong on the way in. The door named "a-horizon"
+    `a_horizon` and the concept resolver named that again and filed the facts on `horizon` -- so a pass could
+    put the propositions and the beliefs in rightly and the concepts wrongly, and no comparison of names can
+    find it, because the name the door writes now is the name it wrote then (lyric_db, 2026-11-13)."""
     from nltk.corpus import wordnet as wn
     from core.agents.memory_agent import memory_agent
     from core.database import get_database_manager
@@ -64,23 +101,46 @@ async def repair(*, senses, apply: bool, report=print) -> dict:
     from core.semantics.cognitive_ingress import normalize_term
 
     names = WordNetSource()._sense_names()
+    named = normalize_term if take_back else written_once
     once = {}
     for sense in senses:
         name = names.get(wn.synset(sense), "")
-        then, now = written_once(name), normalize_term(name)
-        if not name or then == now:
+        then, now = named(name), normalize_term(name)
+        if not name:
+            continue
+        if then == now and not take_back:
             report(f"{sense}: named {name!r}, written {now!r} as it always was; nothing to repair")
             continue
+        report(f"{sense}: named {name!r}, taught under {then!r}"
+               + (", taken back to be taught again" if take_back else f" and written {now!r} now"))
         once[then] = now
-        report(f"{sense}: named {name!r}, written {then!r} then and {now!r} now")
     if not once:
         return {"found": {}}
+
+    # WHICH CLAIMS ARE THE SENSE'S OWN, ASKED OF THE SOURCE AND NOT OF THE NAME. A claim's text holds the names
+    # the DOOR wrote, and the door wrote "a-list" and the list itself both as `list` -- so the text cannot tell
+    # them apart. Taken by name, repairing eleven senses came to 390 claims answered by `list`, `team`, `horizon`
+    # and `911`, among them "faq isa list", "blacklist defined with list", "volleyball net defined with team" and
+    # "horizon part of perspective": all but about thirty of them the OTHER thing's, and withdrawing them would
+    # have taken out what the store rightly holds to recover what it wrongly holds (lyric_db, 2026-11-13).
+    #
+    # So the claims are every fact WORDNET STATES with one of these senses on either side (`WordNetSource.senses`
+    # filters its records to exactly that), each written as the door wrote it then. A sense's own facts and no
+    # others.
+    source = WordNetSource(senses=tuple(senses))
+    wanted, ever = set(), set()
+    for taught in source.records():
+        relation = str(taught.relation).replace("_", " ")
+        for how, into in ((named, wanted), (written_once, ever), (normalize_term, ever)):
+            subject = how(str(taught.subject))
+            obj = how(str(taught.obj)) if taught.obj else ""
+            into.add(" ".join(part for part in (subject, relation, obj) if part))
+    report(f"WordNet states {len(wanted)} fact(s) of these senses, as the door wrote them then")
 
     us = get_uncertainty_system()
     claims = []
     for belief in list(us.beliefs.values()):
-        words = str(belief.claim).split(" ")
-        if words[0] not in once and words[-1] not in once:
+        if str(belief.claim) not in wanted:
             continue
         witnesses = {str(e.get("observation") or "") for e in list(belief.evidence_for) + list(belief.evidence_against)
                      if isinstance(e, dict)}
@@ -88,24 +148,58 @@ async def repair(*, senses, apply: bool, report=print) -> dict:
             claims.append((belief, witnesses - {WITNESS}))
     service = get_concept_ingestion_service()
     db = service.db()
+    # AND THE OBSERVATIONS OF THOSE SAME FACTS. An envelope holds the door's names too ("met in use: 'listed
+    # defined with list'"), so it is narrowed the same way: of the envelopes put on a name written then, only
+    # those whose own account is one of the facts above.
     envelopes = []
+    held = set()
     for then in once:
         rows = await db.execute_query(
             "SELECT evidence_id, structured_data FROM unified.evidence_envelopes WHERE source_id = $1 "
             "AND structured_data @> $2::jsonb ORDER BY evidence_id",
             (WITNESS, json.dumps({"concepts": [{"label": then}]})), fetch_all=True) or []
-        envelopes.extend(rows)
+        for row in rows:
+            said = json.dumps(row["structured_data"]) if not isinstance(row["structured_data"], str) \
+                else row["structured_data"]
+            if any(f"'{claim}'" in said for claim in wanted) and str(row["evidence_id"]) not in held:
+                held.add(str(row["evidence_id"]))
+                envelopes.append(row)
+    # AND THE EDGES THE CLAIMS NAME, WHEREVER THEY SIT. The door decides a fact is held already by looking for
+    # its EDGE in the graph and not for its record, so an edge left behind makes the fact UNTEACHABLE: a pass
+    # skips it as held already and it never comes back. The envelopes above are found by the label written then,
+    # and an edge whose concept has since been named otherwise is not among them -- so seven facts of eleven
+    # senses, every one of them an `isa`, stayed out of the store through two repairs and showed as "already"
+    # both times (`english:list isa list`, `reading:team isa team`, `english:r - 2 isa flunitrazepan`;
+    # lyric_db, 2026-11-14). An edge goes when the claim it spells was taken back and no belief vouches for it.
+    backed = {str(belief.claim) for belief, others in claims if others}
+    # UNDER EVERY NAME THE DOOR HAS WRITTEN FOR IT (`ever`), not only the one asked for here: an edge left behind
+    # by an earlier pass spells the name of its own day, and the seven that survived two repairs spelled the
+    # names from before the fixes (`english:list isa list`) while this run was asking after `a_list isa list`.
+    targets = sorted({claim.rsplit(" ", 1)[-1] for claim in ever if " " in claim})
+    edges = []
+    if targets:
+        rows = await db.execute_query(
+            "SELECT r.source_concept_id, r.relation, r.target_surface, c.name FROM unified.concept_relations r "
+            "JOIN unified.concepts c ON c.concept_id = r.source_concept_id "
+            "WHERE r.target_surface = ANY($1::text[])", (targets,), fetch_all=True) or []
+        for row in rows:
+            spells = f"{row['name']} {row['relation']} {row['target_surface']}"
+            if spells in ever and spells not in backed:
+                edges.append(row)
     found = {"claims": len(claims), "let_go": sum(1 for _, others in claims if not others),
-             "observations": len(envelopes)}
+             "observations": len(envelopes), "edges": len(edges)}
     report(f"to repair: {found['claims']} claims WordNet gave under the names written then "
-           f"({found['let_go']} resting on nothing else), {found['observations']} observations to take off")
+           f"({found['let_go']} resting on nothing else), {found['observations']} observations to take off, "
+           f"{found['edges']} edge(s) in the graph no belief vouches for")
+    for row in edges:
+        report(f"  edge {row['source_concept_id']} {row['relation']} {row['target_surface']}")
     for belief, others in claims:
         report(f"  {belief.claim}" + (f"  (also {sorted(others)})" if others else ""))
     if not apply:
         return {"found": found}
 
     agent = memory_agent()
-    done = {"withdrawn": 0, "let_go": 0, "memories": 0, "links": 0, "evidence": 0, "entries": 0}
+    done = {"withdrawn": 0, "let_go": 0, "memories": 0, "links": 0, "evidence": 0, "entries": 0, "edges": 0}
     updates = []
     batch = ledger.begin_batch(f"WordNet's {', '.join(sorted(once))} taught under a name the door wrote wrong; "
                                f"taught again as {', '.join(sorted(once.values()))}")
@@ -150,6 +244,12 @@ async def repair(*, senses, apply: bool, report=print) -> dict:
             # the source said), and an envelope keeps the first record of its id, which would be this wrong one.
             if await agent.release_envelope(row["evidence_id"]):
                 done["records"] = done.get("records", 0) + 1
+        for row in edges:
+            await db.execute_query(
+                "DELETE FROM unified.concept_relations WHERE source_concept_id = $1 AND relation = $2 "
+                "AND target_surface = $3",
+                (row["source_concept_id"], row["relation"], row["target_surface"]), commit=True)
+            done["edges"] += 1
         if updates:
             await ledger.record_many(get_database_manager(), updates)
     finally:
@@ -166,6 +266,9 @@ async def main() -> int:
     parser.add_argument("--sense", action="append", required=True, help="a WordNet sense (peoples.n.01)")
     parser.add_argument("--apply", action="store_true", help="repair; without it, only report")
     parser.add_argument("--main", action="store_true", help="allow lyric_db")
+    parser.add_argument("--take-back", action="store_true", dest="take_back",
+                        help="the names have not moved: take back what was taught under them anyway, so a pass "
+                             "that went in under a defect further along can be taught again")
     args = parser.parse_args()
     database = os.environ.get("POSTGRES_DATABASE", "")
     if database in ("", "lyric_db") and not args.main:
@@ -181,7 +284,8 @@ async def main() -> int:
     # writes, not one the spelling rules reached for while the words were still being read.
     await agent.warm_word_classes()
     print(f"{database}:", flush=True)
-    await repair(senses=args.sense, apply=args.apply, report=lambda line: print(line, flush=True))
+    await repair(senses=args.sense, apply=args.apply, take_back=args.take_back,
+                 report=lambda line: print(line, flush=True))
     if args.apply:
         await get_uncertainty_system().flush_pending_writes()
     await agent.stop_memory_loops()

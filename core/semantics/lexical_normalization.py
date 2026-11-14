@@ -515,15 +515,22 @@ def canonical_label(label: str, *, document_derived: bool = False,
     if literal is not None:
         return literal.canonical
 
-    s = normalise(label).replace("-", "_")
-    s = re.sub(r"_+", "_", s).strip("_")
+    s = re.sub(r"_+", "_", normalise(label)).strip("_")
+    joined = re.sub(r"_+", "_", s.replace("-", "_")).strip("_")
     if name:
-        return s
+        return joined
 
+    # A STRUCTURAL PREFIX IS A WORD OF ITS OWN, so it comes off before a hyphen is read as a break between
+    # words. Taken off after, "a-horizon" was `horizon`, "a-list" `list`, "a-team" `team` and "a-ok go" `ok_go`
+    # -- a thing joined to another the store can never part again. `canonical_term` had the same defect and was
+    # mended first; the concepts went on being fused through here, which is where a concept gets its name
+    # (`concept_ingestion`), so eleven senses repaired on main came straight back onto the wrong concepts
+    # (lyric_db, 2026-11-13). A hyphen says the letter is not a word of its own, and that is the whole of it.
     for prefix in STRUCTURAL_PREFIXES:
         if s.startswith(prefix) and len(s) > len(prefix) + 2:
             s = s[len(prefix):]
             break
+    s = re.sub(r"_+", "_", s.replace("-", "_")).strip("_")
 
     # "phosphoric_acid_fuel_cells_pafc" -> the trailing token is the acronym of
     # what precedes it, so it restates rather than distinguishes.
@@ -535,9 +542,10 @@ def canonical_label(label: str, *, document_derived: bool = False,
             s = "_".join(parts[:-1])
 
     # Singularise BEFORE stripping tails, so plural and singular spellings of
-    # the same qualifier reduce identically.
+    # the same qualifier reduce identically. A COUNT BEFORE A WORD MAKES THE PLURAL THE COUNT'S, as it does at
+    # the door (`canonical_term`): "15 minutes" is fifteen of them and "15 minute" is nothing.
     parts = s.split("_")
-    if parts:
+    if parts and not any(part.isdigit() for part in parts[:-1]):
         parts[-1] = singularise(parts[-1])
     s = "_".join(p for p in parts if p)
 

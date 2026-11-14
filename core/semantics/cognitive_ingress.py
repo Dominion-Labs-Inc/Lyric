@@ -585,6 +585,18 @@ class CognitiveIngress:
                 "domains": [domain],
                 "description": description or f"met in use: {surface!r}",
                 "attributes": attributes,
+                # ALREADY NAMED, AND SAID TO BE. `shape_proposition` named this term at the door
+                # (`normalize_term`), and the concept resolver names a label again unless the producer says it is
+                # a name (`ConceptCandidate.is_name`, "said by the producer, which knows") -- so the door's name
+                # was read a second time by `canonical_label`, which applies the heuristics meant for a label
+                # pulled out of a document. Naming is not idempotent under them: the door writes "a-horizon" as
+                # `a_horizon`, and `a_horizon` read again is `horizon`, so the soil layer's facts were filed on
+                # the horizon, "a-list"'s on the list and "a-team"'s on the team. Eleven senses were repaired on
+                # main and came straight back onto the wrong concepts through here (lyric_db, 2026-11-13).
+                #
+                # The door is where a taught term is named, and it is named once. A term that came through it is
+                # not document-derived and has nothing left to collapse.
+                "is_name": True,
             })
         if obj:
             concepts[0]["relationships"] = [
