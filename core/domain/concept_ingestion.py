@@ -711,11 +711,10 @@ class ConceptResolver:
     MIN_LABEL_LEN = 2
     MAX_LABEL_LEN = 64
 
-    #: Words a document uses about itself. `introduction_of_lifepo4` is document
-    #: structure, not a thing that exists independently of the document.
-    _STRUCTURAL_PREFIXES = ("introduction_of_", "overview_of_", "review_of_",
-                            "summary_of_", "conclusion_of_", "study_of_",
-                            "the_", "a_", "an_")
+    #: The words a document uses about itself ("introduction_of_lifepo4") were listed again here and read by
+    #: nothing: `canonical_label` owns them, and a second copy of a list that decides what a name loses is a
+    #: copy that goes out of step with the one that decides it. Taking a determiner off after a hyphen had
+    #: become a word break was mended in the one place, and this copy still said to take it off (2026-11-14).
 
     #: Fields of study ending in -ics. These are MASS NOUNS, not plurals, so the
     #: general -s rule destroys them: `physics` became `physic`, and physics
