@@ -909,8 +909,15 @@ class MemoryAgent(IMemoryConsolidation):
         # below for a different question -- a word record is a taught item and the 584,753 facts
         # beside it are not, because that register is about a lesson versus a claim about the world
         # and these are claims. The door tells both at once.
+        # AND OF THE KIND IT WILL BE STORED AS, which means the kind is settled HERE rather than at
+        # the step below that used to settle it: the substrate's own account of itself comes through
+        # a taught door, and a caller that leaves the kind to be inferred would have had that
+        # account judged before anything knew it was one. The inference below is left where it is
+        # and no longer fires, being asked only when the kind is still unset.
         from core.memory.utils.memory_filter import MemoryFilter as _Filter
-        taught_item = _Filter.came_by_being_taught((source_context or {}).get("origin"))
+        if memory_type is None:
+            memory_type = self._infer_memory_type(worthiness_metadata, source_context or {})
+        taught_item = _Filter.came_by_being_taught((source_context or {}).get("origin"), memory_type)
 
         # ========== STEP 2: EVALUATE FILTERING DECISION ==========
         memory_admission = None

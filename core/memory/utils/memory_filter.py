@@ -210,12 +210,35 @@ class MemoryFilter:
     #: what a store of taught skills would pay before a skill is stored.
     TAUGHT_ORIGINS = frozenset({"teaching", "learning", "lesson", "security training"})
 
+    #: A memory the substrate made ABOUT ITSELF, which is an episode whatever door it came through.
+    #:
+    #: The learning door carries two unlike things. Most of what comes through it is what Lyric was
+    #: told -- the 584,753 facts a resource states, admitted at the door
+    #: (`cognitive_ingress.admit_relation`). A few are Lyric's own account of how it is doing: "I
+    #: reviewed 342 things I was taught in general: I could ask myself about 22 of them, and
+    #: answered 10 rightly" (`unified_learning_system`, 28 of them on `lyric_db`). For that second
+    #: kind the moment IS the meaning -- what it felt and what it believed while judging itself is
+    #: the whole of what makes it worth keeping -- so it keeps everything an episode keeps.
+    #:
+    #: This is the distinction that decides what happens when Lyric is taught HOW TO DO THINGS: a
+    #: procedure it is told is knowledge and needs no mood, while how a try went is an outcome and
+    #: is nothing but context. Outcomes already arrive through their own doors (a tool, a task, a
+    #: goal, a prediction), which are not taught doors at all; this catches the one case that
+    #: arrives beside the facts.
+    LIVED_MEMORY_TYPES = frozenset({"meta", "episodic"})
+
     @classmethod
-    def came_by_being_taught(cls, origin: Optional[Any] = None) -> bool:
+    def came_by_being_taught(cls, origin: Optional[Any] = None,
+                             memory_type: Optional[Any] = None) -> bool:
         """Whether this memory arrived by being taught or learned, rather than by happening.
 
         `origin` is an `Origin` or the dict a memory keeps of one, read the same way
-        `exemption_for` reads it, so one door is named in one place."""
+        `exemption_for` reads it, so one door is named in one place. `memory_type` is asked
+        because the substrate's own account of itself comes through a taught door and is not a
+        taught thing (`LIVED_MEMORY_TYPES`)."""
+        kind = str(getattr(memory_type, "value", memory_type) or "").strip().lower()
+        if kind in cls.LIVED_MEMORY_TYPES:
+            return False
         through = (origin.get("through") if isinstance(origin, dict)
                    else getattr(origin, "through", None))
         return str(through or "").strip().lower() in cls.TAUGHT_ORIGINS
