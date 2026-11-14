@@ -1208,13 +1208,15 @@ class PatternInventory:
         # `MemoryAgent.remember_word_forms`); none in a view made without memory.
         self.held_forms: Optional[Callable[[str], Sequence[str]]] = None
         # The word shapes (`_shape_word`): each one-word filler's concepts, the changes that read it rightly, the
-        # words ending as each written side, and each change's count and standing.
+        # words ending as each written side, and each change's count and standing. The counts are not found until
+        # something asks, and then from every filler at once (`_shapes_found`), as `said_shapes` is: a warm records
+        # 177,318 fillers before anything asks of any of them.
         self._fillers_by_word: Dict[str, set] = {}
         self._rights: Dict[str, set] = {}
         self._read_by: Dict[Tuple[str, str], set] = {}
         self._endings: Dict[str, set] = {}
         self._by_written: Dict[str, set] = {}
-        self._shape_counts: Dict[Tuple[str, str], List[int]] = {}
+        self._shape_counts: Optional[Dict[Tuple[str, str], List[int]]] = None
         self._productive_shapes: set = set()
         self._productive_by_written: Dict[str, set] = {}
         # The words heard right after each word in the sentences taught, and after each two (`hear`), and, as of
@@ -2094,6 +2096,8 @@ class PatternInventory:
         word = _fold(word)
         if not (self.is_structure(word) and word not in self._named and self._shapes.get(word, 0) > 1):
             return False
+        if self._shape_counts is None:
+            self._shapes_found()
         for size in range(1, len(word)):
             for written, names in self._productive_by_written.get(word[len(word) - size:], ()):
                 name = word[:len(word) - len(written)] + names
@@ -2593,12 +2597,16 @@ class PatternInventory:
         The more particular change comes first, as the elsewhere condition orders rules: a word that a productive
         change with a longer written side reads rightly, where this one would misread it, is that change's and is
         not held against this one. "flies" is `ies` → `y`'s and no exception to `s`; "boxes" is `xes` → `x`'s."""
+        if self._shape_counts is None:
+            self._shapes_found()
         return {change: (counts[0], counts[1]) for change, counts in self._shape_counts.items()}
 
     def productive(self, shape: Tuple[str, str]) -> bool:
         """Whether a change is applied to words it was not seen in: shown by at least two words, and misreading no
         more of the words it applies to than Yang's tolerance threshold allows, N / ln N (Yang 2016). Below that it
         is a list of words, each held on its own."""
+        if self._shape_counts is None:
+            self._shapes_found()
         return shape in self._productive_shapes
 
     @staticmethod
@@ -2619,10 +2627,79 @@ class PatternInventory:
         that was most of main's warm (2026-10-21)."""
         return max((len(change[0]) for change in rights if change in productive and change != besides), default=-1)
 
+    def _shapes_found(self) -> None:
+        """Every change's count and standing, found from every filler held at once: the counts the productive
+        changes give, and the changes those counts tolerate, each found again from the other until the set of them
+        stops moving.
+
+        A change's count is a function of the fillers held and of which changes are productive, and of nothing
+        else, so the whole of it is found at once rather than kept current as each filler arrives. Kept current,
+        177,318 arrivals were 74 s of a 168 s warm, 103,120 of them settling productivity again (cProfile, main,
+        2026-11-13). Found at once it is 1.1 s in four rounds, and comes out IDENTICAL to what those arrivals
+        left: 107,970 changes, 13,270 of them productive, not one count different (main, 2026-11-13).
+
+        It lands where it has to. With nothing productive the count of words a change APPLIES to is at its largest,
+        so the changes tolerated then are tolerated under any productive set at all; each round can only add to the
+        set, and the set is finite. What it stops at answers the elsewhere condition -- the counts are those of the
+        productive changes, and the productive changes are those the counts tolerate -- rather than being wherever
+        a path through the fillers happened to end."""
+        self._productive_shapes = set()
+        while True:
+            counts = self._shapes_counted()
+            now = {change for change, (right, applies) in counts.items() if _tolerated(right, applies)}
+            if now == self._productive_shapes:
+                self._shape_counts = counts
+                self._productive_by_written = {}
+                for change in now:
+                    self._productive_by_written.setdefault(change[0], set()).add(change)
+                return
+            self._productive_shapes = now
+
+    def _shapes_counted(self) -> Dict[Tuple[str, str], List[int]]:
+        """Each change's count, `(the words it reads rightly, the words it applies to)`, given which changes are
+        productive as it is asked (`_shapes_found`).
+
+        A change reads rightly exactly the words it was found between, so that count is how many words it was
+        found between. It applies to every word ending as its written side that no productive change with a longer
+        written side reads rightly -- counted once for each word, over its endings from that change's length
+        upwards (`applies`) -- and to the words it reads rightly that such a change does read (`over`)."""
+        productive = self._productive_shapes
+        longest: Dict[str, int] = {}
+        for word, shown in self._rights.items():
+            best = -1
+            for change in shown:
+                if change in productive:
+                    size = len(change[0])
+                    if size > best:
+                        best = size
+            longest[word] = best
+        by_written = self._by_written
+        applies: Dict[str, int] = {}
+        for word in self._fillers_by_word:
+            least = longest.get(word, -1)
+            end = len(word)
+            for size in range(least if least > 0 else 0, end):
+                ending = word[end - size:]
+                if ending in by_written:
+                    applies[ending] = applies.get(ending, 0) + 1
+        counts: Dict[Tuple[str, str], List[int]] = {}
+        for change, words in self._read_by.items():
+            side = len(change[0])
+            over = 0
+            for word in words:
+                if longest.get(word, -1) > side:
+                    over += 1
+            counts[change] = [len(words), applies.get(change[0], 0) + over]
+        return counts
+
     def _shape_word(self, word: str, name: str) -> None:
-        """One more one-word filler, written `word` and naming `name`, taken into the word shapes. Only what it
-        changes moves: the count of each change the word ends as, the changes it shows for the first time, and,
-        where a change becomes productive or stops being so, the words that change reads (`_settle`)."""
+        """One more one-word filler, written `word` and naming `name`, taken into the word shapes: the concepts
+        the word is a filler for, the changes that read it rightly, and the words ending as each written side.
+
+        The counts come after. Where they have been found, only what this one filler moves moves: the count of each
+        change the word ends as, the changes it shows for the first time, and, where a change becomes productive or
+        stops being so, the words that change reads (`_settle`). Where they have not, nothing more is done here;
+        they are found from every filler at once when something asks (`_shapes_found`)."""
         names = self._fillers_by_word.get(word)
         if names is not None and name in names:
             return
@@ -2641,9 +2718,11 @@ class PatternInventory:
             self._rights[word] = set(after)
         for change in added:
             self._read_by.setdefault(change, set()).add(word)
+            self._by_written.setdefault(change[0], set()).add(change)
+        if self._shape_counts is None:
+            return
         fresh = {change for change in added if change not in self._shape_counts}
         for change in fresh:
-            self._by_written.setdefault(change[0], set()).add(change)
             counts = [0, 0]
             for other in self._endings.get(change[0], ()):
                 rights = self._rights.get(other, ())
@@ -2709,6 +2788,8 @@ class PatternInventory:
         the word written in a productive shape of a held word or name ("tables" is "table" when `s` is a shape), the
         most particular change first."""
         word = _fold(word)
+        if self._shape_counts is None:
+            self._shapes_found()
         fillers = self._fillers_by_word
 
         def held(name: str) -> bool:
@@ -2792,21 +2873,26 @@ class PatternInventory:
         self._said_slots_of, self._said_named = slots_of, named
         for change in sorted(every, key=self._said_order):
             places = slots_of.get(self._least(change), ())
+            right = covered = 0
             if len(places) == 1:
+                # The cell is that slot's own stems ending as the change's name side, asked of where they are
+                # held: a cell of its own for each change was 7,363,737 of them copied (main, 2026-11-13).
                 stems = self._slot_stems.get(places[0], {})
-                cell = {stem: stems[stem] for stem in ending.get(places[0], {}).get(change[1], ())}
+                for stem in ending.get(places[0], {}).get(change[1], ()):
+                    one, other = self._said_part(change, stem, stems[stem], productive)
+                    right += one
+                    covered += other
             else:
                 # A word standing in several slots written in the change shows there what it shows in any.
-                cell = {}
+                cell: Dict[str, set] = {}
                 for where in places:
                     stems = self._slot_stems.get(where, {})
                     for stem in ending.get(where, {}).get(change[1], ()):
                         cell.setdefault(stem, set()).update(stems[stem])
-            right = covered = 0
-            for stem, made in cell.items():
-                one, other = self._said_part(change, stem, made, productive)
-                right += one
-                covered += other
+                for stem, made in cell.items():
+                    one, other = self._said_part(change, stem, made, productive)
+                    right += one
+                    covered += other
             counts[change] = (right, covered)
             if _tolerated(right, covered):
                 productive.add(change)
@@ -2823,19 +2909,24 @@ class PatternInventory:
         """The order changes are decided in: the longer name side first, then the longer written side."""
         return -len(change[1]), -len(change[0]), change
 
-    def _said_part(self, change: Tuple[str, str], stem: str, made: Iterable[Optional[Tuple[str, str]]],
+    def _said_part(self, change: Tuple[str, str], stem: str, made: Collection[Optional[Tuple[str, str]]],
                    productive: Collection[Tuple[str, str]]) -> Tuple[int, int]:
         """What one concept in a change's cell gives its count, `(right, applies)`, from the changes its words in the
         cell's slots show (`made`): right where it is one of them; nothing where it shows none and is named in no
         slot written as named ("scissors"); nothing where a productive change with a longer name side makes it
-        rightly instead (the elsewhere condition); else one it applies to and misses."""
-        made = tuple(made)
+        rightly instead (the elsewhere condition); else one it applies to and misses.
+
+        What shows is asked for as it is held, a set: copied into a tuple to be asked twice, finding the change
+        among them was a scan of them, and `said_shapes` asks this of 7,363,737 concepts in a cell (main,
+        2026-11-13)."""
         if change in made:
             return 1, 1
         if not made and stem not in self._said_named:
             return 0, 0
-        if any(o is not None and len(o[1]) > len(change[1]) and o in productive for o in made):
-            return 0, 0
+        side = len(change[1])
+        for other in made:
+            if other is not None and len(other[1]) > side and other in productive:
+                return 0, 0
         return 0, 1
 
     def _said_made(self, change: Tuple[str, str], stem: str) -> Optional[set]:
