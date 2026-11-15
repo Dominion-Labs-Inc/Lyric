@@ -507,42 +507,6 @@ class Built:
         return Built(lambda: (one(about_to) for about_to in over), len(over), over=over, one=one)
 
 
-def _term_words(name: str) -> int:
-    """How many words the store counts in a name, as its door counted them before it stopped counting: a hyphen
-    parts words too, so "raiders-front" is two. Counted by spaces, "islamic great eastern raiders-front" was
-    taught as four words and refused at the door as five."""
-    from core.semantics.cognitive_ingress import normalize_term
-    return len(normalize_term(name).replace("_", " ").split())
-
-
-def _assembled_too_long(name: str) -> bool:
-    """Whether a name LYRIC PUT TOGETHER for a sense runs past four words. Read only by `_sense_names`, and not
-    by anything that refuses a name a source GIVES (`_a_name_english_writes`, `fits`), which stopped counting
-    words on 2026-11-15 along with the door.
-
-    LIFTING IT HERE TOO WOULD NAME 146 SENSES BETTER, AND IT IS NOT A NAMING CHANGE. Measured with both namings
-    built from a copy under `core/learning`, because `_lesson_parts` and `stated_senses` find the lessons at
-    `Path(__file__).resolve().parents[2]` and from anywhere else return nothing: 146 of 117,384 names move, 11
-    senses with no name get one, and none loses one. The moves are corrections, and some of the old names are
-    another thing's word outright -- `draw_a_bead_on.v.02` is named "aspire", `henry_iv.n.03` "bolingbroke",
-    `president_of_the_united_states.n.02` "chief executive", `drone.n.04` "pilotless aircraft" with no word of
-    its own in it, and `balm_of_gilead.n.03` carries a Latin binomial. The twelve zodiac signs would go from
-    "star sign aquarius" to WordNet's own "sign of the zodiac aquarius", fifteen presidents from "united states
-    president X" to "president of the united states X".
-
-    WHAT STOPS IT IS THE STORE, NOT THE NAMING. A renamed sense is a concept to MOVE, and the door's receipt key
-    is `sha256(subject|relation|obj|wordnet_3.0)` over the names themselves (`_edge_from`), so renaming a sense
-    changes the key of every fact it is in and `repair_door_rewrites` cannot find the concept it already has:
-    asked for all 146 it reported "the store carries" for none of them, while the store holds `star_sign_virgo`
-    with five edges out and one in, `make_bake` with four out and FIFTY-SEVEN in, `aegypius_monachus` and
-    `united_states_president_monroe`. Taught over that, every one of the 146 would be a second concept beside a
-    first that still holds the edges. The move wants a repair keyed by SENSE rather than by name, which is a
-    piece of work of its own and not this one (lyric_db, 2026-11-15).
-    """
-    from core.semantics.cognitive_ingress import MAX_TERM_WORDS
-    return _term_words(name) > MAX_TERM_WORDS
-
-
 def _a_name_english_writes(name: str) -> bool:
     """Whether a WordNet lemma is a name English writes: every word of it alphabetic, a hyphen allowed inside a
     word. HOW MANY WORDS IT HAS IS NOT ASKED -- see `cognitive_ingress.admissible`, which stopped asking.
@@ -1666,7 +1630,7 @@ class WordNetSource:
                 for lemma in qualifier.lemma_names():
                     word = self._written(lemma).lower()
                     candidate = f"{word} {name}"
-                    if word == name or _assembled_too_long(candidate) or candidate in taken:
+                    if word == name or candidate in taken:
                         continue
                     names[synset] = candidate
                     taken.add(candidate)
@@ -1701,7 +1665,7 @@ class WordNetSource:
                         for lemma in qualifier.lemma_names():
                             word = self._written(lemma).lower()
                             candidate = f"{word} {name}"
-                            if word == name or _assembled_too_long(candidate) or candidate in taken:
+                            if word == name or candidate in taken:
                                 continue
                             names[synset] = candidate
                             taken.add(candidate)
@@ -1713,14 +1677,13 @@ class WordNetSource:
                         # further up, where its nearest kind already names a sibling ("implement bolt" beside "bar
                         # bolt").
                         other = next((w for w in (self._written(l).lower() for l in synset.lemma_names())
-                                      if w != name and w not in taken and not _assembled_too_long(w)), None)
+                                      if w != name and w not in taken), None)
                         if other is None:
                             above = [k for q in self._qualifiers(synset) for k in q.hypernyms() + q.instance_hypernyms()]
                             while above and other is None:
                                 for kind in self._ordered(above):
                                     candidates = (f"{self._written(l).lower()} {name}" for l in kind.lemma_names())
-                                    other = next((c for c in candidates if c not in taken
-                                                  and not _assembled_too_long(c)), None)
+                                    other = next((c for c in candidates if c not in taken), None)
                                     if other:
                                         break
                                 above = [k for kind in above for k in kind.hypernyms() + kind.instance_hypernyms()]
@@ -1744,13 +1707,13 @@ class WordNetSource:
             if names[synset]:
                 continue
             other = next((w for w in (self._written(l).lower() for l in synset.lemma_names())
-                          if w != name and w not in taken and not _assembled_too_long(w)), None)
+                          if w != name and w not in taken), None)
             above = [k for q in self._qualifiers(synset) for k in q.hypernyms() + q.instance_hypernyms()]
             while above and other is None:
                 for kind in self._ordered(above):
                     other = next((c for c in (f"{w} {name}" for w in (self._written(l).lower()
                                                                        for l in kind.lemma_names()) if w != name)
-                                  if c not in taken and not _assembled_too_long(c)), None)
+                                  if c not in taken), None)
                     if other:
                         break
                 above = [k for kind in above for k in kind.hypernyms() + kind.instance_hypernyms()]
@@ -1786,7 +1749,7 @@ class WordNetSource:
                 for lemma in qualifier.lemma_names():
                     word = self._written(lemma).lower()
                     candidate = f"{word} {name}"
-                    if _assembled_too_long(candidate) or normalize_term(candidate) in taken_at_door:
+                    if normalize_term(candidate) in taken_at_door:
                         continue
                     names[synset] = candidate
                     taken_at_door.add(normalize_term(candidate))
@@ -1975,8 +1938,10 @@ class WordNetSource:
 
         def fits(name: str) -> bool:
             # A sense with no name is not taught. HOW MANY WORDS THE NAME HAS IS NOT ASKED, here or anywhere
-            # else in this source. It was asked in twelve places, four of them refusals and seven of them
-            # choices between names, and all twelve are gone (2026-11-15).
+            # else in this source, nor at the door. It was asked in twelve places, four of them refusals and
+            # seven of them choices between names, and all twelve are gone (2026-11-15). The only count left is
+            # the reader's, on a run of words it would coin a NEW name from (`derived_reader._may_be_new`),
+            # which is the one place a name is assembled from a sentence rather than given by a source.
             #
             # THE REFUSALS DROPPED REAL KNOWLEDGE. This one dropped every fact whose subject or object ran past
             # four words, so 195 of WordNet's own names -- `church_of_jesus_christ_of_latter-day_saints`,
@@ -1984,7 +1949,7 @@ class WordNetSource:
             #
             # THE CHOICES WERE PICKING THE WORSE NAME. Where a sense's own word cannot tell it apart,
             # `_sense_names` puts what it is a kind of in front, and skipping any such name that ran past four
-            # words took a shorter one that was often a different thing's: `draw_a_bead_on.v.02` was named
+            # words took a shorter one that was often a DIFFERENT THING'S: `draw_a_bead_on.v.02` was named
             # "aspire", `henry_iv.n.03` "bolingbroke", `president_of_the_united_states.n.02` "chief executive",
             # `drone.n.04` "pilotless aircraft" with no word of its own in it, and `balm_of_gilead.n.03` was
             # named by a Latin binomial. Lifted, 146 of 117,384 sense names move, 11 senses are named that had
@@ -1992,6 +1957,13 @@ class WordNetSource:
             # "sign of the zodiac aquarius", fifteen presidents from "united states president X" to "president
             # of the united states X", and ten verbs from "make X" to "create from raw material X". The six
             # named "to ache", "to smell" and so on keep that form on the sense that had no name before.
+            #
+            # A RENAMED SENSE IS A CONCEPT TO MOVE, and the door's receipt key is hashed over the names
+            # themselves, so nothing could find the concept the store already had: asked about all 146, the
+            # receipt lookup reported "the store carries" for none of them while the store held
+            # `star_sign_virgo` with five edges out and `make_bake` with fifty-seven in. The move is therefore
+            # given to the repair rather than deduced by it (`repair_door_rewrites.py --renamed`), which is what
+            # `carried` is for, and the 146 were moved before this naming was taught.
             #
             # Measured with both namings built from a copy under `core/learning`, because `_lesson_parts` and
             # `stated_senses` find the English lessons at `Path(__file__).resolve().parents[2]`: read from

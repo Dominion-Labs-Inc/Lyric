@@ -146,7 +146,7 @@ body": the article is chosen without regard to the following sound, on names lik
 2. **A guard's output taken as evidence about the system that contains the guard** -- the reader and the clause,
    above.
 
-### Measured and NOT applied: 146 better names, blocked by the store and not by the naming
+### APPLIED: 146 better names, once the repair could be told what the source renamed
 
 Lifting the cap in the seven choosers names 146 senses better and 11 that had no name, losing none. Several of the
 current names are another thing's word outright: `draw_a_bead_on.v.02` is named "aspire", `henry_iv.n.03`
@@ -155,13 +155,37 @@ word of its own in it, `balm_of_gilead.n.03` a Latin binomial. The twelve zodiac
 aquarius" to WordNet's own "sign of the zodiac aquarius", fifteen presidents from "united states president X" to
 "president of the united states X", ten verbs from "make X" to "create from raw material X".
 
-**What stops it is the receipt key.** The door decides a fact is held by hashing
+**What stopped it was the receipt key.** The door decides a fact is held by hashing
 `sha256(subject|relation|obj|wordnet_3.0)` over the NAMES (`_edge_from`), so renaming a sense changes the key of
-every fact it is in and `repair_door_rewrites` cannot find the concept the store already has: asked for all 146 it
-reported "the store carries" for **none** of them, while the store holds `star_sign_virgo` with five edges out and
-one in, **`make_bake` with four out and fifty-seven in**, `aegypius_monachus`, `united_states_president_monroe`.
-Taught over that, each of the 146 would be a second concept beside a first that still holds the edges. The move
-wants a repair keyed by SENSE rather than by name.
+every fact it is in and `repair_door_rewrites` could not find the concept the store already had: asked for all 146
+it reported "the store carries" for **none** of them, while the store held `star_sign_virgo` with five edges out
+and one in, **`make_bake` with four out and fifty-seven in**, `aegypius_monachus`,
+`united_states_president_monroe`. Taught over that, each of the 146 would have been a second concept beside a
+first that still held the edges.
+
+**So the move is GIVEN to the repair rather than deduced by it** (`--renamed`, a file of `old<TAB>new`). The pairs
+go into `carried`, which already existed for "a name no rule predicts", so every claim is also spelled the old way
+(`carried_for`) and the envelopes, claims and edges under it are found. Two further gaps closed with it: the
+**alias** that hands a name straight back, and the **husk** left behind, deleted only where nothing whatever is
+left on it and REPORTED otherwise.
+
+Piloted on five senses first, with the before and after read off the store:
+
+| sense | was | is |
+|---|---|---|
+| `balm_of_gilead.n.03` | `commiphora_meccanensis` 10 out | `incense_tree_balm_of_gilead` 10 out |
+| `drone.n.04` | `pilotless_aircraft` 4 out | `heavier_than_air_craft_drone` 4 out |
+| `aquarius.n.03` | `star_sign_aquarius` 4 out, 1 in | `sign_of_the_zodiac_aquarius` 4 out, 1 in |
+| `draw_a_bead_on.v.02` | `aspire` 5 out, **11 in** | `plan_draw_a_bead_on` 5 out, **15 in** |
+
+The last row is the defect visible: eleven concepts pointed at `aspire`, the ambition verb, for a sense that is
+not it. Then the remaining 141 and both `twelve` senses: **1,922 claims withdrawn with their memories, 1,904
+links, 3,808 pieces of evidence, 1,928 edges, 1,904 records, and one alias** -- `12` no longer points at `1.2`.
+Taught again: 2,119 facts admitted, **0 refused**. `make_bake`'s fifty-seven incoming edges are sixty on
+`create_from_raw_material_bake`; `bolingbroke`, `chief_executive`, `star_sign_virgo` and
+`united_states_president_monroe` are emptied; and **`12` has a concept of its own at last** (4 out, 2 in), which
+closes the last two of the 413. Every old name was KEPT as a husk, because each still carried its own alias --
+`aspire` is `aspire.v.01`'s name and always was.
 
 ### What is left of the 413
 
@@ -171,9 +195,42 @@ them -- 25 remain refused as structure words, and 2 run past `MAX_LABEL_LEN`:
 `american_federation_of_labor_and_congress_of_industrial_organization` at 68 characters and
 `blood_oxygenation_level_dependent_functional_magnetic_resonance_imaging` at 71.
 
-**Next:** a frame that says a multi-word name in a question, which is what the 17 misreads are asking for and what
-would let the review measure the knowledge rather than the phrasing; the article chosen by the following sound; and
-a rename repair keyed by sense, which is what the 146 wait on.
+### AND A NEW DEFECT THE RENAMES MADE REACHABLE: the reader raises on a sentence built from the new names
+
+The teach that followed the renames **completed and committed its 2,119 facts, and then its review crashed**:
+
+```
+ValueError: min() arg is an empty sequence
+  derived_reader.py:5094 in _supposes
+    least = min(cost[1:] for cost in word if unheld or not cost[0])
+```
+
+The last fact it logged saying was `isa(united states dry unit pint, united states dry unit)` -- a name made
+here, whose parent is its own four-word prefix. So there is no session record and no competence figure for that
+pass; the knowledge is unaffected and was checked by query.
+
+**The first hypothesis is DEAD and is recorded as such.** `_supposes` looked unsafe for a packed word with no
+sense options, since `all()` of an empty list is True, which sets `unheld` above and passes the filter while
+`min()` still receives nothing. Watched over every reading of these facts, **no filling carried a packed word
+with no options**: 0 of them. That is not the cause.
+
+What a corrected probe did find, reading each of `say`'s phrasings on its own rather than the tuple's repr:
+
+| sentence | |
+|---|---|
+| all seven phrasings of `isa(united states dry unit pint, ...)` | read, 1-12 readings each, **no raise** |
+| `'United states liquid unit pint is a kind of United States liquid unit.'` | **StopIteration** |
+| `isa(sign of the zodiac virgo, sign of the zodiac)` | `say` returns **nothing**: no frame can say it |
+
+So two distinct raises are reachable from these names and neither is root-caused yet, and the review's own
+question is a different sentence from the declarative probed here -- it says an `ask` meaning, not a `tell`. The
+third row is the same gap as the 17 misreads above, at its other end: the knowledge is held and there is no
+English to put it in.
+
+**Next:** root-cause both raises, which means reading in `derived_reader` -- hashed into the rules key, so every
+edit costs ~940 s of relearning and 251 descriptions read again; a frame that says a multi-word name in a
+question and in a kind-of sentence, which is what the 17 misreads and the empty `say` are both asking for; and the
+article chosen by the sound that follows it.
 
 ---
 

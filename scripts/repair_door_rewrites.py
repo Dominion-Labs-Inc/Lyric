@@ -103,8 +103,19 @@ def written_once(name: str) -> str:
     return "_".join(parts).strip("_")
 
 
-async def repair(*, senses, apply: bool, take_back: bool = False, report=print) -> dict:
+async def repair(*, senses, apply: bool, take_back: bool = False, renamed=None, report=print) -> dict:
     """The repair, for `senses` (WordNet's names for them, `peoples.n.01`). Returns what it found and did.
+
+    `renamed`: `old name -> new name`, for moves the SOURCE made rather than the door. Nothing here can find
+    those on its own. The two rules that look for a move both start from the name the source gives NOW --
+    `written_once` spells it by the door's older rule, and the receipt lookup hashes
+    `sha256(subject|relation|obj|witness)` over the names themselves -- so a sense the source has renamed has a
+    different key for every fact it is in, and the edges written under the old key are unreachable: asked about
+    146 such senses the receipt lookup found "the store carries" for NONE of them, while the store held
+    `star_sign_virgo` with five edges out and `make_bake` with fifty-seven in (lyric_db, 2026-11-15). The pairs
+    are therefore given, and they go into `carried`, which exists for exactly this -- a name no rule predicts --
+    so every claim is also spelled the old way (`carried_for`) and the envelopes, claims and edges under it are
+    found.
 
     `take_back`: the names have NOT moved, and what was taught under them is taken back anyway so it can be
     taught again. A name is only the first thing that can go wrong on the way in. The door named "a-horizon"
@@ -191,10 +202,18 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
             held = str(row["name"])
             if held != now and held not in once:
                 carried[held] = now
+    # AND THE MOVES ONLY THE SOURCE KNOWS (`renamed`), which no key can find -- see the docstring.
+    given = set()
+    for held, now in sorted((renamed or {}).items()):
+        if held == now or held in once or held in carried:
+            continue
+        carried[held] = now
+        given.add(held)
     if carried and not take_back:
         once.update(carried)
         for held, now in sorted(carried.items()):
-            report(f"the store carries {held!r} where the door writes {now!r} now, by a rule no longer here")
+            report(f"the store carries {held!r} where the door writes {now!r} now, "
+                   + ("because the source renamed the sense" if held in given else "by a rule no longer here"))
 
     if not once:
         return {"found": {}}
@@ -353,6 +372,52 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
                 "AND target_surface = $3",
                 (row["source_concept_id"], row["relation"], row["target_surface"]), commit=True)
             done["edges"] += 1
+        # THE ALIAS THAT HANDS THE NAME STRAIGHT BACK. Clearing the claims, the records and the edges is not
+        # enough while an ALIAS still points the name written now at the concept named then: resolution goes
+        # through the alias, so the sense never gets a concept of its own and every pass files its facts on the
+        # old one again. `twelve` is held under `1.2` by a rule gone since 2026-11-06, and
+        # `unified.concept_aliases` carries `12 -> 1.2`: this repair cleared six orphan edges, the teach that
+        # followed admitted all six with nothing refused, and all six went back onto `1.2` -- the only concept
+        # in the store whose name is a decimal (lyric_db, 2026-11-15).
+        for then, now in sorted(once.items()):
+            rows = await db.execute_query(
+                "SELECT a.alias, a.concept_id FROM unified.concept_aliases a "
+                "JOIN unified.concepts c ON c.concept_id = a.concept_id "
+                "WHERE c.name = $1 AND a.alias = $2", (then, now), fetch_all=True) or []
+            for row in rows:
+                await db.execute_query(
+                    "DELETE FROM unified.concept_aliases WHERE concept_id = $1 AND alias = $2",
+                    (row["concept_id"], row["alias"]), commit=True)
+                done["aliases"] = done.get("aliases", 0) + 1
+                report(f"  the alias {row['alias']!r} no longer points at {then!r}")
+                updates.append(ledger.KnowledgeUpdate(
+                    subject_kind="concept", subject_id=str(row["concept_id"]),
+                    disposition=ledger.Disposition.UPDATED, domain=None,
+                    detail=f"alias {row['alias']!r} removed: it answered for {then!r}, named {now!r} now"[:500]))
+        # AND THE HUSK, only where nothing whatever is left on it. A concept still holding an edge, a piece of
+        # evidence or another name is REPORTED and kept: this repair takes back what one source said, and what
+        # else leans on the old name is not its to decide.
+        for then in sorted(once):
+            rows = await db.execute_query(
+                "SELECT c.concept_id, "
+                "(SELECT count(*) FROM unified.concept_relations r WHERE r.source_concept_id = c.concept_id) AS out_e, "
+                "(SELECT count(*) FROM unified.concept_relations r WHERE r.target_concept_id = c.concept_id) AS in_e, "
+                "(SELECT count(*) FROM unified.concept_evidence e WHERE e.concept_id = c.concept_id) AS ev, "
+                "(SELECT count(*) FROM unified.concept_aliases a WHERE a.concept_id = c.concept_id) AS al "
+                "FROM unified.concepts c WHERE c.name = $1", (then,), fetch_all=True) or []
+            for row in rows:
+                leans = {k: int(row[k]) for k in ("out_e", "in_e", "ev", "al") if int(row[k])}
+                if leans:
+                    report(f"  {then!r} is kept: still carrying {leans}")
+                    continue
+                await db.execute_query("DELETE FROM unified.concepts WHERE concept_id = $1",
+                                       (row["concept_id"],), commit=True)
+                done["husks"] = done.get("husks", 0) + 1
+                report(f"  {then!r} held nothing further and is gone")
+                updates.append(ledger.KnowledgeUpdate(
+                    subject_kind="concept", subject_id=str(row["concept_id"]),
+                    disposition=ledger.Disposition.REMOVED, domain=None,
+                    detail=f"named by a rule no longer here; nothing left on it once {then!r} was taken back"[:500]))
         if updates:
             await ledger.record_many(get_database_manager(), updates)
     finally:
@@ -490,6 +555,9 @@ async def main() -> int:
                         help="take away the receipts and records for these senses' facts and nothing else, for "
                              "a sense whose stale name is another sense's name too and whose claims therefore "
                              "cannot be told apart by text")
+    parser.add_argument("--renamed", default=None, metavar="FILE",
+                        help="a file of 'old name<TAB>new name' lines, for senses the SOURCE renamed: the "
+                             "receipt key is hashed over the names, so no key can find those (see `repair`)")
     parser.add_argument("--apply", action="store_true", help="repair; without it, only report")
     parser.add_argument("--main", action="store_true", help="allow lyric_db")
     parser.add_argument("--take-back", action="store_true", dest="take_back",
@@ -514,7 +582,14 @@ async def main() -> int:
     if args.receipts_only:
         await clear_receipts(senses=args.sense, apply=args.apply, report=say)
     else:
-        await repair(senses=args.sense, apply=args.apply, take_back=args.take_back, report=say)
+        moves = {}
+        if args.renamed:
+            for line in Path(args.renamed).read_text(encoding="utf-8").splitlines():
+                old, _, new = line.rstrip("\n").partition("\t")
+                if old.strip() and new.strip():
+                    moves[old.strip()] = new.strip()
+            say(f"given {len(moves):,} name move(s) the source made, from {args.renamed}")
+        await repair(senses=args.sense, apply=args.apply, take_back=args.take_back, renamed=moves, report=say)
     if args.apply:
         await get_uncertainty_system().flush_pending_writes()
     await agent.stop_memory_loops()
