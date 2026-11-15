@@ -63,8 +63,11 @@ class Experiment:
 
         A CHECK NAME IS A SENTENCE; A FINDING IS A NAME. The first attempt used
         the check name as the finding, and the door refused most of them: the
-        concept store admits a term of at most `MAX_TERM_WORDS` (4), on the
-        stated ground that past this it is a clause and not a name. "no document
+        concept store admitted a term of at most `MAX_TERM_WORDS` (4), on the
+        stated ground that past this it is a clause and not a name. The door
+        stopped counting words on 2026-11-15, so it would now take them -- and a
+        check still declares a finding term, because a sentence held as a name is
+        no better for being admitted. "no document
         made the reader raise" is six words, so three findings in five were
         thrown away by a gate that was working correctly.
 

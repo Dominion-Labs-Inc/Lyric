@@ -3117,19 +3117,6 @@ class MemoryAgent(IMemoryConsolidation):
         words_arrived = not len(self.pattern_inventory())
         if words_arrived:
             self._pattern_inventory = inventory
-            # AND NO NAME WORKED OUT WITHOUT THEM OUTLIVES THEM. A term is named once and kept (`canonical_term`
-            # is cached over 1,153,936 terms of a warm), and naming asks what Lyric holds -- so a name taken by
-            # spelling before the words arrived would be the name this process used ever after, and whether a
-            # word was read before or after the warm would decide what it is called. Dropped here, where the
-            # words land.
-            #
-            # ONLY WHERE THEY LAND, though. Cleared on every warm, a process that warms twice -- which a teaching
-            # pass does, once at its start and once before it reads any fact -- threw away a million names that
-            # were right and worked them all out again, and the second warm ran at 100% of a core for twenty-four
-            # minutes without reaching the pass (2026-11-13). A re-warm cannot have named anything without the
-            # words: it had them.
-            from core.semantics.lexical_normalization import canonical_term
-            canonical_term.cache_clear()
 
         unparsed = 0
         refuted = 0
@@ -3280,6 +3267,33 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_taught = {t.key(): t for t in taught_sentences}
         self._grammar_derived = {d.key(): d for d in derived}
         self._fan_view, self._things_held = {}, None
+        # AND NO NAME WORKED OUT BEFORE THE WORDS AND THEIR CLASSES WERE BOTH IN THE VIEW OUTLIVES THEM. A term is
+        # named once and kept (`canonical_term` is cached over 1,153,936 terms of a warm), and naming asks what
+        # Lyric holds -- so a name taken by spelling before the words arrived would be the name this process used
+        # ever after, and whether a word was read before or after the warm would decide what it is called.
+        #
+        # DROPPED HERE, WHERE THE CLASSES LAND, AND NOT WHERE THE CONSTRUCTIONS DO. This stood beside the early
+        # publish of `inventory` a hundred lines above, which is where the WORDS arrive -- and the loop between
+        # the two names terms (`classes_implied_by` -> `shape_proposition` -> `normalize_term`, as the note at the
+        # head of this method says), while `inventory.word_classes` is still empty. `_held_singular` returns None
+        # only on a view with no constructions, so in that window it ran its rules with no class to ask: the guard
+        # that keeps a plural off a word held as a doing cannot fire with nothing held, and the name it wrote was
+        # cached with the clear already behind it. Measured on a plain warm of lyric_db: of ten names asked, four
+        # were the pre-class answer and stayed so for the life of the process -- "street clothes"
+        # `street_clothe`, "swaddling clothes" `swaddling_clothe`, "constraint swaddling clothes"
+        # `constraint_swaddling_clothe`, "feelings" `feeling` -- each of them a name the warm itself had worked
+        # out in the window, and each of them written rightly the moment the cache was cleared by hand. The store
+        # holds `street_clothes`, because a teaching pass warms twice and names after; a measurement warms once
+        # and reported the concept missing. 115,450 names were in the cache a warm leaves behind (2026-11-15).
+        #
+        # ONLY ON THE WARM THAT BRINGS THEM, though. Cleared on every warm, a process that warms twice -- which a
+        # teaching pass does, once at its start and once before it reads any fact -- threw away a million names
+        # that were right and worked them all out again, and the second warm ran at 100% of a core for
+        # twenty-four minutes without reaching the pass (2026-11-13). A re-warm cannot hold a name worked out
+        # without the words and classes: the warm before it cleared them.
+        if words_arrived:
+            from core.semantics.lexical_normalization import canonical_term
+            canonical_term.cache_clear()
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
             "(%d remembered but never read, %d refusal(s) counted against a "

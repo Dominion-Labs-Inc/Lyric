@@ -105,34 +105,25 @@ NEVER_A_TERM = frozenset({
     "as", "at", "by", "from", "in", "on",
 })
 
-#: Words a term may contain. Past this it is a clause, not a name: the store
-#: holds things, and `which_lines_belong_to_which_block` is a sentence someone
-#: stapled together with underscores.
+#: THE LONGEST RUN OF WORDS THE READER WILL COIN A NEW NAME FROM, and nothing else. This is not the door's rule:
+#: the door asks nothing about how many words a name has (`admissible`), because a name handed over whole by a
+#: source is a name however long, and asking cost 195 of WordNet's own names their concept.
+#:
+#: IT IS THE READER'S RULE, AND THERE IT IS LOAD-BEARING. `derived_reader._may_be_new` decides whether a run of
+#: words in a slot may be taken as a NEW concept's name, and caps the run at `min(MAX_TERM_WORDS, the longest
+#: filler that slot's kind has been seen to take)`. That is the one place a clause could be stapled into a name,
+#: because it is the only place a name is assembled rather than given: nobody taught
+#: `which_lines_belong_to_which_block`, a reader would have coined it. Read 22 sentences, 12 of them built to
+#: produce exactly that, the door was asked about 180 terms and none ran past four words -- and this cap is part
+#: of why, so that measurement is no reason to lift it (2026-11-15).
+#:
+#: Kept here rather than in the reader because the reader's own file is hashed into the rules key: a line in it
+#: costs ~940s of relearning and 251 descriptions read again. Five sites in `derived_reader` import it from here.
 MAX_TERM_WORDS = 4
 
 #: Words a relation may contain. `is beside`, `is a kind of` -- past this it is
 #: a clause the reader failed to segment.
 MAX_RELATION_WORDS = 4
-
-
-def _made_suffix(word: str) -> bool:
-    """Whether this last part of a term is a suffix the store itself generated, which is no word of the name.
-
-    A PARTICULAR IS NAMED `<kind>_<made>`, and the kind is what `MAX_TERM_WORDS` is about. `teaching.told_events`
-    puts eight hex digits of the telling after the kind, so the same sentence names the same happening
-    (`straddle_776e5238`), and `teaching.known_in_lesson` puts a number after it (`kelt_1`). Counted as a word,
-    the suffix refused every particular of a FOUR-WORD KIND: "cardinal compass point west" is admissible as a
-    concept and `cardinal_compass_point_west_0b06fb62` was refused as "5 words is a clause, not a name", so
-    "The continent is surrounded by the Mediterranean Sea to the north ... and the Atlantic Ocean to the west."
-    was answered "I did not take that as a fact - subject 'cardinal_compass_point_west_0b06fb62' not admitted"
-    and what it said of the west was never held (UNDERSTANDS-PROSE-02, texts 1 and 4, 2026-11-06). Seven such
-    kinds read over that half, "cardinal compass point west", "plan of action system" and "get the better of"
-    among them.
-
-    A clause stapled together with underscores is refused as it always was: `which_lines_belong_to_which_block`
-    ends in a word, not in digits, and counts six.
-    """
-    return word.isdigit() or (len(word) == 8 and all(c in "0123456789abcdef" for c in word))
 
 
 def admissible(term: str) -> Tuple[bool, str]:
@@ -156,11 +147,24 @@ def admissible(term: str) -> Tuple[bool, str]:
     words = [w for w in cleaned.replace("_", " ").split() if w]
     if not words:
         return False, "empty"
-    # WHAT THE STORE PUT THERE ITSELF IS NOT COUNTED (`_made_suffix`): the name of a particular is its kind and a
-    # suffix naming which one, and only the kind is a name that could be a clause.
-    named = words[:-1] if len(words) > 1 and _made_suffix(words[-1]) else words
-    if len(named) > MAX_TERM_WORDS:
-        return False, f"{len(named)} words is a clause, not a name"
+    # HOW MANY WORDS A NAME HAS IS NOT ASKED, AND MUST NOT BE ASKED AGAIN. A term of more than four words was
+    # refused here as "a clause, not a name", written against a reader that stapled one together with underscores.
+    # The reader cannot. Read 12 sentences built to produce exactly that and 10 of ordinary prose, the door was
+    # asked about 180 terms: 140 of one word, 23 of two, 10 of three, 7 of four, NONE over, none refused. The
+    # three whose subject IS a clause ("Which lines belong to which block is unclear.", "Whether the file was
+    # written is not known.") asked about no term at all -- the reader declines such a sentence rather than
+    # naming it, so the failure this guarded has no path in.
+    #
+    # EVERY TIME IT DID FIRE IT WAS WRONG. What a text said of the west was never held, because a particular of a
+    # four-word kind counted five (UNDERSTANDS-PROSE-02); a percept digest had every write refused in silence,
+    # visible only by printing the `Admission` and reading `refusals`; the substrate's own folder scan was
+    # refused (`agent_consolidation_2026-09-01`, found and not fixed); and 195 of WordNet's own names had no
+    # concept at all -- `church_of_jesus_christ_of_latter-day_saints`, `arcuate_artery_of_the_kidney`,
+    # `academy_of_motion_picture_arts_and_sciences` -- with nothing else refusing them: of the 197 over four
+    # words, the 64-character limit at `concept_ingestion.reject_reason` catches 2 (lyric_db, 2026-11-15).
+    #
+    # A name is still what English writes, still made of words that name something, and still at most 64
+    # characters. Its length is not a reason to refuse it.
     # WHAT NAMES NOTHING IS WHAT ENGLISH TAUGHT BUILDS SENTENCES WITH: a word the
     # substrate holds only as part of its sentence forms, and that no taught
     # meaning uses as a concept's name ("the", "is", "my"). Nothing is listed here.

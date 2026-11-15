@@ -139,6 +139,12 @@ def _means(view, word: str) -> set:
     return {str(filler.value).strip().lower() for filler in view.holding(word)}
 
 
+#: The classes whose words name a thing, and so are the only ones a plural is a form of. The reader's own set
+#: for the same question (`PatternInventory.NAMING_CLASSES`) holds the adjectives, adverbs and verbs too,
+#: because there it answers whether a term may name a concept at all; here the question is narrower.
+_NAMES_A_THING = frozenset({"NOUN", "NAME", "NUMERAL"})
+
+
 def _class_most_held(view: Any, word: str) -> str:
     """The class memory MOST holds this word as, counted net of what refuted it, and "" where it holds none.
 
@@ -246,6 +252,31 @@ def _held_singular(word: str) -> Optional[str]:
     # nothing. It costs nothing that keeping the word did not already cost: a plural held as a concept's own
     # name is one whose singular nothing names anyway.
     if folded in _means(view, folded):
+        return given
+    # AND A PLURAL IS A NOUN'S FORM, SO A WORD MEMORY HOLDS AS SOMETHING ELSE HAS NONE TO UNDO.
+    #
+    # This asks what a word is the PLURAL of, and `names_of_shape` answers what it is A FORM of: a treebank's
+    # record covers every form a word has, a past tense among them, so "spat" comes back as `spit` by exactly
+    # the account that brings "geese" back as `goose`. There is no ending to be told by -- the three guards
+    # above catch "ing", "ly" and "ed", and an irregular past carries none of them -- and WordNet's own names
+    # went onto the verb that way: `attach_spit`, `hit_spit`, `precipitate_spit`, `quarrel_spit`, `spawn_spit`,
+    # `young_spit`, and `send` for "sent", the Estonian coin, and `old` for "oldest".
+    #
+    # THE CLASS IS THE THING, as it is for the guard below: a plural is a form a NOUN takes, and a word memory
+    # most holds as a doing, a quality or a manner is no plural whatever a treebank says it is a form of. Asked
+    # only where memory holds a class at all, so a word Lyric knows nothing of is still answered by the changes
+    # (the rules at the foot of this function), which is what this module did before any word was read.
+    #
+    # Measured over the 117,384 sense names WordNet states: 81 move, and every one of them is a plural-named
+    # thing whose plural was being taken off -- `dead_sea_scrolls`, `house_of_lords`, `nuts_and_bolts`,
+    # `odds_and_ends`, `fits_and_starts`, `law_of_averages`, `as_the_crow_flies`, `drop_like_flies`,
+    # `take_the_bull_by_the_horns`, `pull_out_all_the_stops`, `snakes_and_ladders`, `epsom_salts`, the veins,
+    # the bells, and `works` for the factory, which was `work`. Of the 25 ordinary plurals that must keep
+    # reducing it stops one, "ladders", which memory holds most as a doing: `ladder` beside `ladders` where
+    # there should be one. That is the side this module says to err on -- "it must not over-merge, because a
+    # split can be joined and a fusion cannot be undone" -- and the error it replaces is a fusion
+    # (lyric_db, 2026-11-15).
+    if (held := _class_most_held(view, folded)) and held not in _NAMES_A_THING:
         return given
     for name in view.names_of_shape(folded):
         if name == folded or len(name) < 2:

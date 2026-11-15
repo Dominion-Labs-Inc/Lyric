@@ -708,7 +708,20 @@ class ConceptResolver:
     # (`cognitive_ingress.admissible`): "it", "this" and "that" build sentences
     # and name nothing there.
 
-    MIN_LABEL_LEN = 2
+    #: AND NEITHER IS HOW LONG A NAME IS, BELOW A CHARACTER. This stood at 2 and refused every name of one
+    #: letter, which is the same mistake the paragraph above records, one line further down: it answered
+    #: "whether this word names a thing" by its shape, when the door answers it from what English taught.
+    #: WordNet names 26 senses `b`, `c`, `x`, `k` -- the letters themselves, and `b.n.02` is the blood type --
+    #: and all 26 were refused here as "too short after normalisation", silently, while the teach above
+    #: reported them admitted: 811 admitted, 0 refused, and no single-letter concept in the store afterwards
+    #: (lyric_db, 2026-11-15).
+    #:
+    #: `a` AND `i` ARE STILL NOT NAMED, and not by this rule. The door refuses a term whose every word both
+    #: builds sentences and is most held as a class that names nothing, and `a` and `i` are such words -- asked
+    #: of the 38 words English builds its frames from, it lets none of them through (2026-11-14). That is what
+    #: must hold them: `is_structure` stops holding a word the moment something names it, and when WordNet last
+    #: named `a`, `in`, `at` and `I` a sense each, "a lockstitch" stood as one new name.
+    MIN_LABEL_LEN = 1
     MAX_LABEL_LEN = 64
 
     #: The words a document uses about itself ("introduction_of_lifepo4") were listed again here and read by

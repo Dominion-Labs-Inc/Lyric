@@ -13,7 +13,7 @@ update when the authority changes. Line numbers drift; the explanations must sta
 ### 2. The `Admission` object & the quality floor
 `@dataclass Admission` (62-94) — the record of what admitting one proposition did; every field a count/flag: `proposition`, `surface`, `admitted`, `already_present`, `concepts_created`, `concepts_reinforced`, `aliases_bound`, `memories`, `memory_id` (the semantic memory this admission made, so a later feedback turn flags *that* record), `evidence_id`, `polarity`, `contradicts` (surfaced, never silently resolved), `refusals`; plus a `summary` property.
 `MIN_ADMIT_QUALITY = 0.5` (49) — **the support floor**: below this evidence quality the gate *refuses* (true absence — no concept, no belief) rather than minting a weakly-held belief. Conservative default; a stricter deployment raises it.
-Support: `@dataclass Provenance` (required — no anonymous entry, 52-59); `NEVER_A_TERM` stopwords, `MAX_TERM_WORDS=4`, `MAX_RELATION_WORDS=4` (99-115).
+Support: `@dataclass Provenance` (required — no anonymous entry, 52-59); `NEVER_A_TERM` stopwords, `MAX_RELATION_WORDS=4`; `MAX_TERM_WORDS=4` is the reader's rule for coining a name from a run of words and is no longer asked at the door (2026-11-15).
 
 ### 3. Methods by area
 

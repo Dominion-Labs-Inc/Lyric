@@ -119,6 +119,27 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
     from core.memory import knowledge_ledger as ledger
     from core.reasoning.bayesian_uncertainty import get_uncertainty_system
     from core.semantics.cognitive_ingress import normalize_term
+    from core.semantics.derived_reader import live_view
+
+    # THE WORDS ARE READ BEFORE ANYTHING IS NAMED, because the whole repair is a comparison between the name the
+    # door wrote THEN and the name it writes NOW, and the second of those is only true of a process that has read
+    # the words. `normalize_term` asks what Lyric holds -- whether a word is used as a plural at all, and what it
+    # holds the plural written from (`lexical_normalization._held_singular`) -- and `_held_singular` answers None
+    # on an empty view, so a cold process falls through to spelling, which is the rule the door used BEFORE the
+    # words were recorded. Cold, `then` and `now` are therefore the same string, the comparison finds no move, and
+    # the repair reports "written as it always was; nothing to repair" for every sense whose name moved because
+    # the words are now read: all 13 of `american_falls`, `niagara_falls`, `pruning_shears`, `chinese_checkers`
+    # and the rest. It was right about the senses it did repair only because the teaching that followed ran warm
+    # and wrote the name this process could not see -- right by the order the two were run in, not by anything
+    # here (lyric_db, 2026-11-15).
+    #
+    # `written_once` stays cold on purpose (`asking=False`): that one IS the spelling rule of its day, and the
+    # difference between the two is exactly what this repair is looking for.
+    warmed = await memory_agent().warm_word_classes()
+    report(f"read the words first: {warmed:,} words with a class held, {len(live_view()):,} constructions")
+    if not len(live_view().word_classes):
+        report("refused: the words are not read, so every name here would be taken by spelling alone")
+        return {"found": {}}
 
     names = WordNetSource()._sense_names()
     named = normalize_term if take_back else written_once
@@ -343,9 +364,132 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
     return {"found": found, "done": done, "left": int(left[0]["n"])}
 
 
+async def clear_receipts(*, senses, apply: bool, report=print) -> dict:
+    """Take away the RECEIPTS for these senses' facts and nothing else, so a pass can teach them again.
+
+    FOR A SENSE WHOSE STALE NAME IS ANOTHER SENSE'S NAME TOO, which `repair` cannot touch. WordNet's "beads" was
+    stored `bead`, and `bead` is what the real bead is called: the claims under that name cannot be told apart by
+    text, and withdrawing them would take out what the store rightly holds to recover what it wrongly holds. 22
+    of WordNet's senses are fused that way -- `beads`/`bead`, `judges`/`judge`, `flies`/`fly`, `works`/`work`,
+    `boy scouts`/`boy_scout`, `offsides`/`offside`, `unawares`/`unaware`.
+
+    WHAT STOPS THEM BEING TAUGHT AGAIN IS NOT THE CLAIM, THOUGH. The door decides a fact is held already by
+    hashing the surface the SOURCE states -- which never changes -- and looking for an edge carrying that key
+    (`_edge_from`). So the fused sense's facts answer "already held" to every pass while the store holds them
+    under the other sense's name, and the name the door writes now (`beads`, kept whole since a plural is a
+    noun's form) can never be reached. Two things have to go for a pass to reach it:
+
+      * THE EDGE, which is what the door asks about;
+      * THE RECORD, because taught again the observation has the same id (`admit_relation` keys it by what the
+        source said) and an envelope keeps the FIRST record of its id, which would be this stale one.
+
+    And the observation comes off each concept it was put on (`MemoryAgent.release_evidence`), found through
+    `unified.concept_evidence` by the same key rather than by any name, so nothing is taken off a concept by
+    guessing which one it belongs to.
+
+    WHAT IS LEFT BEHIND, SAID PLAINLY: the claim. WordNet's word on "bead isa jewelry" stays where the fusing
+    put it, because no text parts it from the real bead's own claims. Taught again, the fact enters under `beads`
+    with its own claim and its own edge, and the residue under `bead` is a claim with no record behind it. That
+    residue was there before this ran; this does not add to it and does not pretend to clear it.
+
+    Found entirely by the door's key, so a name no rule predicts is no obstacle. Without --apply it changes
+    nothing and reports what it would do."""
+    from core.agents.memory_agent import memory_agent
+    from core.database import get_database_manager
+    from core.domain.concept_ingestion import get_concept_ingestion_service
+    from core.learning.teaching_sources import WordNetSource
+    from core.memory import knowledge_ledger as ledger
+
+    source = WordNetSource(senses=tuple(senses))
+    keyed: Dict[str, tuple] = {}
+    for taught in source.records():
+        if not taught.obj:
+            continue
+        key = "read_" + hashlib.sha256(
+            f"{taught.subject}|{taught.relation}|{taught.obj}|{WITNESS}".encode()).hexdigest()[:16]
+        keyed.setdefault(key, (str(taught.subject), str(taught.relation), str(taught.obj)))
+    report(f"WordNet states {len(keyed)} fact(s) of these {len(senses)} sense(s), each with the key the door "
+           f"hashes from the source's own surface")
+    if not keyed:
+        return {"found": {}}
+
+    service = get_concept_ingestion_service()
+    db = service.db()
+    ids = sorted(keyed)
+    edges = await db.execute_query(
+        "SELECT r.source_concept_id, r.relation, r.target_surface, r.evidence_id, c.name "
+        "FROM unified.concept_relations r JOIN unified.concepts c ON c.concept_id = r.source_concept_id "
+        "WHERE r.evidence_id = ANY($1::text[]) ORDER BY c.name, r.relation", (ids,), fetch_all=True) or []
+    records = await db.execute_query(
+        "SELECT evidence_id, structured_data FROM unified.evidence_envelopes "
+        "WHERE evidence_id = ANY($1::text[]) AND source_id = $2 ORDER BY evidence_id",
+        (ids, WITNESS), fetch_all=True) or []
+    found = {"facts": len(keyed), "edges": len(edges), "records": len(records)}
+    report(f"to clear: {found['edges']} edge(s) the door would read as 'already held', "
+           f"{found['records']} record(s) that would outlive a re-teach; no claim is touched")
+    where: Dict[str, int] = {}
+    for row in edges:
+        where[str(row["name"])] = where.get(str(row["name"]), 0) + 1
+    for name, n in sorted(where.items(), key=lambda kv: (-kv[1], kv[0])):
+        report(f"  {n:>3} on {name}")
+    if not apply:
+        return {"found": found}
+
+    agent = memory_agent()
+    done = {"edges": 0, "records": 0, "links": 0, "evidence": 0, "entries": 0}
+    updates = []
+    batch = ledger.begin_batch(
+        f"the receipts for {len(senses)} WordNet sense(s) held under a name another sense carries, cleared so "
+        f"the senses can be taught again under their own")
+    try:
+        for row in records:
+            structured = row["structured_data"]
+            structured = json.loads(structured) if isinstance(structured, str) else (structured or {})
+            touched = await db.execute_query(
+                "SELECT ce.concept_id, c.name FROM unified.concept_evidence ce JOIN unified.concepts c "
+                "ON c.concept_id = ce.concept_id WHERE ce.evidence_id = $1", (row["evidence_id"],),
+                fetch_all=True) or []
+            for concept in touched:
+                entries = [[str(e[0]), str(e[1]), str(e[2]) if len(e) > 2 else "positive"]
+                           for c in structured.get("concepts", [])
+                           if service.resolver.canonical_label(c.get("label", "")) == concept["name"]
+                           for e in (c.get("relationships") or [])]
+                released = await agent.release_evidence(concept_id=concept["concept_id"],
+                                                        evidence_ids=[row["evidence_id"]], entries=entries)
+                for key in ("links", "evidence", "entries"):
+                    done[key] += released.get(key, 0)
+            if await agent.release_envelope(row["evidence_id"]):
+                done["records"] += 1
+        for row in edges:
+            await db.execute_query(
+                "DELETE FROM unified.concept_relations WHERE source_concept_id = $1 AND relation = $2 "
+                "AND target_surface = $3 AND evidence_id = $4",
+                (row["source_concept_id"], row["relation"], row["target_surface"], row["evidence_id"]),
+                commit=True)
+            done["edges"] += 1
+            updates.append(ledger.KnowledgeUpdate(
+                subject_kind="concept_relation", subject_id=str(row["source_concept_id"]),
+                disposition=ledger.Disposition.REMOVED, domain="general",
+                detail=f"receipt for a fused sense's fact: {row['name']} {row['relation']} "
+                       f"{row['target_surface']}"[:500]))
+        if updates:
+            await ledger.record_many(get_database_manager(), updates)
+    finally:
+        ledger.end_batch(batch)
+    left = await db.execute_query(
+        "SELECT count(*) AS n FROM unified.concept_relations WHERE evidence_id = ANY($1::text[])",
+        (ids,), fetch_all=True)
+    report(f"done: {done}; receipts of them left: {left[0]['n']}")
+    return {"found": found, "done": done, "left": int(left[0]["n"])}
+
+
 async def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sense", action="append", required=True, help="a WordNet sense (peoples.n.01)")
+    parser.add_argument("--receipts-only", action="store_true", dest="receipts_only",
+                        help="take away the receipts and records for these senses' facts and nothing else, for "
+                             "a sense whose stale name is another sense's name too and whose claims therefore "
+                             "cannot be told apart by text")
     parser.add_argument("--apply", action="store_true", help="repair; without it, only report")
     parser.add_argument("--main", action="store_true", help="allow lyric_db")
     parser.add_argument("--take-back", action="store_true", dest="take_back",
@@ -366,8 +510,11 @@ async def main() -> int:
     # writes, not one the spelling rules reached for while the words were still being read.
     await agent.warm_word_classes()
     print(f"{database}:", flush=True)
-    await repair(senses=args.sense, apply=args.apply, take_back=args.take_back,
-                 report=lambda line: print(line, flush=True))
+    say = lambda line: print(line, flush=True)
+    if args.receipts_only:
+        await clear_receipts(senses=args.sense, apply=args.apply, report=say)
+    else:
+        await repair(senses=args.sense, apply=args.apply, take_back=args.take_back, report=say)
     if args.apply:
         await get_uncertainty_system().flush_pending_writes()
     await agent.stop_memory_loops()

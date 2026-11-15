@@ -100,9 +100,12 @@ def _percept_subject(label: str, sha: Optional[str]) -> str:
     never merges them, which is the defect. The caller's label is kept in front
     of it so the name still says where the looking came from.
 
-    THE DIGEST IS JOINED WITHOUT A WORD BREAK, and that is not cosmetic. The
-    concept store admits a name of at most `MAX_TERM_WORDS` (4) underscore-
-    separated words, on the stated ground that past this it is a clause someone
+    THE DIGEST IS JOINED WITHOUT A WORD BREAK. The door no longer counts a name's words at all (2026-11-15:
+    the rule guarded against a reader stapling a clause, and the reader cannot -- it is kept only in
+    `derived_reader._may_be_new`, where a name is assembled rather than given), so this no longer has to fit a
+    budget. It is still joined without a break, because a percept's name is an identifier and not prose. What
+    follows is what the budget cost while it was enforced. The concept store admitted a name of at most
+    `MAX_TERM_WORDS` (4) underscore-separated words, on the stated ground that past this it is a clause someone
     stapled together rather than a thing. Joining with an underscore spent a word
     on the digest and pushed `recog_ab12cd_5_<digest>_blob1` to five, so EVERY
     blob name was refused at the door -- measured: the naming reflex fired

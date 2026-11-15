@@ -16,6 +16,167 @@ Conventions:
 
 ---
 
+## 2026-11-15 (113) — A name's length was never a question about the name: the door's four-word rule cost 195 of WordNet's own names their concept, and the one place it earns its keep is the reader, where a name is assembled rather than given
+
+**Objective.** 413 WordNet senses had no concept at all. Account for every one of them, and close what can be
+closed. Entry 112's successors this morning had already fixed two naming defects (the name cache cleared before
+`word_classes` arrived, and a past form undone as though it were a plural); what remained was a gap nobody had
+split by cause.
+
+### The account, before anything was changed
+
+| why a sense had no concept | senses |
+|---|---:|
+| its name ran past four words (`MAX_TERM_WORDS`) | 197 |
+| WordNet speaks of it only through a relation the source never taught | 86 |
+| WordNet says nothing about it at all | 96 |
+| its name is one letter (`MIN_LABEL_LEN = 2`) | 26 |
+| refused at the door as a structure word (`inside`, `there`, `at`, `am`, `by_and_by`) | 25 |
+| held under `1.2` (`twelve`), and one refused in silence | 3 |
+
+### The four-word rule: what it was written against, and whether that can still happen
+
+The constant's own comment cites `which_lines_belong_to_which_block`, which **appears nowhere in the codebase or
+this notebook but in the comment citing it**, twice. The notebook's four recorded run-ins with the rule are every
+one a FALSE refusal: `cardinal_compass_point_west_0b06fb62` counted five, so what a text said of the west was
+never held (UNDERSTANDS-PROSE-02); a percept digest pushed every blob name to five and had **every write refused
+in silence**, visible only by printing the `Admission` and reading `refusals`; the substrate's own folder scan was
+refused (`agent_consolidation_2026-09-01`, marked "Found, not fixed"); and a relation named by assumption. The
+ledger cannot answer the question at all -- door refusals return False before anything is written, and
+`unified.knowledge_updates` holds four `rejected` rows, none of them this rule's.
+
+So 22 sentences were read through the real front door, 12 built to produce exactly that failure and 10 of ordinary
+prose, with `admissible` watched:
+
+| | sentences | terms asked | longest | refused |
+|---|---:|---:|---:|---:|
+| built to provoke it | 12 | 92 | 4 words | 0 |
+| ordinary prose | 10 | 88 | 4 words | 0 |
+| | | 140×1w, 23×2w, 10×3w, 7×4w | **0 over 4** | **0** |
+
+The three sentences whose subject IS a clause -- "Which lines belong to which block is unclear.", "Whether the file
+was written is not known.", "How the agent consolidates its memories matters." -- asked about **no term at all**.
+
+**ERROR, AND ITS CAUSE.** That was first reported as "the reader cannot staple a clause", which does not follow
+from it. `derived_reader._may_be_new` caps the run of words a new name may be coined from at
+`min(MAX_TERM_WORDS, the longest filler that slot's kind has taken)`, **before the door is ever asked** -- so the
+measurement is partly the cap's own doing and is no argument for lifting it. The cause of the wrong reading was
+treating one guard's output as evidence about a system containing the same guard upstream. Five sites in
+`derived_reader` import the constant; the rule is kept there, where a name is ASSEMBLED, and the constant stays in
+`cognitive_ingress` so the reader's own file -- hashed into the rules key, ~940 s of relearning per edit -- is not
+touched.
+
+### What the rule cost where a name is GIVEN
+
+Removed from the door and from the three refusals in `teaching_sources` (`_a_name_english_writes`, the meeting
+counts, and `fits`, which dropped every fact whose subject or object ran long). Of the 197 names over four words,
+`MAX_LABEL_LEN = 64` catches **2** -- so 195 were refused by the word count alone and nothing else.
+`MIN_LABEL_LEN` went 2 -> 1 for the 26 letters; `a` and `i` stay unnamed because the door refuses them as
+structure words, which is where that question belongs.
+
+### The seven relations WordNet states and the source read past
+
+`pertainym`, `derivationally_related_form`, `attribute`, `also_see`, `verb_group` and the topic, region and usage
+domains were never taught. Over the 86 senses that have nothing else: pertainyms reach 70, derived forms 13, usage
+domains 12, topic 5, region 1, verb groups 1; **attributes and also-sees reach none of them** and are taught for
+the facts they add elsewhere. Taught as `pertains_to`, `same_root_as` (in neither direction, because WordNet
+states none), `value_of`, `see_also`, `close_in_meaning_to`, `used_in_field`, `used_in_region`, `used_as` -- every
+one the fact alone, since no frame the substrate holds says any of them.
+
+### Verified through the real door, on main
+
+A small batch of 12 first, one of each kind. All 12 got a concept: `b` and `c` (the label floor),
+`academy_of_motion_picture_arts_and_sciences` at seven words and `church_of_jesus_christ_of_latter-day_saints`
+(the word count), `abkhaz`/`axially` (pertainym), `asphaltic` (derived form), `goddam` (usage), `ante_meridiem`
+(topic), and `amidships`/`beads`, two of the fused senses whose receipts were cleared earlier in the day.
+
+It reported "refused=5" and **nothing anywhere records which 5**. So every fact for the full set was put to both
+doors offline first: of **2,441 facts for 350 senses, 26 are refused (1.1%)**, every one of them the structure-word
+rule on `inside`, `there`, `at`, `am`, `by_and_by` -- the group already parked. The pass then refused exactly 26.
+
+| the pass over 350 senses | |
+|---|---:|
+| facts admitted | 2,149 |
+| facts refused | 26 (all predicted) |
+| concepts | +306 |
+| concept relations | +2,137 |
+| beliefs | +2,439 |
+| patterns learned / refused | 202 / **0** |
+| admissions the substrate was not told about | **0** |
+| seconds | 851.8 |
+
+`check_reading.py`: **24 as recorded, 0 better, 0 worse, 1 changed** (333 s against 4,742 s for the full sweep).
+The one change is not a regression -- `'Does sorted return a new list?'` reads identically and its supporting
+prose gained " Lists are lists.", the known degenerate-fact blemish.
+
+### THE FINDING: the knowledge lands and the English to ask about it does not
+
+The review's raw rate across four passes is 86, 81, 80, **74** of 200, and `misread` rose 54 -> 71. Split by
+whether the question carries a name of five or more words that only this pass could teach:
+
+| outcome | n | carrying such a name |
+|---|---:|---:|
+| right | 76 | **0** |
+| misread | 75 | **17** |
+| not derived | 52 | 0 |
+| unread | 2 | 0 |
+
+**Seventeen for seventeen misread, and none answered right.** The reason is in the English the review says for
+them: "Are a coronoid process of the mandible a coronoid process?", "Are a secretary of housing and urban
+development Secretary?", "National Baseball Hall Of Fame among Cooperstown?". The facts are held rightly -- 2,149
+admitted, 0 patterns refused -- and what is missing is a frame that can SAY a multi-word name in a question. The
+competence posterior (0.646 -> 0.624 -> 0.596) is being driven by questions the substrate cannot phrase, not by
+knowledge it has wrong. Separately and not from this work, **43 of 205** questions say "a association" or "an
+body": the article is chosen without regard to the following sound, on names like `a asplenium nigripes` and
+`a atrium cordis`.
+
+### ERRORS FOUND AND THEIR CAUSES
+
+1. **A measurement that compared 0 lessons against 764.** The same limit is read in seven places that CHOOSE
+   between names for a sense its own word cannot tell apart. To price lifting it there, `HEAD`'s copy of
+   `teaching_sources.py` was loaded from the scratchpad -- and `_lesson_parts` and `stated_senses` find the English
+   lessons at `Path(__file__).resolve().parents[2] / "data" / "lessons"`, which from `/private/tmp` is nowhere.
+   HEAD therefore named with **0** lessons and 0 stated senses against the tree's 764 and 46, and the comparison
+   reported 331 names moved, then 187, "and not for the better": `airplane` -> `plane`, `beverage` -> `food drink`,
+   `bad` -> `atrocious bad`, two names lost. **Every one of those was the missing lessons.** Determinism had been
+   checked (0 differ twice) and order-dependence ruled out (187 either way), which made a broken instrument look
+   like a real effect; what found it was diffing the naming function's own text, seeing only the seven expected
+   lines, and then comparing the helpers' OUTPUTS rather than their source. With both copies under `core/learning`
+   the figure is **146 moved, 11 gained, 0 lost**, and the moves are corrections.
+2. **A guard's output taken as evidence about the system that contains the guard** -- the reader and the clause,
+   above.
+
+### Measured and NOT applied: 146 better names, blocked by the store and not by the naming
+
+Lifting the cap in the seven choosers names 146 senses better and 11 that had no name, losing none. Several of the
+current names are another thing's word outright: `draw_a_bead_on.v.02` is named "aspire", `henry_iv.n.03`
+"bolingbroke", `president_of_the_united_states.n.02` "chief executive", `drone.n.04` "pilotless aircraft" with no
+word of its own in it, `balm_of_gilead.n.03` a Latin binomial. The twelve zodiac signs would go from "star sign
+aquarius" to WordNet's own "sign of the zodiac aquarius", fifteen presidents from "united states president X" to
+"president of the united states X", ten verbs from "make X" to "create from raw material X".
+
+**What stops it is the receipt key.** The door decides a fact is held by hashing
+`sha256(subject|relation|obj|wordnet_3.0)` over the NAMES (`_edge_from`), so renaming a sense changes the key of
+every fact it is in and `repair_door_rewrites` cannot find the concept the store already has: asked for all 146 it
+reported "the store carries" for **none** of them, while the store holds `star_sign_virgo` with five edges out and
+one in, **`make_bake` with four out and fifty-seven in**, `aegypius_monachus`, `united_states_president_monroe`.
+Taught over that, each of the 146 would be a second concept beside a first that still holds the edges. The move
+wants a repair keyed by SENSE rather than by name.
+
+### What is left of the 413
+
+223 are closed by the two limits going, 86 by the seven relations, 22 fused senses are parted, 11 more are named.
+**96 WordNet says nothing whatever about** -- Wiktionary's 2.9 GB in `data/wiktionary/` is what would speak for
+them -- 25 remain refused as structure words, and 2 run past `MAX_LABEL_LEN`:
+`american_federation_of_labor_and_congress_of_industrial_organization` at 68 characters and
+`blood_oxygenation_level_dependent_functional_magnetic_resonance_imaging` at 71.
+
+**Next:** a frame that says a multi-word name in a question, which is what the 17 misreads are asking for and what
+would let the review measure the knowledge rather than the phrasing; the article chosen by the following sound; and
+a rename repair keyed by sense, which is what the 146 wait on.
+
+---
+
 ## 2026-11-09 (112) — Why the language layers turned unread into misread: the layers reach the reader, one reading reaches the listener, and the listener's evidence is worth zero because the pass that would learn it cannot see a choice
 
 **Objective.** Four of the five language sources were taught into main (entry 110 found all five layers holding

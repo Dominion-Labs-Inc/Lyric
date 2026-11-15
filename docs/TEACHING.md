@@ -100,12 +100,16 @@ into the concept graph. It checks, in order:
   not open. This is the substrate's answer to "I don't know": **absence, not a
   low-posterior belief.** A weak belief has already contaminated the graph and
   will be reasoned over like any other; an absent one has not.
-- **Shape.** A term may be at most `MAX_TERM_WORDS = 4`
-  ([:111](../core/semantics/cognitive_ingress.py#L111)) — "past this it is a
-  clause, not a name". Relations likewise, and a relation carrying a determiner
-  is a phrase cut mid-term. The door checks, *not the caller* — every caller had
-  its own idea of what was worth writing down, and the one that guessed hardest
-  wrote the most.
+- **Shape.** A term is made of words that name something, and is at most 64
+  characters. **How many words it has is not asked.** That rule stood at four
+  until 2026-11-15, against a reader stapling a clause into a name; the reader
+  cannot, and it survives only in `derived_reader._may_be_new`, the one place a
+  name is assembled rather than given. Enforcing it at the door cost 195 of
+  WordNet's own names their concept, and what a text said of the west was never
+  held. A **relation** is still at most `MAX_RELATION_WORDS = 4`, and one
+  carrying a determiner is a phrase cut mid-term. The door checks, *not the
+  caller* — every caller had its own idea of what was worth writing down, and the
+  one that guessed hardest wrote the most.
 - **Normalisation** ([:173](../core/semantics/cognitive_ingress.py#L173)) — one
   surface form, one canonical concept, delegated to `lexical_normalization` so
   `bird` and `birds` cannot enter as two concepts.
