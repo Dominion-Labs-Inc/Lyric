@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import functools
 import re
-from typing import Dict, FrozenSet, Optional
+from typing import Any, Dict, FrozenSet, Optional
 
 _NORMALISE_STRIP = re.compile(r"[^a-z0-9 _-]+")
 _WS = re.compile(r"\s+")
@@ -137,6 +137,15 @@ def normalise(label: str) -> str:
 def _means(view, word: str) -> set:
     """What the fillers written as this word write: the concepts it is a word FOR, as Lyric holds them."""
     return {str(filler.value).strip().lower() for filler in view.holding(word)}
+
+
+def _class_most_held(view: Any, word: str) -> str:
+    """The class memory MOST holds this word as, counted net of what refuted it, and "" where it holds none.
+
+    The same evidence `PatternInventory.builds_more_than_it_names` weighs, read here rather than asked of the
+    reader, so nothing about the reader's own rules changes to answer a question about spelling."""
+    classes = {c: n for c, n in (getattr(view, "word_classes", {}).get(word) or {}).items() if n > 0}
+    return max(classes, key=lambda c: (classes[c], c)) if classes else ""
 
 
 def _held_singular(word: str) -> Optional[str]:
@@ -251,6 +260,32 @@ def _held_singular(word: str) -> Optional[str]:
         # written, against 14 names moved in the store rather than 66 (2026-11-13). The figures are what is
         # wrong, so the figures are what goes.
         if any(c.isdigit() for c in name):
+            continue
+        # AND A PLURAL IS NOT UNDONE ONTO A DOING.
+        #
+        # `names_of_shape` is the reader's account of how one held word is WRITTEN from another, and not every
+        # such change is a plural: "clothes" is written from `clothe` exactly as "boxes" is from `box`, and
+        # `clothe` is a VERB. So the noun's plural was filed on the verb, "street clothes" came in as
+        # `street_clothe` -- a word that is no thing -- and `swaddling clothes` and `constraint swaddling
+        # clothes` with it (lyric_db, 2026-11-14).
+        #
+        # It is the same category error the "-ly" and "-ed" endings above are there to stop: of the 605 names
+        # this door would otherwise write onto a name another concept already holds, 588 were adverbs undone to
+        # adjectives and 9 participles undone to verbs. Those two have an ending to be told by and this one has
+        # none, so the ending is the wrong thing to ask. The CLASS is the thing: a word used as a noun is no
+        # form of a word held as a doing, whatever the spelling between them.
+        #
+        # THE GUARD ABOVE CANNOT REACH IT, and that is why this is needed rather than another name on that list.
+        # It asks whether Lyric holds a concept of this word's own name -- true of `news`, `scissors`,
+        # `goggles`, `headquarters`, `remains` and `thanks`, which is what keeps them whole -- and `clothes` has
+        # no concept of its own BECAUSE this undoing already filed it on the verb. A fusion cannot vouch for the
+        # thing it swallowed.
+        #
+        # Asked only where memory holds a class for both, and left alone where it holds none: a word Lyric has
+        # no class for is answered by the changes as before. A word most held as a doing itself is not told
+        # apart from its own forms here.
+        doing = _class_most_held(view, name)
+        if doing == "VERB" and _class_most_held(view, folded) not in ("", "VERB"):
             continue
         return joined(name)
     # AND A PLURAL WHOSE SINGULAR NOTHING HELD NAMES KEEPS ITS OWN SPELLING. Handed to the spelling rules instead,

@@ -164,9 +164,25 @@ def admissible(term: str) -> Tuple[bool, str]:
     # WHAT NAMES NOTHING IS WHAT ENGLISH TAUGHT BUILDS SENTENCES WITH: a word the
     # substrate holds only as part of its sentence forms, and that no taught
     # meaning uses as a concept's name ("the", "is", "my"). Nothing is listed here.
+    #
+    # AND THAT IS NOT THE SAME QUESTION AS WHETHER THE WORD CAN NAME SOMETHING, which is the one asked here.
+    # `names_nothing` can only answer from what has been named already, so a word nothing has named yet can never
+    # be named -- a circle, and the door spent it on 626 of WordNet's facts across 41 terms: `west`, `once`,
+    # `never`, `french`, `home`, `burger`, `allergic`, `swiss`, `slowly`, `somewhere`. Every one of the 626 gave
+    # this same reason and no other, and the 477 senses behind them had no concept at all. A word can both build
+    # sentences and name a thing: "how" builds questions, and WordNet names `and_how.r.01`.
+    #
+    # SO THE WORD'S CLASS IS ASKED TOO (`holds_a_naming_class`), which is evidence from outside that circle and
+    # was already the reader's own way of parting the two (`builds_more_than_it_names`). A term is refused only
+    # where every word of it both builds sentences and is most held as a class that names nothing. Of the 41
+    # terms, 26 are admitted and 15 stay refused -- `in`, `at`, `by`, `of`, `through`, `under`, `above`, `across`,
+    # `along`, `off`, `inside`, `any`, `am`, `there`, `as it were`: PREPOSITION, DETERMINER, AUXILIARY, PRONOUN.
+    # That line is where it must be. `is_structure` stops holding a word the moment something names it, and when
+    # WordNet last named `a`, `in`, `at` and `I` a sense each, "a lockstitch" stood as one new name. Asked of the
+    # 38 words English builds its frames from, this lets none of them through (lyric_db, 2026-11-14).
     from core.semantics.derived_reader import live_view
     view = live_view()
-    if all(view.names_nothing(w) for w in words):
+    if all(view.names_nothing(w) and not view.holds_a_naming_class(w) for w in words):
         return False, f"{cleaned!r} is made only of words that name nothing"
     if any(character.isdigit() for character in cleaned) and len(words) == 1 \
             and cleaned.isdigit():

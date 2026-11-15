@@ -26,10 +26,12 @@ unless --main is given.
 """
 import argparse
 import asyncio
+import hashlib
 import json
 import os
 import sys
 from pathlib import Path
+from typing import Dict
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -39,6 +41,18 @@ for _k, _v in {"POSTGRES_PORT": "5433", "POSTGRES_USER": "stefan", "LYRIC_NO_WAT
 
 #: WordNet's word on every fact it taught: the resource is the witness (`WordNetSource.provenance`).
 WITNESS = "wordnet_3.0"
+
+
+def carried_for(term: str, carried: Dict[str, str]) -> str:
+    """A term as the STORE spells it where the store turned out to hold it under a name no rule predicts, and
+    as the door writes it otherwise. `carried` is `held -> written now`, read off the store by the door's own
+    key, so this inverts it: the name the door writes now maps back to the one the store carries."""
+    from core.semantics.cognitive_ingress import normalize_term
+    now = normalize_term(term)
+    for held, written in carried.items():
+        if written == now:
+            return held
+    return now
 
 
 def written_once(name: str) -> str:
@@ -120,6 +134,47 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
         report(f"{sense}: named {name!r}, taught under {then!r}"
                + (", taken back to be taught again" if take_back else f" and written {now!r} now"))
         once[then] = now
+
+    # AND THE NAMES THE STORE ITSELF CARRIES, read off it rather than predicted.
+    #
+    # `written_once` can only name a move somebody encoded here, and the store holds names from rules that are
+    # gone: `descent_diva` for "descent dive", `power_diva` for "power dive", `crash_diva` for "crash dive",
+    # `1.2` for "12". No rule above predicts one of them, so every repair so far has walked straight past them
+    # and the pass that followed was told their facts were "already held" -- 235 facts of WordNet's across the
+    # senses last taught, held and unusable (lyric_db, 2026-11-14).
+    #
+    # THE DOOR'S OWN KEY FINDS THEM WHATEVER THE NAME. It decides a fact is held by hashing the surface the
+    # SOURCE states -- which never changes -- and looking for an edge carrying that key (`_edge_from`). So the
+    # edge is findable from WordNet alone, and the concept it sits on IS the name written then. Ground truth,
+    # not a guess; and a name that matches what the door writes now is the store holding the fact rightly and
+    # is not collected.
+    source = WordNetSource(senses=tuple(senses))
+    keyed = {}
+    for taught in source.records():
+        if not taught.obj:
+            continue
+        key = "read_" + hashlib.sha256(
+            f"{taught.subject}|{taught.relation}|{taught.obj}|{WITNESS}".encode()).hexdigest()[:16]
+        keyed.setdefault(key, (str(taught.subject), str(taught.obj)))
+    service = get_concept_ingestion_service()
+    db = service.db()
+    carried = {}
+    if keyed:
+        rows = await db.execute_query(
+            "SELECT r.evidence_id, c.name FROM unified.concept_relations r "
+            "JOIN unified.concepts c ON c.concept_id = r.source_concept_id "
+            "WHERE r.evidence_id = ANY($1::text[])", (sorted(keyed),), fetch_all=True) or []
+        for row in rows:
+            subject, _ = keyed[str(row["evidence_id"])]
+            now = normalize_term(subject)
+            held = str(row["name"])
+            if held != now and held not in once:
+                carried[held] = now
+    if carried and not take_back:
+        once.update(carried)
+        for held, now in sorted(carried.items()):
+            report(f"the store carries {held!r} where the door writes {now!r} now, by a rule no longer here")
+
     if not once:
         return {"found": {}}
 
@@ -133,14 +188,37 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
     # So the claims are every fact WORDNET STATES with one of these senses on either side (`WordNetSource.senses`
     # filters its records to exactly that), each written as the door wrote it then. A sense's own facts and no
     # others.
-    source = WordNetSource(senses=tuple(senses))
+    # EACH SIDE AS EITHER RULE WROTE IT, IN EVERY COMBINATION. A claim's two sides were not spelled by one rule
+    # at one moment. The store holds `downstair antonym of upstairs` -- the subject as the door's singular wrote
+    # it then, the object as WordNet states it -- and spelling both sides by the same rule asked after
+    # `downstair antonym of upstair`, which matched no belief. Nothing was found for the sense, so `ever` held
+    # nothing of it, so its EDGE was never even looked for; the edge survived, the next pass was told the fact
+    # was "already held" and `downstairs` has no concept at all. `sometimes`, `overseas`, `descent dive`,
+    # `power dive` and `crash dive` are the same shape, 235 facts of them across the senses last taught
+    # (lyric_db, 2026-11-14).
+    #
+    # A CLAIM IS THE SENSE'S OWN IF EITHER SIDE CARRIES A NAME THE DOOR NO LONGER WRITES, and the spelling where
+    # BOTH sides are current is never withdrawn: that one is the store holding the fact rightly, and taking it
+    # back is what the warning above this is about.
     wanted, ever = set(), set()
     for taught in source.records():
         relation = str(taught.relation).replace("_", " ")
-        for how, into in ((named, wanted), (written_once, ever), (normalize_term, ever)):
-            subject = how(str(taught.subject))
-            obj = how(str(taught.obj)) if taught.obj else ""
-            into.add(" ".join(part for part in (subject, relation, obj) if part))
+
+        def spelled(how_subject, how_obj, taught=taught, relation=relation):
+            parts = (how_subject(str(taught.subject)), relation,
+                     how_obj(str(taught.obj)) if taught.obj else "")
+            return " ".join(part for part in parts if part)
+
+        current = spelled(normalize_term, normalize_term)
+        # AND AS THE STORE TURNED OUT TO SPELL IT (`carried`), for the names no rule predicts.
+        ways = [written_once, normalize_term,
+                lambda term: carried_for(term, carried)]
+        for how_subject in ways:
+            for how_obj in ways:
+                one = spelled(how_subject, how_obj)
+                ever.add(one)
+                if (one == current) if take_back else (one != current):
+                    wanted.add(one)
     report(f"WordNet states {len(wanted)} fact(s) of these senses, as the door wrote them then")
 
     us = get_uncertainty_system()
@@ -152,8 +230,6 @@ async def repair(*, senses, apply: bool, take_back: bool = False, report=print) 
                      if isinstance(e, dict)}
         if WITNESS in witnesses:
             claims.append((belief, witnesses - {WITNESS}))
-    service = get_concept_ingestion_service()
-    db = service.db()
     # AND THE OBSERVATIONS OF THOSE SAME FACTS. An envelope holds the door's names too ("met in use: 'listed
     # defined with list'"), so it is narrowed the same way: of the envelopes put on a name written then, only
     # those whose own account is one of the facts above.

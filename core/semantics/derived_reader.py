@@ -2030,6 +2030,30 @@ class PatternInventory:
         word = _fold(word)
         return word in self._frame_words and word not in self._filler_words
 
+    def holds_a_naming_class(self, word: str) -> bool:
+        """Whether the class memory MOST holds this word as is one that names things (`NAMING_CLASSES`).
+
+        WHICH CLASS A WORD IS MOST HELD AS PARTS THE WORDS ENGLISH BUILDS SENTENCES FROM FROM THE WORDS THAT NAME
+        THINGS, and `builds_more_than_it_names` found that it parts them with nothing in between: DETERMINER for
+        "the" and "a", PREPOSITION for "in", "at" and "of", AUXILIARY for "is" and "was", PARTICLE for "to",
+        CONJUNCTION for "and", PRONOUN for "that" -- against NOUN for "home" and "burger", NAME for "west",
+        ADJECTIVE for "french", "swiss" and "allergic", ADVERB for "once", "never" and "here". Asked of 39 words
+        WordNet names a sense of and the door refused, and of 38 English builds its frames from, every one fell on
+        the side it belongs to (lyric_db, 2026-11-14).
+
+        ASKED HERE BECAUSE TWO DIFFERENT QUESTIONS WERE ONE. The reader asks whether a word builds sentences
+        (`names_nothing`, and this is one of its answers); the door asks whether a term may NAME a concept
+        (`cognitive_ingress.admissible`). A word can do both -- "how" builds questions and WordNet names
+        `and_how.r.01` -- and the door, asking the reader's question in place of its own, refused 626 of WordNet's
+        facts across 41 terms, `west`, `once`, `never`, `french`, `home`, `burger` and `allergic` among them. The
+        circle is that `names_nothing` can only answer from what has been named already, so a word nothing has
+        named yet can never be named. A class held of the word is evidence from outside that circle.
+
+        Counts net of what refuted them, and a class held of no word says nothing at all."""
+        word = _fold(word)
+        classes = {c: n for c, n in (self.word_classes.get(word) or {}).items() if n > 0}
+        return bool(classes) and max(classes, key=lambda c: (classes[c], c)) in self.NAMING_CLASSES
+
     def builds_more_than_it_names(self, word: str) -> bool:
         """Whether held frames are written with this word more often than it is held naming things: "a", in 158
         frames and naming seven things (the ampere, the angstrom, adenine ...), is English's article first. A
@@ -2055,10 +2079,9 @@ class PatternInventory:
         side they belong to. Counting a class at all cannot say it: "the" is held a VERB four times and an ADJECTIVE
         fewer, so `class_parts` answers `doing` and `quality` of English's article. Where memory holds no class for
         the word it has nothing to say, and the shapes stand against the fillers as before."""
-        word = _fold(word)
-        classes = {c: n for c, n in (self.word_classes.get(word) or {}).items() if n > 0}
-        if classes and max(classes, key=lambda c: (classes[c], c)) in self.NAMING_CLASSES:
+        if self.holds_a_naming_class(word):
             return False
+        word = _fold(word)
         return self._shapes.get(word, 0) > len(self._fillers_by_word.get(word, ()))
 
     def ends(self) -> FrozenSet[str]:
@@ -5314,6 +5337,36 @@ def _inserted(links: Tuple[Link, ...], placed: Sequence[Tuple[int, Link]]) -> Tu
     return tuple(out)
 
 
+def _sense_here(options: Sequence[Tuple[Sense, Tuple[int, ...]]],
+                want: Sense) -> Optional[Tuple[Sense, Tuple[int, ...]]]:
+    """This place's own sense for a word's chosen sense, with what taking it costs HERE; None where this place
+    offers that sense nowhere.
+
+    ONE WORD SAID TWICE IS PACKED AT EACH PLACE IT STANDS, AND TAKES ONE SENSE AT BOTH. A chart tells runs of
+    words apart by the words themselves, not by where they fall (`_Chart.span`), so both places of "be" in
+    "Are a be born fall a be born?" are the one stand-in -- which is what making them says it wants ("ONE
+    STAND-IN FOR A RUN OF WORDS, wherever it stands"), since the stand-in is the word's name in the meaning and
+    the word names one thing however often it is said.
+
+    A CHOICE IS MADE FOR THE WORD AND THE SENSES OFFERED ARE MADE FOR THE PLACE. Every caller keys its choice by
+    stand-in (`with_senses`, `_one_thing_twice`, `unpacked`, `meant`), while each place costs its own senses
+    against the slot it stands in, with its own link: the five senses of "be" are five objects at one place and
+    five others at the next. So the chosen object belongs to ONE of the places, and every other place has to find
+    the same sense among its own. Looked up by identity alone, a dict keyed by stand-in kept only the last place's
+    choice and the first place looked for it where it was not: the review Lyric runs over its own teaching died
+    on that one sentence with `KeyError`, at the end of a pass that had taught all 2,296 senses it was given
+    (lyric_db, 2026-11-14).
+
+    The sense itself where this place offered it, and otherwise the same sense as this place reads it, least cost
+    first. Where a place offers it not at all the word takes no one sense across its places, and the reading is
+    none -- what `with_senses` answers for senses that make no meaning."""
+    for sense, cost in options:
+        if sense is want:
+            return sense, cost
+    here = [(sense, cost) for sense, cost in options if sense.lexical.value == want.lexical.value]
+    return min(here, key=lambda pair: pair[1]) if here else None
+
+
 def with_senses(reading: Reading, chosen: Mapping[str, Sense], view: PatternInventory) -> Optional[Reading]:
     """A packed reading with a sense chosen for each packed word: the reading the words make with those senses in
     place, as a reading of them one by one makes it; None where those senses make no meaning (two of its facts become
@@ -5330,8 +5383,12 @@ def with_senses(reading: Reading, chosen: Mapping[str, Sense], view: PatternInve
     except ValueError:
         return None
     constructions = tuple(chosen[c.value].lexical if _stand_in(c) else c for c in reading.constructions)
-    senses = [(chosen[stand_in], at, offered, dict((id(s), cost) for s, cost in options)[id(chosen[stand_in])])
-              for stand_in, options, at, offered in reading.senses]
+    senses = []
+    for stand_in, options, at, offered in reading.senses:
+        here = _sense_here(options, chosen[stand_in])
+        if here is None:
+            return None
+        senses.append((here[0], at, offered, here[1]))
     links = _inserted(reading.links, [(at, sense.link) for sense, at, _, _ in senses if sense.held])
     proposed = _inserted(reading.proposed, [(offered, sense.link) for sense, _, offered, _ in senses if not sense.held])
     unsaid = sum(cost[0] - (0 if sense.held else 1) for sense, _, _, cost in senses)
