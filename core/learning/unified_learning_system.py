@@ -4280,6 +4280,82 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     counts["not_language"])
         return counts
 
+    async def withdraw_links(self, links: Iterable[str], *, cause: str, apply: bool = True) -> Dict[str, int]:
+        """LINKS THE SUBSTRATE WOULD NO LONGER WRITE: let go, with their beliefs and their memories.
+
+        `withdraw_pairs` beside this takes back what a TEACHER stopped teaching, keyed by the pair. This takes
+        back what the substrate wrote by a rule it has since corrected, keyed by the link itself
+        (`derived_reader.PatternInventory.links_against_the_letter` names them).
+
+        WHY A LINK CAN BE WRONG RATHER THAN MERELY WEAK. A pair of words the letters do not tell apart everywhere
+        was held as two ways of saying one thing and said in each other's place with the letter never consulted,
+        so a frame writing "An" read "A mons is part of a vulva." and wrote a link putting a word beginning with a
+        consonant in the slot after "an". `_letter_after` counts that word's letter as a letter written after
+        "an" -- the very evidence that decides whether the two are one word in two shapes -- so the conclusion
+        fed itself and could never be revised. The link is not thin evidence of English; it is evidence of the
+        substrate's own mistake, and nothing else rests on it.
+
+        Each goes whole: its memory forgotten, its belief let go, one ledger entry each. Never while another
+        substrate reads or teaches this store, as `withdraw_pairs` is not: a language view already warm holds
+        what was let go until it warms again. Returns counts: `removed`, `not_held` (no such link in the view),
+        `no_memory`, `no_belief` and `refused` where the model is a frozen release. `apply` False changes nothing
+        and counts what it would do."""
+        from core.database import get_database_manager
+        from core.memory import knowledge_ledger as _ledger
+        from core.memory import get_memory_agent
+        from core.reasoning.bayesian_uncertainty import get_uncertainty_system
+        from core.semantics import derived_reader as dr
+
+        wanted = {str(key) for key in links}
+        counts = {"removed": 0, "not_held": 0, "no_memory": 0, "no_belief": 0, "refused": 0}
+        if not wanted:
+            return counts
+        if self._refused_while_frozen(f"withdraw_links ({len(wanted)})"):
+            counts["refused"] = len(wanted)
+            return counts
+        agent = await get_memory_agent()
+        view = await agent.language_view()
+        us = get_uncertainty_system()
+        key_of = type(us)._claim_key
+        beliefs = {key_of(belief.claim): belief for belief in us.held_in_domain(dr.ENGLISH_DOMAIN)}
+        held = await agent.stated_patterns()
+        updates: List[Any] = []
+        batch = _ledger.begin_batch(cause)
+        try:
+            for key in sorted(wanted):
+                item = view.get(key)
+                if not isinstance(item, dr.Link):
+                    counts["not_held"] += 1
+                    continue
+                if not apply:
+                    counts["removed"] += 1
+                    continue
+                memory_id = held.get(item.key)
+                if memory_id is None:
+                    counts["no_memory"] += 1
+                elif not await agent.delete_memory(memory_id, reason=f"{cause}: the letter after the frame's own "
+                                                                     f"word refuses this filler"):
+                    raise RuntimeError(f"memory {memory_id} of link {item.key} could not be forgotten")
+                belief = beliefs.get(key_of(item.claim()))
+                if belief is None:
+                    counts["no_belief"] += 1
+                else:
+                    await us.let_go(belief.belief_id)
+                counts["removed"] += 1
+                updates.append(_ledger.KnowledgeUpdate(
+                    subject_kind="language_link", subject_id=item.key,
+                    disposition=_ledger.Disposition.REMOVED, domain=dr.ENGLISH_DOMAIN,
+                    detail=f"written by a rule since corrected: {item.claim()}"[:500]))
+            if apply:
+                await us.drain_writes()
+            if updates:
+                await _ledger.record_many(get_database_manager(), updates)
+        finally:
+            _ledger.end_batch(batch)
+        logger.info("withdrew %d link(s) the letter refuses (%d not held, %d held no memory, %d held no belief)",
+                    counts["removed"], counts["not_held"], counts["no_memory"], counts["no_belief"])
+        return counts
+
     async def learn_said(self, said, *, provenance: Any = None, quality: float,
                          progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """What words are said of, from a source that counted them in real use (the Brown corpus): `said` is an

@@ -1609,10 +1609,18 @@ class PatternInventory:
         """Whether the letter after them decides between two words: for each, the times it is written before a
         letter the other is written before too are within Yang's tolerance of the times it is written at all. "a"
         and "an" are almost never written before the same letter; "it" and "she" both before the "i" of "is"."""
-        mine, theirs = self._after_count.get(one), self._after_count.get(two)
+        mine, theirs = self._after_count.get(_fold(one)), self._after_count.get(_fold(two))
         if not mine or not theirs:
             return False
-        shared = set(mine) & set(theirs)
+        # A LETTER WRITTEN AFTER BOTH IS NOT A LETTER THAT DECIDES NEITHER. Counted so, one sighting of the rarer
+        # word makes the whole mass of the commoner one crossed: "an hour" is written, and English writes "a"
+        # before an "h" 516 times, so four sightings of "an" carried 516 of "a" into the crossing, and with "n"
+        # and "t" beside them 1,599 of 10,026 crossed against a tolerance of 1,088 -- while "a" stood before a
+        # vowel 17 times in 10,026 and "an" before one 177 times in 209. Near-perfect complementary distribution,
+        # refused by three sightings. A letter crosses only where it decides NEITHER way (`_letter_prefers`),
+        # which is what a letter that tells two words apart means (lyric_db, 2026-11-16).
+        shared = {letter for letter in set(mine) & set(theirs)
+                  if not self._letter_prefers(one, two, letter) and not self._letter_prefers(two, one, letter)}
 
         def decided(counts: Dict[str, int]) -> bool:
             # At least two times the letter after it is one the other is never written before, as a productive
@@ -1626,13 +1634,132 @@ class PatternInventory:
 
         return decided(mine) and decided(theirs)
 
+    def _share_before(self, word: str, letter: str) -> float:
+        """Of everything written after this word, the share written after it beginning with this letter.
+
+        THE SHARE AND NEVER THE COUNT, because the words that alternate are not written alike often: "a" is
+        written 12,905 times here and "an" 377, so "a" is written before more "e"s (444) than "an" (51) while
+        "an" is written before an "e" four times as readily (13.5% against 3.4%). Counted, the commoner word wins
+        every letter and the rarer shape can never be written at all (lyric_db, 2026-11-16)."""
+        # FOLDED HERE, because what asks is given the sentence's own words: `_written_shapes` asks this of the "A"
+        # that begins a sentence, and an unfolded "A" is held nowhere, so every share would be 0 and the letter
+        # would say nothing exactly where it has most to say.
+        counts = self._after_count.get(_fold(word))
+        if not counts:
+            return 0.0
+        total = sum(counts.values())
+        return counts.get(_fold(letter), 0) / total if total else 0.0
+
+    def _letter_prefers(self, other: str, word: str, letter: str) -> bool:
+        """Whether the letter prefers `other` to `word`, by more than the error in `other`'s own share of it.
+
+        A SHARE OF LITTLE IS NOT EVIDENCE. The words that alternate are not written alike often -- "a" 12,905
+        times here against "an" 377 -- so a handful of wrong sightings gives the rarer word a large share and
+        outvotes hundreds of right ones: "an" is written before an "f" 18 times, 4.8% of all it is written
+        before, against "a" at 3.8% of its own, and on that the links of "a freak", "a fox", "a friend" and
+        "a firefighter" were taken for the substitution of an article. 683 links of "f" and "v" were let go on
+        that reading of mine before this was here (lyric_db, 2026-11-16).
+
+        The error in a share of `total` sightings is `sqrt(p(1-p)/total)`, and a preference inside it is
+        sampling and not the letter: at "e" the share is 13.5% against 3.4% and the error 1.8%, so the letter
+        speaks; at "f" the difference is 1.0% and the error 1.1%, so it says nothing. Two sightings at least, as
+        a productive change needs two words it reads rightly (`_told_apart`).
+
+        AND TWICE AS READILY, WHICH THE ERROR ALONE DOES NOT ASK. The error falls as the sightings rise, so
+        between two words written often -- "is" and "are", which the letter has nothing to do with -- almost any
+        difference clears it, and the two would be taken for one word in two shapes. A letter decides between two
+        words where one takes it twice as readily as the other, as a majority is twice the rest (`_end_settle`):
+        "an" before an "e" is 13.5% against 3.4%, four times; "an" before an "f" was 4.8% against 3.8%, and
+        asked only for the error it answered yes, and 683 links of "f" and "v" were let go on it."""
+        mine, theirs = self._share_before(word, letter), self._share_before(other, letter)
+        if theirs <= mine or theirs < 2.0 * mine:
+            return False
+        counts = self._after_count.get(_fold(other)) or {}
+        total = sum(counts.values())
+        if total < 2:
+            return False
+        return theirs - mine > math.sqrt(theirs * (1.0 - theirs) / total)
+
+    def asks_for(self, word: str, other: str, letter: str) -> bool:
+        """Whether the letter after a word asks for `other` where this word is written: the letter prefers
+        `other` beyond the error in its own share (`_letter_prefers`).
+
+        WHAT THE LETTER SAYS OF A PAIR AT ONE LETTER, asked where `_told_apart` asks what it says of the pair
+        everywhere. A pair the letters do not tell apart everywhere is held as two ways of saying ONE thing
+        (`synonyms_of`), and was then said in each other's place with the letter never consulted again -- so a
+        frame writing "An" read "A mons is part of a vulva.", and the link it wrote put a word beginning with a
+        consonant in the slot after "an", which is the evidence `_told_apart` reads. 2,196 fillers of the slots
+        after "a" begin with a letter it contradicts, and 122 of the 143 after "an" do (lyric_db, 2026-11-16).
+
+        Neither word written before the letter says nothing, and the pair stands as it did -- which is what keeps
+        a pair the letter has nothing to do with ("could" and "would") said in each other's place as before. The
+        letter refuses only where it has something to say."""
+        if self._letter_prefers(other, word, letter):
+            return True
+        return self._share_before(word, letter) == 0.0 == self._share_before(other, letter)
+
+    def links_against_the_letter(self, one: str, two: str) -> Tuple[Tuple[str, str, str, str, str], ...]:
+        """Of two words written in each other's place, every link whose frame writes one of them right before its
+        slot while the letter its filler begins with asks for the other: each as the link's key, the frame's own
+        word there, the word the letter asks for instead, the filler as it is written, and the frame.
+
+        THE PAIR IS NAMED BY WHAT ASKS, and judged against each other and nothing else. Asked instead of every
+        word that alternates with the frame's word, this is not a question about the letter at all: "each" and
+        "every" are written before a "d" more readily than "a" is, for their share of the little they are written
+        before, so "a dog" would be refused -- and "is"/"are", which the letter has nothing to do with, would
+        take thousands of good links with them. The letter decides between two words only where the two are
+        plausibly ONE word in two shapes, which is a claim about that pair and not about alternation at large.
+
+        THE LINKS THE CORRECTED READER WOULD NEVER HAVE WRITTEN. A pair the letters do not tell apart everywhere
+        is held as two ways of saying one thing (`synonyms_of`), and was said in each other's place with the
+        letter never consulted (`written_for`, until 2026-11-16) -- so a frame writing "An" read
+        "A mons is part of a vulva." and the link it wrote put a word beginning with a consonant in the slot
+        after "an". `_letter_after` then counted that word's letter as a letter written after "an", which is the
+        evidence `_told_apart` reads, so the conclusion fed itself: 122 of the 143 fillers after "an" begin with a
+        consonant, and 2,196 of those after "a" begin with a vowel (lyric_db, 2026-11-16).
+
+        `written_for` no longer writes them. It cannot unwrite the ones already held, and those are what keeps
+        `variants_of("a")` empty -- so the article the sayer writes and the words it counts both wait on these
+        going (`UnifiedLearningSystem.withdraw_links`).
+
+        THE LETTER DECIDES, AND IT IS ALL THERE IS. English asks by SOUND: "a university" is right and "an hour"
+        is right, and both are refused here, while "an attribute" is kept. The letter is the only evidence this
+        holds, and it is right for a, e, i, o and the consonants -- the exception is named in `shape_before` and
+        is why "u" stands where it does."""
+        pair = {_fold(one): _fold(two), _fold(two): _fold(one)}
+        out: List[Tuple[str, str, str, str, str]] = []
+        for where, keys in self._linked.items():
+            before = self._before_slot.get(where, ())
+            word = before[-1] if before else ""
+            other = pair.get(word)
+            if other is None:
+                continue
+            frame = self._by_key.get(where[0])
+            surface = frame.surface if isinstance(frame, (Pattern, Phrase)) else where[0]
+            for key in keys:
+                filler = self._by_key.get(key)
+                if not isinstance(filler, Lexical) or not filler.words:
+                    continue
+                letter = _fold(filler.words[0][:1])
+                if not letter.isalpha():
+                    continue
+                if not self._letter_prefers(other, word, letter):
+                    continue
+                link_key = self._links.get((where[0], where[1], key))
+                if link_key is not None:
+                    out.append((link_key, word, other, " ".join(filler.words), surface))
+        return tuple(out)
+
     def written_for(self, word: str, following: str) -> FrozenSet[str]:
         """The frame words this word stands for: written in the shape the word after it asks ("an" before "ocelot"
         stands for "a", since "an" is written before an "o" and "a" is not), or said in their place with the same
-        meaning (`synonyms_of`: "would" for "could" in "Could you ?slot0 me?")."""
+        meaning (`synonyms_of`: "would" for "could" in "Could you ?slot0 me?") where the letter after it does not
+        tell against them (`asks_for`)."""
         said = self.synonyms_of(word)
         if not following or not following[:1].isalpha():
             return said
+        letter = _fold(following[:1])
+        said = frozenset(other for other in said if self.asks_for(word, other, letter))
         variants = self.variants_of(word)
         if not variants or self.shape_before(word, following[:1]) != _fold(word):
             return said
@@ -1652,6 +1779,21 @@ class PatternInventory:
         most often, or, before a letter none of them has been written before, the shape written before the most
         letters, as the elsewhere condition has it ("an" before a, e, i, o; "a" everywhere else, so "a jay")."""
         word, letter = _fold(word), _fold(letter)
+        # THE WORD'S OWN SHAPES AND NOTHING ELSE, though "an" is held as a way of SAYING "a" rather than a shape
+        # of it (`synonyms_of`), so this answers "a" before every letter, vowels and all, and the review wrote
+        # "a association" and "an body" in 43 of 205 questions (entry 113).
+        #
+        # ADMITTING THE WORDS SAID IN ITS PLACE HERE WAS TRIED AND IS WRONG, as the writing shows: the words that
+        # alternate are not written alike often, so a word written few times holds a large share of the few
+        # letters it is written before and wins each of them. Asked among "an", "each" and "every" by share, this
+        # answered "every" before a, b and d and "each" before c, i and o -- "every attribute" for "an attribute",
+        # which is worse English than the "a" it already wrote. A reading carries its own cost and is weighed
+        # against every other; what is SAID is taken as it stands, and takes no hypothesis.
+        #
+        # Nothing here tells "a"/"an" from "a"/"every": in English the first pair is in complementary
+        # distribution by the letter and the second is not, which is exactly what the cross-written links destroy
+        # (`asks_for`). The article follows from repairing those links, not from a rule here (lyric_db,
+        # 2026-11-16).
         shapes = sorted({word} | self.variants_of(word))
         written = [shape for shape in shapes if letter in self._after.get(shape, ())]
         if written:
@@ -5334,7 +5476,10 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
     # "Yes, he did." was taught. Supposed, as a frame's word read so is.
     if not loose:
         for at, word in enumerate(words):
-            for other in view.synonyms_of(word):
+            # THROUGH `written_for`, so the letter after it is consulted here as it is of a frame's own word
+            # (`_written_shapes`): asked of `synonyms_of` alone, this read "a" as "an", "each" and "every" before
+            # every letter alike (lyric_db, 2026-11-16).
+            for other in view.written_for(_fold(word), words[at + 1] if at + 1 < len(words) else ""):
                 said = other.capitalize() if word[:1].isupper() else other
                 for holophrase in view.with_words(words[:at] + (said,) + words[at + 1:], loose=False):
                     if view.counts(holophrase):

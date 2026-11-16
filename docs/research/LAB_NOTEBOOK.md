@@ -299,10 +299,60 @@ measured: "a" is held as a way of saying "every", so a universal frame can read 
 changes the meaning and not just the article. There is a cost per substituted word in the scoring, so an exact
 frame should win where one exists; whether a substituted reading ever wins is unasked.
 
-**Not fixed, and not to be fixed quietly.** The repair is not in the ending table or the sayer, and fixing the
-letter test alone will not break the loop, because the cross-linked fillers already in the store are what that test
-reads. It needs his word: it changes how every pair of alternating words is classed, and therefore how everything
-is read.
+### 6c. Fixed, on his word, and what it cost
+
+**The rule.** The letter is consulted at the point of use, which it was not: `_share_before` (the share of what
+follows a word, never the count), `_letter_prefers` (the letter decides between two words where one takes it twice
+as readily, by more than the error in its own share), `asks_for`, and both callers -- `written_for` filters the
+words said in a word's place by it, and the holophrase substitution goes through `written_for` instead of
+`synonyms_of`. `_told_apart` now counts a letter as crossed only where it decides NEITHER way.
+
+**The store.** 3,047 links the corrected reader would never have written are gone from lyric_db, each with its
+memory forgotten, its belief let go and a ledger entry (`PatternInventory.links_against_the_letter` names them,
+`UnifiedLearningSystem.withdraw_links` lets them go, beside `withdraw_pairs`).
+
+**The chain, unlocked.**
+
+| | before | after |
+|---|---|---|
+| letters after "a" | 12,905, 17.1% vowels | 10,026, **0.2%** vowels |
+| letters after "an" | 377, 47% vowels | 209, **84.7%** vowels |
+| `_told_apart('a','an')` | False | **True** |
+| `variants_of("a")` | `[]` | **`['an']`** |
+| `shape_before("a", ...)` | "a" before every letter | **"an"** before a, e, i, o, u; "a" before f, v and the consonants |
+| counted slots | 5 of 6,294 | **659** |
+| `_use_counted_as` | 12 | **5,971** |
+| words held `count` | 8 (0.0%) | **4,861 (8.9%)** |
+| `_end_trusted[False]` | 0.0001 | **0.0755** |
+
+**MY ERROR, APPLIED AND IRREVERSIBLE.** The first selection compared shares with no effect size, so "an" before an
+"f" -- 18 sightings, 4.8% of its 377 -- outvoted "a" at 3.8% of its 12,905, and **683 links of "f" and "v" went
+with the 2,196 that deserved to**, along with some of the 168 of "u". `_letter_prefers` now asks for twice as
+readily as well, which would have withdrawn a (874), e (444) and o (268) and kept f, v, u and i. The lesson is the
+one `shape_before` had already taught me an hour earlier and I did not carry across: a share of little is not
+evidence. The taught pairs are untouched, so `learn_patterns` would rewrite those links through `add_links`, and
+correctly now; that is a teaching pass and has not been run.
+
+**Two knock-ons, measured, not fixed.**
+
+- `check_reading`: **23 as recorded, 0 better, 0 worse, 2 changed** (was 24/0/0/1). One change is substantively
+  worse: "The rock was heavy." read `has_property(?v0, heavy)` and said "Noted - The rock is heavy."; it now reads
+  `instance_of(?v1, heavy) & state_of(?v1, ?v0)` and says **nothing**. Counting lets an adjective be read as a
+  counted thing, and that reading now outcompetes the property one.
+- `use_of` answers `name` for **5 of 16** stored names, not 8: "king of england" and
+  "king of great britain charles" fall to `count` because `used_as("king")` is now `count` -- which is right
+  English -- and "united states president adams" because "adams" holds no use at all now. **This morning's 44 -> 39
+  rested on the broken count model**: "king" was held as a `name` only because nothing was counted, so
+  proper-looking common nouns landed there. The head's held use is the wrong signal for whether a stored name
+  names a particular. The right one is already in memory and thrown away: `_names_memory_holds` reads
+  `subject|relation|object` and keeps only the names, while a concept that is the SUBJECT of an `instance_of` fact
+  is a particular and one that is a kind of something is not.
+
+**A pre-existing misclassification, recorded.** "could"/"would" are held as two SHAPES of one word
+(`variants_of("could") == ["would"]`), though they are the very pair `synonyms_of` cites as two ways of saying one
+thing. Not caused by this change: before it, `written_for("could", "you")` was already `[]`, which is only possible
+with `synonyms_of("could")` empty. "is"/"are" and "the"/"this" are classed rightly, as words said in each other's
+place.
 
 **Next.** UNDERSTANDS-PROSE-02 `--half held` was stopped at text 1 on his instruction, to fix in the language the
 error it had already shown: told the Beatles sentence, Lyric read it rightly — a forming, done to a rock group, in
