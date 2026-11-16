@@ -3245,6 +3245,7 @@ class MemoryAgent(IMemoryConsolidation):
         # And the names of several words memory holds concepts under, from the propositions read above: what tells
         # the reader that a run of words is ONE name where its own two tests cannot (`_names_memory_holds`).
         inventory.names_memory_holds = self._names_memory_holds(taught)
+        inventory.names_of_particulars = self._names_of_particulars(taught)
         # AND THE SCORES THE VIEW READS, WHICH ARE NOT IN IT. `PatternInventory` copies no score: every
         # construction's score is its BELIEF's posterior, read as it stands (`derived_reader._held_score`), and the
         # beliefs are brought up by `BayesianUncertaintySystem.load_from_db` -- called from `core/main.py` at boot,
@@ -7489,6 +7490,36 @@ class MemoryAgent(IMemoryConsolidation):
                 words = tuple(w.casefold() for w in (parts[at] if at < len(parts) else "").split())
                 if len(words) > 1:
                     held.add(words)
+        return frozenset(held)
+
+    def _names_of_particulars(self, taught: Sequence[Any]) -> FrozenSet[Tuple[str, ...]]:
+        """Every name memory holds a PARTICULAR under, each as its words
+        (`PatternInventory.names_of_particulars`).
+
+        WHAT A NAME NAMES, WHICH IS IN THE READING AND WAS THROWN AWAY. `_names_memory_holds` beside this keeps the
+        subject and object of every proposition admitted and drops the relation between them, though the relation
+        is what says whether the name names one thing or a kind of thing: a concept that is the SUBJECT of an
+        `instance_of` is a particular -- Pasteur, Liverpool, the King of England -- and one that is a kind of
+        something is not. That is the evidence `use_of` needs and had no way to ask for.
+
+        IT WAS ASKING THE HEAD INSTEAD, and the head is a common noun. "king of england" was answered `name` only
+        while `used_as("king")` was `name`, which it was only because NOTHING was counted: with the articles
+        repaired and counting working, "king" is rightly `count` and the name of a country's king was answered as
+        a counted thing (lyric_db, 2026-11-16).
+
+        A NAME OF ONE WORD IS KEPT HERE, unlike there. The floor there is arity, because the question there is
+        whether a RUN OF WORDS is one name, which a single word never needs asked. The question here is what the
+        name names, and the relation answers it for one word as well as for five: "adams" is the subject of an
+        `instance_of` and is a particular, while "biologist", which that fact's object is, is not."""
+        held: Set[Tuple[str, ...]] = set()
+        for item in taught:
+            reading = str((item.metadata or {}).get("reading") or "")
+            parts = reading.split("|")
+            if len(parts) < 3 or parts[1].strip() != "instance_of":
+                continue
+            words = tuple(w.casefold() for w in parts[0].split())
+            if words:
+                held.add(words)
         return frozenset(held)
 
     def _senses_memory_holds(self, links: Sequence[Tuple[str, str, str]]) -> Dict[str, Tuple[str, ...]]:

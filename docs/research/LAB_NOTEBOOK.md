@@ -348,6 +348,72 @@ correctly now; that is a teaching pass and has not been run.
   `subject|relation|object` and keeps only the names, while a concept that is the SUBJECT of an `instance_of` fact
   is a particular and one that is a kind of something is not.
 
+### 6d. The two knock-ons: one fixed, one traced to a protected module
+
+**(a) A name memory holds one THING under is a name. Fixed.** `_names_memory_holds` read
+`subject|relation|object` and kept only the names, dropping the relation -- which is the very thing that says
+whether a name names one thing or a kind of thing. `MemoryAgent._names_of_particulars` now keeps the names that
+are the SUBJECT of an `instance_of` (7,704 of the 56,874), `PatternInventory.holds_a_particular` answers for
+them, and `use_of` asks that FIRST, before anything that reads the head.
+
+| | this morning | after the articles | now |
+|---|---|---|---|
+| of 16 stored names, answered `name` | 8 | 5 | **9** |
+
+Every kind stayed a kind: `domestic dog` and `body of water` `count`, `sign of the zodiac` `mass`,
+`rhythm and blues musician` `count` -- so the signal does not overreach. `king of england` stays `count`, which is
+RIGHT: WordNet holds it as a kind of king, and there have been many. And **`adams` alone is now `name`**, which
+closes the one-word case of 6b on better evidence than the arity floor I declined to lower there: that floor
+exists because the question there is whether a RUN OF WORDS is one name, which one word never needs asked, while
+the question here is what the name names, and the relation answers it at any length.
+
+**(b) "The rock was heavy." is not a regression. The reading got a TENSE.** Measured, against my own claim in 6c:
+
+- `used_as("heavy")` is **None**. Counting never made "heavy" a thing, so the cause I wrote there was wrong.
+- The reading is now `instance_of(?s2, heavy) & precedes(?s2, ?now) & state_of(?s2, ?v0)` -- a state holding
+  before now. `has_property(?v0, heavy)` dropped the "was" outright, which is why the recorded reply said
+  "The rock IS heavy." to a sentence that said "was".
+- "The note was long." reads the IDENTICAL shape and is recorded as correct. The rock has joined the note.
+- The note is not silent either: the door refuses it at the gate and says so -- "quality 0.461 < floor 0.5" --
+  in BOTH tenses (0.493 for "The note is long."). A different failure from the rock's, and older than today.
+
+**What is actually wrong, exactly.** The empty reply is deliberate: nothing stands in for a sentence saying cannot
+say, so that a hole in saying shows rather than printing "Noted - I'll hold that about heavy_d3f95fbe". The hole
+is here:
+
+```
+'The rock was heavy.'   4 acquired items, three of them under one label
+    heavy_d3f95fbe  instance_of heavy
+    heavy_d3f95fbe  precedes    2026-11-16T21:28:15Z     <- a doing, so it IS grouped
+    heavy_d3f95fbe  state_of    material_rock_1
+  _said_together -> {}        every _said(...) -> None
+  the sayer, handed the meaning as READ -> 'The material rock was heavy.'
+```
+
+`precedes` survives admission and the label is grouped as a doing, so the grouping is not the fault. The grouped
+sentence comes back empty because **the reader read `precedes(?s2, ?now)` and the store wrote
+`precedes(..., 2026-11-16T21:28:15Z)`**, and saying matches a construction by the meaning EXACTLY. `?now` is a
+situation variable (`derived_reader.SITUATION_VARIABLES`): bound by the situation a sentence is said in, never by
+the sentence. Admission binds it rightly; saying is then handed the bound value, which no construction was ever
+taught with.
+
+This is the THIRD instance of one defect, and `_said_together`'s own docstring records the other two: `hole_vent`
+for "hole vent" (six facts held, reply empty) and `equator_1` spelled out as "Equator 1". That function already
+rewrites the store's underscored terms before offering them for exactly this reason. The moment gets no such
+treatment, and neither does any other situation variable.
+
+**HALTED, not fixed.** Both `_said_together` and `_said` live in `core/agents/autonomous/autonomous_coordinator.py`,
+a protected module. Two ways to fix it, for his decision:
+
+- **Narrow:** map a situation-bound value back to its variable when offering an edge to saying -- an instant in
+  `precedes`/`follows`/`during` that is the turn's own moment becomes `?now`. Shape-judged, which is precisely what
+  that file warns went wrong for half the names it tried to judge by shape.
+- **Principled:** offer saying the meaning AS READ. The admission carries it (`metadata['reading']`), so nothing
+  is reassembled from edges and no term can drift. This removes the whole class -- `hole_vent`, `equator_1`, `?now`
+  and whatever is next -- rather than its third instance. "A whale breathes air through a blowhole." still replies
+  with nothing, and `dr.say` of its meaning is also empty, so that one is not fixed by either and wants its own
+  look.
+
 **A pre-existing misclassification, recorded.** "could"/"would" are held as two SHAPES of one word
 (`variants_of("could") == ["would"]`), though they are the very pair `synonyms_of` cites as two ways of saying one
 thing. Not caused by this change: before it, `written_for("could", "you")` was already `[]`, which is only possible

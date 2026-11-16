@@ -1208,6 +1208,10 @@ class PatternInventory:
         # words it is written in (`_loose`): the evidence from outside the reader's own circle that a run of words
         # is ONE name. None in a view made without memory, and then the reader is as it was.
         self.names_memory_holds: FrozenSet[Tuple[str, ...]] = frozenset()
+        #: THE NAMES MEMORY HOLDS A PARTICULAR UNDER (`MemoryAgent._names_of_particulars`), each as the words it is
+        #: written in (`_loose`): the subject of an `instance_of`, which is one thing and not a kind of thing.
+        #: Empty in a view made without memory, and then `use_of` reads a name as it did.
+        self.names_of_particulars: FrozenSet[Tuple[str, ...]] = frozenset()
         # The base words a written word is a form of, as memory holds the forms treebanks showed (`word_forms`,
         # `MemoryAgent.remember_word_forms`); none in a view made without memory.
         self.held_forms: Optional[Callable[[str], Sequence[str]]] = None
@@ -1697,6 +1701,11 @@ class PatternInventory:
         if self._letter_prefers(other, word, letter):
             return True
         return self._share_before(word, letter) == 0.0 == self._share_before(other, letter)
+
+    def holds_a_particular(self, words: Tuple[str, ...]) -> bool:
+        """Whether memory holds ONE THING under this run of words, rather than a kind of thing
+        (`names_of_particulars`): the name of a particular is a name, whatever its head is used as."""
+        return bool(words) and words in self.names_of_particulars
 
     def links_against_the_letter(self, one: str, two: str) -> Tuple[Tuple[str, str, str, str, str], ...]:
         """Of two words written in each other's place, every link whose frame writes one of them right before its
@@ -3966,6 +3975,15 @@ class PatternInventory:
         name = str(name).replace("_", " ").strip()
         if not name.split():
             return "count"
+        # A NAME MEMORY HOLDS ONE THING UNDER IS A NAME, whatever its head is used as (`holds_a_particular`).
+        # Everything below reads the HEAD, and the head of a particular's name is a common noun: "king of england"
+        # is headed by "king", which is rightly used as a counted thing, and a country's king was written as one.
+        # It was answered `name` before only while `used_as("king")` was `name`, which it was only while NOTHING
+        # was counted -- so the answer was right by an accident that the article repair took away, and the
+        # evidence that it IS a name was in the reading all along: it is the subject of an `instance_of`
+        # (lyric_db, 2026-11-16).
+        if self.holds_a_particular(_loose(tuple(name.split()))):
+            return "name"
         head = self.head_of(name.split())
         proper = head[:1].isupper()
         last = _fold(head)
