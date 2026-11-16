@@ -117,6 +117,12 @@ NEVER_A_TERM = frozenset({
 #: produce exactly that, the door was asked about 180 terms and none ran past four words -- and this cap is part
 #: of why, so that measurement is no reason to lift it (2026-11-15).
 #:
+#: IT IS ASKED ONLY OF A NAME BEING COINED. A run of words memory already holds a concept under is not a coining
+#: and is not capped (`derived_reader.holds_this_name`): the cap and the rule against a structure word inside a
+#: name both ask whether a run nothing holds may be TAKEN as one, and WordNet's own names -- "president of the
+#: united states", "sign of the zodiac" -- answered no to both while memory held the concept. Every one of the 44
+#: facts over the renamed senses that no sentence could ask was blocked that way (2026-11-16).
+#:
 #: Kept here rather than in the reader because the reader's own file is hashed into the rules key: a line in it
 #: costs ~940s of relearning and 251 descriptions read again. Five sites in `derived_reader` import it from here.
 MAX_TERM_WORDS = 4

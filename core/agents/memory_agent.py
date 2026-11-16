@@ -3242,6 +3242,9 @@ class MemoryAgent(IMemoryConsolidation):
         # kept current as each proposition is taught (`note_taught_proposition`).
         inventory.word_classes = index
         inventory.senses_memory_holds = self._senses_memory_holds(grammar_links)
+        # And the names of several words memory holds concepts under, from the propositions read above: what tells
+        # the reader that a run of words is ONE name where its own two tests cannot (`_names_memory_holds`).
+        inventory.names_memory_holds = self._names_memory_holds(taught)
         # AND THE SCORES THE VIEW READS, WHICH ARE NOT IN IT. `PatternInventory` copies no score: every
         # construction's score is its BELIEF's posterior, read as it stands (`derived_reader._held_score`), and the
         # beliefs are brought up by `BayesianUncertaintySystem.load_from_db` -- called from `core/main.py` at boot,
@@ -7450,6 +7453,43 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_derived.pop(key, None)
         if self._grammar_view is not None:
             self._grammar_view.drop_derived(item)
+
+    def _names_memory_holds(self, taught: Sequence[Any]) -> FrozenSet[Tuple[str, ...]]:
+        """Every name of SEVERAL WORDS memory holds a concept under, each as its words
+        (`PatternInventory.names_memory_holds`).
+
+        READ FROM THE MEMORIES OF BEING TAUGHT, like the word classes beside it and in the same pass: the subject
+        and object of every proposition admitted, which are the names the substrate was taught things about. No
+        list is kept for the reader's benefit, and a wipe takes these memories with everything else.
+
+        WHY THE READER IS TOLD AT ALL. Both tests it has for a name of several words answer from what it has
+        already taken (`derived_reader.holds_this_name`), so a name no slot has taken is too long for every slot
+        and, holding an "of", is no name anywhere -- and can therefore never be taken. Of the 44 facts over
+        WordNet's renamed senses that no sentence could ask, every one had a name those tests refused, while
+        memory held a concept under every one of them (lyric_db, 2026-11-16).
+
+        The names are read off the reading the memory was admitted with, which writes them as words
+        ("president of the united states"), not as the store joins them (`president_of_the_united_states`): that
+        is how the reader looks a run of words up, and the two spellings are one name.
+
+        SEVERAL WORDS AND NEVER ONE, which is the floor below. 56,874 names of two words or more are held here
+        (48,558 of two words, down to 8 of nine), and 58,869 names of one word are deliberately left out. A run of
+        four words matching a held name is evidence that the run is one name; one word matching is none, because
+        every word a fact was ever taught about is such a name -- "biologist", "chemist" and "abroad" among them.
+        Taken in, those would tell the reader a lowercase word may stand as a new name, and tell `use_of` to
+        overrule a capital that is real evidence for one word ("march", "china", "polish") (lyric_db,
+        2026-11-16)."""
+        held: Set[Tuple[str, ...]] = set()
+        for item in taught:
+            reading = str((item.metadata or {}).get("reading") or "")
+            if "|" not in reading:
+                continue
+            parts = reading.split("|")
+            for at in (0, 2):
+                words = tuple(w.casefold() for w in (parts[at] if at < len(parts) else "").split())
+                if len(words) > 1:
+                    held.add(words)
+        return frozenset(held)
 
     def _senses_memory_holds(self, links: Sequence[Tuple[str, str, str]]) -> Dict[str, Tuple[str, ...]]:
         """Each word -> the senses of it memory holds a LINK of (`PatternInventory.senses_memory_holds`).

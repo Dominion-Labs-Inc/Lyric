@@ -16,6 +16,229 @@ Conventions:
 
 ---
 
+## 2026-11-16 (114) — A name memory holds is a name: the reader's two tests for a name of several words could only answer from what it had already taken, the use of a stored name was read off capitals it does not have, and an ending decided from the words it had thrown away
+
+**Objective.** Finish the 44 `instance_of` facts over WordNet's renamed senses that no sentence could ask (entry 113
+left them at 2 of 46 fixed), and the gap behind them: a name of several words standing in a frame's slot.
+
+### 1. The account, before anything was changed
+
+Over the 139 isa/instance_of facts of the 146 renamed senses, asked exactly as `review_learned` asks them:
+
+| | |
+|---|---:|
+| asked | 95 |
+| nothing can ask | 44 |
+| of the 95 asked, read back | **1** |
+| misread | 93 |
+| unread | 1 |
+
+**Every one of the 44 had a name that `_may_be_new`'s two tests refused** — the cap at
+`min(MAX_TERM_WORDS, the longest filler the slot's kind has taken)` and the rule against a structure word inside a
+name. `president of the united states` (five words, "of" and "the" inside it), `sign of the zodiac`,
+`king of england`. Memory held a concept under every one, and **nothing at all** was held as a filler for any.
+Where a fact's own name was clean, its partner's was refused, so the fact still could not be said.
+
+The 93 misreads are two shapes and nothing else: **92** are `Are a X a Y?` — a plural frame over one thing — and
+**7** are `a the`, the frame's own article against the filler's. (Totals differ by pass; see §4.)
+
+**Two things entry 113 recorded that are no longer true.** `isa(sign of the zodiac virgo, sign of the zodiac)` is
+not unsayable: it says it eight ways. And the 44 were not one gap with the misreads — they are two, sharing a cause.
+
+### 2. The circle, and the evidence from outside it
+
+Both tests for a name of several words answer from what the reader has already taken. A name no slot has held is
+too long for every slot, and holding an "of" is no name anywhere — so it can never be taken, and so can never
+become a name a slot has taken. This is the circle `holds_a_naming_class` was added to break, and the break is the
+same: evidence from outside it.
+
+**Built.** `PatternInventory.names_memory_holds` — the names of several words memory holds concepts under, read off
+the subject and object of every admitted proposition in the pass that already builds the word classes
+(`MemoryAgent._names_memory_holds`), from the same memories. 56,874 reached the reader. `holds_this_name` answers
+whether a run of words is one of them, and refuses a name every word of which builds frames ("to be", "in for",
+"as it is", "in on" — WordNet names four senses that way, and admitting them would lift the test that keeps "a" and
+"the" from naming things).
+
+`_may_be_new` and `_may_stand_new` ask it **only where their own tests say no**: the hottest question the reader
+asks is looked up 1,969,634 times in one paragraph (`_Chart.span`), and a run the reader already allows is allowed
+without asking. `_may_stand_new`'s `closed` role still refuses a held name: English gains no frame words.
+
+**Measured.** 44 → **39** unaskable. `president of the united states`, `president of the united states adams`,
+`sign of the zodiac` and `king of england` all now stand in a slot that had only ever taken one word; `to be` is
+refused; a plain two-word name still needs a slot that has taken two; a view built without memory is the reader
+exactly as it was (20 cases on a hand-built view, all as wanted). A five-word name came back **read whole** out of
+a real question: `'Are a place of business massage parlor a business establishment?'` read as
+`instance_of(?v0, place of business massage parlor)`.
+
+### 3. Three more defects, each the same rule at another gate
+
+**The sayer wrote two determiners in a row, and Lyric learned its own sentence.** `instance_of` for
+`king_of_great_britain_charles` came out "Charles is a The King of England." — WordNet's lemma is
+`King_of_England`, with no "The" in it. `TeachingPass._said` looked at the sentence's form not at all (one
+hand-written guard, a counted thing standing bare), so it was taught, learned as the frame
+`?slot0 is a The King of England.`, and said Henry II, Henry III, Henry VII, Henry IV, James, Edward and George
+after it, with `Frederick ?slot0 is a The Holy Roman Emperor.` and `Gregory is a The ?slot0.` beside it. **17
+learned constructions hold an "a the" and every one is of this family.**
+
+Built: no English puts two determiners side by side, which words those are being **held, not listed** — "a" and
+"the" are each held most as a DETERMINER (`word_classes`, as `holds_a_naming_class` asks it), "of" as a
+PREPOSITION, so "of the" is English here and "a The" is not. Measured on the eight records of that family: all four
+malformed sentences refused, including the one that *made* the frame; "Lake Edward is a lake." and
+"Charles is a physicist." kept. No reading, so no cost in time.
+
+**`use_of` read properness off a name that has no capitals.** Branch one holds the right answer —
+`used_as("adams")` is `name` — and was skipped because `is_proper("adams")` is true while the stored name
+`president of the united states adams` carries no capital, so `is_proper(last) == proper` failed. An ending decided
+instead: "ms" says `mass`, and a president was written as what things are made of. Same for "charles" ("les"),
+"gore" ("ore"), "states" ("ates"), "england" ("land"). Built: where that test failed **on the capital alone**, ask
+again against what memory holds of the head. Measured: six names `mass` → `name`. The ending branch and the last
+line are untouched. A name of one word is not covered (`holds_this_name` answers for two words or more), so
+`instance_of(adams, person)` is still unaskable — the same defect, narrower than what was measured.
+
+**One head rule, written four times.** `use_of` took the last word always; `_said_fillers` (twice) and
+`teaching._said` took the word before a frame word. So "king of england" was headed by **england** and
+"president of the united states" by **states**, and each was judged by what a country's ending decides. Built:
+`PatternInventory.head_of`, and four callers where there were four copies; no copy of the pattern remains in
+`core`. Its effect on these names is **not separately measured** (§5).
+
+**An ending decided from the words it had thrown away.** A plural is never guessed from an ending
+(`use_of`), and that was implemented by dropping plurals before the tally — so the counter-evidence vanished and
+whatever few words were left decided:
+
+| ending | decided | on | held words with that ending |
+|---|---|---:|---|
+| `ms` | mass | 2 | 801, almost all plural |
+| `les` | mass | 4 | 915, mostly plural |
+| `ates` | mass | 7 | 232, mostly plural |
+| `land` | mass | 2 | 20 — england, scotland, ireland, iceland … held as **name** |
+
+Built: a plural is tallied, can win the tally, and still decides nothing — the honest answer for an ending that is
+mostly how English writes its plurals — and the whole tally passes to the shorter ending. **Not verified**: the
+re-measure was killed mid-warm (§5).
+
+### 4. Errors found, with their causes
+
+- **I fixed 5 of 46 and claimed the gap, twice.** The 44's blockers were in the list of 46 before any change; I
+  changed the source first and read the list after. Entry 113 records the same mistake.
+- **A readback contract, built and then reverted.** `_said` taught whatever the sayer produced, so the rule "teach
+  only a sentence that reads back to the meaning it was said for" looked right, and the grammar already holds
+  itself to it. It failed measurement three times over: judged by the reader's **first** reading it refused 134 of
+  200 (carrying `⟨1⟨Able` artefacts, and once inventing an `unabridged dictionary`); by the listener **without
+  memory** 91 of 200, about half of them sentences the listener gets exactly right; by the listener **with memory**
+  — the review's own test, and cheap, 0.007s against 0.898s for saying — 61 of 188. A fourth test (is the meaning
+  among the readings **at all**) was worse still: 74 of 188 kept against `heard`'s 127. Reverted, because of the
+  eight records of the polluting family it refused two that matter most: "Charles is a physicist." (heard as
+  `isa(river charles, physicist)`) and "Lake Edward is a lake." (heard as `isa`) are exactly the sentences that
+  give a new sense its first English word, and a sense whose word is never taught is never read. **It refused
+  hardest where teaching is most needed**, and could not catch the sentence that made the frame, which by then read
+  back to its own fact. The form test replaced it and catches all four.
+- **Four instrument errors, each producing a number I nearly reported.** (1) I measured 250 records that carry
+  their own teacher-written sentence and never reach `_said`, and reported it refusing 198 — its own doing. (2) I
+  compared against `readings[0]` where the review compares against `heard`. (3) My "before" shim faked a reading
+  and `meant` asked it for its senses. (4) My local helper was named `meant`, shadowing the function I had just
+  imported. Also: a `pgrep -f` wait loop whose own command line contained the pattern it grepped for, so it matched
+  itself and check_reading sat unstarted while I believed it queued.
+- **Five wrong hypotheses about `use_of` before measuring it.** I predicted `count` and `{'name'}`; it answers
+  `mass`, and the frames I introspected were holophrases, not the asking frame.
+
+### 5. The two open rows, measured
+
+**(a) The ending table — verified.** One warm run over the whole table (142 s warm, lyric_db):
+
+| ending, proper=False | the tally now | decides | before |
+|---|---|---|---|
+| `ms` | 795 plural, 2 mass | **nothing** | `mass`, on the 2 |
+| `les` | 771 plural, 135 mass | **nothing** | `mass`, on the 135 |
+| `ates` | 220 plural, 7 mass | **nothing** | `mass`, on the 7 |
+| `iac` | 2 mass | `mass` | `mass` |
+| `cian` | 6 mass | `mass` | `mass` |
+| `de` | 2 mass | `mass` | `mass` |
+
+Plurals now enter the tally and win it, and a plural win decides nothing — so an ending that is only English's
+plural suffix says nothing instead of ruling on whatever residue it threw away, while the endings whose evidence is
+genuinely mass still answer `mass`. The fix mutes an ending without muting its evidence.
+
+**Two claims in my own note were wrong, and are corrected in the code.** (1) `land` "decided `mass` on 2 of 20
+against england, scotland and ireland": the tally is kept **by properness as well as by ending**, so those four are
+counted at `(True, "land")` and decide `name` there, rightly; `(False, "land")` holds cortland and inland, both
+mass, and never saw the names. (2) I expected `ogy` to decide `mass` on its 214 words; its tally is **empty**,
+because `_end_count` tallies a word under its **four-letter** ending — those words sit at `logy`, `logy` decided,
+and a decided ending passes nothing up. Both were readings of my note rather than of `_end_count`.
+
+**(b) The head rule — verified, and the regression I predicted did not happen.** `use_of` asked of 16 names:
+**14 unchanged, 2 improved, 0 regressed.**
+
+| name | `use_of` | `head_of` | last word | |
+|---|---|---|---|---|
+| president of the united states adams | `name` | president | adams | same answer, new route |
+| president of the united states | `name` | president | states | same |
+| united states president adams | `name` | adams | adams | one head |
+| king of great britain charles | `name` | king | charles | same |
+| king of england | `name` | king | england | same |
+| doctor of the church gregory | `name` | doctor | gregory | **mass → name** |
+| doctor of the church | `name` | doctor | church | **mass → name** |
+| vice president of the united states gore | `name` | president | gore | same |
+| sign of the zodiac (aquarius) | `mass` | sign | zodiac/aquarius | same |
+| rhythm and blues musician (domino) | `mass` | rhythm | musician/domino | same |
+| body of water | `mass` | body | water | same |
+| domestic dog | `count` | dog | dog | same, and right |
+| golden horde | `mass` | horde | horde | same |
+
+I predicted four of the six gains moving back. None did: the words `head_of` lands on — president, king, doctor —
+are **themselves** held as names, so the properness fix fires on the head exactly as it fired on the tail. The two
+that improved are where the last word was the worse evidence: "gregory" is held `mass` and not proper while
+"doctor" is held a name. Every `name` in that table comes from the properness line, since a stored name carries no
+capital and the test above it fails on that alone.
+
+### 5b. The one-word case: measured, and deliberately **not** fixed
+
+That run turned up `use_of("adams")` = **`count`**, though `used_as("adams")` is `name` and `is_proper("adams")` is
+true. It is the one-word case of the same defect, and the obvious fix is wrong.
+
+- `holds_this_name`'s two-word guard is not what blocks it. **`names_memory_holds` holds no name of one word at
+  all** — the floor is `len(words) > 1` in `MemoryAgent._names_memory_holds`, written for the reader's purpose.
+  Opening the properness line to one word changes **0 of 56,874** names (swept, every held name, now against the
+  relaxed branch recomputed line for line).
+- Lowering that floor is the wrong repair. The store holds **58,869 names of one word** against 56,874 of several
+  (48,558 of two words, down to 8 of nine). For one word the test would be met by any word a fact was ever taught
+  about — "biologist", "chemist", "abroad" — so it carries almost no evidence, while the capital it would overrule
+  **is** evidence there: lowercase "march", "china" and "polish" would begin answering `name`. A four-word run
+  matching a held name is evidence; one word matching is not.
+- What a stored name needs is a **caller** that says the name came from the store and has no capital by
+  construction. The sayer does not say that yet. Recorded in both files; not built.
+
+### 5c. What is still not evidenced
+
+- **Guarded, not evidenced.** `check_reading.py` with all five in: **24 as recorded, 0 better, 0 worse, 1 changed**
+  (the known `Lists are lists.` blemish), 478 s. That is a regression guard and not evidence any change helps.
+- A `derived_reader.py` edit costs **946s** of relearning, measured twice today. The two note corrections above are
+  comment-only and cannot move a reading, but they do change the file's hash, so the next warm pays it.
+
+### 6. The largest finding, untouched
+
+**8 of 52,713 held words are `count`.** 60.0% are `plural`, 37.2% `mass`, 2.8% `name`. `count` is English's
+commonest use and the default `use_of` falls back to. The chain: `_use_found` returns `count` only where
+`_use_counted_as` holds; `_use_link` sets it only where the **slot** is counted; `counted_slot` is true only where a
+word right before the slot has shapes of its own (`variants_of` — "a"/"an" by the following sound). So the article
+has to belong to the **frame**; where it was learned inside the filler, nothing counts anything. And
+`_end_trusted[False]`, which gates a non-default ending, **is** the share of non-plural words held as counted:
+**0.0001** measured, against 0.9991 for names. That is why `mass` still wins at confidence 0.197 on two words
+(`de`, `iac`) with the plural fix in — the plurals mute the endings they dominate, but nothing raises a threshold
+that eight words hold up.
+
+A hypothesis worth one cheap check: if `variants_of("a")` is empty — the alternation never learned — that single
+gap explains the 8, the collapsed threshold, and the sayer writing "a association" and "an body" (43 of 205 review
+questions, entry 113). Not yet asked.
+
+**Next.** UNDERSTANDS-PROSE-02 `--half held` was stopped at text 1 on his instruction, to fix in the language the
+error it had already shown: told the Beatles sentence, Lyric read it rightly — a forming, done to a rock group, in
+Liverpool, during 1960 — and said back **"Noted - The make form on Liverpool."**, naming the happening by its
+stored sense name. That is a saying fault, and the correction path it opens onto (`Conversation.feedback_of` →
+`_take_feedback`, six links, all present, blocked at `Admission.memory_id`) is the next work, with his three-way
+policy: a user's correction about themselves is admitted, a correction about shared or public fact is investigated
+and refused with the exact evidence, and world knowledge Lyric holds wrongly is corrected as part of
+self-reflection.
+
 ## 2026-11-15 (113) — A name's length was never a question about the name: the door's four-word rule cost 195 of WordNet's own names their concept, and the one place it earns its keep is the reader, where a name is assembled rather than given
 
 **Objective.** 413 WordNet senses had no concept at all. Account for every one of them, and close what can be

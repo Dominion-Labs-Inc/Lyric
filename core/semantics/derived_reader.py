@@ -1204,6 +1204,10 @@ class PatternInventory:
         # settles it, was of a sense it was never offered (lyric_db, 2026-11-11). Kept to those memory holds a link
         # of, which are exactly the senses evidence can tell apart; none in a view made without memory.
         self.senses_memory_holds: Mapping[str, Sequence[str]] = {}
+        # THE NAMES OF SEVERAL WORDS MEMORY HOLDS CONCEPTS UNDER (`MemoryAgent.names_memory_holds`), each as the
+        # words it is written in (`_loose`): the evidence from outside the reader's own circle that a run of words
+        # is ONE name. None in a view made without memory, and then the reader is as it was.
+        self.names_memory_holds: FrozenSet[Tuple[str, ...]] = frozenset()
         # The base words a written word is a form of, as memory holds the forms treebanks showed (`word_forms`,
         # `MemoryAgent.remember_word_forms`); none in a view made without memory.
         self.held_forms: Optional[Callable[[str], Sequence[str]]] = None
@@ -2127,6 +2131,32 @@ class PatternInventory:
                 if name in self._named and self.written_in_shape(word, name):
                     return False
         return True
+
+    def holds_this_name(self, words: Tuple[str, ...]) -> bool:
+        """Whether memory holds a concept under exactly this run of words, as one name (`names_memory_holds`).
+
+        EVIDENCE FROM OUTSIDE THE READER'S CIRCLE THAT A RUN OF WORDS IS ONE NAME, as a word's held class is
+        evidence from outside it that the word names something (`holds_a_naming_class`). Both tests the reader
+        has for a name of several words answer from what it has already taken: a run may be no longer than the
+        longest a name in that slot has been (`longest_filler`), and may hold no word English builds frames with
+        (`_may_be_new`). A name no slot has ever taken is therefore too long for every slot and, holding an "of"
+        or a "the", is not a name anywhere -- so it can never be taken, and so can never become a name a slot has
+        taken. Measured: of the 44 facts over WordNet's renamed senses that no sentence could ask, every one had a
+        name those two tests refused -- `president of the united states` (five words, and "of" and "the" inside
+        it), `sign of the zodiac`, `king of england` -- while memory held a concept under every one of them, and
+        nothing at all was held as a filler for any (lyric_db, 2026-11-16).
+
+        A name EVERY word of which builds frames is not admitted on this evidence. WordNet names four senses so
+        ("to be", "in for", "as it is", "in on"), and the test those names would lift is the one that keeps "a"
+        and "the" from naming things: a run of frame words is structure the substrate has not learned to read,
+        whatever memory holds under it.
+
+        The name is matched as it is written, not as it is meant: `names_memory_holds` holds each name's words
+        case folded with a hyphen's words joined (`_loose`), which is how every other lookup of a run of words
+        here is keyed."""
+        if len(words) < 2 or words not in self.names_memory_holds:
+            return False
+        return not all(self.is_structure(word) or self.builds_more_than_it_names(word) for word in words)
 
     def may_read(self, pattern: str, words: FrozenSet[str], loose: bool) -> bool:
         """Whether every word of this item-based construction's own is among these words (case folded and marks
@@ -3656,8 +3686,20 @@ class PatternInventory:
         now: Optional[Tuple[bool, str]] = None
         if counts:
             how = max(counts.items(), key=lambda kv: (kv[1], kv[0] == "count", kv[0]))[0]
-            if how != "plural":
-                now = (self.is_proper(word), how)
+            # A PLURAL IS COUNTED HERE THOUGH NO ENDING EVER DECIDES ONE (`_end_settle`): it is evidence that the
+            # ending SAYS NOTHING, which is what an ending shared by hundreds of plurals is. Left out altogether,
+            # as it was, an ending decided from whatever few words were not plural: the tally at "ms" is 795
+            # plurals against 2 mass words, and with the plurals left out it decided `mass` on those two -- so a
+            # head held as a name was written as what things are made of. "les" is 771 against 135, "ates" 220
+            # against 7, and all three decide NOTHING now, while "iac" (2 mass), "cian" (6) and "de" (2) still
+            # decide `mass` on mass words alone: the plurals mute an ending without muting its evidence
+            # (lyric_db, 2026-11-16).
+            #
+            # THE TALLY IS KEPT BY PROPERNESS AS WELL AS BY ENDING, so england, scotland, ireland and iceland are
+            # counted at (True, "land") and decide `name` there, rightly, while (False, "land") holds cortland and
+            # inland, both mass. A note here once read that "land" decided `mass` against those four names: it
+            # never saw them, and an ending answers only words written as its own words are.
+            now = (self.is_proper(word), how)
         was = self._end_word.get(word)
         if was == now:
             return set()
@@ -3690,7 +3732,13 @@ class PatternInventory:
 
     def _end_settle(self, touched: Iterable[Tuple[bool, str]]) -> None:
         """Each touched ending decided again, the longest first: what it decides, and what it passes to the ending
-        one letter shorter while it decides nothing."""
+        one letter shorter while it decides nothing.
+
+        AN ENDING MOST OF WHOSE WORDS ARE PLURALS DECIDES NOTHING. A plural is never guessed from an ending
+        ("bus" and "lens" end as plurals do, `use_of`), so `plural` can win the tally here and still decide
+        nothing -- and winning it is the common case, because English writes its plurals with an ending and 60%
+        of the 52,713 words held have one (`_end_count`). What is passed to the shorter ending is the whole
+        tally, plurals and all, so a thin residue cannot decide there either."""
         heap = [(-len(node[1]), node) for node in set(touched)]
         heapq.heapify(heap)
         queued = {node for _, node in heap}
@@ -3711,7 +3759,7 @@ class PatternInventory:
                     self._end_contested[proper].add(node)
                 else:
                     self._end_contested[proper].discard(node)
-                if most * 2 > total and total - most <= total / math.log(total) \
+                if how != "plural" and most * 2 > total and total - most <= total / math.log(total) \
                         and (how == default or _confidence(most, total) > self._end_trusted[proper]):
                     decided = how
             else:
@@ -3747,9 +3795,25 @@ class PatternInventory:
             return None
         return max(counts.items(), key=lambda kv: (kv[1], kv[0] == "count", kv[0]))[0]
 
+    def head_of(self, words: Sequence[str]) -> str:
+        """THE WORD A NAME OF SEVERAL WORDS IS USED AS: the one before a word that builds frames inside it
+        ("body of water" is a body, not water; "roll of tobacco" a roll), else its last, the one the rest describe
+        ("Roman arch" is an arch; "domestic dog" a dog). The word as written, capital and all, because what asks
+        this reads the capital.
+
+        ONE RULE, IN ONE PLACE. It was written four times -- here, twice in `_said_fillers` (how a source states a
+        use, and how a held name is used) and once in `teaching._said` -- and `use_of`'s copy was the odd one out:
+        it took the last word always, so "king of england" was headed by "england" and "president of the united
+        states" by "states", and each was then judged by what a country's ending decides rather than by the king or
+        the president it names (lyric_db, 2026-11-16)."""
+        kept = tuple(word for word in words if word)
+        if not kept:
+            return ""
+        return next((kept[at - 1] for at in range(1, len(kept)) if self.is_structure(kept[at])), kept[-1])
+
     def use_of(self, name: str) -> str:
-        """How a word no filler holds is used, as its writing and the words held show. Its last word, the one the
-        rest describe, decides ("Roman arch" is an arch):
+        """How a word no filler holds is used, as its writing and the words held show. Its head, the word it is
+        used as (`head_of`), decides ("Roman arch" is an arch; "body of water" is a body):
         - as that word is used, when it is held written as it is here ("fire tongs" as "tongs", a plural; "Latin
           American" as "American"), a capital and all: "Golden Horde" is no "horde";
         - else as the held words written as it is (with a capital, or without) and ending as it does are used, the
@@ -3760,11 +3824,37 @@ class PatternInventory:
         name = str(name).replace("_", " ").strip()
         if not name.split():
             return "count"
-        head = name.split()[-1]
+        head = self.head_of(name.split())
         proper = head[:1].isupper()
         last = _fold(head)
         held = self.used_as(last)
         if held is not None and self.is_proper(last) == proper:
+            return held
+        # A NAME MEMORY HOLDS A CONCEPT UNDER IS WRITTEN WITHOUT CAPITALS (`holds_this_name`), so the capital on it
+        # says nothing about its head and cannot be held against what memory holds of that head. Asked of
+        # "president of the united states adams" -- the name as the store writes it -- the test above compared no
+        # capital against `is_proper("president")`, which is true, so the head's held use (`name`) was passed over
+        # and an ending decided instead: "dent" says `mass`, and a president was written as what things are made
+        # of. Measured so for "doctor" too ("ctor" -> mass), and for "king", which no ending decides and the last
+        # line below wrote `count` for. With this line in, 8 of 16 such names answer `name`, among them
+        # "doctor of the church gregory", whose head "gregory" is held `mass` while "doctor" is held a name
+        # (lyric_db, 2026-11-16).
+        #
+        # ONLY WHERE THE WRITING SAYS NOTHING. A name written with a capital is evidence, and the test above is
+        # what keeps "Golden Horde" from being a "horde"; this asks again only where that test failed on the
+        # capital alone, and leaves the ending and the last line exactly as they were.
+        #
+        # A NAME OF ONE WORD IS NOT COVERED, AND IS NOT TO BE. Memory holds 56,874 names of two words or more and
+        # none of one (`MemoryAgent._names_memory_holds` gathers only several), so "adams" alone is read off its
+        # writing and answers `count` though the word is held proper and used as a name. Opening this line to one
+        # word moves nothing while that floor stands -- 0 of 56,874 measured -- and lowering the floor would be
+        # wrong: 58,869 names of one word are held, "biologist", "chemist" and "abroad" among them, so for one
+        # word the test is met by any word a fact was taught about and is almost no evidence, while the capital it
+        # would overrule is real evidence there ("march", "china", "polish"). A run of four words matching a held
+        # name is evidence; one word is not. What a stored name needs instead is a CALLER that says the name came
+        # from the store and carries no capital by construction, which the sayer does not say yet.
+        if held is not None and not proper and self.is_proper(last) \
+                and self.holds_this_name(_loose(tuple(name.split()))):
             return held
         for size in range(min(4, len(last) - 1), 0, -1):
             decided = self._end_decided.get((proper, last[len(last) - size:]))
@@ -4106,10 +4196,19 @@ def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int,
 
     `given`: the run is a name its teacher gave whole ("body of water", "change of location"). Then a structure
     word inside it is the name's own. Only the teacher knows that; taken as structure, "of" went into frames
-    ("Every ?slot0 is a body of ?slot1.")."""
+    ("Every ?slot0 is a body of ?slot1.").
+
+    A NAME MEMORY ALREADY HOLDS A CONCEPT UNDER IS NOT A NAME BEING COINED (`holds_this_name`): neither of those
+    two tests holds against it, because both ask whether a run of words nothing holds may be TAKEN as a name, and
+    this one is held. It is the `given` a teacher states, found instead in what the substrate was taught -- and it
+    is what the sayer needs, which asks this of a concept's own name off its own memory and was refused it.
+
+    MEMORY IS ASKED ONLY WHERE THIS SAYS NO, because this is the hottest question the reader asks: one paragraph
+    of prose looked a run of words up 1,969,634 times (`_Chart.span`). A run the reader's own tests allow is
+    allowed without asking, so the cost falls only on the runs that were being refused."""
     from core.semantics.cognitive_ingress import MAX_TERM_WORDS
     words = _written_words(pieces)
-    if not pieces or len(words) > min(MAX_TERM_WORDS, max(longest, 1)) or _parted(pieces):
+    if not pieces or _parted(pieces):
         return False
     if len(pieces) == 1:
         # One word is a name unless it is a word that names nothing ("a"); a word held so far only inside forms
@@ -4117,8 +4216,12 @@ def _may_be_new(pieces: Tuple[Piece, ...], view: PatternInventory, longest: int,
         return not view.names_nothing(pieces[0].text)
     # The words a hyphen joins are one word, whatever they are: "give-and-take" is a name. A word frames are built
     # with more than it names things with is structure here too ("a", which WordNet gave the ampere).
-    return given or not any(len(word) == 1 and (view.is_structure(word[0].text)
-                                                or view.builds_more_than_it_names(word[0].text)) for word in words)
+    if len(words) <= min(MAX_TERM_WORDS, max(longest, 1)) \
+            and (given or not any(len(word) == 1 and (view.is_structure(word[0].text)
+                                                      or view.builds_more_than_it_names(word[0].text))
+                                  for word in words)):
+        return True
+    return view.holds_this_name(_loose(tuple(p.text for p in pieces)))
 
 
 def _not_offered(pattern: Union[Pattern, "Phrase"], slot: str, pieces: Tuple[Piece, ...],
@@ -4247,7 +4350,7 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
             role = _role_of_slot(pattern, slot)
             if view.takes_names(pattern.key, slot):
                 role = "name"
-            if not _may_stand_new(role, pieces, named, first):
+            if not _may_stand_new(role, pieces, named, first, view):
                 return out
             # A KIND TOO, AND NOT WHERE A FRAME SAYS WHAT IS A KIND OF WHAT. Asked of `thing` alone, the reading
             # stood the adverb one slot over as a kind instead: "Tom walked annoyingly." came back
@@ -4327,7 +4430,8 @@ def _fillers(view: PatternInventory, pattern: Pattern, slot: str, pieces: Tuple[
                     logger.debug("fillers: %r OFFERED as %r in %s of %s -- held, and its class stands here",
                                  " ".join(p.text for p in pieces), lexical.value, slot, str(pattern.key)[:12])
             if _may_be_new(pieces, view, view.longest_filler(pattern.key, slot)) \
-                    and view.admits_there(pattern.key, slot, named) and _may_stand_new(role, pieces, named, first):
+                    and view.admits_there(pattern.key, slot, named) \
+                    and _may_stand_new(role, pieces, named, first, view):
                 new = Lexical(pieces, named)
                 if not view.written_against(pattern.key, slot, new):
                     out.append((new, link(pattern, slot, new), "new"))
@@ -4467,14 +4571,15 @@ def _taken_as(construction: Any, slot: str) -> Tuple[str, ...]:
     return ("thing",) if role in ("kind", "name", "thing") else (role,)
 
 
-def _new_stands(meaning: "Meaning", new: Iterable["Lexical"], first_word: str) -> bool:
+def _new_stands(meaning: "Meaning", new: Iterable["Lexical"], first_word: str,
+                view: Optional[PatternInventory] = None) -> bool:
     """Whether every word never met stands, in the meaning a reading composed, in a role its writing allows
     (`_may_stand_new`). Checked in each slot too (`_fillers`); a phrase can carry what stands in its slot into another
     role: "the word reversed", a kind in "the ?slot0", was made the kind of a happening."""
     for lexical in new:
         first = len(lexical.words) == 1 and _fold(lexical.words[0]) == _fold(first_word)
         role = _role_of_term(meaning.facts, lexical.value)
-        if not _may_stand_new(role, lexical.form, lexical.value, first):
+        if not _may_stand_new(role, lexical.form, lexical.value, first, view):
             return False
         # A HAPPENING SAID AS "THE X" IS ONE THE LISTENER ALREADY KNOWS OF; a word never met names nothing known:
         # "the dust" stood as what another one did.
@@ -4505,7 +4610,8 @@ def _never_a_thing(view: PatternInventory, word: str) -> bool:
     return any(classes.get(c, 0) > 0 for c in ("ADJECTIVE", "ADVERB"))
 
 
-def _may_stand_new(role: str, pieces: Tuple[Piece, ...], named: str, first: bool) -> bool:
+def _may_stand_new(role: str, pieces: Tuple[Piece, ...], named: str, first: bool,
+                   view: Optional[PatternInventory] = None) -> bool:
     """Whether words never met may stand, as themselves, in a place of this role (`_role_of_term`). A word never met
     stands as itself: "ready" in "Are you ready?" is the quality called ready. What is guessed is its role, and its
     writing must allow that role. How many words a run may have is the slot's kind's (`_may_be_new`).
@@ -4520,19 +4626,31 @@ def _may_stand_new(role: str, pieces: Tuple[Piece, ...], named: str, first: bool
 
     Written as a name is a capital on the run's last word, unless the run is one word that begins the sentence,
     whose capital is the writing's and says nothing. How a quality or a doing must be written besides is the
-    slot's (`_fillers`)."""
+    slot's (`_fillers`).
+
+    NOTHING IS GUESSED OF A NAME MEMORY HOLDS A CONCEPT UNDER (`holds_this_name`), so the tests that read the
+    WRITING do not hold against it: each of them reads a guess off the writing, and the writing of a held name
+    says nothing about it -- "president of the united states" has no capital anywhere and is one name for all
+    that, and "break down" is a doing of two words. Which role it may take where it stands is the slot's
+    (`_fillers`, `admits_there`) and not its writing's.
+
+    THE CLOSED ROLE STILL REFUSES IT. English does not gain counts or degree words, and nothing memory holds a
+    concept under is one; a held name admitted there would stand as a word frames are built with, which is the
+    one thing none of this allows."""
     if _quantity(named) or _temporal(named) or _mathematical(named):
         return True
     if role == "closed":
         return False
     capital = pieces[-1].text[:1].isupper() and not (first and len(pieces) == 1)
     if role == "doing":
-        return len(pieces) == 1 and not capital
-    if role in ("quality", "kind"):
-        return not capital
-    if role == "name":
-        return all(piece.text[:1].isupper() for piece in pieces if not _is_mark(piece.text))
-    return True
+        written = len(pieces) == 1 and not capital
+    elif role in ("quality", "kind"):
+        written = not capital
+    elif role == "name":
+        written = all(piece.text[:1].isupper() for piece in pieces if not _is_mark(piece.text))
+    else:
+        return True
+    return written or (view is not None and view.holds_this_name(_loose(tuple(p.text for p in pieces))))
 
 
 def _names_a_doing(construction: Any, slot: str) -> bool:
@@ -5240,7 +5358,7 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
                     continue
                 new = tuple(x for c in combo for x in c.new)
                 meaning = _composed_meaning(pattern.meaning, dict(zip(slots, combo)))
-                if meaning is None or not _new_stands(meaning, new, words[0] if words else ""):
+                if meaning is None or not _new_stands(meaning, new, words[0] if words else "", view):
                     continue
                 for tail in tails:
                     whole = _with_tail(pattern, meaning, tail) if tail else meaning
@@ -7667,8 +7785,9 @@ def _said_fillers(view: PatternInventory, pattern: Union[Pattern, Phrase], slot:
         words = str(name).split()
         if not words or not uses:
             return None
-        # The word a name ends in, or the one before a word that builds frames inside it ("roll of tobacco", a roll).
-        last = next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])), words[-1])
+        # The word the name is used as (`head_of`): the one before a word that builds frames inside it
+        # ("roll of tobacco", a roll), else its last.
+        last = view.head_of(words)
         return uses.get(_fold(" ".join(words))) or uses.get(_fold(last))
 
     def fits(lexical: Lexical) -> bool:
@@ -7694,10 +7813,8 @@ def _said_fillers(view: PatternInventory, pattern: Union[Pattern, Phrase], slot:
         return [lx for lx in candidates if used_as[_loose(lx.words)] == most]
 
     def head(lexical: Lexical) -> str:
-        # The word a name of several words is used as: its last, the one the rest describe ("domestic dog", a dog),
-        # or the one before a word that builds frames inside it ("body of water", a body, not water).
-        words = _loose(lexical.words)
-        return next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])), words[-1])
+        # The word a name of several words is used as (`head_of`).
+        return view.head_of(_loose(lexical.words))
 
     # THE SHAPE THE SLOT TAKES ("?slot0 are ?slot1." takes plurals): a concept goes there written in it -- a form
     # held for it ("Geese"), or its name changed as the learned shape changes names -- and a concept's own name

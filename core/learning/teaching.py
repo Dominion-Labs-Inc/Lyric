@@ -932,8 +932,7 @@ class TeachingPass:
         def use_stated(term: str) -> Optional[str]:
             name = str(term).replace("_", " ").lower()
             words = name.split()
-            last = next((words[at - 1] for at in range(1, len(words)) if view.is_structure(words[at])),
-                        words[-1] if words else "")
+            last = view.head_of(words)
             return stated.get(name) or (stated.get(last) if last else None)
 
         counted = [tuple(p.text.lower() for p in form_of(str(term).replace("_", " ")))
@@ -952,6 +951,39 @@ class TeachingPass:
         # condition", held for it too): `say`, `named`.
         called = {term: str(term).replace("_", " ") for fact in facts for term in (fact.subject, fact.obj)
                   if not is_variable(term)}
+        # NO ENGLISH PUTS TWO DETERMINERS SIDE BY SIDE, and what is said here is learned as English: a sentence
+        # taught becomes a construction, and from then on everything of that kind is said by it. Nothing here
+        # looked at the sentence's own form; one hand-written guard stood for the question (a counted thing
+        # standing bare, above), and anything else the sayer got wrong was taught and then said forever.
+        #
+        # It cost the kings. Saying `instance_of(king_of_great_britain_charles, king_of_england)` -- WordNet's
+        # lemma is `King_of_England`, with no "The" in it -- came out "Charles is a The King of England.", the
+        # frame's own article against the filler's. Taught, it was learned as the frame
+        # `?slot0 is a The King of England.` and said Henry II, Henry III, Henry VII, Henry IV, James, Edward and
+        # George after it, with `Frederick ?slot0 is a The Holy Roman Emperor.` and `Gregory is a The ?slot0.`
+        # beside it: 17 learned constructions hold an "a the", and every one is of this family. Of the 95
+        # questions those senses could be asked at all, 93 were unreadable (2026-11-16).
+        #
+        # ASKED OF THE FORM AND NOT OF THE READING. Reading the sentence back and refusing what does not return
+        # the meaning was measured first and is not this test: it refused 61 of 188 of the source's own sentences,
+        # and refused hardest exactly where teaching is most needed -- "Charles is a physicist." (heard as the
+        # river Charles) and "Lake Edward is a lake." (heard as `isa`) are the sentences that would give a new
+        # sense its word, and a sense whose word is never taught is never read. It also could not catch the
+        # sentence that made the frame, which by then read back to its own fact. Two determiners side by side need
+        # no reading to be wrong.
+        #
+        # WHICH WORDS THOSE ARE IS HELD, NOT LISTED (`word_classes`, as `holds_a_naming_class` asks it): "a" and
+        # "the" are each held most as a DETERMINER, "of" as a PREPOSITION, so "of the" is English here and "a The"
+        # is not. A word memory holds no class for is no determiner, which is the honest answer for a word nothing
+        # was ever taught about.
+        def most_held(word: str) -> str:
+            classes = {c: n for c, n in (view.word_classes.get(word.lower()) or {}).items() if n > 0}
+            return max(classes, key=lambda c: (classes[c], c)) if classes else ""
+
+        def twice_determined(pieces: Tuple[str, ...]) -> bool:
+            """Whether two words side by side are each held most as a determiner ("a The")."""
+            return any(most_held(one) == "DETERMINER" and most_held(two) == "DETERMINER"
+                       for one, two in zip(pieces, pieces[1:]))
         for sentence in say(written, view, uses=stated, named=called, apart=apart):
             pieces = tuple(p.text.lower() for p in form_of(sentence))
             if any(
@@ -959,7 +991,7 @@ class TeachingPass:
                     and pieces[at + len(name):at + len(name) + 1] in ((), (".",), ("is",))
                     for name in counted for at in range(len(pieces) - len(name) + 1)):
                 continue
-            if all(stands(name, pieces) for name in wanted):
+            if all(stands(name, pieces) for name in wanted) and not twice_determined(pieces):
                 return sentence
         return ""
 
