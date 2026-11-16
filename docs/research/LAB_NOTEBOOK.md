@@ -226,9 +226,83 @@ has to belong to the **frame**; where it was learned inside the filler, nothing 
 (`de`, `iac`) with the plural fix in — the plurals mute the endings they dominate, but nothing raises a threshold
 that eight words hold up.
 
-A hypothesis worth one cheap check: if `variants_of("a")` is empty — the alternation never learned — that single
-gap explains the 8, the collapsed threshold, and the sayer writing "a association" and "an body" (43 of 205 review
-questions, entry 113). Not yet asked.
+### 6b. Asked, and answered: one test decides "two shapes" against "two words", and the losing branch eats its own evidence
+
+`variants_of("a")` **is** empty, and that one gap does explain the 8, the collapsed threshold and the articles. But
+the link that fails is not the one I expected, and the account is a closed loop. Four runs, each on lyric_db:
+
+**The alternation was seen, and rejected.** `_alternates["a"]["an"] = 21`, far over the floor of 2. What fails is
+`_told_apart("a","an")`, the letter test:
+
+```
+after 'a' : c 1393, s 1378, p 985, a 888, b 816, m 729, d 707 ...   (26 kinds, 12,905 in all)
+after 'an': a 63, e 51, o 38, s 27, c 27, p 20, f 18 ...            (21 kinds, 377 in all)
+```
+
+**Those letters are not read off any text.** `_letter_after` counts, for every word held right before a slot, the
+first letter of **every filler linked to that slot**. So "a" is recorded before the letter *a* 888 times because 888
+fillers beginning with a vowel are linked to a slot whose frame writes "a". Both makers of teaching sentences write
+the article correctly by the vowel (`teaching_sources._article`), so this is not the teacher's wording.
+
+**The fillers contradict the article, heavily and in both directions.** Of 344 slots with "a" before them, 2,196
+fillers begin with a letter the article contradicts; of 29 slots with "an", 192 do:
+
+| frame | slot | contradicting | of | e.g. |
+|---|---|---|---|---|
+| `?slot0 is a ?slot1 .` | slot1 | 1,317 | 5,851 | attribute, action, act, entrance |
+| `A ?slot0 is a ?slot1 .` | slot0 | 515 | 3,452 | university, ace of spades, individual |
+| `An ?slot0 is part of a ?slot1 .` | slot0 | **122** | **143** | mons, kurus, Middle Ages, personality |
+| `An ?slot0 is a kind of ?slot1 .` | slot0 | 42 | 50 | fast track, tool, road, tooth |
+
+85% of the "An" frame's fillers begin with a consonant. Separate them correctly and the two words share **no letter
+at all** — "a" before consonants, "an" before vowels, perfectly complementary — and `_told_apart` passes trivially.
+The evidence for the alternation is not missing; it is buried under fillers that do not belong to it.
+
+**Why the fillers are there: the rejected pair falls into synonymy.** `synonyms_of` is the exact complement of
+`variants_of` — alternating in two frame pairs or more, no shape, and **not told apart by the following letter**.
+Observed:
+
+```
+'a'      variants_of=[]          synonyms_of=['an', 'each', 'every']
+'an'     variants_of=[]          synonyms_of=['a']
+'the'    variants_of=[]          synonyms_of=["'m", 'do', 'that', 'this']
+'every'  variants_of=['each']    synonyms_of=['a']
+```
+
+And `written_for`, which is what the reader is offered where a word is written, returns those synonyms **with no
+regard to the letter that follows** — measured identical before mons, dog, attribute, eye, university and hour, for
+"a", "an" and "every" alike. Asked of the real sentences, `_written_shapes` says outright: in
+`A mons is part of a vulva.` **a frame writing "An" would be matched at position 0**, and in
+`An eye is part of a face.` a frame writing "A" would be.
+
+**So the loop:** the letters overlap → not told apart → held as *synonyms* rather than shapes → the reader reads
+either article's frame for either article, with the following letter never consulted → each read writes a `Link`
+putting a contradicting filler in the slot → `_letter_after` counts that filler's letter → the letters overlap.
+Self-sustaining, and the store already holds the pollution that keeps it true.
+
+**Two further findings from the same test.**
+
+- **The sayer cannot write "an" at all.** `shape_before("a", letter)` returns `'a'` for every letter, vowels
+  included, because it chooses among `{word} | variants_of(word)` and that set is just `{"a"}`. Entry 113's "a
+  association" and "an body" (43 of 205 review questions) are not bad guesses; there is nothing to guess with.
+- **The same test produces a false SHAPE as readily as a false synonym.** `variants_of("every") = ["each"]`, and
+  `shape_before("every", ...)` writes "each" before c, i and o and "every" elsewhere. English does not choose
+  each/every by the following sound at all — it is the only alternation held as shapes, and it is spurious. The
+  counted population rests entirely on it: `counted_slot` is true for 5 of 6,294 slots, all of them taught with
+  "every", which is why the 11 counted fillers are dog, cat, bird, fish, abrasive, abseiler, accession,
+  carborundum and 401-k.
+
+**What this is, stated plainly.** One letter test is the only gate between "two shapes of one word" and "two words
+that mean the same thing", and the pair that fails it becomes *freely interchangeable in reading*, where the letter
+is never consulted again. "the" is held as a way of saying "do" and "'m" by the same route. A risk I have **not**
+measured: "a" is held as a way of saying "every", so a universal frame can read an indefinite sentence, which
+changes the meaning and not just the article. There is a cost per substituted word in the scoring, so an exact
+frame should win where one exists; whether a substituted reading ever wins is unasked.
+
+**Not fixed, and not to be fixed quietly.** The repair is not in the ending table or the sayer, and fixing the
+letter test alone will not break the loop, because the cross-linked fillers already in the store are what that test
+reads. It needs his word: it changes how every pair of alternating words is classed, and therefore how everything
+is read.
 
 **Next.** UNDERSTANDS-PROSE-02 `--half held` was stopped at text 1 on his instruction, to fix in the language the
 error it had already shown: told the Beatles sentence, Lyric read it rightly — a forming, done to a rock group, in
