@@ -414,6 +414,56 @@ a protected module. Two ways to fix it, for his decision:
   with nothing, and `dr.say` of its meaning is also empty, so that one is not fixed by either and wants its own
   look.
 
+### 6e. The second knock-on, fixed: what the reading knew, lost on the way to saying
+
+**The reply.** `The rock was heavy.` -> **"Noted - The rock was heavy."**, in the tense the sentence was said in.
+Before today it was "Noted - The rock is heavy." to a sentence that said "was"; after the article repair it was
+nothing at all.
+
+**What was wrong.** `Meaning.bound` clears `given` the moment it names a thing -- *"a known thing named is no
+longer one to find"* (`MeaningFact.renamed`), which is right for the store and fatal for saying. By the time a
+fact reached the acknowledgement nothing could tell a thing the sentence PICKED OUT ("The rock") from one it
+ASSERTED ("a rock"), and `_said_together` rebuilt the rock as asserted. Measured, the meaning it handed over was
+identical to one that says the sentence except for that one mark:
+
+```
+instance_of(?g0, heavy); precedes(?g0, ?now); state_of(?g0, ?g1); instance_of(?g1, material rock)        -> []
+instance_of(?g0, heavy); precedes(?g0, ?now); state_of(?g0, ?g1); GIVEN instance_of(?g1, material rock)  -> ['The material rock was heavy.']
+```
+
+and the four-way test says both marks are needed, neither alone:
+
+| | `?now` | the instant the store wrote |
+|---|---|---|
+| **given** | **"The material rock was heavy."** | nothing |
+| **not given** | nothing | nothing |
+
+**The fix.** Givenness is carried from the one place it still exists -- `_told_of`, which holds the read fact and
+the bound one side by side -- through `Telling.given` to `Acquired.given`, and `_said_together` asks the reading
+instead of the edges. Four small sites. It keeps the 2026-11-13 whale fix by construction: `instance_of(?v1, air)`
+was read NOT given, so air is still rebuilt as asserted.
+
+**Verified.** The door: the rock in the past tense, "The rock is heavy." unchanged, both note sentences still
+refused at the gate on quality (0.461, 0.493) -- that refusal has nothing to do with this and did not move.
+`check_reading`: **23 as recorded, 0 better, 0 worse, 2 changed**, the rock row now reading with its tense and
+replying in it. NOT re-recorded with `--record`: the baseline is a measurement, and re-recording today would bake
+in the "Lists are lists." blemish on the sorted question beside the genuine improvement.
+
+**Two of my own attempts at this were inert, and both were argued rather than measured.** Restoring `?now` in
+`_acquired_from` duplicated a conversion `_said_together` has done since 2026-11-04, recorded in its own comment.
+Reading `it.given` read a flag `bound` guarantees is False. What found it was wrapping `derived_reader.say` and
+printing the meaning `_said_together` actually hands over, instead of reconstructing it a third time -- and
+`Understanding.why_not`, the field that exists precisely so nobody has to guess why a reply was empty, which I
+had not printed.
+
+**Owed: one duplicate authority.** `_acquired_from` now turns the situation's bindings back at the source and
+`_said_together` still turns an instant into `?now` downstream. Mine is the broader of the two (`?here`, `?there`,
+`?shown`, `?previous` as well), and the older line should be unreachable for any note `_acquired_from` makes --
+but that is not measured, so it stays until it is.
+
+**Still empty, and untouched by any of this:** "A whale breathes air through a blowhole." `dr.say` of its meaning
+is empty too, so it is a hole in saying of its own.
+
 **A pre-existing misclassification, recorded.** "could"/"would" are held as two SHAPES of one word
 (`variants_of("could") == ["would"]`), though they are the very pair `synonyms_of` cites as two ways of saying one
 thing. Not caused by this change: before it, `written_for("could", "you")` was already `[]`, which is only possible

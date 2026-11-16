@@ -154,6 +154,11 @@ class Telling:
     rules: Tuple[Tuple[Dict[str, Any], Dict[str, Any]], ...] = ()
     speaker: str = ""
     theirs: FrozenSet[str] = frozenset()
+    #: The things this sentence PICKED OUT rather than asserted ("The rock", not "a rock"), by the names they were
+    #: found to be. Reading says which those are (`MeaningFact.given`) and binding then clears the mark, rightly --
+    #: a known thing named is no longer one to find (`MeaningFact.renamed`) -- so the facts alone cannot say it
+    #: afterwards, and what says a telling back had to guess. Carried so it does not have to.
+    given: FrozenSet[str] = frozenset()
     names: FrozenSet[str] = frozenset()
     quality: float = 0.9
 

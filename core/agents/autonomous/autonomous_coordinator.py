@@ -20643,6 +20643,11 @@ class Acquired:
     #: object, positive)`, said back with what the substrate was taught to say
     #: a rule with (`_said_rule`).
     rule: Tuple[Tuple[Any, ...], ...] = ()
+    #: WHETHER THE TELLING PICKED THIS THING OUT RATHER THAN ASSERTING IT ("The rock", not "a rock"), as reading
+    #: wrote it (`MeaningFact.given`). The store records a thing's kind either way, so the edges alone cannot tell
+    #: the two apart, and `_said_together` rebuilt a thing the sentence had merely picked out as one it asserted --
+    #: a meaning no construction says, so the whole clause said nothing.
+    given: bool = False
 
 
 @dataclass
@@ -21520,7 +21525,16 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
     # is what that is for. A thing the telling itself told of arrives with its own `instance_of`, because the
     # telling asserted it, and reading wrote it NOT given: "A whale breathes air through a blowhole." reads
     # `instance_of(?v1, air)`, an air, not the air. Said back as given, the meaning was one no construction says.
-    said_its_kind = {label for label, rels in edges.items() if any(r == "instance_of" for r, _ in rels)}
+    # AS THE READING SAYS, NOT AS THE EDGES DO. Asked of the edges -- whether a label carries an `instance_of` at
+    # all -- every thing was "told of", because the store records a thing's kind whether the sentence asserted it
+    # or merely picked it out. Told "The rock was heavy.", the rock arrives with `instance_of(material_rock_1,
+    # material rock)` because the store wrote it, and the rock was rebuilt NOT given; the same facts with the rock
+    # GIVEN are "The material rock was heavy." and without it nothing at all, which is why the whole state said
+    # nothing however well it had been read (lyric_db, 2026-11-16). Reading knows which it was and says so
+    # (`MeaningFact.given`, carried on `Acquired.given`).
+    said_its_kind = {str(item.label) for item in items
+                     if not getattr(item, "given", False)
+                     and any(str(relation).strip() == "instance_of" for relation, _ in item.relations)}
 
     def the_stores_own(name: str) -> bool:
         """WHETHER THIS NAME IS THE STORE'S AND NOT A WORD SOMEBODY SAID, by what the thing is held to be
@@ -21837,7 +21851,9 @@ def _observed(provenance: Any, quality: float) -> Any:
     return Evidence.from_provenance(provenance, quality)
 
 
-def _acquired_from(said: str, kind: str, it: Any, decision: Any, *, speaker: str) -> "Acquired":
+def _acquired_from(said: str, kind: str, it: Any, decision: Any, *, speaker: str,
+                   situation: Optional[Mapping[str, str]] = None,
+                   given: FrozenSet[str] = frozenset()) -> "Acquired":
     """What one taken-in fact or rule (`MemoryAgent.take_in_telling`) is, said back: held, or not held and why.
 
     HELD IS SAID AS HELD, WHEREVER IT IS KEPT. A fact the world now holds and one
@@ -21845,8 +21861,30 @@ def _acquired_from(said: str, kind: str, it: Any, decision: Any, *, speaker: str
     (docs/research/SEPARATION_MAP.md §11.9, 2). The one who told it is now the
     one spoken to, so what they said of themselves is said of the listener ("I
     am a teacher." is "You are a teacher."), and what they said of Lyric, of
-    the speaker."""
+    the speaker.
+
+    EVERY SITUATION VARIABLE SAID BACK AS THE SENTENCE READ IT, and not only the two people. A situation variable
+    is bound by the situation a sentence is said in and never by the sentence (`SITUATION_VARIABLES`), so the
+    reader writes `?now` and admission rightly stores the moment itself -- and saying matches a construction by
+    the MEANING, exactly, so a fact offered back with the moment in it is a fact no construction was ever taught
+    with. Told "The rock was heavy.", the rock's state was read
+    `instance_of(?s2, heavy) & precedes(?s2, ?now) & state_of(?s2, ?v0)`, held as
+    `precedes(heavy_d3f95fbe, 2026-11-16T21:28:15Z)`, and the whole state said NOTHING: the reply was empty, which
+    is what an empty reply is for -- a hole in saying, shown rather than papered over. The sayer, handed the
+    meaning as it was READ, says "The material rock was heavy." (lyric_db, 2026-11-16).
+
+    THE SITUATION'S OWN BINDINGS, NEVER THE SHAPE OF THE VALUE. `situation` is the map this turn bound them by, so
+    the moment is known to be the moment rather than guessed at from how it is written -- and this file has
+    already recorded, of `equator_1`, what judging such a name by its shape costs.
+
+    WHAT WAS BOUND TO A PARTICULAR STAYS BOUND. Only the situation's variables are turned back. A `given` thing
+    was bound to the particular it was found to be (`Meaning.bound`'s `known`), and saying needs that name to say
+    "the rock" at all, so restoring `?v0` there would take away what the reply is made of."""
     turned = {str(speaker): "?listener", SUBSTRATE_ACTOR: "?speaker"}
+    # The two people above are turned about -- the one who told it is the one spoken to -- so they are not taken
+    # from the situation, which binds them the other way round.
+    turned.update({str(value): variable for variable, value in dict(situation or {}).items()
+                   if str(value).strip() and variable not in ("?speaker", "?listener")})
 
     def turn(term: Any) -> Any:
         return turned.get(str(term), term) if term is not None else term
@@ -21861,7 +21899,11 @@ def _acquired_from(said: str, kind: str, it: Any, decision: Any, *, speaker: str
     if decision.admitted:
         return Acquired(turn(it.subject), "", _as_pairs(((it.relation, turn(it.obj),
                                                           "positive" if it.positive else "negative"),)),
-                        "you", True, "", memory_id=getattr(decision.admission, "memory_id", None))
+                        "you", True, "", memory_id=getattr(decision.admission, "memory_id", None),
+                        # FROM THE TELLING, because the fact cannot carry it: binding clears the mark as soon as
+                        # the thing is named (`MeaningFact.renamed`), so `it.given` is False for every fact that
+                        # reaches here, picked out or asserted alike.
+                        given=str(it.subject) in given)
     return Acquired(said, detail=(f"I did not take that as a fact — {'; '.join(decision.reasons)}. "
                                   "If I am wrong, correct me and I will weigh it."))
 
@@ -24031,13 +24073,17 @@ class Conversation:
 
         agent = await get_memory_agent()
         acquired: List[Acquired] = []
-        async for utterance, told, notes, margin in self._told_each(sentence, dict(self._situation(sentence))):
+        # HELD ONTO, because what bound a sentence's situation variables is what says them back
+        # (`_acquired_from`): `_told_each` keeps this up to date as it reads each utterance in turn.
+        situation = dict(self._situation(sentence))
+        async for utterance, told, notes, margin in self._told_each(sentence, situation):
             acquired.extend(notes)
             if told is None:
                 continue
             telling = self._telling_of(utterance.text, told, margin=margin)
             taken = await agent.take_in_telling(telling)
-            acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person)
+            acquired.extend(_acquired_from(utterance.text, kind, it, decision, speaker=telling.origin.person,
+                                           situation=situation, given=telling.given)
                             for kind, it, decision in taken)
         return acquired
 
@@ -24158,14 +24204,14 @@ class Conversation:
         the same to the one floor that refuses a claim
         (`cognitive_ingress.MIN_ADMIT_QUALITY`)."""
         from core.memory.utils.interfaces import Telling
-        facts, rules, theirs, names = told
+        facts, rules, theirs, names, given = told
         unweighed = Telling.__dataclass_fields__["quality"].default
         return Telling(sentence=said, origin=self._origin("conversation"), facts=facts, rules=rules,
-                       speaker=self._session, theirs=theirs, names=names,
+                       speaker=self._session, theirs=theirs, names=names, given=given,
                        quality=_worth_told(margin, unweighed))
 
     async def _told(self, said: str, chosen, situation: Dict[str, str], *, confirmed: bool = True):
-        """What one utterance tells as so, `(facts, rules, theirs, names)` as a
+        """What one utterance tells as so, `(facts, rules, theirs, names, given)` as a
         `Telling` holds them, with the situation and its known things bound and
         each happening and thing told of named; and what of it cannot be held,
         said (`Acquired` notes). None where nothing in it can be held. Whose it
@@ -24276,7 +24322,11 @@ class Conversation:
         # A FACT BOUND TWICE IS HELD ONCE, as `told_of` holds it: two things told of that are one once bound ("it" and
         # the thing it stands for) say the same fact twice, and a meaning made of them refused it ("Topographically,
         # it is dominated by the Indian subcontinent and is bounded by ...", UNDERSTANDS-PROSE-02, 2026-10-26).
-        return (tuple(dict.fromkeys(facts)), tuple(rules), theirs, names), notes
+        # WHICH THINGS THIS SENTENCE PICKED OUT, by the names they were found to be. Taken before `bound` clears
+        # the mark (`MeaningFact.renamed`: a known thing named is no longer one to find), because afterwards
+        # nothing in the facts says it.
+        given = frozenset(str(bound[f].subject) for f in meaning.facts if f.given and f in bound)
+        return (tuple(dict.fromkeys(facts)), tuple(rules), theirs, names, given), notes
 
     def _origin(self, through: str) -> Origin:
         """Where what this person gives the conversation comes from: them, in the
