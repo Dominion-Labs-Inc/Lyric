@@ -4908,7 +4908,9 @@ def _least_claimed(alike: Sequence[Tuple[Adjunct, _Filling]],
         best = None
         for k, (_, filling) in enumerate(alike):
             narrowed = _narrowed(filling, {word: frozenset((groups[i][chosen[i]][0],)) for i, word in enumerate(words)})
-            if any(not options for _, options, _, _ in narrowed.senses):
+            # None where a place is left no sense, which `_narrowed` now answers rather than handing back a
+            # filling with an empty place for its caller to notice. This test read `narrowed.senses` for itself.
+            if narrowed is None:
                 continue
             rank = (_supposes(narrowed, view), k)
             if best is None or rank < best:
@@ -4918,9 +4920,11 @@ def _least_claimed(alike: Sequence[Tuple[Adjunct, _Filling]],
     out = []
     for k in sorted(won):
         adjunct, filling = alike[k]
-        out.extend((adjunct, _narrowed(filling, {word: frozenset(v for g in region[word] for v in groups[i][int(g)])
-                                                 for i, word in enumerate(words)}))
-                   for region in _regions(words, won[k]))
+        out.extend((adjunct, narrowed) for region in _regions(words, won[k])
+                   for narrowed in (_narrowed(filling, {word: frozenset(v for g in region[word]
+                                                                        for v in groups[i][int(g)])
+                                                        for i, word in enumerate(words)}),)
+                   if narrowed is not None)
     return out
 
 
@@ -5129,7 +5133,8 @@ def _claimed(fillings: Sequence[_Filling]) -> List[_Filling]:
         left = [mine]
         for box in taken:
             left = [part for region in left for part in _without(region, box)]
-        out.extend((k, _narrowed(filling, region)) for region in left)
+        out.extend((k, narrowed) for region in left
+                   for narrowed in (_narrowed(filling, region),) if narrowed is not None)
         taken.append(mine)
     return [filling for _, filling in sorted(out, key=lambda pair: pair[0])]
 
@@ -5147,10 +5152,24 @@ def _without(region: Mapping[str, FrozenSet[str]], box: Mapping[str, FrozenSet[s
     return out
 
 
-def _narrowed(filling: _Filling, region: Mapping[str, FrozenSet[str]]) -> _Filling:
-    """A packed filling with each packed word's senses narrowed to the things `region` leaves it."""
-    return replace(filling, senses=tuple((stand_in, tuple(s for s in options if s.lexical.value in region[stand_in]),
-                                          at, offered) for stand_in, options, at, offered in filling.senses))
+def _narrowed(filling: _Filling, region: Mapping[str, FrozenSet[str]]) -> Optional[_Filling]:
+    """A packed filling with each packed word's senses narrowed to the things `region` leaves it; None where one
+    place is left NONE, as `_reading_narrowed` answers None for a reading.
+
+    A REGION IS KEYED BY STAND-IN AND THE SENSES ARE OFFERED PER PLACE (`_sense_here`). One run of words is one
+    stand-in wherever it stands (`_Chart.span` tells runs apart by the words, not by where they fall), while each
+    place costs its own senses against the slot it stands in -- so `region[stand_in]`, gathered from the places as
+    a dict and therefore from the LAST of them, can name nothing this place offers. Narrowed to nothing and still
+    priced, `_supposes` then asked `min()` of an empty sequence and raised: the pass that taught WordNet's renamed
+    senses crashed in its own review on "Are a united states liquid unit fifth a united states liquid unit?", and
+    four packed words came through here with no sense left at all. A name that contains its own parent is what puts
+    one run of words in twice (lyric_db, 2026-11-15).
+
+    None, and not an empty filling: a place that admits no sense is not a reading of these words, and pricing one
+    is pricing something that cannot be read."""
+    senses = tuple((stand_in, tuple(s for s in options if s.lexical.value in region[stand_in]), at, offered)
+                   for stand_in, options, at, offered in filling.senses)
+    return replace(filling, senses=senses) if all(options for _, options, _, _ in senses) else None
 
 
 def _valued_name(value: str) -> bool:
@@ -5559,8 +5578,20 @@ def _one_thing_twice(reading: Reading, least: Tuple, worded: AbstractSet[str],
     regions: List[Dict[str, FrozenSet[str]]] = [dict(values)]
     for box in boxes:
         whole = {w: box.get(w, values[w]) for w in words}
-        some = with_senses(reading, {w: next(s for s, _ in options if s.lexical.value in whole[w])
-                                     for w, (_, options, _, _) in zip(words, reading.senses)}, view)
+        # A CHOICE IS MADE FOR THE WORD AND THE SENSES ARE OFFERED PER PLACE (`_sense_here`). `whole` is keyed by
+        # stand-in, and one run of words is one stand-in wherever it stands, so where a run is said twice a place
+        # may offer none of the values wanted -- `next` with no default then raised StopIteration and took the
+        # whole read with it: "Are an incense tree balm of gilead an incense tree?", eight such of the 93
+        # questions asked over WordNet's renamed senses, every one a name containing its own parent (lyric_db,
+        # 2026-11-15). The choice is taken from the places that DO offer it, as `_sense_here` says to -- "the
+        # chosen object belongs to ONE of the places, and every other place has to find" its own -- and where no
+        # place offers a word a sense there is no such wording to compare, so none is made.
+        picked: Dict[str, Sense] = {}
+        for w, (_, options, _, _) in zip(words, reading.senses):
+            here = next((s for s, _ in options if s.lexical.value in whole[w]), None)
+            if here is not None:
+                picked[w] = here
+        some = with_senses(reading, picked, view) if len(picked) == len(set(words)) else None
         if some is not None and some.supposed[:2] == least[:2] and _worded(some, view) in worded:
             continue
         regions = [part for region in regions for part in _without(region, whole)]

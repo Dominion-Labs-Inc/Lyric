@@ -31,7 +31,9 @@ def before(alike, view):
         best = None
         for k, (_, filling) in enumerate(alike):
             narrowed = dr._narrowed(filling, dict(zip(words, (frozenset((v,)) for v in chosen))))
-            if any(not options for _, options, _, _ in narrowed.senses):
+            # None where a place is left no sense: `_narrowed` answers that itself since 2026-11-15, rather than
+            # handing back a filling with an empty place for the caller to notice, as this test used to.
+            if narrowed is None:
                 continue
             rank = (dr._supposes(narrowed, view), k)
             if best is None or rank < best:
@@ -41,7 +43,8 @@ def before(alike, view):
     out = []
     for k in sorted(won):
         adjunct, filling = alike[k]
-        out.extend((adjunct, dr._narrowed(filling, region)) for region in dr._regions(words, won[k]))
+        out.extend((adjunct, narrowed) for region in dr._regions(words, won[k])
+                   for narrowed in (dr._narrowed(filling, region),) if narrowed is not None)
     return out
 
 

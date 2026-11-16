@@ -195,42 +195,70 @@ them -- 25 remain refused as structure words, and 2 run past `MAX_LABEL_LEN`:
 `american_federation_of_labor_and_congress_of_industrial_organization` at 68 characters and
 `blood_oxygenation_level_dependent_functional_magnetic_resonance_imaging` at 71.
 
-### AND A NEW DEFECT THE RENAMES MADE REACHABLE: the reader raises on a sentence built from the new names
+### AND A DEFECT THE RENAMES MADE REACHABLE, FOUND AND FIXED: one stand-in, two places, three dictionaries
 
 The teach that followed the renames **completed and committed its 2,119 facts, and then its review crashed**:
 
 ```
-ValueError: min() arg is an empty sequence
-  derived_reader.py:5094 in _supposes
-    least = min(cost[1:] for cost in word if unheld or not cost[0])
+ValueError: min() arg is an empty sequence     derived_reader.py:5094 in _supposes
+StopIteration                                  derived_reader.py:5562 in _one_thing_twice
 ```
 
-The last fact it logged saying was `isa(united states dry unit pint, united states dry unit)` -- a name made
-here, whose parent is its own four-word prefix. So there is no session record and no competence figure for that
-pass; the knowledge is unaffected and was checked by query.
+Swept over all 146 renamed senses through the review's own path -- `dr.say(Meaning("ask", ...))`, then
+`read_text(said[0])` -- 93 questions could be asked and **12 raised**: 8 StopIteration, 4 ValueError.
 
-**The first hypothesis is DEAD and is recorded as such.** `_supposes` looked unsafe for a packed word with no
-sense options, since `all()` of an empty list is True, which sets `unheld` above and passes the filter while
-`min()` still receives nothing. Watched over every reading of these facts, **no filling carried a packed word
-with no options**: 0 of them. That is not the cause.
+**ONE BUG, AND THE DESIGN HAD ALREADY WRITTEN DOWN THE RULE IT BROKE.** `_Chart.span` tells runs of words apart
+BY THE WORDS, not by where they fall, so one run is one stand-in wherever it stands -- deliberately, because the
+stand-in is the word's name inside the meaning's facts and in `reading.constructions`, so one stand-in must take
+one sense. `_sense_here`'s docstring says it outright, written for the earlier crash on "Are a be born fall a be
+born?": *"A CHOICE IS MADE FOR THE WORD AND THE SENSES OFFERED ARE MADE FOR THE PLACE ... the chosen object
+belongs to ONE of the places, and every other place has to find"* its own. Each place costs its own senses
+against the slot it stands in, so two places of one stand-in can offer DIFFERENT sets.
 
-What a corrected probe did find, reading each of `say`'s phrasings on its own rather than the tuple's repr:
+Three dictionaries keyed that per-place bookkeeping by stand-in, and so collapsed the places:
 
-| sentence | |
-|---|---|
-| all seven phrasings of `isa(united states dry unit pint, ...)` | read, 1-12 readings each, **no raise** |
-| `'United states liquid unit pint is a kind of United States liquid unit.'` | **StopIteration** |
-| `isa(sign of the zodiac virgo, sign of the zodiac)` | `say` returns **nothing**: no frame can say it |
+| | keyed by stand-in | what it cost |
+|---|---|---|
+| `_narrowed` | `region[stand_in]` | filtered one place's options to NOTHING, and priced it: `_supposes` asked `min()` of an empty sequence |
+| `_one_thing_twice` | `whole[w]`, with a bare `next()` | looked for the other place's values here and found none: StopIteration |
+| `_reading_narrowed`, `with_senses`/`_sense_here` | the same, and **already answered None** | nothing: these honoured the rule |
 
-So two distinct raises are reachable from these names and neither is root-caused yet, and the review's own
-question is a different sentence from the declarative probed here -- it says an `ask` meaning, not a `tell`. The
-third row is the same gap as the 17 misreads above, at its other end: the knowledge is held and there is no
-English to put it in.
+A name that contains its own parent is what puts one run of words in twice -- "Are an incense tree balm of gilead
+an incense tree?", "Are a united states liquid unit fifth a united states liquid unit?" -- which is why 146
+renames reached a defect that had been sitting there.
 
-**Next:** root-cause both raises, which means reading in `derived_reader` -- hashed into the rules key, so every
-edit costs ~940 s of relearning and 251 descriptions read again; a frame that says a multi-word name in a
-question and in a kind-of sentence, which is what the 17 misreads and the empty `say` are both asking for; and the
-article chosen by the sound that follows it.
+**Fixed by applying the rule the file already states**, not by a default or a fallback: `_narrowed` answers None
+where a place is left no sense, exactly as `_reading_narrowed` beside it does, and `_one_thing_twice` takes its
+choice from the places that DO offer it and makes no wording where no place offers one. A candidate that cannot
+be read is not produced, rather than produced and tolerated.
+
+| over the same 146 senses | StopIteration | ValueError | AttributeError | packed words with no options |
+|---|---:|---:|---:|---:|
+| before | 8 | 4 | 0 | 4 |
+| first attempt | 0 | 0 | **37** | - |
+| after | **0** | **0** | **0** | **0** |
+
+`check_reading.py`: **24 as recorded, 0 better, 0 worse, 1 changed** -- the known `Lists are lists.` blemish,
+the reading itself identical. Rules key `2a9085ea08c80043` -> `94ce4b43dd6ae53c`.
+
+### ERRORS FOUND AND THEIR CAUSES, IN THIS PART
+
+3. **The right hypothesis was killed by a bad probe.** `_supposes` admits exactly one path to an empty `min()`
+   -- a packed word with no options, since `all()` of nothing is True, which sets `unheld` on the line above and
+   passes the filter while `min()` still receives nothing. That was stated, then withdrawn as "not the cause"
+   because a probe watching every reading found 0 such fillings. The probe was wrong twice over: it said
+   `Meaning("tell", ...)` where the review says `"ask"`, and it read `str(tuple_of_sentences)` -- a Python repr --
+   instead of each sentence. Corrected, the very first thing it found was `offered=0` on four packed words. A
+   measurement that disagrees with a reading of the code is not thereby the better of the two.
+4. **A contract changed and one caller of three updated.** `_narrowed` was given an `Optional` return and only
+   `_claimed` was taught to expect it; `_least_claimed` calls it twice more, and its own empty test read
+   `narrowed.senses` for itself -- which is evidence the empty case was known THERE and missing in `_claimed`.
+   The two original raises became 37 AttributeErrors, caught by re-running the same sweep. Grep the callers
+   before running anything.
+
+**Next:** a frame that says a multi-word name in a question and in a kind-of sentence -- 46 of these 146 facts
+can be asked in NO sentence, every one an `instance_of` of a named thing, and that is the same gap as the 17
+misreads above; and the article chosen by the sound that follows it ("a association", "an body", 43 of 205).
 
 ---
 
