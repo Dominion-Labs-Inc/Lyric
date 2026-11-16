@@ -4679,9 +4679,19 @@ def _composed(facts: Iterable[MeaningFact], anchor: Optional[str],
         if described:
             thing, condition, unasserted = uses[0].subject, uses[0].condition, uses[0].unasserted
             out = [f for f in out if f not in uses]
-            added.extend(MeaningFact(f.relation, thing if f.subject == thing_of else f.subject,
-                                     thing if f.obj == thing_of else f.obj, f.positive, condition,
-                                     unasserted=unasserted or f.unasserted, given=f.given) for f in said)
+            # `given` SAYS WHAT A THING BOTH KNOW IS, AND ONLY OF A VARIABLE (`MeaningFact.__post_init__`).
+            # The thing standing for the filling is NAMED here, so once it is named what it is stays and is no
+            # longer one to find -- which is exactly what `renamed` does for this same substitution: "A known
+            # thing named (`given instance_of(?t0, kelt)` as `kelt_1`) is no longer one to find: what it is
+            # stays, unmarked." Carried through unchanged, `given instance_of(?t0, person)` became
+            # `given instance_of(tom, person)` and `MeaningFact` refused it, so saying ANY `instance_of` fact
+            # raised -- which only showed once WordNet's named things were taught with their English and
+            # anything asked to say one at all (2026-11-16).
+            for f in said:
+                subject = thing if f.subject == thing_of else f.subject
+                added.append(MeaningFact(f.relation, subject, thing if f.obj == thing_of else f.obj,
+                                         f.positive, condition, unasserted=unasserted or f.unasserted,
+                                         given=f.given and is_variable(subject)))
         else:
             names[slot] = thing_of
             condition = bool(uses) and all(f.condition for f in uses)

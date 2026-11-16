@@ -256,9 +256,61 @@ the reading itself identical. Rules key `2a9085ea08c80043` -> `94ce4b43dd6ae53c`
    The two original raises became 37 AttributeErrors, caught by re-running the same sweep. Grep the callers
    before running anything.
 
-**Next:** a frame that says a multi-word name in a question and in a kind-of sentence -- 46 of these 146 facts
-can be asked in NO sentence, every one an `instance_of` of a named thing, and that is the same gap as the 17
-misreads above; and the article chosen by the sound that follows it ("a association", "an body", 43 of 205).
+### THE 46 FACTS NOTHING COULD ASK: 2 FIXED, 44 NOT, AND A RAISE THAT HAD BEEN UNREACHABLE
+
+**What was actually wrong, and it was three things, not one.**
+
+1. **No lesson had ever said a named thing's kind.** `instance_of` could be put in NO sentence, down to
+   `instance_of(tom, person)` -- a one-word name and a one-word kind. The lessons use `instance_of` only with a
+   VARIABLE subject, as a condition ("The door is open." -- there is a thing that is a door, and it is open).
+   `english_42` says it: five tellings and five askings, with the lessons' own names and kinds, so what is new is
+   the English and not the words. Taught: 2 patterns learned, 0 refused.
+2. **The telling then generalised at once and the asking did not**, and the slots say why. `?slot0 is a ?slot1.`
+   is a construction with **39,788 fillers**, which WordNet itself taught through `isa`, so "Adams is a person."
+   is said for a name the lesson never used. `Is ?slot0 a ?slot1?` is held only from the lesson's five sentences:
+   its slot `admits=['name']` and has met five. So `instance_of` was taught WITH its English
+   (`record(..., said=True)`, which the source's own comment had been waiting on: "its English waits for a lesson
+   with names in it"), to widen that slot the one way the telling was widened. 32 more patterns learned, 157
+   facts said, 0 refused.
+3. **And that made `say` raise on every `instance_of` fact**, which nothing had ever asked it to say before:
+
+```
+ValueError: only a particular thing is known: `given` says what a thing both know is (instance_of, of a variable)
+  derived_reader.py:4682 in _composed
+```
+
+   `given` marks what speaker and listener both know, and only of a VARIABLE (`MeaningFact.__post_init__`).
+   `_composed` names the thing a filling stands for and builds the fact BY HAND, carrying `given` through, so
+   `given instance_of(?t0, person)` became `given instance_of(tom, person)` and was refused. `renamed` does the
+   same substitution and clears it, saying so outright: "A known thing named ... is no longer one to find: what
+   it is stays, unmarked." **The third place today where a helper held a rule and a caller did the substitution
+   itself** (`_narrowed`, `_one_thing_twice`, now `_composed`). Fixed the same way. `check_reading`: 24 as
+   recorded, **0 worse**; rules key `94ce4b43dd6ae53c` -> `f411f3cdf634c1b8`.
+
+**AND THE REQUEST IS 2 OF 46, NOT 46.** Of the 146 renamed senses, the facts nothing can ask went 46 -> **44**.
+Every one of the 44 has a MULTI-WORD subject -- `instance_of(president of the united states adams, president of
+the united states)` -- and is blocked by names not fitting the frames, which is the gap behind the 17 misreads
+above, not the missing `instance_of` frame that was supplied. The list of 46 said so on its face and was not
+read before the source was changed.
+
+| | asked | nothing can ask | raises |
+|---|---:|---:|---:|
+| before | 93 | 46 | 0 |
+| after english_42 and the English | **95** | **44** | 0 |
+
+**ERRORS FOUND AND THEIR CAUSES, IN THIS PART.** Five hypotheses, each costing a run, every one killed by
+measurement: the name's LENGTH (`instance_of(tom, person)` failed too); the word's CLASS (`rex` is held NOUN:7
+with no NAME at all and can be asked about, because the lesson said it); its PROPERNESS (`adams` is
+`is_proper=True`); that teaching the frame would carry the 44 (it carried 2); and a site for the `given` raise
+picked by reading rather than by the traceback (`with_senses`, which uses `replace`, not the `_composed` that
+actually raised). What settled each one was reading what the code says about itself -- `_sense_here`'s docstring,
+the slot's own filler count, the traceback -- and that should have been first, not fifth.
+
+**Next:** a name of several words in a frame's slot, which is what the 44, the 17 misreads and the empty `say`
+for `isa(sign of the zodiac virgo, sign of the zodiac)` are all one gap of; the article chosen by the sound that
+follows it ("a association", "an body", 43 of 205; and "Adams is a All of the United States President."); and
+the review's answer rate, which fell 86, 81, 80, 74, 65, 43 of 200 across today's passes while refusing nothing
+and holding what it was given -- a number that wants its own measurement rather than another explanation.
 
 ---
 

@@ -2192,10 +2192,21 @@ class WordNetSource:
                             found.append(in_plural(synset, written_word, hypernym,
                                                    self._written(hypernym.lemma_names()[0]), plural))
             for hypernym in order(synset.instance_hypernyms()):
-                # A NAMED THING ("Paris", "Hussein") is said without an article, and no frame taught yet says a name
-                # so: its fact is taught, and its English waits for a lesson with names in it.
+                # A NAMED THING ("Paris", "Hussein") IS SAID WITHOUT AN ARTICLE, and until 2026-11-15 no frame
+                # taught said a name so, so the fact was taught and its English waited for a lesson with names in
+                # it. english_42 is that lesson -- "Tom is a person.", "Is Tom a person?" -- and the fact is said
+                # with its English now.
+                #
+                # WHAT THE WAITING COST, and why the lesson alone does not pay it: of 146 renamed senses, 46 had a
+                # fact that could be put in NO sentence, every one an `instance_of`, so the substrate's own review
+                # could neither ask nor answer them. With the lesson held, the TELLING generalises at once --
+                # "Adams is a person." is said for a name the lesson never used -- because `?slot0 is a ?slot1.`
+                # is a construction with 39,788 fillers, which WordNet itself taught through `isa`. The ASKING
+                # does not: `Is ?slot0 a ?slot1?` is held only from the lesson's own five sentences, and its slot
+                # admits a name but has met five. So the question frame is widened the one way the telling was --
+                # by WordNet saying its named things in it, each with its own name (lyric_db, 2026-11-15).
                 found.append(record("instance_of", synset, word, hypernym,
-                                    self._written(hypernym.lemma_names()[0]), said=False))
+                                    self._written(hypernym.lemma_names()[0]), said=True))
             for part_of, kind in ((order(synset.part_meronyms()), "part_of"),
                                   (order(synset.member_meronyms()), "member_of")):
                 for piece in part_of:
