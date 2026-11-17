@@ -29,7 +29,14 @@ echo ""
 
 # Refuse to start a second one: the resident is a singleton, and two of them would
 # learn and keep against the same store.
-RUNNING=$(pgrep -f "[Pp]ython3? -m core\.main" || true)
+#
+# MATCHED ON THE INVOCATION, NOT ON THE WORD python FOLLOWED BY IT. This read `python3? -m core.main`, which any
+# flag between the two defeats: the moment this script began passing `-u`, argv became `Python -u -m core.main`,
+# the guard matched nothing, and it would have started a second resident against the same store. The dash is
+# bracketed rather than backslashed because a pattern that BEGINS with one is read by pgrep as its own option.
+# The second pattern is `./lyric`, which runs the file rather than the module, and was never covered either.
+RUNNING=$( { pgrep -f "[-]m core\.main"; pgrep -f "bin/python3? .*core/main\.py"; } 2>/dev/null \
+           | sort -u | tr '\n' ' ' | sed 's/ *$//' )
 if [ -n "$RUNNING" ]; then
     echo -e "${RED}❌ Lyric is already running (PID: $RUNNING)${NC}"
     echo -e "${YELLOW}   Run ./lyric-stop first${NC}"
