@@ -21454,10 +21454,6 @@ def _the_stores_own_kind(name: Any) -> Optional[str]:
     return None
 
 
-#: A TIME WRITTEN AS AN INSTANT, as the store keeps one ("2026-11-05T02:36:44Z").
-_AN_INSTANT = re.compile(r"^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}")
-
-
 def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] = None,
                    framed: FrozenSet[str] = frozenset(),
                    kinds: Optional[Mapping[str, str]] = None) -> Dict[int, List[str]]:
@@ -21583,15 +21579,19 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
                     continue
                 said_as = names.get(other)
                 if said_as is None:
-                    # A TIME THE STORE WROTE AS AN INSTANT IS "BEFORE NOW", WHICH IS WHAT THE TENSE MEANS.
-                    # Reading reads a past tense as `precedes(?v0, ?now)`; the store keeps the instant the turn
-                    # happened at instead (`precedes(sing_97d3fd8d, "2026-11-05T02:36:44Z")`), and saying has no
-                    # word for an instant -- so the WHOLE clause carrying one said nothing, however well it had
-                    # been read. "Ken and Yumi sang." was read right, stored, and answered with an empty reply.
-                    # The same facts said with `?now` are "Ken and Yumi sang."; with no time at all they are
-                    # "Ken and Yumi sings.", the wrong tense (lyric_db, 2026-11-04).
-                    said_as = ("?now" if relation == "precedes" and _AN_INSTANT.match(other)
-                               else other.replace("_", " "))
+                    # A TIME THE STORE WROTE AS AN INSTANT IS TURNED BACK BEFORE IT GETS HERE, BY THE MAP THAT
+                    # BOUND IT. Reading reads a past tense as `precedes(?v0, ?now)` and the store keeps the
+                    # instant the turn happened at (`precedes(sing_97d3fd8d, "2026-11-05T02:36:44Z")`); saying has
+                    # no word for an instant, so the WHOLE clause carrying one said nothing, however well it had
+                    # been read -- "Ken and Yumi sang." was read right, stored, and answered with an empty reply
+                    # (lyric_db, 2026-11-04). This line used to put `?now` back by the SHAPE of the object. It no
+                    # longer needs to: `_acquired_from` turns every situation variable back by the situation that
+                    # bound it, which is the same dict `teach` read the sentence with, so the instant is known to
+                    # be the moment rather than guessed at. Measured on both sentences through the real door: the
+                    # object arrives here as `?now` already, and the shape test matched nothing in either
+                    # (lyric_db, 2026-11-17). Two authorities for one decision is one too many, and the one that
+                    # knows is upstream.
+                    said_as = other.replace("_", " ")
                 facts.append(MeaningFact(relation, names[at], said_as, True))
         try:
             meaning = Meaning("tell", tuple(dict.fromkeys(facts)))
