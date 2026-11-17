@@ -25456,3 +25456,80 @@ question with a common-noun subject is not read**: `What does <noun> <verb>?` ha
 English missing from the grammar, not a word missing from the store, and it is the shape of half the questions
 anyone would ask of a word. Next: measure how much of UD EWT's and GUM's questions take that shape before touching
 `_combine`, as the carried preposition was measured (18% of questions) before it was fixed.
+
+## 115. One decision one authority, and the whale was never a hole in saying (2026-11-17)
+
+### 1. The instant is turned back once, by the map that bound it
+
+`_acquired_from` turns every situation variable back by the situation `teach` read the sentence with;
+`_said_together` separately rewrote any `precedes` object that LOOKED like an instant. Two authorities for one
+decision, and the second judged the value by its shape -- the thing this file has recorded the cost of before.
+
+Measured before removing it, through the real door, with the pattern watched:
+
+```
+precedes('2026-11-17T01:09:03Z')   situation ?now='2026-11-17T01:09:03Z'   <- the same string
+    note relations: (('precedes', '?now'),)
+`_AN_INSTANT.match` evaluated 1 time(s) inside the branch; 0 matched an instant
+```
+
+The stored instant and the situation's `?now` are the same string because they are the same dict: `teach` holds one
+`_situation(sentence)` for the whole turn and both binding and saying back read it. `_said_together` has ONE caller,
+on notes `_acquired_from` made, and nothing else in the tree builds a stored `Acquired`, so there is no other way
+in. The older line and its pattern are gone; "Ken and Yumi sang." and "The rock was heavy." say exactly what they
+said with it in place.
+
+### 2. "A whale breathes air through a blowhole." is a STOP, not a hole
+
+Recorded in `scripts/reading_baseline.json` with `"reply": ""` since it was first measured, and carried as "a hole
+in saying of its own". It is not. The sentence is reachable and the search stops short of it:
+
+| budget | seconds | said |
+|---|---|---|
+| 5,000 (as written) | 12 | NOTHING, best sentence 3 of 4 things |
+| 5,500 | 13 | NOTHING |
+| **6,000** | **44** | **'Whale breathe an air across a vent.'** |
+| 200,000 | 44 | the same |
+
+`MADE_WITHOUT_GETTING_FURTHER` stops a saying that has made 5,000 items without getting further, and its own
+comment records the evidence it was set from: *"Every saying that worked did so far inside this: 196, 210, 417 and
+962 items."* **That sample is now falsified.** Here is a saying that works and needs about 6,000.
+
+**Why the measure goes blind.** Getting further counts two things: an item covering more of the meaning than any
+item before it, or a sentence kept. On this meaning the first saturates almost immediately -- items covering all
+four things are made early in a category that is NO SENTENCE (`said_all_and_was_no_sentence`:
+`('S[b]?v0', 'Whale breathe an air through a vent')`, a bare form) -- and no sentence is kept until the end. So
+through the whole middle of the search, where the only work left is getting that coverage into a declarative, the
+measure sees nothing at all.
+
+The best SENTENCE climbs 2 -> 3 of 4 between budgets 250 and 500, and never reaches 4 within 5,000:
+
+| budget | 100 | 250 | 500 | 1,000 | 2,000 | 3,000 | 5,000 |
+|---|---|---|---|---|---|---|---|
+| best sentence said | 2 of 4 | 2 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 |
+
+`most_a_sentence_said` is already computed and already ignored by the stall counter. Counting it is the faithful
+reading of what the comment says getting further means, and it is bounded (the maximum is monotone and capped by
+the number of things needing a word). But it is NOT enough on its own here: the climb happens by item ~500, so it
+buys to about 5,500 and the sentence arrives at 6,000.
+
+### 3. What the search spends itself on is NOT a defect
+
+Every packing pair the trace reported differs in the article alone, and the right form wins every time:
+
+```
+'breathe a air'               dropped,  'breathe an air'               kept
+'breathe across an venthole'  dropped,  'breathe across a venthole'    kept
+```
+
+Generating both and scoring once the following word is known is what the realizer is built to do
+(`Lexicon._sound_after`, and the comment at the chart key: *"Packed by meaning alone, 'a' was surer alone than 'an'
+and 'an' was never said"*). The letter work of 2026-11-16 is what makes it score right. The doubling costs search
+and buys correct English; there is nothing to repair.
+
+### 4. What is left is a trade-off, not a bug
+
+Raising the budget makes more meanings sayable and makes every UNSAYABLE one slower to give up -- 12 s today,
+tens of seconds at 6,000. That is reply latency across the whole system traded against answering sentences like
+this one, and it is not a call to make from one sentence. The measure fix is right on its own terms and costs
+nothing when the search is not progressing; it is also not sufficient alone. Both are held until he says which.
