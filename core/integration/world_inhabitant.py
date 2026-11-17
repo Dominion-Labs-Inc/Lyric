@@ -259,17 +259,13 @@ class WorldInhabitant:
                 return (await answer.json())["taken"]
 
     async def _message(self, identity: str, text: str) -> Dict[str, Any]:
-        if self._coordinator is None:
-            return {"refused": "Lyric is not taking turns in this process"}
-        # A CONVERSATION OF THEIR OWN. With no conversation named, every person's turn from the world was taken
-        # in one shared conversation ("api:unsessioned"), so one person's "it" could be what another had said.
-        reply = await self._coordinator.handle_user_request(
-            text, source="api", metadata={"actor_identity": identity, "conversation_id": f"world:{identity}"})
-        # WORK THEIR ALLOWANCE DID NOT LET LYRIC TAKE ON is answered with why.
-        why = self._coordinator.task_queue.refusal_of(reply["task_id"]) if reply.get("task_id") else None
-        if why and not reply.get("success"):
-            reply = {**reply, "answer": f"{why[0].upper()}{why[1:]}."}
-        return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
+        """A turn the world held, taken the way a turn from ANY environment is taken (`instance_door.take_turn`).
+
+        This held the only implementation, which is what made a world the one thing that could hand Lyric a turn:
+        the conversation was named "world:<identity>" because the world was assumed rather than named. The world
+        now says it is the world, as any caller says which environment it is, and the taking is shared."""
+        from core.integration.instance_door import take_turn
+        return await take_turn(self._coordinator, identity, text, environment="world")
 
     async def _work_ended(self, job: Dict[str, Any], task) -> None:
         """A job for a person ended: what it used is kept in their usage. The seconds it was in flight, the CPU seconds

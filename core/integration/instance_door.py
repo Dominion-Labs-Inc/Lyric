@@ -8,6 +8,11 @@ with its address, to runtime/instances/<instance>.json, which only its owner can
                    has started, whether it is a worker, whether it takes turns from the world, and whose
                    conversations it holds
     POST /check    questions it answers from what it holds, each asked in a conversation that remembers nothing
+    POST /turn     ONE PERSON'S TURN, from any environment that calls: their identity, what they said, and which
+                   environment is calling. Lyric held no way in of its own -- a turn reached it only by Lyric
+                   reaching OUT to a world and polling its mailbox (`WorldInhabitant`), so a world was privileged
+                   and nothing else could speak to a running Lyric at all. Through this, LyricOS is one caller
+                   among any, and the environment names the conversation rather than being assumed to be "world".
     POST /attach   take turns from the world, and open the senses
     POST /detach   let go of the world, and close the senses
     POST /pass     pass the turns of the people another instance still holds to that instance, or stop passing
@@ -37,6 +42,30 @@ CHECKS = ("Is a dog an animal?", "Is a cat an animal?", "Is a rose a plant?", "I
           "Is water a liquid?", "Is a car a vehicle?", "Is Paris a city?", "Is a hammer a tool?")
 
 
+async def take_turn(coordinator, identity: str, text: str, environment: str = "world") -> Dict[str, Any]:
+    """ONE PERSON'S TURN, TAKEN FROM WHATEVER ENVIRONMENT CALLS: the real front door
+    (`handle_user_request`), in a conversation of their own named for the environment they are speaking from.
+
+    THE ONE IMPLEMENTATION, called by the door's `/turn` and by `WorldInhabitant._message`, so a turn from
+    LyricOS and a turn from anything else are taken the same way. It lived in the inhabitant, which made a
+    world the only thing that could hand Lyric a turn; the environment is now a caller's word, and
+    `environment="world"` is what the inhabitant passes, not what Lyric assumes.
+
+    A CONVERSATION OF THEIR OWN. With no conversation named, every person's turn was taken in one shared
+    conversation ("api:unsessioned"), so one person's "it" could be what another had said.
+    """
+    if coordinator is None:
+        return {"refused": "Lyric is not taking turns in this process"}
+    reply = await coordinator.handle_user_request(
+        text, source="api", metadata={"actor_identity": identity,
+                                      "conversation_id": f"{environment}:{identity}"})
+    # WORK THEIR ALLOWANCE DID NOT LET LYRIC TAKE ON is answered with why.
+    why = coordinator.task_queue.refusal_of(reply["task_id"]) if reply.get("task_id") else None
+    if why and not reply.get("success"):
+        reply = {**reply, "answer": f"{why[0].upper()}{why[1:]}."}
+    return {key: reply.get(key) for key in ("success", "answer", "task_id") if key in reply}
+
+
 class InstanceDoor:
     """The door of the Lyric running in this process."""
 
@@ -64,6 +93,7 @@ class InstanceDoor:
 
         app = web.Application(middlewares=[keyed])
         app.add_routes([web.get("/health", self._health), web.post("/check", self._check),
+                        web.post("/turn", self._turn),
                         web.post("/attach", self._attach), web.post("/detach", self._detach),
                         web.post("/pass", self._pass), web.post("/take", self._take)])
         self._runner = web.AppRunner(app, access_log=None)
@@ -141,6 +171,22 @@ class InstanceDoor:
             answers.append({"asked": question, "reply": understanding.reply,
                             "verdict": verdicts.pop() if len(verdicts) == 1 else None})
         return web.json_response({"answers": answers})
+
+    async def _turn(self, request):
+        """One person's turn from whatever environment is calling, taken through the real front door."""
+        from aiohttp import web
+        from core.agents.autonomous.autonomous_coordinator import is_worker
+        if is_worker():
+            return web.json_response({"refused": "this Lyric is a worker: it takes queued work, never turns"},
+                                     status=409)
+        said = await request.json() if request.can_read_body else {}
+        identity = str(said.get("identity") or "").strip()
+        text = str(said.get("text") or "").strip()
+        if not identity or not text:
+            return web.json_response({"refused": "a turn needs an identity and what was said"}, status=400)
+        answered = await take_turn(getattr(self._system, "autonomous_coordinator", None), identity, text,
+                                   environment=str(said.get("environment") or "world").strip() or "world")
+        return web.json_response(answered)
 
     async def _attach(self, request):
         from aiohttp import web
