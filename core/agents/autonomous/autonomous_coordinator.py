@@ -2536,6 +2536,10 @@ class IntegrityBaseline:
         A nested class is reduced to its name (`nested=True`): one level is
         enough to see a member change, and it makes a class that refers back to
         its owner impossible to recurse on forever.
+
+        CODE AND SHAPE, NOT VALUES. See the comment in the loop: a class holds
+        mutable state its own code writes, so digesting what a class attribute
+        HOLDS makes the fingerprint move while nothing has been substituted.
         """
         parts: List[str] = []
         members = vars(klass)
@@ -2558,8 +2562,28 @@ class IntegrityBaseline:
                     parts.append(f"{name}=c:{member.__qualname__}" if nested else
                                  f"{name}=c:{cls._class_digest(member, nested=True)}")
                 else:
-                    parts.append(f"{name}=v:"
-                                 f"{hashlib.sha256(repr(member).encode()).hexdigest()[:16]}")
+                    # ITS NAME AND KIND, NEVER ITS VALUE.
+                    #
+                    # A CLASS HOLDS STATE ITS OWN CODE WRITES, and a digest over
+                    # the value of a class attribute therefore moves while
+                    # nothing has been substituted. Measured, and it halted the
+                    # resident: `Constitution._policy_rules` is a class
+                    # attribute that is None until the declared policy is first
+                    # read and a tuple of 18 rules afterwards — which is lazily
+                    # populated AFTER the baseline is frozen, so the class
+                    # digest moved on the first judgement, and because the
+                    # fingerprint's kind for a class is in `EXECUTABLE_KINDS`
+                    # it reported as `function_replaced` at CRITICAL and halted.
+                    # 2026-11-17 18:45:34, which is the very defect this
+                    # baseline was being repaired for.
+                    #
+                    # What a class is protected AGAINST is code substitution, so
+                    # that is what is digested: the code of everything that
+                    # carries code, and the SHAPE — which names exist and of
+                    # what kind. A member replaced by one of another kind still
+                    # moves this, and a value whose contents change does not,
+                    # because nothing was substituted when it did.
+                    parts.append(f"{name}=v")
             except Exception:
                 parts.append(f"{name}=unreadable")
         bases = ",".join(getattr(b, "__qualname__", str(b))

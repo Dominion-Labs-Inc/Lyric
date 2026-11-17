@@ -206,13 +206,69 @@ rather than a refinement.
   `function_replaced` finding was real. Cause in both: asserting an expected value from reading rather than from
   the actual run, which is why both now print the before/after they compare.
 
+### 10. The class digest halted the resident, which is the defect it was built to remove
+
+**Found by running it, 18:19:32 to 18:47:34 — 15 halt rows, two minutes apart.** The resident restarted onto this
+change at ~18:13 and `check_integrity` reported, every tick:
+
+```
+📜 INTEGRITY: function_replaced in core.agents.autonomous.autonomous_coordinator.Constitution —
+  Constitution: fp2:...:2c6d5a3f23e13600 -> fp2:...:3cdfe2ee0606d065
+📜 CONSTITUTION HALT — integrity violation: function_replaced in ...Constitution
+  (1 critical finding(s) in this process — no adoption performed them)
+```
+
+Reproduced in six lines rather than guessed at:
+
+```
+clean right after freeze : []
+_policy_rules at freeze  : NoneType
+policy read              : 18 rules;  _policy_rules now tuple
+FINDING: function_replaced core.agents.autonomous.autonomous_coordinator.Constitution CRITICAL memory
+```
+
+**Cause.** `Constitution._policy_rules` is a CLASS attribute, `None` until the declared policy is first read and a
+tuple of 18 rules afterwards — and it is populated lazily, on the first judgement, which is *after* the baseline
+is frozen in `start_coordination`. My `_class_digest` hashed `repr(member)` for every non-code member, so the
+class digest moved; and because `fingerprint`'s kind for a class is `"class"`, which is in `EXECUTABLE_KINDS`,
+`verify` typed it `function_replaced` at CRITICAL, and a CRITICAL in the memory locus halts. `_policy_index`,
+`_policy_act_rules` and `_policy_unreachable` are the same shape and would each have done it again.
+
+**The wrong assumption, stated plainly: that a class's attributes describe what it IS.** They do not — a class
+holds mutable state its own code writes, so a digest over what a class attribute *holds* moves while nothing has
+been substituted. What a class is protected against is code substitution. So `_class_digest` now covers the code
+of everything that carries code, plus the SHAPE — which names exist and of what kind — and never a value's
+contents. A member replaced by one of another kind still moves it; a cache being filled does not.
+
+**Nothing was lost by narrowing it.** Before this session a class fingerprinted as its NAME, so class-attribute
+values were never covered at all; the fix is strictly more than was there, and §2's hole stays closed. Verified:
+
+```
+  PASS  clean right after freeze
+  PASS  clean after the policy is read (18 rules)
+  PASS  clean after more class state is written
+  PASS  a REPLACED METHOD is still found / and it is CRITICAL in memory
+  PASS  clean once put back
+  PASS  a NEW class member is found (shape) / clean once removed
+```
+
+**It could not repair itself, and that is correct.** The in-memory locus is read FIRST and halts before any
+adoption runs, so a false in-memory finding blocks adoption of the very module that would fix it. A restart was
+the only route. The ordering is right — substitution must stop the substrate before anything else is attempted —
+but it is worth knowing that a bug in the fingerprint is a bug adoption cannot route around.
+
+**It also showed the fingerprint is otherwise quiet.** Across 15 ticks of a real boot the only in-memory finding
+was this one class: no module-level `constant_changed` noise from any of the four protected modules, so no other
+public attribute of theirs moves at runtime.
+
 ### 9. Not done, and open
 
 - **The change cannot adopt itself.** `CodeAdoption` and `AdoptionPlan` are new classes, which adoption refuses by
   its own rule, so this one change needs the restart it removes for later ones. The resident running at the time
   of writing (PID 24890, 15.4 GB, started ~17:25) is on the pre-change code.
-- **Halt rows 6-9 (17:44:35 → 17:50:36) are mine**, written by the live resident while I edited its own source —
-  accepted in advance. They are the last rows that defect will ever produce. Lifting the standing halt is Stefan's:
+- **Halt rows 6-19 (17:44 → 18:10) are mine**, written by the live resident while I edited its own source —
+  accepted in advance. **Rows 20-34 (18:19 → 18:47) are the class-digest defect in §10**, and are the last
+  rows either should produce. Lifting the standing halt is Stefan's:
   `Constitution()` → `await c.restore_halt()` → `await c.resume(authorized_by="<a human>")`, then a restart.
 - `generate_tests_from_behavior` (`core/tools/code_generation_tools.py:1161`) does
   `exec(compile(tree, "<code>", "exec"), ns)` **inside the resident**. That is arbitrary in-process Python reached
