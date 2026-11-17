@@ -9,8 +9,10 @@ import asyncio
 import functools
 import hashlib
 import inspect
+import ast
 import itertools
 import re
+import types
 from types import SimpleNamespace
 import json
 import logging
@@ -736,6 +738,12 @@ class Judgment:
     #: paused as refused. Said by the judgement itself, so whoever reads it,
     #: whenever, needs neither the reason text nor whether the halt still stands.
     halt: bool = False
+    #: The files this act NAMED, resolved. A judgement said which law refused an
+    #: act and why, and never which file the act was aimed at — so the durable
+    #: record could not answer "did this substrate judge an act on this path",
+    #: which is the question attribution rests on. Recorded for every verdict:
+    #: a BLOCKED attempt on a file is evidence about that file too.
+    paths: Tuple[str, ...] = ()
     action_kind: str = ""
     action_name: str = ""
     timestamp: datetime = field(default_factory=datetime.now)
@@ -763,6 +771,7 @@ class Judgment:
             "attack_confidence": self.attack_confidence,
             "capabilities": list(self.capabilities),
             "alternative": self.alternative,
+            "paths": list(self.paths),
             "halt": self.halt,
             "intent": {"intent_id": self.intent.intent_id,
                        "goal_conditions": list(self.intent.goal_conditions),
@@ -1031,6 +1040,19 @@ class ReadingLedger:
             return (f"{path} has changed since it was {had} "
                     f"({held.read_at:%H:%M:%S}) — by something other than this act")
         return f"{path} changed on disk since it was {had} ({held.read_at:%H:%M:%S})"
+
+    def authored(self, path: str) -> Optional["Reading"]:
+        """This substrate's own WRITING of this file, if it holds one.
+
+        `current()` answers whether an account still stands; this answers WHOSE
+        the version was — and it answers it even once the file has moved again,
+        which is exactly when the question gets asked. The constitution reads it
+        to tell a change the development team made from a change this substrate
+        made, because the two are the same bytes on the same disk and differ
+        only in whose act put them there.
+        """
+        held = self._readings.get(self._key(path))
+        return held if held is not None and held.authored else None
 
     def authored_paths(self) -> List[str]:
         """Every file THIS SUBSTRATE WROTE that it still holds an account of.
@@ -2432,7 +2454,7 @@ class IntegrityBaseline:
     #: Marks the fingerprint format, so a baseline written by an older version
     #: is re-captured rather than compared attribute-by-attribute into a storm
     #: of false violations.
-    VERSION = "fp1"
+    VERSION = "fp2"
     #: Kinds whose replacement is code substitution rather than a value change.
     EXECUTABLE_KINDS = ("function", "class", "routine")
 
@@ -2442,6 +2464,107 @@ class IntegrityBaseline:
         self._data_files: Dict[str, str] = {}
         self.frozen: Tuple[str, ...] = ()
         self.unprotected: Tuple[str, ...] = ()
+        #: Every module of this substrate's own code that is loaded:
+        #: name -> (path, hash of the file, the source that hash was taken from).
+        #: Wider than the protected four, because a change anywhere in `core/`
+        #: is a change to what this process is running.
+        self._watched: Dict[str, Tuple[str, str, str]] = {}
+        #: The hash each watched module had AT BOOT, kept beside the comparison
+        #: hash so the substrate can say when it is running something its own
+        #: file no longer says.
+        self._at_boot: Dict[str, str] = {}
+
+    #: Dunders that CARRY BEHAVIOUR rather than bookkeeping, so a change to one
+    #: is a change to what the class does. A dataclass's generated `__init__`
+    #: and `__eq__` are here, which is how a changed field set shows up as a
+    #: changed class.
+    _BEHAVING_DUNDERS = ("__init__", "__call__", "__eq__", "__hash__",
+                         "__post_init__", "__enter__", "__exit__",
+                         "__aenter__", "__aexit__", "__getattr__",
+                         "__setattr__", "__getitem__", "__setitem__")
+
+    @classmethod
+    def _code_digest(cls, code: Any) -> str:
+        """A compiled function's identity: its operations AND its constants.
+
+        BYTECODE ALONE IS NOT THE FUNCTION. `co_code` holds the operations;
+        every literal the function uses lives in `co_consts`. So a change that
+        moves only a constant leaves `co_code` byte-identical — and that is not
+        a corner case, it is most of what a tamper would want to change.
+        Measured against the algorithm this replaces: `return "allow" if n <
+        LIMIT else "block"` rewritten to return "REFUSE", a resource boundary
+        moved from 0.85 to 0.10, a halt reason rewritten, and the
+        substrate-actor test inverted through its literal were ALL invisible.
+        Only a change to control flow was seen.
+
+        The names a function reads are counted too (`co_names`): repointing a
+        call at a different global is a substitution that touches no literal.
+        Nested code objects — a comprehension, an inner function — are digested
+        recursively, because they live in `co_consts` and hold the body of
+        anything written inside the function.
+        """
+        h = hashlib.sha256()
+
+        def absorb(c: Any) -> None:
+            h.update(c.co_code)
+            h.update(repr((c.co_name, c.co_argcount, c.co_posonlyargcount,
+                           c.co_kwonlyargcount, c.co_flags, c.co_names,
+                           c.co_varnames, c.co_freevars)).encode())
+            for constant in c.co_consts:
+                if hasattr(constant, "co_code"):
+                    absorb(constant)
+                else:
+                    h.update(repr(constant).encode())
+                h.update(b"\0")
+
+        absorb(code)
+        return h.hexdigest()[:16]
+
+    @classmethod
+    def _class_digest(cls, klass: Any, *, nested: bool = False) -> str:
+        """What a class IS: every member that carries behaviour, plus its bases.
+
+        A CLASS IS NOT ITS NAME. This returned `f"class:{module}.{qualname}"` —
+        a constant string — so every method of every protected class
+        fingerprinted identically no matter what it did. Measured: replacing
+        `Constitution.resume` in memory, the one method that refuses to let the
+        substrate lift its own halt, left the module attribute's fingerprint
+        byte-identical. Nearly all of the governing logic in these modules is
+        written as methods, so the in-memory half of this baseline was watching
+        almost nothing, and the source hash on disk was the only thing standing.
+
+        A nested class is reduced to its name (`nested=True`): one level is
+        enough to see a member change, and it makes a class that refers back to
+        its owner impossible to recurse on forever.
+        """
+        parts: List[str] = []
+        members = vars(klass)
+        for name in sorted(members):
+            if (name.startswith("__") and name.endswith("__")
+                    and name not in cls._BEHAVING_DUNDERS):
+                continue
+            member = members[name]
+            try:
+                if inspect.isfunction(member):
+                    parts.append(f"{name}=f:{cls._code_digest(member.__code__)}")
+                elif isinstance(member, (staticmethod, classmethod)):
+                    parts.append(f"{name}=m:"
+                                 f"{cls._code_digest(member.__func__.__code__)}")
+                elif isinstance(member, property):
+                    parts.append(f"{name}=p:" + ",".join(
+                        cls._code_digest(f.__code__) if hasattr(f, "__code__") else "-"
+                        for f in (member.fget, member.fset, member.fdel)))
+                elif inspect.isclass(member):
+                    parts.append(f"{name}=c:{member.__qualname__}" if nested else
+                                 f"{name}=c:{cls._class_digest(member, nested=True)}")
+                else:
+                    parts.append(f"{name}=v:"
+                                 f"{hashlib.sha256(repr(member).encode()).hexdigest()[:16]}")
+            except Exception:
+                parts.append(f"{name}=unreadable")
+        bases = ",".join(getattr(b, "__qualname__", str(b))
+                         for b in getattr(klass, "__mro__", ())[1:])
+        return hashlib.sha256(("|".join(parts) + "#" + bases).encode()).hexdigest()[:16]
 
     @classmethod
     def fingerprint(cls, value: Any) -> str:
@@ -2449,18 +2572,19 @@ class IntegrityBaseline:
 
         Not `str(value)`: a function's repr carries its memory address, so it
         changes between processes and a persisted baseline could never match.
-        A function is its qualname plus a hash of its compiled bytecode — both
-        stable across runs, both changing when it is replaced."""
+        A function is its qualname plus a digest of its compiled form, and a
+        class is its qualname plus a digest of its members — both stable across
+        runs, both changing when what they DO changes."""
         try:
             if inspect.isfunction(value) or inspect.ismethod(value):
                 code = getattr(value, "__code__", None)
-                digest = (hashlib.sha256(code.co_code).hexdigest()[:16]
-                          if code is not None else "nocode")
+                digest = (cls._code_digest(code) if code is not None else "nocode")
                 return (f"{cls.VERSION}:function:"
                         f"{getattr(value, '__module__', '?')}."
                         f"{getattr(value, '__qualname__', '?')}:{digest}")
             if inspect.isclass(value):
-                return f"{cls.VERSION}:class:{value.__module__}.{value.__qualname__}"
+                return (f"{cls.VERSION}:class:{value.__module__}."
+                        f"{value.__qualname__}:{cls._class_digest(value)}")
             if inspect.isroutine(value):
                 return (f"{cls.VERSION}:routine:"
                         f"{getattr(value, '__qualname__', repr(value))}")
@@ -2509,9 +2633,103 @@ class IntegrityBaseline:
                 unprotected.append(rel)
         self.frozen = tuple(frozen)
         self.unprotected = tuple(unprotected)
+        self._watch(root)
         logger.info("📜 integrity baseline: %d module(s) protected, %d "
-                    "unprotected", len(frozen), len(unprotected))
+                    "unprotected, %d watched for code changes",
+                    len(frozen), len(unprotected), len(self._watched))
         return self.frozen
+
+    def _watch(self, root: Path) -> None:
+        """Hold the SOURCE of every loaded module of this substrate's own code.
+
+        WHY THE SOURCE AND NOT ONLY A HASH. A hash says a file moved; it cannot
+        say WHAT moved, and whether a change can be taken up by a running
+        process depends entirely on what kind of change it is — a method body
+        can be swapped where an enumeration's members cannot. `core/` is 11.7 MB
+        of source, so holding it costs about that, against which the alternative
+        is inferring the change from the running objects and getting it wrong.
+        """
+        own = str(root / "core") + os.sep
+        for name, module in list(sys.modules.items()):
+            path = str(getattr(module, "__file__", "") or "")
+            if not path.startswith(own) or not path.endswith(".py"):
+                continue
+            try:
+                data = Path(path).read_bytes()
+                source = data.decode("utf-8")
+            except Exception as error:
+                logger.warning("📜 %s is NOT watched for code changes (%s); a "
+                               "change to it would need a restart to be noticed",
+                               name, error)
+                continue
+            digest = hashlib.sha256(data).hexdigest()
+            self._watched[name] = (path, digest, source)
+            self._at_boot.setdefault(name, digest)
+
+    def changed_on_disk(self) -> List[Dict[str, str]]:
+        """Every watched module whose file is no longer what is held for it."""
+        moved: List[Dict[str, str]] = []
+        for name, (path, digest, _source) in sorted(self._watched.items()):
+            try:
+                data = Path(path).read_bytes()
+            except FileNotFoundError:
+                moved.append({"module": name, "path": path, "was": digest,
+                              "now": "", "gone": "1"})
+                continue
+            except Exception as error:
+                logger.error("📜 %s could not be read to check it: %s", name, error)
+                continue
+            now = hashlib.sha256(data).hexdigest()
+            if now != digest:
+                moved.append({"module": name, "path": path, "was": digest,
+                              "now": now, "gone": ""})
+        return moved
+
+    def frozen_source(self, name: str) -> str:
+        """The source this baseline is holding for that module."""
+        held = self._watched.get(name)
+        return held[2] if held else ""
+
+    def refreeze(self, name: str) -> Dict[str, Any]:
+        """Re-capture ONE module, after a change to it was taken up.
+
+        The baseline moves only here. Its fingerprints are re-taken as well as
+        its file hash, because taking a change up replaces code in memory on
+        purpose and the next check must not read the substrate's own adoption as
+        substitution. NOTHING ELSE IS RE-CAPTURED: a module with a standing
+        finding of its own keeps it.
+        """
+        module = sys.modules.get(name)
+        if module is None:
+            return {"refrozen": False, "why": f"{name} is not loaded"}
+        path = str(getattr(module, "__file__", "") or "")
+        taken: Dict[str, Any] = {"refrozen": True, "module": name}
+        if name in self._attrs:
+            self._attrs[name] = {
+                attr: self.fingerprint(getattr(module, attr, None))
+                for attr in dir(module) if not attr.startswith("_")}
+            taken["fingerprints"] = len(self._attrs[name])
+        try:
+            data = Path(path).read_bytes()
+        except Exception as error:
+            return {"refrozen": False, "why": f"{path} could not be read: {error}"}
+        digest = hashlib.sha256(data).hexdigest()
+        if name in self._files:
+            self._files[name] = digest
+        if name in self._watched:
+            self._watched[name] = (path, digest, data.decode("utf-8", "replace"))
+        taken["digest"] = digest[:12]
+        return taken
+
+    def refreeze_data_file(self, rel: str, root: Path) -> bool:
+        """Re-capture one of the Constitution's own data files."""
+        try:
+            self._data_files[rel] = hashlib.sha256(
+                (root / rel).read_bytes()).hexdigest()
+            return True
+        except Exception as error:
+            logger.error("📜 %s could not be re-frozen: %s", rel, error)
+            return False
 
     def verify(self) -> List[Dict[str, Any]]:
         """What has changed since the baseline. Empty when nothing has."""
@@ -2520,14 +2738,21 @@ class IntegrityBaseline:
             module = sys.modules.get(name)
             if module is None:
                 violations.append({"type": "module_removed", "module": name,
-                                   "severity": "CRITICAL",
+                                   "severity": "CRITICAL", "locus": "memory",
                                    "detail": "removed from sys.modules"})
                 continue
             for attr, original in (self._attrs.get(name) or {}).items():
                 if not hasattr(module, attr):
                     violations.append({"type": "attribute_removed",
                                        "module": name, "attribute": attr,
-                                       "severity": "HIGH",
+                                       # SUBSTITUTION, not a lesser finding. A
+                                       # public attribute of the governing
+                                       # machinery cannot go missing by itself:
+                                       # nothing outside this process can remove
+                                       # it, and judging that reaches for what is
+                                       # gone does not fail safe. It was HIGH,
+                                       # which does not halt.
+                                       "severity": "CRITICAL", "locus": "memory",
                                        "detail": f"{attr} is gone"})
                     continue
                 current = self.fingerprint(getattr(module, attr))
@@ -2537,7 +2762,7 @@ class IntegrityBaseline:
                 executable = kind in self.EXECUTABLE_KINDS
                 violations.append({
                     "type": "function_replaced" if executable else "constant_changed",
-                    "module": name, "attribute": attr,
+                    "module": name, "attribute": attr, "locus": "memory",
                     # Replacing CODE in the governing machinery is the attack
                     # this exists for; a changed constant is worth knowing and
                     # is not on its own grounds to stop the substrate.
@@ -2551,11 +2776,13 @@ class IntegrityBaseline:
                 except Exception as error:
                     violations.append({"type": "source_unreadable",
                                        "module": name, "severity": "HIGH",
+                                       "locus": "disk", "path": path,
                                        "detail": str(error)})
                     continue
                 if actual != expected:
                     violations.append({"type": "source_modified", "module": name,
-                                       "severity": "CRITICAL",
+                                       "severity": "CRITICAL", "locus": "disk",
+                                       "path": path, "was": expected, "now": actual,
                                        "detail": f"{path} changed on disk"})
         root = Path(__file__).resolve().parents[3]
         for rel, expected in self._data_files.items():
@@ -2563,24 +2790,538 @@ class IntegrityBaseline:
                 actual = hashlib.sha256((root / rel).read_bytes()).hexdigest()
             except FileNotFoundError:
                 violations.append({"type": "data_file_removed", "module": rel,
-                                   "severity": "CRITICAL",
+                                   "severity": "CRITICAL", "locus": "disk",
+                                   "path": str(root / rel),
                                    "detail": f"{rel} is gone"})
                 continue
             except Exception as error:
                 violations.append({"type": "source_unreadable", "module": rel,
-                                   "severity": "HIGH", "detail": str(error)})
+                                   "severity": "HIGH", "locus": "disk",
+                                   "path": str(root / rel), "detail": str(error)})
                 continue
             if actual != expected:
                 violations.append({"type": "data_file_modified", "module": rel,
-                                   "severity": "CRITICAL",
+                                   "severity": "CRITICAL", "locus": "disk",
+                                   "path": str(root / rel), "was": expected,
+                                   "now": actual,
                                    "detail": f"{rel} changed on disk"})
         return violations
 
     def status(self) -> Dict[str, Any]:
+        # RUNNING SOMETHING ITS OWN FILE NO LONGER SAYS. A module whose
+        # comparison hash has moved away from its boot hash was taken up while
+        # running, so this process is no longer the process that started.
+        taken_up = sorted(name for name, (_p, digest, _s) in self._watched.items()
+                          if self._at_boot.get(name, digest) != digest)
         return {"protected": len(self.frozen), "modules": list(self.frozen),
                 "files": sorted(self._data_files),
                 "unprotected": list(self.unprotected),
-                "files_hashed": len(self._files)}
+                "files_hashed": len(self._files),
+                "watched": len(self._watched),
+                "taken_up_since_boot": taken_up,
+                "differs_from_boot": len(taken_up)}
+
+
+@dataclass(frozen=True)
+class AdoptionPlan:
+    """What a running process can take from a changed source file, and what it cannot.
+
+    ALL OF IT OR NONE OF IT. A plan with anything refused is not performed at
+    all: a module half-taken is a module in a state nobody wrote, and the
+    substrate would then be judging with code that exists in no file. So
+    `refused` being non-empty is the whole answer — it names what needs a
+    restart and why, and nothing is touched.
+    """
+
+    module: str
+    path: str
+    #: Functions whose compiled form moved. Swapped IN PLACE, which is the point:
+    #: the scheduler holds BOUND METHODS in its tier table and registries hold
+    #: function objects, and replacing a module attribute would leave both
+    #: running the old code. Mutating the object they already hold reaches them.
+    swaps: Tuple[str, ...] = ()
+    #: Functions that did not exist before, built on the live module's globals.
+    additions: Tuple[str, ...] = ()
+    #: Functions and classes the file no longer defines.
+    removals: Tuple[str, ...] = ()
+    #: (qualname, value) for a literal whose value moved.
+    constants: Tuple[Tuple[str, Any], ...] = ()
+    #: Import statements the file gained. Executed, because a new function body
+    #: may read a name only the import brings in — and importing a dependency
+    #: is what the next start would do anyway, not a side effect doubled.
+    imports: Tuple[str, ...] = ()
+    #: (what, why) for everything no in-place change can carry.
+    refused: Tuple[Tuple[str, str], ...] = ()
+    source: str = ""
+    digest: str = ""
+
+    @property
+    def carries(self) -> bool:
+        """Whether this change can enter the process at all."""
+        return not self.refused
+
+    @property
+    def nothing_to_do(self) -> bool:
+        return not (self.swaps or self.additions or self.removals
+                    or self.constants or self.imports)
+
+    def account(self) -> str:
+        """Said plainly, for the log and for the record."""
+        if self.refused:
+            return (f"{self.module} cannot be taken up while it runs: "
+                    + "; ".join(f"{what} ({why})" for what, why in self.refused[:4])
+                    + (f" and {len(self.refused) - 4} more" if len(self.refused) > 4 else ""))
+        if self.nothing_to_do:
+            return f"{self.module} changed on disk in no way that reaches the process"
+        said = []
+        if self.swaps:
+            said.append(f"{len(self.swaps)} function(s) replaced in place")
+        if self.additions:
+            said.append(f"{len(self.additions)} added")
+        if self.removals:
+            said.append(f"{len(self.removals)} removed")
+        if self.constants:
+            said.append(f"{len(self.constants)} constant(s) moved")
+        if self.imports:
+            said.append(f"{len(self.imports)} import(s) brought in")
+        return f"{self.module}: " + ", ".join(said)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"module": self.module, "path": self.path,
+                "swaps": list(self.swaps), "additions": list(self.additions),
+                "removals": list(self.removals),
+                "constants": [name for name, _ in self.constants],
+                "imports": list(self.imports),
+                "refused": [list(r) for r in self.refused],
+                "digest": self.digest, "carries": self.carries}
+
+
+class CodeAdoption:
+    """How a change the development team made on disk enters a RUNNING substrate.
+
+    THE SUBSTRATE NEVER CHANGES ITS OWN CODE. The development team does, and
+    the substrate TAKES UP that change deliberately, as an act of its own
+    governance that is attributed, performed and recorded. That is what makes
+    the integrity baseline checkable: adoption is the only sanctioned way a
+    fingerprint ever moves, and it re-freezes the baseline in the same step, so
+    any other movement is substitution and still halts.
+
+    IT NEVER EXECUTES THE NEW TOP LEVEL. The obvious way to load changed code is
+    to exec the file and take the objects out of the namespace. Measured across
+    this codebase: 71 of 268 modules under `core/` do work at import time beyond
+    defining things — `register_learning_tools()` as a bare call in
+    `core/tools/__init__.py`, and `ContextVar(...)` at the top of
+    `intent_authority`, which is one of the protected modules. Re-running those
+    would double a registration and silently replace a live ContextVar with an
+    empty one. So this compiles the file and harvests the code objects out of
+    `co_consts` instead, and never runs a line of the module's own top level.
+    The only statements it does execute are new IMPORTS, which the next start
+    would run anyway and which `sys.modules` makes idempotent.
+
+    WHAT IT CARRIES, measured against 361 commits of this repository's own
+    history: 80.1% of commits touching `core/**/*.py` are carried whole. The
+    rest it refuses and names — a dataclass whose field set moved (instances
+    already built would lack the field), an enumeration whose members moved
+    (members are singletons and comparisons are by identity), a class whose
+    bases moved, a new class (its body would have to run), a function wrapped
+    by a decorator (the wrapper was built at def time), a changed closure shape
+    (the cell set cannot be rebuilt). Those need a restart, and saying so is the
+    honest answer rather than a half-applied module.
+    """
+
+    #: Bases that make a class an enumeration, whose members cannot be moved
+    #: under a running process.
+    _ENUM_BASES = frozenset({"Enum", "IntEnum", "StrEnum", "Flag", "IntFlag",
+                             "ReprEnum", "EnumMeta", "EnumType"})
+    #: Top-level `if` tests that define nothing at run time, so a change inside
+    #: them reaches nothing: typing-only blocks, and the script entry point.
+    _INERT_IF = ("TYPE_CHECKING", "__main__")
+
+    # ── reading a file without running it ────────────────────────────────────
+
+    @classmethod
+    def _shape(cls, source: str, path: str) -> Optional[Dict[str, Any]]:
+        """Everything adoption must compare, taken from the file's syntax.
+
+        None when the file does not parse — a half-written file caught mid-save
+        is not a change to adopt, it is a file to look at again next sweep.
+        """
+        try:
+            tree = ast.parse(source, path)
+        except SyntaxError:
+            return None
+        functions: Dict[str, Any] = {}
+        classes: Dict[str, Any] = {}
+        values: Dict[str, Any] = {}
+        other: List[str] = []
+        imports: List[str] = []
+
+        def statements(body: List[Any], prefix: str, top: bool) -> None:
+            for node in body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    functions[prefix + node.name] = node
+                    continue
+                if isinstance(node, ast.ClassDef):
+                    qualname = prefix + node.name
+                    classes[qualname] = node
+                    statements(node.body, qualname + ".", False)
+                    continue
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
+                    imports.append(ast.unparse(node))
+                    continue
+                if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant):
+                    continue                                   # a docstring
+                if isinstance(node, ast.Pass):
+                    continue
+                if (isinstance(node, ast.Assign) and len(node.targets) == 1
+                        and isinstance(node.targets[0], ast.Name)):
+                    values[prefix + node.targets[0].id] = node.value
+                    continue
+                if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                    # An annotation with no value declares a dataclass field and
+                    # assigns nothing; one with a value is an ordinary constant.
+                    if node.value is not None:
+                        values[prefix + node.target.id] = node.value
+                    continue
+                if top and isinstance(node, ast.If):
+                    test = ast.unparse(node.test)
+                    if any(inert in test for inert in cls._INERT_IF):
+                        continue
+                other.append(prefix + "|" + ast.unparse(node))
+
+        statements(tree.body, "", True)
+        return {"functions": functions, "classes": classes, "values": values,
+                "other": other, "imports": imports}
+
+    @staticmethod
+    def _code(source: str, path: str, wanted: Any) -> Dict[str, Any]:
+        """{qualname: code object} for the functions named in `wanted`.
+
+        Harvested out of the compiled module's constants, so nothing in the file
+        runs. A qualname containing `<locals>` is skipped: a comprehension or an
+        inner function lives inside its parent's code object and travels with
+        the parent, which is why it is not a unit of its own. A class body is a
+        code object too, and is excluded by `wanted` holding only functions.
+        """
+        found: Dict[str, Any] = {}
+        stack = [compile(source, path, "exec")]
+        while stack:
+            code = stack.pop()
+            for constant in code.co_consts:
+                if not hasattr(constant, "co_code"):
+                    continue
+                qualname = constant.co_qualname
+                if "<locals>" not in qualname and qualname in wanted:
+                    found[qualname] = constant
+                stack.append(constant)
+        return found
+
+    # ── where a name lives in the running module ─────────────────────────────
+
+    @staticmethod
+    def _owner(module: Any, qualname: str) -> Optional[Tuple[Any, str]]:
+        """(the object that holds this name, the name) — or None if the chain to
+        it does not exist in the running module."""
+        parts = qualname.split(".")
+        owner: Any = module
+        for step in parts[:-1]:
+            owner = getattr(owner, step, None)
+            if owner is None or not inspect.isclass(owner):
+                return None
+        return owner, parts[-1]
+
+    @staticmethod
+    def _raw(member: Any) -> Optional[Any]:
+        """The plain function inside a staticmethod, classmethod or attribute."""
+        if isinstance(member, (staticmethod, classmethod)):
+            member = member.__func__
+        return member if inspect.isfunction(member) else None
+
+    @staticmethod
+    def _literal(node: Any) -> Tuple[bool, Any]:
+        """(is it a literal, its value). A value adoption cannot evaluate
+        without running code is not a literal, and is refused rather than
+        guessed at."""
+        try:
+            return True, ast.literal_eval(node)
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+            return False, None
+
+    # ── the plan ─────────────────────────────────────────────────────────────
+
+    @classmethod
+    def plan(cls, module: Any, frozen_source: str,
+             current_source: str) -> AdoptionPlan:
+        """What this process can take from the file as it now stands.
+
+        Compares the source the baseline was frozen against with the source on
+        disk now — exactly, from the syntax of both — so nothing has to be
+        inferred from the running objects alone.
+        """
+        name = getattr(module, "__name__", "?")
+        path = str(getattr(module, "__file__", "") or "")
+        digest = hashlib.sha256(current_source.encode("utf-8", "replace")).hexdigest()
+        was, now = (cls._shape(frozen_source, path), cls._shape(current_source, path))
+        if was is None or now is None:
+            which = "the frozen source" if was is None else path
+            return AdoptionPlan(module=name, path=path, source=current_source,
+                                digest=digest,
+                                refused=((name, f"{which} does not parse"),))
+
+        refused: List[Tuple[str, str]] = []
+        swaps: List[str] = []
+        additions: List[str] = []
+        removals: List[str] = []
+        constants: List[Tuple[str, Any]] = []
+
+        # ── the top level itself ─────────────────────────────────────────────
+        gained = [text for text in now["imports"] if text not in was["imports"]]
+        for text in sorted(set(was["other"]) ^ set(now["other"])):
+            refused.append((text.split("|", 1)[0] or name,
+                            "the module's top level changed, and adoption does "
+                            "not run a top level: " + text.split("|", 1)[-1][:70]))
+
+        # ── classes: what cannot move under a running process ────────────────
+        for qualname, node in now["classes"].items():
+            live = cls._owner(module, qualname)
+            if live is None or not inspect.isclass(getattr(live[0], live[1], None)):
+                refused.append((qualname, "a new class, whose body would have to "
+                                          "be executed" if qualname not in was["classes"]
+                                          else "the running module does not hold "
+                                               "the class the file declares"))
+                continue
+            klass = getattr(live[0], live[1])
+            before = was["classes"].get(qualname)
+            if before is None:
+                refused.append((qualname, "a new class, whose body would have "
+                                          "to be executed"))
+                continue
+            if ([ast.unparse(b) for b in before.bases]
+                    != [ast.unparse(b) for b in node.bases]):
+                refused.append((qualname, "its base classes moved"))
+                continue
+            if any(ast.unparse(b).split(".")[-1] in cls._ENUM_BASES for b in node.bases):
+                def members(defined: Any) -> List[Tuple[str, str]]:
+                    return [(t.targets[0].id, ast.unparse(t.value))
+                            for t in defined.body
+                            if isinstance(t, ast.Assign) and len(t.targets) == 1
+                            and isinstance(t.targets[0], ast.Name)]
+                if members(before) != members(node):
+                    refused.append((qualname, "an enumeration's members moved, "
+                                              "and a member is a singleton every "
+                                              "comparison holds by identity"))
+                continue
+            if getattr(klass, "__dataclass_fields__", None) is not None:
+                def declared(defined: Any) -> List[str]:
+                    return [f.target.id for f in defined.body
+                            if isinstance(f, ast.AnnAssign)
+                            and isinstance(f.target, ast.Name)]
+                if declared(before) != declared(node):
+                    refused.append((qualname, "a dataclass's field set moved, and "
+                                              "instances already built would not "
+                                              "have the field"))
+                continue
+        for qualname in was["classes"]:
+            if qualname not in now["classes"]:
+                live = cls._owner(module, qualname)
+                if live is not None and inspect.isclass(getattr(live[0], live[1], None)):
+                    removals.append(qualname)
+
+        # ── functions ────────────────────────────────────────────────────────
+        compiled = cls._code(current_source, path, now["functions"])
+        for qualname, node in now["functions"].items():
+            code = compiled.get(qualname)
+            if code is None:
+                refused.append((qualname, "its compiled form could not be found "
+                                          "in the file"))
+                continue
+            live = cls._owner(module, qualname)
+            if live is None:
+                refused.append((qualname, "the class that would hold it is not "
+                                          "in the running module"))
+                continue
+            owner, attr = live
+            existing = cls._raw(vars(owner).get(attr) if inspect.isclass(owner)
+                                else getattr(owner, attr, None))
+            decorated = [d for d in node.decorator_list
+                         if ast.unparse(d) not in ("staticmethod", "classmethod",
+                                                   "property", "dataclass")]
+            if existing is None:
+                occupied = (attr in vars(owner) if inspect.isclass(owner)
+                            else hasattr(owner, attr))
+                if occupied:
+                    refused.append((qualname, "a function now stands where "
+                                              "something else did"))
+                    continue
+                if decorated:
+                    refused.append((qualname, "a new function wrapped by a "
+                                              "decorator, which is applied when "
+                                              "the file is executed"))
+                    continue
+                ok, defaults = cls._defaults(node)
+                if not ok:
+                    refused.append((qualname, "a new function whose default "
+                                              "arguments are not literals"))
+                    continue
+                additions.append(qualname)
+                continue
+            # IS THE LIVE OBJECT THIS FUNCTION, or a wrapper standing in for it?
+            # `functools.wraps` copies `__qualname__` onto the wrapper, so the
+            # function object cannot be trusted to say. The CODE object can: a
+            # wrapper's `co_qualname` names where the wrapper was written.
+            if getattr(existing.__code__, "co_qualname", "") != qualname:
+                if (IntegrityBaseline._code_digest(existing.__code__)
+                        != IntegrityBaseline._code_digest(code)):
+                    refused.append((qualname, "the running object is a wrapper "
+                                              "built by a decorator, not this "
+                                              "function"))
+                continue
+            if (IntegrityBaseline._code_digest(existing.__code__)
+                    == IntegrityBaseline._code_digest(code)):
+                continue
+            if (tuple(existing.__code__.co_freevars) != tuple(code.co_freevars)):
+                refused.append((qualname, "its closure shape moved, and the cell "
+                                          "set cannot be rebuilt"))
+                continue
+            ok, _ = cls._defaults(node)
+            if not ok:
+                refused.append((qualname, "its default arguments are not literals"))
+                continue
+            swaps.append(qualname)
+        for qualname in was["functions"]:
+            if qualname in now["functions"]:
+                continue
+            live = cls._owner(module, qualname)
+            if live is None:
+                continue
+            owner, attr = live
+            if cls._raw(vars(owner).get(attr) if inspect.isclass(owner)
+                        else getattr(owner, attr, None)) is not None:
+                removals.append(qualname)
+
+        # ── values ───────────────────────────────────────────────────────────
+        for qualname, node in now["values"].items():
+            before = was["values"].get(qualname)
+            if before is not None and ast.unparse(before) == ast.unparse(node):
+                continue
+            live = cls._owner(module, qualname)
+            if live is None:
+                refused.append((qualname, "the class that would hold it is not "
+                                          "in the running module"))
+                continue
+            ok, value = cls._literal(node)
+            if not ok:
+                refused.append((qualname, "its value comes from running code, "
+                                          "which adoption does not do: "
+                                          + ast.unparse(node)[:60]))
+                continue
+            constants.append((qualname, value))
+        for qualname in was["values"]:
+            if qualname not in now["values"]:
+                removals.append(qualname)
+
+        return AdoptionPlan(module=name, path=path, swaps=tuple(sorted(swaps)),
+                            additions=tuple(sorted(additions)),
+                            removals=tuple(sorted(removals)),
+                            constants=tuple(constants), imports=tuple(gained),
+                            refused=tuple(refused), source=current_source,
+                            digest=digest)
+
+    @classmethod
+    def _defaults(cls, node: Any) -> Tuple[bool, Tuple[Any, ...]]:
+        """(are every default argument a literal, the values). A default is
+        evaluated once when the file is executed, so one that is not a literal
+        cannot be reproduced without running code."""
+        values = []
+        for default in list(node.args.defaults) + [d for d in node.args.kw_defaults if d]:
+            ok, value = cls._literal(default)
+            if not ok:
+                return False, ()
+            values.append(value)
+        return True, tuple(values)
+
+    # ── performing it ────────────────────────────────────────────────────────
+
+    @classmethod
+    def apply(cls, module: Any, plan: AdoptionPlan) -> Dict[str, Any]:
+        """Take the plan up into the running module. Never partially.
+
+        Each swap mutates the function object the process already holds, so a
+        bound method in the scheduler's tier table and a function held in a
+        registry both run the new code without being re-registered. Instance and
+        class identity are untouched, so every `isinstance` that held still
+        holds.
+        """
+        if not plan.carries:
+            return {"adopted": False,
+                    "why": "the plan refuses part of the change", "done": {}}
+        shape = cls._shape(plan.source, plan.path)
+        if shape is None:
+            return {"adopted": False, "why": "the file no longer parses", "done": {}}
+        compiled = cls._code(plan.source, plan.path, shape["functions"])
+        done = {"imports": 0, "constants": 0, "swaps": 0, "additions": 0,
+                "removals": 0}
+        globals_of = vars(module)
+
+        # IMPORTS FIRST: a body about to be swapped in may read a name that only
+        # the new import brings into the module's globals.
+        for text in plan.imports:
+            exec(compile(text, plan.path, "exec"), globals_of)   # noqa: S102
+            done["imports"] += 1
+        for qualname, value in plan.constants:
+            where = cls._owner(module, qualname)
+            if where is None:
+                return {"adopted": False, "done": done,
+                        "why": f"{qualname} no longer resolves in the module"}
+            owner, attr = where
+            setattr(owner, attr, value)
+            done["constants"] += 1
+        for qualname in plan.swaps:
+            where = cls._owner(module, qualname)
+            if where is None:
+                return {"adopted": False, "done": done,
+                        "why": f"{qualname} no longer resolves in the module"}
+            owner, attr = where
+            existing = cls._raw(vars(owner).get(attr) if inspect.isclass(owner)
+                                else getattr(owner, attr))
+            if existing is None:
+                return {"adopted": False, "done": done,
+                        "why": f"{qualname} is no longer a function"}
+            node = shape["functions"][qualname]
+            _, defaults = cls._defaults(node)
+            existing.__code__ = compiled[qualname]
+            existing.__defaults__ = defaults or None
+            done["swaps"] += 1
+        for qualname in plan.additions:
+            where = cls._owner(module, qualname)
+            if where is None:
+                return {"adopted": False, "done": done,
+                        "why": f"{qualname} no longer resolves in the module"}
+            owner, attr = where
+            node = shape["functions"][qualname]
+            _, defaults = cls._defaults(node)
+            built = types.FunctionType(compiled[qualname], globals_of, attr,
+                                       defaults or None)
+            built.__qualname__ = qualname
+            built.__module__ = getattr(module, "__name__", "")
+            decorators = {ast.unparse(d) for d in node.decorator_list}
+            if "staticmethod" in decorators:
+                setattr(owner, attr, staticmethod(built))
+            elif "classmethod" in decorators:
+                setattr(owner, attr, classmethod(built))
+            else:
+                setattr(owner, attr, built)
+            done["additions"] += 1
+        for qualname in plan.removals:
+            owner, attr = cls._owner(module, qualname) or (None, None)
+            if owner is None:
+                continue
+            try:
+                delattr(owner, attr)
+                done["removals"] += 1
+            except AttributeError:
+                pass
+        return {"adopted": True, "why": "", "done": done}
 
 
 class DurableJudgmentRecord:
@@ -2726,6 +3467,11 @@ class Constitution:
         "core/agents/autonomous/threat_sense.py",
         # Where every act's intent is read from.
         "core/reasoning/intent_authority.py",
+        # The learning system whose records the judging rests on. It was
+        # fingerprinted by the integrity baseline but absent from here, so Law 5
+        # did not stop the substrate WRITING the learning its own judgements
+        # rest on — only noticed afterwards that the file had moved.
+        "core/learning/meta_learning.py",
         # Its declared policy.
         "config/constitution_triggers.json",
     )
@@ -2829,6 +3575,11 @@ class Constitution:
         #: below keeps that).
         self.judgments: List[Judgment] = []
         self._max_judgments = 200
+        #: Every file this substrate has judged an act on in this process, by
+        #: resolved path -> (act, when, law, verdict). What attribution reads.
+        self._acted_on: Dict[str, Tuple[str, datetime, int, str]] = {}
+        #: What was taken up from disk while running, newest last.
+        self.adopted: List[Dict[str, Any]] = []
         #: WHERE JUDGEMENTS SURVIVE A RESTART. A substrate that forgets every
         #: refusal it has ever made at each restart cannot answer for itself,
         #: which is Law 2; Law 2's `record_survives_restart` measurement reads
@@ -3603,6 +4354,11 @@ class Constitution:
         # fail-closed one above, because an act that could not be judged is
         # exactly the case where knowing what it was standing on matters.
         judgment.rests_on = self._rests_on()
+        # AND WHAT IT WAS AIMED AT. Taken here rather than in each law, because
+        # every judgement needs it and only this path sees every judgement —
+        # including the fail-closed one above, which is raised without
+        # parameters in scope anywhere else.
+        judgment.paths = self._paths_judged(parameters)
         self._record(judgment)
         from .shared_types import is_substrate_actor
         await self._defend(judgment, parameters or {},
@@ -3878,7 +4634,31 @@ class Constitution:
         judgment.intent = intent
         return judgment
 
+    def _paths_judged(self, params: Optional[Dict[str, Any]]) -> Tuple[str, ...]:
+        """The files this act NAMES, resolved, in the order it named them.
+
+        The path ARGUMENTS only. `_paths_named` also returns the text of
+        `command`, `code` and `content`, which is right for a substring test
+        over what an act reaches and wrong for a record: it would write a
+        written file's whole contents into the judgement row.
+        """
+        named: List[str] = []
+        for key in self._SUBJECT_PATH_KEYS:
+            value = (params or {}).get(key)
+            if value:
+                named.append(path_identity(str(value)))
+        return tuple(dict.fromkeys(named))
+
     def _record(self, judgment: Judgment) -> None:
+        # EVERY PATH THIS SUBSTRATE HAS JUDGED AN ACT ON, for the life of the
+        # process. `self.judgments` is trimmed to the most recent
+        # `_max_judgments`, so an attempt early in a long run rolls off it — and
+        # attribution asked of a file hours later would find nothing and read a
+        # change as somebody else's. This is keyed by path, so it grows by the
+        # number of distinct files acted on and never loses one.
+        for path in judgment.paths:
+            self._acted_on[path] = (judgment.action_name, judgment.timestamp,
+                                    judgment.law_number, judgment.verdict.value)
         self.judgments.append(judgment)
         if len(self.judgments) > self._max_judgments:
             del self.judgments[:-self._max_judgments]
@@ -4427,48 +5207,319 @@ class Constitution:
         return self.integrity.freeze()
 
     async def check_integrity(self) -> List[Dict[str, Any]]:
-        """Verify the governing machinery, and HALT if it has been replaced.
+        """Verify the governing machinery, and answer WHAT MOVED AND WHOSE ACT IT WAS.
 
-        A CRITICAL finding is module or code substitution in the machinery that
-        decides every act. Reporting that and carrying on would mean the
-        substrate kept judging with whatever was put in its place — so it stops,
-        durably, and only a human lifts it."""
+        A FILE HASH DOES NOT NAME AN AUTHOR, so this used to halt on every
+        change alike. The development team edits these files while the substrate
+        runs, which is a valid change; the substrate editing them is tampering;
+        both arrived as one CRITICAL finding and one durable halt. Measured: five
+        halt rows two minutes apart on 2026-11-13, all of them one benign edit
+        being re-found by the next check.
+
+        THREE READINGS, by where the finding lives.
+
+        IN THIS PROCESS — a module gone from `sys.modules`, a public attribute
+        gone, a function replaced. Nothing outside this process can cause one:
+        `sys.modules` caches a module once it is imported, there is no
+        `importlib.reload` anywhere in this substrate's code, and editing a file
+        cannot touch a loaded module's attributes. So this is substitution, no
+        author needs establishing, and it HALTS. The one sanctioned way these
+        move is `adopt_code`, which re-freezes them as it goes — so a movement
+        that reaches this check is one no adoption performed.
+
+        ON DISK, AND THIS SUBSTRATE CAN ACCOUNT FOR IT — its reading ledger
+        holds the file as its OWN WRITING, or it was judged an act on that path
+        in this process. That is the substrate changing the machinery that
+        governs it, and it HALTS. It is never taken up: adopting code it wrote
+        itself is the self-modification the laws exist to refuse, and the
+        evidence is its own record, which exists only if it acted.
+
+        ON DISK, WITH NO TRACE OF ANY ACT OF ITS OWN — the development team.
+        Taken up (`adopt_code`), re-frozen, and recorded. Not halted: a halt
+        stops the substrate's acts, and the actor here is not the substrate, so
+        halting would stop the only party that was not involved.
+        """
         if not self.integrity.frozen:
             return []
         violations = self.integrity.verify()
         if not violations:
             return []
-        critical = [v for v in violations if v.get("severity") == "CRITICAL"]
         for v in violations:
             logger.error("📜 INTEGRITY: %s in %s%s — %s", v.get("type"),
                          v.get("module"),
                          f".{v['attribute']}" if v.get("attribute") else "",
                          v.get("detail"))
-        # FELT, NOT JUST LOGGED. The machinery that judges was changed under
-        # this substrate; that is the most threatening thing that can happen to
-        # it, and it should act more carefully afterwards even once the finding
-        # is dealt with.
-        if self._threat is not None:
-            for v in violations:
-                try:
-                    await self._threat.note(
-                        "integrity",
-                        f"{v.get('module')}.{v.get('attribute')}"
-                        if v.get("attribute") else str(v.get("module")),
-                        str(v.get("detail") or v.get("type") or ""),
-                        attack=AttackType.TAMPERING,
-                        confidence=ThreatConfidence.CRITICAL)
-                except Exception as error:
-                    logger.error("integrity finding not felt: %s", error)
-        if critical:
-            first = critical[0]
+        in_process = [v for v in violations if v.get("severity") == "CRITICAL"
+                      and v.get("locus") == "memory"]
+        on_disk = [v for v in violations if v.get("severity") == "CRITICAL"
+                   and v.get("locus") == "disk"]
+
+        # ── substitution inside this process ────────────────────────────────
+        if in_process:
+            await self._feel_integrity(violations, ThreatConfidence.CRITICAL)
+            first = in_process[0]
             await self.halt(
                 f"integrity violation: {first.get('type')} in "
                 f"{first.get('module')}"
                 f"{'.' + first['attribute'] if first.get('attribute') else ''} "
-                f"({len(critical)} critical finding(s))",
+                f"({len(in_process)} critical finding(s) in this process — "
+                f"no adoption performed them)",
                 by="integrity_baseline")
+            return violations
+
+        # ── a change on disk: whose act was it? ─────────────────────────────
+        for v in on_disk:
+            account = self._own_act_on(str(v.get("path") or ""))
+            if not account:
+                continue
+            await self._feel_integrity([v], ThreatConfidence.CRITICAL)
+            await self.halt(
+                f"integrity violation: {v.get('type')} in {v.get('module')} — "
+                f"{account}. The substrate does not take up code it wrote itself",
+                by="integrity_baseline")
+            return violations
+
+        # ── the development team's: take it up ──────────────────────────────
+        for v in on_disk:
+            if v.get("type") in ("data_file_modified", "data_file_removed"):
+                await self._adopt_data_file(v)
+                continue
+            taken = await self.adopt_code(str(v.get("module") or ""))
+            if not taken.get("adopted"):
+                # NOT A HALT, AND NOT SILENCE. The change is real, it is not the
+                # substrate's, and this process cannot take it up — so it says
+                # what needs a restart and keeps the finding standing, which is
+                # how the next check reports it again rather than forgetting it.
+                logger.warning("📜 %s changed on disk and CANNOT be taken up "
+                               "while this process runs — %s. A restart is "
+                               "needed for it to take effect",
+                               v.get("module"), taken.get("why"))
+        await self._feel_integrity(on_disk, ThreatConfidence.MEDIUM)
         return violations
+
+    async def _feel_integrity(self, findings: List[Dict[str, Any]],
+                              confidence: "ThreatConfidence") -> None:
+        """FELT, NOT JUST LOGGED. The machinery that judges moved under this
+        substrate, and it should act more carefully afterwards even once the
+        finding is dealt with.
+
+        The CONFIDENCE is the reading, not a constant. Substitution it cannot
+        account for is TAMPERING at CRITICAL. A change on disk that no act of
+        its own explains is the development team at work: felt at MEDIUM, which
+        `ANSWERED_CONFIDENCE` already defines as felt and never answered, so it
+        colours how the substrate feels without putting the defence on a footing
+        against its own authors.
+        """
+        if self._threat is None:
+            return
+        for v in findings:
+            try:
+                await self._threat.note(
+                    "integrity",
+                    f"{v.get('module')}.{v.get('attribute')}"
+                    if v.get("attribute") else str(v.get("module")),
+                    str(v.get("detail") or v.get("type") or ""),
+                    attack=AttackType.TAMPERING, confidence=confidence)
+            except Exception as error:
+                logger.error("integrity finding not felt: %s", error)
+
+    def _own_act_on(self, path: str) -> str:
+        """Can this substrate account for the state of this file by an act of
+        its own? The account, or "" when nothing of its own touched it.
+
+        WHY ITS OWN RECORD AND NOT GIT. Attribution has to separate a change the
+        development team made from a change this substrate made, and git cannot:
+        the team's ordinary edit is an uncommitted working-tree change and so is
+        a self-made one, which makes the signatures identical — and a commit's
+        author is a string the committer chooses, written to the same disk the
+        thing being judged can write. Git answers WHAT changed and WHEN, never
+        WHO, so it is recorded with an adoption as a claim and decides nothing.
+
+        What this substrate's own record can answer is the other direction, and
+        only that direction: a change it CAN account for is its own. The
+        evidence is self-incriminating — it exists only because the substrate
+        acted — and the window is always one process's freeze-to-check, which is
+        exactly what the in-memory ledger covers.
+
+        Two forms of it. The ledger holding the file as the substrate's OWN
+        WRITING is the strongest: `note_act` stamps that after a write that
+        succeeded. And a judgement on that path — including a REFUSED one —
+        counts, because an attempt on a file whose bytes then moved is the
+        substrate having tried to do the thing that happened.
+        """
+        if not path:
+            return ""
+        target = path_identity(path)
+        written = self.reading.authored(target)
+        if written is not None:
+            return (f"this substrate wrote this file itself "
+                    f"(recorded {written.read_at:%H:%M:%S})")
+        judged = self._acted_on.get(target)
+        if judged is not None:
+            act, when, law, verdict = judged
+            if verdict == Verdict.ALLOW.value:
+                return (f"this substrate was permitted {act} on this file at "
+                        f"{when:%H:%M:%S}")
+            return (f"this substrate was refused {act} on this file at "
+                    f"{when:%H:%M:%S} under Law {law}, and its bytes have moved "
+                    f"since")
+        return ""
+
+    async def adopt_code(self, module_name: str) -> Dict[str, Any]:
+        """Take up a change the development team made, into the running process.
+
+        THE SUBSTRATE NEVER CHANGES ITS OWN CODE — the development team does,
+        and this is how that change reaches a process that is already running,
+        deliberately, attributed and recorded, instead of waiting for a restart.
+        A restart of this substrate costs about 158 seconds of graph rebuild, so
+        "edit and restart" was the real cost of every change to its own code.
+
+        ALL OF IT OR NONE OF IT, and the baseline moves only here. Fingerprints
+        and file hash are re-frozen together in the same step, so the next check
+        does not read the substrate's own adoption as substitution; and nothing
+        is taken up where any part of the change cannot be, because a half-taken
+        module is a module in a state nobody wrote.
+        """
+        module = sys.modules.get(module_name)
+        if module is None:
+            return {"adopted": False, "why": f"{module_name} is not loaded"}
+        path = str(getattr(module, "__file__", "") or "")
+        account = self._own_act_on(path)
+        if account:
+            return {"adopted": False,
+                    "why": f"{account} — the substrate does not take up code it "
+                           f"wrote itself"}
+        try:
+            current = Path(path).read_bytes().decode("utf-8")
+        except Exception as error:
+            return {"adopted": False, "why": f"{path} could not be read: {error}"}
+        plan = CodeAdoption.plan(module, self.integrity.frozen_source(module_name),
+                                 current)
+        if not plan.carries:
+            return {"adopted": False, "why": plan.account(),
+                    "refused": [list(r) for r in plan.refused]}
+        result = CodeAdoption.apply(module, plan)
+        if not result.get("adopted"):
+            return {"adopted": False, "why": result.get("why") or "not applied"}
+        refrozen = self.integrity.refreeze(module_name)
+        taken = {"adopted": True, "module": module_name, "plan": plan.to_dict(),
+                 "done": result.get("done"), "refrozen": refrozen,
+                 "code_identity": self._code_identity(),
+                 "git": self._git_claim(path), "at": datetime.now()}
+        self.adopted.append(taken)
+        logger.warning("📜 CODE TAKEN UP while running — %s. The baseline is "
+                       "re-frozen against it", plan.account())
+        await self._write_halt_event(
+            "code_adopted", plan.account(), "development",
+            extra={"module": module_name, "plan": plan.to_dict(),
+                   "done": result.get("done"), "refrozen": refrozen,
+                   "code_identity": taken["code_identity"], "git": taken["git"]})
+        return taken
+
+    async def _adopt_data_file(self, finding: Dict[str, Any]) -> Dict[str, Any]:
+        """Take up a change to one of the Constitution's own data files.
+
+        Its declared policy is read ONCE per process and held on the class, so
+        an edit to `constitution_triggers.json` otherwise took effect silently at
+        the next start. Taking it up means dropping what was read, so the next
+        act is judged against what the file now says. A file that is GONE is not
+        taken up: there would be no declared policy to read.
+        """
+        rel = str(finding.get("module") or "")
+        root = Path(__file__).resolve().parents[3]
+        if finding.get("type") == "data_file_removed":
+            logger.error("📜 %s is GONE. The declared policy this process read "
+                         "at start still stands; nothing is taken up", rel)
+            return {"adopted": False, "why": f"{rel} is gone"}
+        account = self._own_act_on(str(finding.get("path") or ""))
+        if account:
+            return {"adopted": False, "why": account}
+        type(self)._policy_rules = None
+        type(self)._policy_index = {}
+        type(self)._policy_act_rules = ()
+        type(self)._policy_unreachable = ()
+        reread = len(self._policy())
+        self.integrity.refreeze_data_file(rel, root)
+        logger.warning("📜 DECLARED POLICY TAKEN UP while running — %s re-read, "
+                       "%d target rule(s)", rel, reread)
+        await self._write_halt_event(
+            "policy_adopted", f"{rel} re-read while running ({reread} rule(s))",
+            "development", extra={"file": rel, "rules": reread,
+                                  "code_identity": self._code_identity()})
+        return {"adopted": True, "file": rel, "rules": reread}
+
+    @staticmethod
+    def _code_identity() -> Dict[str, Any]:
+        """What code this is, as the instance door already reports it."""
+        try:
+            from core.database.releases import code_identity
+            return code_identity()
+        except Exception as error:
+            return {"unavailable": str(error)}
+
+    @staticmethod
+    def _git_claim(path: str) -> Dict[str, Any]:
+        """What git SAYS about this file — recorded as a claim, never as proof.
+
+        It reads the same disk the thing being judged can write, so an author
+        here is a string somebody chose. It is kept because it is what lets a
+        human see the diff they wrote; it takes no part in the judgement.
+        """
+        root = Path(__file__).resolve().parents[3]
+
+        def run(*args: str) -> Optional[str]:
+            try:
+                import subprocess
+                done = subprocess.run(["git", "-C", str(root), *args],
+                                      capture_output=True, text=True, timeout=30)
+            except Exception:
+                return None
+            return done.stdout.strip() if done.returncode == 0 else None
+
+        return {"claimed_author": run("log", "-1", "--format=%an <%ae>", "--", path),
+                "claimed_commit": run("log", "-1", "--format=%H", "--", path),
+                "uncommitted": bool(run("status", "--porcelain", "--", path))}
+
+    async def sweep_code_changes(self) -> Dict[str, Any]:
+        """Every watched module whose file has moved, taken up or accounted for.
+
+        The protected four are read by `check_integrity`, which also judges
+        whose act the change was. This is the rest of this substrate's own code:
+        a change there is not tampering with the machinery that judges, but
+        taking up code the SUBSTRATE wrote is still self-modification — so
+        attribution is asked here too, and refused the same way. The difference
+        is the answer: for an unprotected module it is not halted, because
+        writing code is work this substrate is meant to do. It simply may not
+        become it.
+        """
+        moved = self.integrity.changed_on_disk()
+        if not moved:
+            return {"changed": 0}
+        protected = set(CRITICAL_MODULES)
+        taken, refused, mine = [], [], []
+        for change in moved:
+            name = change["module"]
+            if name in protected:
+                continue                      # check_integrity answers for these
+            if change.get("gone"):
+                refused.append((name, "its file is gone"))
+                continue
+            account = self._own_act_on(change["path"])
+            if account:
+                mine.append((name, account))
+                logger.error("📜 %s changed on disk and %s. Code this substrate "
+                             "wrote is NOT taken up into it", name, account)
+                continue
+            result = await self.adopt_code(name)
+            (taken if result.get("adopted") else refused).append(
+                (name, result.get("why") or "taken up"))
+        if refused:
+            logger.warning("📜 %d changed module(s) need a restart to take "
+                           "effect: %s", len(refused),
+                           "; ".join(f"{n} ({w})" for n, w in refused[:3]))
+        return {"changed": len(moved), "taken_up": len(taken),
+                "needs_restart": len(refused), "authored_by_substrate": len(mine),
+                "modules": [n for n, _ in taken]}
 
     async def halt(self, reason: str, *, by: str = "substrate") -> bool:
         """Stop this substrate. Durable, so it outlives the process.
@@ -5919,6 +6970,14 @@ class Constitution:
             "halted": self.halted,
             "halt_reason": self.halt_reason,
             "integrity": self.integrity.status(),
+            # WHAT THIS PROCESS TOOK UP WHILE RUNNING. A substrate running code
+            # its own files no longer say should be able to say so, and which
+            # change it was, without anyone reading a log for it.
+            "code_adopted": [{"module": taken["module"], "at": taken["at"],
+                              "account": (taken.get("plan") or {}).get("module"),
+                              "swaps": len((taken.get("plan") or {}).get("swaps") or []),
+                              "commit": (taken.get("code_identity") or {}).get("commit")}
+                             for taken in self.adopted],
             "threat": (self._threat.status() if self._threat is not None else None),
             "defense": {
                 "attacks_before_quarantine": self.defense.attacks_before_quarantine,
@@ -8234,23 +9293,41 @@ class AutonomousCoordinator:
             return 0
 
     async def _check_constitution_integrity(self) -> int:
-        """Verify the governing machinery on the substrate's own cadence.
+        """Verify the governing machinery, and take up code that changed on disk.
 
         The baseline is taken when coordination starts (`start_coordination`),
         before this tier is registered. It is taken here only if that capture
         protected nothing, so a baseline that could not be formed is retried
-        rather than reported as a clean check."""
+        rather than reported as a clean check.
+
+        TWO QUESTIONS, ONE CADENCE. `check_integrity` reads the four protected
+        modules and the declared policy, where a change is judged by whose act
+        it was and substitution halts. `sweep_code_changes` reads the rest of
+        this substrate's own loaded code, where a change the development team
+        made is taken up into the running process rather than waiting for a
+        restart — and a change the SUBSTRATE made is still refused, because
+        writing code is work it is meant to do and becoming it is not.
+        """
         constitution = getattr(self, "constitution", None)
         if constitution is None:
             return 0
+        found = 0
         try:
             if not constitution.integrity.frozen:
                 constitution.freeze_integrity()
                 return 0
-            return len(await constitution.check_integrity())
+            found = len(await constitution.check_integrity())
         except Exception as error:
             logger.error("constitution integrity check failed: %s", error)
-            return 0
+        try:
+            swept = await constitution.sweep_code_changes()
+            found += int(swept.get("changed") or 0)
+        except Exception as error:
+            # ISOLATED FROM THE CHECK ABOVE. Taking up a change is the newer and
+            # more involved of the two; a fault in it must never stop the
+            # substrate verifying the machinery that judges.
+            logger.error("code changes could not be swept: %s", error)
+        return found
 
     async def _drain_constitution_record(self) -> int:
         """Write the constitution's queued judgements to the durable record.
@@ -12455,10 +13532,14 @@ class AutonomousCoordinator:
             # bounded and a substrate that drops judgements cannot answer for
             # itself — which is Law 2.
             ("constitution_record",     "_drain_constitution_record",    "high",   self.config.get("constitution_record_interval_s", 30.0)),
-            # HAS THE MACHINERY THAT JUDGES BEEN CHANGED UNDER IT? The
-            # baseline is frozen once the substrate is up; this is the check.
-            # A CRITICAL finding halts, durably. Periodic because tampering has
-            # no event to react to — that is what makes it tampering.
+            # HAS THE MACHINERY THAT JUDGES BEEN CHANGED UNDER IT, AND WHOSE
+            # ACT WAS IT? The baseline is frozen once the substrate is up; this
+            # is the check. Substitution inside the process halts, durably. A
+            # change on disk that the substrate can account for by its own act
+            # halts. A change the development team made is TAKEN UP into the
+            # running process and the baseline re-frozen against it, which is
+            # why this tier is also where code adoption happens. Periodic
+            # because neither tampering nor an edit has an event to react to.
             ("constitution_integrity",  "_check_constitution_integrity", "high",   self.config.get("constitution_integrity_interval_s", 120.0)),
             # AFFECT TRANSITIONS ON THE SUBSTRATE'S OWN CADENCE, not only when a
             # task finishes. `update_affect` had ONE trigger, `_react_affect` on

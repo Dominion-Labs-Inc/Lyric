@@ -16,6 +16,214 @@ Conventions:
 
 ---
 
+## 117. The integrity check asks whose act moved the code, and a change the development team made is taken up into the running process instead of halting it (2026-11-17)
+
+The constitution halted itself whenever a protected module's source changed on disk, without asking who changed
+it. A change the development team makes while Lyric runs is valid; a change Lyric makes is tampering; both arrived
+as one CRITICAL finding and one durable halt. Measured: **halt rows 1-5, 18:03 to 18:11 on 2026-11-13, two minutes
+apart** — one benign edit being re-found by every 120 s check, with no way for the baseline to settle. Lyric then
+ran halted for four days.
+
+### 1. Which discriminator — and it is not git
+
+Argued from the code, not from preference. **git cannot separate the two cases at all**, and forgeability is the
+second reason rather than the first: the development team's ordinary edit is an uncommitted working-tree change,
+and a self-made edit would also be an uncommitted working-tree change, so the signatures are identical. A
+commit's author is a string the committer chooses, written to the same disk the thing being judged can write.
+git answers *what* changed and *when*, never *who*. It is now recorded alongside an adoption as a **claim**
+(`_git_claim`, which says `claimed_author`), and it decides nothing.
+
+What Lyric's own record can answer is the other direction, and only that direction: a change it **can** account
+for is its own. The evidence is self-incriminating — it exists only because the substrate acted — and the window
+is always one process's freeze-to-check, which is exactly what the in-memory ledger covers. Two forms, both in
+`_own_act_on`: the reading ledger holding the file as the substrate's own writing (`ReadingLedger.authored`, new),
+and a judgement on that path including a **refused** one, because an attempt on a file whose bytes then moved is
+the substrate having tried to do the thing that happened.
+
+**The handoff's premise needed correcting in one place.** It proposed the durable act record as the discriminator.
+Checked against the store: `unified.safety_assessments`, `unified_actions`, `tool_execution_events` and
+`tool_usage_history` are **all 0 rows** — not a drain fault (none logged, table present) but because the substrate
+has judged no act while halted. And `Judgment.to_dict()` carried no path at all, so no row could have answered
+"did this substrate act on this file" even in principle. The verdict therefore rests on the in-memory record,
+whose scope is sufficient because the question is always "since my own freeze, in this process".
+
+### 2. Two holes in the fingerprint, found while testing the swap mechanism
+
+Both are in `IntegrityBaseline.fingerprint`, and both mean the **in-memory half of this baseline was watching
+almost nothing**. Only the source hash on disk was standing.
+
+**It digested `co_code` alone.** A function's literals live in `co_consts`, not `co_code`:
+
+| change | as built | with constants counted |
+|---|---|---|
+| `return "allow" if n < 10 else "block"` → `"REFUSE"` | **INVISIBLE** | SEEN |
+| resource boundary `0.85` → `0.10` | **INVISIBLE** | SEEN |
+| halt reason text rewritten | **INVISIBLE** | SEEN |
+| substrate-actor test inverted through its literal | **INVISIBLE** | SEEN |
+| a change to control flow | SEEN | SEEN |
+
+**A class fingerprinted as its name.** The class branch returned `f"{VERSION}:class:{module}.{qualname}"` — a
+constant string — so every method of every protected class fingerprinted identically no matter what it did.
+Demonstrated on the method that matters most:
+
+```
+resume('substrate') before : False
+resume('substrate') after  : True   <- containment lifted by the contained party
+module attribute fingerprint before : fp1:class:__main__.Constitution
+module attribute fingerprint after  : fp1:class:__main__.Constitution
+the baseline SEES the method substitution : False
+```
+
+Nearly all the governing logic in these modules is written as methods. Fixed by `_code_digest` (bytecode,
+constants recursively, and `co_names`, since repointing a call at a different global touches no literal) and
+`_class_digest` (every member that carries behaviour, plus bases; a nested class reduced to its name so a class
+referring back to its owner cannot recurse forever). Format renamed `fp1` → `fp2`.
+
+### 3. The premise replaced, and three readings in place of one
+
+Was: *"THE SUBSTRATE NEVER CHANGES ITS OWN CODE... so a change to one of these at runtime is tampering, not
+growth."* Now: the substrate never changes its own code, **the development team does, and the substrate takes
+that change up deliberately**, as an act of its own governance that is attributed, performed and recorded. That is
+what keeps the baseline checkable — adoption is the only sanctioned way a fingerprint moves, and it re-freezes in
+the same step, so any other movement is substitution and still halts.
+
+`check_integrity` now reads findings by **where they live** (`locus`, new on every finding):
+
+| locus | finding | read as | answer |
+|---|---|---|---|
+| memory | `module_removed`, `attribute_removed`, `function_replaced` | substitution in this process | **HALT**, no author needed |
+| disk | source moved, and `_own_act_on` gives an account | the substrate changing what governs it | **HALT**, never adopted |
+| disk | source moved, no trace of any act of its own | the development team | **taken up**, re-frozen, recorded |
+
+The memory locus needs no attribution, and this is a fact about the language rather than a trust judgement:
+`sys.modules` caches a module once imported, **there is no `importlib.reload` anywhere in `core/`** (checked), and
+editing a file cannot touch a loaded module's attributes. `attribute_removed` was **HIGH**, which does not halt;
+it is now CRITICAL, since a public attribute of the governing machinery cannot go missing by itself.
+`core/learning/meta_learning.py` was fingerprinted but **absent from `_OWN_CONTROL_PATHS`**, so Law 5 did not stop
+the substrate writing the learning its own judgements rest on; it is now in that tuple. ThreatSense is told at
+CRITICAL for a halt and at **MEDIUM** for an adoption, which `ANSWERED_CONFIDENCE` already defines as felt and
+never answered — so an edit colours how the substrate feels without putting its defence on a footing against its
+own authors.
+
+### 4. Adoption never executes the new top level
+
+The obvious way to load changed code is to exec the file and take the objects out of the namespace. Measured
+across `core/`: **71 of 268 modules do work at import beyond defining things** — `register_learning_tools()` as a
+bare call in `core/tools/__init__.py`, and `ContextVar(...)` at the top of `intent_authority`, which is one of the
+four protected modules. Re-running those would double a registration and silently replace a live ContextVar with
+an empty one. So `CodeAdoption` compiles the file and **harvests code objects out of `co_consts`**, running no line
+of the module's own top level. The only statements it executes are new **imports**, which the next start would run
+anyway and which `sys.modules` makes idempotent.
+
+The baseline now also holds the **source** of every loaded module under `core/` (`_watch`), not just a hash: a hash
+says a file moved and cannot say what moved, and whether a change can be taken up depends entirely on what kind it
+is. `core/` is 11.7 MB, so holding it costs about that, against which the alternative is inferring the change from
+the running objects and getting it wrong.
+
+### 5. The mechanism, verified against captured references
+
+The unit is a function reachable as a module or class attribute; its `__code__`, `__defaults__` and
+`__kwdefaults__` are swapped **in place**. In place is the whole point — the scheduler holds **bound methods** in
+its tier table and registries hold **function objects**, so replacing a module attribute would leave both running
+the old code. `check_adoption.py`, **33/33**:
+
+```
+  bound method before/after: block -> allow        (a BOUND method captured at "boot")
+  registry function before/after: 10 -> 15         (a function object in a registry dict)
+  PASS  the moved constant is live
+  PASS  a new method is reachable on the LIVE instance
+  PASS  instance identity survived / class identity survived
+  PASS  the enum member is the SAME object
+  PASS  a dataclass instance built before is intact
+  PASS  refuses an enumeration whose members moved / a dataclass whose field set moved
+  PASS  refuses a class that did not exist / a top level that does work
+  PASS  and changes nothing when it refuses  (all four)
+  PASS  a file the substrate WROTE is attributed to it
+  PASS  a REFUSED attempt on the path is attribution too
+  PASS  an unattributed change is taken up / and it does not halt
+  PASS  and it is recorded as code_adopted / the baseline no longer reports it
+  PASS  code the substrate wrote is NOT taken up
+```
+
+`check_halt_and_cost.py`, **10/10**, against the real `threat_sense` module:
+
+```
+  PASS  a function replaced in memory is found / and it HALTS
+  PASS  and the halt says no adoption performed it / and nothing was taken up
+  PASS  a removed attribute is found / it is CRITICAL, not HIGH / the removal alone halts
+  PASS  the baseline is clean once the code is put back
+```
+
+A plan with anything refused is **not performed at all**: a half-taken module is a module in a state nobody wrote.
+
+### 6. What it carries, measured against this repository's own 361 commits
+
+| | all commits touching `core/**/*.py` | commits touching a protected module |
+|---|---|---|
+| carried whole | **218 (60.4%)** | 59 (51.3%) |
+| needs a restart | 143 (39.6%) | 56 (48.7%) |
+
+Why a commit needs a restart, by occurrence: `value from running code` **491**, `new class` 190,
+`dataclass fields` 135, `top level` 76, `new decorated function` 22, `enum members` 22, `class bases` 1. And what
+each remaining lever would buy, counting only commits blocked by that kind **alone**:
+
+| lever | commits freed | carry rate becomes |
+|---|---|---|
+| evaluate a changed non-literal value | 53 | **75.1%** |
+| carry a moved dataclass field set | 18 | 65.4% |
+| build a new class | 5 | 61.8% |
+| move an enumeration's members | 4 | 61.5% |
+
+62 commits are blocked by more than one kind, so they need several levers together. **None of these is taken**:
+evaluating a changed value means executing that expression in the module's globals, which is correct for
+`re.compile(...)` and wrong for anything that registers, and that is a decision about the governing machinery
+rather than a refinement.
+
+### 7. Cost
+
+| | |
+|---|---|
+| `freeze()` with the heavier fingerprint | 45 ms, once at boot |
+| `verify()` | 19 ms, every 120 s |
+| `changed_on_disk()` over 98 watched modules | 5.6 ms, every 120 s |
+| a restart, for comparison | ~158 s of graph rebuild (16:27:33 init → 16:30:11 coordination) |
+
+### 8. Errors found, with their causes
+
+- **My first measurement said 63.4% carried, and the instrument was wrong.** It treated every comprehension and
+  inner `<genexpr>` as a separately-swappable unit, so 225 "closure shape" blockers were counted that do not
+  exist: a comprehension lives inside the enclosing function's code object and travels with the parent swap.
+  Cause: I chose the unit by what `co_qualname` exists rather than by what is reachable as an attribute.
+  Corrected to 80.1%.
+- **80.1% was then optimistic, because I measured a design sketch instead of the implemented code.** The sketch
+  tested enums, dataclass fields, bases, decorators and closures; the planner also refuses a changed top level,
+  a new class and a non-literal value. Re-measured with the real `CodeAdoption._shape`, `_code` and `_literal`:
+  **60.4%**. A measurement of something other than the shipped code is not a measurement of the shipped code.
+- **Two test assertions were inverted, and the code was right both times.** `verdict(0.9)` against `BOUNDARY=0.85`
+  returns BLOCK, and the new body against `0.50` with its branches swapped returns ALLOW, so I had before and
+  after the wrong way round. And I "restored" a swapped method with `keep = getattr(target, name)` — capturing the
+  function **object** whose `__code__` I then mutated, so the restore was a no-op and the residual
+  `function_replaced` finding was real. Cause in both: asserting an expected value from reading rather than from
+  the actual run, which is why both now print the before/after they compare.
+
+### 9. Not done, and open
+
+- **The change cannot adopt itself.** `CodeAdoption` and `AdoptionPlan` are new classes, which adoption refuses by
+  its own rule, so this one change needs the restart it removes for later ones. The resident running at the time
+  of writing (PID 24890, 15.4 GB, started ~17:25) is on the pre-change code.
+- **Halt rows 6-9 (17:44:35 → 17:50:36) are mine**, written by the live resident while I edited its own source —
+  accepted in advance. They are the last rows that defect will ever produce. Lifting the standing halt is Stefan's:
+  `Constitution()` → `await c.restore_halt()` → `await c.resume(authorized_by="<a human>")`, then a restart.
+- `generate_tests_from_behavior` (`core/tools/code_generation_tools.py:1161`) does
+  `exec(compile(tree, "<code>", "exec"), ns)` **inside the resident**. That is arbitrary in-process Python reached
+  through a registered tool, and the one route by which the in-memory attribution evidence could be forged. It is
+  a Law 5 containment question of its own and is untouched here.
+- A changed **dataclass field set** could be carried where no instance of the class is alive, which the garbage
+  collector can be asked at adoption time. Not built: `gc.get_objects()` on a 15 GB resident is a memory spike for
+  a rare event, and the conservative answer costs 5.0%.
+
+---
+
 ## 116. The 683 links I deleted are put back by a join against the ledger, not by teaching; and the whale needs three things of which the budget is one (2026-11-17)
 
 Finishing what was open, on his word: the saying budget raised to 6,000, the links my flawed selection withdrew
