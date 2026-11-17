@@ -130,6 +130,21 @@ only that name changed, budget 6,000:
 `?there` and `?now` are exactly the variables saying BINDS rather than describes. `?p`, `?place` and `?g2` are
 not, and all three say the sentence.
 
+**The mechanism, read rather than inferred from that table.** `?there` is a DECLARED situation variable --
+`grammar.py:2478` `_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here",
+"?there"})`, and `derived_reader.py:106` `SITUATION_VARIABLES` the same -- and `composition.py:291` reads
+`if f.relation == "instance_of" and is_variable(f.subject) and f.subject not in SITUATION`. So an
+`instance_of` whose subject is a situation variable is **excluded by construction**: supplying the
+blowhole's kind cannot help, whatever the budget, which is why (a) and (b) are one fault and not two that
+happen to co-occur.
+
+And `?there` is not a spare name: it is WHERE THE CONVERSATION IS. After each telling,
+`autonomous_coordinator.py:24153` runs `place = place_spoken_of(...)` and then
+`self._last_place = situation["?there"] = place`, and `_situation` (22300) hands it to the next sentence.
+So reading files the blowhole as the place the conversation is at, and the meaning says the whale breathes
+through *where we are*. That is the fault under the empty reply, and it is a reading fault, not a saying
+one.
+
 **(c) The budget must be at least 6,000.** The same meaning, the same order, one warm state:
 
 | order | budget | seconds | said |
