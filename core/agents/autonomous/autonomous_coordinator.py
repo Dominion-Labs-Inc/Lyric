@@ -22681,6 +22681,22 @@ class Conversation:
                 logger.warning("relationships for %s held %d entries that "
                                "are not relations", concept_id,
                                len(parsed) - len(relations))
+            # NOTHING IS A KIND OF ITSELF, AND NOTHING SAYS ANYTHING ABOUT ITSELF BY NAMING ITSELF. A record can
+            # hold a relation whose object is the very thing the record is: `english:list` holds `isa list` beside
+            # `isa database`, and `reading:team` holds `isa team`. Said, that is "A list's a database. Lists are
+            # lists." -- which tells the asker nothing, and reads as a fault in the sayer although the sayer said
+            # exactly the fact it was handed. Held, it is a premise that can entail nothing.
+            #
+            # DROPPED WHERE A RECORD IS READ, which is the one place all of them come through, and not repaired in
+            # the store: two such `isa` are held there and fifty more under relations nothing taught says
+            # (`defined with` 27, `provides` 23), which is why only this one was ever heard -- so the rule has to
+            # outlast the two rows. The words these came from are NOT the source: `word_kinds` and
+            # `word_meanings` were measured for "list", "team" and "wall" and not one sense is a kind of its own
+            # word, so there is nothing to guard there and nothing is guarded there (lyric_db, 2026-11-17).
+            itself = {str(record.get("name") or "").casefold().replace("_", " "),
+                      str(name).casefold().replace("_", " ")} - {""}
+            relations = tuple((relation, other) for relation, other in relations
+                              if str(other).casefold().replace("_", " ") not in itself)
         candidate = Resolved(
             phrase=name, concept_id=concept_id, how=how,
             domain=record.get("domain", ""), description=record.get("description", ""),

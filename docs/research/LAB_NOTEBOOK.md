@@ -25533,3 +25533,57 @@ Raising the budget makes more meanings sayable and makes every UNSAYABLE one slo
 tens of seconds at 6,000. That is reply latency across the whole system traded against answering sentences like
 this one, and it is not a call to make from one sentence. The measure fix is right on its own terms and costs
 nothing when the search is not progressing; it is also not sufficient alone. Both are held until he says which.
+
+### 5. "Lists are lists." was a self-relation held in a concept record
+
+`check_reading` reported the sorted question CHANGED, with the reading IDENTICAL and one sentence added:
+
+```
+was  "A choose screen's a choose.\nA doe's a placental.\nA list's a database."
+now  "A choose screen's a choose.\nA doe's a placental.\nA list's a database. Lists are lists."
+```
+
+**Three hypotheses, all wrong, all argued from the shape of the reply.** The branch that tells two words apart; the
+four places that choose a word's nearest sense; the words' knowledge becoming a premise. Each was plausible, each
+was fixed, and the check reported the tautology still there every time. The answer's own words said why none of
+them could be it -- "A choose screen's a choose." has a SENSE NAME as its subject and all of those say the WORD --
+and I did not read it.
+
+**The stack, taken once, named it in one run.** `derived_reader.say` wrapped to record a stack whenever the meaning
+it is handed carries a fact whose subject IS its object:
+
+```
+autonomous_coordinator.py:25768  <genexpr>   _said(item.phrase, relation, other, ...)
+autonomous_coordinator.py:21430  _said       say(Meaning("tell", facts), ...)
+   facts: isa(list, list)
+```
+
+-- so the fact came off a `Resolved`'s own relations. Those are read from the concept record's `relationships`
+JSON, which is NOT `unified.concept_relations`, which is why the first sweep found nothing:
+
+```
+english:list  [... ["isa","database","positive"], ["isa","list","positive"]]
+unified.concept_relations for list:  list isa database   (and five "defined with")
+```
+
+The JSON holds one edge the table does not. Swept across the store:
+
+| relation | self-edges | concepts |
+|---|---|---|
+| defined with | 27 | 27 |
+| provides | 23 | 23 |
+| **isa** | **2** | **`english:list`, `reading:team`** |
+
+Only two `isa`, which is why only this one was ever heard: nothing taught says "defined with" or "provides".
+
+**Dropped where a record is read**, not repaired in the store: the rule has to outlast two rows, and fifty more sit
+under relations that cannot speak. **The words are not the source and nothing is guarded there** --
+`word_kinds` and `word_meanings` were measured for "list", "team" and "wall" and not one sense is a kind of its own
+word, so the two guards written on that hypothesis were reverted rather than left in as dead code.
+
+```
+24 as recorded, 0 better, 0 worse, 1 changed
+```
+
+The one CHANGED row is the rock, in the right tense, so the baseline is re-recorded -- which it was not yesterday,
+because doing so then would have baked this tautology in beside the improvement.
