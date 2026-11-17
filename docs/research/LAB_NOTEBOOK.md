@@ -366,6 +366,53 @@ clause is genuinely untaught.
 fault. Every one of them was argued from the STORE or from a meaning I had built, and the thing I never did until
 last was ask the reading what it had read. `Reading.composed` and its `meaning` answered it in one run.
 
+### 10. THE WHALE ANSWERS, VERIFIED ON THE LIVE RESIDENT -- and the same check caught a regression of mine
+
+Asked of the Lyric that is RUNNING, through its own door (`InstanceDoor._check`: a conversation per question that
+remembers nothing and is forgotten after), so there is no second substrate on the store and no warm to pay. The
+instance record names the code it is running: commit `176eb6ac`, 263 files, **uncommitted 0**, so the fix is
+provably in the process being questioned.
+
+```
+'A whale breathes air through a blowhole.'   ->  'Noted - Whale breathe an air across a vent.'      (was '')
+```
+
+The sentence that had replied nothing since it was first measured answers. **`scripts/reading_baseline.json`
+recorded its reading correctly all along** -- `instance_of(?v2, hole vent) & moves_through(?v0, ?v2)`, no situation
+variable -- so the evidence that reading was never the fault sat in the recorded instrument while I built probe
+after probe to find it.
+
+**THE INSTRUMENT, RUN THROUGH THE DOOR: 2 as recorded, 1 better, 2 changed.**
+
+| | was | now |
+|---|---|---|
+| 'A whale breathes air through a blowhole.' | `''` | **the sentence** |
+| 'Do whales breathe air?' | `'Yes.'` | `'Air is a gas.\nA whales are cetaceans.'` |
+| 'The note was long.' | quality 0.461 | quality 0.455, the same refusal |
+
+The note is score drift from observing 683 links; nothing turns on it. **'Do whales breathe air?' is a regression
+and it is mine.** Git: the `'Yes.'` was recorded 11-12, four days before the withdrawal, and when the whole
+instrument was re-run today with the links still missing it came back AS RECORDED -- so it survived the damage and
+broke after today's changes. Not yet isolated among the three (the restoration, the budget, the `?there` fix),
+though a VERDICT comes from answering, which the budget does not touch, and `_told_each` is the telling path.
+Measured: `'Is a whale a cetacean?'` still answers `"Yes. A whale's a cetacean."` with verdict True, so yes/no
+answering is intact; this question alone reaches no verdict and falls back to saying what it holds.
+
+**WHAT IT MEANS, AND WHY NOTHING IS BEING UNDONE.** That `'Yes.'` was produced by a store MISSING 683 links of
+correct English. With them back the reader goes elsewhere and never reaches the yes/no, and what it says instead
+is true but is not an answer. Restoring correct data changed an answer for the worse, which makes this a weakness
+in answering a `do`-question about a doing, exposed rather than caused by the repair. Undoing a correct repair to
+recover the `'Yes.'` would be fixing the instrument to flatter the code.
+
+**A SECOND DEFECT, SEPARATE AND REAL:** `'A whales are cetaceans.'` puts an article on a plural. Worth its own
+trace; it is not what this entry fixed.
+
+**WHAT THE DOOR CANNOT CHECK.** The baseline has three sections and they compare different fields:
+`descriptions` (16 rows, `doing`), `opposites` (4, `answered`), `prose` (5, `reply`). `/check` returns `reply` and
+`verdict`, so the door covers the prose rows -- where this change lives -- and not the 16 `doing` rows. The full
+"24 as recorded" figure still needs `check_reading`, which boots a substrate of its own. The same gap as the warm
+snapshot: making the live substrate answerable without restarting it.
+
 ---
 
 ## 115. One decision one authority, and the whale was never a hole in saying (2026-11-17)
