@@ -24150,7 +24150,22 @@ class Conversation:
                 self._spoke_of(told[0], situation)
                 place = place_spoken_of(Meaning(chosen.meaning.act, told[0])) if told[0] else None
                 if place:
-                    self._last_place = situation["?there"] = place
+                    # THE PLACE THIS SENTENCE SPOKE OF IS WHERE THE NEXT ONE IS, NOT A VARIABLE IN THIS ONE'S OWN
+                    # REPORT. This also wrote it into `situation`, the dict `teach` then hands `_acquired_from` to
+                    # turn what was stored back into the variables that bound it -- so the very thing the sentence
+                    # spoke of was turned back into `?there` in the account of what it had just acquired. Told
+                    # "A whale breathes air through a blowhole.", reading gives
+                    # `instance_of(?v2, hole vent) & moves_through(?v0, ?v2)` -- correct, and with no situation
+                    # variable in it at all -- and what came back was `instance_of(?there, hole vent)`. From there
+                    # the blowhole was lost twice over: `_said_together`'s `about()` follows only objects whose
+                    # names the STORE made, and `?there` is not one, so the kind never reached the meaning saying
+                    # was handed; and saying says nothing of a situation variable anyway. Six facts read and the
+                    # reply was empty (lyric_db, 2026-11-17).
+                    #
+                    # `_situation` already seeds `?there` from `_last_place` for the turn AFTER this one, so the
+                    # next sentence is told where it is by that alone and this line was redundant for the only
+                    # thing it was for.
+                    self._last_place = place
             yield utterance, told, notes, why.get("margin")
 
     async def stated(self, text: str, *, unread: Optional[List[Acquired]] = None) -> List[Tuple[Any, str]]:

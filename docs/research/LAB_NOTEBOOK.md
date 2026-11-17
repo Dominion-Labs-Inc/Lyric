@@ -116,7 +116,10 @@ tell: instance_of(?g0, air) & instance_of(?g1, breathe)
 `instance_of(?there, hole vent)` never enters the meaning. Measured: with a plain variable and **no** kind,
 nothing is said (17.2 s).
 
-**(b) The place is a SITUATION variable.** Reading names the blowhole `?there`. One warm state, the same facts,
+**(b) THE PLACE IS TURNED INTO A SITUATION VARIABLE AFTER READING -- SEE §9, WHICH FINDS THE CAUSE AND
+CORRECTS THIS SECTION.** Reading does NOT name the blowhole `?there`; it reads
+`instance_of(?v2, hole vent) & moves_through(?v0, ?v2)` with no situation variable in it at all. What
+follows measures the symptom correctly and attributes it wrongly. One warm state, the same facts,
 only that name changed, budget 6,000:
 
 | place | kind said of it | seconds | said |
@@ -132,13 +135,21 @@ only that name changed, budget 6,000:
 `?there` and `?now` are exactly the variables saying BINDS rather than describes. `?p`, `?place` and `?g2` are
 not, and all three say the sentence.
 
-**The mechanism, read rather than inferred from that table.** `?there` is a DECLARED situation variable --
-`grammar.py:2478` `_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here",
-"?there"})`, and `derived_reader.py:106` `SITUATION_VARIABLES` the same -- and `composition.py:291` reads
-`if f.relation == "instance_of" and is_variable(f.subject) and f.subject not in SITUATION`. So an
-`instance_of` whose subject is a situation variable is **excluded by construction**: supplying the
-blowhole's kind cannot help, whatever the budget, which is why (a) and (b) are one fault and not two that
-happen to co-occur.
+**The mechanism, as far as it is actually established.** `?there` is a DECLARED situation variable --
+`grammar.py:2478` `_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})`
+and `derived_reader.py:106` `SITUATION_VARIABLES` the same -- and `grammar.py:6459` keeps it: the reader
+renumbers every unknown to `?v0`, `?v1`, ... and EXEMPTS the situation variables, so `?there` survives into
+the meaning under its own name. Saying then says nothing of it, measured, while `?p`, `?place` and `?g2`
+with the same kind all say the sentence.
+
+**I FIRST BLAMED `composition.py:291` FOR THIS AND IT WAS WRONG** (it is in a commit message too). That line
+is inside `words_by_names`, which aligns a LESSON's meaning to its words; it has nothing to do with reading
+or saying this sentence. The behaviour it was cited for is real -- supplying the kind does not help -- but the
+line that causes it is not yet identified, and WHERE READING FIRST ASSIGNS `?there` is not identified either.
+Eliminated so far: no learned construction does it (6 pattern memories mention `?there` and every one has the
+literal word "there" in its surface, none with `moves_through`), and the lesson-alignment path is not reached.
+The experiment transcripts show `?there` appearing only on readings labelled `composed:` -- sentences no taught
+frame read -- which is the next thing to trace, by tracing and not by grep.
 
 And `?there` is not a spare name: it is WHERE THE CONVERSATION IS. After each telling,
 `autonomous_coordinator.py:24153` runs `place = place_spoken_of(...)` and then
@@ -196,6 +207,7 @@ The full `--source wordnet --domain english` pass into lyric_db is running as th
 The accounting was to be by the same ledger query as §1, and the
 letter chain is to be re-measured after it: restoring `f` and `v` should drop `_letter_prefers` below the 2x bar
 for both, which is the finding in §2 turned into a prediction.
+
 
 
 ### 7. THE LINKS WENT BACK BY A JOIN, NOT BY TEACHING -- and the criterion I used was wrong first
@@ -305,6 +317,54 @@ question about that phase cost a six-hour run to ask, so I reasoned where I shou
 - **I twice proposed letting the beliefs go and re-creating them** to tidy the posterior. He stopped it both
   times. It would have destroyed belief ids and grounding, and been the third destructive act on beliefs in a day
   whose whole subject was an earlier one.
+
+### 9. THE WHALE, AT THE ROOT: the place a sentence spoke of was turned back into `?there` in its own report
+
+Everything in §4 about `?there` being a reading fault is wrong, and so is the `composition.py:291` claim. **Reading
+is correct.** Asked of the reading itself rather than of the store (`Reading.composed`, the constructions, the
+meaning):
+
+```
+'A whale breathes air through a blowhole.'   1 reading, composed=True, via 'whale' 'breathes' 'air' 'blowhole'
+  tell: instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, hole vent)
+      & done_by(?v0, whale) & done_to(?v0, ?v1) & moves_through(?v0, ?v2)
+  situation variables in the meaning: NONE
+```
+
+Plain variables, and the blowhole's kind is there. So the composer is innocent, the reader is innocent, and the
+six pattern memories that mention `?there` (every one with the literal word in its surface) were never involved.
+
+**THE CAUSE, in `_told_each`:**
+
+```python
+place = place_spoken_of(Meaning(chosen.meaning.act, told[0])) if told[0] else None
+if place:
+    self._last_place = situation["?there"] = place     # <- this
+yield utterance, told, notes, why.get("margin")
+```
+
+`teach` hands that SAME dict to `_acquired_from` (line 24101), whose whole job is to turn what was stored back
+into the variables that bound it. So the place this sentence spoke of is written into the map first, and the
+blowhole -- the very thing the sentence was about -- is turned back into `?there` in the account of what the
+sentence had just acquired. Reading had it right and the report lost it.
+
+**ONE MUTATION, BOTH SYMPTOMS.** With the label `?there`, `_said_together`'s `about()` never reaches it, because
+`about()` follows only objects whose names the STORE made (`_the_stores_own_name` builds the stem `hole_vent_` and
+asks whether `?there` starts with it) -- so the kind never reaches the meaning saying is handed. And saying says
+nothing of a situation variable anyway. The "two conditions, each necessary" of §4 are one defect with one cause.
+
+**THE FIX IS THE LINE'S REMOVAL**, because it was redundant for the only thing it was for: `_situation` (22300)
+already seeds `?there` from `self._last_place` for the turn AFTER this one, so the next sentence is told where it
+is by that alone. Now `self._last_place = place`. `autonomous_coordinator.py` is not in the rules hash, so no
+relearn.
+
+What §4 establishes and this does not touch: the budget must be at least 6,000 (5,000 says nothing with
+everything else right), `moves_through` is taught and reachable ("across" is its word), and `during` on the same
+clause is genuinely untaught.
+
+**HOW I GOT IT WRONG FOUR TIMES.** A hole in saying; then the budget alone; then fact order; then a reading
+fault. Every one of them was argued from the STORE or from a meaning I had built, and the thing I never did until
+last was ask the reading what it had read. `Reading.composed` and its `meaning` answered it in one run.
 
 ---
 
