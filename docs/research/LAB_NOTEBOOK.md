@@ -16,6 +16,309 @@ Conventions:
 
 ---
 
+## 116. The whale needs three things and the budget is one of them; 851 links restored by the teaching that wrote them (2026-11-17)
+
+Finishing what was open, on his word: the saying budget raised to 6,000, the links my flawed selection withdrew
+restored, and the teaching pass that rewrites them run. The whale was then diagnosed through the real door, and
+**115 §2 below is corrected by it**.
+
+### 1. The withdrawal, accounted from the ledger and not from my own note
+
+`withdraw_links` writes one ledger entry per link, each naming the frame and the filler, so what went is
+recoverable exactly. All 3,047 parsed, none unaccounted, grouped by the letter that decided each:
+
+| letter | links | | letter | links |
+|---|---|---|---|---|
+| a | 874 | | u | 168 |
+| **f** | **488** | | consonants (c 27, s 27, p 20, b 15, m 14, t 12, h 11, d 11, l 9, r 7, n 4, k 4, w 4, g 3) | **168** |
+| e | 444 | | | |
+| i | 442 | | vowel-initial in all | **2,196** |
+| o | 268 | | consonant-initial in all | **851** |
+| **v** | **195** | | | |
+
+**This corrects a figure in 114.** That entry says *"683 links of "f" and "v" went with the 2,196 that deserved
+to, along with some of the 168 of "u""*, which double-counts: `u`'s 168 are **inside** the 2,196, and the 168 that
+went wrongly beside `f` and `v` are the **consonant-initial** ones, which sum to 168 by coincidence. The wrongly
+withdrawn set is **851**, every consonant-initial link, not the "683 to 851" I had been carrying.
+
+Asked of the ledger rather than inferred from the frames, the source that originally wrote them is
+`learning.patterns.wordnet` for all but 61 (34 `sentence_records`, 27 `lesson`). So the restoring pass is
+`--source wordnet --domain english`, the same invocation that made them.
+
+### 2. Withdrawing the links made the corrected rule MORE certain of the wrong thing
+
+The self-feeding loop `withdraw_links`' own docstring warns of, which I then walked into. Removing the 488 `f`
+links took their letters out of what is counted after "a", so "a" now looks as though it almost never precedes an
+`f`, and the **corrected** `_letter_prefers` decides `f` for "an" more confidently than the flawed one did:
+
+| letter | share after "a" | share after "an" | "an" sightings | prefers "an" |
+|---|---|---|---|---|
+| f | 0.0046 | 0.0720 | 18 | **True** |
+| v | 0.0021 | 0.0280 | 7 | **True** |
+| h | 0.0516 | 0.0160 | 4 | False |
+
+Restoring the 488 puts "a" before an `f` at about 5.0% against "an"'s 7.2% -- ratio 1.44, inside the 2x bar -- so
+the rule stops deciding `f` for "an". **The pass does not merely put rows back; it repairs the evidence the rule
+reads.** Nothing was corrected in the rule to achieve that, and nothing needed to be.
+
+### 3. The small batch: the corrected reader rewrites what I was wrong about, and leaves the artifacts dead
+
+`--source wordnet --domain english --small 1000` into lyric_db first, a uniform sample of the real pass, every
+phase end to end. Of the 3,047, **three came back, all `f`/`v`, and none of the 1,586 `a`/`e`/`o`**:
+
+| letter | withdrawn as | why it returned |
+|---|---|---|
+| f | `"?slot0 is a ?slot1." ?slot1 takes "force"` | add-categorial-links |
+| v | `"A ?slot0 is a ?slot1." ?slot1 takes "vein"` | **read 'A vena bulbi penis is a vein.'** |
+| v | `?slot0 takes "venae sclerales"` | read 'A venae sclerales is a vein.' |
+
+"a vein" and "a force": right English, thrown away because "an" held 4.8% of `v` against "a"'s 3.8%. Three of 851
+is what a 1,000-of-165,497 sample predicts (0.6%), and the control is what matters: **zero** artifacts rewritten.
+
+The chain the withdrawal unlocked survived the restoration, and strengthened:
+
+| | after the withdrawal | after the small batch |
+|---|---|---|
+| letters after "a" | 10,026, 0.2% vowels | 10,193, **17** vowels (0.2%) |
+| letters after "an" | 209, 84.7% vowels | 250, 218 vowels (**87.2%**) |
+| `_told_apart('a','an')` | True | **True** |
+| `variants_of("a")` | `['an']` | **`['an']`** |
+| `shape_before("a", L)` = "an" | a, e, i, o, u | **exactly a, e, i, o, u** |
+
+Pass clean: `admissions the substrate was NOT told about: 0`, competence in `english` 0.5431 -> 0.5714.
+
+### 4. The whale needs THREE things, each necessary, none sufficient
+
+115 §2 concluded the budget was all that stood between this meaning and a sentence. It is one of three.
+
+**What the door actually reads** (6 facts, every one `stored`, `rule=False`), captured by wrapping
+`derived_reader.say` and calling `_said_together` with the real items:
+
+```
+instance_of(breathe_54cecdca, breathe)   done_by(breathe_54cecdca, whale)
+instance_of(air_adbc9a63, air)           done_to(breathe_54cecdca, air_adbc9a63)
+instance_of(?there, hole vent)           moves_through(breathe_54cecdca, ?there)
+```
+
+and the meaning `_said_together` hands to saying:
+
+```
+tell: instance_of(?g0, air) & instance_of(?g1, breathe)
+    & done_by(?g1, whale) & done_to(?g1, ?g0) & moves_through(?g1, ?there)
+```
+
+`_said_together` returns `{}` and the reply is `''`.
+
+**(a) The blowhole's kind is dropped.** `about()` follows only objects `_the_stores_own_name` recognises; for
+`?there` it builds the stem `hole_vent_` and asks whether `?there` starts with it, which it does not. So
+`instance_of(?there, hole vent)` never enters the meaning. Measured: with a plain variable and **no** kind,
+nothing is said (17.2 s).
+
+**(b) The place is a SITUATION variable.** Reading names the blowhole `?there`. One warm state, the same facts,
+only that name changed, budget 6,000:
+
+| place | kind said of it | seconds | said |
+|---|---|---|---|
+| `?there` | yes | 23.0 | **(nothing)** |
+| `?now` | yes | 17.4 | **(nothing)** |
+| `?g2` | yes | 188.9 | 'Whale breathe an air across a vent.' |
+| `?p` | yes | 58.3 | 'Whale breathe an air across a vent.' |
+| `?place` | yes | 47.9 | 'Whale breathe an air across a vent.' |
+| `?there` | no | 26.4 | (nothing) |
+| `?g2` | no | 17.2 | (nothing) |
+
+`?there` and `?now` are exactly the variables saying BINDS rather than describes. `?p`, `?place` and `?g2` are
+not, and all three say the sentence.
+
+**(c) The budget must be at least 6,000.** The same meaning, the same order, one warm state:
+
+| order | budget | seconds | said |
+|---|---|---|---|
+| the breathing first | 5,000 | 23.9 | **(nothing)**, all four things, `S[b]` only |
+| the breathing first | 6,000 | 47.3 | 'Whale breathe an air across a vent.' |
+| air's kind first (as `_said_together` builds it) | 6,000 | 185.9 | 'Whale breathe an air across a vent.' |
+| air's kind first | 12,000 | 49.0 | the same |
+
+**So raising the budget to 6,000 was right.** 115 §2's table is reproducible on the meaning it measured, and
+transfers: with (a) and (b) answered, 5,000 says nothing and 6,000 says the sentence.
+
+`moves_through` is **taught and reachable** -- "across" is its word -- and an intransitive clause carries it in
+1.1 s. `during(?g1, ?p)` by contrast is genuinely **untaught** here (`'nothing here says a link the meaning
+holds'`, `unsaid: ['during(?g1, ?p)']`), which is not a defect and is recorded as the control that separates the
+two.
+
+**Nothing was changed for (a) or (b).** They are one coupled change across `_said_together` (a protected module)
+and the reader (whose hash costs a ~940 s relearn), neither verifiable alone because each blocks the other, while
+a pass holds the store. Held for his word.
+
+### 5. Errors of mine today, with their causes
+
+- **I told him to revert the budget, on an incomplete measurement.** Having found the door still silent at 6,000,
+  I concluded the raise bought nothing. It buys exactly the difference between silence and the sentence once (a)
+  and (b) are answered. Cause: treating "the door is still silent" as "the budget is not implicated", when three
+  conditions were in series and I had varied one.
+- **I offered fact ORDER as the cause.** Air-first fails in one probe and says the sentence in another; within one
+  warm state it says it at 6,000 in 185.9 s. Order costs 4x in speed, not reachability. Cause: comparing two
+  probes that differed in two ways -- order AND the variable's name -- and naming the one I had just read in the
+  code.
+- **115 §2's budget table was measured on a meaning I built by hand**, not on what the door reads, so it could not
+  have found (a) or (b). Its last probe crashed today on `'through' is not a link kind the domain system reasons
+  with`: the real link is `moves_through`. Cause: the same one as the "Lists are lists." episode in 115 §5,
+  reasoning from a construction instead of the real path, recorded there and repeated here within the day.
+- **`said_with` does not exist on `GrammarView`.** I called it for six links and every call raised; an earlier
+  probe of mine had swallowed the same `AttributeError` in a `try`, so I had carried it as a method that works.
+- **A probe's own output was block-buffered** and read as a stall for two intervals. Later probes use `-u`.
+- **The free-page alarm was mine misreading macOS**: 0.1 GB free pages on a 48 GB machine at 71% free, with the
+  swap already held by three-day-old editor processes. Swap free never moved from 1,405 MB across either pass.
+
+### 6. Where this stands
+
+The full `--source wordnet --domain english` pass into lyric_db is running as this is written, steady at about
+7.9 facts a second through `saying the facts: /165,497`, releasing memory between batches rather than growing.
+**The accounting of what it restored of the 851 is pending its end**, by the same ledger query as §1, and the
+letter chain is to be re-measured after it: restoring `f` and `v` should drop `_letter_prefers` below the 2x bar
+for both, which is the finding in §2 turned into a prediction.
+
+---
+
+## 115. One decision one authority, and the whale was never a hole in saying (2026-11-17)
+
+> **§2 of this entry is corrected by 116 §4, and so is this title.** The whale IS a hole, in
+> `_said_together`: the budget is one of three conditions in series, and §2 measured a meaning built by
+> hand rather than the one the door reads. Its budget table is reproducible and transfers; its conclusion
+> that the budget was all that stood in the way does not.
+
+### 1. The instant is turned back once, by the map that bound it
+
+`_acquired_from` turns every situation variable back by the situation `teach` read the sentence with;
+`_said_together` separately rewrote any `precedes` object that LOOKED like an instant. Two authorities for one
+decision, and the second judged the value by its shape -- the thing this file has recorded the cost of before.
+
+Measured before removing it, through the real door, with the pattern watched:
+
+```
+precedes('2026-11-17T01:09:03Z')   situation ?now='2026-11-17T01:09:03Z'   <- the same string
+    note relations: (('precedes', '?now'),)
+`_AN_INSTANT.match` evaluated 1 time(s) inside the branch; 0 matched an instant
+```
+
+The stored instant and the situation's `?now` are the same string because they are the same dict: `teach` holds one
+`_situation(sentence)` for the whole turn and both binding and saying back read it. `_said_together` has ONE caller,
+on notes `_acquired_from` made, and nothing else in the tree builds a stored `Acquired`, so there is no other way
+in. The older line and its pattern are gone; "Ken and Yumi sang." and "The rock was heavy." say exactly what they
+said with it in place.
+
+### 2. "A whale breathes air through a blowhole." is a STOP, not a hole
+
+Recorded in `scripts/reading_baseline.json` with `"reply": ""` since it was first measured, and carried as "a hole
+in saying of its own". It is not. The sentence is reachable and the search stops short of it:
+
+| budget | seconds | said |
+|---|---|---|
+| 5,000 (as written) | 12 | NOTHING, best sentence 3 of 4 things |
+| 5,500 | 13 | NOTHING |
+| **6,000** | **44** | **'Whale breathe an air across a vent.'** |
+| 200,000 | 44 | the same |
+
+`MADE_WITHOUT_GETTING_FURTHER` stops a saying that has made 5,000 items without getting further, and its own
+comment records the evidence it was set from: *"Every saying that worked did so far inside this: 196, 210, 417 and
+962 items."* **That sample is now falsified.** Here is a saying that works and needs about 6,000.
+
+**Why the measure goes blind.** Getting further counts two things: an item covering more of the meaning than any
+item before it, or a sentence kept. On this meaning the first saturates almost immediately -- items covering all
+four things are made early in a category that is NO SENTENCE (`said_all_and_was_no_sentence`:
+`('S[b]?v0', 'Whale breathe an air through a vent')`, a bare form) -- and no sentence is kept until the end. So
+through the whole middle of the search, where the only work left is getting that coverage into a declarative, the
+measure sees nothing at all.
+
+The best SENTENCE climbs 2 -> 3 of 4 between budgets 250 and 500, and never reaches 4 within 5,000:
+
+| budget | 100 | 250 | 500 | 1,000 | 2,000 | 3,000 | 5,000 |
+|---|---|---|---|---|---|---|---|
+| best sentence said | 2 of 4 | 2 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 |
+
+`most_a_sentence_said` is already computed and already ignored by the stall counter. Counting it is the faithful
+reading of what the comment says getting further means, and it is bounded (the maximum is monotone and capped by
+the number of things needing a word). But it is NOT enough on its own here: the climb happens by item ~500, so it
+buys to about 5,500 and the sentence arrives at 6,000.
+
+### 3. What the search spends itself on is NOT a defect
+
+Every packing pair the trace reported differs in the article alone, and the right form wins every time:
+
+```
+'breathe a air'               dropped,  'breathe an air'               kept
+'breathe across an venthole'  dropped,  'breathe across a venthole'    kept
+```
+
+Generating both and scoring once the following word is known is what the realizer is built to do
+(`Lexicon._sound_after`, and the comment at the chart key: *"Packed by meaning alone, 'a' was surer alone than 'an'
+and 'an' was never said"*). The letter work of 2026-11-16 is what makes it score right. The doubling costs search
+and buys correct English; there is nothing to repair.
+
+### 4. What is left is a trade-off, not a bug
+
+Raising the budget makes more meanings sayable and makes every UNSAYABLE one slower to give up -- 12 s today,
+tens of seconds at 6,000. That is reply latency across the whole system traded against answering sentences like
+this one, and it is not a call to make from one sentence. The measure fix is right on its own terms and costs
+nothing when the search is not progressing; it is also not sufficient alone. Both are held until he says which.
+
+### 5. "Lists are lists." was a self-relation held in a concept record
+
+`check_reading` reported the sorted question CHANGED, with the reading IDENTICAL and one sentence added:
+
+```
+was  "A choose screen's a choose.\nA doe's a placental.\nA list's a database."
+now  "A choose screen's a choose.\nA doe's a placental.\nA list's a database. Lists are lists."
+```
+
+**Three hypotheses, all wrong, all argued from the shape of the reply.** The branch that tells two words apart; the
+four places that choose a word's nearest sense; the words' knowledge becoming a premise. Each was plausible, each
+was fixed, and the check reported the tautology still there every time. The answer's own words said why none of
+them could be it -- "A choose screen's a choose." has a SENSE NAME as its subject and all of those say the WORD --
+and I did not read it.
+
+**The stack, taken once, named it in one run.** `derived_reader.say` wrapped to record a stack whenever the meaning
+it is handed carries a fact whose subject IS its object:
+
+```
+autonomous_coordinator.py:25768  <genexpr>   _said(item.phrase, relation, other, ...)
+autonomous_coordinator.py:21430  _said       say(Meaning("tell", facts), ...)
+   facts: isa(list, list)
+```
+
+-- so the fact came off a `Resolved`'s own relations. Those are read from the concept record's `relationships`
+JSON, which is NOT `unified.concept_relations`, which is why the first sweep found nothing:
+
+```
+english:list  [... ["isa","database","positive"], ["isa","list","positive"]]
+unified.concept_relations for list:  list isa database   (and five "defined with")
+```
+
+The JSON holds one edge the table does not. Swept across the store:
+
+| relation | self-edges | concepts |
+|---|---|---|
+| defined with | 27 | 27 |
+| provides | 23 | 23 |
+| **isa** | **2** | **`english:list`, `reading:team`** |
+
+Only two `isa`, which is why only this one was ever heard: nothing taught says "defined with" or "provides".
+
+**Dropped where a record is read**, not repaired in the store: the rule has to outlast two rows, and fifty more sit
+under relations that cannot speak. **The words are not the source and nothing is guarded there** --
+`word_kinds` and `word_meanings` were measured for "list", "team" and "wall" and not one sense is a kind of its own
+word, so the two guards written on that hypothesis were reverted rather than left in as dead code.
+
+```
+24 as recorded, 0 better, 0 worse, 1 changed
+```
+
+The one CHANGED row is the rock, in the right tense, so the baseline is re-recorded -- which it was not yesterday,
+because doing so then would have baked this tautology in beside the improvement.
+
+---
+
 ## 2026-11-16 (114) — A name memory holds is a name: the reader's two tests for a name of several words could only answer from what it had already taken, the use of a stored name was read off capitals it does not have, and an ending decided from the words it had thrown away
 
 **Objective.** Finish the 44 `instance_of` facts over WordNet's renamed senses that no sentence could ask (entry 113
@@ -327,7 +630,9 @@ memory forgotten, its belief let go and a ledger entry (`PatternInventory.links_
 
 **MY ERROR, APPLIED AND IRREVERSIBLE.** The first selection compared shares with no effect size, so "an" before an
 "f" -- 18 sightings, 4.8% of its 377 -- outvoted "a" at 3.8% of its 12,905, and **683 links of "f" and "v" went
-with the 2,196 that deserved to**, along with some of the 168 of "u". `_letter_prefers` now asks for twice as
+with the 2,196 that deserved to**, along with the 168 whose fillers begin with a CONSONANT.
+(Corrected in 116 §1, from the ledger: `u`'s 168 are INSIDE the 2,196, and the consonant-initial links sum to
+168 by coincidence. The wrongly withdrawn set is **851**, every consonant-initial link.) `_letter_prefers` now asks for twice as
 readily as well, which would have withdrawn a (874), e (444) and o (268) and kept f, v, u and i. The lesson is the
 one `shape_before` had already taught me an hour earlier and I did not carry across: a share of little is not
 evidence. The taught pairs are untouched, so `learn_patterns` would rewrite those links through `add_links`, and
@@ -25457,133 +25762,3 @@ English missing from the grammar, not a word missing from the store, and it is t
 anyone would ask of a word. Next: measure how much of UD EWT's and GUM's questions take that shape before touching
 `_combine`, as the carried preposition was measured (18% of questions) before it was fixed.
 
-## 115. One decision one authority, and the whale was never a hole in saying (2026-11-17)
-
-### 1. The instant is turned back once, by the map that bound it
-
-`_acquired_from` turns every situation variable back by the situation `teach` read the sentence with;
-`_said_together` separately rewrote any `precedes` object that LOOKED like an instant. Two authorities for one
-decision, and the second judged the value by its shape -- the thing this file has recorded the cost of before.
-
-Measured before removing it, through the real door, with the pattern watched:
-
-```
-precedes('2026-11-17T01:09:03Z')   situation ?now='2026-11-17T01:09:03Z'   <- the same string
-    note relations: (('precedes', '?now'),)
-`_AN_INSTANT.match` evaluated 1 time(s) inside the branch; 0 matched an instant
-```
-
-The stored instant and the situation's `?now` are the same string because they are the same dict: `teach` holds one
-`_situation(sentence)` for the whole turn and both binding and saying back read it. `_said_together` has ONE caller,
-on notes `_acquired_from` made, and nothing else in the tree builds a stored `Acquired`, so there is no other way
-in. The older line and its pattern are gone; "Ken and Yumi sang." and "The rock was heavy." say exactly what they
-said with it in place.
-
-### 2. "A whale breathes air through a blowhole." is a STOP, not a hole
-
-Recorded in `scripts/reading_baseline.json` with `"reply": ""` since it was first measured, and carried as "a hole
-in saying of its own". It is not. The sentence is reachable and the search stops short of it:
-
-| budget | seconds | said |
-|---|---|---|
-| 5,000 (as written) | 12 | NOTHING, best sentence 3 of 4 things |
-| 5,500 | 13 | NOTHING |
-| **6,000** | **44** | **'Whale breathe an air across a vent.'** |
-| 200,000 | 44 | the same |
-
-`MADE_WITHOUT_GETTING_FURTHER` stops a saying that has made 5,000 items without getting further, and its own
-comment records the evidence it was set from: *"Every saying that worked did so far inside this: 196, 210, 417 and
-962 items."* **That sample is now falsified.** Here is a saying that works and needs about 6,000.
-
-**Why the measure goes blind.** Getting further counts two things: an item covering more of the meaning than any
-item before it, or a sentence kept. On this meaning the first saturates almost immediately -- items covering all
-four things are made early in a category that is NO SENTENCE (`said_all_and_was_no_sentence`:
-`('S[b]?v0', 'Whale breathe an air through a vent')`, a bare form) -- and no sentence is kept until the end. So
-through the whole middle of the search, where the only work left is getting that coverage into a declarative, the
-measure sees nothing at all.
-
-The best SENTENCE climbs 2 -> 3 of 4 between budgets 250 and 500, and never reaches 4 within 5,000:
-
-| budget | 100 | 250 | 500 | 1,000 | 2,000 | 3,000 | 5,000 |
-|---|---|---|---|---|---|---|---|
-| best sentence said | 2 of 4 | 2 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 | 3 of 4 |
-
-`most_a_sentence_said` is already computed and already ignored by the stall counter. Counting it is the faithful
-reading of what the comment says getting further means, and it is bounded (the maximum is monotone and capped by
-the number of things needing a word). But it is NOT enough on its own here: the climb happens by item ~500, so it
-buys to about 5,500 and the sentence arrives at 6,000.
-
-### 3. What the search spends itself on is NOT a defect
-
-Every packing pair the trace reported differs in the article alone, and the right form wins every time:
-
-```
-'breathe a air'               dropped,  'breathe an air'               kept
-'breathe across an venthole'  dropped,  'breathe across a venthole'    kept
-```
-
-Generating both and scoring once the following word is known is what the realizer is built to do
-(`Lexicon._sound_after`, and the comment at the chart key: *"Packed by meaning alone, 'a' was surer alone than 'an'
-and 'an' was never said"*). The letter work of 2026-11-16 is what makes it score right. The doubling costs search
-and buys correct English; there is nothing to repair.
-
-### 4. What is left is a trade-off, not a bug
-
-Raising the budget makes more meanings sayable and makes every UNSAYABLE one slower to give up -- 12 s today,
-tens of seconds at 6,000. That is reply latency across the whole system traded against answering sentences like
-this one, and it is not a call to make from one sentence. The measure fix is right on its own terms and costs
-nothing when the search is not progressing; it is also not sufficient alone. Both are held until he says which.
-
-### 5. "Lists are lists." was a self-relation held in a concept record
-
-`check_reading` reported the sorted question CHANGED, with the reading IDENTICAL and one sentence added:
-
-```
-was  "A choose screen's a choose.\nA doe's a placental.\nA list's a database."
-now  "A choose screen's a choose.\nA doe's a placental.\nA list's a database. Lists are lists."
-```
-
-**Three hypotheses, all wrong, all argued from the shape of the reply.** The branch that tells two words apart; the
-four places that choose a word's nearest sense; the words' knowledge becoming a premise. Each was plausible, each
-was fixed, and the check reported the tautology still there every time. The answer's own words said why none of
-them could be it -- "A choose screen's a choose." has a SENSE NAME as its subject and all of those say the WORD --
-and I did not read it.
-
-**The stack, taken once, named it in one run.** `derived_reader.say` wrapped to record a stack whenever the meaning
-it is handed carries a fact whose subject IS its object:
-
-```
-autonomous_coordinator.py:25768  <genexpr>   _said(item.phrase, relation, other, ...)
-autonomous_coordinator.py:21430  _said       say(Meaning("tell", facts), ...)
-   facts: isa(list, list)
-```
-
--- so the fact came off a `Resolved`'s own relations. Those are read from the concept record's `relationships`
-JSON, which is NOT `unified.concept_relations`, which is why the first sweep found nothing:
-
-```
-english:list  [... ["isa","database","positive"], ["isa","list","positive"]]
-unified.concept_relations for list:  list isa database   (and five "defined with")
-```
-
-The JSON holds one edge the table does not. Swept across the store:
-
-| relation | self-edges | concepts |
-|---|---|---|
-| defined with | 27 | 27 |
-| provides | 23 | 23 |
-| **isa** | **2** | **`english:list`, `reading:team`** |
-
-Only two `isa`, which is why only this one was ever heard: nothing taught says "defined with" or "provides".
-
-**Dropped where a record is read**, not repaired in the store: the rule has to outlast two rows, and fifty more sit
-under relations that cannot speak. **The words are not the source and nothing is guarded there** --
-`word_kinds` and `word_meanings` were measured for "list", "team" and "wall" and not one sense is a kind of its own
-word, so the two guards written on that hypothesis were reverted rather than left in as dead code.
-
-```
-24 as recorded, 0 better, 0 worse, 1 changed
-```
-
-The one CHANGED row is the rock, in the right tense, so the baseline is re-recorded -- which it was not yesterday,
-because doing so then would have baked this tautology in beside the improvement.

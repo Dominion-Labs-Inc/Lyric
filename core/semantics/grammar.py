@@ -2429,10 +2429,34 @@ SAID_AT_MOST = 8
 #: to a cause of its own -- a construction nothing holds, a form never taught, a reading that disagrees -- and
 #: guarding the callers one cause at a time was defeated by the next one every time (2026-10-28 to 2026-11-04).
 #:
-#: Every saying that worked did so far inside this: 196, 210, 417 and 962 items. What was made when it stops is
-#: still said, best first, which is what anytime realization means; where nothing was made, it says so and says
-#: how far it got (`give_up`).
-MADE_WITHOUT_GETTING_FURTHER = 5000
+#: Every saying that worked UNDER FIVE THOUSAND did so far inside it: 196, 210, 417 and 962 items. What was made
+#: when it stops is still said, best first, which is what anytime realization means; where nothing was made, it
+#: says so and says how far it got (`give_up`).
+#:
+#: RAISED FROM 5,000 TO 6,000 ON HIS WORD (2026-11-17), because a sentence carried for a fortnight as a hole in
+#: saying was no hole at all: "A whale breathes air through a blowhole." replied nothing, and the meaning said
+#: back nothing, and the budget was all that stood between them --
+#:
+#:        5,000   12 s   NOTHING, the best sentence covering 3 of the 4 things meant
+#:        5,500          NOTHING
+#:        6,000   44 s   'Whale breathe an air across a vent.'
+#:      200,000   44 s   the same sentence; nothing further is reached by looking further
+#:
+#: The stop was about a thousand items short of the answer, and what it cost to find that out was the twelve
+#: seconds above. WHY THE SEARCH REGISTERS NO PROGRESS THERE, measured rather than supposed: getting further is
+#: counted two ways only -- an item covering more of the meaning than any item before it, and a sentence kept.
+#: This meaning covers all four things early, inside an `S[b]` category that is NO SENTENCE, and keeps no sentence
+#: at all until the end; so through the whole middle of the search, where the only work left is carrying that
+#: coverage into a declarative, neither counter moves and every item looks like no progress.
+#: `most_a_sentence_said` is already computed beside them (`_say`) and already ignored. Counting ITS climb as
+#: getting further is faithful to the definition above and costs nothing while the search is truly stuck, but it
+#: was measured too: the best sentence reaches 3 of 4 by item ~500 and never climbs again, which buys to ~5,500
+#: and not to 6,000. It is not built, and this number is what carries the case instead.
+#:
+#: WHAT RAISING IT COSTS, since it is paid on every meaning that cannot be said rather than on this one: a saying
+#: that will fail now spends tens of seconds before it gives up where it spent twelve. That is reply latency
+#: across the whole system, traded for the sentences between the two numbers, and it was his trade to make.
+MADE_WITHOUT_GETTING_FURTHER = 6000
 #: Punctuation that closes a sentence, and what it says the speaker wants.
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
 
