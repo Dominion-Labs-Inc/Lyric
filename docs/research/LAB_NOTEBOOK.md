@@ -247,13 +247,32 @@ what the letter test is for. `_told_apart('a','an')` True, `variants_of("a")` `[
 exactly the vowels. The whale is unchanged (`''` at 197 s), as §4 predicts: its fault is `?there` and the dropped
 kind, which links do not touch.
 
-**WHAT IS STILL IMPERFECT.** The beliefs cannot be recovered: evidence lives on the belief row
-(`evidence_for`/`evidence_against`) and `let_go` took it with the belief -- 0 of 3,047 claims still had one. Each
-restored link is observed once, honestly, and `observe_claim` was called with no `observation` identity, so the
-posterior moved to 0.937 with **no named witness behind it**. A later teaching observation will add one and move
-it again, so these sit slightly over-weighted against a cleanly learned link. The alternative was no belief at
-all. Noted rather than hidden, because it is the same shape as the fault that put `misp_get_event` at 674
-observations.
+**THE BELIEFS, AND THE WITNESS THEY NEEDED.** The old beliefs cannot be recovered: `let_go` took each one and its
+evidence with it, and 0 of 3,047 claims still had a belief. Each restored link was observed once -- but with NO
+`observation` identity, which is the condition `observe_claim`'s own docstring names as the cause of
+`misp_get_event` reaching 674 observations: evidence carrying only `{quality, source}` says nothing about WHICH
+observation it was, so re-presenting it appends another entry every time.
+
+On his word the 681 were observed again WITH an identity -- `restored_link:<update_id>`, the ledger row that
+attests the link existed and was removed in error, checkable against `unified.knowledge_updates`. **Observed, not
+re-made**: letting the beliefs go and minting them again would have destroyed their ids and their grounding for a
+tidier number, and the substrate revises its own beliefs.
+
+| after | |
+|---|---|
+| beliefs for the 681 claims | **681** -- no duplicates |
+| evidence entries | 1,366 (about two each) |
+| identified (carry `observation`) | **689** |
+| anonymous (the original entries) | 677 |
+| posterior | 0.937 -> **0.9955**, update_count 2.01 |
+
+So each belief is now immune to the repeat-counting fault, at the cost of one extra move and the anonymous entry
+beside it, left for the substrate's own decay and consistency to resolve (`reflect_on_beliefs`).
+
+**TWO THINGS I REPORTED WRONGLY ABOUT THIS.** I said the beliefs had "no named witness" from
+`jsonb_array_length(evidence_for)` on `unified.beliefs` reading 0 for all of them. That column is NOT where
+evidence lives -- `unified.belief_evidence` is, one row per entry -- so there WAS an entry, anonymous rather than
+absent. And the hydrated belief said `witnesses=1` while my SQL said 0, which is what exposed it.
 
 **AND THE INSTRUMENT IS FIXED.** `LYRIC_DUMP_PAIRS=<path>` (`teaching.py`) now appends every
 `(sentence, Meaning, names)` the pass says, so the pattern phase can be replayed alone instead of costing 5.5
@@ -279,6 +298,13 @@ question about that phase cost a six-hour run to ask, so I reasoned where I shou
   longer be profiled at all. Append and read from an offset; never delete.
 - **I measured the affect loop in the one state where it is guaranteed to be free**: a freshly booted agent has
   no drift for `interpret_drift` to drain, so the call did nothing and I nearly reported 0.00 s as a refutation.
+- **`observe_claim` would have minted 681 DUPLICATE beliefs**, caught before it ran. It is find-or-create against
+  `self.beliefs`, and a probe that never calls `await us.load_from_db()` holds none, so `held_in_domain` returned
+  nothing for links the store plainly held. The tell was a diagnostic line printing "no belief found" where SQL
+  had just counted 848.
+- **I twice proposed letting the beliefs go and re-creating them** to tidy the posterior. He stopped it both
+  times. It would have destroyed belief ids and grounding, and been the third destructive act on beliefs in a day
+  whose whole subject was an earlier one.
 
 ---
 
