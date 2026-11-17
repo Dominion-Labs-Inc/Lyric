@@ -67,9 +67,13 @@ echo ""
 # restored halt is written at the constitution's own start, long before the reader is warm.
 RESIDENT=$$
 (
+    SAID_HALT=0
     for i in $(seq 1 180); do
         ps -p "$RESIDENT" > /dev/null 2>&1 || exit 0
-        if tail -n +"$FROM" "$LOG_FILE" 2>/dev/null | grep -qiE "emergency halt|HALTED"; then
+        # SAID ONCE, not every five seconds until reading is up: the halt is one state of the resident, and a
+        # boot is minutes long, so without this it was announced over and over through the whole start.
+        if [ "$SAID_HALT" = 0 ] && tail -n +"$FROM" "$LOG_FILE" 2>/dev/null | grep -qiE "emergency halt|HALTED"; then
+            SAID_HALT=1
             echo ""
             echo -e "${RED}⚠️  A constitution halt is in force; the resident will refuse requests${NC}"
             tail -n +"$FROM" "$LOG_FILE" | grep -hiE "emergency halt|HALTED" | tail -3
