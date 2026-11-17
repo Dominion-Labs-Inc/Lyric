@@ -16,7 +16,7 @@ Conventions:
 
 ---
 
-## 116. The whale needs three things and the budget is one of them; 851 links restored by the teaching that wrote them (2026-11-17)
+## 116. The 683 links I deleted are put back by a join against the ledger, not by teaching; and the whale needs three things of which the budget is one (2026-11-17)
 
 Finishing what was open, on his word: the saying budget raised to 6,000, the links my flawed selection withdrew
 restored, and the teaching pass that rewrites them run. The whale was then diagnosed through the real door, and
@@ -39,7 +39,9 @@ recoverable exactly. All 3,047 parsed, none unaccounted, grouped by the letter t
 **This corrects a figure in 114.** That entry says *"683 links of "f" and "v" went with the 2,196 that deserved
 to, along with some of the 168 of "u""*, which double-counts: `u`'s 168 are **inside** the 2,196, and the 168 that
 went wrongly beside `f` and `v` are the **consonant-initial** ones, which sum to 168 by coincidence. The wrongly
-withdrawn set is **851**, every consonant-initial link, not the "683 to 851" I had been carrying.
+withdrawn set looked like **851**, every consonant-initial link. **That was wrong and §7 measures it:** 683 of
+them sit after an "a" and are the loss; 168 sit after an "an", where a consonant filler IS the artifact. 114 had
+683 right and I overwrote a correct note with a wrong one.
 
 Asked of the ledger rather than inferred from the frames, the source that originally wrote them is
 `learning.patterns.wordnet` for all but 61 (34 `sentence_records`, 27 `lesson`). So the restoring pass is
@@ -72,7 +74,7 @@ phase end to end. Of the 3,047, **three came back, all `f`/`v`, and none of the 
 | v | `"A ?slot0 is a ?slot1." ?slot1 takes "vein"` | **read 'A vena bulbi penis is a vein.'** |
 | v | `?slot0 takes "venae sclerales"` | read 'A venae sclerales is a vein.' |
 
-"a vein" and "a force": right English, thrown away because "an" held 4.8% of `v` against "a"'s 3.8%. Three of 851
+"a vein" and "a force": right English, thrown away because "an" held 4.8% of `v` against "a"'s 3.8%. Three of 683
 is what a 1,000-of-165,497 sample predicts (0.6%), and the control is what matters: **zero** artifacts rewritten.
 
 The chain the withdrawal unlocked survived the restoration, and strengthened:
@@ -190,9 +192,93 @@ a pass holds the store. Held for his word.
 
 The full `--source wordnet --domain english` pass into lyric_db is running as this is written, steady at about
 7.9 facts a second through `saying the facts: /165,497`, releasing memory between batches rather than growing.
-**The accounting of what it restored of the 851 is pending its end**, by the same ledger query as §1, and the
+**Superseded by §7: the pass was the wrong instrument and was stopped.** What follows was written while it ran.
+The accounting was to be by the same ledger query as §1, and the
 letter chain is to be re-measured after it: restoring `f` and `v` should drop `_letter_prefers` below the 2x bar
 for both, which is the finding in §2 turned into a prediction.
+
+
+### 7. THE LINKS WENT BACK BY A JOIN, NOT BY TEACHING -- and the criterion I used was wrong first
+
+**The pass was never the instrument.** `learn_patterns` writes a link only where a reading FAILS and a repair
+fires; where the pair still reads, only the scores move. A 1,000-fact sample restored **3** of them, and a full
+pass would have restored a handful in fourteen hours. He asked three times what the run was for and twice why the
+links could not simply be written back. He was right both times.
+
+**THEY WERE RECOVERABLE ALL DAY.** `Link.key` is `_key("link", pattern, slot, lexical)` -- derived from its parts
+alone -- and `withdraw_links` recorded that key as the ledger's `subject_id` for every link it removed, with the
+frame, the slot and the filler in `detail`. So each one is rebuilt from the frames and words the store STILL
+HOLDS (only links were withdrawn), its key recomputed, and accepted ONLY where the recomputed key equals the
+recorded one. Every candidate surface was tried, not the first match, so ambiguity resolves itself:
+
+```
+848 of 851 key-PROVED        3 unmatched: their FRAME is gone too
+                             ('His ?slot0 is a ?slot1 soccer player.', 'You have a ?slot0 laugh.',
+                              'Warren Harding was an ?slot0')
+```
+
+Written through `UnifiedLearningSystem._store_language_item`, the system's own writer, never by hand.
+
+**THEN THE CRITERION PROVED WRONG, AND I HAD RESTORED 168 ARTIFACTS.** I selected "wrongly withdrawn" as *the
+filler begins with a consonant*. That holds only where the frame writes "a" before the slot. Where it writes
+"an", a consonant filler is the artifact the whole fix exists to remove -- "An transept is part of a church."
+puts a consonant after "an", and `_letter_after` counts that letter as one written after "an", which is the
+evidence `_told_apart` reads. The self-feeding loop, restored by hand. It showed up as vowel purity after "an"
+falling from 87.2% to 68.8%, and `withdraw_links` took the 167 still held back out.
+
+| of the 851 consonant-initial links | | |
+|---|---|---|
+| after an "a" -- **the loss** | 683 | restored, **681 held** (2 of the 3 frameless ones) |
+| after an "an" -- the artifact | 168 | restored in error, **167 withdrawn again, 0 held** |
+| (the 2,196 vowel-filler ones) | 2,196 | untouched, **0 held**, as they should be |
+
+**THE DAMAGE IS UNDONE WHERE IT MATTERED**, which was never the row count but the evidence the rule reads.
+`_letter_prefers` and `_told_apart` read `_after_count`, built from the link inventory, so deleting the 488 "f"
+links deleted "a"'s own f-sightings and made the CORRECTED rule more certain that "f" belongs to "an" than the
+broken one had been:
+
+| letter | share after "a" before | after | share after "an" | prefers "an" |
+|---|---|---|---|---|
+| f | 0.0046 | **0.0518** | 0.0283 | **True -> False** |
+| v | 0.0021 | **0.0187** | 0.0110 | **True -> False** |
+
+Every consonant now decides False and exactly a, e, i, o, u decide True -- complementary distribution, which is
+what the letter test is for. `_told_apart('a','an')` True, `variants_of("a")` `['an']`, `shape_before` "an" before
+exactly the vowels. The whale is unchanged (`''` at 197 s), as §4 predicts: its fault is `?there` and the dropped
+kind, which links do not touch.
+
+**WHAT IS STILL IMPERFECT.** The beliefs cannot be recovered: evidence lives on the belief row
+(`evidence_for`/`evidence_against`) and `let_go` took it with the belief -- 0 of 3,047 claims still had one. Each
+restored link is observed once, honestly, and `observe_claim` was called with no `observation` identity, so the
+posterior moved to 0.937 with **no named witness behind it**. A later teaching observation will add one and move
+it again, so these sit slightly over-weighted against a cleanly learned link. The alternative was no belief at
+all. Noted rather than hidden, because it is the same shape as the fault that put `misp_get_event` at 674
+observations.
+
+**AND THE INSTRUMENT IS FIXED.** `LYRIC_DUMP_PAIRS=<path>` (`teaching.py`) now appends every
+`(sentence, Meaning, names)` the pass says, so the pattern phase can be replayed alone instead of costing 5.5
+hours of saying to reach. 22,435 pairs are already written. This is why the day went the way it did: every
+question about that phase cost a six-hour run to ask, so I reasoned where I should have measured.
+
+### 8. Errors of mine today, the second set
+
+- **I spent six hours of his machine on the wrong instrument**, and three restarts tuning its speed, when the
+  objective was recoverable by a ledger join in minutes. He asked what the run was for three times; the third
+  time was in anger and deserved to be.
+- **I overwrote a correct figure with a wrong one.** 114 said 683; I "corrected" it to 851 in §1 this morning
+  from a sweep that counted consonant-initial fillers without asking which article preceded the slot, and wrote
+  that into the notebook, a memory and a commit message. 683 was right.
+- **I restored 168 artifacts** on that same conflation, and found it only because vowel purity after "an" moved.
+- **Three mechanisms for the slow pattern phase, all knocked down**: an uncached function (there is a cache, hand
+  rolled, which I missed grepping for `lru_cache`); its invalidation on every addition (measured: cold costs the
+  same as warm, 0.00 s); fact order deciding the whale (it costs 4x in speed, not reachability). What remains is
+  one 15-second window of six stack samples inside `integrate_epistemic_affect`, which is an observation and not
+  a profile.
+- **I deleted the running pass's stack dump file before signalling it**, and `stack_dump.py` says the handle is
+  "held for the life of the process" -- so faulthandler wrote to the unlinked inode and that process could no
+  longer be profiled at all. Append and read from an offset; never delete.
+- **I measured the affect loop in the one state where it is guaranteed to be free**: a freshly booted agent has
+  no drift for `interpret_drift` to drain, so the call did nothing and I nearly reported 0.00 s as a refutation.
 
 ---
 
@@ -645,9 +731,11 @@ memory forgotten, its belief let go and a ledger entry (`PatternInventory.links_
 
 **MY ERROR, APPLIED AND IRREVERSIBLE.** The first selection compared shares with no effect size, so "an" before an
 "f" -- 18 sightings, 4.8% of its 377 -- outvoted "a" at 3.8% of its 12,905, and **683 links of "f" and "v" went
-with the 2,196 that deserved to**, along with the 168 whose fillers begin with a CONSONANT.
-(Corrected in 116 §1, from the ledger: `u`'s 168 are INSIDE the 2,196, and the consonant-initial links sum to
-168 by coincidence. The wrongly withdrawn set is **851**, every consonant-initial link.) `_letter_prefers` now asks for twice as
+with the 2,196 that deserved to**, along with some of the 168 of "u".
+(116 §1 "corrected" this figure to 851 and was WRONG; **683 is right** and is restored here. 116 §7 has the
+measurement: of the 851 consonant-initial links, 683 sit after an "a" -- those are the loss -- and 168 sit
+after an "an", where a consonant filler IS the artifact. I conflated "consonant-initial" with "wrongly
+withdrawn", overwrote a correct note, and restored those 168 by mistake before withdrawing them again.) `_letter_prefers` now asks for twice as
 readily as well, which would have withdrawn a (874), e (444) and o (268) and kept f, v, u and i. The lesson is the
 one `shape_before` had already taught me an hour earlier and I did not carry across: a share of little is not
 evidence. The taught pairs are untouched, so `learn_patterns` would rewrite those links through `add_links`, and
@@ -25776,4 +25864,3 @@ question with a common-noun subject is not read**: `What does <noun> <verb>?` ha
 English missing from the grammar, not a word missing from the store, and it is the shape of half the questions
 anyone would ask of a word. Next: measure how much of UD EWT's and GUM's questions take that shape before touching
 `_combine`, as the carried preposition was measured (18% of questions) before it was fixed.
-

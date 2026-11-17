@@ -46,6 +46,43 @@ from typing import (Any, Dict, FrozenSet, Iterable, Iterator, List, Optional,
 
 from core.utils.give_way import GiveWay
 
+#: THE PAIRS THIS PASS SAID, WRITTEN OUT SO THE PATTERN PHASE CAN BE RUN WITHOUT SAYING THEM AGAIN
+#: (`LYRIC_DUMP_PAIRS=<path>`; off, and costing nothing, when it is unset).
+#:
+#: `learn_patterns` is handed `(sentence, Meaning, names)` built here and then thrown away, and the saying that
+#: builds them takes 5.5 hours over WordNet's 165,497 facts. So every question about the pattern phase -- what it
+#: is spending itself on, whether a tier starves it, whether a withdrawn link comes back -- cost a six-hour run to
+#: ask, and today that made me reason where I should have measured: three mechanisms offered and three knocked
+#: down by the next measurement (2026-11-17). Written out, the phase is replayable on its own in minutes.
+#:
+#: One JSON object a line, appended as the pairs are made, so a pass stopped part way still leaves what it reached.
+_PAIRS_OUT: List[Any] = []
+
+
+def _dump_pair(sentence: str, meaning: Any, names: Dict[str, str], quality: float) -> None:
+    """Append one `(sentence, meaning, names)` to `LYRIC_DUMP_PAIRS`, if it is set. Never raises into teaching:
+    a pass must not fail because a diagnostic file could not be written."""
+    import json
+    import os
+    path = os.environ.get("LYRIC_DUMP_PAIRS")
+    if not path:
+        return
+    try:
+        if not _PAIRS_OUT:
+            _PAIRS_OUT.append(open(path, "a", buffering=1 << 16))
+        _PAIRS_OUT[0].write(json.dumps({
+            "sentence": sentence,
+            "quality": round(float(quality), 3),
+            "act": getattr(meaning, "act", ""),
+            "asked": list(getattr(meaning, "asked", ()) or ()),
+            "names": dict(names or {}),
+            "facts": [[f.relation, f.subject, f.obj, bool(f.positive),
+                       bool(getattr(f, "given", False)), bool(getattr(f, "condition", False))]
+                      for f in getattr(meaning, "facts", ()) or ()],
+        }, ensure_ascii=False) + "\n")
+    except Exception as error:
+        logger.warning("could not write a taught pair to %s: %s", path, error)
+
 logger = logging.getLogger(__name__)
 
 #: A source's normalised support, below which the substrate is told nothing.
@@ -700,6 +737,7 @@ class TeachingPass:
                                 if not str(term).startswith("?"):
                                     names.setdefault(term, str(term).replace("_", " "))
                     patterns.setdefault(quality, []).append((sentence, record.meaning, names))
+                    _dump_pair(sentence, record.meaning, names, quality)
                 if record.example:
                     meanings["example"] += 1
                 else:
