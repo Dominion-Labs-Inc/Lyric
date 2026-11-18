@@ -16,6 +16,74 @@ Conventions:
 
 ---
 
+## 120. Saying puts no article before a mass noun; and the reading bar cannot be measured, because reading now costs 26 times what it cost when the baseline was recorded (2026-11-17)
+
+**A MASS NOUN TAKES NO ARTICLE.** Of air being a gas, saying said "An air's a gas." The pair was weighed and not
+refused, which is `_cannot_take`'s own story one step further on: it refuses a determiner whose noun is of a number
+that determiner is not written before ("A whales"), and "an air" is no number at all -- "an" is written before
+singular nouns in plenty and "air" is singular. What is wrong is that air is not COUNTED.
+
+**TWO MEMORIES, ONE FOR EACH HALF, which is why no list of words is written anywhere in this.** That the determiner
+says ONE of a thing is DECLARED: `data/grammar/english.json` writes "a" and "an" `indefinite`, "some" `indefinite`
+and `some` besides, "the" and "this" `given`, "every" and "all" `every`, "any" `npi` -- and the pieces the grammar
+already carries say which of those a thing was said by (`_say`'s `loose` and `_decided` read the same pieces). So
+"some air", "the air", "this air", "all air" and "any air" are left alone, which is the carve English makes, and
+anything later declared `indefinite` is covered without being named. That the noun is not counted is LEARNED:
+`PatternInventory.used_as`, from Brown, WordNet and the Bochum English Countability Lexicon, which is the same
+memory the reader asks before it lets a filler stand bare.
+
+**ASKED OF WHAT MEMORY HOLDS, NEVER OF WHAT AN ENDING GUESSES.** `use_of` answers for every word from the longest
+held ending that decides it, and it answers `mass` for a word ending as "president" does -- so asking it here
+would refuse "a president", a worse sentence than the one being refused. `used_as` is asked for the THING first
+(a word is used as each thing it names is: "travel" is counted for a trip, not for the act of travelling), then
+for the word. Where no use is held, nothing is refused.
+
+**VERIFIED IN THE RUNNING SUBSTRATE, taken up with no restart** (2 functions swapped, 1 import brought in, nothing
+refused -- the capability entry 119 added, on its first real use): `Is air a gas?` answers "Yes. Air is a gas."
+and "Yes. Air's a gas."; `Do whales breathe air?` puts no article before air; and `Is a whale a mammal?` still
+answers "Yes. A whale's a mammal.", so "a mammal", "a gas" and "a whale" are untouched, which was the risk worth
+checking rather than assuming. The test holds both halves -- air held `mass` and air held `count` -- so what it
+proves is the evidence and not the word; against the pre-change file saying offered "An air is a vapour." first of
+all. 91 of 91 grammar tests pass.
+
+**THE READING BAR WAS ASKED FOR NEXT, AND IT CANNOT BE MEASURED.** UNDERSTANDS-PROSE-02 (50 texts, 456 questions,
+`BARS`: sentences understood 0.95, said back as told 0.95, questions right 0.80, wrong 0.02) was started on three
+texts of the half already fixed against. Its first three sentences cost **922.5 s, 925.3 s and 137.5 s**. The
+recorded runs read at a median of **7.5 s** (533 sentences), 14.4 s (221) and 19.2 s (48), and the IDENTICAL "Rain"
+sentence cost **35.9 s, 171.5 s and 35.1 s** then against **922.5 s** now. At tonight's cost the 50-text set is
+about 120 hours of CPU, not the one to three hours its README estimates.
+
+**IT IS NOT THE MACHINE, AND THAT WAS MEASURED RATHER THAN ASSUMED.** Over 30 s the run consumed 30 s of CPU at
+100% with **2 MB of pageins and zero pageouts**, while sharing the machine with the 14.8 GB resident. The two do
+evict each other's resident sets (the run at 10.4 GB against the resident at 3.5 GB, recovering) but swap use
+never moved off 4.5 GB. CPU-bound, not thrashing.
+
+**WHERE THE TIME GOES** (`kill -USR1`, the dumper `experiment.py` registers for exactly this): the reader's
+recursive filler search, with the leaf inside a generator expression --
+`same_kind` (`derived_reader`:2461) under a lambda at :4621, in `_slot_fillings` (:5096), through
+`fill` (:5324), `walk` (:4294), `_coverings` (:4303) and `_phrase_fillings` (:5326) nested three deep, under
+`_analyses` (:5548), `_read_pieces` (:5801), `readings` (:6424), `read_text` (:6441).
+
+**AND WHY IT GREW: WHAT MEMORY HOLDS GREW.** The pattern store's earliest row is **2026-11-06 21:59**;
+**315,956 patterns were written on 11-07 alone**, 48,521 on 11-08, 50,168 on 11-09, for **443,072** now. The whole
+of `memory_hot` -- 1,441,119 rows -- dates from 11-06. `same_kind` asks, per candidate filler per slot, whether it
+is of the same learned kind as a filler linked to that slot, so the search's cost follows the number of fillers
+memory holds. **Reading got slower because Lyric learned more.** This is the defect
+`scripts/check_reading.py` already names of a neighbouring path: "charging a composed reading the price of picking
+a thing out of 155,767 words broke EVERY bare imperative... the defect is a function of how many words there are."
+
+**SO THE OCTOBER NUMBERS ARE NOT A BASELINE FOR TODAY.** 48.7% of sentences understood and 9.4% of questions right
+(20261022T152323Z and after) were measured against a store that no longer exists and held no taught patterns at
+all. Comparing a run today against them would compare two different systems; the bar is the bar, but the gap to it
+cannot be read off those rows.
+
+**WHAT IS OWED, AND NOT STARTED:** the filler search's cost has to stop following how much memory holds before the
+bar means anything. That is a reader change, so it costs a 922 s relearn at the next boot and must leave WHAT is
+read untouched -- and `scripts/check_reading.py` against `scripts/reading_baseline.json` is precisely the
+instrument for that, which is why it exists. Nothing of it is begun here, and nothing is claimed about the bar.
+
+---
+
 ## 119. A property, a wrapper and a cache are each a function one level down, and a module was sent to a restart for merely containing one (2026-11-17)
 
 117 takes a change the development team made into the running process. It refused `core.semantics.grammar` every
