@@ -6389,21 +6389,18 @@ def _read_forced_by_composing(utterance: "Utterance") -> "Utterance":
                      utterance.partial, utterance.unknown)
 
 
-def _one_sentence(pieces: Tuple[Piece, ...]) -> bool:
-    """Whether these pieces are one sentence: nothing closes a sentence before their last piece. A text of several
-    is read as the utterances that cover it, one for each, and is not handed to the grammar whole."""
-    return not any(p.text in (".", "?", "!") for p in pieces[:-1])
-
-
 def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
               parts: bool = False, named_before: Sequence[str] = ()) -> Tuple[Utterance, ...]:
     """A text as the consecutive utterances that cover it, each read on its own.
 
-    An utterance can end wherever a held construction ends: that is all the substrate knows of where one ends, and
-    it knows it from what it was taught. Of the ways to cut the text there, the one that reads the most of it is
-    taken; a stretch nothing reads whole is kept as an utterance with no readings, so nothing said is lost. A mark
-    inside it separates what it separates: where every stretch between its marks reads as a sentence, each is an
-    utterance of its own ("My dog is not a cat, he is a dog.").
+    Each sentence of the text is taken whole first: a mark that closes a sentence is the one end the substrate does
+    not have to guess at, and the whole of what it closes is offered to held constructions and then to English's
+    grammar before anything inside it is. Where neither reads the whole of one, that sentence is cut where a held
+    construction ends -- that is all the substrate knows of where an utterance ends, and it knows it from what it
+    was taught -- and of the ways to cut it there, the one that reads the most of it is taken; a stretch nothing
+    reads whole is kept as an utterance with no readings, so nothing said is lost. A mark inside it separates what
+    it separates: where every stretch between its marks reads as a sentence, each is an utterance of its own
+    ("My dog is not a cat, he is a dog.").
 
     With `parts`, an utterance nothing reads whole is also read in parts (`Utterance.partial`, `Utterance.unknown`):
     every stretch of it is tried, so it is asked for only where the parts are used -- saying what was understood."""
@@ -6415,7 +6412,6 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     pieces, quoted = set_apart(pieces)
     quoted_read = read_text(surface_of(quoted), view, parts=parts, named_before=named_before) if quoted else ()
     ends = view.ends()
-    cuts = [0] + [i + 1 for i, p in enumerate(pieces[:-1]) if _fold(p.text) in ends] + [len(pieces)]
     read_at: Dict[Tuple[int, int], Tuple[Reading, ...]] = {}
     charts: Dict[bool, _Chart] = {}
 
@@ -6435,72 +6431,124 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     # sureness 0.128. Three coordinated things and three names went the same way; two of anything read whole, because
     # a frame happened to cover two (lyric_db, 2026-11-08).
     #
-    # ASKED ONCE, OF THE WHOLE, and only where this text is ONE sentence and no frame read it whole: a text of
-    # several sentences is still read as the utterances that cover it, which is what every caller is given, and the
-    # frames' own reading stands wherever there is one. The cost is one composing, in the case that had none.
+    # ASKED OF THE WHOLE OF EVERY SENTENCE, AND NOT ONLY WHERE THE TEXT IS ONE. Where a sentence ends is the one
+    # cut this substrate does not have to guess: a mark that closes a sentence closes it. Every other cut comes
+    # from `ends` -- the pieces held constructions end on -- which over 9,189 taught sentences holds plenty of
+    # ordinary nouns ("water", "on"), and the search below picks among those by what FRAMES read.
+    #
+    # Asked of a text of several sentences, neither frames nor the grammar could reach the whole of one of them.
+    # Frames cannot: a reading goes on past no mark a held construction does not hold inside itself
+    # (`reads_past`), and `_ENDS_SPANNED` lets a span cover only that many ends in a row, so a long sentence's own
+    # span is never among the options the search weighs. The grammar was not asked either: it was offered the
+    # whole only where the text was ONE sentence. So the whole of a sentence inside a paragraph was offered to
+    # nobody, and the fragments frames happened to read won on coverage. Measured on 2026-11-18 over four
+    # sentences of prose read as one paragraph: nine utterances, cut inside phrases -- 'of water' | 'aerosols
+    # that have condensed from atmospheric water' | 'vapor and fall by gravity.' cuts "water vapor" in two, and
+    # that last fragment reads `done_by(?v0, vapor) & has_property(?v0, and) & instance_of(?v0, fall)`, while
+    # 'on Earth.' reads `has_count(?v0, on)`. The fourth sentence reads whole to one meaning when it is asked
+    # alone and became three fragments here. A paragraph cost 0.31x its own sentences by understanding less of
+    # them, and coverage is what bought that: a fragment that reads anything counts as much as a sentence does.
+    #
+    # So each sentence is taken in turn, whole, and is cut up only where neither frames nor the grammar read the
+    # whole of it. What the sentences before it named is what its own words are meant by (`names_in`).
     #
     # ONCE IS ONCE, AND IT WAS TWICE WHEREVER COMPOSING FOUND NOTHING. A sentence no frame reads and the grammar
-    # reads no whole of leaves the span search below with ONE utterance covering the whole of it, which the
-    # composing at the end of this function then asked the grammar again -- the same pieces, the same width, and
-    # `named` empty for want of any reading to name anything from, so the same nothing after the same work. The
-    # case that pays twice is exactly the dear one: a chart that finds no whole has tried everything there is.
-    # Measured on 2026-11-17 in UNDERSTANDS-PROSE-02, where every sentence of a run was composed in pairs:
-    # 'Depending on the intensity, rain can be described as a drizzle ...' (47 tokens, 134,359 signs) took 461s
-    # and then 446s, both reporting "read 1 way, none said anything: 1 x the grammar reads no whole", of a turn
-    # that took 925.3s in all. 141s + 138s for the sentence before it, 63s + 61s for the one after.
-    composed_nothing = False
-    if COMPOSING and _one_sentence(pieces) and not readings(0, len(pieces)):
-        whole = _read_by_composing(Utterance(pieces, ()), tuple(named_before))
-        if COMPOSING_FORCED and whole.readings:
-            whole = _read_forced_by_composing(whole)
-        if whole.readings:
-            return (_with_quotation(whole, quoted_read, view),) if quoted else (whole,)
-        composed_nothing = True
-    # best[k] covers pieces[:cuts[k]]: (pieces read, utterances read, utterances unread, where the last one began).
-    # The most pieces read wins; then the fewest utterances reading them, so a reading that runs past an end beats
-    # two that stop at it; then the most unread ones, so what nothing reads is still told apart at its ends.
-    best: List[Tuple[int, int, int, int]] = [(0, 0, 0, -1)]
-    for k in range(1, len(cuts)):
-        options = []
-        for m in range(max(0, k - _ENDS_SPANNED), k):
-            covered, told, untold, _ = best[m]
-            if readings(cuts[m], cuts[k]):
-                options.append((covered + cuts[k] - cuts[m], -(told + 1), untold, m))
-            else:
-                options.append((covered, -told, untold + 1, m))
-        covered, told, untold, m = max(options)
-        best.append((covered, -told, untold, m))
-    spans: List[Tuple[int, int]] = []
-    k = len(cuts) - 1
-    while k > 0:
-        m = best[k][3]
-        spans.append((cuts[m], cuts[k]))
-        k = m
-    out = []
-    for a, b in reversed(spans):
-        found = readings(a, b)
-        if found:
-            out.append(Utterance(pieces[a:b], found))
-            continue
-        said = pieces[a:b]
-        separated = _separated(said, view, charts)
-        if separated:
-            out.extend(separated)
-            continue
-        partial, unknown = _partial(said, view, charts) if parts else ((), ())
-        out.append(Utterance(said, (), partial, unknown))
-    if COMPOSING:
-        # WHAT THE TEXT HAS ALREADY NAMED IS WHAT THE REST OF IT MEANS ITS WORDS BY. The utterances a held
-        # construction read are read before any of the rest is composed, so their things are known by the time the
-        # rest is read, and a sense is weighed by the kinds it shares with the things around it (`spell_out`'s
-        # `around`, Resnik 1995). Offered only the one sentence's own things, a short sentence offered nothing and
-        # the sense its word names most often was taken whatever the text had just said.
-        named = tuple(dict.fromkeys(
-            str(f.obj) for u in out for r in u.readings if r.meaning is not None
+    # reads no whole of leaves the search below with ONE utterance covering the whole of it, which the composing
+    # at the end of this function then asked the grammar again -- the same pieces, the same width, and `named`
+    # empty for want of any reading to name anything from, so the same nothing after the same work. The case that
+    # pays twice is exactly the dear one: a chart that finds no whole has tried everything there is. Measured on
+    # 2026-11-17 in UNDERSTANDS-PROSE-02, where every sentence of a run was composed in pairs: 'Depending on the
+    # intensity, rain can be described as a drizzle ...' (47 tokens, 134,359 signs) took 461s and then 446s, both
+    # reporting "read 1 way, none said anything: 1 x the grammar reads no whole", of a turn that took 925.3s in
+    # all. 141s + 138s for the sentence before it, 63s + 61s for the one after.
+
+    def names_in(read_already: Sequence["Utterance"]) -> Tuple[str, ...]:
+        """WHAT THE TEXT HAS ALREADY NAMED IS WHAT THE REST OF IT MEANS ITS WORDS BY. The utterances a held
+        construction read are read before any of the rest is composed, so their things are known by the time the
+        rest is read, and a sense is weighed by the kinds it shares with the things around it (`spell_out`'s
+        `around`, Resnik 1995). Offered only the one sentence's own things, a short sentence offered nothing and
+        the sense its word names most often was taken whatever the text had just said."""
+        return tuple(dict.fromkeys(
+            str(f.obj) for u in read_already for r in u.readings if r.meaning is not None
             for f in r.meaning.facts if f.relation in ("instance_of", "isa") and isinstance(f.obj, str)))
-        # The whole of these pieces is not asked again where it has already been asked and read nothing
+
+    def cut_up(start: int, stop: int) -> List["Utterance"]:
+        """These pieces as the utterances that cover them, cut where held constructions end (`ends`): what is left
+        to do for a sentence neither frames nor the grammar read the whole of.
+
+        best[k] covers pieces[start:cuts[k]]: (pieces read, utterances read, utterances unread, where the last one
+        began). The most pieces read wins; then the fewest utterances reading them, so a reading that runs past an
+        end beats two that stop at it; then the most unread ones, so what nothing reads is still told apart at its
+        ends."""
+        cuts = [start] + [i + 1 for i in range(start, stop - 1) if _fold(pieces[i].text) in ends] + [stop]
+        best: List[Tuple[int, int, int, int]] = [(0, 0, 0, -1)]
+        for k in range(1, len(cuts)):
+            options = []
+            for m in range(max(0, k - _ENDS_SPANNED), k):
+                covered, told, untold, _ = best[m]
+                if readings(cuts[m], cuts[k]):
+                    options.append((covered + cuts[k] - cuts[m], -(told + 1), untold, m))
+                else:
+                    options.append((covered, -told, untold + 1, m))
+            covered, told, untold, m = max(options)
+            best.append((covered, -told, untold, m))
+        spans: List[Tuple[int, int]] = []
+        k = len(cuts) - 1
+        while k > 0:
+            m = best[k][3]
+            spans.append((cuts[m], cuts[k]))
+            k = m
+        cut: List[Utterance] = []
+        for a, b in reversed(spans):
+            found = readings(a, b)
+            if found:
+                cut.append(Utterance(pieces[a:b], found))
+                continue
+            said = pieces[a:b]
+            separated = _separated(said, view, charts)
+            if separated:
+                cut.extend(separated)
+                continue
+            partial, unknown = _partial(said, view, charts) if parts else ((), ())
+            cut.append(Utterance(said, (), partial, unknown))
+        return cut
+
+    # Where each sentence of the text ends: the mark that closes it, and whatever marks close with it (a quotation's
+    # own, '?"'). What follows the last such mark is a sentence too, closed or not.
+    stops: List[int] = []
+    at = 0
+    while at < len(pieces):
+        if pieces[at].text in (".", "?", "!"):
+            at += 1
+            while at < len(pieces) and _is_mark(pieces[at].text):
+                at += 1
+            stops.append(at)
+        else:
+            at += 1
+    if not stops or stops[-1] != len(pieces):
+        stops.append(len(pieces))
+    composed_nothing: List[Tuple[Piece, ...]] = []
+    out: List[Utterance] = []
+    for start, stop in zip([0] + stops[:-1], stops):
+        said = pieces[start:stop]
+        found = readings(start, stop)
+        if found:
+            out.append(Utterance(said, found))
+            continue
+        if COMPOSING:
+            whole = _read_by_composing(Utterance(said, ()), names_in(out) + tuple(named_before))
+            if COMPOSING_FORCED and whole.readings:
+                whole = _read_forced_by_composing(whole)
+            if whole.readings:
+                out.append(whole)
+                continue
+            composed_nothing.append(said)
+        out.extend(cut_up(start, stop))
+    if COMPOSING:
+        named = names_in(out)
+        # The whole of a sentence is not asked again where it has already been asked and read nothing
         # (`composed_nothing`): every shorter utterance still is, since none of those was asked above.
-        out = [u if u.readings or (composed_nothing and u.pieces == pieces)
+        out = [u if u.readings or u.pieces in composed_nothing
                else _read_by_composing(u, named + tuple(named_before)) for u in out]
         if COMPOSING_FORCED:
             out = [_read_forced_by_composing(u) for u in out]

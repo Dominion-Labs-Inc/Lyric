@@ -2446,3 +2446,42 @@ def test_a_sentence_the_grammar_reads_no_whole_of_is_composed_once_and_not_twice
     utterances = read_text(said, view)
     assert not any(u.readings for u in utterances), "nothing is taught here, so nothing reads it"
     assert len(asked) == 1, f"the whole was asked {len(asked)} times: {asked}"
+
+
+def test_the_whole_of_every_sentence_of_a_text_is_read_before_anything_inside_it_is(monkeypatch):
+    """A sentence inside a text is offered whole -- to held constructions, and then to English's grammar -- before
+    the ends it happens to hold are used to cut it up. It was not. The grammar was asked of a whole only where the
+    text was ONE sentence, and frames cannot reach a long sentence's own span at all: a reading goes on past no
+    mark a construction does not hold inside itself (`reads_past`), and `_ENDS_SPANNED` bounds how many ends in a
+    row a span may cover. So the whole of a sentence inside a paragraph was offered to nobody, and the fragments
+    frames happened to read won -- the search weighs how many PIECES were read, and a fragment that reads anything
+    counts for as much as a sentence does.
+
+    Measured on 2026-11-18 over four sentences of prose read as one paragraph: nine utterances, cut inside
+    phrases. 'of water' | 'aerosols that have condensed from atmospheric water' | 'vapor and fall by gravity.'
+    cuts "water vapor" in two, and that last fragment reads `done_by(?v0, vapor) & has_property(?v0, and) &
+    instance_of(?v0, fall)`; 'on Earth.' reads `has_count(?v0, on)`. The fourth sentence reads whole to one
+    meaning when it is asked alone and came back as three fragments here. The paragraph cost 0.31x what its own
+    sentences cost by understanding less of them.
+
+    The holophrase added here ends on "red", which puts "red" among the ends an utterance may end at, and reads
+    the four words before "and": the defect in little, since that fragment reading is what cuts the second
+    sentence. What the grammar is ASKED says who was offered the whole. The fragments still stand after it, as
+    they should -- at this scale the grammar reads no whole of that sentence, and nothing better exists."""
+    asked = []
+    composing = dr._read_by_composing
+
+    def counted(utterance, named_before=(), width=0):
+        asked.append(surface_of(utterance.pieces))
+        return composing(utterance, named_before, width)
+
+    monkeypatch.setattr(dr, "_read_by_composing", counted)
+    view = _lesson_view()
+    view.add(Pattern((dr.Piece("The", True), dr.Piece("shoe", True), dr.Piece("is", True), dr.Piece("red", True)),
+                     _the("shoe", "red")))
+    assert "red" in view.ends(), "a construction ending on a word is an end an utterance may end at"
+    said = read_text("It is red. The shoe is red and the hat is blue.", view)
+    assert asked == ["The shoe is red and the hat is blue.", "and the hat is blue."], \
+        f"the whole of the second sentence is asked before what cutting it up left: {asked}"
+    assert [u.text for u in said] == ["It is red.", "The shoe is red", "and the hat is blue."]
+    assert [u.understood for u in said] == [True, True, False], "a held construction's reading stands as it did"

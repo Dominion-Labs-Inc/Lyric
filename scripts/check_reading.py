@@ -105,14 +105,17 @@ LONG = ("Rain or rainfall is a form of atmospheric precipitation composed of dro
         "(brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or "
         "“torrential” rainfall).")
 
-#: AND THE SAME TEXT READ AS TEXT, which is a different case and not a longer one. A sentence on its own is handed
-#: to English's grammar whole (`_one_sentence`), and 47 tokens charted as one is the dearest thing reading does;
-#: given the paragraph, the span search cuts it at ends the frames know and the grammar is handed nine short
-#: utterances instead. Measured on 2026-11-18: these four sentences cost 126.5 s read as one paragraph against
-#: 405.0 s read one at a time, 0.31x, and the frame search over the long stretches it tries -- 29 of them, two of
-#: 86 and 90 pieces -- was about 22 s of that. So Lyric reads text more cheaply than it reads sentences, and
-#: nothing measured either until this case was written: UNDERSTANDS-PROSE-02 reads one sentence at a time, and the
-#: reading check read nothing longer than one.
+#: AND THE SAME TEXT READ AS TEXT, which is a different case and not a longer one. Every sentence of a text is
+#: handed whole to held constructions and then to English's grammar before the ends the frames know are used to
+#: cut it up, so a paragraph costs about what its sentences cost and reads what they read. It did not: the grammar
+#: was offered a whole only where the text was ONE sentence, and a paragraph was cut at the ends frames happen to
+#: know, which handed the grammar nine short utterances. Measured on 2026-11-18, before that: these four sentences
+#: cost 126.5 s read as one paragraph against 405.0 s read one at a time, 0.31x -- and the cuts landed INSIDE
+#: phrases, splitting "water vapor" so that 'vapor and fall by gravity.' read as vapour falling with a property
+#: called "and", and reading 'on Earth.' as a count called "on". A paragraph was cheaper by understanding less of
+#: it. Nothing measured either until this case was written: UNDERSTANDS-PROSE-02 reads one sentence at a time, and
+#: the reading check read nothing longer than one. The frame search over the long stretches a cut-up paragraph
+#: tries -- 29 of them, two of 86 and 90 pieces -- was about 22 s, so that is not where its cost went either.
 #:
 #: The first two sentences are LONG's two, so the record holds the same words read both ways.
 PARAGRAPH = " ".join(LONG + (
@@ -432,7 +435,9 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, in
                 worse += 1
                 say(f"    WORSE        {said[:60]!r} built {len(before['built'])} reading(s), now "
                     f"{len(after.get('built', []))}; NO LONGER BUILT:")
-                for meaning in gone[:4]:
+                # EVERY ONE OF THEM, never the first few: which readings went is the whole of the judgement
+                # a human makes here, and a truncated list reads as a smaller loss than it is.
+                for meaning in gone:
                     say(f"                   {meaning}")
             elif fresh:
                 better += 1
@@ -453,7 +458,13 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, in
             was_secs, now_secs = before.get("seconds", 0.0) or 0.0, after.get("seconds", 0.0) or 0.0
             dearer = (now_signs > max(was_signs, 1) * COST_IN_KIND
                       and now_secs > max(was_secs, 1.0) * COST_IN_KIND)
-            cheaper = now_signs * COST_IN_KIND < max(was_signs, 1)
+            # A CASE THAT BUILT NO SIGNS AND STILL BUILDS NONE IS AS RECORDED, NOT BETTER. Written
+            # `now_signs * COST_IN_KIND < max(was_signs, 1)`, nothing against nothing came out 0 < 1, so every
+            # case the grammar never charted reported BETTER: 5 of the 5 this said on 2026-11-18 were that, two
+            # of them with the clock going the OTHER way ('The rock was heavy.' 2.0s -> 2.6s). A harness that
+            # flatters is worse than none, since this file is the only thing standing between a cheaper chart and
+            # a lost reading.
+            cheaper = was_signs > 0 and now_signs * COST_IN_KIND < was_signs
             how = (f"{was_secs:.1f}s -> {now_secs:.1f}s, {was_signs:,} -> {now_signs:,} sign(s) in "
                    f"{after.get('charts', 0)} chart(s)")
             if dearer:
