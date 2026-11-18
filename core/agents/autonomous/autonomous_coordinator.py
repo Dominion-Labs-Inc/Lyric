@@ -20882,6 +20882,30 @@ The substrate must realign with its constitutional responsibilities immediately.
         view = agent.grammar_view()
         learned = await view.learn_waiting_in_turn()
         kept = await agent.keep_grammar_learning()
+        # AND THE THREE TABLES A FIRST SENTENCE WAS PAYING FOR, which is this door's own defect one layer down:
+        # each is built where it is first needed, and the first need is inside whichever sentence happens to be
+        # read first. Measured on 2026-11-18: a process's first long read cost 195.6 s against 96.3 s for the
+        # next sentence of the same length, with about 35% of its samples in the structure view's situations; a
+        # first read of seven words spent 72% of its 12.8 s in the shapes the held fillers show, and 1.1 s on the
+        # next read; and the listener's first weighing spent 65% of its 8.1 s building how words are used. None
+        # of the three is per-sentence work and none of them is reading: they are a start's work, done here.
+        #
+        # NOTHING IS READ DIFFERENTLY FOR IT: each returns at once once built, and each is reached here through
+        # the same door reading reaches it by, so what is built is exactly what reading would have built.
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        inventory = agent.pattern_inventory()
+        at = time.monotonic()
+        held_structure = getattr(view.grammar, "structure", None)
+        situations = held_structure.worked_out() if held_structure is not None and len(held_structure) else 0
+        await give_way()
+        shapes = len(inventory.said_shapes()[1])
+        await give_way()
+        # Asked of one word because ASKING is what builds the whole table (`_uses_now`); which word is asked
+        # makes no difference to what is built, and the answer is nothing to this door.
+        inventory.used_as("water")
+        await give_way()
+        worked_out = time.monotonic() - at
         # AND THE START DOES NOT READ WHAT ITS TOOLS DO. Where the rules those descriptions were last read under
         # have changed, reading the 251 of them by the grammar is 1,192 s -- 84% of a 1,417 s start -- against
         # 141 s for a start whose readings are all remembered (main, 2026-11-12). It was awaited here once, then
@@ -20894,11 +20918,13 @@ The substrate must realign with its constitutional responsibilities immediately.
         reading = getattr(self, "_tool_reading_task", None)
         still_reading = reading is not None and not reading.done()
         logger.info("📖 Ready to read: the grammar holds what %d sentences taught it, %d learned now and %d kept with "
-                    "their sentences; what Lyric's tools do is %s (%.0fs)",
-                    view.learned_from, learned, kept,
+                    "their sentences; the structure of %d sentence(s), %d shape(s) and how words are used worked "
+                    "out in %.0fs so no first sentence pays for them; what Lyric's tools do is %s (%.0fs)",
+                    view.learned_from, learned, kept, situations, shapes, worked_out,
                     "being read now" if still_reading else "read when a tool is first needed",
                     time.monotonic() - started)
         return {"sentences_held": view.learned_from, "sentences_learned": learned, "kept": kept,
+                "situations": situations, "shapes": shapes, "worked_out_seconds": round(worked_out, 1),
                 "tools_reading": still_reading}
 
     async def _tools_for_request(self, task: Task) -> List[Dict[str, Any]]:

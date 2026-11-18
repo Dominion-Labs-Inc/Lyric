@@ -21,6 +21,24 @@ ought to do; the baseline is a measurement, and `--record` is how it is replaced
 Reads only: no conversation remembers, the descriptions are read through the reading alone
 (`AutonomousCoordinator.doing_said`, which remembers nothing), and no store is written.
 
+WHAT EACH CASE COSTS IS RECORDED BESIDE WHAT IT SAYS, because a reader change is two questions and this answered
+only one. Four quantities per case, which are the four a design whose knowledge is READ rather than frozen into
+weights has to be able to show as it learns more:
+
+    what it reads     the meaning taken, and EVERY reading built -- so a reading that stops being built is a
+                      capability lost, and is reported as one, not as a faster run
+    candidates        the readings handed to the listener, and the signs the grammar's chart held to make them
+    latency           seconds, per case
+    memory            the process's resident size, per case
+
+A READING NO LONGER BUILT IS THE ONE THING THAT MUST NEVER PASS. Making the chart cheaper divides into mechanisms
+that cannot lose a reading (sharing work, packing a cell, an A* order under an admissible bound) and mechanisms
+that can (a supertagger's beam, pruning on a coarse pass, and the `how_many` beam `Grammar.charts` ALREADY runs,
+whose cost is measured: 54.2% chosen right where an exhaustive chart held the right reading for 61.8%, so 7.6
+points thrown away inside the chart). This file is the evidence for the first kind and the place the second kind's
+ceiling is written down. It is evidence over these cases, never a proof: for an exact mechanism the proof is the
+argument, and what is recorded here is that the argument held where it was looked at.
+
   POSTGRES_DATABASE=lyric_db PYTHONPATH="$PWD" ./venv_lyric/bin/python3 scripts/check_reading.py [--record]
       [--skip-tests] [--baseline PATH]
 
@@ -34,6 +52,7 @@ import contextlib
 import io
 import json
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -74,11 +93,70 @@ PROSE = ("A whale breathes air through a blowhole.",
          "The note was long.",
          "Does sorted return a new list?")
 
+#: THE SENTENCES THE COST ACTUALLY LIVES IN, which none of the above is: every case above is short, and a chart
+#: is `n` cubed over its stretches with the signs in each cell squared inside, so what a reader change does to a
+#: long sentence cannot be read off a short one. These two are the first two sentences of UNDERSTANDS-PROSE-02's
+#: Rain text, whose turns cost 922.5 s and 925.3 s on 2026-11-17 -- the measurement that found the chart, and
+#: the duplicate composing inside it. Read through the reading alone (`read_text` and `heard`), never told to a
+#: conversation: a telling writes what it was told, and this file writes nothing.
+LONG = ("Rain or rainfall is a form of atmospheric precipitation composed of droplets of water aerosols that have "
+        "condensed from atmospheric water vapor and fall by gravity.",
+        "Depending on the intensity, rain can be described as a drizzle (very light, sporadic rainfall), a shower "
+        "(brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or "
+        "“torrential” rainfall).")
+
+#: How much more of a case's cost counts as a change in kind rather than the noise of a machine with other work on
+#: it. Reported either way; WORSE only past this, and past it on the chart's own signs as well as on the clock,
+#: since signs are what the reader decided to do and seconds are what the machine was free to do it in.
+COST_IN_KIND = 2.0
+
 QUIET = io.StringIO()
+
+#: What the grammar's chart was asked to do since the last case (`counting`): charts built, cells held, signs kept.
+#: Counted around `Grammar.charts` from here rather than inside it, so that measuring reading costs the reader
+#: nothing and changes no hash of it.
+_COST: Dict[str, int] = {"charts": 0, "cells": 0, "signs": 0}
+
+
+@contextlib.contextmanager
+def counting():
+    """`Grammar.charts` tallied while this is open, and left exactly as it was afterwards."""
+    from core.semantics.grammar import Grammar
+    was = Grammar.charts
+
+    def charts(self, tokens, how_many: int = 1):
+        cells = was(self, tokens, how_many)
+        _COST["charts"] += 1
+        _COST["cells"] += len(cells)
+        _COST["signs"] += sum(len(held) for cell in cells.values() for held in cell.values())
+        return cells
+
+    Grammar.charts = charts
+    try:
+        yield
+    finally:
+        Grammar.charts = was
+
+
+def spent(since: Dict[str, int], at: float) -> Dict[str, Any]:
+    """The four quantities for one case: what its chart cost, how long it took, and what the process held by the
+    end of it. Resident size is the process's, not the case's -- a case does not own its memory -- so it is
+    recorded as the level reading this case left behind, which is what grows as a store grows."""
+    rss = subprocess.run(["ps", "-o", "rss=", "-p", str(os.getpid())], capture_output=True, text=True).stdout
+    return {"charts": _COST["charts"] - since["charts"], "cells": _COST["cells"] - since["cells"],
+            "signs": _COST["signs"] - since["signs"], "seconds": round(time.time() - at, 1),
+            "rss_gb": round(int(rss.strip() or 0) / 1048576, 2)}
 
 
 def say(*a: Any) -> None:
     print(*a, flush=True)
+
+
+def built(readings: Tuple[Any, ...]) -> List[str]:
+    """EVERY MEANING THE READER BUILT of a sentence, as it writes one, in one order however they were ranked: the
+    set a mechanism that cannot lose a reading must leave whole. Ranking belongs to `read`, which records the one
+    the listener took; this records what there was to take."""
+    return sorted({r.meaning.canonical() for r in readings if r.meaning is not None})
 
 
 def run_tests() -> Tuple[bool, str]:
@@ -159,10 +237,10 @@ async def descriptions(coordinator: Any, pinned: Optional[List[str]]) -> Dict[st
         pinned = sorted(taken)
     out: Dict[str, Any] = {}
     for said in pinned:
-        at = time.time()
+        at, since = time.time(), dict(_COST)
         with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
             doing = await coordinator.doing_said(said)
-        out[said] = {"doing": doing, "seconds": round(time.time() - at, 1)}
+        out[said] = {"doing": doing, **spent(since, at)}
     return out
 
 
@@ -172,7 +250,7 @@ async def opposites() -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for one, other in PAIRS:
         said = f"Is {one} the opposite of {other}?"
-        at = time.time()
+        at, since = time.time(), dict(_COST)
         with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
             utterances = dr.read_text(said)
             readings = tuple(utterances[0].readings) if utterances else ()
@@ -181,7 +259,7 @@ async def opposites() -> Dict[str, Any]:
             f.relation == "antonym_of" and {f.subject, f.obj} == {one, other} for f in chosen.meaning.facts)
         out[said] = {"answered": answered,
                      "read": chosen.meaning.canonical() if chosen is not None else None,
-                     "seconds": round(time.time() - at, 1)}
+                     "built": built(readings), **spent(since, at)}
     return out
 
 
@@ -199,16 +277,34 @@ async def prose() -> Dict[str, Any]:
     talk = get_conversation("check_reading", remembers=False)
     out: Dict[str, Any] = {}
     for said in PROSE:
-        at = time.time()
+        at, since = time.time(), dict(_COST)
         with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
             utterances = dr.read_text(said)
             readings = tuple(utterances[0].readings) if utterances else ()
             chosen = await dr.heard(readings) if readings else None
             understood = await talk.understand(said, look_up=False)
         out[said] = {"read": chosen.meaning.canonical() if chosen is not None else None,
-                     "readings": len(readings),
+                     "readings": len(readings), "built": built(readings),
                      "reply": (getattr(understood, "reply", "") or "")[:120],
-                     "seconds": round(time.time() - at, 1)}
+                     **spent(since, at)}
+    return out
+
+
+async def long_prose() -> Dict[str, Any]:
+    """THE TWO LONG SENTENCES, read through the reading alone. No conversation is given them, because a telling is
+    stored and this file stores nothing -- and because what these are here for is the chart, which the door would
+    only add its own work on top of."""
+    from core.semantics import derived_reader as dr
+    out: Dict[str, Any] = {}
+    for said in LONG:
+        at, since = time.time(), dict(_COST)
+        with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
+            utterances = dr.read_text(said)
+            readings = tuple(r for u in utterances for r in u.readings)
+            chosen = await dr.heard(readings) if readings else None
+        out[said] = {"read": chosen.meaning.canonical() if chosen is not None else None,
+                     "readings": len(readings), "built": built(readings),
+                     "utterances": len(utterances), "words": len(said.split()), **spent(since, at)}
     return out
 
 
@@ -267,6 +363,63 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, in
             continue
         verdict(f"{said!r}", (before["read"], before.get("reply")),
                 (after["read"], after.get("reply")), None)
+
+    say("\n  THE LONG SENTENCES")
+    for said, after in now.get("long", {}).items():
+        before = (was.get("long") or {}).get(said)
+        if before is None:
+            say(f"    new          {said[:66]!r} -> {after['read']!r}")
+            continue
+        verdict(f"{said[:66]!r}", before["read"], after["read"], None)
+
+    # A READING THAT STOPPED BEING BUILT IS A CAPABILITY LOST, and it is the one thing here that is never
+    # CHANGED and never faster: the listener can only take what was built, so a meaning missing from this set
+    # never reaches it, whatever the clock says. Reported case by case and by the meaning itself, because which
+    # reading went is the whole of what a person needs to see.
+    say("\n  WHAT WAS BUILT")
+    for group in ("opposites", "prose", "long"):
+        for said, after in now.get(group, {}).items():
+            before = (was.get(group) or {}).get(said)
+            if before is None or "built" not in before:
+                continue
+            gone = [m for m in before["built"] if m not in after.get("built", [])]
+            fresh = [m for m in after.get("built", []) if m not in before["built"]]
+            if gone:
+                worse += 1
+                say(f"    WORSE        {said[:60]!r} built {len(before['built'])} reading(s), now "
+                    f"{len(after.get('built', []))}; NO LONGER BUILT:")
+                for meaning in gone[:4]:
+                    say(f"                   {meaning}")
+            elif fresh:
+                better += 1
+                say(f"    BETTER       {said[:60]!r} builds {len(fresh)} more: {fresh[0][:90]}")
+            else:
+                kept += 1
+                say(f"    as recorded  {said[:60]!r} {len(after.get('built', []))} reading(s)")
+
+    # WHAT IT COST, BESIDE WHAT IT SAID. Reported for every case; WORSE only where it changed in kind
+    # (`COST_IN_KIND`), on the chart's own signs as well as on the clock.
+    say("\n  WHAT IT COST")
+    for group in ("descriptions", "opposites", "prose", "long"):
+        for said, after in now.get(group, {}).items():
+            before = (was.get(group) or {}).get(said)
+            if before is None or "signs" not in before:
+                continue
+            was_signs, now_signs = before.get("signs", 0), after.get("signs", 0)
+            was_secs, now_secs = before.get("seconds", 0.0) or 0.0, after.get("seconds", 0.0) or 0.0
+            dearer = (now_signs > max(was_signs, 1) * COST_IN_KIND
+                      and now_secs > max(was_secs, 1.0) * COST_IN_KIND)
+            cheaper = now_signs * COST_IN_KIND < max(was_signs, 1)
+            how = (f"{was_secs:.1f}s -> {now_secs:.1f}s, {was_signs:,} -> {now_signs:,} sign(s) in "
+                   f"{after.get('charts', 0)} chart(s)")
+            if dearer:
+                worse += 1
+                say(f"    WORSE        {said[:56]!r} {how}")
+            elif cheaper:
+                better += 1
+                say(f"    BETTER       {said[:56]!r} {how}")
+            else:
+                say(f"                 {said[:56]!r} {how}")
     return kept, better, worse, changed
 
 
@@ -300,22 +453,29 @@ async def main() -> int:
         was = json.loads(baseline.read_text())
 
     at = time.time()
-    now = {"descriptions": await descriptions(coordinator, None if args.record
-                                              else sorted(was["descriptions"])),
-           "opposites": await opposites(),
-           "prose": await prose()}
+    with counting():
+        now = {"descriptions": await descriptions(coordinator, None if args.record
+                                                  else sorted(was["descriptions"])),
+               "opposites": await opposites(),
+               "prose": await prose(),
+               "long": await long_prose()}
     say(f"\n  {len(now['descriptions'])} description(s), {len(now['opposites'])} pair(s), "
-        f"{len(now['prose'])} prose sentence(s) read in {time.time()-at:.0f}s")
+        f"{len(now['prose'])} prose sentence(s), {len(now['long'])} long sentence(s) "
+        f"read in {time.time()-at:.0f}s")
+    say(f"  {_COST['charts']:,} chart(s) built in all, holding {_COST['signs']:,} sign(s) "
+        f"in {_COST['cells']:,} cell(s)")
 
     if args.record:
         baseline.parent.mkdir(parents=True, exist_ok=True)
         baseline.write_text(json.dumps(now, indent=2, sort_keys=True) + "\n")
         say(f"\n  recorded to {baseline}")
-        for group in ("descriptions", "opposites", "prose"):
+        for group in ("descriptions", "opposites", "prose", "long"):
             say(f"\n  {group.upper()}")
             for said, what in now[group].items():
-                plain = {k: v for k, v in what.items() if k != "seconds"}
+                plain = {k: v for k, v in what.items() if k not in ("seconds", "built")}
                 say(f"    {said[:66]!r:68s} {plain}")
+                if what.get("built"):
+                    say(f"      built {len(what['built'])}: {what['built'][0][:100]}")
         say(f"\n  ({time.time()-t0:.0f}s all told)")
         return 0
 

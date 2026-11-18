@@ -631,6 +631,22 @@ class StructureView:
     def __len__(self) -> int:
         return len(self._held)
 
+    def worked_out(self) -> int:
+        """The situations of every held sentence worked out NOW, and how many sentences they were worked out from.
+
+        BUILT WHERE IT IS FIRST NEEDED, AND THE FIRST NEED IS INSIDE SOMEONE'S FIRST SENTENCE. `_work_out` reads
+        every held sentence, reads each again in `FOLDS` parts to learn the situations reading meets a step in, and
+        counts every pair of words. It is paid once a process, and it is paid inside whichever sentence happens to
+        ask for a class or a join first. Measured on 2026-11-18: a process's first long read took 195.6 s with
+        about 35% of its samples inside here, and the next sentence 96.3 s with none, while `joins` itself is
+        0.2 s cold and 0.03 s warm over a view of 18,681 sentences. So the cost is not reading's and it is not
+        that sentence's; it belongs to a start, which is what this door is for (`ready_to_read`).
+
+        Nothing is read differently for its having been worked out earlier: `_work_out` returns at once once it is
+        ready, and every caller that needs it already calls it first."""
+        self._work_out()
+        return len(self._held)
+
     def __contains__(self, key: str) -> bool:
         return key in self._held
 

@@ -414,3 +414,23 @@ def test_one_sentence_added_counts_in_rather_than_every_sentence_counted_again()
                     level.setdefault(situation, Counter())[step] += 1
     for level, again in zip(added_in._steps, counted_again._steps):
         assert level == again, "a sentence counted in must leave the step counts the counts of every sentence held"
+
+
+def test_the_situations_are_worked_out_when_a_start_asks_and_nothing_is_read_differently_for_it():
+    """`worked_out` is the door a start knocks on (`AutonomousCoordinator.ready_to_read`) so that no first
+    sentence pays for the situations of every held sentence. Built where it is first needed otherwise, and the
+    first need is inside whichever sentence happens to be read first: a process's first long read cost 195.6 s
+    with about 35% of its samples inside `_work_out`, against 96.3 s for the next sentence of the same length
+    (2026-11-18).
+
+    IT MOVES WHEN THE WORK HAPPENS AND NOTHING ELSE. Two views holding the same sentences read the same words to
+    the same structure, whether the situations were worked out before the read or by it -- which is the whole of
+    what a change that may not cost a capability has to show."""
+    early, late = StructureView(), StructureView()
+    for analysed in (PLANTS, DOGS, CATS):
+        early.add(analysed)
+        late.add(analysed)
+    assert early.worked_out() == len(early) == 3
+    assert early.worked_out() == 3, "asked again, worked out once: it answers from what it holds"
+    assert early.read(PLANTS.words) == late.read(PLANTS.words), "the same reading either way"
+    assert early.read(DOGS.words) == late.read(DOGS.words)
