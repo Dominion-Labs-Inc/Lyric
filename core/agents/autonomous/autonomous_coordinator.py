@@ -5496,6 +5496,24 @@ class Constitution:
         A restart of this substrate costs about 158 seconds of graph rebuild, so
         "edit and restart" was the real cost of every change to its own code.
 
+        WHAT THE PROCESS HOLDS IS OFTEN NOT THE PLAIN FUNCTION the file
+        declares, and that alone decided whether a module could be taken up at
+        all. Reaching no further than staticmethod and classmethod refused
+        `core.semantics.grammar` over three properties and a context manager
+        the change had not touched, and refused a NO-OP edit to
+        `core.semantics.derived_reader` over nine names -- five caches and four
+        cached properties, not one of them touched. Reaching through a
+        read-only property's getter, a wrapper's `__wrapped__` and a cache made
+        both takeable (2026-11-17), which counts for most in the grammar, where
+        a restart costs a 922-second relearn on top of the rebuild.
+
+        PROVEN IN THE RUNNING SUBSTRATE, not only in a test: a docstring edit to
+        this very method, made on disk while the process ran, was taken up
+        122 seconds later -- "2 function(s) replaced in place. The baseline is
+        re-frozen against it" -- attributed to the development team by the git
+        author and recorded as `code_adopted`, with no halt written
+        (2026-11-17 22:15:59).
+
         ALL OF IT OR NONE OF IT, and the baseline moves only here. Fingerprints
         and file hash are re-frozen together in the same step, so the next check
         does not read the substrate's own adoption as substitution; and nothing

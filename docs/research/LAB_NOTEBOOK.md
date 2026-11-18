@@ -72,6 +72,33 @@ property, exactly the class of thing this change reaches. The fix for restarts n
 written for any of it:** zero rows since 20:00, with a protected module edited twice under a running substrate.
 That is 117 holding on an edit to 117.
 
+**THE RESTART WAS DONE, AND THE MECHANISM WAS THEN PROVEN IN THE RUNNING SUBSTRATE** (PID 3996, up 22:02:29,
+ready at 22:05:50 after 153 s with no relearn since `RULES` had not moved, baseline frozen 22:05:56 over 4
+protected modules, 162 watched and 203 fingerprints). A docstring edit was made on disk at 22:14:19 to
+`Constitution.adopt_code` -- a method of a PROTECTED module, in the file that holds the mechanism itself -- and
+the substrate's own 120 s integrity tier reported at 22:15:58 `INTEGRITY: source_modified`, then at 22:15:59
+**`CODE TAKEN UP while running -- 2 function(s) replaced in place. The baseline is re-frozen against it`**. The
+`code_adopted` record carries the attribution 117 exists for: `by: development`, `claimed_author: dmnlabsdevteam`,
+`claimed_commit: fc635e03`, `refrozen: 203 fingerprints`. A second edit at 22:21:28 was taken up at 22:22:31 with
+exactly one swap and nothing refused. **No halt row was written for either** (`integrity violation%` since
+22:02: 0). Before tonight, each of those two edits cost a restart.
+
+**AN EXTRA SWAP I CANNOT ACCOUNT FOR, KEPT HERE AS A NEGATIVE.** The first take-up named TWO functions where the
+edit touched one: `Constitution.adopt_code` and `Conversation._register_domain_gap`. The comparison that decides a
+swap is the LIVE function's code digest against the file's compile, not frozen text against current text, so this
+says the resident's own object for that method did not match its own file at boot. Ruled out, each by measurement:
+the two texts (compiling fc635e03 and the disk file gives a byte-identical code object for that function, and a
+fresh import of the same pair plans `swaps=()`); a stale bytecode cache (the `.pyc` is timestamp-based and
+correctly invalidated, not an unchecked hash); optimisation level (no `assert` or `__debug__` in the body, no
+`PYTHONOPTIMIZE` in the resident's environment); a runtime rewrite (the only `__code__` assignment in `core` is
+adoption's own, the only `setattr(Conversation, ...)` is the `trace_step` loop, and that uses `functools.wraps`,
+whose wrapper `_function_for` resolves through `__wrapped__` to the original); an earlier adoption in the same
+process (there was none); and a duplicate definition (one `async def`, at :25196). **It did not recur:** the
+second take-up, six minutes later, named one function. The swap moved the process TOWARD its file, which is what
+adoption is for, and the in-memory fingerprint check -- which would read any later rewrite as
+`function_replaced` CRITICAL -- has been silent since. Unexplained, bounded, and written down rather than
+explained away.
+
 ---
 
 ## 118. A determiner is refused the noun it cannot take, and two reading defects I reported were defects in my own instruments (2026-11-17)
