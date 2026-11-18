@@ -168,8 +168,19 @@ class InstanceDoor:
             finally:
                 end_conversation(session)
             verdicts = {a.verdict for a in (understanding.answers or []) if a.verdict is not None}
+            # WHY NOTHING ANSWERED IT, CARRIED OUT WITH THE REPLY. `_understand` gathers this for exactly this
+            # reason -- "so a person asking, and anything reading the reply, is told which path stopped where
+            # instead of only that there is no answer" -- and this door threw it away, which is the whole of what
+            # it was for. Asked 'Do whales breathe air?' the reply was "Air is a gas. A whale's a cetacean
+            # mammal." with a None verdict, and nothing said that the question had gone unanswered: the store
+            # holds no happening that fills it and `unified.learned_rules` holds none to derive one, which the
+            # paths say in order (held relations, then the happenings told, then what was reasoned). An answered
+            # question carries an empty list, since `_understand` empties it where there are answers.
             answers.append({"asked": question, "reply": understanding.reply,
-                            "verdict": verdicts.pop() if len(verdicts) == 1 else None})
+                            "verdict": verdicts.pop() if len(verdicts) == 1 else None,
+                            "why_not": [{name: value if isinstance(value, (str, int, float, bool, type(None)))
+                                         else str(value) for name, value in reason.items()}
+                                        for reason in (understanding.why_not or ())]})
         return web.json_response({"answers": answers})
 
     async def _turn(self, request):
