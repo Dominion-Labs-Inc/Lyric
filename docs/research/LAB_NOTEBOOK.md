@@ -16,6 +16,64 @@ Conventions:
 
 ---
 
+## 119. A property, a wrapper and a cache are each a function one level down, and a module was sent to a restart for merely containing one (2026-11-17)
+
+117 takes a change the development team made into the running process. It refused `core.semantics.grammar` every
+120 s for half an hour, naming `Grammar._of_words`, `GrammarView.words`, `GrammarView.rules` and
+`reading_teaches` -- **not one of which the change touched.** Three are `@property` and one is a
+`@contextlib.contextmanager`, so in the running module the attribute is a property object or a decorator-built
+wrapper while the newly compiled file offers a plain function of the same name, which read as "a function now
+stands where something else did". **49 of the 268 modules under `core` define a property**, so a restart was owed
+for any edit to any of them. Worse, the plan walks EVERY function the file declares and not only the changed ones:
+a **no-op** change to `core.semantics.derived_reader` was refused for nine names -- five `lru_cache` wrappers and
+four `cached_property` descriptors, every one untouched. A module was being sent to a restart for its SHAPE.
+
+**WHAT EACH ONE IS.** `_raw` reached through a staticmethod and a classmethod and no further. Reached now:
+a read-only property through `fget`; a decorator-built wrapper through `__wrapped__`, which `functools.wraps`
+sets; an `lru_cache` through the same (the wrapper is not a function at all, so `_raw` had said None of it);
+a `cached_property` through `.func`, **for comparison only**.
+
+**THREE REFUSALS KEPT, EACH FOR A REASON.** A property that also SETS or deletes: `_shape` keys a function by its
+qualname and a setter is written under the getter's name, so of `@property def x` and `@x.setter def x` only the
+LAST survives in the shape, and putting the setter's body into the getter is a defect, not an adoption. A CHANGED
+`cached_property`: its value is kept in each instance's own `__dict__`, and those instances cannot be found from
+here, so swapping the code would leave some objects answering with the old body and some with the new -- a module
+in a state nobody wrote, which is what this plan exists to refuse. An unchanged one now compares equal and blocks
+nothing, which is the whole difference. A chain that ends somewhere else: the caller reads `co_qualname` to be
+sure it ended where the qualname was written.
+
+**A CACHE IS EMPTIED WHEN ITS FUNCTION IS SWAPPED.** Serving an answer the old body gave, after the swap, is
+serving code that is in no file -- the same fault as a half-taken module, one answer deep. The cache is one
+object and can be emptied, so `apply` empties it.
+
+**TWO ERRORS OF MINE, BOTH CAUGHT BY WHAT THEY BROKE.**
+
+*The first fix invented a second defect.* I unwrapped `__wrapped__` from whatever carried it, which is wrong: a
+function may carry `__wrapped__` and still BE the function the file declares, and such a name had been swapped
+correctly before and was now refused for the qualname of something else. Only the qualname settles it, so the
+chain-following moved out of `_raw`, which sees only shapes, into `_function_for`, which has a qualname and
+follows the chain ONLY on a mismatch. `test_a_function_that_carries_a_wrapped_attribute_is_still_its_own` guards
+it, and it is one of the two tests that pass both before and after -- which is what a regression guard should do.
+
+*I wrote a test to match my code rather than what was right.* That same test first asserted the name should be
+REFUSED, because that is what my implementation did. It passed, and it was wrong. The assertion was rewritten to
+what correct behaviour is, and it then failed against my own change, which is how the regression was found at all.
+
+**VERIFIED.** `tests/test_code_adoption.py`, five tests, 3.8 s -- 117 shipped without any. Run against the
+pre-change file, **three fail** (the three new capabilities) and two pass (the guards). And measured on the real
+modules: `core.semantics.grammar` with an ordinary method-body edit now plans `swaps=('Grammar._cannot_take',)`
+with nothing refused, where tonight it forced a restart and a 922 s relearn; `core.semantics.derived_reader` with
+a no-op plans clean where it was refused nine times; and the coordinator itself plans clean, so **the module that
+holds this mechanism can now take its own changes.**
+
+**ONE LAST RESTART IS OWED, and the running substrate says so itself:** `core.agents.autonomous.autonomous_coordinator
+cannot be taken up while it runs: ClaimVerdict.subject (a function now stands where something else did)` -- a
+property, exactly the class of thing this change reaches. The fix for restarts needs one. **And no halt was
+written for any of it:** zero rows since 20:00, with a protected module edited twice under a running substrate.
+That is 117 holding on an edit to 117.
+
+---
+
 ## 118. A determiner is refused the noun it cannot take, and two reading defects I reported were defects in my own instruments (2026-11-17)
 
 **THE ONE REAL DEFECT.** Asked through the live resident's own door, saying put an article on a plural and on a

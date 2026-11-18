@@ -3055,11 +3055,91 @@ class CodeAdoption:
         return owner, parts[-1]
 
     @staticmethod
+    def _attribute(owner: Any, attr: str) -> Any:
+        """The attribute as its owner holds it, before anything is reached through."""
+        return vars(owner).get(attr) if inspect.isclass(owner) else getattr(owner, attr, None)
+
+    @staticmethod
     def _raw(member: Any) -> Optional[Any]:
-        """The plain function inside a staticmethod, classmethod or attribute."""
+        """The plain function inside a staticmethod, classmethod, read-only
+        property, decorator-built wrapper or attribute.
+
+        A PROPERTY IS A FUNCTION ONE LEVEL DOWN, and unwrapping no further than
+        staticmethod and classmethod meant NO MODULE HOLDING A PROPERTY COULD
+        BE TAKEN UP WHILE IT RAN: the class holds a property object where the
+        file holds a def, so the name read as "a function now stands where
+        something else did" and the whole module was sent to a restart.
+        Measured 2026-11-17: a change to `core.semantics.grammar` was refused
+        for `Grammar._of_words`, `GrammarView.words` and `GrammarView.rules`,
+        not one of which that change touched, and 49 of the 268 modules under
+        `core` define a property.
+
+        ONLY ONE THAT NEITHER SETS NOR DELETES. `_shape` keys a function by its
+        qualname and a setter is written under the getter's name, so of
+        `@property def x` and `@x.setter def x` only the LAST survives in the
+        shape -- and putting the setter's body into the getter is a defect, not
+        an adoption. A property with either is left exactly as it was, and
+        refused as before.
+
+        A WRAPPER IS NOT FOLLOWED HERE, because nothing here can tell a wrapper
+        from the file's own function: both are plain functions, and a function
+        may carry `__wrapped__` while being exactly the function the file
+        declares. Only the qualname settles it, so that is done by
+        `_function_for`, which has one.
+        """
         if isinstance(member, (staticmethod, classmethod)):
             member = member.__func__
+        if isinstance(member, property):
+            member = member.fget if member.fset is None and member.fdel is None else None
         return member if inspect.isfunction(member) else None
+
+    @classmethod
+    def _function_for(cls, member: Any, qualname: str) -> Optional[Any]:
+        """The function THIS QUALNAME names, as the running module holds it.
+
+        `_raw` reaches through a staticmethod, a classmethod and a read-only
+        property. What it cannot reach through is a decorator: the running
+        object is then a wrapper, and swapping ITS code would leave the body the
+        file declares untouched. `functools.wraps` keeps the original in
+        `__wrapped__`, so the chain is followed -- but only while the object in
+        hand is NOT the function the file declares, which its code object says:
+        a wrapper's `co_qualname` names where the wrapper was written
+        (`contextmanager.<locals>.helper`), the file's own function names itself.
+
+        FOLLOWED ONLY ON A MISMATCH, which the first version of this got wrong
+        by unwrapping whatever had a `__wrapped__`: a function that carries one
+        and is still the file's own function was then refused for the qualname
+        of something else, where it had been swapped correctly before. Measured
+        by `test_a_function_that_carries_a_wrapped_attribute_is_still_its_own`.
+
+        Bounded, since `__wrapped__` is an attribute anything may set. Where the
+        chain leads nowhere that matches, the object in hand is returned
+        unchanged and the caller refuses it on the qualname, exactly as before.
+        """
+        found = cls._raw(member)
+        if found is not None and getattr(found.__code__, "co_qualname", "") == qualname:
+            return found
+        # A WRAPPER THAT IS NOT A FUNCTION AT ALL still holds one: `lru_cache`
+        # gives back a `functools._lru_cache_wrapper` and `cached_property` a
+        # descriptor, so `_raw` says None of both and the name read as "a
+        # function now stands where something else did". A module was then
+        # refused for CONTAINING one, whether it had changed or not: a no-op
+        # change to core.semantics.derived_reader was refused for nine names,
+        # five caches and four cached properties, every one of them untouched
+        # (2026-11-17). Reached here, an unchanged one compares equal and asks
+        # for nothing; only a changed one is anybody's business.
+        along = found if found is not None else member
+        if isinstance(along, functools.cached_property):
+            inner = cls._raw(getattr(along, "func", None))
+            return inner if inner is not None else found
+        for _ in range(8):
+            along = getattr(along, "__wrapped__", None)
+            if along is None:
+                break
+            inner = cls._raw(along)
+            if inner is not None and getattr(inner.__code__, "co_qualname", "") == qualname:
+                return inner
+        return found
 
     @staticmethod
     def _literal(node: Any) -> Tuple[bool, Any]:
@@ -3165,8 +3245,8 @@ class CodeAdoption:
                                           "in the running module"))
                 continue
             owner, attr = live
-            existing = cls._raw(vars(owner).get(attr) if inspect.isclass(owner)
-                                else getattr(owner, attr, None))
+            existing = cls._function_for(vars(owner).get(attr) if inspect.isclass(owner)
+                                         else getattr(owner, attr, None), qualname)
             decorated = [d for d in node.decorator_list
                          if ast.unparse(d) not in ("staticmethod", "classmethod",
                                                    "property", "dataclass")]
@@ -3210,6 +3290,18 @@ class CodeAdoption:
             ok, _ = cls._defaults(node)
             if not ok:
                 refused.append((qualname, "its default arguments are not literals"))
+                continue
+            # A CHANGED `cached_property` IS REFUSED, though it was reached to
+            # compare. Its value is kept in each instance's own `__dict__`, and
+            # those instances cannot be found from here, so swapping the code
+            # would leave some objects answering with the old body and some with
+            # the new -- a module in a state nobody wrote, which is the one thing
+            # this plan exists to refuse. A cache on the FUNCTION is different:
+            # it is one object, it can be emptied, and `apply` empties it.
+            if isinstance(cls._attribute(owner, attr), functools.cached_property):
+                refused.append((qualname, "a cached property whose value is kept "
+                                          "on each instance, where no sweep can "
+                                          "reach it"))
                 continue
             swaps.append(qualname)
         for qualname in was["functions"]:
@@ -3306,14 +3398,20 @@ class CodeAdoption:
                 return {"adopted": False, "done": done,
                         "why": f"{qualname} no longer resolves in the module"}
             owner, attr = where
-            existing = cls._raw(vars(owner).get(attr) if inspect.isclass(owner)
-                                else getattr(owner, attr))
+            existing = cls._function_for(cls._attribute(owner, attr), qualname)
             if existing is None:
                 return {"adopted": False, "done": done,
                         "why": f"{qualname} is no longer a function"}
             node = shape["functions"][qualname]
             _, defaults = cls._defaults(node)
             existing.__code__ = compiled[qualname]
+            # A CACHE ON THAT FUNCTION HOLDS ANSWERS THE OLD BODY GAVE, and
+            # serving one after the swap is serving code that is in no file --
+            # the same fault as a half-taken module, one answer deep. The cache
+            # is one object and can be emptied, so it is.
+            held = cls._attribute(owner, attr)
+            if callable(getattr(held, "cache_clear", None)):
+                held.cache_clear()
             existing.__defaults__ = defaults or None
             done["swaps"] += 1
         for qualname in plan.additions:
