@@ -1061,3 +1061,37 @@ def test_one_fact_answered_twice_by_two_paths_is_one_answer():
     assert _one_answer(looked_up) == _one_answer(reasoned)
     assert _one_answer(Answer("room study", "not part of", ("house",), verdict=False)) != _one_answer(looked_up)
     assert _one_answer(Answer("room study", "has part", ("house",), verdict=True)) != _one_answer(looked_up)
+
+
+@pytest.mark.asyncio
+async def test_every_utterance_of_what_was_said_is_understood_and_not_only_the_last(talk):
+    """WHAT WAS SAID IS UNDERSTOOD ONE UTTERANCE AT A TIME. `_understand` is written for one sentence and asks
+    `_meaning` what was said, which is the meaning of the LAST utterance and only where EVERY utterance read
+    (`_meaning_of`). So a question with anything after it was never asked: asked "What causes pipe friction?" with
+    a telling behind it, the whole turn was taken as the telling -- one turn, `asked` False, the question gone,
+    and only the telling's reasons for finding nothing gathered. The question is the one thing a person most
+    wants answered and it was the one thing dropped.
+
+    And a sentence the grammar reads no whole of threw away every sentence that DID read: four sentences of prose
+    through the live door read the first and the fourth whole and came back as a single report of which parts were
+    understood, because the second reads as nothing -- its quoted word is set apart and leaves a hole its phrase
+    cannot be joined across.
+
+    The text is read and listened to ONCE, together, so the listener still weighs each utterance against the rest
+    of what was said; each utterance is then handed to `_understand` under its own words with what was already
+    read and heard put where `_read` and `_listen` look for it, so nothing is read twice. One utterance goes
+    straight through, as it always did."""
+    from core.memory import get_memory_agent
+    await get_memory_agent()
+    said = "What causes pipe friction? A glorp florps the quux."
+    assert [u.text for u in talk._read(said)] == ["What causes pipe friction?", "A glorp florps the quux."]
+    out = await talk.understand(said, look_up=False)
+    assert len(talk._turns) == 2, f"one turn per utterance, not {len(talk._turns)}"
+    assert out.asked is True, "a question with a telling after it is still a question"
+    assert "glorp" in out.reply.lower(), f"the telling is still taken: {out.reply!r}"
+    # The reasons gathered from BOTH, not from the last alone: the question's paths and the telling's together.
+    assert len(out.why_not) > 2, f"every utterance's reasons are carried out: {[w.get('path') for w in out.why_not]}"
+
+    alone = Conversation()
+    answered = await alone.understand("What causes pipe friction?", look_up=False)
+    assert len(alone._turns) == 1 and answered.asked is True, "one utterance is the case it was written for"

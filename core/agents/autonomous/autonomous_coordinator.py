@@ -26144,13 +26144,62 @@ class Conversation:
         return None
 
     async def understand(self, sentence: str, look_up: bool = True) -> Understanding:
-        """Understand one sentence and reply (`_understand`); a conversation that does not remember does it leaving
-        no trace anywhere (`core.memory.remembering`)."""
+        """Understand what was said and reply (`_understand_each`); a conversation that does not remember does it
+        leaving no trace anywhere (`core.memory.remembering`)."""
         if self._remembers:
-            return await self._understand(sentence, look_up)
+            return await self._understand_each(sentence, look_up)
         from core.memory.remembering import not_remembered
         with not_remembered():
-            return await self._understand(sentence, look_up)
+            return await self._understand_each(sentence, look_up)
+
+    async def _understand_each(self, text: str, look_up: bool) -> Understanding:
+        """A TEXT OF SEVERAL UTTERANCES IS UNDERSTOOD ONE UTTERANCE AT A TIME, and answered one at a time.
+
+        `_understand` is written for one sentence and asks `_meaning` what was said, which is the meaning of the
+        LAST utterance AND ONLY WHERE EVERY UTTERANCE READ (`_meaning_of`). So one sentence the grammar reads no
+        whole of threw away the meaning of every sentence that DID read: the whole text fell to the reply that
+        says which parts were understood, and nothing in it was answered, stored or acted on. Four sentences of
+        prose through the live door read the first and the fourth whole and came back as one part-report, because
+        the second reads as nothing (its quoted word is set apart, leaving a hole its phrase cannot be joined
+        across) -- so two sentences Lyric understood perfectly went unanswered for a fault in a third.
+
+        READ ONCE, NOT ONCE PER SENTENCE. The whole text is read and listened to here, together, which is what
+        makes the listener weigh each utterance against the rest of what was said and what was talked of before
+        (`_listen` asks `listening` of every utterance at once). Each utterance is then handed to `_understand`
+        under its OWN words, with what was already read and heard put where `_read` and `_listen` look for it
+        (`_last_read`, `_last_heard`, both keyed by what was read), so neither reads anything again: reading the
+        second sentence of that paragraph by itself costs 665s at the width a person's words are read at, and it
+        had just been read as part of the whole.
+
+        One utterance is the case `_understand` was written for and goes straight to it, so nothing changes for a
+        sentence said on its own. What comes back is each utterance's own answer, in order: the replies as they
+        were said, and the answers, what was acquired and the reasons nothing answered gathered together. A
+        sentence inside a text that reads no whole says so where it stands, and the rest is still answered."""
+        from dataclasses import replace as _replace
+        # A TEXT ALREADY TAKEN AS ONE MEANING IS ONE THING, whatever its utterances: `understand_as` says what the
+        # words mean before handing them here ("Research photosynthesis." as the question it asks), and it keys
+        # that by the whole of what it was given, so splitting it would lose the meaning the caller established.
+        if str(text) in self._taken_as:
+            return await self._understand(text, look_up)
+        await self._listen(text)
+        utterances = self._read(text)
+        if len(utterances) < 2:
+            return await self._understand(text, look_up)
+        heard = self._heard(text)
+        each: List[Understanding] = []
+        for utterance in utterances:
+            said = utterance.text
+            key = self._reading_key(said)
+            self._last_read = (key, (utterance,))
+            self._last_heard = (key, heard)
+            each.append(await self._understand(said, look_up))
+        return _replace(
+            each[-1], sentence=text,
+            reply="\n".join(u.reply for u in each if u.reply),
+            answers=[a for u in each for a in u.answers],
+            acquired=[a for u in each for a in u.acquired],
+            why_not=[w for u in each for w in u.why_not],
+            asked=any(u.asked for u in each))
 
     async def _understand(self, sentence: str, look_up: bool = True) -> Understanding:
         # A FRESH ACCOUNT FOR EACH QUESTION: what stopped the last one says nothing about this one.
