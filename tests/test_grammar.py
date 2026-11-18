@@ -2432,3 +2432,24 @@ def test_a_quality_before_a_noun_names_one_thing_only_where_memory_holds_that_na
         "tell", (gm.MeaningFact("isa", "black haw", "mammal"),)).canonical()
     said = read(g, "A red ball is a mammal.")
     assert said and "isa(red ball" not in said, said
+
+
+def test_an_order_said_to_someone_by_name_is_built_though_its_category_takes_a_thing_before_it(grammar):
+    """AN ORDER SAID TO SOMEONE BY NAME takes the one it is said to on its RIGHT, while its own category takes a
+    thing on its LEFT ("Close the box, Tom.": `S[b]\\NP` with "Tom"). Every other rule that joins two stretches
+    either takes what follows it (`_wants` after) or is taken by what comes before it (`_offers` against `_wants`
+    before), and `Grammar.charts` files each cell's signs by exactly those so that a left is tried only with the
+    rights it may combine with (Kay 1996, as `_say` has long done). This rule fits neither, so it is filed on its
+    own, and nothing but reading every rule would have said so: the sentences the index was measured over carry no
+    comma and no imperative, so it never fired in them, 9,016,020 pairs reported not one skipped pair that made a
+    sign, and no test held such a sentence either.
+
+    Counted in the chart and not in what is READ, because what is read here is the apposition -- "Tom" taken as
+    what was chased and said to be a cat -- and the order is built beside it at -2.216 for the listener to weigh.
+    Filed wrongly, both signs vanish and the reading goes with them: 83 signs become 81."""
+    tokens = gm.tokens_of("Chase the cat, Tom.", grammar.lexicon.words)
+    cells = grammar.charts(tokens)
+    said_to = [s for cell in cells.values() for held in cell.values() for s in held if s.rule == "said to"]
+    assert [gm._key(s.cat) for s in said_to] == ["S[imp]#0", "S[imp]#0"], \
+        f"the order said to Tom is not built: {[(s.start, s.end, s.rule) for s in said_to]}"
+    assert all(s.start == 0 for s in said_to), "an order said to someone covers the whole of what was said"

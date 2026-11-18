@@ -16,6 +16,144 @@ Conventions:
 
 ---
 
+## 123. A sentence inside a text was offered whole to nobody, so a paragraph understood less of itself than its own sentences did; reading has no shape index and saying does (2026-11-18)
+
+**WHAT WAS ASKED.** Finish it: reading, understanding and responding, faster without cutting capabilities.
+
+**THE DEFECT, STATED EXACTLY.** Entry 122 found that a paragraph costs 0.31x what its own sentences cost and
+called it a defect without naming the mechanism. The mechanism is two gates with one effect. Where a sentence ends
+is the only cut this substrate does not have to guess at; every other cut comes from `PatternInventory.ends`, the
+pieces held constructions end on, which over 9,189 taught sentences holds ordinary nouns ("water", "on"). The
+whole of a sentence inside a text was offered to NOBODY:
+
+* held constructions cannot reach it -- `reads_past` lets a reading cross no mark a construction does not hold
+  inside itself, and `_ENDS_SPANNED` (3) bounds how many of those ends in a row one span may cover, so a long
+  sentence's own span was never among the options the span search weighed;
+* English's grammar was not asked -- it was offered a whole only where the text was ONE sentence.
+
+So the fragments the frames happened to read won, because the search weighs how many PIECES were read and a
+fragment that reads anything counts for as much as a sentence does. Coverage was bought with incoherence.
+
+**WHAT THAT COST, MEASURED.** Four sentences of prose read as one paragraph came back as nine utterances cut
+inside phrases: "water vapor" split across a cut, its second half read `done_by(?v0, vapor) & has_property(?v0,
+and) & instance_of(?v0, fall)` -- vapour falling, with a property called "and"; 'on Earth.' read `has_count(?v0,
+on)`. The fourth sentence, which reads whole to one meaning asked alone, became three fragments and lost "the
+water cycle" altogether.
+
+**THE REPAIR.** Each sentence is taken in turn and offered whole, to held constructions and then to the grammar,
+and is cut up only where neither reads the whole of it. What the sentences before it named is what its own words
+are meant by, as before. `_one_sentence` and the text-wide cut list are gone with the gate they served.
+
+**VERIFIED BY READING THE SAME WORDS BOTH WAYS IN ONE PROCESS**, which is the only comparison that means anything:
+
+| | paragraph, before | paragraph, after | its 4 sentences, one at a time |
+|---|---|---|---|
+| utterances | 9 | **5** | **5** |
+| meanings built | 11 | **4** | **4** |
+| signs | 93,705 | **236,378** | **236,378** |
+| seconds | 99.9 | 387 | 398 |
+
+Utterance for utterance and meaning for meaning, the paragraph now reads what its sentences read: the first and
+the fourth whole, and identical to their own readings alone. The signs agree EXACTLY -- the same work, because it
+is now doing the same work -- and 387s against 398s is 0.97x where it was 0.31x.
+
+**THE RECORD REPORTED THIS AS WORSE, AND IT WAS RIGHT TO.** `check_reading` says 11 meanings built, now 4, and
+"a reading no longer built is a capability lost" is the correct default. The judgement is a human's and here it
+goes the other way: the seven no longer built are the fragments' own -- three `ask:` readings of a declarative
+carrying `instance_of(?v2, and)` and a sense called `fasten lodge`, a `request: done_by(?v0, ?listener) &
+instance_of(?v0, sandstorm)` asking the listener to sandstorm, the `has_count(?v0, on)` of 'on Earth.', a
+malformed `⟨20⟨water` frame -- and the whole-sentence meanings that replace them hold `given instance_of(?v3,
+water cycle)` and `has_property(?v5, on earth)`, which the fragments had destroyed. A count cannot tell a lost
+capability from a discarded artefact; the list of meanings can, which is why the record holds the list.
+
+**WHAT THIS REPAIR CANNOT REACH.** Where the grammar reads no whole of a sentence, fragments still win and still
+cut badly. The third sentence of this paragraph is that case: it cuts '... snow' | '(sleet) and sandstorm (dust
+rain).' and reads the second as a request to the listener. Read ALONE it does exactly the same, so this is no
+longer a paragraph defect -- it is the grammar not reading that sentence, which is a different question.
+
+**TWO DEFECTS IN THE INSTRUMENT ITSELF, both of which flattered.** `cheaper = now_signs * COST_IN_KIND <
+max(was_signs, 1)` is `0 < 1` when a case charted nothing either time, so every such case reported BETTER: five
+of the five BETTERs in the run that found this, two of them with the clock going the OTHER way ('The rock was
+heavy.' 2.0s -> 2.6s). And the list of readings no longer built was truncated at four, hiding three of seven. Both
+fixed. A harness that flatters is worse than none, because this file is the only thing standing between a cheaper
+chart and a lost reading.
+
+**DISCOUNTED: a uniform ~30% slowdown on every unchanged case, with IDENTICAL sign counts** (47 tokens: 57.3s ->
+88.9s, 45,858 -> 45,858 signs). Same work, more clock, so it is the machine and not the reader -- which is exactly
+what `COST_IN_KIND` on signs AND seconds exists to keep out of WORSE.
+
+**MECHANISMS WEIGHED FOR THE COST ITSELF, and one killed before it was written.**
+
+*Packing a chart cell by category buys nothing at the width reading runs at.* `keep` already holds `how_many`
+signs per category key, and `how_many` is 1 by default, so there is one sign per category in a cell already. The
+squared term is over the DISTINCT CATEGORIES in a cell (6,259 at 22 tokens), not over duplicate signs. This was
+the first of the exact mechanisms named in entry 122 and it is dead at width 1.
+
+*Reading tries every pair; saying does not.* `Grammar.charts` combines every left sign in a cell with every right
+sign in the next. `Grammar._say` files each item under the shapes it stands as (`_offers`) and the shapes it takes
+before and after it (`_wants`) -- Kay 1996, chart generation -- and tries a new item only with those it may
+combine with, because "Tried with every item kept, 88% of 1.34 million tries made nothing, and the trying was two
+thirds of the time". The same index is available to reading: `_shape` is documented as "what two categories must
+share to be one (`_unify`)", and `_offers` already walks the whole spine that composition takes. Every rule in
+`_combine` was read to work out a CONSERVATIVE predicate -- punctuation and conjunctions and a stretch waiting to
+be joined are tried with everything, `_wants(left)[0] in _offers(right)` covers application and both compositions
+forward, `_wants(right)[1] & _offers(left)` covers them backward and the stranded preposition and the raised
+subject, and three rules need their own entries (two sentences in a row, a kind with the name of the one of it, a
+thing and what it is between commas).
+
+**THE INDEX, BUILT AND PROVEN.** Each cell's signs are filed under the shapes they stand as and the shapes they
+take before them, and a left is tried only with the rights it may combine with. Pairs tried, which is the
+machine-independent result:
+
+| | pairs tried | signs |
+|---|---|---|
+| 7 words, without | 134,960 | 2,117 |
+| 7 words, with | **40,173 (29.8%)** | 2,117 |
+| 26 words, without | 8,838,570 | 26,939 |
+| 26 words, with | **2,096,067 (23.7%)** | **26,939, nothing gained and nothing lost** |
+
+The chart was dumped cell by cell, sign by sign, both ways and diffed: 26,939 rows against 26,939, **0 gained, 0
+lost**. Over the whole reading record every description, pair, prose sentence and long sentence is identical in
+signs AND in charts, and no reading stopped being built anywhere. Wall clock is NOT quoted as the result: the
+cleanest pair is 36s against 18s on the same script in back-to-back processes, but tonight's runs varied about 30%
+with IDENTICAL sign counts, so seconds are the machine's and pairs are the reader's.
+
+**ONE HOLE, FOUND BY READING EVERY RULE AND NOT BY MEASURING.** An order said to someone by name takes the one it
+is said to on its RIGHT while its own category takes a thing on its LEFT ("Close the box, Tom.": `S[b]\NP` with
+"Tom"), so neither what it offers nor what it takes before it says the pair may combine. Nothing would have
+reported it: the two sentences the index was measured over carry no comma and no imperative, so the rule never
+fired in them and all 9,016,020 pairs reported not one skipped pair that made a sign -- and no test held such a
+sentence either. Filed wrongly the chart for "Chase the cat, Tom." falls from 83 signs to 81 and both `S[imp]`
+signs vanish, which is the reading gone; `test_grammar.py` now holds that count. What is READ there is the
+apposition, "Tom" taken as what was chased and said to be a cat, and the order is built beside it at -2.216 for
+the listener to weigh -- so this is a reading the record's own cases would never have missed.
+
+**AND THE HOLE WAS THE ONLY THING THAT PERTURBED ANYTHING.** Before it was closed, a warmed process disagreed: the
+26-word sentence held 26,986 signs instead of 26,939 (47 GAINED, none lost, all in stretches of 7 to 15 words by
+`>B`, `>B2`, `&` and `<B` at scores near -150), and 'Find TODO, FIXME, HACK, and XXX comments in code.' fell from
+12,029 signs in 2 charts to 3,190 in 1 -- the second chart being the rescue that re-charts at width three when
+every reading names a concept of a structure word, which that reading no longer needed. Both went away when the
+rule was filed properly. Read alone the chart had been identical throughout, which is what said the cause was
+not the index's arithmetic but a pair it was failing to try.
+
+**WHAT I GOT WRONG, AND WHY.** I read +47 signs as a Viterbi tie-break changing with the order pairs are offered
+in ("WHICH WORD TAKES WHICH WAS DECIDED BY THE ORDER THE CHART BUILT"), and restored the original order by filing
+each sign's position and sorting the candidates back into it. The number did not move. The order restoration is
+right and stays -- `keep` sorts stably, so of two signs scored alike the one offered first survives, and that must
+not depend on how a cell is filed -- but it was not this. Then I supposed the reference number was measured in
+another process and not comparable, because `self._fresh` never resets; HEAD read the same sentence twice in one
+process for 26,939 and 26,939 and killed that too. Both guesses were about mechanisms I could reason about from
+the code; what settled it was dumping the chart and diffing it, which says WHERE, and "gained, never lost" is what
+pointed at a pair not being tried rather than a sign being wrongly kept.
+
+**STILL OPEN.** Packing a cell by category is dead at width 1. A* under an admissible bound in reading is
+untouched; saying already runs one (`-(sign.score + to_come(filled))`) and its 369 read-backs for 8 wanted
+sentences is a RANKING question, which changes what is said first and so needs asking before it is touched. The
+third sentence of the paragraph still cuts inside a phrase because the grammar reads no whole of it, alone or in
+company.
+
+---
+
 ## 122. What a read costs is recorded beside what it says; the width is squared and I had retracted it wrongly; saying checks 369 distinct sentences; and a paragraph is cheaper because it is read worse (2026-11-18)
 
 **WHAT WAS ASKED.** Make this phase faster without cutting capabilities, as teaching was standardised: keep the

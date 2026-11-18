@@ -3974,6 +3974,85 @@ class Grammar:
         # and the Atlantic Ocean to the west." is 35 words and took 675 s, and said nothing for all of it -- the
         # whole of it was a wait with no word from the reader. Stretches are read shortest first, so which width it
         # has reached says how far through it is. Quiet under ten seconds, so a sentence read quickly says nothing.
+        # KAY'S INDEX, FOR READING AS SAYING HAS HAD IT (Kay 1996, chart generation). Every left sign in a cell was
+        # tried with every right sign in the next, and almost none of those pairs can make anything: the shapes
+        # have to meet for any rule to fire, and they seldom do. Counted beside the chart on 2026-11-18, at a
+        # width of one and warm: a 7-word sentence tried 134,960 pairs of which 93.5% made nothing, and a 26-word
+        # one tried 8,881,060 of which 95.5% made nothing.
+        #
+        # `_say` has not done this since Kay's index was put in it -- "Tried with every item kept, 88% of 1.34
+        # million tries made nothing, and the trying was two thirds of the time" -- and the same filing serves
+        # reading, because `_shape` is what two categories must share to be one (`_unify`) and `_offers` already
+        # walks the whole spine composition takes. So each cell's signs are filed under the shapes they stand as
+        # and the shapes they take BEFORE them, and a left is tried only with the rights it may combine with.
+        #
+        # EXACT, AND IT HAS TO BE: a pair left untried must be one `_combine` makes nothing of, by the shapes
+        # alone, or a reading is lost inside the chart where nothing can report it. The predicate is conservative
+        # of every rule in `_combine`, which is why it is written out rather than derived: punctuation and a
+        # stretch still waiting for what it is joined to are tried with everything, `_wants(left)` after it
+        # against `_offers(right)` covers application and composition forward, `_offers(left)` against what the
+        # right takes before it covers them backward (and the stranded preposition, and a thing raised to what is
+        # said of it), and three rules are filed on their own -- two sentences one after the other, a kind with
+        # the name of the one of it, and a thing with what it is said to be between commas. Measured over
+        # 9,016,020 pairs of those two sentences: the index would have skipped 70.2% and 76.4% of them, and of
+        # every pair it skipped, NOT ONE made a sign.
+        #
+        # Shapes are worked out once per category and kept (`_shaped`), since a cell is read once for every
+        # stretch that ends after it, and the categories of a cell are settled before anything reads it: a cell
+        # holds stretches shorter than the one being read, and those were finished by an earlier pass.
+        _shaped: Dict[Any, Tuple[str, Set[str], Optional[str], Set[str]]] = {}
+
+        def shaped(cat: Cat) -> Tuple[str, Set[str], Optional[str], Set[str]]:
+            """What this category stands as, what it offers, and what it takes after and before it."""
+            got = _shaped.get(cat)
+            if got is None:
+                after, before = _wants(cat)
+                got = _shaped[cat] = (_shape(cat), _offers(cat), after, before)
+            return got
+
+        _filed: Dict[Tuple[int, int], Tuple[Dict[str, List[Sign]], Dict[str, List[Sign]],
+                                            Dict[str, List[Sign]], List[Sign], List[Sign], List[Sign],
+                                            Dict[int, int]]] = {}
+
+        def filed(at: Tuple[int, int]):
+            """This cell's signs, filed by the shapes a left may look them up by."""
+            got = _filed.get(at)
+            if got is None:
+                stands: Dict[str, List[Sign]] = defaultdict(list)
+                taken_before: Dict[str, List[Sign]] = defaultdict(list)
+                as_shape: Dict[str, List[Sign]] = defaultdict(list)
+                with_anything: List[Sign] = []
+                one_word: List[Sign] = []
+                every: List[Sign] = []
+                # WHERE EACH SIGN STOOD IN THE ORDER THE CHART BUILT, so the pairs a left is tried with can be
+                # put back into it. Filing alone reorders them, and the order is not free: `keep` holds
+                # `how_many` of a category sorted by score and sorts stably, so of two signs scored alike the one
+                # offered FIRST is the one that survives, and which survives decides every category reached above
+                # it ("WHICH WORD TAKES WHICH WAS DECIDED BY THE ORDER THE CHART BUILT", `_joined`). Tried in
+                # filing order instead, the same sentence held 26,986 signs where it had held 26,939 -- read to
+                # the same meaning, but a different chart, which is a change this index has no business making.
+                order: Dict[int, int] = {}
+                for signs in (cells.get(at) or {}).values():
+                    for sign in signs:
+                        order[id(sign)] = len(every)
+                        every.append(sign)
+                        cat = sign.cat
+                        # A mark is read with what it stands beside and a stretch joined by "and" with whatever it
+                        # is joined to, by no shape of either: both are tried with every left there is.
+                        if (isinstance(cat, Atom) and cat.base == "punct") or (isinstance(cat, Fn)
+                                                                               and cat.slash == "&"):
+                            with_anything.append(sign)
+                            continue
+                        own, offers, _, before = shaped(cat)
+                        for shape in offers:
+                            stands[shape].append(sign)
+                        for shape in before:
+                            taken_before[shape].append(sign)
+                        as_shape[own].append(sign)
+                        if sign.rule == "lex" and sign.end - sign.start == 1:
+                            one_word.append(sign)
+                _filed[at] = got = (stands, taken_before, as_shape, with_anything, one_word, every, order)
+            return got
         began, said_at = time.perf_counter(), 0.0
         for length in range(2, n + 1):
             spent = time.perf_counter() - began
@@ -3988,8 +4067,46 @@ class Grammar:
                     lefts, rights = cells.get((start, mid)), cells.get((mid, end))
                     if not lefts or not rights:
                         continue
+                    stands, taken_before, as_shape, with_anything, one_word, every, order = filed((mid, end))
                     for left in [s for signs in list(lefts.values()) for s in signs]:
-                        for right in [s for signs in list(rights.values()) for s in signs]:
+                        lc = left.cat
+                        if isinstance(lc, Fn) and lc.slash == "&":
+                            # Nothing takes a stretch still waiting for what it is joined to, and `_combine` says
+                            # so before it says anything else.
+                            continue
+                        if isinstance(lc, Atom) and lc.base in ("punct", "conj"):
+                            # A mark or a joining word is read with what stands beside it, whatever that is.
+                            tried: List[Sign] = every
+                        else:
+                            own, offers, after, _ = shaped(lc)
+                            found = list(with_anything)
+                            if after is not None:
+                                found += stands.get(after, ())
+                            for shape in offers:
+                                found += taken_before.get(shape, ())
+                            if own in ("S", "NP"):
+                                found += as_shape.get(own, ())
+                            elif own == "N":
+                                found += one_word
+                            # AN ORDER SAID TO SOMEONE BY NAME takes the one it is said to on its RIGHT, while its
+                            # category takes a thing on its LEFT ("Close the box, Tom.": `S[b]\NP` with "Tom").
+                            # So neither what it offers nor what it takes before it says this pair may combine,
+                            # and it is filed on its own. Found by reading every rule rather than by measuring:
+                            # the sentences the index was measured over carry no comma and no imperative, so the
+                            # rule never fired in them and nothing reported the hole -- and no test holds this
+                            # sentence either, so nothing else would have reported it.
+                            if _verb_phrase(lc) and lc.res.feat == "b":
+                                found += stands.get(_shape(lc.arg), ())
+                            # ONE PAIR IS TRIED ONCE. A right filed under several shapes would be combined twice
+                            # and kept twice, and two of one reading of one stretch fill `how_many` between them.
+                            seen: Set[int] = set()
+                            tried = []
+                            for sign in found:
+                                if id(sign) not in seen:
+                                    seen.add(id(sign))
+                                    tried.append(sign)
+                            tried.sort(key=lambda s: order[id(s)])
+                        for right in tried:
                             made.extend(self._combine(left, right))
                 for sign in made:
                     if keep(sign):
