@@ -16,6 +16,119 @@ Conventions:
 
 ---
 
+## 122. What a read costs is recorded beside what it says; the width is squared and I had retracted it wrongly; saying checks 369 distinct sentences; and a paragraph is cheaper because it is read worse (2026-11-18)
+
+**WHAT WAS ASKED.** Make this phase faster without cutting capabilities, as teaching was standardised: keep the
+alternatives but represent them compactly, let learned meaning rank the readings while leaving the rest
+reconsiderable, prove the cost as knowledge grows, and generalise. And: stop measuring four-word sentences.
+
+**THE RECORD COMES FIRST, BECAUSE IT IS WHAT MAKES THE REST SAFE.** `scripts/check_reading.py` recorded what each
+case reads and how long it took. It now records four quantities per case: the meaning taken AND EVERY READING
+BUILT, the candidates handed to the listener with the signs the chart held to make them, the seconds, and the
+process's resident size. A reading that stops being built is reported WORSE even where the clock improved, which
+is the one thing a cheaper chart may never buy. Cost is reported for every case and flags only past a change in
+kind (`COST_IN_KIND`, twice), on the chart's own signs as well as on the clock, because a ten-minute
+single-threaded read varies run to run. Counted around `Grammar.charts` from the script, so measuring reading
+costs the reader nothing and changes no hash of it.
+
+Two long sentences and one paragraph were added, because every case in it was short and what a reader change does
+to 47 tokens cannot be read off four words.
+
+**AGAINST THE RECORD OF 11-16: 23 as recorded, 0 worse, 2 changed, and both changed are REPLIES whose readings are
+identical** ("A doe's a placental." became "Does are eutherians."; a quality drifted 0.461 to 0.455). So neither
+the duplicate composing taken out in entry 121 nor the three tables moved below changed what Lyric reads.
+
+**THE THREE TABLES MOVED TO A START -- AND THEY WERE NOT WHAT MADE A FIRST READ DEAR.** `ready_to_read` now works
+out the structure view's situations, the shapes the held fillers show and how words are used: 151 s over 18,681
+sentences and 18,005 shapes, named in its own log line, with `StructureView.worked_out` as the door. Its test
+holds the guarantee: two views holding the same sentences read the same words to the same structure whether the
+situations were worked out before the read or by it.
+
+But the reason I moved them was wrong. The same 47-token sentence read TWICE in one process cost **657.5 s and
+then 660.0 s** -- 0.4% apart. There is no warming. A first read is not dear for being first, and the 480 s against
+77 s I had taken for cold-start work was the WIDTH.
+
+**THE WIDTH, MEASURED WARM AND IN PLACE, is the lever, and it is squared.**
+
+| | width 1 | width 3 (a person's words) | width 5 |
+|---|---|---|---|
+| 26 words | 37.2 s, **1 reading** | 217.5 s, **3 readings** | 546.3 s, 3 readings |
+| 33 words / 47 tokens | 77.3 s, **0 readings** | 665.0 s, 0 readings | 1737.8 s, **0 readings** |
+
+8.6x from one to three and 22.5x to five on the long sentence, against 9x and 25x predicted by a beam that costs
+`how_many` squared. I had retracted the width as a cause on a measurement of a 22-token sentence, where it is
+2.2x because the chart is not what dominates there; the retraction was wrong and the first reading of it was
+right. The cause of my error: generalising a ratio from a scale at which the term being measured was not the
+dominant one.
+
+**AND THE WIDTH BUYS OPPOSITE THINGS IN THE TWO CASES.** At 26 words it turns 1 reading into 3, which are real
+alternatives for the listener. At 47 tokens it buys NOTHING at any price: no whole is read at one, three or five,
+so width 5 spends 1,660 s over width 1 for zero readings. Nothing distinguishes the two cases before paying.
+
+**SAYING IS 98% OF A TURN'S CHART WORK, AND NONE OF IT IS REPEATED.** `Do whales breathe air?` -- four words --
+built 375 charts: **369 of them `read_back` under `_say`**, 5.4 tokens each, with 5 from forced composing and 1
+from the reasoner. Each read-back is at most about a tenth of a second; the turn is 47 s because there are 369 of
+them. And they are **369 DISTINCT sentences, zero repeats**: "Air 's a gas .", "A gas 's air .", "Air 's gases .",
+"Gas 's air .", "A gas 's an airs .". So there is no exact win by sharing or de-duplicating, which is what I had
+floated. Saying is enumerating the space of wordings and paying a parse to reject each. The lever is the ORDER:
+`SAID_AT_MOST` stops once enough read back, so a ranking that put the right wording first would never make the
+other 360.
+
+**A PARAGRAPH IS 3.2x CHEAPER THAN ITS OWN SENTENCES, AND THAT IS A DEFECT, NOT A SAVING.** The four sentences of
+the Rain text cost **405.0 s read one at a time and 126.5 s read as one paragraph** (width 1). The reason is the
+cut: a sentence alone is handed to the grammar whole (`_one_sentence`) and 47 tokens charted as one is the dearest
+thing reading does, while the paragraph is cut into NINE short utterances -- 3, 6, 7, 8, 10, 11, 14 pieces, two
+long ones -- each cheap to chart. The frame search over the long stretches is not the blow-up I predicted either:
+29 stretches were searched, two of 86 and 90 pieces, for about 22 s of the 126.
+
+Then what the cheaper reading SAYS was looked at, and it is worse:
+
+  * it cuts inside phrases -- "...of water" | "aerosols that have condensed from atmospheric water" | "vapor and
+    fall by gravity." splits "water vapor", and that fragment reads `done_by(?v0, vapor) & has_property(?v0, and)
+    & instance_of(?v0, fall)`: vapour falling, with a property called "and";
+  * "on Earth." becomes an utterance of its own and reads `has_count(?v0, on) & instance_of(?v0, earth)`, a count
+    called "on";
+  * sentence 4 alone reads as one meaning holding `given instance_of(?v3, water cycle)` and `has_property(?v5, on
+    earth)`; in the paragraph it is three fragments and the water cycle is gone;
+  * the two sentences nothing reads stay unread either way, so the cheaper cut rescues nothing.
+
+**THE CAUSE IS EXACT.** `ends()` is "the pieces held constructions end on", and over 9,189 taught sentences that
+set holds plenty of ordinary nouns -- "water" among them -- so a paragraph may be cut after any of them. The span
+search then picks by "the most pieces read wins", so three fragments covering more words beat one coherent
+reading covering fewer. **Coverage is rewarded over coherence.** Reading a document today would produce
+fragment-level nonsense, and nothing measured it, because UNDERSTANDS-PROSE-02 reads one sentence at a time and
+the reading check read nothing longer than one sentence. The paragraph is now a case in the record, with how much
+of the text it left unread and every meaning it took, so a cut that is cheaper and says less is reported WORSE
+twice while its cost line says BETTER.
+
+A caveat on one of my own numbers: the "32 facts the sentences said and the paragraph did not" is inflated,
+because two readings name their variables differently (`about(?v2, ?v0)` against `about(cycle, ?v0)`). The
+fact-level diff is noisy. The mid-phrase cut and the nonsense fragments are not.
+
+**MY ERRORS THIS SESSION, WITH THEIR CAUSES.**
+
+* Retracted the width as a cause, on a 22-token measurement. In place at 47 tokens it is 8.6x. Cause above.
+* Predicted a paragraph would be DEARER than its sentences, because up to three sentences are taken as one stretch
+  (`_ENDS_SPANNED`). It is 0.31x. Cause: I reasoned about how many stretches are searched and never about what one
+  costs -- `may_read` rejects nearly every frame at once, so a 90-piece stretch is seconds.
+* Said "Lyric reads text more cheaply than it reads sentences" and that the bar was penalising itself by feeding
+  one sentence at a time. Both withdrawn: it reads text more cheaply by reading it worse, and sentence-at-a-time
+  is the only way it gets coherent readings today.
+* Floated an exact win by de-duplicating saying's read-backs. All 369 are distinct.
+* Moved the three tables to a start for a reason that did not hold. The change is still right -- 151 s belongs to a
+  start and the record shows it lost no reading -- but it is not a win on a first long read.
+* Two check runs wrote one baseline: the previous session's run had not been killed when this one was launched.
+  Their timings agreed within 5%, but the record was re-made with nothing else running.
+
+**WHAT IS NOT DONE, AND WHICH COLUMN IT IS IN.** Exact, cannot lose a reading: packing a chart cell so combination
+happens once per category instead of once per sign; an A* order under an admissible bound; ranking saying's
+candidates by what memory knows so the first few pass. Lossy, and each needs its ceiling measured beside the
+beam's already-measured 7.6 points (54.2% chosen right where an exhaustive chart held the right reading for
+61.8%): the width itself, a supertagger's beam, pruning on a coarse pass. And the span search's objective is its
+own question: it should not be able to buy coverage with fragments.
+
+---
+
 ## 121. A sentence the grammar reads no whole of was charted twice, which was half of every turn; and the rest of the 922 s is the chart itself, not the store and not the machine (2026-11-18)
 
 **THE QUESTION.** Entry 120 reported that reading now costs 26 times what it cost when the recorded runs were

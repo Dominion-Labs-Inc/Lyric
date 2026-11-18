@@ -105,6 +105,22 @@ LONG = ("Rain or rainfall is a form of atmospheric precipitation composed of dro
         "(brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or "
         "“torrential” rainfall).")
 
+#: AND THE SAME TEXT READ AS TEXT, which is a different case and not a longer one. A sentence on its own is handed
+#: to English's grammar whole (`_one_sentence`), and 47 tokens charted as one is the dearest thing reading does;
+#: given the paragraph, the span search cuts it at ends the frames know and the grammar is handed nine short
+#: utterances instead. Measured on 2026-11-18: these four sentences cost 126.5 s read as one paragraph against
+#: 405.0 s read one at a time, 0.31x, and the frame search over the long stretches it tries -- 29 of them, two of
+#: 86 and 90 pieces -- was about 22 s of that. So Lyric reads text more cheaply than it reads sentences, and
+#: nothing measured either until this case was written: UNDERSTANDS-PROSE-02 reads one sentence at a time, and the
+#: reading check read nothing longer than one.
+#:
+#: The first two sentences are LONG's two, so the record holds the same words read both ways.
+PARAGRAPH = " ".join(LONG + (
+    "It is also often accompanied by other weather phenomena such as strong wind (rainstorm) and lightning "
+    "(thunderstorm), and may be mixed with hail/ice pellet, snow (sleet) and sandstorm (dust rain).",
+    "Rain is a major component of the water cycle and is responsible for depositing most of the fresh water "
+    "on Earth."))
+
 #: How much more of a case's cost counts as a change in kind rather than the noise of a machine with other work on
 #: it. Reported either way; WORSE only past this, and past it on the chart's own signs as well as on the clock,
 #: since signs are what the reader decided to do and seconds are what the machine was free to do it in.
@@ -290,6 +306,22 @@ async def prose() -> Dict[str, Any]:
     return out
 
 
+async def paragraph() -> Dict[str, Any]:
+    """THE PARAGRAPH, read as a paragraph. Its utterances are the reader's own cut of it, so what is recorded is
+    every meaning it took of the whole text and how much of the text it left unread -- a cut that reads more
+    stretches while saying less of what the text says is a cut that got worse, and the two numbers say which."""
+    from core.semantics import derived_reader as dr
+    from core.semantics.sentence_machine import surface_of
+    at, since = time.time(), dict(_COST)
+    with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
+        out = dr.read_text(PARAGRAPH)
+    readings = tuple(r for u in out for r in u.readings)
+    unread = [surface_of(u.pieces)[:80] for u in out if not tuple(u.readings)]
+    return {PARAGRAPH[:60]: {"utterances": len(out), "readings": len(readings), "built": built(readings),
+                             "unread": len(unread), "left_unread": sorted(unread),
+                             "words": len(PARAGRAPH.split()), **spent(since, at)}}
+
+
 async def long_prose() -> Dict[str, Any]:
     """THE TWO LONG SENTENCES, read through the reading alone. No conversation is given them, because a telling is
     stored and this file stores nothing -- and because what these are here for is the chart, which the door would
@@ -372,12 +404,24 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, in
             continue
         verdict(f"{said[:66]!r}", before["read"], after["read"], None)
 
+    say("\n  THE PARAGRAPH")
+    for said, after in now.get("paragraph", {}).items():
+        before = (was.get("paragraph") or {}).get(said)
+        if before is None:
+            say(f"    new          {after['utterances']} utterance(s), {after['unread']} left unread")
+            continue
+        # MORE STRETCHES READ IS NOT BETTER AND FEWER IS NOT WORSE: what matters is how much of the text was left
+        # unread, and which meanings it took (below). The cut itself is reported and counted apart.
+        verdict(f"{after['utterances']} utterance(s), {after['unread']} left unread",
+                (before["utterances"], before["unread"]), (after["utterances"], after["unread"]),
+                None if after["unread"] == before["unread"] else after["unread"] < before["unread"])
+
     # A READING THAT STOPPED BEING BUILT IS A CAPABILITY LOST, and it is the one thing here that is never
     # CHANGED and never faster: the listener can only take what was built, so a meaning missing from this set
     # never reaches it, whatever the clock says. Reported case by case and by the meaning itself, because which
     # reading went is the whole of what a person needs to see.
     say("\n  WHAT WAS BUILT")
-    for group in ("opposites", "prose", "long"):
+    for group in ("opposites", "prose", "long", "paragraph"):
         for said, after in now.get(group, {}).items():
             before = (was.get(group) or {}).get(said)
             if before is None or "built" not in before:
@@ -400,7 +444,7 @@ def compare(was: Dict[str, Any], now: Dict[str, Any]) -> Tuple[int, int, int, in
     # WHAT IT COST, BESIDE WHAT IT SAID. Reported for every case; WORSE only where it changed in kind
     # (`COST_IN_KIND`), on the chart's own signs as well as on the clock.
     say("\n  WHAT IT COST")
-    for group in ("descriptions", "opposites", "prose", "long"):
+    for group in ("descriptions", "opposites", "prose", "long", "paragraph"):
         for said, after in now.get(group, {}).items():
             before = (was.get(group) or {}).get(said)
             if before is None or "signs" not in before:
@@ -458,10 +502,11 @@ async def main() -> int:
                                                   else sorted(was["descriptions"])),
                "opposites": await opposites(),
                "prose": await prose(),
-               "long": await long_prose()}
+               "long": await long_prose(),
+               "paragraph": await paragraph()}
     say(f"\n  {len(now['descriptions'])} description(s), {len(now['opposites'])} pair(s), "
-        f"{len(now['prose'])} prose sentence(s), {len(now['long'])} long sentence(s) "
-        f"read in {time.time()-at:.0f}s")
+        f"{len(now['prose'])} prose sentence(s), {len(now['long'])} long sentence(s), "
+        f"1 paragraph read in {time.time()-at:.0f}s")
     say(f"  {_COST['charts']:,} chart(s) built in all, holding {_COST['signs']:,} sign(s) "
         f"in {_COST['cells']:,} cell(s)")
 
@@ -469,7 +514,7 @@ async def main() -> int:
         baseline.parent.mkdir(parents=True, exist_ok=True)
         baseline.write_text(json.dumps(now, indent=2, sort_keys=True) + "\n")
         say(f"\n  recorded to {baseline}")
-        for group in ("descriptions", "opposites", "prose", "long"):
+        for group in ("descriptions", "opposites", "prose", "long", "paragraph"):
             say(f"\n  {group.upper()}")
             for said, what in now[group].items():
                 plain = {k: v for k, v in what.items() if k not in ("seconds", "built")}
