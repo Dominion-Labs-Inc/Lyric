@@ -193,8 +193,7 @@ def install(level: int = logging.INFO) -> Dict[str, Path]:
 # A task is logged under ITS CREATOR'S module name, so the routing table above
 # places it with no new rules: a task started in core.semantics reads on the
 # substrate panel, one started in core.database on system.
-#: Live background work: id(task) -> (what, where, logger_name, started_at,
-#: armed_by_wait).
+#: Live background work: id(task) -> (what, where, logger_name, started_at).
 #: Written from the loop thread, read from the heartbeat thread under _LIVE_LOCK.
 _LIVE: "dict[int, tuple]" = {}
 _LIVE_LOCK = threading.Lock()
@@ -204,40 +203,24 @@ _LIVE_LOCK = threading.Lock()
 _PLUMBING = ("asyncio", "concurrent.futures", __name__)
 
 
-def _creator(limit: int = 24) -> "tuple[str, str, bool]":
+def _creator(limit: int = 24) -> "tuple[str, str]":
     """The module and source line that started this work.
 
-    Returns (logger_name, where, armed_by_wait). The walk is bounded because
-    this runs on every task creation and an unbounded stack walk in a hot path
-    is a cost nobody asked for.
-
-    `armed_by_wait` says this task was built by `asyncio.wait_for` to HOLD a
-    wait rather than by anybody deciding to run work -- what `_finished` does
-    with that is the whole point, and the reason it is read here is that the
-    walk needed to see it is the walk already being done. A second stack walk
-    in this path would cost exactly what the bound above exists to avoid.
+    Returns (logger_name, where). The walk is bounded because this runs on
+    every task creation and an unbounded stack walk in a hot path is a cost
+    nobody asked for.
     """
     frame: Optional[Any] = sys._getframe(1)
     seen = 0
-    armed_by_wait = False
     while frame is not None and seen < limit:
         module = frame.f_globals.get("__name__", "")
         if not any(module == p or module.startswith(p + ".") for p in _PLUMBING):
             code = frame.f_code
             name = code.co_filename.rsplit("/", 1)[-1]
-            return (module, f"{name}:{frame.f_lineno} {code.co_qualname}",
-                    armed_by_wait)
-        # MEASURED on 3.11.14, which is what the substrate runs: `wait_for`
-        # reaches the factory through `ensure_future` -> `_ensure_future` ->
-        # `create_task`, so its own frame is on this walk, four deep, and is
-        # passed as plumbing on the way to the real creator. 3.12 awaits the
-        # coroutine directly under `asyncio.timeout` and builds no task at all,
-        # so there is nothing to mark and nothing here to go wrong.
-        if module == "asyncio.tasks" and frame.f_code.co_name == "wait_for":
-            armed_by_wait = True
+            return module, f"{name}:{frame.f_lineno} {code.co_qualname}"
         frame = frame.f_back
         seen += 1
-    return "core", "unattributed", armed_by_wait
+    return "core", "unattributed"
 
 
 def _level_for(name: str, level: int) -> int:
@@ -290,9 +273,8 @@ def running_now() -> List[dict]:
     with _LIVE_LOCK:
         live = list(_LIVE.values())
     out = [{"what": what, "where": where, "channel": channel_for(name),
-            "logger": name, "running_for_s": round(now - started, 3),
-            "is_a_wait": armed_by_wait}
-           for what, where, name, started, armed_by_wait in live]
+            "logger": name, "running_for_s": round(now - started, 3)}
+           for what, where, name, started in live]
     out.sort(key=lambda row: row["running_for_s"], reverse=True)
     return out
 
@@ -329,7 +311,7 @@ def _finished(task: "asyncio.Task", key: int, level: int) -> None:
         entry = _LIVE.pop(key, None)
     if entry is None:
         return
-    what, where, name, started, armed_by_wait = entry
+    what, where, name, started = entry
     took = time.monotonic() - started
     logger = logging.getLogger(name)
     level = _level_for(name, level)
@@ -355,7 +337,8 @@ def _finished(task: "asyncio.Task", key: int, level: int) -> None:
         # A wait cancelled because its AWAITER was cancelled is a real stop, and
         # it is still reported: by the awaiter's own line, which carries the name
         # worth having rather than the name of a queue read.
-        logger.log(logging.DEBUG if armed_by_wait else level,
+        logger.log(logging.DEBUG if getattr(task, "_lyric_a_wait", False)
+                   else level,
                    "background task cancelled after %.3fs: %s (%s)",
                    took, what, where)
         return
@@ -383,10 +366,39 @@ def _watched_task_factory(level: int) -> Callable:
     def factory(loop, coro, **kwargs):
         task = asyncio.Task(coro, loop=loop, **kwargs)
         what = _what(coro)
-        name, where, armed_by_wait = _creator()
+        name, where = _creator()
+        # A WAIT IS NOT WORK ANYBODY STARTED, and `_finished` needs to know
+        # which this is. `asyncio.wait_for(x, t)` wraps `x` in a task of its own
+        # and cancels it the moment `t` passes, so an expired deadline arrives
+        # there looking exactly like work that was stopped.
+        #
+        # MEASURED on 3.11.14, which is what the substrate runs: `wait_for`
+        # reaches this factory through `ensure_future` -> `_ensure_future` ->
+        # `create_task`, so its own frame is four deep from here and is what
+        # tells the two apart. (3.12 awaits the coroutine directly under
+        # `asyncio.timeout` and builds no task at all, so there is nothing to
+        # mark and nothing here to go wrong.)
+        #
+        # THE MARK RIDES ON THE TASK, not in `_LIVE` and not in `_creator`'s
+        # return, so that a process taking this file up WHILE RUNNING cannot
+        # half-apply it. `factory` is an inner function and adoption skips
+        # those (`<locals>` is not a unit of its own), so a swapped `_finished`
+        # or `_creator` beside a factory still running its old code must find
+        # the old shapes exactly: it finds no mark and says what it always
+        # said, instead of unpacking a tuple of the wrong width on every task
+        # the substrate creates. The demotion then arrives with the restart.
+        frame: Optional[Any] = sys._getframe(1)
+        for _ in range(6):
+            if frame is None:
+                break
+            if (frame.f_globals.get("__name__", "") == "asyncio.tasks"
+                    and frame.f_code.co_name == "wait_for"):
+                task._lyric_a_wait = True
+                break
+            frame = frame.f_back
         key = id(task)
         with _LIVE_LOCK:
-            _LIVE[key] = (what, where, name, time.monotonic(), armed_by_wait)
+            _LIVE[key] = (what, where, name, time.monotonic())
         # A START CARRIES NO OUTCOME. It was logged at the installed level, which
         # doubled the volume to say only that something had begun -- and the
         # question it was meant to answer, "what is it doing right now", is
