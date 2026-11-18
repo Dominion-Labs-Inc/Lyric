@@ -52,9 +52,14 @@ wrong. Two things keep that from showing that the substrate reads prose:
 
 | Bar (fixed before the run, as 01's) | |
 |---|---|
-| Sentences understood | ≥ 90% |
+| Sentences understood | ≥ 95% |
+| Said back as told | ≥ 95% |
 | Questions answered right | ≥ 80% |
 | Questions answered wrong | ≤ 2% |
+
+This table said 90% for sentences understood, where 01's `BARS` -- which this takes unchanged, and which the run
+scores against -- says 0.95. The bar is 95%, said so on 2026-11-05 and raised in 01 then; only this record of it
+was left behind, so a reader of this README was told a bar the run does not use (2026-11-17).
 
 **Before the run:** eight sentences of a Wikipedia lead not in the set (Volcano), 10 to 42 words long, read on
 lyric_dev in 1 to 26 seconds each; two of them were taken in, one of those misread ("Resultings are A volcano"). The

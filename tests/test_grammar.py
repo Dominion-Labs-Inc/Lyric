@@ -11,7 +11,9 @@ from core.semantics import grammar as gm
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
          "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit",
-         "hair": "hair", "dryer": "dryer", "dryers": "dryer", "curry": "curry", "genus": "genus"}
+         "hair": "hair", "dryer": "dryer", "dryers": "dryer", "curry": "curry", "genus": "genus",
+         #: A mass noun and a counted one, for what a determiner may be said before (`_cannot_take`).
+         "air": "air", "vapour": "vapour"}
 VERBS = {"chased": "chase", "chase": "chase", "barked": "bark", "bark": "bark", "barks": "bark", "fly": "fly",
          "unbuttoned": "unbutton", "locked": "lock", "kick": "kick", "kicked": "kick", "sleeps": "sleep",
          "began": "begin", "working": "work", "work": "work", "fell": "fall", "chain": "chain", "chained": "chain",
@@ -936,8 +938,10 @@ class Sounding(Speaking):
     subjects each form of "be" took, and what form each noun is, as words recorded whole hold them."""
 
     SOUNDS = {"owl": ["AW1 L"], "bird": ["B ER1 D"], "dog": ["D AO1 G"], "dogs": ["D AO1 G Z"],
-              "mammal": ["M AE1 M AH0 L"], "mammals": ["M AE1 M AH0 L Z"]}
-    BEFORE = {"a": {"B": 50.0, "D": 40.0, "M": 30.0, "Y": 5.0}, "an": {"AW": 10.0, "AE": 12.0, "IH": 9.0}}
+              "mammal": ["M AE1 M AH0 L"], "mammals": ["M AE1 M AH0 L Z"],
+              "air": ["EH1 R"], "vapour": ["V EY1 P ER0"]}
+    BEFORE = {"a": {"B": 50.0, "D": 40.0, "M": 30.0, "Y": 5.0, "V": 20.0},
+              "an": {"AW": 10.0, "AE": 12.0, "IH": 9.0, "EH": 10.0}}
     SUBJECTS = {"is": {("NOUN", "Number=Sing"): 100.0, ("PRONOUN", "Number=Sing|Person=3"): 50.0},
                 "'s": {("NOUN", "Number=Sing"): 20.0, ("PRONOUN", "Number=Sing|Person=3"): 60.0},
                 "am": {("PRONOUN", "Number=Sing|Person=1"): 40.0},
@@ -2318,6 +2322,56 @@ def test_saying_refuses_a_determiner_that_cannot_take_its_noun_though_reading_fo
     assert not [s for s in said if puts_one_before_many(s)], said[:8]
     # AND WHAT AGREES IS STILL SAID, both ways of saying it: refusing a pair must cost no sentence of English.
     assert "A dog is a mammal." in said and "Dogs are mammals." in said, said[:8]
+
+
+class HoldsUses:
+    """How memory holds each word used, as `PatternInventory.used_as` answers it: `mass`, `count`, `plural`,
+    `name`, or None for a word it holds no use of. The view the grammar asks while saying."""
+
+    def __init__(self, uses=None):
+        self.uses = {"air": "mass", "vapour": "count"} if uses is None else uses
+
+    def used_as(self, word, value=None):
+        return self.uses.get(str(word).lower())
+
+
+def says_one_of(text: str, word: str) -> bool:
+    """Whether the sentence puts "a" or "an" before the word -- says ONE of it."""
+    words = [w.strip(".?'s").lower() for w in text.split()]
+    return any(w in ("a", "an") and j + 1 < len(words) and words[j + 1] == word
+               for j, w in enumerate(words))
+
+
+def test_saying_puts_no_article_before_a_noun_memory_holds_no_count_of(monkeypatch):
+    """A MASS NOUN TAKES NO ARTICLE, and the number tables cannot see it: "an" is written before singular nouns in
+    plenty and "air" is singular, so `_cannot_take` weighed the pair as agreeing and saying said "An air's a gas."
+    to a running Lyric through its own door, of air being a gas (lyric_db, 2026-11-17).
+
+    TWO MEMORIES, ONE FOR EACH HALF. That the determiner says one of a thing is DECLARED: the lexicon writes "a"
+    and "an" `indefinite`, "some" `indefinite` and `some` besides, "the" and "this" `given`, so the pieces the
+    grammar already carries say it and no list of words is written here. That the noun is not counted is LEARNED:
+    `PatternInventory.used_as` holds how each word is used, from Brown, WordNet and the Bochum English
+    Countability Lexicon, and it is the same memory the reader asks before it lets a filler stand bare.
+
+    REFUSED ON WHAT IS HELD, NOT ON THE WORD: the second half of this test hands the same grammar the same
+    sentence with "air" held `count`, and the article comes back. Nothing about the word is written down."""
+    monkeypatch.setattr(gm, "live_view", lambda: HoldsUses())
+    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    # READING STILL FORGIVES IT, as it must: a person may write "An air is a vapour." and be understood.
+    assert g.read(gm.tokens_of("An air is a vapour.", g.lexicon.words)).sign is not None, "still read"
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "air", "vapour"),)))
+    assert said, "air being a vapour is still said"
+    assert not [t for t in said if says_one_of(t, "air")], said[:8]
+    assert "Air is a vapour." in said, said[:8]
+    # AND THE COUNTED NOUN KEEPS ITS ARTICLE. Refusing one pairing must cost no other sentence of English -- and
+    # `use_of`, which answers from a word's ending, would have refused this one too.
+    assert any("a vapour" in t for t in said), said[:8]
+
+    # HELD `count`, THE SAME SENTENCE IS SAID: the refusal follows the evidence and nothing else.
+    monkeypatch.setattr(gm, "live_view", lambda: HoldsUses({"air": "count", "vapour": "count"}))
+    counted = gm.Grammar(gm.Lexicon(Agreeing())).say(
+        gm.Meaning("tell", (gm.MeaningFact("isa", "air", "vapour"),)))
+    assert [t for t in counted if says_one_of(t, "air")], counted[:8]
 
 
 def test_a_preposition_carried_along_with_the_wh_phrase_says_what_it_says_left_behind(grammar):

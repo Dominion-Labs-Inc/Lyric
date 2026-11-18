@@ -49,7 +49,7 @@ from typing import (Any, Callable, Deque, Dict, FrozenSet, Iterable, List, Mappi
                     Tuple, Union)
 
 from core.semantics.derived_reader import (Meaning, MeaningFact, is_variable,
-                                           _ARITHMETIC_ROLES)
+                                           live_view, _ARITHMETIC_ROLES)
 from core.semantics.relation_types import is_worded, worded
 from core.semantics.sentence_machine import _ADDRESS
 
@@ -3204,7 +3204,8 @@ class Grammar:
         return all(matched(took, f) == 0 and matched(every, f) > 0 for f in forms)
 
     def _cannot_take(self, took: Mapping[Tuple[str, str], float],
-                     every: Mapping[Tuple[str, str], float], cls: str, at: int) -> bool:
+                     every: Mapping[Tuple[str, str], float], cls: str, at: int,
+                     *, article: bool = False, thing: str = "") -> bool:
         """WHETHER A DETERMINER AND ITS NOUN CANNOT AGREE: of the nouns THIS determiner was written with
         (`Words.nouns`), not one shares the noun's class and features, and it was written with enough of them
         (`NOUNS_BEFORE_REFUSING`) for that absence to be evidence rather than silence. The same reading of the
@@ -3226,13 +3227,34 @@ class Grammar:
         makes of the same kind of question: rarer by at least twice, and by more than the standard error of the
         share at large, so a difference inside the noise of a small count refuses nothing.
 
-        THIS IS NUMBER AGREEMENT, NOT COUNTABILITY. "A whales" is refused because "a" is written before a plural
-        noun far more rarely than determiners at large are. "An air" is NOT refused: "an" is written before
-        singular nouns in plenty, and that air is a mass noun taking no article is a fact these tables do not hold
-        -- `DerivedReader.use_of` holds it (`mass`, `count`, `plural`, from Brown, WordNet and the Bochum English
-        Countability Lexicon), on the reader's view above this grammar and out of reach from here. "An air's a
-        gas." therefore stands, and reaching that evidence from saying is its own piece of work.
+        TWO WAYS A DETERMINER CANNOT TAKE A NOUN, and the number tables answer only one of them. "A whales" is
+        refused below because "a" is written before a plural noun far more rarely than determiners at large are.
+        "An air" is not a number at all: "an" is written before singular nouns in plenty and "air" is singular,
+        and what is wrong is that air is not COUNTED -- a mass noun takes no article, and these tables hold
+        nothing of countability. So `article` asks the other question of the other memory.
+
+        `article`: whether the determiner says its thing INDEFINITELY and says it as ONE -- "a", "an", "another".
+        Read off the pieces the grammar already carries and not off a list of words: the lexicon declares "a" and
+        "an" `indefinite`, "some" `indefinite` and `some` besides, "the" and "this" `given`, "every" and "all"
+        `every`, "any" `npi`. So "some air", "the air", "this air", "all air" and "any air" are left alone, which
+        is the carve English makes, and anything later declared `indefinite` is covered by the declaration.
         """
+        # WHAT MEMORY HOLDS OF THE WORD'S USES (`PatternInventory.used_as`: `mass`, `count`, `plural`, from Brown,
+        # WordNet and the Bochum English Countability Lexicon), which is the memory the reader itself asks of a
+        # filler before it lets it stand bare (`derived_reader`, `_said_fillers`). Asked for THIS THING first,
+        # because a word is used as each thing it names is: "travel" is counted for a trip and not for the act of
+        # travelling.
+        #
+        # WHAT MEMORY HOLDS, NEVER WHAT AN ENDING GUESSES. `use_of` answers for every word, from the longest held
+        # ending that decides it -- and it answers `mass` for a word ending as "president" does, so asking it here
+        # would refuse "a president", a worse sentence than the one this refuses. Where no use is held, nothing is
+        # refused, as everywhere else here: evidence against, never the absence of evidence.
+        if article and cls == "NOUN" and 0 <= at < len(self._tokens):
+            word, view = str(self._tokens[at]), live_view()
+            held = (view.used_as(word, thing) if thing else None) or view.used_as(word) \
+                or view.used_as(self.lexicon.words.name(word, cls))
+            if held == "mass":
+                return True
         total = sum(took.values())
         if total < self.NOUNS_BEFORE_REFUSING:
             return False
@@ -3675,7 +3697,9 @@ class Grammar:
         Neither was weighed: "a" before "representations" was read as surely as before "representation", and
         "Pictures are a representations." was said of a picture being a representation (lyric_dev2, 2026-10-28).
 
-        NONE WHERE THE DETERMINER CANNOT TAKE THE NOUN AT ALL, which refuses the pair (`made`, `_cannot_take`).
+        NONE WHERE THE DETERMINER CANNOT TAKE THE NOUN AT ALL, which refuses the pair (`made`, `_cannot_take`):
+        the noun is of a number this determiner is not written before, or it names something memory holds no count
+        of and the determiner says one of it ("An air's a gas.").
         Weighing it was not enough, for the reason `_disagrees` exists: a weight is a logarithm never more than
         nothing, so the commonest word of its kind keeps its place however badly it agrees, and "a" is the
         commonest determiner in English. Of a whale being a cetacean, saying said "A whales are cetaceans." to a
@@ -3696,10 +3720,19 @@ class Grammar:
         if dets:
             every_noun = words.nouns()
             for side, p, took in dets:
-                noun = self._said_by(sides[id(side)][1], _walk(p[1], s))
+                mine, theirs = sides[id(side)]
+                x = _walk(p[1], s)
+                noun = self._said_by(theirs, x)
                 if noun is not None:
-                    if self._saying and self._cannot_take(took, every_noun, *noun):
-                        return None
+                    if self._saying:
+                        # SAID INDEFINITELY AND SAID AS ONE, which is what a mass noun cannot be. The pieces keep
+                        # "a" and "some" apart already (`_say`'s `loose`, and what a thing is said to be at
+                        # `_decided`), so this reads the grammar's own declaration rather than naming words.
+                        article = (any(q[0] == "indefinite" and q[1] == x for q in mine)
+                                   and not any(q[0] == "some" and q[1] == x for q in mine))
+                        if self._cannot_take(took, every_noun, *noun, article=article,
+                                             thing="" if is_variable(x) else str(x)):
+                            return None
                     weight += self._agreed(took, every_noun, *noun)
         for side, p in (bes if every_predicated else ()):
             one, other = sides[id(side)]
