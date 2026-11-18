@@ -49,6 +49,31 @@ verified as a test by running it against the pre-change file, where it fails on 
 `'Dogs are mammals.'` both remain, and reading still reads "A dog is a mammals." a full nat less surely rather
 than refusing it. The three standing agreement tests pass unchanged (4.4 s).
 
+**AND VERIFIED ON THE LIVE RESIDENT** (PID 38560, lyric_db), asked through its own door, against what the two
+residents before it said:
+
+| asked | was | now |
+|---|---|---|
+| `Do whales swim?` | `'A whales are cetaceans.'` | `"A whale's a cetacean mammal."` |
+| `Do whales breathe air?` | `'Air is a gas.\nA whales are cetaceans.'` | `"Air is a gas.\nA whale's a cetacean mammal."` |
+| `Is air a gas?` | `"Yes. Air is a gas.\nYes. An air's a gas."` | unchanged, as the limit above says |
+
+The article on a plural is gone and nothing was lost with it -- a singular still takes its article -- and the mass
+noun still stands, which is the stated limit holding rather than the fix half-working. The restart cost the
+relearn the changed `RULES` demands and said so: **"9189 learned now and 9189 kept with their sentences", 922 s.**
+No halt was written on this boot.
+
+**THE TAKE-UP OF 117 REFUSED THIS CHANGE, CORRECTLY AND WITHOUT HALTING**, every 120 s for half an hour:
+`core.semantics.grammar cannot be taken up while it runs: Grammar._of_words (a function now stands where
+something else did); reading_teaches (the running object is a wrapper built by a decorator, not this function);
+GrammarView.words; GrammarView.rules`. **None of those four was touched by this change**: three are `@property`
+and one is a `@contextlib.contextmanager`, so in the running module the attribute is a property object or a
+decorator-built wrapper while the newly compiled file offers a plain function for the same name. ANY change to
+grammar.py therefore needs a restart as the mechanism stands, and 49 of the 268 modules under core define a
+`@property`. The gap is one level down from what 117 already does: a property's code is in `fget`/`fset`, a
+wrapper's original in `__wrapped__`, and swapping `__code__` there is the same operation it performs on a plain
+function. Not attempted here -- it is 117's own work, in a protected module.
+
 **ITS LIMIT, STATED.** This is number agreement, not countability. `'An air's a gas.'` still stands: "an" is
 written before singular nouns in plenty, and that air is a mass noun taking no article is a fact these tables do
 not hold. `DerivedReader.use_of` DOES hold it -- `mass`, `count`, `plural`, read from Brown, WordNet and the
