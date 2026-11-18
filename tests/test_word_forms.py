@@ -46,7 +46,14 @@ def test_wordnet_s_examples_are_examples_only_and_of_their_part_only():
     forms and their kinds said as rules ("To stroll is to walk."), and no noun's plural."""
     records = list(WordNetExamplesSource(parts=("v",)).records())
     assert records and all(record.example for record in records)
-    assert any(record.forms for record in records) and any(record.sentence is None for record in records)
+    # A VERB'S KIND COMES AS A RULE THE TEACHER WROTE, which is what replaced the record that carried a meaning
+    # and no sentence for the sayer to put into English: "Left to the sayer, a rule was said only where a frame
+    # that says it was already held" (`as_rule`). So nothing WordNet offers as an example of English is
+    # sentence-less any more -- 0 of 82,699 for verbs, and 0 of the nouns', adjectives' and adverbs' either --
+    # and the verbs' 23,470 kinds are these rules.
+    assert any(record.forms for record in records)
+    assert any(record.relation == "isa" and (record.sentence or "").startswith("To ") for record in records), \
+        "a verb's kind is said as a rule"
     assert not any(record.relation == "isa" and record.forms for record in records), "no plural is a verb's"
 
 

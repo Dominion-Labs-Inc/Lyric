@@ -1584,11 +1584,17 @@ def _uses_from_scratch(view):
     for key, how in use.items():
         counts = words.setdefault(dr._loose(view.get(key).words)[0], {})
         counts[how] = counts.get(how, 0) + 1
+    # A WORD USED AS A PLURAL IS COUNTED HERE AND DECIDES NOTHING, as the view counts it (`_end_count`,
+    # `_end_settle`): a plural is never guessed from an ending, so it is evidence that the ending SAYS NOTHING,
+    # and it is counted in the tally an ending is decided from and in the tally the bar for deciding anything but
+    # the default is read from. Left out of both -- as this was, having been written before the view counted them
+    # (2026-11-16) -- an ending decides from whatever few words are not plural, and the bar is read from a
+    # population the endings are not asked about: of the 94 words lesson 7 holds a use for, 22 are plurals, so
+    # "count" stood at 59 of 72 here against 59 of 94 in the view, and the bar came out high enough to refuse
+    # `mass` at "ing" where the view allowed it by 0.0005.
     by_ending, kept = {False: {}, True: {}}, {False: {}, True: {}}
     for word, counts in words.items():
         how = max(counts.items(), key=lambda kv: (kv[1], kv[0] == "count", kv[0]))[0]
-        if how == "plural":
-            continue
         proper = view.is_proper(word)
         kept[proper][how] = kept[proper].get(how, 0) + 1
         for size in range(1, min(4, len(word) - 1) + 1):
@@ -1607,7 +1613,7 @@ def _uses_from_scratch(view):
             if total < 2:
                 continue
             how, most = max(tally.items(), key=lambda kv: (kv[1], kv[0] == default, kv[0]))
-            if most * 2 > total and total - most <= total / math.log(total) \
+            if how != "plural" and most * 2 > total and total - most <= total / math.log(total) \
                     and (how == default or dr._confidence(most, total) > trusted):
                 decided[ending] = how
     return slots, endings, words
@@ -1750,7 +1756,13 @@ def test_a_word_is_said_where_a_word_like_it_was_heard():
     assert view.heard_like("did", "kick", "kick") < 2
     kicked = [r for r in json.loads((Path(__file__).resolve().parents[1] / "data" / "lessons" / "english_12.json")
                                     .read_text())["records"] if r["sentence"] == "Rex did not kick the ball."]
-    assert dr.say(Meaning.from_dict(kicked[0]["meaning"]), view) == ("Rex did not kick the ball.",), \
+    # BOTH OF THESE ARE ENGLISH, and the taught one comes first. The lessons teach "did not ?slot0" and
+    # "has not ?slot0" with the one meaning -- a doing, false, before now -- so a meaning that matches is said
+    # either way, and the perfect is offered second. What must never appear is a word put where nothing like it
+    # was heard: "Rex kicked the ball not.", and "Rex has not kick the ball.", which stood FIRST here while the
+    # shape a word is written in was not held against what was heard (`_unheard`, 2026-11-18).
+    assert dr.say(Meaning.from_dict(kicked[0]["meaning"]), view) == (
+        "Rex did not kick the ball.", "Rex has not kicked the ball."), \
         "not \"Rex kicked the ball not.\", \"not\" where only \"quietly\" and \"hard\" were heard"
     assert len(view) == before, "saying writes nothing"
 

@@ -1601,13 +1601,26 @@ class PatternInventory:
 
     def _shapes_with(self, word: str) -> FrozenSet[str]:
         """The words alternating with this one, in two pairs of frames or more, that the letter after them tells
-        apart from it and from each other: the most alternating first, each kept only if the letters tell it apart
-        from all kept before it."""
-        kept: List[str] = []
-        for other, count in sorted(self._alternates.get(word, {}).items(), key=lambda kv: (-kv[1], kv[0])):
-            if count >= 2 and self._told_apart(word, other) and all(self._told_apart(other, k) for k in kept):
-                kept.append(other)
-        return frozenset(kept)
+        apart from it AND from each other: a word's shapes share out the letters among them all, so two words the
+        letter cannot tell apart are no shapes of it, and neither is kept.
+
+        NEITHER, WHERE IT USED TO BE THE COMMONER ONE: the words were taken most-alternating first and a candidate
+        the letters could not tell from one already kept was dropped by itself, which threw the evidence away
+        rather than reading it -- the word that alternates oftenest stood as the one shape whatever else alternated
+        in the same place. So "it" came back as a shape of "she" though "he" alternates in the very same places and
+        the letter tells "he" from "she" not at all: the place `(None, "is", ?slot0, ".")` holds "he", "it", "she"
+        and "that", each meaning `has_property(?previous, ?slot0)`, which is four ways of saying one thing in one
+        place and no word in two shapes. Saying then wrote "it" for "she" and "she" for "it" by the letter after
+        them, where English writes "it is" and "she is" alike (lesson 1 to 39, 2026-11-18).
+
+        This is the reading `variants_of` already gives of "every", said for every pair rather than for the pair
+        that happens to come second. "a" is unharmed at every depth of the lessons: of everything that alternates
+        with it, "an" alone is ever told apart from it -- "each" and "every" are not, so they never stood as
+        candidates and never clashed with one."""
+        able = [other for other, count in sorted(self._alternates.get(word, {}).items())
+                if count >= 2 and self._told_apart(word, other)]
+        return frozenset(one for one in able
+                         if all(self._told_apart(one, two) for two in able if two != one))
 
     def _told_apart(self, one: str, two: str) -> bool:
         """Whether the letter after them decides between two words: for each, the times it is written before a
@@ -1631,10 +1644,25 @@ class PatternInventory:
             # change needs two words it reads rightly (`_tolerated`); and, as Albright & Hayes judge a rule shown by
             # few words, better than even confidence that it is: "he", written four times, twice before the "i" of
             # "is" as "it" is, is not told apart from "it" by the letter after it.
+            #
+            # AND OF THE LETTERS THEMSELVES, which is what the question is about: WHICH letters tell the two words
+            # apart, not how many times they are written. Asked of the sightings alone, a pair whose letters
+            # overlap almost everywhere was told apart on the one letter that carried most of both: "did" is
+            # written before 7 letters and "has" before 16, FIVE of them written after both, and the pair came
+            # back as one word in two shapes. Then `shape_before` writes "has" before an "n" -- 4 sightings
+            # against "did"'s 2 -- so the frame `?slot0 did not ?slot1 the ?slot2.` could no longer write "did
+            # not" at all, and saying offered "Rex has not kicked the ball." and "Rex hasn't kick the ball." of a
+            # meaning taught as "Rex did not kick the ball.", which it did not offer. Yang's tolerance is generous
+            # in sightings -- N / ln N is near a third of N -- and the one letter that did not cross was "t",
+            # written 18 times after "did" and 10 after "has", which is no handful. Of the LETTERS, "did" keeps 3
+            # of 7 against a tolerance of 3.60 and the pair stands as two words; "a" and "an" are written before
+            # 19 letters and 5 with one in common, which 6.45 and 3.11 tolerate, and stand as one word in two
+            # shapes as before (lesson 1 to 39, 2026-11-18).
             total = sum(counts.values())
             crossed = sum(counts[letter] for letter in shared)
             return total - crossed >= 2 and crossed <= total / math.log(total) \
-                and _confidence(total - crossed, total) > 0.5
+                and _confidence(total - crossed, total) > 0.5 \
+                and _tolerated(len(counts) - len(shared & set(counts)), len(counts))
 
         return decided(mine) and decided(theirs)
 
@@ -1676,13 +1704,27 @@ class PatternInventory:
         "an" before an "e" is 13.5% against 3.4%, four times; "an" before an "f" was 4.8% against 3.8%, and
         asked only for the error it answered yes, and 683 links of "f" and "v" were let go on it."""
         mine, theirs = self._share_before(word, letter), self._share_before(other, letter)
-        if theirs <= mine or theirs < 2.0 * mine:
-            return False
         counts = self._after_count.get(_fold(other)) or {}
         total = sum(counts.values())
         if total < 2:
             return False
-        return theirs - mine > math.sqrt(theirs * (1.0 - theirs) / total)
+        # THE ERROR IS ASKED OF THE CLAIM BEING MADE, which is the whole claim: twice as readily. Asked of
+        # `theirs - mine` while `theirs >= 2 * mine` was tested exactly, a share that clears twice by less than
+        # its own error was taken for a letter that decides, and a pair was told apart on it: "he" is written
+        # before the "i" of "is" 3 times of 4 and "it" 4 of 11, so 75.0% against 2 x 36.4% = 72.8% -- over by
+        # 2.2 points, with 21.7 points of error on four sightings -- and "it" and "he" came back as one word in
+        # two shapes, which is what reading "he" for "it" would mean (lesson 1 to 9, 2026-11-18). This function's
+        # own account of that pair says they are not told apart, and the letter has nothing to do with them:
+        # English writes "he is" and "it is" alike.
+        #
+        # THE ERROR STAYS ON THE OTHER WORD'S SHARE ALONE, and taking in this word's was tried and taken back
+        # out: asked of both, a word never written before the letter at all still carries an interval wide
+        # enough to refuse the pair -- "she" is written 6 times and never before a "d", which is 0.208 at most,
+        # so "he" before a "d" at 0.103 at least no longer asks for it, and "Yes, she did." stopped reading where
+        # "Yes, he did." was taught. What the letter says of a pair everywhere (`_told_apart`) and what it says at
+        # one letter (`asks_for`) are the same question asked for different work, and the second admits a reading
+        # that is then weighed against every other.
+        return theirs - 2.0 * mine > math.sqrt(theirs * (1.0 - theirs) / total)
 
     def asks_for(self, word: str, other: str, letter: str) -> bool:
         """Whether the letter after a word asks for `other` where this word is written: the letter prefers
@@ -1695,12 +1737,22 @@ class PatternInventory:
         consonant in the slot after "an", which is the evidence `_told_apart` reads. 2,196 fillers of the slots
         after "a" begin with a letter it contradicts, and 122 of the 143 after "an" do (lyric_db, 2026-11-16).
 
-        Neither word written before the letter says nothing, and the pair stands as it did -- which is what keeps
-        a pair the letter has nothing to do with ("could" and "would") said in each other's place as before. The
-        letter refuses only where it has something to say."""
-        if self._letter_prefers(other, word, letter):
-            return True
-        return self._share_before(word, letter) == 0.0 == self._share_before(other, letter)
+        THE LETTER REFUSES ONLY WHERE IT HAS SOMETHING TO SAY, which is the whole of this question and was not
+        what was asked. Asked whether the letter PREFERS the other word -- or, failing that, whether neither word
+        is ever written before it -- a pair the letter has nothing to do with was refused along with the pair it
+        decides, because "says nothing against" and "says for" are not the same thing. "could" and "would" are
+        written before a "y" both ("Could you help me?", "Would you help me?"), 75.0% of what follows "could" and
+        100% of what follows "would", so the letter prefers neither and neither share is nought: the two were
+        refused each other's place and "Would you help me?" read NOTHING where "Could you help me?" was taught,
+        which is the very pair this function's own account names as the one that must go on reading (lesson 1 to
+        12, 2026-11-18).
+
+        So the letter is asked what it says AGAINST the word proposed: it refuses where it prefers the word
+        actually written to the frame's own, which is the word being there for the letter's sake rather than as
+        another way of saying it -- a frame writing "An" read "A mons is part of a vulva." because "m" prefers
+        "a". Both of the old questions are inside this one: a letter that prefers the frame's word does not
+        prefer the written one, and a letter neither is written before prefers neither."""
+        return not self._letter_prefers(word, other, letter)
 
     def holds_a_particular(self, words: Tuple[str, ...]) -> bool:
         """Whether memory holds ONE THING under this run of words, rather than a kind of thing
@@ -1776,12 +1828,20 @@ class PatternInventory:
 
     def synonyms_of(self, word: str) -> FrozenSet[str]:
         """The words said in this one's place, in frames otherwise the same and meaning the same, in two pairs of
-        frames or more, and not told apart by the letter after them: two ways of saying one thing ("could" and
-        "would" in "Could you close the door?" and "Would you close the door?"). Found from what was taught."""
+        frames or more, that are not shapes of it: two ways of saying one thing ("could" and "would" in
+        "Could you close the door?" and "Would you close the door?"). Found from what was taught.
+
+        EVERYTHING THAT ALTERNATES IS ONE OR THE OTHER, and a pair used to be able to fall between them. The test
+        here was that the letter does not tell the two apart, which is nearly the question `variants_of` asks and
+        not quite: a pair the letter tells apart is no shape of the word either where the letters are not shared
+        out among everything that alternates in its place (`_shapes_with`). So "he" was no shape of "it" and no
+        way of saying it, and "Yes, she did." stopped reading where "Yes, he did." was taught. What is not a shape
+        is a way of saying it, which is what alternating in the same place meaning the same says of two words; the
+        letter is still asked where the word stands, of the word that stands there (`written_for`, `asks_for`)."""
         word = _fold(word)
         shapes = self.variants_of(word)
         return frozenset(other for other, count in self._alternates.get(word, {}).items()
-                         if count >= 2 and other not in shapes and not self._told_apart(word, other))
+                         if count >= 2 and other not in shapes)
 
     def shape_before(self, word: str, letter: str) -> str:
         """Which of a word's shapes is written before a word beginning with this letter: the one written before it
@@ -7987,6 +8047,17 @@ def _template_values(template: Meaning, meaning: Meaning) -> List[Dict[str, str]
     return out
 
 
+def _in_shape(view: "PatternInventory", word: str, following: str) -> str:
+    """A frame's own word in the shape the word after it asks ("an" before "ocelot"), which is how it is written
+    (`_rendered`) and therefore how what was heard has to be asked of it (`_unheard`)."""
+    if not following[:1].isalpha() or not view.variants_of(word):
+        return word
+    shape = view.shape_before(word, following[:1])
+    if shape == _fold(word):
+        return word
+    return shape.capitalize() if word[:1].isupper() else shape
+
+
 def _rendered(pattern: Pattern, fillers: Mapping[str, Union[Lexical, _Placed]],
               view: Optional[PatternInventory] = None) -> Tuple[Piece, ...]:
     """The frame's pieces with its fillers in place, a phrase's with its own (`_Placed`), written as the writing
@@ -8018,11 +8089,10 @@ def _rendered(pattern: Pattern, fillers: Mapping[str, Union[Lexical, _Placed]],
             pieces.append(element if spaced == element.space_after else Piece(element.text, spaced))
     # A frame's word is written in the shape the word after it asks: "An ocelot" through "A ?slot0 is a ?slot1.".
     for at in own if view is not None else ():
-        if at + 1 < len(pieces) and pieces[at + 1].text[:1].isalpha() and view.variants_of(pieces[at].text):
-            word = pieces[at].text
-            shape = view.shape_before(word, pieces[at + 1].text[:1])
-            if shape != _fold(word):
-                pieces[at] = Piece(shape.capitalize() if word[:1].isupper() else shape, pieces[at].space_after)
+        if at + 1 < len(pieces):
+            written = _in_shape(view, pieces[at].text, pieces[at + 1].text)
+            if written != pieces[at].text:
+                pieces[at] = Piece(written, pieces[at].space_after)
     if pieces and pieces[0].text[:1].islower() and not symbol_first:
         pieces[0] = Piece(pieces[0].text[:1].upper() + pieces[0].text[1:], pieces[0].space_after)
     return tuple(pieces)
@@ -8603,7 +8673,16 @@ def _unheard(view: PatternInventory, pattern: Pattern, fillers: Mapping[str, Uni
     where both are one construction's own ("The fip did not chased the kelt.", "chased" heard after "has not", never
     after "did not"); and a construction's own word right after another construction's ("The fip does did not chase
     the kelt."). A construction's own word after a filler is how a frame takes a word it never held ("Horses are
-    animals."), and is not counted."""
+    animals."), and is not counted.
+
+    ASKED OF THE WORDS AS THEY WILL BE WRITTEN, which is where this was blind: a frame's own word is written in
+    the shape the word after it asks (`_rendered`, "an" before "ocelot"), and the frame's own word was what was
+    held against what was heard -- so a sentence saying a meaning in a word's OTHER shape was never asked whether
+    anything like it had been heard in that shape. Through `?slot0 did not ?slot1 the ?slot2.`, writing "did" as
+    "has", saying offered "Rex has not kick the ball." FIRST of a meaning taught as "Rex did not kick the ball.",
+    and the taught sentence not at all: "kick" was heard after "did not" and never after "has not", which is the
+    very pair the next test here is about, and the account read "did not" while the writing said "has not"
+    (lesson 1 to 39, 2026-11-18)."""
     never = like = 0
     earlier: Optional[Tuple[str, Any, Optional[Lexical]]] = None
     before: Optional[Tuple[str, Any, Optional[Lexical]]] = None
@@ -8612,12 +8691,16 @@ def _unheard(view: PatternInventory, pattern: Pattern, fillers: Mapping[str, Uni
             earlier = before = None
             continue
         if before is not None and before[1] is not owner:
+            # Each of the two words before, in the shape the word after IT asks, as the writing will have them.
+            said = _in_shape(view, before[0], word) if before[2] is None else before[0]
+            said_earlier = (_in_shape(view, earlier[0], before[0])
+                            if earlier is not None and earlier[2] is None else None)
             if filler is not None:
                 own = earlier is not None and earlier[2] is None and before[2] is None and earlier[1] is before[1]
-                heard = view.heard_like(before[0], word, str(filler.value), earlier[0] if own else None)
+                heard = view.heard_like(said, word, str(filler.value), said_earlier if own else None)
                 never, like = never + (heard == 2), like + (heard == 1)
             elif before[2] is None:
-                heard = view.heard_after(before[0])
+                heard = view.heard_after(said)
                 never += bool(heard) and _fold(word) not in heard
         earlier, before = before, (word, owner, filler)
     return never, like

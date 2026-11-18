@@ -16,6 +16,135 @@ Conventions:
 
 ---
 
+## 124. A quotation of a word was made into a sentence, so a quarter of a paragraph read nothing; the marks a modern text is written with were unknown to the grammar; and the letter after a word was deciding pairs it has nothing to do with (2026-11-18)
+
+**WHAT WAS ASKED.** Fix the quotation defect, and look for any more defects like it.
+
+**THE QUOTATION DEFECT, STATED EXACTLY.** `set_apart` wrote a sentence's end onto ANY quotation at all -- a comma
+inside the closing mark became that end, and where there was no mark one was written. So a word a sentence merely
+names became a sentence somebody said, and the sentence it was named in got a hole where the word belongs.
+Measured: "Rain can be described as a downpour (prolonged heavy or “torrential” rainfall)." read NOTHING through
+the real door, because `“torrential”` was lifted out as the sentence "torrential." and no phrase joins
+`prolonged heavy or “…” rainfall`. Every other construction in that sentence reads on its own -- the participial
+opener, the brackets, the four-way coordination -- and the identical sentence without its quote marks reads whole.
+It is the second sentence of the four-sentence paragraph entry 123 left unread.
+
+**WHAT DECIDES IT IS THE WRITING.** A quotation is a sentence of its own where the writer punctuated it as one: a
+stop, a question mark or an exclamation mark inside the closing mark, or the comma that stands for that end where
+the quotation is where somebody's own words begin -- opening the sentence, or standing after the comma or colon a
+saying leaves them after. American writing puts a comma inside the quotes of a word it merely names, and such a
+quotation stands inside a phrase (`the terms "drizzle," "shower," and "downpour"`), where a comma ends nothing.
+
+Of the 3,064 sentences the lessons teach, 17 hold a quotation and ALL 17 quote a whole sentence punctuated as one
+-- ten ending on a stop inside the quotes (`Tom said, "The dog barked."`), seven on the comma that stands for it
+(`"The dog barked," Tom said.`). Not one quotes a word. So the branch that wrote an end where none was served no
+sentence anybody taught and fired on every sentence anybody read.
+
+**THE SECOND HALF: THE MARKS THEMSELVES.** With the quotation left in place, the marks have to be read with what
+they stand beside, and the two punctuation lists in `Grammar._combine` held a 1990s treebank's marks. Measured
+against "The red dog barked." read without marks, each pair written around "red":
+
+| pair | read |
+| --- | --- |
+| `"` `"` straight | the very same meaning |
+| `(` `)` | the very same meaning |
+| `--` two hyphens | the very same meaning |
+| `“` `”` curly | **NOTHING** |
+| `[` `]` | **NOTHING** |
+| `«` `»` | **NOTHING** |
+| `‘` `’` single curly | **NOTHING** |
+| `—` em dash, `–` en dash | **NOTHING** |
+
+The curly double quotes, the square brackets and the guillemets are now read, each giving the sentence written
+without it fact for fact, alone and joined to another word ("The hot or “red” dog barked."). `` `` `` and `''`
+were dead entries: a chart is only ever given the pieces `form_of` makes, and those write each mark separately.
+
+**TWO THAT ARE NOT LIST ENTRIES, AND WERE MEASURED BEFORE BEING LEFT OUT.** The em dash read as a mark standing
+beside a word reads "The dog — a mammal — barked." as `done_by(?v0, mammal) & done_to(?v0, dog)` -- a mammal
+barking the dog -- where it read nothing before. A dash SETS OFF AN ASIDE and wants that read as one, which is a
+rule and not an entry; the comma has that rule and reads the same sentence as a group of two. The closing single
+curly mark is also how English writes a plural's possessive: read as a mark, "The dogs’ bone is red." reads as
+"The dogs bone is red." -- `isa(bone, dog)`, a bone that is a kind of dog, where the possessive says
+`owned_by(bone, dog)`. A wrong reading where there is none is worse than none. **Still open:** the plural
+possessive reads nothing at all, either mark; `/` inside a phrase stops a sentence; the ellipsis ends no
+sentence; and only the FIRST quotation of a text is ever set apart.
+
+**AND THREE PLACES THAT WEIGH A CAPITAL AFTER AN OPENING QUOTE** as the start of what is said rather than as a
+name held the straight quote and the treebank's "``" and not the curly marks, so "The" inside a curly quotation
+counted as a name as often as it was written. They read one list now (`OPENS_WHAT_IS_SAID`).
+
+**THEN THE FIVE FAILING TESTS, WHICH WERE ALL ONE MECHANISM AND NONE OF THEM MINE.** `tests/test_derived_reading.py`
+came back 5 red, identical at `37b48aec` (before this session's work), so pre-existing. Four were the same
+machinery -- which words are one word written two ways (`variants_of`) and which are two ways of saying one thing
+(`synonyms_of`) -- and each had its own cause:
+
+1. **The error was asked of a claim weaker than the one being made.** `_letter_prefers` tested "twice as readily"
+   exactly and then asked the error of "more readily". "he" is written before the "i" of "is" 3 times of 4 and
+   "it" 4 of 11, so 75.0% against 2 x 36.4% = 72.8% -- over by 2.2 points with 21.7 points of error -- and "it"
+   and "he" came back as one word in two shapes. The error is now asked of the whole claim. Taking this word's
+   own error in as well was tried and taken back out: a word never written before the letter still carries an
+   interval wide enough to refuse the pair, and "Yes, she did." stopped reading where "Yes, he did." was taught.
+2. **"Says nothing against" is not "says for".** `asks_for` asked whether the letter PREFERS the other word, or
+   failing that whether neither word is ever written before it -- so a pair the letter has nothing to do with was
+   refused along with the pair it decides. "could" and "would" are both written before a "y", 75.0% and 100%, so
+   the letter preferred neither and neither share was nought: "Would you help me?" read NOTHING where "Could you
+   help me?" was taught, which is the very pair the function's own account names as the one that must go on
+   reading. The letter now refuses only where it prefers the word actually written to the frame's own.
+3. **A word's shapes share out the letters among them all, and the implementation kept the commoner one instead.**
+   `_shapes_with` took candidates most-alternating first and dropped a later one the letters could not tell from
+   one already kept -- throwing the evidence away rather than reading it. The place `(None, "is", ?slot0, ".")`
+   holds "he", "it", "she" and "that", each meaning `has_property(?previous, ?slot0)`: four ways of saying one
+   thing in one place, and "it" came back as a shape of "she". Now neither is kept. "a" is unharmed at every
+   depth of the lessons because of everything that alternates with it, "an" alone is ever told apart from it.
+4. **A pair could fall between the two sets.** `synonyms_of` tested that the letter does not tell the two apart,
+   which is nearly `variants_of`'s question and not quite, so a pair told apart but not a mutual shape was
+   neither. Everything that alternates is now one or the other.
+5. **Yang's tolerance was asked of the sightings and not of the letters.** "did" is written before 7 letters and
+   "has" before 16, FIVE written after both, and the pair was told apart on the one letter that carried most of
+   both -- "t", 18 times after "did" and 10 after "has". `shape_before` then writes "has" before an "n", so the
+   frame `?slot0 did not ?slot1 the ?slot2.` could not write "did not" at all: saying offered "Rex has not kick
+   the ball." FIRST of a meaning taught as "Rex did not kick the ball.", and the taught sentence not at all. Of
+   the LETTERS, "did" keeps 3 of 7 against a tolerance of 3.60 and the pair stands as two words; "a" and "an"
+   are written before 19 letters and 5 with one in common, which 6.45 and 3.11 tolerate.
+6. **And the shape a word is written in was never held against what was heard.** `_unheard` read the frame's own
+   word while `_rendered` wrote another of its shapes, so a sentence saying a meaning in a word's other shape was
+   never asked whether anything like it had been heard that way. Both now read the words as they will be written.
+
+**WHAT MOVED IN THE TESTS, AND WHY.** Two assertions were written against mechanisms that have since changed, and
+both are said so in place rather than quietly:
+
+* `_uses_from_scratch`, the oracle for the use model, still left plural words out of the endings and out of the
+  bar for deciding anything but the default -- it predates the 2026-11-16 change that counts them ("the plurals
+  mute an ending without muting its evidence"). Of the 94 words lesson 7 holds a use for, 22 are plurals, so
+  "count" stood at 59 of 72 in the oracle against 59 of 94 in the view, and the bar came out high enough to
+  refuse `mass` at "ing" where the view allowed it by 0.0005. The oracle was wrong and the substrate was right.
+* `tests/test_word_forms.py` asked that some of WordNet's examples of English carry a meaning and no sentence,
+  for the sayer to put into English. None do, in any part of speech -- 0 of 82,699 for verbs, 0 of the nouns',
+  adjectives' and adverbs' -- because a verb's kind is now a rule the teacher writes ("To respire is to
+  undergo.", 23,470 of them): "Left to the sayer, a rule was said only where a frame that says it was already
+  held" (`as_rule`). The assertion now names the rules that replaced it.
+* Saying a negated past doing now offers two sentences where the test wanted one: "Rex did not kick the ball."
+  first, as taught, and "Rex has not kicked the ball." after it. The lessons teach "did not ?slot0" and
+  "has not ?slot0" with the one meaning, so both are English for it. The assertion now names both, and still
+  fails on "Rex kicked the ball not." and on "Rex has not kick the ball.", which stood first before.
+
+**HOW IT WAS VERIFIED.** `tests/test_derived_reading.py` and `tests/test_grammar.py`, with two new tests, each
+shown to fail on HEAD at the defect: the mark test fails at `'The “red” dog barked.' is not read as 'The red dog
+barked.' is`, and the quotation test at `The term “…” names a cycle.` Every mark measurement is files-only
+against the grammar's own lexicon, so none of it touches the store.
+
+**WHAT IS NOT VERIFIED.** The paragraph's second sentence reading WHOLE, through the real door with the store's
+own words, needs a restart -- the resident holds the old reader, and the reader is not among the modules a
+running process takes up (`CRITICAL_MODULES` is four, and none of them is reading). The argument standing in for
+it is in two measured halves: the sentence reads with its quote marks stripped (live, earlier today), and the
+grammar reads a quoted word in place to exactly the meaning the unquoted sentence gives. Reading's COST is
+likewise unmeasured against the store. `synonyms_of` is wider and `asks_for` looser, so `written_for` offers more
+words per holophrase: over the 1,103 words lessons 1 to 39 hold, 1,565 words offered across 1,187 (word, letter)
+pairs against 1,228 across 1,026, which is **1.27x**, and it buys back two sentences that read nothing before.
+What that is on 155,767 words is `scripts/check_reading.py` against the live store, and it has not been run. The
+next start after any of this pays the reader's own price -- about 940 s of grammar relearning and a re-read of
+251 tool descriptions -- because `RULES` hashes the reader.
+
 ## 123. A sentence inside a text was offered whole to nobody, so a paragraph understood less of itself than its own sentences did; reading has no shape index and saying does (2026-11-18)
 
 **WHAT WAS ASKED.** Finish it: reading, understanding and responding, faster without cutting capabilities.
