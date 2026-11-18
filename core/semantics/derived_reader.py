@@ -6438,12 +6438,24 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
     # ASKED ONCE, OF THE WHOLE, and only where this text is ONE sentence and no frame read it whole: a text of
     # several sentences is still read as the utterances that cover it, which is what every caller is given, and the
     # frames' own reading stands wherever there is one. The cost is one composing, in the case that had none.
+    #
+    # ONCE IS ONCE, AND IT WAS TWICE WHEREVER COMPOSING FOUND NOTHING. A sentence no frame reads and the grammar
+    # reads no whole of leaves the span search below with ONE utterance covering the whole of it, which the
+    # composing at the end of this function then asked the grammar again -- the same pieces, the same width, and
+    # `named` empty for want of any reading to name anything from, so the same nothing after the same work. The
+    # case that pays twice is exactly the dear one: a chart that finds no whole has tried everything there is.
+    # Measured on 2026-11-17 in UNDERSTANDS-PROSE-02, where every sentence of a run was composed in pairs:
+    # 'Depending on the intensity, rain can be described as a drizzle ...' (47 tokens, 134,359 signs) took 461s
+    # and then 446s, both reporting "read 1 way, none said anything: 1 x the grammar reads no whole", of a turn
+    # that took 925.3s in all. 141s + 138s for the sentence before it, 63s + 61s for the one after.
+    composed_nothing = False
     if COMPOSING and _one_sentence(pieces) and not readings(0, len(pieces)):
         whole = _read_by_composing(Utterance(pieces, ()), tuple(named_before))
         if COMPOSING_FORCED and whole.readings:
             whole = _read_forced_by_composing(whole)
         if whole.readings:
             return (_with_quotation(whole, quoted_read, view),) if quoted else (whole,)
+        composed_nothing = True
     # best[k] covers pieces[:cuts[k]]: (pieces read, utterances read, utterances unread, where the last one began).
     # The most pieces read wins; then the fewest utterances reading them, so a reading that runs past an end beats
     # two that stop at it; then the most unread ones, so what nothing reads is still told apart at its ends.
@@ -6486,7 +6498,10 @@ def read_text(text: str, inventory: Optional[PatternInventory] = None, *,
         named = tuple(dict.fromkeys(
             str(f.obj) for u in out for r in u.readings if r.meaning is not None
             for f in r.meaning.facts if f.relation in ("instance_of", "isa") and isinstance(f.obj, str)))
-        out = [u if u.readings else _read_by_composing(u, named + tuple(named_before)) for u in out]
+        # The whole of these pieces is not asked again where it has already been asked and read nothing
+        # (`composed_nothing`): every shorter utterance still is, since none of those was asked above.
+        out = [u if u.readings or (composed_nothing and u.pieces == pieces)
+               else _read_by_composing(u, named + tuple(named_before)) for u in out]
         if COMPOSING_FORCED:
             out = [_read_forced_by_composing(u) for u in out]
     return tuple(_with_quotation(u, quoted_read, view) for u in out) if quoted else tuple(out)

@@ -2417,3 +2417,32 @@ def test_a_reading_the_grammar_composed_supposes_one_thing_for_each_word_it_name
     frame = Reading((public,), (), meaning, composed=False)
     assert _composed_supposes(frame) == 0, "a frame's reading supposes its links, counted as links"
     assert frame.supposed == (False, 0, 0, 0, 0)
+
+
+def test_a_sentence_the_grammar_reads_no_whole_of_is_composed_once_and_not_twice(monkeypatch):
+    """A sentence no taught frame reads is handed to English's grammar whole, before the text is cut up. Where that
+    found a reading it was the only composing paid for; where it found NOTHING, the span search below was left with
+    one utterance covering the whole of it, and the composing at the end of `read_text` asked the grammar the same
+    pieces again, at the same width, with nothing named to name them by -- the same work for the same nothing.
+
+    THE CASE THAT PAID TWICE WAS THE DEAR ONE: a chart that finds no whole has tried every stretch there is. In
+    UNDERSTANDS-PROSE-02 on 2026-11-17 every sentence of the run was composed in pairs, and the pair was most of
+    the turn: 'Depending on the intensity, rain can be described as a drizzle ...' (47 tokens, 134,359 signs)
+    took 461s and then 446s, both reporting "read 1 way, none said anything: 1 x the grammar reads no whole", in
+    a turn of 925.3s; the sentence before it 141s + 138s, the one after 63s + 61s.
+
+    Counted here with no memory up, where composing returns the utterance unread at once: what is being measured
+    is how many times it is ASKED, which is the whole of the defect."""
+    asked = []
+    composing = dr._read_by_composing
+
+    def counted(utterance, named_before=(), width=0):
+        asked.append(surface_of(utterance.pieces))
+        return composing(utterance, named_before, width)
+
+    monkeypatch.setattr(dr, "_read_by_composing", counted)
+    view = PatternInventory(score=lambda item: (0.9, 1, True), listened=lambda: _LISTENED)
+    said = "Depending on the intensity rain can be described as a drizzle."
+    utterances = read_text(said, view)
+    assert not any(u.readings for u in utterances), "nothing is taught here, so nothing reads it"
+    assert len(asked) == 1, f"the whole was asked {len(asked)} times: {asked}"

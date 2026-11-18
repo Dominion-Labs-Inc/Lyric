@@ -16,6 +16,123 @@ Conventions:
 
 ---
 
+## 121. A sentence the grammar reads no whole of was charted twice, which was half of every turn; and the rest of the 922 s is the chart itself, not the store and not the machine (2026-11-18)
+
+**THE QUESTION.** Entry 120 reported that reading now costs 26 times what it cost when the recorded runs were
+made, and left the cause as "the filler search's cost follows how much memory holds". That attribution was
+wrong in both halves, and so was the next guess I made. What follows is what the instruments say.
+
+**WHAT READING ACTUALLY COSTS.** A fresh process, warmed and with its rules learned, reading the sentence whose
+turn cost 922.5 s in UNDERSTANDS-PROSE-02:
+
+| | the chart built | the whole read |
+|---|---|---|
+| width 1 (everything but a person's words) | 1.6 s | 5.9 s |
+| width 3 (a person's words, since 11-09) | 9.7 s | 13.0 s |
+| width 5 (the width a mis-parse is read again at) | 30.7 s | 25.9 s |
+
+So width 3 is about twice width 1 end to end, not nine times, and **no read of any sentence in that text costs
+more than 26 s**. Reading is not where the 922 s went. Two guesses died here: that the store's growth since the
+baseline did it (only 4,935 constructions were added after the baseline was recorded on 11-16, 1.1%), and that
+the widths added on 11-09 did it (`how_many` is squared in the combinations tried, but the squared term is not
+what dominates a read).
+
+**WHERE IT WENT, FROM THE RUN'S OWN LOG.** `Grammar.charts` says how far it has read every ten seconds, and the
+three turns that completed decompose cleanly:
+
+| turn | the turn | its chart passes | what the passes said |
+|---|---|---|---|
+| 1 (26 words) | 922.5 s | 141 s + 138 s | and 8 sayings, 57 s |
+| 2 (33 words, 47 tokens) | **925.3 s** | **461 s + 446 s** = 907 s, 98% of the turn | both: `read 1 way, none said anything: 1 x the grammar reads no whole` |
+| 3 | 137.5 s | 63 s + 61 s | |
+
+Every sentence was charted **in pairs**: 134,359 signs and then 133,846, the same text, the same width, the same
+nothing. Two identical `composing:` lines for turn 2, at 23:11:10 and 23:18:54.
+
+**THE CAUSE, IN `read_text`.** A sentence no taught frame reads is handed to English's grammar whole, before the
+text is cut up (`2ad24b99`, 2026-11-08) -- which exists because a sentence cut at the ends frames happen to know
+was never offered to the grammar that can read it. Its comment reads: *"The cost is one composing, in the case
+that had none."* **That holds only where composing finds a reading.** Where it finds none, the span search below
+is left with one utterance covering the whole of it, and the composing at the end of `read_text` asks the grammar
+the same pieces again -- same width, and `named` empty for want of any reading to name anything from. Same work,
+same nothing. The case that pays twice is exactly the dear one: a chart that finds no whole has tried every
+stretch there is.
+
+**AND IT DATES THE REGRESSION.** The recorded runs are Oct 22 and Nov 3, both before `2ad24b99`. So of the 26x,
+one factor is 11-07's vocabulary teaching, which multiplied the senses a chart cell holds, and the other is
+11-08's second composing, which doubled the bill for every sentence the grammar cannot read whole -- which is
+most long prose.
+
+**FIXED, AND MEASURED ON THE SENTENCES THAT PAID FOR IT.** `read_text` remembers that the whole of these pieces
+has already composed to nothing and does not ask again; every shorter utterance still is asked, since none of
+those was asked above.
+
+| | before (from the run log) | after |
+|---|---|---|
+| sentence 2, 47 tokens | 461 s + 446 s | **1 composing, 465.8 s**; whole read 480.0 s, 0 readings |
+| sentence 1, 26 words | 141 s + 138 s | **1 composing, 148.4 s**; whole read 149.8 s, 3 readings |
+
+The readings are what the run reported for the same sentences (3 and none), which is the point: the second call's
+input was identical to the first's, and with nothing read it had no side effect to lose.
+`test_a_sentence_the_grammar_reads_no_whole_of_is_composed_once_and_not_twice` counts the asks; with the fix set
+aside it fails with `2 = len([...the same sentence twice])`, which is the defect itself.
+
+**WHAT IS STILL EXPENSIVE, AND IT IS THE CHART.** 3,394 item-based frames are held against **204,087 senses**,
+and senses are what fill a chart cell: 22 tokens carry 238 lexical entries and make 6,259 categories across 222
+cells; 47 tokens make 134,359 signs. A pass costs roughly 10-15 s at 22 tokens, 150 s at 28 and 460 s at 47.
+`Grammar.charts` has carried the warning since it was written -- *"the sentences it cannot afford are the long
+ones ... 35 words and took 675 s"* -- and the store's growth is what reaches it, through the categories, not
+through the frames.
+
+Two other costs, named so they are not mistaken for it again:
+
+* **SAYING READS BACK, AND READING BACK IS A CHART.** `_say` reads every sentence it makes whole back through the
+  full grammar to check it reads to the meaning. Turn 1's 8 sayings logged 57 s of search and report "132 read
+  back otherwise" and "92 read back otherwise": hundreds of small charts, which is most of that turn's remaining
+  time.
+* **THE ONE-OFF BUILDS ARE PAID INSIDE THE FIRST SENTENCE.** `StructureView._work_out` is ~35% of the samples of
+  a process's first long read (195.6 s; the next sentence 96.3 s, with none) though `joins` itself is 0.2 s cold
+  and 0.03 s warm over a view of 18,681 sentences. `said_shapes` under `in_a_shape` is 72% of a first 12.8 s read
+  and gone by the next. `_uses_build` under `used_as` is 65% of the listener's first 8.1 s. None of them is
+  per-sentence, and all of them make a run's first sentence look pathological.
+
+**THE MEMORY AND THE SWAP: THERE IS NO SHORTAGE, AND THE SWAP WAS NOT WHAT MADE READING SLOW.** 48 GB, 14 cores.
+The resident holds 16 GB, and `footprint` puts 14 GB of it in untagged `VM_ALLOCATE` -- CPython's own arenas, so
+live Python objects. Split by measurement: the warm is **10.03 GB and 103 s** (443,072 constructions, 13.2M
+tracked objects), and the grammar's rules are **a further 3.46 GB and 658 s**, which take the heap to 23.2M
+objects, `Counter` from 828k to 5.77M and `set` from 1.24M to 2.86M. A process whose `RULES` are unchanged pays
+**0 s** for those rules and reports `sentences_learned: 0`, so there is a cross-process cache; a reader edit
+costs the 658-880 s relearn, which is what one costs.
+
+Under load the run took **2 MB of pageins and zero pageouts** while burning 30 s of CPU per 30 s of wall at 100%,
+and swap has sat at 4.47 GB unmoved. The anti-phase RSS wobble between the run and the resident (batch 9.5 GB /
+resident 3.5 GB, then 6.8 / 7.1) is the compressor shuffling pages between **two private full copies of the same
+store**. It costs the resident latency on its next answer and nothing else. The cost worth naming is the
+duplication itself: an experiment beside the resident is 32 GB and eleven minutes of warm before it reads a word,
+and the door is right there.
+
+**MY OWN ERRORS, WITH THEIR CAUSES.**
+
+* Entry 120 blamed the filler search and how much memory holds, on one stack sample taken from the batch. One
+  sample is a sample of one; the sampled profile puts that path nowhere near the top.
+* I then blamed the widths added on 11-09, reasoning from `charts`' own "`how_many` squared" instead of measuring
+  it. Measured, width 3 is 2x width 1.
+* I supposed the start's reading of its 251 tool descriptions was competing for the loop, on `check_reading`'s
+  record of 70 s becoming 477 s. `_read_tools_by_doing` says *"The start began it once and no longer does"*, and
+  both runs reported `tools_reading: False`. Retired.
+* The first measurement script reported 537 GB of RSS -- `ru_maxrss` is bytes on this platform and I scaled it as
+  if it were kilobytes -- and warmed nothing at all: `MemoryAgent.initialize()` does not build the view, and
+  `pattern_inventory()` answers an empty one until `warm_word_classes()`. It measured an empty store and said so
+  plainly (0 constructions), which is the only reason it was caught in a minute.
+
+**NOT DONE, AND WHY.** The chart's cost on long sentences is the remaining half, and the fix for it is not a cap:
+it is coarse-to-fine, parse once coarsely and build the fine chart only in the cells that can reach a whole.
+Lyric already computes the coarse signal before the chart runs -- `StructureView.joins` gives a log likelihood for
+every (head, dependent) pair, and `Grammar._joined` already scores signs by it. That changes **which readings are
+built**, so it is not mine to start.
+
+---
+
 ## 120. Saying puts no article before a mass noun; and the reading bar cannot be measured, because reading now costs 26 times what it cost when the baseline was recorded (2026-11-17)
 
 **A MASS NOUN TAKES NO ARTICLE.** Of air being a gas, saying said "An air's a gas." The pair was weighed and not
