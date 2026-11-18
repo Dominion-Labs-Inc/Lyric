@@ -6006,28 +6006,79 @@ def _partial(pieces: Tuple[Piece, ...], view: PatternInventory,
     return parts, unknown
 
 
-#: The marks a quotation opens with, and the mark that closes each.
-_QUOTES = {'"': '"', "“": "”"}
+#: The marks a quotation opens with, and the mark that closes each. A straight quote opens and closes alike, which
+#: is the writing's own ambiguity and not this substrate's to resolve; the curly marks and the guillemets say which
+#: end they are. The single curly marks are here because a quoted SENTENCE in them is unmistakable
+#: (`‘The dog barked.’`); the closing one is also how English writes a plural's possessive ("the dogs’ bone"), so a
+#: `’` that closes nothing is left where it stands and read as the mark it is.
+_QUOTES = {'"': '"', "“": "”", "‘": "’", "«": "»"}
+
+#: The marks a sentence ends on, which is the one end this substrate does not have to guess at.
+_SENTENCE_ENDS = (".", "?", "!")
+
+
+def _said_in_its_own_sentence(pieces: Tuple[Piece, ...], at: int, quoted: Tuple[Piece, ...]) -> bool:
+    """WHETHER WHAT STANDS IN QUOTES AT `at` IS A SENTENCE OF ITS OWN, by how the writer punctuated it.
+
+    A sentence of its own ends as a sentence ends, inside the closing mark: `Tom said, "The dog barked."` A comma
+    there is the end it stands for, which English writes where the saying follows the words said -- but only where
+    the quotation is where somebody's own words begin, opening the sentence or standing after the comma or colon a
+    saying leaves them after (`"The dog barked," Tom said.`, `Tom said, "stop," and left.`). American writing puts a
+    comma inside the quotes of a word it merely names, and such a quotation stands inside a phrase
+    (`the terms "drizzle," "shower," and "downpour"`), where a comma ends nothing.
+
+    Otherwise what is in quotes is words standing where they stand in the sentence around them -- a word named
+    rather than said (`prolonged heavy or "torrential" rainfall`, `the term "water cycle"`) -- and no sentence of
+    its own."""
+    if quoted[-1].text in _SENTENCE_ENDS:
+        return True
+    if quoted[-1].text != ",":
+        return False
+    before = [p for p in pieces[:at] if p.text.strip()]
+    return not before or before[-1].text in (",", ":")
 
 
 def set_apart(pieces: Tuple[Piece, ...]) -> Tuple[Tuple[Piece, ...], Tuple[Piece, ...]]:
     """A sentence with its quotation set apart: the pieces around it, the quotation standing as one (`QUOTED`), and
-    the quoted words as a sentence of their own, ended as a sentence is: a comma where it ends is the end it stands
-    for (`"The dog barked," Tom said.`), and an end is written where none is. The first quotation; with none, the
-    pieces and nothing."""
-    for at, piece in enumerate(pieces):
-        closer = _QUOTES.get(piece.text)
+    the quoted words as a sentence of their own, ended as a sentence is -- a comma where it ends is the end it
+    stands for (`"The dog barked," Tom said.`). The first quotation that is a sentence of its own; with none, the
+    pieces and nothing.
+
+    A QUOTATION IS SET APART ONLY WHERE THE WRITER PUNCTUATED IT AS A SENTENCE (`_said_in_its_own_sentence`), and
+    an end is never written onto one that was not. Written onto any quotation at all, it took a word a sentence
+    merely names for a sentence somebody said, and left a hole where that word stands: "Rain can be described as a
+    downpour (prolonged heavy or “torrential” rainfall)." came back with `“torrential”` lifted out as the sentence
+    "torrential." and nothing read of what was left, because no phrase joins `prolonged heavy or “…” rainfall`.
+    The same sentence without the quotes reads whole, and so does every other construction in it -- the
+    participial opener, the brackets, the four-way coordination -- each read on its own (lyric_db, 2026-11-18).
+
+    THE WORDS STAND WHERE THEY STAND, and their marks are read as marks, which is what English's grammar already
+    does with them: "The “red” dog barked." reads to the meaning "The red dog barked." reads to, fact for fact,
+    and so does "The hot or “red” dog barked." beside its own plain form. A quotation of a word is that word, used
+    in the sentence it stands in; a quotation of a sentence is a sentence, and only the writing says which.
+
+    WHAT WAS TAUGHT IS EVERY ONE A SENTENCE. Of the 3,064 sentences the lessons teach, 17 hold a quotation and all
+    17 quote a whole sentence, punctuated as one -- ten ending on a stop inside the quotes (`Tom said, "The dog
+    barked."`) and seven on the comma that stands for it (`"The dog barked," Tom said.`). Not one quotes a word.
+    So the branch that wrote an end where none was served no sentence anybody taught, and fired on every sentence
+    anybody read."""
+    at = 0
+    while at < len(pieces):
+        closer = _QUOTES.get(pieces[at].text)
         if closer is None:
+            at += 1
             continue
         end = next((k for k in range(at + 1, len(pieces)) if pieces[k].text == closer), None)
         if end is None or end == at + 1:
             return pieces, ()
         quoted = pieces[at + 1:end]
-        if quoted[-1].text == ",":
-            quoted = quoted[:-1] + (Piece(".", False),)
-        elif quoted[-1].text not in (".", "?", "!"):
-            quoted = quoted[:-1] + (Piece(quoted[-1].text, False), Piece(".", False))
-        return pieces[:at] + (Piece(QUOTED, pieces[end].space_after),) + pieces[end + 1:], quoted
+        if _said_in_its_own_sentence(pieces, at, quoted):
+            if quoted[-1].text == ",":
+                quoted = quoted[:-1] + (Piece(".", False),)
+            return pieces[:at] + (Piece(QUOTED, pieces[end].space_after),) + pieces[end + 1:], quoted
+        # A word the sentence merely names is passed over, not given up on: a sentence somebody said may stand
+        # after it, and the marks around the word are read where they are.
+        at = end + 1
     return pieces, ()
 
 

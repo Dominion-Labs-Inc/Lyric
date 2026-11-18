@@ -2485,3 +2485,52 @@ def test_the_whole_of_every_sentence_of_a_text_is_read_before_anything_inside_it
         f"the whole of the second sentence is asked before what cutting it up left: {asked}"
     assert [u.text for u in said] == ["It is red.", "The shoe is red", "and the hat is blue."]
     assert [u.understood for u in said] == [True, True, False], "a held construction's reading stands as it did"
+
+
+def test_a_quotation_is_set_apart_only_where_the_writer_punctuated_it_as_a_sentence():
+    """A QUOTATION IS A SENTENCE OF ITS OWN WHERE IT IS WRITTEN AS ONE, and a word a sentence merely names stands
+    where it stands (`set_apart`).
+
+    An end used to be written onto any quotation at all, which made a sentence of every quoted word and left a
+    hole where that word belongs: "Rain can be described as a downpour (prolonged heavy or “torrential”
+    rainfall)." came back with `“torrential”` lifted out as the sentence "torrential." and nothing read of what
+    was left, because no phrase joins `prolonged heavy or “…” rainfall`. The same sentence without its quote
+    marks reads whole, and so does every other construction in it -- the participial opener, the brackets, the
+    four-way coordination -- each read on its own (lyric_db, 2026-11-18).
+
+    THE WRITING SAYS WHICH IT IS, and nothing else has to be guessed at. A quotation ends as a sentence ends
+    inside its closing mark, or on the comma that stands for that end where the saying follows the words said --
+    and a comma stands for an end only where the quotation is where somebody's own words begin, opening the
+    sentence or standing after the comma or colon a saying leaves them after. American writing puts a comma inside
+    the quotes of a word it merely names, and such a quotation stands inside a phrase.
+
+    WHAT WAS TAUGHT IS EVERY ONE A SENTENCE: of the 3,064 sentences the lessons teach, 17 hold a quotation and all
+    17 quote a whole sentence, ten ending on a stop inside the quotes and seven on the comma that stands for it.
+    Not one quotes a word. So the branch that wrote an end where none was served no sentence anybody taught, and
+    fired on every sentence anybody read."""
+    def apart(text):
+        around, quoted = dr.set_apart(form_of(text))
+        return surface_of(around), (surface_of(quoted) if quoted else None)
+
+    # A word the sentence names: it stands where it stands, with its marks, and nothing is set apart.
+    for said in ['The term "water cycle" names a cycle.',
+                 "Rain can be described as a downpour (prolonged heavy or “torrential” rainfall).",
+                 'The terms "drizzle," "shower," and "downpour" are used.',
+                 'He said "nothing".']:
+        assert apart(said) == (said, None), f"{said!r} names a word rather than saying a sentence"
+
+    # Somebody's own words, as the lessons teach them: a stop inside the quotes, or the comma that stands for it.
+    for said, inside in [('Tom said, "The dog barked."', "The dog barked."),
+                         ('"The dog barked," Tom said.', "The dog barked."),
+                         ("Tom said, “The cat is small.”", "The cat is small."),
+                         ("“The ball is red,” Rex said.", "The ball is red."),
+                         ("Tom said, ‘The dog barked.’", "The dog barked."),
+                         ('Tom said, "stop," and left.', "stop.")]:
+        around, quoted = apart(said)
+        assert quoted == inside, f"{said!r} quotes the sentence {inside!r}, and it was read as {quoted!r}"
+        assert dr.QUOTED in around, f"{said!r} leaves the quotation standing as one: {around!r}"
+
+    # A word named before somebody's own words is passed over, not given up on.
+    around, quoted = apart("The word “torrential” is used. Tom said, “The dog barked.”")
+    assert quoted == "The dog barked."
+    assert around == "The word “torrential” is used. Tom said, “…”"

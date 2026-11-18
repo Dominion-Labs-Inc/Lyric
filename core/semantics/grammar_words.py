@@ -17,7 +17,7 @@ import re
 from collections import Counter, defaultdict
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
 
-from core.semantics.grammar import Words
+from core.semantics.grammar import OPENS_WHAT_IS_SAID, Words
 
 #: The classes of words a treebank's analysis gives, as the grammar's kinds of word; any other is a grammar word's.
 KINDS = {"NOUN": "NOUN", "NAME": "NAME", "VERB": "VERB", "ADJECTIVE": "ADJECTIVE", "ADVERB": "ADVERB",
@@ -437,7 +437,7 @@ class HeldWords(Words):
             self.form_uses[form][use] += 1
             self.asked[use][asks] += 1
             self.before_doing[use][i + 1 < n and classes[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")] += 1
-            if i > 0 and words[i][:1].isupper() and words[i - 1] not in ('"', ":", "``"):
+            if i > 0 and words[i][:1].isupper() and words[i - 1] not in OPENS_WHAT_IS_SAID:
                 # As written, inside a sentence: "Norwegian" before a town, "Bill" a name.
                 self.written[words[i]][use.split(":")[0]] += 1
             if classes[i] in ("VERB", "AUXILIARY"):

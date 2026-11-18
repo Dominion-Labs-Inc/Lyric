@@ -2453,3 +2453,30 @@ def test_an_order_said_to_someone_by_name_is_built_though_its_category_takes_a_t
     assert [gm._key(s.cat) for s in said_to] == ["S[imp]#0", "S[imp]#0"], \
         f"the order said to Tom is not built: {[(s.start, s.end, s.rule) for s in said_to]}"
     assert all(s.start == 0 for s in said_to), "an order said to someone covers the whole of what was said"
+
+
+def test_a_mark_written_around_a_word_inside_a_phrase_is_read_with_the_word(grammar):
+    """EVERY MARK ENGLISH WRITES AROUND A WORD INSIDE A PHRASE says nothing of its own: the sentence means what it
+    means without it, and the marks are read with what they stand beside (`_combine`'s two punctuation lists).
+
+    Those lists held the straight quote, the round bracket and the double dash -- a 1990s treebank's marks -- so a
+    sentence written with the marks a modern text is actually written with stopped dead. Measured against "The red
+    dog barked.": the curly quotes, the square brackets and the guillemets each read NOTHING, where the straight
+    quote read it to the very same meaning. It is what kept a sentence of read prose from reading at all: "Rain can
+    be described as a downpour (prolonged heavy or “torrential” rainfall)." read nothing, and the same sentence
+    without its quote marks read whole (lyric_db, 2026-11-18).
+
+    THE CLOSING SINGLE CURLY MARK IS NOT ONE OF THEM, and the test holds that too: `’` is also how English writes
+    a plural's possessive, and read as a mark standing beside a word it would read "The dogs’ bone is red." as
+    "The dogs bone is red." -- `isa(bone, dog)`, a bone that is a kind of dog, where the possessive says
+    `owned_by(bone, dog)`. A wrong reading where there is none is worse than none."""
+    plain = read(grammar, "The red dog barked.")
+    assert plain is not None and "has_property(?v1, red)" in plain, plain
+    for opening, closing in [('"', '"'), ("“", "”"), ("(", ")"), ("[", "]"), ("«", "»")]:
+        said = f"The {opening}red{closing} dog barked."
+        assert read(grammar, said) == plain, f"{said!r} is not read as {'The red dog barked.'!r} is"
+        joined = f"The hot or {opening}red{closing} dog barked."
+        assert read(grammar, joined) == read(grammar, "The hot or red dog barked."), \
+            f"{joined!r} is not read as a word joined to another is"
+    # A plural's possessive is not read by dropping the mark that makes it one.
+    assert read(grammar, "The dogs’ bone is red.") != read(grammar, "The dogs bone is red.")

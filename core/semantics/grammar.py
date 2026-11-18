@@ -1524,13 +1524,14 @@ class Lexicon:
             counts.pop("NAME", None)
             if low in self.heard and not closed:
                 counts["NAME"] = float(self.heard[low])
-        if word[:1].isupper() and closed and i > 0 and not self._is_number(word) and not tokens[i - 1] in ('"', ":", "``") and low != "i":
+        if word[:1].isupper() and closed and i > 0 and not self._is_number(word) \
+                and tokens[i - 1] not in OPENS_WHAT_IS_SAID and low != "i":
             # A grammar word written capitalised inside a sentence may be a name ("in May", "Will Smith").
             written = self.words.capitalized(word)
             counts["NAME"] = written.get("NAME", 0.0)
             counts.update({c: n for c, n in written.items() if c != "NAME" and c in self.templates})
         if word[:1].isupper() and not closed and not self._is_number(word):
-            if i > 0 and not tokens[i - 1] in ('"', ":", "``"):
+            if i > 0 and tokens[i - 1] not in OPENS_WHAT_IS_SAID:
                 # A capitalised word not opening the sentence is a name, or a kind memory holds by a capitalised
                 # name ("Estonian", a language).
                 written = self.words.capitalized(word)
@@ -1843,9 +1844,9 @@ class Lexicon:
                     out.append((i + len(parts), Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls,
                                                       words, 0.0, t.get("label", ""))))
         # A name in quotes: "Sunflowers", the "Concierto de Aranjuez".
-        if tokens[i] in ('"', "``", "“") and i + 2 < n:
+        if tokens[i] in OPENS_WHAT_IS_SAID and tokens[i] != ":" and i + 2 < n:
             for j in range(i + 2, n):
-                if tokens[j] in ('"', "''", "”"):
+                if tokens[j] in ('"', "''", "”", "»"):
                     inside = [t for t in tokens[i + 1:j] if any(ch.isalnum() for ch in t)]
                     if inside and j - i <= 8:
                         out.append((j + 1, self._name_entry(inside)))
@@ -2123,7 +2124,7 @@ class Lexicon:
             if not (word[:1].isupper() and any(ch.isalpha() for ch in word)):
                 i += 1
                 continue
-            if (i == 0 or tokens[i - 1] in ('"', ":", "``")) and not self._mostly_name(word):
+            if (i == 0 or tokens[i - 1] in OPENS_WHAT_IS_SAID) and not self._mostly_name(word):
                 i += 1
                 continue
             j, last = i + 1, i
@@ -2459,6 +2460,13 @@ SAID_AT_MOST = 8
 MADE_WITHOUT_GETTING_FURTHER = 6000
 #: Punctuation that closes a sentence, and what it says the speaker wants.
 CLOSING = {".": "tell", "!": "tell", "?": "ask"}
+
+#: THE MARKS SOMETHING SAID MAY OPEN AFTER, inside a sentence: the marks a quotation opens with, as a text or a
+#: treebank writes them, and the colon. A capitalised word standing right after one of them is capitalised for
+#: opening what is said and is no evidence of a name (`Tom said, “The cat is small.”`) -- the three places that
+#: weigh a capital this way held the straight quote and the treebank's "``" and not the curly marks a modern text
+#: is written with, so "The" inside a curly quotation was counted as a name as often as it was written.
+OPENS_WHAT_IS_SAID = ('"', "“", "«", "``", ":")
 
 #: The links that tell of a happening: what holds them is said with a verb.
 _HAPPENING_LINKS = frozenset({"done_by", "done_to", "received_by", "precedes", "follows", "during"})
@@ -2963,8 +2971,36 @@ class Grammar:
             return out
         # Punctuation joins nothing: a comma, a quote or a dash is read with what it stands beside; a stop or a
         # question mark only with what it closes.
+        #
+        # EVERY MARK ENGLISH WRITES AROUND A WORD INSIDE A PHRASE IS READ WITH THE WORD, and these two lists are
+        # what says so. They held a 1990s treebank's marks -- the straight quote, the round bracket, the pair of
+        # hyphens a typewriter writes a dash with -- and not the marks a modern text is actually written with, so a
+        # mark standing inside a phrase stopped the sentence it stood in dead. Measured on 2026-11-18 against "The
+        # red dog barked." read without marks, each pair written around "red": the straight quote, the round
+        # brackets and the double hyphen read it to the very same meaning, while the curly quotes, the single curly
+        # quotes, the square brackets, the guillemets, the em dash and the en dash read NOTHING. The curly double
+        # quotes, the guillemets and the square brackets are added here; each says which end it is, and read beside
+        # the word it stands by each gives the very sentence written without it, fact for fact.
+        #
+        # THE EM DASH AND THE EN DASH ARE NOT MARKS THAT STAND BESIDE A WORD, and adding them here was measured and
+        # taken back out. A dash SETS OFF AN ASIDE, and read as though it stood beside a word
+        # "The dog — a mammal — barked." reads `done_by(?v0, mammal) & done_to(?v0, dog)` -- a mammal barked the
+        # dog -- where it read nothing before. A dash wants the aside read as one, which is a rule of its own and
+        # not an entry in a list; the comma has that rule and reads the same sentence as a group of two.
+        #
+        # THE CLOSING SINGLE CURLY MARK IS NOT HERE, and that is not an oversight: `’` is also how English writes
+        # a plural's possessive, and read as a mark standing beside a word it would read "The dogs’ bone is red."
+        # as "The dogs bone is red." -- `isa(bone, dog)`, a bone that is a kind of dog, where the possessive says
+        # `owned_by(bone, dog)`. A wrong reading where there is none is worse than none, so a plural's possessive
+        # waits on being read as the possessive it is.
+        #
+        # "``" AND "''" WERE DEAD HERE. A chart is only ever given the pieces `tokens_of` makes of a text, and
+        # those come from `sentence_machine.form_of`, which writes each mark as a piece of its own: a text holding
+        # ``this'' arrives as "`", "`", "this", "'", "'", so no sign ever carried either feat. A treebank's own
+        # quotes are read as the single marks they arrive as or not at all, and the lone "'" is kept out of
+        # punctuation altogether for the possessive's sake (`charts`).
         if isinstance(rc, Atom) and rc.base == "punct":
-            if rc.feat in (",", ";", ":", '"', "-", "''", "``", ")", "--") or (rc.feat in CLOSING):
+            if rc.feat in (",", ";", ":", '"', "”", "»", "-", ")", "]", "--") or (rc.feat in CLOSING):
                 out.append(Sign(lc, left.pieces + (("closing", rc.feat, right.start),) if rc.feat in CLOSING else
                                 left.pieces, left.score + right.score, left.start, right.end, "punct", (left, right),
                                 left.head))
@@ -2972,11 +3008,12 @@ class Grammar:
         if isinstance(lc, Atom) and lc.base == "punct":
             if joining:
                 return out
-            if lc.feat in (",", '"', "``", "(", "--", "-") and not (isinstance(rc, Atom) and rc.base in ("punct",
-                                                                                                         "conj")):
+            # Whether what stands after the mark is something said and not another mark.
+            beside = not (isinstance(rc, Atom) and rc.base in ("punct", "conj"))
+            if lc.feat in (",", '"', "“", "«", "(", "[", "--", "-") and beside:
                 out.append(Sign(rc, right.pieces, left.score + right.score, left.start, right.end, "punct",
                                 (left, right), right.head))
-            if lc.feat == "," and not (isinstance(rc, Atom) and rc.base in ("punct", "conj")):
+            if lc.feat == "," and beside:
                 # A comma joining two in a list ("Ken, Bill and Yumi").
                 out.append(Sign(Fn(rc, "&", rc), right.pieces + (("and", ",", right.start),), left.score
                                 + right.score, left.start, right.end, "conj", (left, right), right.head))

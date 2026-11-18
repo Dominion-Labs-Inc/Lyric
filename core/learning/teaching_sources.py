@@ -4154,7 +4154,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     with it as one or apart (`said_together`: next word -> True/False -> n). A WORD IS COUNTED WHERE
     THE ANALYSTS GAVE IT AS THIS WORD (its base form): "and" analysed once as a form of `a` brought every "and" into the
     record of "a", 295 of them before a doing, and the possessive "'s" every one into the record of "be"."""
-    from core.semantics.grammar import closed_uses
+    from core.semantics.grammar import OPENS_WHAT_IS_SAID, closed_uses
     from core.semantics.grammar_words import _BARE_OF_A_DOING, HeldWords, MARKS, _shape_of
     if "sentences" not in cache:
         sentences, holding = [], {}
@@ -4204,7 +4204,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                                                      for k in under[i]) else "bare"] += 1
             doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
             asking[w.lower()][use] += asks
-            if i > 0 and w[:1].isupper() and words[i - 1] not in ('"', ":", "``"):
+            if i > 0 and w[:1].isupper() and words[i - 1] not in OPENS_WHAT_IS_SAID:
                 capital[w][use.split(":")[0]] += 1
             if cls[i] == "VERB":
                 if w.lower().endswith("ing") or counted._form_of(words, cls, heads, relations, under, i) == "participle":
