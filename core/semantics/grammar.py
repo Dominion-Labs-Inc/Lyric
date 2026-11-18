@@ -2948,7 +2948,14 @@ class Grammar:
         lc, rc = left.cat, right.cat
 
         def made(cat: Cat, s: Dict[int, Term], rule: str, head: int, weighed: float = 0.0) -> None:
-            out.append(Sign(_apply(cat, s), (), left.score + right.score + weighed + self._met(left, right, s, rule),
+            # A PAIR THE TWO WORDS CANNOT MAKE IS NOT MADE, by whichever rule would join them. `_met` weighs a
+            # determiner with its noun and says None where that determiner cannot take that noun at all
+            # (`_cannot_take`), which is refused here rather than rule by rule, since what English refuses is the
+            # pair and not the way it was reached -- the same reason do-support on an auxiliary is refused above.
+            met = self._met(left, right, s, rule)
+            if met is None:
+                return
+            out.append(Sign(_apply(cat, s), (), left.score + right.score + weighed + met,
                             left.start, right.end, rule, (left, right), head, binding=s))
         # A stretch joined by "and" waits for what it is joined to, and nothing else takes it.
         joining = isinstance(rc, Fn) and rc.slash == "&"
@@ -3136,6 +3143,11 @@ class Grammar:
     #: weighing it down: a form seen with few subjects says little about the ones it was not seen with.
     SUBJECTS_BEFORE_REFUSING = 20
 
+    #: HOW MANY NOUNS A DETERMINER MUST HAVE BEEN WRITTEN WITH before its disagreement REFUSES a pair rather than
+    #: weighing it down. The same reading of the same kind of evidence as `SUBJECTS_BEFORE_REFUSING`, and the same
+    #: number: a determiner seen with few nouns says little about the ones it was not seen with.
+    NOUNS_BEFORE_REFUSING = 20
+
     #: WHETHER THIS GRAMMAR IS SAYING RATHER THAN READING (`say` sets it for as long as it is saying).
     #:
     #: WHAT READING MUST FORGIVE, SAYING MUST NOT PRODUCE. One grammar reads and says, but the two want opposite
@@ -3190,6 +3202,60 @@ class Grammar:
         # Every form the subject could be is one THIS form of the verb never took, and one some subject somewhere
         # was written as -- so the absence is about this pairing and not about the feature.
         return all(matched(took, f) == 0 and matched(every, f) > 0 for f in forms)
+
+    def _cannot_take(self, took: Mapping[Tuple[str, str], float],
+                     every: Mapping[Tuple[str, str], float], cls: str, at: int) -> bool:
+        """WHETHER A DETERMINER AND ITS NOUN CANNOT AGREE: of the nouns THIS determiner was written with
+        (`Words.nouns`), not one shares the noun's class and features, and it was written with enough of them
+        (`NOUNS_BEFORE_REFUSING`) for that absence to be evidence rather than silence. The same reading of the
+        same kind of evidence that `_disagrees` makes of a verb's subjects, and refused the same way: while
+        saying, where the grammar chooses its own words, and never while reading, which must understand
+        "A dog am a mammal." rather than refuse it.
+
+        REFUSED ONLY ON EVIDENCE AGAINST, never on the absence of evidence: a determiner memory holds few nouns
+        of, a noun it holds no features of, and features no noun was ever written with are all weighed exactly as
+        before and refuse nothing. Every feature the noun could be must be one THIS determiner never took and one
+        some determiner somewhere did, so the absence is about this pairing and not about the feature.
+
+        A SHARE, NOT AN ABSENCE, which is where this parts from `_disagrees`. A verb's form is written with its
+        own subjects and no others, so "am" has exactly nought third-person subjects and an absence is the whole
+        evidence. A determiner is not: the treebanks write "a" before a plural noun a handful of times out of
+        hundreds -- mis-tags, titles, quoted fragments -- and against a test for nought those few sightings are
+        enough to license "A whales are cetaceans." for ever. So what is weighed is how much rarer that noun is
+        after THIS determiner than after determiners at large, by the reading `DerivedReader._letter_prefers`
+        makes of the same kind of question: rarer by at least twice, and by more than the standard error of the
+        share at large, so a difference inside the noise of a small count refuses nothing.
+
+        THIS IS NUMBER AGREEMENT, NOT COUNTABILITY. "A whales" is refused because "a" is written before a plural
+        noun far more rarely than determiners at large are. "An air" is NOT refused: "an" is written before
+        singular nouns in plenty, and that air is a mass noun taking no article is a fact these tables do not hold
+        -- `DerivedReader.use_of` holds it (`mass`, `count`, `plural`, from Brown, WordNet and the Bochum English
+        Countability Lexicon), on the reader's view above this grammar and out of reach from here. "An air's a
+        gas." therefore stands, and reaching that evidence from saying is its own piece of work.
+        """
+        total = sum(took.values())
+        if total < self.NOUNS_BEFORE_REFUSING:
+            return False
+        at_large = sum(every.values())
+        if at_large <= 0:
+            return False
+        forms = [f for f in self._features(cls, at) if f]
+        if not forms:
+            return False
+
+        def matched(held: Mapping[Tuple[str, str], float], features: str) -> float:
+            return sum(n for (c, f), n in held.items() if c == cls and f == features)
+
+        def far_rarer(features: str) -> bool:
+            theirs = matched(every, features) / at_large
+            mine = matched(took, features) / total
+            # Evidence AGAINST, never the absence of evidence: a feature no determiner anywhere was written with
+            # says nothing about this one, and a share no rarer than at large says nothing against this pairing.
+            return bool(theirs > 0.0 and theirs >= 2.0 * mine
+                        and theirs - mine > math.sqrt(theirs * (1.0 - theirs) / total))
+        # Every feature the noun could be must be one this determiner takes far more rarely than determiners at
+        # large do, so the rarity is about this pairing and not about the feature.
+        return all(far_rarer(f) for f in forms)
 
     @property
     def _of_words(self) -> Dict[Any, Any]:
@@ -3600,14 +3666,20 @@ class Grammar:
             agrees += w * (matched(took, features) + share) / (seen + 1.0) / share
         return min(0.0, math.log(agrees / sum(weights.values())))
 
-    def _met(self, left: Sign, right: Sign, s: Dict[int, Term], rule: str) -> float:
+    def _met(self, left: Sign, right: Sign, s: Dict[int, Term], rule: str) -> Optional[float]:
         """AGREEMENT WEIGHED WHERE ITS TWO WORDS FIRST STAND TOGETHER, by whichever rule joins them, as a subject with
         its verb (`_agreement`), from what the treebanks' words agreeing so took: a determiner with its noun ("a"
         before a noun, `Words.nouns`), and a thing with what it is said to be (`be`: "Walls are a partition.",
         `Words.predicated`, of what the copula said a thing to be by its class and features).
 
         Neither was weighed: "a" before "representations" was read as surely as before "representation", and
-        "Pictures are a representations." was said of a picture being a representation (lyric_dev2, 2026-10-28)."""
+        "Pictures are a representations." was said of a picture being a representation (lyric_dev2, 2026-10-28).
+
+        NONE WHERE THE DETERMINER CANNOT TAKE THE NOUN AT ALL, which refuses the pair (`made`, `_cannot_take`).
+        Weighing it was not enough, for the reason `_disagrees` exists: a weight is a logarithm never more than
+        nothing, so the commonest word of its kind keeps its place however badly it agrees, and "a" is the
+        commonest determiner in English. Of a whale being a cetacean, saying said "A whales are cetaceans." to a
+        running Lyric through its own door, and of air being a gas, "An air's a gas." (lyric_db, 2026-11-17)."""
         words, tokens = self.lexicon.words, self._tokens
         weight = 0.0
         # A determiner whose noun is still to come (its category still takes the noun) meets it here or later; one
@@ -3626,6 +3698,8 @@ class Grammar:
             for side, p, took in dets:
                 noun = self._said_by(sides[id(side)][1], _walk(p[1], s))
                 if noun is not None:
+                    if self._saying and self._cannot_take(took, every_noun, *noun):
+                        return None
                     weight += self._agreed(took, every_noun, *noun)
         for side, p in (bes if every_predicated else ()):
             one, other = sides[id(side)]

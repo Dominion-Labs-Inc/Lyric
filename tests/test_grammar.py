@@ -2286,6 +2286,40 @@ def test_saying_refuses_a_form_that_cannot_agree_with_its_subject_though_reading
     assert joined("nothing", "be", saying=True), "a form held of few subjects says nothing against them"
 
 
+def test_saying_refuses_a_determiner_that_cannot_take_its_noun_though_reading_forgives_it():
+    """WHAT READING MUST FORGIVE, SAYING MUST NOT PRODUCE, for a determiner with its noun as for a subject with its
+    verb (`Grammar._cannot_take` and `_met`; `_disagrees` for the verb).
+
+    A determiner was weighed with its noun from 2026-10-28 and weighed ONLY, and a weight is a logarithm never more
+    than nothing, so "a" -- the commonest determiner in English -- kept its place however badly it agreed. Of a
+    whale being a cetacean, saying said "A whales are cetaceans." to a running Lyric through its own door, and of
+    air being a gas, "An air's a gas." (lyric_db, 2026-11-17).
+
+    A SHARE, NOT AN ABSENCE, which is where this parts from `_disagrees`: the treebanks write "a" before a plural
+    noun a handful of times out of hundreds, so a test for nought sightings would never refuse anything. What is
+    weighed is how much rarer the noun is after THIS determiner than after determiners at large, by the reading
+    `_letter_prefers` makes of the same question -- rarer by at least twice and by more than the standard error.
+    """
+    g = gm.Grammar(gm.Lexicon(Agreeing()))
+
+    def puts_one_before_many(sentence: str) -> bool:
+        words = [w.strip(".?").lower() for w in sentence.split()]
+        return any(w in ("a", "an") and j + 1 < len(words) and words[j + 1] in ("dogs", "mammals")
+                   for j, w in enumerate(words))
+
+    # READING FORGIVES IT, and no less surely than before: nothing here changes a single reading.
+    assert g.read(gm.tokens_of("A dog is a mammals.", g.lexicon.words)).sign is not None, "still read"
+    sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
+            for text in ("A dog is a mammal.", "A dog is a mammals.")}
+    assert sure["A dog is a mammal."] > sure["A dog is a mammals."] + 1.0, sure
+    # SAYING NEVER PUTS ONE BEFORE MANY, in any sentence it offers and not merely the first.
+    said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
+    assert said, "a dog being a mammal is still said"
+    assert not [s for s in said if puts_one_before_many(s)], said[:8]
+    # AND WHAT AGREES IS STILL SAID, both ways of saying it: refusing a pair must cost no sentence of English.
+    assert "A dog is a mammal." in said and "Dogs are mammals." in said, said[:8]
+
+
 def test_a_preposition_carried_along_with_the_wh_phrase_says_what_it_says_left_behind(grammar):
     """A PREPOSITION CARRIED ALONG WITH THE WH-PHRASE IT OPENS (`Lexicon._carried`): "In which park did the dog
     bark?" means what "Which park did the dog bark in?" means, which is the same sentence with the preposition left

@@ -16,6 +16,94 @@ Conventions:
 
 ---
 
+## 118. A determiner is refused the noun it cannot take, and two reading defects I reported were defects in my own instruments (2026-11-17)
+
+**THE ONE REAL DEFECT.** Asked through the live resident's own door, saying put an article on a plural and on a
+mass noun: of a whale being a cetacean it said **`'A whales are cetaceans.'`**, and of air being a gas,
+**`'An air's a gas.'`** Both reproduced on two separate residents (PIDs 67884 and 7367, lyric_db).
+
+The cause is not a missing rule but a rule that only ever weighed. `Grammar._met` has weighed a determiner against
+its noun since 2026-10-28, from the nouns that determiner was written with (`Words.nouns`, a determiner's nouns
+being counted and kept already). A weight is `_agreed`: a logarithm never more than nothing. So the commonest
+determiner in English keeps its place however badly it agrees -- **exactly the finding that produced `_disagrees`
+on 2026-11-01**, where agreement as a weight alone let saying produce "We'm biased." and "My dog've bite Tom."
+The verb was given a refusal then; the determiner was not.
+
+**THE FIX, AND WHERE IT PARTS FROM THE VERB'S.** `_cannot_take` refuses a determiner its noun, consulted where the
+weight already is, so it applies by whichever rule joins the pair; `made` drops a pair `_met` refuses rather than
+scoring it. It is gated on `_saying`, as `_disagrees` is: reading must still understand "A dog am a mammal."
+
+A verb's refusal tests for an ABSENCE -- "am" has exactly nought third-person subjects, so nought is the evidence.
+**A determiner cannot be read that way, and assuming it could was the first version of this fix.** The treebanks
+write "a" before a plural noun a handful of times out of hundreds -- the test fixture, built from a taught store,
+holds `"a": {Number=Sing: 300, Number=Plur: 6}` -- and against a test for nought those six sightings would
+license "A whales are cetaceans." for ever. So what is weighed is how much RARER the noun is after this determiner
+than after determiners at large, by the reading `_letter_prefers` already makes of the same kind of question:
+rarer by at least twice, and by more than the standard error of the share at large, so a difference inside the
+noise of a small count refuses nothing. `NOUNS_BEFORE_REFUSING = 20` is the evidence floor, mirroring
+`SUBJECTS_BEFORE_REFUSING`.
+
+**VERIFIED** by `test_saying_refuses_a_determiner_that_cannot_take_its_noun_though_reading_forgives_it`, and
+verified as a test by running it against the pre-change file, where it fails on what saying actually offered:
+`['A dogs are mammals.', 'Dogs are a mammals.']`. With the fix those are gone, `'A dog is a mammal.'` and
+`'Dogs are mammals.'` both remain, and reading still reads "A dog is a mammals." a full nat less surely rather
+than refusing it. The three standing agreement tests pass unchanged (4.4 s).
+
+**ITS LIMIT, STATED.** This is number agreement, not countability. `'An air's a gas.'` still stands: "an" is
+written before singular nouns in plenty, and that air is a mass noun taking no article is a fact these tables do
+not hold. `DerivedReader.use_of` DOES hold it -- `mass`, `count`, `plural`, read from Brown, WordNet and the
+Bochum English Countability Lexicon, with COUNTABILITY-01 behind it -- but on the reader's view above this
+grammar, out of reach from saying. Reaching it from there is its own piece of work, and the teaching side already
+guards the same error ("A table is a furniture.", "Oxen are cattles.").
+
+**TWO DEFECTS I REPORTED THAT DO NOT EXIST, both of them my instruments.**
+
+`'Do whales breathe air?'` answering `'Yes.'` and now answering facts is **not a regression**, and 116 says it is.
+`check_reading.py` asks all five prose sentences in one conversation, the first of which TELLS
+`'A whale breathes air through a blowhole.'`; the `'Yes.'` is answered from that context. The door's `/check`
+makes a fresh amnesic conversation per question, so it asks cold. I compared an answer that depends on
+conversation against an instrument built to have none. **Conversation is premises** -- the principle was already
+written down, and I measured against it anyway. Commit `774d433c`'s message states the regression as fact; it is
+wrong and cannot be unwritten, which is why it is recorded here.
+
+**`done_to` was never missing from any reading.** I read it as absent from
+`'Does a whale breathe air?' -> ask: instance_of(?v0, breathe) & instance_of(?v1, air) & done_by(?v0, whale)`
+and built a whole account on it -- which store changed it, whether a learned two-slot `Do ?slot0 ?slot1?` frame
+had swallowed the object. The line was `cut -c1-180`. The full line, on both residents, ends
+`& done_to(?v0, ?v1)`. **A truncated measurement is not a measurement**, and the account I built on it named a
+cause for something that had not happened.
+
+**WHAT THE QUESTIONS ACTUALLY SHOW**, asked cold through the door, every reading correct:
+
+| asked | read | answered |
+|---|---|---|
+| `Do whales breathe air?` | `instance_of(?v0, breathe) & instance_of(?v1, air) & done_by(?v0, whale) & done_to(?v0, ?v1)` | no verdict, says what it holds |
+| `Do whales swim?` | `instance_of(?v0, swim) & done_by(?v0, whale)` | `Not entailed by the premises: swim_done_by_whale` |
+| `Is a whale a cetacean?` | -- | `"Yes. A whale's a cetacean."`, verdict True |
+
+Asked with nothing told, a question about an event of a kind reaches no verdict because the store holds
+`whale defined with breathe` and no event: 168 premises, **0 rules**, 0 steps. That is the shape of a real
+question -- what should bridge a dispositional fact to an existential one -- but it is not a regression, and
+nothing in today's changes caused it.
+
+**ALSO OBSERVED, NOT DIAGNOSED.** The resident started at 18:11 ran HALTED and wrote a fresh halt row every
+120 s: `function_replaced in core.agents.autonomous.autonomous_coordinator.Constitution`, the **class's own** fp2
+digest moving in memory (`2c6d5a3f23e13600 -> 3cdfe2ee0606d065`) about five minutes after boot with no edit on
+disk in that window -- rows 20 to 26, 18:19 to 18:31. 117 swaps a function's code IN PLACE when it takes a change
+up, which would move a class digest that is not re-frozen with it. Hypothesis from the log only.
+
+**`./lyric-start` RUNS THE RESIDENT IN THE TERMINAL** rather than under `nohup` with every line going only to the
+day's log; `tee` keeps the log exactly as before. `exec` replaces the script, so the pid file stays true and
+Ctrl-C reaches the resident, which handles SIGINT. The obvious shape -- background job, `trap`, `wait` -- **does
+not work on this machine**: /bin/bash is 3.2.57, where `wait` is not interrupted by a trapped signal, measured
+with a minimal repro in which the trap never fired and both processes stayed up. `tee` ignores SIGINT, since it
+shares the process group and would otherwise close the pipe under a resident still writing its shutdown. **A
+defect I introduced and then fixed:** passing `-u` made argv `Python -u -m core.main`, which the singleton guard's
+`python3? -m core.main` no longer matched, so it would have started a second resident against the same store --
+the one thing it exists to prevent.
+
+---
+
 ## 117. The integrity check asks whose act moved the code, and a change the development team made is taken up into the running process instead of halting it (2026-11-17)
 
 The constitution halted itself whenever a protected module's source changed on disk, without asking who changed
@@ -654,7 +742,16 @@ after probe to find it.
 | 'Do whales breathe air?' | `'Yes.'` | `'Air is a gas.\nA whales are cetaceans.'` |
 | 'The note was long.' | quality 0.461 | quality 0.455, the same refusal |
 
-The note is score drift from observing 683 links; nothing turns on it. **'Do whales breathe air?' is a regression
+The note is score drift from observing 683 links; nothing turns on it.
+
+> **CORRECTED IN 118, the same day: `'Do whales breathe air?'` IS NOT A REGRESSION, and the rest of this section
+> is wrong because of it.** The two instruments do not ask the same question. `check_reading.py` asks all five
+> prose sentences in ONE conversation -- `talk = get_conversation("check_reading", remembers=False)` built once
+> and reused down `PROSE`, which begins with `'A whale breathes air through a blowhole.'` -- so the question is
+> asked with the sentence already told in context, and the `'Yes.'` is answered FROM that context. The door's
+> `/check` builds a fresh conversation per question that remembers nothing and ends it, so it asks cold with no
+> premise. A context-dependent answer cannot be compared between them. Lyric did not change; my instrument did.
+> What follows is kept as the record of the error. **'Do whales breathe air?' is a regression
 and it is mine.** Git: the `'Yes.'` was recorded 11-12, four days before the withdrawal, and when the whole
 instrument was re-run today with the links still missing it came back AS RECORDED -- so it survived the damage and
 broke after today's changes. Not yet isolated among the three (the restoration, the budget, the `?there` fix),
