@@ -29,11 +29,18 @@ answers one question and they do not overlap.
 
 ## The system
 
+Everything in this table was measured on 2026-11-19: the substrate from a source scan, the store through
+the system's own configuration authority against `lyric_db`, whose identity the server confirmed when
+asked, and the corpus from the artifacts themselves.
+
 | | |
 |---|---|
-| Substrate | `core/`, 245,952 lines across 268 modules |
-| Experiment corpus | 245 experiment series, 189 of them carrying machine-written run records, 2,477 run artifacts. Index: [`../experiments/README.md`](../experiments/README.md) |
-| Teaching record | 440 machine-written teaching sessions, 2026-09-08 to 2026-11-17, in [`teaching_sessions/`](teaching_sessions/) |
+| Substrate | `core/`, **242,567 lines across 263 modules**, counting what runs: the five archived perimeter modules held in `security/_disabled/` and imported by nothing add 3,589 more. The largest faculties are the coordinator and memory agent (52,515), the tools (40,891), learning (29,767) and language (29,250) |
+| Experiment corpus | **246 experiment directories, 188 carrying machine-written run records, 2,166 run records** with 311 side records beside them, 2,477 artifacts in all. 142 validated, 43 findings, 58 directories holding a harness and no artifact. Latest run 2026-11-11. Index: [`../experiments/README.md`](../experiments/README.md) |
+| Knowledge held | **117,294 concepts**, 590,614 relations of which 97,639 are *is-a* or *instance of*, **1,022,193 beliefs**, 1,179,242 concept evidence records and 1,783,544 belief evidence records |
+| Memory held | **1,441,708 records**: 1,441,519 semantic, 150 episodic, 39 meta |
+| Language held | **443,072 learned sentence templates**, 146,732 word records, 94,683 word-class records, 3,052 taught sentences, and **497 ways of reading English with 87 pairs beside them**, all of it in memory rather than in a file |
+| Teaching record | **440 machine-written teaching sessions**, 2026-09-08 to 2026-11-17, in [`teaching_sessions/`](teaching_sessions/) |
 | Held-out evaluation data | The Parallel Meaning Bank, PropBank, the Universal Dependencies English treebanks, STREUSLE, LibriSpeech and MSWC English audio, and a vision instruction set. Held off-repository; see [Evaluation data](#evaluation-data) |
 | Canonical runtime | `./venv_lyric/bin/python3`, Python 3.11.14, real PostgreSQL, real tool registry, real rule store |
 
@@ -41,6 +48,12 @@ Evidence is machine-written, never typed: every run saves a `RunRecord` to
 `experiments/<NAME>/results/<UTC>.json` carrying its claim, its hypothesis, every check with its verdict,
 metrics with units, and an environment block recording the commit, the count of uncommitted changes, and
 the database both as resolved and as the server reported it. A run never overwrites an earlier one.
+
+**The store was emptied on 2026-09-26, by decision, and taught again from the first English lesson.**
+Everything in the knowledge, memory and language rows above was learned since. It is why the figures do
+not compare row for row with anything written before that date, and why counts of *running* work, learned
+rules and operator demonstrations, stand at zero: those accumulate from use, not from teaching, and the
+faculties that produce them are evidenced by their experiment series rather than by a standing count.
 
 ## The substrate reference
 
@@ -51,7 +64,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 |---|---|
 | [architecture/SUBSTRATE_SYSTEMS_MAP.md](architecture/SUBSTRATE_SYSTEMS_MAP.md) | Every system by name and size |
 | [architecture/world-model-and-instances.md](architecture/world-model-and-instances.md) | What the Lyric World Model is, what an instance is, and how what an instance learns reaches the World Model |
-| [architecture/coordinator.md](architecture/coordinator.md) | The coordinator, which holds the constitution, the drift faculty and the cognitive cycle |
+| [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the fourteen reactions on its event spine, the cognitive cycle, and what its scheduler runs. Re-traced against the source 2026-11-19 |
 | [architecture/memory.md](architecture/memory.md) | What persists, in which tier, and how it is recalled |
 | [architecture/beliefs.md](architecture/beliefs.md) | How a belief forms, moves and is retired |
 | [architecture/learning.md](architecture/learning.md) | The learning authorities and what each may admit |
@@ -66,7 +79,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 
 | | |
 |---|---|
-| [research/BENCHMARKS.md](research/BENCHMARKS.md) | The standing record of measurements. Each run appends a dated row rather than replacing the last, so a regression shows as a number that moved |
+| [research/BENCHMARKS.md](research/BENCHMARKS.md) | The standing record of measurements, current to 2026-11-19. Each run appends a dated row rather than replacing the last, so a regression shows as a number that moved. Nine sections: governance, operator acquisition, intent, planning, credit, system isolation and the reading work |
 | [research/LAB_NOTEBOOK.md](research/LAB_NOTEBOOK.md) | Every session, in order, with what was tried and what it showed |
 | [TEACHING.md](TEACHING.md) | How the substrate is taught, what it has been taught, and from which sources |
 | [HANDOFF.md](HANDOFF.md) | Where the reading and understanding work stands, for the engineer taking it up |

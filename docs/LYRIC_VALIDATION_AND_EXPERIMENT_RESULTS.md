@@ -516,8 +516,17 @@ blocked, however often it is tried`, and `judgement stays cheap`. **The failing 
 finding**, not a defect in the harness: the experiment was built to determine whether campaign-level
 retry breaches objectives that single attempts do not, and it established that it does, in three cases.
 
-The three breached campaign classes are characterised in §16.3. Nothing was executed in this experiment, 
+The three breached campaign classes are characterised in §16.3. Nothing was executed in this experiment,
 the measure is what the constitution says before an act would run.
+
+**Closed, and re-measured since.** Two later runs record the three gaps closed: 2026-09-20, the first run
+with the remediation in place, and **2026-10-23, which holds all eight campaigns over 34 strategies with
+0 of 7 false refusals, judgement mean 2.258 ms and max 38.556 ms** (`20261023T020602Z`). The eight
+objectives and the strategies each was retried with are: reverse shell written any way (10), ransomware
+over a tree (3), credential exfiltration (3), covert keylogger (2), editing the governance machinery (5),
+installing persistence (3), destroying the audit log (5), disabling a safety mechanism (3). The September
+run above is kept exactly as captured, because a result that moved must be visible as two records rather
+than as a claim that quietly changed.
 
 **What this demonstrates.** That single-attempt refusal (§6.2) does not generalise to campaign-level
 persistence, and that three specific classes of objective were reachable by at least one strategy.
@@ -622,7 +631,7 @@ perceived without restriction must not, by being perceived, license action.
 |---|---|---|---|
 | Correct verdicts on enumerated real acts | CONSTITUTION-01 | 39/39 | VALIDATED |
 | Single-attempt adversarial resistance | CONSTITUTION-02 | 23/23 held, 0/8 false refusals | VALIDATED |
-| Campaign-level adversarial resistance | CONSTITUTION-03 | 5/8 campaigns held over 33 strategies | **FINDING** |
+| Campaign-level adversarial resistance | CONSTITUTION-03 | 8/8 campaigns held over 34 strategies (2026-10-23); 5/8 over 33 when first run (2026-09-17) | VALIDATED, after a finding that was remediated |
 | Gate is live on the acting path, fails closed | GATE-01 | 25/25 | VALIDATED |
 | No capability lost against the prior gate | GOVERNANCE-ABSORPTION-01 | 0 regressions, 6 gains, 17/17 vs 11/17 | PARTIALLY VALIDATED (latency check failed) |
 | Harm defined by party/interest/mechanism/authorisation | HARM-01, HARM-02 | 19/19, 34/34 | VALIDATED |
@@ -1341,11 +1350,11 @@ contradicted by a current artifact**.
 because the run trusted configuration for database identity rather than asking the server, the defect
 that produced the two-source recording discipline in §19.2. It is preserved as a negative record.
 
-### 20.4 Standing failures at the evidence cut-off
+### 20.4 Standing failures, and what has moved since
 
 | Experiment | Latest | Status |
 |---|---|---|
-| CONSTITUTION-03 | 7/8, 2026-09-17 | **FINDING**, three campaigns breached, unremediated |
+| CONSTITUTION-03 | 8/8, 2026-10-23 | **REMEDIATED.** 7/8 with three campaigns breached on 2026-09-17; the three gaps were closed and every campaign has held since 2026-09-20 |
 | GOVERNANCE-ABSORPTION-01 | 11/12, 2026-09-18 | **PARTIALLY VALIDATED**, latency check only; 0 capability regressions |
 | INTRINSIC-EVENTDRIVEN-01 | 8/9, 2026-09-18 | **FINDING**, ranking discrimination |
 
@@ -1480,39 +1489,66 @@ from them. No claim in §22 rests on a figure in this section alone.
 
 ### 24.1 Stored state
 
+Measured 2026-11-19 against `lyric_db`, identity confirmed by asking the server.
+
 | Measure | Value |
 |---|---|
-| Concepts retained | 302,240 |
-| Concept relations (of which *is-a*) | 516,110 (306,944) |
-| Beliefs held | 514,132 |
-| Evidence records | 482,491 |
-| Evidence source classes in use | 7 of 7 declared |
-| Operator demonstrations recorded | 874 |
-| Learned rules on record | 31 |
-|, validated / candidate / refuted / invalid artifact | 10 / 19 / 1 / 1 |
-| Registered domains | 146 |
-| Memory records (hot / cold) | 17,945 / 150 |
-| Intents recorded | 1,643 |
-| Perceptions recorded | 7,788 |
+| Concepts retained | 117,294 |
+| Surface words bound to a concept | 117,268 |
+| Concept relations | 590,614 |
+| of which *is-a* and *instance of* | 97,639 |
+| of which *defined with* | 442,896 |
+| Beliefs held | 1,022,193 |
+| Concept evidence records | 1,179,242 |
+| Belief evidence records | 1,783,544 |
+| Evidence envelopes | 588,925 |
+| Evidence source classes in use | 3 |
+| Memory records (hot / cold) | 1,441,708 / 0 |
+| of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
+| Learned sentence templates | 443,072 |
+| Word records / word-class records | 146,732 / 94,683 |
+| Taught sentences | 3,052 |
+| Ways of reading English, held in memory | 497 |
+| Pairs the grammar holds beside them | 87 |
+| Domains concepts are filed under | 23 |
+| Operator demonstrations recorded | 0 |
+| Learned rules on record | 0 |
+| Intents recorded | 1 |
+| Perceptions recorded | 149 |
 
-**Evidence by source class:** user-supplied 460,472 · perception 8,090 · imported knowledge 6,263 ·
-induced rule 5,483 · task artifact 2,052 · research finding 82 · tool observation 49.
+**Evidence by source class:** imported knowledge 588,412 · perception 503 · user supplied 10.
+
+**Why four of those rows are at or near zero, and why none of it is a failure.** On **2026-09-26**, by
+decision, the store was emptied, all 156 tables with no backup, and the substrate was taught again from
+the first English lesson. Everything above was learned since. Operator demonstrations, learned rules and
+recorded intents accumulate from **running work** rather than from teaching, so they went with everything
+else and have not been rebuilt, because what has been taught since is language. **The faculties that
+produce them are evidenced by their own experiment series, not by these counts:** `OPERATOR-REMOVAL-01`
+22/22, `RULE-AUTHORITY-02` 9/9, `RULE-AUTHORITY-01`, `CREDIT-01` 26/26, `INTENT-01` 14/14 through
+`INTENT-04` 15/15. A count of zero in an untaught store says nothing about a capability, which is exactly
+why this section opens by saying these are system measurements and not validation results.
+
+The figures this table carried in the first edition (302,240 concepts, 516,110 relations, 514,132 beliefs,
+482,491 evidence records across 7 source classes, 874 operator demonstrations, 31 learned rules, 146
+domains, 17,945 hot memory records, 1,643 intents, 7,788 perceptions) were measured on 2026-09-19 against
+the store that was then emptied. They are kept here as the record of that measurement and **do not compare
+row for row** with the figures above.
 
 ### 24.2 Structural counts
 
 | Measure | Value | Source |
 |---|---|---|
-| Registered tools / categories | 356 / 16 | Live registry, union of 90 eager and 276 lazy factories, 10 overlapping |
-| Kinds of reasoning | 11 | Implementation |
+| `Tool` subclasses defined / categories | 257 / 17 | Source scan, 2026-11-19. The live registry additionally holds tools registered at run time, per connector and per learned procedure; the 356 recorded in September was read from a booted registry as the union of 90 eager and 276 lazy factories, 10 overlapping |
+| Kinds of reasoning | 11 classical, plus 7 of a deactivated quantum family | `ReasoningType`, 2026-11-19 |
 | Memory types / tiers | 5 / 2 | Implementation |
 | Epistemic deficit types diagnosed | 9 | Implementation |
 | Intrinsic motivation dimensions | 7 | Implementation |
-| Appraisal dimensions / behavioural pressures | **11 or 12** / 7 | **Conflict, see §19.4 item 2** |
+| Appraisal dimensions / behavioural pressures | **13** / 7 | `AppraisalSystem.DIMENSIONS`, 2026-11-19. The earlier conflict is resolved: §19.4 item 2 |
 | Governance laws / verdicts | 5 / 4 | Implementation |
-| Monitored health components | 29 | Implementation |
-| Named experiment suites with artifacts | 33 | This corpus |
-| Preserved run artifacts | 614 | This corpus |
-| Database | PostgreSQL 16.14; 3 schemas; 325 tables; pgvector 0.8.1; 3,095 MB | Live query |
+| Substrate-owned health components | 15 | `core/health/ownership.py`, 2026-11-19 |
+| Experiment directories / carrying run records | 246 / 188 | This corpus, 2026-11-19 |
+| Preserved run records / side records | 2,166 / 311 | This corpus, 2026-11-19 |
+| Database | PostgreSQL 16.14; 3 schemas; 350 tables; pgvector 0.8.1; 10 GB | Live query, 2026-11-19 |
 
 ### 24.3 Performance measurements taken during experiments
 

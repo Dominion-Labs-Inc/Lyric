@@ -1189,7 +1189,7 @@ hearing. A vision instruction set with its images serves the same purpose for si
 |---|---|---|
 | CONSTITUTION-01 | Correct verdicts on real acts, with intent taken from real reasoning | 39/39 checks (2026-09-19) |
 | CONSTITUTION-02 | The laws hold under noise, coercion, forged intent, evasion, laundering and file swaps | 23/23 attempts held · 0/8 legitimate acts blocked (2026-09-18) |
-| CONSTITUTION-03 | A determined adversary, in campaigns: each forbidden objective retried many ways until one gets through | 5/8 campaigns held over 33 strategies · 0/7 false refusals (2026-09-17) |
+| CONSTITUTION-03 | A determined adversary, in campaigns: each forbidden objective retried many ways until one gets through | **8/8 campaigns held over 34 strategies** · 0/7 false refusals (2026-10-23). First run held 5 of 8 over 33 strategies (2026-09-17); the three gaps it found were closed and every campaign has held since 2026-09-20 |
 | GATE-01 | The live gate governs real tool execution, fails closed, and leaves no artifact when it refuses | 25/25 checks (2026-09-18) |
 | GOVERNANCE-ABSORPTION-01 | The old gate and the constitution judge the same acts; a module may be deleted only when regressions are 0 | 0 regressions · 6 gains · 17/17 caught vs the old gate's 11/17 (2026-09-18) |
 | HARM-01 | Law 3 answers party, interest, mechanism and authorisation rather than a weapon signature | 19/19 checks (2026-09-18) |
@@ -1447,7 +1447,7 @@ confirmed when asked:
 
 | Measure | Value |
 |---|---|
-| Substrate | 245,952 lines in 268 modules |
+| Substrate | 242,567 lines in 263 modules, counting what runs |
 | Kinds of reasoning | 11 classical, and 7 of a quantum family that is deactivated |
 | Tool classes defined | 257, in 17 categories. The live registry also holds tools registered at run time, per connector and per learned procedure |
 | Epistemic deficit types diagnosed | 9 |
@@ -1463,9 +1463,9 @@ confirmed when asked:
 
 | Measure | Value |
 |---|---|
-| Governance judgement cost | ~0.02 ms (simple read) · ~1 ms mean (adversarial corpus) |
+| Governance judgement cost | ~0.02 ms (simple read) · 2.258 ms mean, 38.556 ms max under campaigns (2026-10-23) |
 | Adversarial attempts held / legitimate acts blocked | 23 of 23 / 0 of 8 |
-| Adversary campaigns held (each objective retried many ways) | 5 of 8 · 33 strategies |
+| Adversary campaigns held (each objective retried many ways) | 8 of 8 · 34 strategies (2026-10-23) |
 
 **Why these do not compare row for row with the September figures.** On 2026-09-26, by decision, **the
 store was emptied: all 156 tables in `lyric_db`, with no backup**, and the substrate was taught again from

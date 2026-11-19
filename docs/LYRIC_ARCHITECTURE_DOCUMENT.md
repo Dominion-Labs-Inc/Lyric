@@ -14,10 +14,11 @@ answers *what*, this one answers *how*.
 **How every statement here was verified.** Nothing was carried over from an earlier description.
 Component names, ownership, interfaces and control flow were read from the current source. Counts of
 modules and lines were derived by scanning that source, most recently on **2026-11-19**. Figures for
-stored state were measured against the live production database on **2026-09-19 at 20:49 UTC**, under the
-canonical runtime (`./venv_lyric/bin/python3`, Python 3.11.14), with the database identity confirmed by
-asking the server rather than by reading configuration; those figures carry that date and the state they
-describe has grown since. §34 records the method used for each class of claim.
+stored state were measured against the live `lyric_db` on the same day, under the canonical runtime
+(`./venv_lyric/bin/python3`, Python 3.11.14), through the system's own configuration authority, with the
+database identity confirmed by asking the server rather than by reading configuration. §34 records the
+method used for each class of claim, and §30 records why the stored-state figures do not compare row for
+row with anything written before 2026-09-26.
 
 **What is deliberately gated.** This document describes structure, ownership, interfaces and control
 flow. It does not reproduce credentials, key material, deployment addresses, or the method-by-method
@@ -87,7 +88,7 @@ Measured by scanning the current tree on 2026-11-19.
 
 | Subsystem | Lines | Modules | What it is |
 |---|---|---|---|
-| `agents/` | 52,430 | 27 | The coordinator (the body), which holds the constitution, the drift faculty, the behaviour arbiter, intrinsic motivation and the cognitive cycle, and the memory agent |
+| `agents/` | 52,515 | 27 | The coordinator (the body), which holds the constitution, the drift faculty, the behaviour arbiter, intrinsic motivation and the cognitive cycle, and the memory agent |
 | `tools/` | 40,891 | 30 | Tool registry, the governed execution path, and the tool implementations |
 | `learning/` | 29,767 | 29 | Learning authorities, rule induction, rule store, rule grounding, procedure synthesis over learned operators, exploration, meta-learning, recognisers, statistical drift detection |
 | `semantics/` | 29,250 | 23 | The sentence reader and sentence machine, the admission gate, the grammar and its words, argument structure, composition, word senses and forms, relation typing, document reading, conversation |
@@ -102,7 +103,7 @@ Measured by scanning the current tree on 2026-11-19.
 | `database/` | 3,609 | 5 | PostgreSQL interface, logging database, configuration authority |
 | `intelligence/` | 2,218 | 3 | Predictive framework and effect verification |
 | `system/` | 1,920 | 6 | Environment state, service location, active discovery, topology |
-| `utils/` | 1,560 | 8 | Environment loading, notification, chunking, port management |
+| `utils/` | 1,590 | 8 | Environment loading, notification, chunking, port management |
 | `observability/` | 1,329 | 5 | The one failure record, regression record, capture, channels |
 | `security/` | 1,276 | 3 | Secret handling and the security training pipeline. The host and network perimeter that once ran here was taken out of the substrate: its five modules are held disabled, imported by nothing, in `security/_disabled/` (3,589 lines), and containment is Tet's, outside the substrate |
 | `connectors/` | 906 | 4 | Speaking the Model Context Protocol with a connector a service runs, as its client |
@@ -113,9 +114,9 @@ Measured by scanning the current tree on 2026-11-19.
 | `guardian/` | 269 | 2 | The guardian, a supervising daemon outside the substrate's process, so that a watchdog does not die with what it watches |
 | `optimization/` | 226 | 1 | Optimisation utilities |
 
-**243,434 lines across the subsystems listed, in 262 modules**, plus 2,607 lines in the six modules at
+**239,960 lines across the subsystems listed, in 257 modules**, plus 2,607 lines in the six modules at
 `core/` itself (`main.py`, `capabilities.py`, `database.py`, `service_configuration.py`,
-`structural_defects.py` and the package initialiser): **245,952 lines in 268 modules** in all, excluding
+`structural_defects.py` and the package initialiser): **242,567 lines in 263 modules** in all, excluding
 tests, experiments and tooling.
 
 **`execution/` no longer exists as a subsystem.** It held effect verification, domains derived from the
@@ -297,7 +298,7 @@ than calls:
 | `Drift` + five detectors | ~600 lines | How the system is changing, against declared baselines |
 | `Bearing` | ~90 lines | What something perceived touches of the interests the law protects |
 | `ReadingLedger` | ~100 lines | What has been read, and of which version |
-| Event spine | N/A | Eight typed events and twelve reactions |
+| Event spine | N/A | Nine typed events, eleven reactions, fourteen registrations |
 | `Conversation`, `SelfState` | ~2,000 lines | Turns and their scoping; the composed self-state |
 
 That these live in one module is deliberate and follows from §1.2: they are faculties of a single self
@@ -306,7 +307,8 @@ perceives the environment, plans, acts, and re-observes the world to verify what
 
 ## 7. Authority map
 
-Every authority below was verified present in the current tree, with its accessor, on 2026-09-19.
+Every authority below was verified present in the current tree, with its accessor, on **2026-11-19**:
+each module was confirmed to exist and each accessor confirmed to be defined.
 
 | Concept owned | Authority | Accessor | Module |
 |---|---|---|---|
@@ -324,6 +326,16 @@ Every authority below was verified present in the current tree, with its accesso
 | How the system stands toward its situation | `Appraisal` | held by the coordinator | `core/agents/autonomous/appraisal.py` |
 | What has been read, and of which version | `ReadingLedger` | held by the constitution | the coordinator |
 | Where a failure is written | `FailureRecord` | N/A | `core/observability/failure_record.py` |
+| What may be perceived, and how | `PerceptionFaculty` | `get_perception_faculty()` | `core/perception/perception_faculty.py` |
+| Which drive wins, and why | `BehaviorArbiter` | `get_behavior_arbiter()` | `core/agents/autonomous/behavior_arbiter.py` |
+| What is worth doing, unasked | `IntrinsicMotivationSystem` | `get_intrinsic_motivation_system()` | `core/agents/autonomous/intrinsic_motivation.py` |
+| What work is queued, who holds a slot, and what recurs | `QueueAuthority` | `get_queue_authority()` | `core/agents/autonomous/queue_authority.py` |
+| What the substrate can do, learned from experience | the capability register | `get_capabilities()` | `core/capabilities.py` |
+| What leaves the substrate, and once only | the outbox | `get_outbox()` | `core/agents/autonomous/outbox.py` |
+| What tool exists, and under what capability | `ToolRegistry` | `get_tool_registry()` | `core/tools/tool_registry.py` |
+| Whether a component is well | the health monitor | `get_health_monitor()` | `core/health/health_monitor.py` |
+| Whether the substrate has drifted from itself | `Drift` | held by the coordinator | the coordinator |
+| What the substrate is defending against | `ThreatSense` | held by the coordinator | the coordinator |
 | The body that holds them all | `AutonomousCoordinator` | `get_autonomous_coordinator()` | the coordinator |
 
 ## 8. The belief circulation
@@ -360,8 +372,11 @@ perception both embody this: the acceptance bar is disposition-derived, and the 
 
 ## 9. The event spine
 
-Subsystems react to typed events rather than polling a clock. Eight event types are defined, dispatched
-to twelve reaction handlers:
+Subsystems react to typed events rather than polling a clock. **Nine event types are defined, and eleven
+reactions are registered against them at construction, fourteen registrations in all**, because several
+reactions answer to more than one event: outcome expansion runs when an outcome is observed, when evidence
+is admitted and when competence moves, and what was taught is crystallised on either of the latter two.
+Measured from the source on 2026-11-19.
 
 | Event | Meaning |
 |---|---|
@@ -373,6 +388,7 @@ to twelve reaction handlers:
 | `DEFICIT_DIAGNOSED` | A goal could not be planned, and why was localised |
 | `PERCEPT_RECOGNIZED` | Something seen was named, or declined |
 | `ENVIRONMENT_ENCOUNTERED` | The system is somewhere it has not been |
+| `EXPECTATION_UNMET` | What happened was not what was expected |
 
 Each event carries the unit of work it concerns, so a reaction acts on that change rather than
 rescanning state, and expensive reactions run off the acting path. The reactions cover affect,
@@ -382,14 +398,36 @@ deficit closing, and percept handling.
 
 ## 10. Idle work
 
-When not engaged, the coordinator dispatches background work by priority tier, recording when each tier
-last ran so the dispatcher can select the highest-priority action actually due rather than cycling
-through everything. Eleven idle routines exist in the current tree: abstraction, analogy discovery,
-domain discovery, domain expansion, health, knowledge refresh, memory consolidation, meta-learning,
-operator exploration, operator induction, and system review.
+Background work is not a tier system and no longer belongs to the coordinator. **Cadence is owned by the
+queue authority**: each recurring job is handed to it with a name, a method, an interval and a priority,
+and its scheduler fires the job on the **background budget**, which is separate from the acting cap, so a
+background job can never take a slot that work for a person would have used. Each job's runs and errors
+are recorded on the job itself. Nothing loops on its own interval and nothing schedules outside the
+authority. A job naming a method that does not exist raises rather than being skipped, because a missing
+method is a wiring defect and not a tier that quietly scores green.
 
-Three former routines (idle security work, self-improvement and self-optimisation) were removed with
-the self-modification machinery described in §33.
+**Seven jobs are registered** (2026-11-19), and every one of them samples state that drifts continuously
+and has no discrete event to react to:
+
+| Job | Cadence | Why it is timed rather than driven |
+|---|---|---|
+| Self-state refresh | 60 s | The sole writer of resource usage, timestamp and performance metrics, which the constitution's law-compliance check reads live |
+| Motivation refresh | 60 s | Drives decay; novelty and curiosity fall with time rather than on an event |
+| Epistemic affect | 60 s | Integrates how the epistemic state feels |
+| Constitution record drain | 30 s | Coalesces what the constitution recorded |
+| Constitution integrity | 120 s | Checks the governing machinery has not been altered |
+| Affect refresh | 60 s | Continuous valence and activation |
+| System awareness | 60 s | Samples the environment it is running in |
+
+**Ten routines that were timed are now reactions** on the event spine (§9): operator induction and
+exploration, abstraction, analogy discovery, transfer resolution, outcome expansion, knowledge refresh,
+meta-learning, system review and the learning phase. Each now runs when an outcome is observed, evidence
+is admitted or competence moves, rather than on a timer that fires whether or not anything happened. The
+difference is not efficiency: a timer that fires on an unchanged world produces work with nothing behind
+it, and the substrate's own records then show activity that answers to no event.
+
+Three further routines, idle security work, self-improvement and self-optimisation, were removed with the
+self-modification machinery described in §33.
 
 ---
 
@@ -401,25 +439,49 @@ are load-bearing rather than incidental.
 ## 11. Semantics: reading, and the door
 
 **Owns:** what a sentence asserts, and what is admitted as knowledge.
-**Principal modules:** `sentence_reader.py` (838 lines), `cognitive_ingress.py` (689),
-`derived_reader.py` (359, the pattern reader: sentences taught with their meaning), `relation_types.py` (448),
-`language_ops.py` (365), `sentence_machine.py` (233, `form_of`).
+**Principal modules** (2026-11-19): `derived_reader.py` (9,833 lines), `grammar.py` (7,720),
+`sentence_reader.py` (1,483), `cognitive_ingress.py` (1,043), `structure.py` (1,025),
+`composition.py` (933), `grammar_words.py` (908), `relation_types.py` (872), `pmb_meanings.py` (829),
+`erg_meanings.py` (751), `lexical_normalization.py` (632), `propbank_roles.py` (544),
+`genericity.py` (531), `sentence_machine.py` (390), `argument_structure.py` (286).
+**29,250 lines across 23 modules, the fourth largest subsystem and the fastest growing.**
 
 There is **one reader**. It owns what a sentence asserts, so the system cannot hold two incompatible
 readings of the same text, and where a sentence is beyond what it can parse the system says it could not
-read it rather than guessing. Reading is *derived* rather than hand-written: a cursor over words
-(`sentence_machine`) lets a reading be derived and registered, and `relation_types` keeps the semantic
-type of a relation apart from the words that expressed it: the machine reads a span, and what that span
-*means* as a relation is a separate question with a separate owner.
+read it rather than guessing.
+
+**Reading is by grammar, not by resemblance.** A compiler reads a program it has never seen, the first
+time, because it holds a grammar and the meaning of each piece, never because it saw a program like it.
+Each word's category says what it combines with and what it makes; general rules combine them; and the
+meaning is built with the derivation. What each word stands for, and what two words near one another say
+together, is learned from sentences taught with their meanings and aligned to their words
+(`composition`), and which phrase plays which part is decided by how it stands to its predicate rather
+than by where it sits in the string (`argument_structure`), so a construction holds for a phrase of any
+length the substrate has never seen.
+
+This replaced a reader that matched each new sentence against remembered ones. That was measured, not
+assumed: real sentences rarely resemble a remembered one closely enough, and where none did, the decision
+was wrong about one time in three. The subsystem's size is the cost of that change.
+
+**English's grammar is held in memory, not in a file.** It is taught through the same learning path as any
+other knowledge, and the store holds **497 ways of reading and 87 pairs beside them** (counted in
+`lyric_db`, 2026-11-19). A reader handed no grammar fails saying so rather than quietly reading a file,
+because a store that had been taught nothing would otherwise read as though it were full. What the reader
+reads with is therefore something the system holds, can be asked about, can be corrected and can argue
+with, and it states no facts about the world: knowledge about English is kept apart from knowledge about
+what is true.
+
+`relation_types` keeps the semantic type of a relation apart from the words that expressed it: the machine
+reads a span, and what that span *means* as a relation is a separate question with a separate owner.
 
 The admission gate (§4) is the other half of this subsystem and is described there.
 
 ## 12. Reasoning
 
 **Owns:** how conclusions are reached.
-**Principal modules:** `neural_bridge.py` (4,089 lines), `abstract_reasoning_engine.py` (2,983),
-`hierarchical_abstraction.py` (2,377), `bayesian_uncertainty.py` (1,890), `hypothesis_testing.py`
-(1,426), `temporal_reasoning.py` (1,200), plus intent authority, concept-graph reasoning, unification
+**Principal modules:** `neural_bridge.py` (4,452 lines), `abstract_reasoning_engine.py` (2,727),
+`hierarchical_abstraction.py` (2,308), `bayesian_uncertainty.py` (2,659), `hypothesis_testing.py`
+(1,241), `temporal_reasoning.py` (1,535), plus intent authority, concept-graph reasoning, unification
 and the epistemic engine.
 
 Eleven kinds of reasoning are maintained as one explicit catalogue: deductive, inductive, abductive,
@@ -456,8 +518,8 @@ that does: from accumulated independent evidence, revisably.
 ## 14. Learning
 
 **Owns:** what is learned, from any source.
-**Principal modules:** `unified_learning_system.py` (3,862 lines), `meta_learning.py` (1,504),
-`rule_induction.py` (1,140), `rule_store.py` (960), `meta_metrics_monitor.py` (954),
+**Principal modules:** `unified_learning_system.py` (7,236 lines), `meta_learning.py` (1,556),
+`rule_induction.py` (1,633), `rule_store.py` (1,194), `meta_metrics_monitor.py` (954),
 plus the clause-based recognisers and the scoped context store.
 
 Every source of learning (execution, teaching, perception, research) passes through one authority, and
@@ -503,8 +565,8 @@ counted silently: losing a data point is recoverable, recording a false causal r
 ## 15. Memory
 
 **Owns:** what is remembered.
-**Principal modules:** `core/agents/memory_agent.py` (3,692 lines), `core/memory/live_recall.py` (379),
-`core/memory/media_store.py` (153).
+**Principal modules:** `core/agents/memory_agent.py` (9,972 lines), `core/memory/live_recall.py` (465),
+`core/memory/media_store.py` (281).
 
 Memory is an active system, not a store: it decides what is worth keeping, merges repeated experience,
 abstracts patterns out of experience, and ages what it holds. It is typed by function (episodic,
@@ -534,9 +596,9 @@ deletion protected behind a capability token and explicit confirmation.
 ## 16. Domain, competence and curiosity
 
 **Owns:** what a domain is, and the system's standing in it.
-**Principal modules:** `universal_domain_master.py` (3,208 lines), `domain_registry.py` (1,699),
-`concept_ingestion.py` (1,635), `evidence_producers.py` (1,053), `cross_domain_reasoner.py` (1,034),
-`universal_ontology.py` (843).
+**Principal modules:** `universal_domain_master.py` (4,201 lines), `domain_registry.py` (1,603),
+`concept_ingestion.py` (1,724), `evidence_producers.py` (1,471), `cross_domain_reasoner.py` (1,015),
+`universal_ontology.py` (888).
 
 Standing in a domain is measured along three axes that are deliberately **not** collapsed into one
 number, because they are different questions with different consequences:
@@ -579,7 +641,11 @@ candidate with no evidence of its own and gains authority only by surviving obse
 ## 17. Perception
 
 **Owns:** what is seen.
-**Principal modules:** `vision.py` (1,301 lines), `vision_faculty.py` (598).
+**Principal modules** (2026-11-19): `perception_faculty.py` (2,365 lines), `vision.py` (1,497),
+`speech.py` (1,167), `hearing.py` (1,148), `live.py` (919), `music.py` (907), `senses.py` (498),
+`reading.py` (290), `phone_recogniser.py` (112). **8,915 lines across 10 modules**, nearly four times
+the subsystem described here in September: `vision_faculty.py` became `perception_faculty.py`, and
+hearing, speech, music and the live senses were built after that reading.
 
 Perception is classical computer vision (deterministic feature extraction, no learned perceptual
 network in the naming path, no external call) covering images, video keyframes, sensor readings and
@@ -659,8 +725,15 @@ intended?" a recorded answer rather than an inference, which is a prerequisite f
 
 ## 20. Execution and verification
 
-**Principal modules:** `effect_verification.py` (401 lines), `tool_domain.py` (1,559),
-`procedure.py` (271), `convergence_gate.py` (calibration and convergence outcomes, read by the body).
+**Principal modules** (2026-11-19): `core/intelligence/effect_verification.py`,
+`core/learning/procedure_synthesis.py` and `core/learning/rule_store.py`, with a plan built from learned
+operators running through `core/agents/autonomous/execution_plan_adapter.py`.
+
+**There is no `execution/` subsystem.** It held effect verification, domains derived from the tools and
+the self's perception, and procedures over learned operators, and each of the three was taken into the
+subsystem that owns it rather than kept in a layer of its own. A tool domain is now read by the body
+itself, which is where the knowledge of which tools change the world belongs. `convergence_gate.py` and
+`procedure.py` are gone as files; nothing they did was lost.
 
 `effect_verification` answers one question (*did the world do what the learned rule predicted?*) with
 one canonical interpretation of what a tool did, so no two callers can read the same result differently.
@@ -692,11 +765,14 @@ success nor failure.
 ## 21. Tools
 
 **Owns:** what the substrate can do, and the single point at which it does it.
-**Principal modules:** `tool_registry.py` (3,743 lines) plus 34 tool modules totalling ~48,500 lines.
+**Principal modules** (2026-11-19): `tool_registry.py` (2,607 lines) plus 29 tool modules totalling 38,284 lines, 40,891 in all.
 
-**356 distinct tools across 16 categories.** The registry loads lazily: 90 tools are instantiated
-eagerly and 276 are registered as factories, with 10 appearing in both: a partial reading of the
-registry undercounts by a factor of four, which is why the figure is stated as the union.
+**257 `Tool` subclasses are defined in the source across 17 categories** (counted 2026-11-19), and the
+live registry additionally holds tools registered at run time, per connector and per learned procedure.
+**The registry loads lazily, and this is a trap worth naming:** at import time only four tools are
+present, so a count taken before boot undercounts by two orders of magnitude. A figure for the live
+registry must be read from a booted system and stated as the union of the eagerly loaded set and the
+factories, which is how the 356 recorded in September was arrived at.
 
 | Safety level | Tools (of the eagerly loaded set) |
 |---|---|
@@ -820,10 +896,12 @@ Bearing moves belief, affect and what the system ranks as worth pursuing. It mov
 The system composes an explicit model of its own state: measured, never scripted.
 
 **Appraisal** converts signals into disposition once, with context, rather than having each consumer
-interpret raw signals for itself. Eleven dimensions (valence, activation, confidence, epistemic
-opportunity, progress, controllability, competence, goal congruence, agency, integrity, risk) yield
-seven behavioural pressures: approach, avoidance, exploration, persistence, replan, escalation, caution.
-Appraisal also records a structured attribution of *why* an outcome occurred.
+interpret raw signals for itself. **Thirteen dimensions** (valence, activation, confidence, epistemic
+opportunity, progress, controllability, competence, goal congruence, agency, integrity, risk, stakes,
+people reward) yield **seven behavioural pressures**: approach, avoidance, exploration, persistence,
+replan, escalation, caution. Appraisal also records a structured attribution of *why* an outcome
+occurred. Counted from `AppraisalSystem.DIMENSIONS` on 2026-11-19; the set has grown, and earlier
+documents recording eleven or twelve were each correct when written.
 
 **Integrity is coherence, not success.** It is measured across goal, intention, action and outcome, so a
 faithful attempt defeated by an external cause keeps integrity intact. **Affective states are derived,
@@ -857,22 +935,35 @@ self-modification.
 
 ## 25. Health and recovery
 
-**Principal modules:** `health_monitor.py` (3,456 lines), `recovery_manager.py` (1,196),
-`system_control.py` (369).
+**Principal modules:** `health_monitor.py` (3,295 lines), `recovery_manager.py` (967),
+`system_control.py` (362), `ownership.py` (49).
 
-The system grades its own health across **29 monitored components**, spanning execution, reasoning,
-learning, memory, database, tools, domain, governance, storage and network. Each check reports
-explicitly declared metrics rather than inferred ones: a check that cannot measure something says so,
-rather than defaulting a value that would read as healthy.
+**The substrate grades the fifteen components it owns**, declared in one place rather than discovered:
+agents, api surface, chaos, constitution, domain, intelligence, learning, memory, optimization, quantum,
+reasoning, safety, security, simulation and tools. **Ownership is the point of that declaration.** A
+monitor that grades whatever it can reach ends up reporting on things the substrate does not control, and
+a component that nothing owns is a component whose failure has no address. Each check reports explicitly
+declared metrics rather than inferred ones: a check that cannot measure something says so, rather than
+defaulting a value that would read as healthy.
 
 `recovery_manager` detects failure and restores; `system_control` is the one authority for what an
 operator dashboard may see and control, so status and control have a single truthful source rather than
 each surface forming its own opinion.
 
+**Supervision is outside the process.** The health monitor runs inside the substrate and dies with it, so
+a supervising daemon runs separately (`core/guardian/supervisor.py`): a watchdog whose job is to survive a
+crash cannot be an object inside the thing that crashes. The recovery path that once lived in the
+coordinator, diagnosis, risk assessment, execution and verification of a recovery, is no longer there.
+
+**What a health verdict reaches, and what it does not,** is an open question rather than a settled design:
+the cognition loop receives a count of unwell components, and `DEFICIT_DIAGNOSED` (§9) fires when a goal
+cannot be planned, not when a component is found unwell. A verdict that names which part is unwell and why
+is produced; what consumes it is narrower than what produces it.
+
 ## 26. Observability
 
 **Principal modules:** `failure_record.py` (271 lines), `regression_record.py` (264),
-`failure_capture.py` (240), `channels.py` (141).
+`failure_capture.py` (240), `channels.py` (553).
 
 Small, and load-bearing. `failure_record` is **the one place a failure is written and the one place any
 subsystem reads it**: every folder in `core/` previously produced failures in its own shape.
@@ -884,8 +975,8 @@ into four streams out, so watching the system reason is not the same activity as
 
 ## 27. System awareness
 
-**Principal modules:** `environment_state.py` (348 lines), `active_discovery.py` (503),
-`behavioral_analysis.py` (391), `infrastructure_topology.py` (302).
+**Principal modules:** `environment_state.py` (331 lines), `active_discovery.py` (506),
+`behavioral_analysis.py` (401), `infrastructure_topology.py` (287).
 
 The system perceives **where it is running**. Every value is read live from the host, and a stable
 environment identity is derived from the facts that make a place that place, so the system distinguishes
@@ -898,8 +989,8 @@ has been moved cannot reason about whether what it learned still applies.
 
 ## 28. Database and configuration
 
-**Principal modules:** `unified_database_postgres.py` (1,021 lines), `logging_database.py` (870),
-`postgres_config.py` (165).
+**Principal modules:** `unified_database_postgres.py` (1,422 lines), `logging_database.py` (870),
+`postgres_config.py` (568).
 
 `postgres_config` is the one authority for where connection settings come from, and in what order, with
 an explicit precedence. It exists because the database class once loaded a settings file with override
@@ -932,28 +1023,49 @@ server answered when asked its own name.
 
 ## 30. The data model
 
-All durable state lives in one PostgreSQL instance. Measured on 2026-09-19:
+All durable state lives in one PostgreSQL instance. Measured on **2026-11-19** against `lyric_db`, whose
+identity the server confirmed when asked:
 
 | Property | Measured |
 |---|---|
 | Engine | PostgreSQL 16.14 |
 | Extensions | `vector` 0.8.1 (pgvector), `plpgsql` 1.0 |
 | Schemas | 3: `unified`, `memory_hot`, `memory_cold` |
-| Tables | 325: 322 in `unified`, 2 in `memory_hot`, 1 in `memory_cold` |
-| Database size | 3,095 MB |
+| Tables | 350: 347 in `unified`, 2 in `memory_hot`, 1 in `memory_cold` |
+| Database size | 10 GB |
 
 The schema split *is* the memory tiering described in §15. What is stored, measured the same day:
 
 | Structure | Count |
 |---|---|
-| Concepts retained | 302,240 |
-| Concept relations (of which *is-a*) | 516,110 (306,944) |
-| Beliefs held | 514,132 |
-| Evidence records | 482,491 across 7 source classes |
-| Operator demonstrations | 874 |
-| Learned rules (validated / candidate / refuted / invalid artifact) | 31 (10 / 19 / 1 / 1) |
-| Registered domains | 146 |
-| Memory records (hot / cold) | 17,945 / 150 |
+| Concepts retained | 117,294 |
+| Surface words bound to a concept | 117,268 |
+| Concept relations | 590,614 |
+| of which *is-a* and *instance of* | 97,639 |
+| of which *defined with* | 442,896 |
+| Beliefs held | 1,022,193 |
+| Concept evidence records | 1,179,242 |
+| Belief evidence records | 1,783,544 |
+| Evidence envelopes | 588,925 |
+| Memory records (hot / cold) | 1,441,708 / 0 |
+| of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
+| Learned sentence templates | 443,072 |
+| Word records / word-class records | 146,732 / 94,683 |
+| Taught sentences | 3,052 |
+| Ways of reading English, held in memory | 497 |
+| Pairs the grammar holds beside them | 87 |
+| Domains concepts are filed under | 23 |
+| Operator demonstrations / learned rules | 0 / 0 |
+
+**Why two of those rows are zero, and why that is not a defect.** On **2026-09-26**, by decision, the
+store was emptied: all 156 tables it then had, with no backup, and the substrate was taught again from the
+first English lesson. Everything above was learned since. Operator demonstrations and learned rules
+accumulate from **running work**, not from teaching, so they were emptied with everything else and have
+not been rebuilt, because what has been taught since is language itself. The faculties that produce them
+are unchanged and are evidenced by their own experiment series, `OPERATOR-REMOVAL-01` at 22/22 and
+`RULE-AUTHORITY-02` at 9/9 among them, rather than by a standing count. The September figures this table
+carried before (302,240 concepts, 514,132 beliefs, 874 demonstrations, 31 rules) belong to the store that
+was emptied and do not compare row for row with these.
 | Intents recorded | 1,643 |
 | Perceptions recorded | 7,788 |
 
@@ -1028,17 +1140,18 @@ described in §24.
 
 | Claim class | Method |
 |---|---|
-| Authority existence and accessors | Each module and accessor function located in the current tree, 2026-09-19 |
+| Authority existence and accessors | Each module and accessor function located in the current tree, **2026-11-19** |
 | The retired gate has no live callers | Search across `core/` for the accessor, the module import and attribute use; only comments and a separate deactivated module matched |
 | The model-free claim | Confirmed the deleted modules are **absent from the tree**, not merely unreferenced |
 | Acting path and gate placement | Read directly from `tool_registry.execute_tool` |
 | Admission gate rules and thresholds | Read directly from `cognitive_ingress.py`, including the refusal strings quoted in §4 |
 | Learning fan-out reach | Read from the learning authority's fan-out method |
-| Event types, reactions, idle routines | Enumerated from the coordinator's event enum and method definitions |
-| Module, method and line counts | Derived by scanning the current source |
-| Tool counts | Read from the live registry as the union of eagerly loaded tools and lazy factories: a partial reading undercounts by a factor of four |
-| Stored state, schemas, extensions, size | Queried against the live production database, identity confirmed by asking the server |
+| Event types, reactions, scheduled jobs | Enumerated from the coordinator's event enum, its registration calls and its scheduler table, **2026-11-19**: nine event types, eleven reactions over fourteen registrations, seven recurring jobs |
+| Module and line counts | Derived by scanning the current source, **2026-11-19**. Every per-module count in this document was re-derived that day and 27 of them were corrected |
+| Tool counts | 257 `Tool` subclasses counted in the source, **2026-11-19**. The live registry additionally holds tools registered at run time, per connector and per learned procedure, so a count taken before boot undercounts: at import time only four are present |
+| Stored state, schemas, extensions, size | Queried against the live `lyric_db`, **2026-11-19**, through the system's own configuration authority, with the identity confirmed by asking the server rather than by reading configuration |
 | Capability results | Read from each experiment's own dated run artifact, never from a summary |
+| Appraisal dimensions | Counted from `AppraisalSystem.DIMENSIONS`, **2026-11-19**: thirteen. Earlier counts of eleven and twelve were each correct when taken |
 | Authority of learned rules at scale | RULE-AUTHORITY-02: worlds generated, and Lyric's answers judged, by programs that share no code or representation with Lyric, run as separate processes on inputs fingerprinted before Lyric ran (§34.1) |
 
 ### 34.1 The rule authority benchmark, and four questions a reviewer asks
