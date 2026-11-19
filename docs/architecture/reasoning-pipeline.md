@@ -5,14 +5,15 @@
 *A method-by-method account of how the reasoning substrate turns a question into a
 derived, checkable conclusion, or an honest refusal. Written for a reader evaluating what the
 architecture does and does not claim. Every algorithm below is described as it is
-implemented, with file and line references, and every limitation is stated at the
+implemented, with file references, and every limitation is stated at the
 same resolution as the capability.*
 
-Companion documents in this folder:
-- `REASONING.md` — the conceptual paper (Paper I: Reasoning).
-- `REASONING_PATHS_VERIFIED.md` — the eleven-paths test verified against the live system.
+Companion documents:
+- [`../research/REASONING_IN_A_COGNITIVE_SUBSTRATE.md`](../research/REASONING_IN_A_COGNITIVE_SUBSTRATE.md) — the conceptual paper, Paper I of the Cognitive Substrate Series.
+- [`reasoning-paths-verified.md`](reasoning-paths-verified.md) — the eleven paths, each tested against the live system.
+- [`reasoning.md`](reasoning.md) — the authority's own reference.
 
-This document is the implementation-level complement to both: it walks the actual
+This document is the implementation-level complement to those: it walks the actual
 call graph and the actual formulas.
 
 ---
@@ -21,11 +22,9 @@ call graph and the actual formulas.
 
 ### 0.1 One authority
 
-All reasoning enters through a single object: the **`NeuralSymbolicBridge`**
-(`neural_bridge.py:788`), reached by the process-wide accessor `get_neural_bridge()`
-(`neural_bridge.py:3373`). Nothing else is a reasoning entry point. The bridge owns
+All reasoning enters through a single object: the **`NeuralSymbolicBridge`** (`neural_bridge.py`), reached by the process-wide accessor `get_neural_bridge()` (`neural_bridge.py`). Nothing else is a reasoning entry point. The bridge owns
 the belief graph, the abstraction pipeline, and the abstract-reasoning engine
-(constructed in `initialize()`, `neural_bridge.py:1231`), and it is the only surface
+(constructed in `initialize()`, `neural_bridge.py`), and it is the only surface
 that other subsystems call to reason, to reflect, to assess uncertainty, or to
 generate a hypothesis. This is the "self is the sheriff; authorities are deputies"
 design: the bridge is the reasoning deputy, and it exposes one door.
@@ -45,7 +44,7 @@ dispatch or acting path to gate.
 
 Every `ReasoningResult` carries metadata that lets a downstream consumer — or a
 later training pass — tell *how* a conclusion was reached without inspecting the
-answer text. Five fields are load-bearing (`neural_bridge.py:2991`):
+answer text. Five fields are load-bearing (`neural_bridge.py`):
 
 | field | meaning |
 |---|---|
@@ -55,7 +54,7 @@ answer text. Five fields are load-bearing (`neural_bridge.py:2991`):
 | `model_required` | always `False` — the substrate never *requires* a model (see 0.4) |
 | `model_available` | whether a teacher happened to be reachable (a fact about coverage) |
 
-The **reason codes** (`neural_bridge.py:155`) exist so that three things that used
+The **reason codes** (`neural_bridge.py`) exist so that three things that used
 to look identically like "low confidence" stay separable:
 
 - `substrate_verified` — a solver proved the goal.
@@ -68,7 +67,7 @@ to look identically like "low confidence" stay separable:
 ### 0.4 "The substrate is not a model, and it never requires one"
 
 The metadata key `model_required` is retained only as a deprecated alias and is
-**always `False`** (`neural_bridge.py:182`). The claim that matters is
+**always `False`** (`neural_bridge.py`). The claim that matters is
 `substrate_formalized` — a statement about the substrate alone. Whether a teacher is
 reachable (`teacher_available`) is a separate, optional fact about coverage, never a
 statement about whether reasoning was possible.
@@ -79,26 +78,25 @@ statement about whether reasoning was possible.
 
 ### 1.1 The request and the result
 
-**`ReasoningRequest`** (`neural_bridge.py:78`): `query: str`, `context: List[str]`
+**`ReasoningRequest`** (`neural_bridge.py`): `query: str`, `context: List[str]`
 (the premises), `mode: ReasoningMode` (default `ABSTRACT`), `kinds:
 List[ReasoningType]` (which of the eleven to try; empty ⇒ read them from the query),
 plus optional vision inputs, a caller token budget, `cached_memories`, and
 `task_metadata`.
 
-**`ReasoningResult`** (`neural_bridge.py:120`): `answer: str`, `confidence: float`,
+**`ReasoningResult`** (`neural_bridge.py`): `answer: str`, `confidence: float`,
 `reasoning_steps: List[str]`, `mode_used`, and the `metadata` dict carrying the
 credit-assignment contract.
 
-**`ReasoningMode`** (`neural_bridge.py:49`) is *not* a kind of thinking — it names
+**`ReasoningMode`** (`neural_bridge.py`) is *not* a kind of thinking — it names
 which machinery a caller may explicitly select: `SYMBOLIC` (solver over a formalized
 statement), `NEURAL` (model inference, last resort), `HYBRID` (propose/constrain/
 revise), `NEURO_SYMBOLIC` (plan then execute), `ABSTRACT` (the default: the whole
 substrate, all eleven kinds), `CROSS_DOMAIN`. Under substrate-first these are
 peers; a mode is consulted only when the default pipeline could not settle the
-question. The *kinds* of thinking are the eleven in **`ReasoningType`**
-(`reasoning_interfaces.py:12`).
+question. The *kinds* of thinking are the eleven in **`ReasoningType`** (`reasoning_interfaces.py`).
 
-### 1.2 `reason()` — the timing-and-annotation wrapper (`neural_bridge.py:1360`)
+### 1.2 `reason()` — the timing-and-annotation wrapper (`neural_bridge.py`)
 
 `reason()` is a thin wrapper over `_reason_impl`. It does four things around the
 core:
@@ -114,11 +112,11 @@ core:
    knowledge is about this query (belief-graph entropy). A reading, not a change.
 4. Returns the result unchanged otherwise.
 
-### 1.3 `_reason_impl()` — the order of resort (`neural_bridge.py:1409`)
+### 1.3 `_reason_impl()` — the order of resort (`neural_bridge.py`)
 
 This is the spine. After a one-time memory injection (memories reach the eleven
 kinds as *one clean claim per premise*, never a stamped prompt blob — a subtle but
-measured correctness point, `neural_bridge.py:1444`), control reaches the router:
+measured correctness point, `neural_bridge.py`), control reaches the router:
 
 ```
 if request.mode != ABSTRACT:  run the named machinery (_run_mode), else honest inability
@@ -134,7 +132,7 @@ _unsettled(...)                                     # honest inability
 The order — **prove, then derive, then propose** — *is* the architecture, not an
 optimization. Two subtleties:
 
-- **Deferral of lossy readings** (`neural_bridge.py:1560`). A propositional reading
+- **Deferral of lossy readings** (`neural_bridge.py`). A propositional reading
   is lossy: from *the chip is inside the socket* and *the socket is inside the
   board*, opaque propositional symbols correctly report that *the chip is inside the
   board* does not follow — correct about the propositions, wrong about the world,
@@ -146,12 +144,12 @@ optimization. Two subtleties:
   back, offered to the kinds, and returned only if no kind settles it. A sound
   propositional refutation of a genuinely propositional question still stands.
 
-- **Every exit goes through `_finish()`** (`neural_bridge.py:1326`): the single exit
+- **Every exit goes through `_finish()`** (`neural_bridge.py`): the single exit
   updates statistics and (for standalone calls with a real answer) captures the
   conclusion to memory. Making capture depend on *what a result is* rather than
   *which branch produced it* is itself a correctness fix.
 
-### 1.4 `_substrate_solvers()` — what can be proved (`neural_bridge.py:2018`)
+### 1.4 `_substrate_solvers()` — what can be proved (`neural_bridge.py`)
 
 Runs only deterministic formalizers, so an input the substrate can represent never
 enters a model call graph. In order:
@@ -170,24 +168,23 @@ enters a model call graph. In order:
    `computed` and its metadata carries the `worked` record. Formulas are read by
    `arithmetic_reading.read_formula` (a precedence parser, nothing evaluated as
    code). A reading that is not mathematics goes on to what follows.
-1. **Arithmetic first.** `read_equation(query)` (`arithmetic_reading.py`) reads a
-   linear equation; if present, `_solve_equation` (`neural_bridge.py:1826`) hands it
+1. **Arithmetic first.** `arithmetic_reading.read` (imported as `read_equation`) reads a
+   linear equation; if present, `_solve_equation` (`neural_bridge.py`) hands it
    to the **constraint solver** (Z3). "Lyric can do algebra" is therefore a
    substrate claim — the solver *produces* the answer at confidence 1.0, and there
    is deliberately **no fallback**: if the solver is absent this reports
    `capability_unavailable`, never a model guess.
-2. **Sequences.** `read_sequence(query)` → `_extend_sequence` (`neural_bridge.py:1875`)
+2. **Sequences.** `read_sequence(query)` → `_extend_sequence` (`neural_bridge.py`)
    asks the **learning authority** to *induce* the rule
    (`induce_sequence_rule`). A sequence with no constant difference/ratio has no
    rule in this language; inventing one would be the most tempting fabrication here,
    so `MULTIPLE_HYPOTHESES` / `NO_RULE` returns "not settled", not a guess.
 3. **Relational lookup over the learned concept graph.**
-   `_answer_over_concept_graph` (`neural_bridge.py:1958`) reads the query into a
+   `_answer_over_concept_graph` (`neural_bridge.py`) reads the query into a
    typed (subject, relation, object) triple and answers it via the typed relation
    algebra (Part 4). `UNKNOWN` falls through honestly.
 4. **Deterministic formalization → symbolic reasoning.** The formalizer chain
-   (1.5) turns the query into a statement + premises; on success `_symbolic_reasoning`
-   (`neural_bridge.py:2103`) hands it to Z3 and both the verdict and its confidence
+   (1.5) turns the query into a statement + premises; on success `_symbolic_reasoning` (`neural_bridge.py`) hands it to Z3 and both the verdict and its confidence
    come from the solver.
 
 If deterministic formalization fails, `_substrate_solvers` returns `None` — **which
@@ -201,36 +198,36 @@ the architecture forbids. It now always falls through.)
 
 Reading belongs to `core.semantics`; the *formalizer* — turning a reading into the
 statement and premises a solver can take — is the reasoning side of the boundary.
-`_get_deterministic_formalizer()` (`neural_bridge.py:2089`) is a `FormalizerChain`
+`_get_deterministic_formalizer()` (`neural_bridge.py`) is a `FormalizerChain`
 of three, each needing no model:
 
-- **`PassthroughFormalizer`** (`neural_bridge.py:323`): accepts input already in the
+- **`PassthroughFormalizer`** (`neural_bridge.py`): accepts input already in the
   formal grammar (via `LogicalFormulaParser.is_formal`). Context items that do not
   parse are *dropped*, which is sound — withholding a premise can only make a goal
   harder to prove, never prove something false.
-- **`DeterministicExtractor`** (`neural_bridge.py:371`): translates a bounded slice
+- **`DeterministicExtractor`** (`neural_bridge.py`): translates a bounded slice
   of English into the propositional grammar. Because the substrate is
   propositional, universals are **grounded**: "All humans are mortal" becomes one
   implication per subject actually mentioned (`s_human -> s_mortal`). A generic goal
   ("Is a robin an animal?") introduces a **Skolem individual** — an arbitrary member
   asserted to be of the kind — so proving something of a kind is proving it of an
-  arbitrary member (`neural_bridge.py:519`). Anything outside the supported patterns
+  arbitrary member (`neural_bridge.py`). Anything outside the supported patterns
   is *declined* so the chain falls through; a wrong guess here would put a false
   premise in front of the solver, the one failure mode the substrate cannot detect.
-  It also reports **connectivity** (`neural_bridge.py:613`): whether the goal's atom
+  It also reports **connectivity** (`neural_bridge.py`): whether the goal's atom
   occurs in the premises at all, so a translation gap is told apart from a genuine
   non-entailment.
-- **`DerivedReadingFormalizer`** (`neural_bridge.py:635`): formalizes with readings
+- **`DerivedReadingFormalizer`** (`neural_bridge.py`): formalizes with readings
   the substrate *derived* (via `procedure_synthesis`, registered once per process),
   not ones a human wrote. This is what shrinks the model-backed share for a reason
   other than someone adding a regex. It declines where no registered reading applies.
 
-### 1.6 `_reason_by_kind()` — what can be derived (`neural_bridge.py:2902`)
+### 1.6 `_reason_by_kind()` — what can be derived (`neural_bridge.py`)
 
 The dispatcher for the eleven kinds. Its logic:
 
 1. **Which kinds to try**: whatever `request.kinds` names, else
-   `kinds_of_thinking_for(query)` (marker-scored, `reasoning_interfaces.py:161`),
+   `kinds_of_thinking_for(query)` (marker-scored, `reasoning_interfaces.py`),
    else *every* classical kind. That last fallback is not a guess — each strategy's
    `is_applicable` then refuses unless the material it needs is present.
 2. **Quality ordering**: kinds are sorted by *measured* success rate
@@ -249,17 +246,17 @@ The dispatcher for the eleven kinds. Its logic:
 6. **Returns `None`, never an empty result**, when nothing applies — the caller must
    tell "no kind fits this" from "a kind ran and found nothing", because only the
    first should fall through further. Learned **schemas** bearing on the query
-   (`_schemas_bearing_on`, `neural_bridge.py:2879`) are surfaced into the live result
+   (`_schemas_bearing_on`, `neural_bridge.py`) are surfaced into the live result
    as induced priors.
 
-### 1.7 `_cross_domain_reasoning()` (`neural_bridge.py:3045`)
+### 1.7 `_cross_domain_reasoning()` (`neural_bridge.py`)
 
 Not one of the eleven kinds — it maps structure *between* named domains via the
 `UniversalDomainMaster`, and runs only when a caller puts `source_domains` /
 `target_domains` in `task_metadata`. Returns `None` (honest inability) when nothing
 grounds across the domains, never a fabricated "no insights".
 
-### 1.8 `_unsettled()` — declining as a result (`neural_bridge.py:1937`)
+### 1.8 `_unsettled()` — declining as a result (`neural_bridge.py`)
 
 The substrate can return that it could not represent a question. This is a distinct
 outcome with its own reason code (`unsupported_input`), told apart from a wrong
@@ -270,24 +267,23 @@ system that can decline is what makes its confident answers mean something.
 
 The bridge measures its own behaviour and persists it (survives restart):
 
-- **`record_reasoning(kinds, latency)`** (`neural_bridge.py:845`) accumulates
+- **`record_reasoning(kinds, latency)`** (`neural_bridge.py`) accumulates
   per-kind `runs` + `total_latency` (the *cost* signal).
-- **`reasoning_difficulty(kind)`** (`neural_bridge.py:894`): once a kind has enough
+- **`reasoning_difficulty(kind)`** (`neural_bridge.py`): once a kind has enough
   runs, its difficulty is its average latency normalised against the *fastest*
   measured kind, clamped. "Harder" means "empirically slower here." Consumers (the
   agent allowance, the queue's timeout) read this, not a hardcoded table.
-- **`record_reasoning_outcome(attempted, winner)`** (`neural_bridge.py:866`): every
+- **`record_reasoning_outcome(attempted, winner)`** (`neural_bridge.py`): every
   considered kind gets an *attempt*; the one that settled it gets a *success*.
-- **`reasoning_quality(kind)`** (`neural_bridge.py:885`): `successes/attempts`, with a
+- **`reasoning_quality(kind)`** (`neural_bridge.py`): `successes/attempts`, with a
   neutral prior (`0.5`) until `_QUALITY_MIN_ATTEMPTS = 5` attempts. This is the
   signal `_reason_by_kind` orders and selects by — the loop that lets the pipeline
   prefer the kinds that actually work here.
-- **`agent_allowance(kind)`** (`neural_bridge.py:918`): how many agents-of-self a kind
+- **`agent_allowance(kind)`** (`neural_bridge.py`): how many agents-of-self a kind
   warrants in parallel, *derived from* measured difficulty (`round(2·difficulty)`,
   clamped [2,6]).
 - **Persistence**: `unified.reasoning_telemetry` (kind, runs, total_latency,
-  attempts, successes) via `flush_telemetry` / `load_telemetry`
-  (`neural_bridge.py:929`), plus the coarse mode-mix statistics
+  attempts, successes) via `flush_telemetry` / `load_telemetry` (`neural_bridge.py`), plus the coarse mode-mix statistics
   (`unified.reasoning_bridge_stats`). One scheduled flush,
   `_flush_reasoning_persistence`, whose *cadence* is owned by the queue authority
   and whose *logic* lives here.
@@ -297,23 +293,23 @@ The bridge measures its own behaviour and persists it (survives restart):
 The bridge is also the single door to reasoning services other subsystems used to
 reach by importing different engines directly:
 
-- **`abstract_over_memories(memory_dicts)`** (`neural_bridge.py:1027`) → the
+- **`abstract_over_memories(memory_dicts)`** (`neural_bridge.py`) → the
   abstraction pipeline (Part 7). The memory agent used to do this itself; it now
   *asks the authority*.
-- **`reflect()`** (`neural_bridge.py:1040`) → belief-graph hygiene: temporal decay,
+- **`reflect()`** (`neural_bridge.py`) → belief-graph hygiene: temporal decay,
   contradiction/implication consistency, domain volatility, schema decay. Each step
   isolated so one failure does not abort the rest; the report says what actually ran.
-- **`assess_uncertainty(request)`** (`neural_bridge.py:1079`) → the epistemic engine
+- **`assess_uncertainty(request)`** (`neural_bridge.py`) → the epistemic engine
   (Part 6).
-- **`apply_reasoning_output(outputs)`** (`neural_bridge.py:1090`) → folds structured
+- **`apply_reasoning_output(outputs)`** (`neural_bridge.py`) → folds structured
   conclusions `{hypotheses, belief_updates}` into the belief graph; returns how many
   *real* epistemic mutations resulted.
-- **`generate_hypothesis(claim, ...)`** (`neural_bridge.py:1140`) → the hypothesis
+- **`generate_hypothesis(claim, ...)`** (`neural_bridge.py`) → the hypothesis
   system. `predictions`/`alternatives` are validated and coerced to lists of strings
-  by `_coerce_predictions` (`neural_bridge.py:1106`) — a caller error *raises*
+  by `_coerce_predictions` (`neural_bridge.py`) — a caller error *raises*
   (surfaced), a structured prediction is *flattened* (not dropped). This replaces a
   silent `None` false-negative.
-- **`observe_tool_result(tool, params, output, success)`** (`neural_bridge.py:1169`)
+- **`observe_tool_result(tool, params, output, success)`** (`neural_bridge.py`)
   → the epistemic engine folds what a tool *observed* into the belief graph, which
   surfaces/resolves unstable regions that drive the exploration loop.
 
@@ -323,13 +319,12 @@ reach by importing different engines directly:
 
 Reasoning is not one activity with one quality score. The engine implements eleven
 structurally-different procedures, each with its own applicability condition, its own
-basis for confidence, and its own failure mode. Each is a `ReasoningStrategy`
-(`abstract_reasoning_engine.py:186`) with `reason()`, `is_applicable()`,
+basis for confidence, and its own failure mode. Each is a `ReasoningStrategy` (`abstract_reasoning_engine.py`) with `reason()`, `is_applicable()`,
 `get_strategy_name()`.
 
 ### 2.1 The engine dispatcher
 
-`AbstractReasoningEngine.reason(context)` (`abstract_reasoning_engine.py:2143`) is
+`AbstractReasoningEngine.reason(context)` (`abstract_reasoning_engine.py`) is
 **set-based, not a switch**: it runs *every* applicable strategy and reconciles their
 conclusions. The stages:
 
@@ -521,7 +516,7 @@ and `Answer(verdict ∈ {true,false,unknown}, basis ∈ {observed,derived,none},
 derivation?)`. The typed relation vocabulary itself (`SemanticRelation`, ~38 types,
 and each relation's `RelationSpec`) lives in `core/semantics/relation_types.py`.
 
-### 4.2 The composition law (`compose`, `relation_algebra.py:60`)
+### 4.2 The composition law (`compose`, `relation_algebra.py`)
 
 Composition is **licensed, isolation-by-default** — exactly four rules, everything
 else returns `None`:
@@ -551,7 +546,7 @@ optionally seeding inverse edges so inverses can chain, bounded by `max_hops`, w
 edge is `TRUE/observed`; a licensed derivation is `TRUE/derived` (carrying the full
 `Derivation`); **absence is `UNKNOWN`, never `FALSE`**.
 
-### 4.4 `answer_over_graph` over the live Postgres graph (`concept_graph_reasoning.py:66`)
+### 4.4 `answer_over_graph` over the live Postgres graph (`concept_graph_reasoning.py`)
 
 `load_subgraph` (`:34`) BFS-loads the typed subgraph from `unified.concept_relations`,
 mapping stored relation strings back to types (**untyped/legacy edges are skipped** —

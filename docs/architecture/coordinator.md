@@ -369,8 +369,17 @@ decides it.
 | `_acceptance_band` | `(verification_intensity, accept)` — the same band `perceive` uses |
 | `_corroborated` | The most caution may ask: two independent strong groundings |
 
-DID alone cannot reach the band. A grounded operator that had only its own report sat at roughly 0.72 and
-could never reach 0.95, so verified successes were being marked failed until `_saw_reobserve` learned to
+**The band is earned, not set.** A completion belief opens at a prior of 0.15 (`COMPLETION_PRIOR`). The
+acceptance bar starts at 0.95 (`COMPLETION_ACCEPT`) and rises with the domain's own caution toward 0.99
+(`COMPLETION_ACCEPT_MAX`) — but never past what two independent strong confirmations actually give from
+that prior, which is 0.975 (`_corroborated`: 0.15 → 0.724 → 0.975). **Done demands corroboration, and
+caution cannot demand what no evidence gives.** Raised toward 0.99 the bar asked for a third confirmation
+a goal in the world cannot have — what the act reported and a fresh look at the world are its two — so in
+a world whose own failures raised its caution, a goal the world reached and Lyric saw was never done
+(`RULE-AUTHORITY-02`, worlds 1044 and 1725: 0.975 against 0.98).
+
+This is also why DID alone cannot finish anything. A grounded operator carrying only its own report sits
+at that one-confirmation 0.724, so verified successes were marked failed until `_saw_reobserve` learned to
 re-observe a grounded operator's world effects through a fresh `observe_world`. Evidence:
 `INTEGRATION-LOOP-01` (6/6, real coordinator and world).
 
