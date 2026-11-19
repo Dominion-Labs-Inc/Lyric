@@ -3102,7 +3102,9 @@ class MemoryAgent(IMemoryConsolidation):
         from core.semantics.derived_reader import PatternInventory
         # Added one at a time, as the constructor adds them, so the loop is given its turn between them.
         inventory = PatternInventory()
-        for item in await self.taught_patterns():
+        with timed("the patterns taught"):
+            _patterns = await self.taught_patterns()
+        for item in _patterns:
             inventory.add(item)
             await give_way()
         # AND WHAT A TREEBANK SHOWED A WORD TO BE A FORM OF, which `names_of_shape` answers with and naming a term
@@ -3133,22 +3135,25 @@ class MemoryAgent(IMemoryConsolidation):
         # everything after this point may ask for the view memory reads with (`grammar_view`), which now requires
         # the grammar because there is no file to fall back on. Read where the other grammar memories were read,
         # most of a warm later, a reader that asked early got nothing and said the store had never been taught.
-        self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
-        self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
+        with timed("English's grammar"):
+            self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
+            self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
         index: Dict[str, Dict[str, int]] = {}
         with timed("word groups"):
             groups = await self._word_group_memories()
-        structure = await self._analysed_memories(groups)
+        with timed("sentences analysed"):
+            structure = await self._analysed_memories(groups)
         self._record_names, self._grammar_words, self._grammar_records = {}, {}, []
         self._word_record_ids, self._classes_apart = {}, set()
-        for row, word in await self._word_record_memories():
-            await give_way()
-            self._learn_word_record(word, index, forms, structure)
-            self._grammar_words[word.key()] = word
-            self._word_record_ids[word.key()] = row.memory_id
-        # PUT WHERE READING LOOKS ONLY WHERE NOTHING IS HELD YET. A warm that rebuilds a view already built leaves
-        # it standing until this one is whole, so a reader mid-warm never loses the classes and senses it had; a
-        # first warm has none to lose, and the loop below cannot name a term rightly without the words just read.
+        with timed("words recorded whole"):
+          for row, word in await self._word_record_memories():
+              await give_way()
+              self._learn_word_record(word, index, forms, structure)
+              self._grammar_words[word.key()] = word
+              self._word_record_ids[word.key()] = row.memory_id
+          # PUT WHERE READING LOOKS ONLY WHERE NOTHING IS HELD YET. A warm that rebuilds a view already built leaves
+          # it standing until this one is whole, so a reader mid-warm never loses the classes and senses it had; a
+          # first warm has none to lose, and the loop below cannot name a term rightly without the words just read.
         words_arrived = not len(self.pattern_inventory())
         if words_arrived:
             self._pattern_inventory = inventory
@@ -3167,102 +3172,110 @@ class MemoryAgent(IMemoryConsolidation):
             bucket = index.setdefault(word, {})
             bucket[cls] = bucket.get(cls, 0) + 1
             told += 1
-        for item in (*taught, *unread):
-            await give_way()
-            meta = item.metadata or {}
+        with timed("the classes those sentences imply"):
+          for item in (*taught, *unread):
+              await give_way()
+              meta = item.metadata or {}
 
-            # EVIDENCE AGAINST, from the sentences a class actually cost.
-            #
-            # A reading that refused BECAUSE of a class counts against it. This
-            # is what makes a class earnable rather than merely assertable: a
-            # word wrongly observed as an ADJECTIVE breaks ordinary sentences,
-            # and each break argues it down until it stops being usable.
-            #
-            # `blamed` is narrow by construction -- the reader names a class
-            # only in the branches that refuse because of it -- so a sentence
-            # that failed for some unrelated reason refutes nothing.
-            for entry in self._blamed_in(item):
-                if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
-                    continue
-                word, cls = str(entry[0]).lower(), str(entry[1]).upper()
-                if not word or not cls:
-                    continue
-                bucket = index.setdefault(word, {})
-                bucket[cls] = bucket.get(cls, 0) - 1
-                refuted += 1
+              # EVIDENCE AGAINST, from the sentences a class actually cost.
+              #
+              # A reading that refused BECAUSE of a class counts against it. This
+              # is what makes a class earnable rather than merely assertable: a
+              # word wrongly observed as an ADJECTIVE breaks ordinary sentences,
+              # and each break argues it down until it stops being usable.
+              #
+              # `blamed` is narrow by construction -- the reader names a class
+              # only in the branches that refuse because of it -- so a sentence
+              # that failed for some unrelated reason refutes nothing.
+              for entry in self._blamed_in(item):
+                  if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
+                      continue
+                  word, cls = str(entry[0]).lower(), str(entry[1]).upper()
+                  if not word or not cls:
+                      continue
+                  bucket = index.setdefault(word, {})
+                  bucket[cls] = bucket.get(cls, 0) - 1
+                  refuted += 1
 
-            # ONLY A TELLING IS EVIDENCE ABOUT A WORD.
-            #
-            # A derived claim is the substrate's own conclusion, and a conclusion
-            # is not testimony about how English uses a word. Sight describing a
-            # kind it had seen wrote `<cat> has_property circle`, and the
-            # property branch of `classes_implied_by` files a property's object
-            # as ADJECTIVE -- so seeing round things taught the substrate that
-            # `circle` is an adjective. The surface cannot settle this (it
-            # contains the word either way); the PROVENANCE can, and
-            # `ROOT_SOURCE_VALUES` is the set this substrate already uses
-            # everywhere else to separate an observation from a conclusion.
-            #
-            # A memory recording no source type at all predates this and is left
-            # as it was: absence of the record is not evidence that it was
-            # derived, and discarding it would silently drop vocabulary.
-            source_type = meta.get("source_type")
-            if source_type is not None:
-                from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
-                if str(source_type).strip().lower() not in ROOT_SOURCE_VALUES:
-                    derived += 1
-                    continue
+              # ONLY A TELLING IS EVIDENCE ABOUT A WORD.
+              #
+              # A derived claim is the substrate's own conclusion, and a conclusion
+              # is not testimony about how English uses a word. Sight describing a
+              # kind it had seen wrote `<cat> has_property circle`, and the
+              # property branch of `classes_implied_by` files a property's object
+              # as ADJECTIVE -- so seeing round things taught the substrate that
+              # `circle` is an adjective. The surface cannot settle this (it
+              # contains the word either way); the PROVENANCE can, and
+              # `ROOT_SOURCE_VALUES` is the set this substrate already uses
+              # everywhere else to separate an observation from a conclusion.
+              #
+              # A memory recording no source type at all predates this and is left
+              # as it was: absence of the record is not evidence that it was
+              # derived, and discarding it would silently drop vocabulary.
+              source_type = meta.get("source_type")
+              if source_type is not None:
+                  from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
+                  if str(source_type).strip().lower() not in ROOT_SOURCE_VALUES:
+                      derived += 1
+                      continue
 
-            reading = str(meta.get("reading") or "")
-            if "|" not in reading:
-                # Kept by `remember_told`: the sentence was remembered without
-                # being understood, so it implies nothing about its words. It
-                # stays in memory and teaches the reader nothing -- which is
-                # the point of recording that it was not read.
-                unparsed += 1
-                continue
-            parts = [p.strip() for p in reading.split("|")]
-            subject, relation = parts[0], parts[1] if len(parts) > 1 else ""
-            obj = parts[2] if len(parts) > 2 else None
+              reading = str(meta.get("reading") or "")
+              if "|" not in reading:
+                  # Kept by `remember_told`: the sentence was remembered without
+                  # being understood, so it implies nothing about its words. It
+                  # stays in memory and teaches the reader nothing -- which is
+                  # the point of recording that it was not read.
+                  unparsed += 1
+                  continue
+              parts = [p.strip() for p in reading.split("|")]
+              subject, relation = parts[0], parts[1] if len(parts) > 1 else ""
+              obj = parts[2] if len(parts) > 2 else None
 
-            surface = item.content
-            if isinstance(surface, dict):
-                surface = surface.get("text") or surface.get("content") or ""
+              surface = item.content
+              if isinstance(surface, dict):
+                  surface = surface.get("text") or surface.get("content") or ""
 
-            for word, cls in classes_implied_by(
-                    str(surface or ""), subject, relation, obj).items():
-                bucket = index.setdefault(word, {})
-                bucket[cls] = bucket.get(cls, 0) + 1
+              for word, cls in classes_implied_by(
+                      str(surface or ""), subject, relation, obj).items():
+                  bucket = index.setdefault(word, {})
+                  bucket[cls] = bucket.get(cls, 0) + 1
 
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
-        said = await self._said_memories()
+        with timed("what words are said of"):
+            said = await self._said_memories()
         # AND HOW THE WORDS OF A SENTENCE GO TOGETHER: which phrases are a happening's arguments, and the
         # lessons' sentences with their meanings, which the composer learns from. The sentences held as analysed
         # are read above, with the words recorded whole that hold their joins.
-        arguments = await self._argued_memories()
-        composition, taught_sentences = await self._composition_memories(arguments)
-        derived = await self._derived_memories()
+        with timed("a doing's arguments"):
+            arguments = await self._argued_memories()
+        with timed("sentences with meanings"):
+            composition, taught_sentences = await self._composition_memories(arguments)
+        with timed("sentences derived by hand"):
+            derived = await self._derived_memories()
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
-        for row, record in await self._record_memories():
-            await give_way()
-            self._learn_record_words(record, index)
-            self._grammar_records.append(record)
-            structure.add(record.analysed())
-            for item in record.forms():
-                forms.hold(item)
-            derived.append(record.derived())
-            recorded = record.taught()
-            composition.hold(recorded)
-            taught_sentences.append(recorded)
-            kept = (row.metadata or {}).get("grammar_learned") or {}
-            self._grammar_learned[recorded.key()] = (row.memory_id, kept.get("counted"), kept.get("rules"))
-        # AND WHAT READING TAUGHT OF HOW WORDS ARE USED (`keep_grammar_learning`).
+        with timed("sentences recorded whole"):
+          for row, record in await self._record_memories():
+              await give_way()
+              self._learn_record_words(record, index)
+              self._grammar_records.append(record)
+              structure.add(record.analysed())
+              for item in record.forms():
+                  forms.hold(item)
+              derived.append(record.derived())
+              recorded = record.taught()
+              composition.hold(recorded)
+              taught_sentences.append(recorded)
+              kept = (row.metadata or {}).get("grammar_learned") or {}
+              self._grammar_learned[recorded.key()] = (row.memory_id, kept.get("counted"), kept.get("rules"))
+          # AND WHAT READING TAUGHT OF HOW WORDS ARE USED (`keep_grammar_learning`).
         self._read_english = [record for row in await self._rows_tagged(self.READ_ENGLISH_TAG)
                               for record in ((row.metadata or {}).get("read_english") or ())]
         # AND WHAT THINGS ARE, as English's grammar asks it of the words it reads (`grammar_view`).
-        grammar_links = await self._grammar_knowledge()
+        with timed("what things are"):
+            grammar_links = await self._grammar_knowledge()
         # AND WHAT WAS HEARD AFTER WHAT, into the same view.
-        heard, self._heard_memory = await self._heard_memories()
+        with timed("what was heard after what"):
+            heard, self._heard_memory = await self._heard_memories()
         for word, (after, two) in heard.items():
             await give_way()
             for other in after:
