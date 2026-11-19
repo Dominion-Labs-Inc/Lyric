@@ -285,3 +285,19 @@ def test_the_store_is_asked_for_other_instances_and_never_counts_this_one():
 
     persistence._db = Empty()
     assert asyncio.run(persistence.others_alive(120.0)) == 0
+
+
+def test_the_downtime_question_is_answered_by_an_authority_that_predates_it():
+    """THIS SUBSTRATE ADOPTS CODE INTO A RUNNING PROCESS, so a new attribute set only in `__init__` does not
+    exist on the authority already built.
+
+    Measured live: `elsewhere_working` was adopted into a resident whose authority was constructed before the
+    attribute, and the reflection job failed every ten minutes with
+    `AttributeError: 'QueueAuthority' object has no attribute '_others_alive'` (2026-11-19 12:21:36). A
+    default on the class is what such an authority reads; the first heartbeat replaces it with the store's
+    answer. Nothing here runs `__init__`, which is the point."""
+    bare = QueueAuthority.__new__(QueueAuthority)
+    assert bare.busy() is False
+    assert bare.elsewhere_working() is False
+    assert bare.idle_for() >= 0.0
+    assert QueueAuthority.stand_down_after(bare, 0.0)() is False, "it answers rather than raising"

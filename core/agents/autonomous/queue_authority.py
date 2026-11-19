@@ -292,11 +292,6 @@ class QueueAuthority:
         #: is a person waiting. `busy` and `idle_for` are what downtime work asks (`GiveWay`'s `stand_down`).
         self._work_in_flight = 0
         self._last_work_ended = time.monotonic()
-        #: How many OTHER instances of this store were alive when the heartbeat last ran. Read from the store
-        #: on the heartbeat's own cadence rather than asked for on demand: the only thing that asks is work
-        #: which may run in downtime alone, and that asks at every give-way -- a store read per give-way would
-        #: cost more than the pass it guards.
-        self._others_alive = 0
         #: The reasoning authority, consulted (lazily) for the MEASURED
         #: reasoning-difficulty factor in `timeout_for`. The queue owns the
         #: timeout formula; the reasoning authority owns how hard the thinking is.
@@ -918,6 +913,24 @@ class QueueAuthority:
     #: may be claimed by another (config `instance_lease_s`).
     INSTANCE_LEASE_S = 120.0
     #: How often this instance says it is alive (config `heartbeat_interval_s`).
+    #: How many OTHER instances of this store were alive when the heartbeat last ran. Read from the store on
+    #: the heartbeat's own cadence rather than asked for on demand: the only thing that asks is work which may
+    #: run in downtime alone, and that asks at every give-way -- a store read per give-way would cost more
+    #: than the pass it guards.
+    #:
+    #: DECLARED ON THE CLASS, NOT IN `__init__`, because this substrate ADOPTS code into a running process.
+    #: Set in `__init__` alone, the new `elsewhere_working` ran against an authority built before it existed
+    #: and the reflection job failed every ten minutes with AttributeError (measured 2026-11-19 12:21:36). A
+    #: default on the class is what an instance that predates the attribute reads, and the first heartbeat
+    #: replaces it with the store's answer.
+    _others_alive = 0
+
+    #: The same reason, for the two the downtime question is answered from here: how much work is in flight,
+    #: and when the last of it ended. Both are set in `__init__` as well; these are what an authority built
+    #: before they existed reads, so adopted code that asks is answered instead of raising.
+    _work_in_flight = 0
+    _last_work_ended = time.monotonic()
+
     HEARTBEAT_INTERVAL_S = 30.0
 
     async def heartbeat(self) -> None:
