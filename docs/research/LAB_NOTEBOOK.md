@@ -167,6 +167,35 @@ is a thing", `N=>NP`, priced by `Words.noun_alone`): `NP/N => NP`, priced by a c
 written alone rather than before a kind, which `Words` does not keep yet. That is a reader change plus one
 treebank count, so its cost wants `scripts/check_reading.py` against the live store.
 
+**THE GENERALISATION BUILT: A DETERMINER STANDING ALONE IS THE THINGS IT DETERMINES.** The lexicon writes a
+determiner's category word by word and every one of them is `NP/N`, a word taking the kind it determines, so a
+determiner with nothing after it built NO STRUCTURE: "The dog chased all." and "The dog chased some." read nothing
+where "The dog chased them." read. `_unary` already says this of a kind said bare ("Farmers rebelled", `N=>NP`,
+priced by `Words.noun_alone`) and said it of no determiner, so the rule is the same thing said once more over a
+class instead of word by word: `NP/N => NP`, priced by a new count of how often the word is written alone rather
+than before a kind (`Words.determiner_alone`, counted in `HeldWords` from the analysed sentences, and shared among
+words written alike as every other count here is).
+
+NO SENTENCE THAT ALREADY READ READS DIFFERENTLY, which is the measurement that made it shippable: over 20
+sentences holding determiners, names, coordination, a question, a negation, a relative clause, an order and a
+possessive, 0 of 20 meanings moved and the charts grew from 2,709 signs to 2,970 -- **1.096x**. What it adds is
+read only where nothing else reads at all.
+
+WHAT IT COSTS, SAID PLAINLY: "The barked." is no sentence and is now read as one, last. Every determiner may head
+a thing, and at a fresh store's floor costs they are all licensed alike; against the store's own counts "the" has
+thousands written before a kind and none alone, so the sign is built and loses. It is still the only reading of a
+non-sentence, so a non-sentence now reads. That is the price of reading the sentences that are.
+
+AND TWO THINGS IT DOES NOT FIX. "Both barked." still builds no structure, because "both"'s row says
+`ADJECTIVE:before` rather than `det` -- it is held as a quality, not a determiner, which is also why "Both dogs
+barked." reads `has_count(?v1, 2)`; whether that row is wrong is a question about what "both" says, not about this
+rule. And "All barked." still prefers the name reading at a fresh store's costs, the capital opening the sentence
+letting a name through; whether the determiner wins is a question for the store's own counts.
+
+THE QUANTIFIER IS NOT LOST BY THIS, though it looked so at first: "The dog chased all." reads without `every`,
+and so does "The dog chased every dog." The meaning language says no quantification either way, which is the known
+three-quarters coverage and not this rule's doing.
+
 **HOW IT WAS VERIFIED.** `tests/test_derived_reading.py` and `tests/test_grammar.py`, with two new tests, each
 shown to fail on HEAD at the defect: the mark test fails at `'The “red” dog barked.' is not read as 'The red dog
 barked.' is`, and the quotation test at `The term “…” names a cycle.` Every mark measurement is files-only

@@ -438,6 +438,11 @@ class Words:
         word that does ("the", "my": `determined`)."""
         return {}
 
+    def determiner_alone(self, word: str) -> Mapping[str, float]:
+        """How often the determiner is written with nothing after it saying what of ("all are ready", "the dog
+        chased both": `alone`) and with the kind it determines ("all dogs": `before`)."""
+        return {}
+
     def bare_modifier(self, word: str) -> Mapping[str, float]:
         """How often the word, heading a thing said of a doing with no preposition before it, tells of the doing ("One
         morning the dog ran.", "We met last week.": `modifier`), and how often it is used as a noun otherwise."""
@@ -3871,6 +3876,29 @@ class Grammar:
             out.append(bare)
             # A thing said bare may tell of a doing too ("Last year the company hired three engineers.").
             out.extend(self._said_of_a_doing(bare))
+        if isinstance(c, Fn) and c.slash == "/" and isinstance(c.res, Atom) and c.res.base == "NP" \
+                and isinstance(c.arg, Atom) and c.arg.base == "N" and sign.end - sign.start == 1 \
+                and 0 <= sign.head < len(self._tokens):
+            # A DETERMINER WITH NOTHING AFTER IT SAYING WHAT OF IS THE THINGS IT DETERMINES ("all are ready",
+            # "The dog chased both."), as often as the word is written so -- which is the same thing this says of
+            # a kind just above, and was said of no determiner at all. The lexicon writes a determiner's category
+            # word by word and every one of them is `NP/N`, a word taking the kind it determines, so a determiner
+            # standing alone built NO STRUCTURE: "Both barked.", "The dog chased both.", "The dog chased all." and
+            # "The dog chased some." read nothing while "They barked." and "The dog chased them." read.
+            #
+            # AND IT WAS WORSE THAN SILENCE WHERE A CAPITAL ALLOWED A NAME. "All barked." DID read, as
+            # `done_by(?v0, all)` -- a barking done by somebody called "All" -- because a capitalised word opening
+            # a sentence may be a name; lowercase "all barked." read nothing. So the gap was answered by a wrong
+            # reading wherever the sentence began with the word (2026-11-18).
+            #
+            # The kind is simply unstated, which is what the construction says: "all" alone is every one of
+            # something the speaker and listener already have. The determiner's own meaning travels with it, so
+            # "all" is still `every`, "some" still `indefinite` and `some`, and nothing is invented here.
+            word = self._tokens[sign.head]
+            cost = estimate(self.lexicon.words.determiner_alone(word),
+                            self.lexicon.words.like(word, "alone-det"), ("alone", "before"))["alone"]
+            out.append(Sign(Atom("NP", None, c.res.ref), sign.pieces, sign.score + cost, sign.start, sign.end,
+                            "NP/N=>NP", (sign,), sign.head))
         if isinstance(c, Atom) and c.base == "NP":
             out.extend(self._said_of_a_doing(sign))
         if _verb_phrase(c) and c.res.feat == "adj" and sign.end - sign.start > 1:

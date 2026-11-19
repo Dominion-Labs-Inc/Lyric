@@ -282,6 +282,10 @@ class HeldWords(Words):
         self.verb_frames: Dict[str, Counter] = defaultdict(Counter)
         self.shapes: Dict[str, Counter] = defaultdict(Counter)
         self.alone: Dict[str, Counter] = defaultdict(Counter)
+        #: Each determiner: how often it is written with nothing after it saying what of ("all are ready": `alone`)
+        #: and how often with the kind it determines ("all dogs": `before`), for the reading that a determiner
+        #: standing alone is the things it determines (`Grammar._unary`, "NP/N=>NP").
+        self.determined: Dict[str, Counter] = defaultdict(Counter)
         #: Each noun and name: how often it heads a thing said of a doing with no preposition (`modifier`: "One
         #: morning the dog ran."), and how often it is used otherwise.
         self.bare: Dict[str, Counter] = defaultdict(Counter)
@@ -324,7 +328,7 @@ class HeldWords(Words):
             self.sentences += 1
         self.alike: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         for what, table in (("uses", self.form_uses), ("forms", self.forms), ("shapes", self.shapes),
-                            ("alone", self.alone), ("bare", self.bare)):
+                            ("alone", self.alone), ("alone-det", self.determined), ("bare", self.bare)):
             for form, counts in table.items():
                 for ending in {form[-3:], form[-2:]}:
                     self.alike[(what, ending)].update(counts)
@@ -456,6 +460,10 @@ class HeldWords(Words):
                 # A THING SAID OF A DOING WITH NO PREPOSITION ("One morning the dog ran."): the treebank's
                 # `obl:unmarked`, `obl:tmod` and `obl:npmod` in its earlier releases.
                 self.bare[form]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
+            if classes[i] == "DETERMINER":
+                # Before the kind it determines, or standing for the things themselves: a determiner the analysts
+                # mark as the word a thing is said by ("all" in "all are ready") heads it rather than marking it.
+                self.determined[form]["before" if relations[i] in ("det", "det:poss") else "alone"] += 1
             if classes[i] == "NOUN" and not relations[i].startswith("compound"):
                 determined = any(relations[k] in ("det", "det:poss", "nmod:poss") for k in under[i])
                 self.alone[form]["determined" if determined else "bare"] += 1
@@ -695,6 +703,9 @@ class HeldWords(Words):
 
     def noun_alone(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.alone.get(word.lower(), {}).items()}
+
+    def determiner_alone(self, word: str) -> Mapping[str, float]:
+        return {k: float(n) for k, n in self.determined.get(word.lower(), {}).items()}
 
     def bare_modifier(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.bare.get(word.lower(), {}).items()}

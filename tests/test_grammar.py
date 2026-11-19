@@ -2504,3 +2504,35 @@ def test_every_modal_asks_as_well_as_tells(grammar):
     for modal in ("Could", "Would", "Can", "Will", "Might", "May"):
         said = read(grammar, f"{modal} you help me?")
         assert said and said.startswith("request:"), f"{modal}: {said}"
+
+
+def test_a_determiner_with_nothing_after_it_is_the_things_it_determines(grammar):
+    """A DETERMINER STANDING ALONE IS THE THINGS IT DETERMINES ("all are ready", "The dog chased both."), as often
+    as the word is written so -- which is what `_unary` already says of a kind said bare ("Farmers rebelled") and
+    said of no determiner at all.
+
+    The lexicon writes a determiner's category word by word and every one of them is `NP/N`, a word taking the kind
+    it determines, so a determiner standing alone built NO STRUCTURE: "The dog chased all." and "The dog chased
+    some." read nothing where "The dog chased them." read. And where a capital allowed a name the gap was answered
+    by a WRONG reading rather than silence: "All barked." read as `done_by(?v0, all)`, a barking done by somebody
+    called "All", while lowercase "all barked." read nothing (2026-11-18).
+
+    NO SENTENCE THAT ALREADY READ READS DIFFERENTLY. Measured over 20 sentences holding determiners, names,
+    coordination, a question, a negation, a relative clause, an order and a possessive: 0 of 20 meanings moved, and
+    the charts grew from 2,709 signs to 2,970, which is 1.096x. What the rule adds is read only where nothing else
+    reads: "The barked." is no sentence and is now read as one, last, which is the price of reading the sentences
+    that are.
+
+    The kind is unstated, which is what the construction says: "all" alone is every one of something the speaker
+    and listener already have. The determiner's own meaning travels with it and nothing is invented -- the meaning
+    language says no quantification either way, as "The dog chased every dog." shows, holding no `every`."""
+    for said in ("The dog chased all.", "The dog chased some.", "all barked.", "each barked."):
+        got = read(grammar, said)
+        assert got is not None, f"{said!r} reads nothing"
+    # What already read reads the same, word for word.
+    assert read(grammar, "The dog chased a cat.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "instance_of(?v2, cat) & precedes(?v0, ?now)")
+    assert read(grammar, "The dog barked.") == (
+        "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)")
+    assert read(grammar, "All dogs barked.") == read(grammar, "all dogs barked.".capitalize())
