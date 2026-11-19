@@ -88,11 +88,11 @@ Measured by scanning the current tree on 2026-11-19.
 
 | Subsystem | Lines | Modules | What it is |
 |---|---|---|---|
-| `agents/` | 52,515 | 27 | The coordinator (the body), which holds the constitution, the drift faculty, the behaviour arbiter, intrinsic motivation and the cognitive cycle, and the memory agent |
+| `agents/` | 52,517 | 27 | The coordinator (the body), which holds the constitution, the drift faculty, the behaviour arbiter, intrinsic motivation and the cognitive cycle, and the memory agent |
 | `tools/` | 40,891 | 30 | Tool registry, the governed execution path, and the tool implementations |
 | `learning/` | 29,767 | 29 | Learning authorities, rule induction, rule store, rule grounding, procedure synthesis over learned operators, exploration, meta-learning, recognisers, statistical drift detection |
 | `semantics/` | 29,250 | 23 | The sentence reader and sentence machine, the admission gate, the grammar and its words, argument structure, composition, word senses and forms, relation typing, document reading, conversation |
-| `reasoning/` | 24,342 | 23 | Reasoning bridge, beliefs, abstraction, hypothesis testing, temporal reasoning |
+| `reasoning/` | 24,567 | 23 | Reasoning bridge, beliefs, abstraction, hypothesis testing, temporal reasoning |
 | `perception/` | 8,915 | 10 | Deterministic vision and the single sight entry point, hearing by phones, speech |
 | `chaos/` | 8,505 | 23 | Fault-injection framework with its own safety controller |
 | `domain/` | 8,144 | 10 | Domain registry, concept ingestion, evidence producers, cross-domain reasoning |
@@ -114,9 +114,9 @@ Measured by scanning the current tree on 2026-11-19.
 | `guardian/` | 269 | 2 | The guardian, a supervising daemon outside the substrate's process, so that a watchdog does not die with what it watches |
 | `optimization/` | 226 | 1 | Optimisation utilities |
 
-**239,960 lines across the subsystems listed, in 257 modules**, plus 2,607 lines in the six modules at
+**240,187 lines across the subsystems listed, in 257 modules**, plus 2,607 lines in the six modules at
 `core/` itself (`main.py`, `capabilities.py`, `database.py`, `service_configuration.py`,
-`structural_defects.py` and the package initialiser): **242,567 lines in 263 modules** in all, excluding
+`structural_defects.py` and the package initialiser): **242,794 lines in 263 modules** in all, excluding
 tests, experiments and tooling.
 
 **`execution/` no longer exists as a subsystem.** It held effect verification, domains derived from the

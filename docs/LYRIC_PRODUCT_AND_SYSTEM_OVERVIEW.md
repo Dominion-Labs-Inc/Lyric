@@ -1447,7 +1447,7 @@ confirmed when asked:
 
 | Measure | Value |
 |---|---|
-| Substrate | 242,567 lines in 263 modules, counting what runs |
+| Substrate | 242,794 lines in 263 modules, counting what runs |
 | Kinds of reasoning | 11 classical, and 7 of a quantum family that is deactivated |
 | Tool classes defined | 257, in 17 categories. The live registry also holds tools registered at run time, per connector and per learned procedure |
 | Epistemic deficit types diagnosed | 9 |

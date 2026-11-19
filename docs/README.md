@@ -35,7 +35,7 @@ artifacts themselves.
 
 | | |
 |---|---|
-| Substrate | `core/`, **242,567 lines across 263 modules**, counting what runs: the five archived perimeter modules held in `security/_disabled/` and imported by nothing add 3,589 more. The largest faculties are the coordinator and memory agent (52,515), the tools (40,891), learning (29,767) and language (29,250) |
+| Substrate | `core/`, **242,794 lines across 263 modules**, counting what runs: the five archived perimeter modules held in `security/_disabled/` and imported by nothing add 3,589 more. The largest faculties are the coordinator and memory agent (52,517), the tools (40,891), learning (29,767) and language (29,250) |
 | Experiment corpus | **246 experiment directories, 188 carrying machine-written run records, 2,166 run records** with 311 side records beside them, 2,477 artifacts in all. 142 validated, 43 findings, 58 directories holding a harness and no artifact. Latest run 2026-11-11. Index: [`../experiments/README.md`](../experiments/README.md) |
 | Knowledge held | **117,294 concepts**, 590,614 relations of which 97,639 are *is-a* or *instance of*, **1,022,193 beliefs**, 1,179,242 concept evidence records and 1,783,544 belief evidence records |
 | Memory held | **1,441,708 records**: 1,441,519 semantic, 150 episodic, 39 meta |
