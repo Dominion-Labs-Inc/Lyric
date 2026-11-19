@@ -2480,3 +2480,27 @@ def test_a_mark_written_around_a_word_inside_a_phrase_is_read_with_the_word(gram
             f"{joined!r} is not read as a word joined to another is"
     # A plural's possessive is not read by dropping the mark that makes it one.
     assert read(grammar, "The dogs’ bone is red.") != read(grammar, "The dogs bone is red.")
+
+
+def test_every_modal_asks_as_well_as_tells(grammar):
+    """A MODAL INVERTS TO ASK, and the grammar's lexicon says which categories a word has WORD BY WORD, so a modal
+    whose row was short asked nothing. `data/grammar/english.json` writes three uses for a modal -- `modal`
+    (telling: "You must help me."), `modal:q` (asking: "Must you help me?") and `tag` -- and of the nine modals it
+    lists, "must" held only the first. No structure was built for "Must you help me?" at all, where every other
+    modal read it, and nothing could repair that from evidence: a closed-class word's categories come only from its
+    own row (`Lexicon.closed`), the treebank's counts can price a row but never add one, and `closed_uses` signs a
+    treebank's uses THROUGH the row, so a thousand written questions with "must" would all be filed under a use
+    that is not there (2026-11-18).
+
+    ASKED, NOT REQUESTED, and that is the row's own doing: the seven modals that had `modal:q` carry a `polite`
+    fact with it, which makes the reading a request, and "Must you help me?" is no polite request. The derived
+    row carries the word's own meaning and nothing invented, so it asks whether the helping is necessary."""
+    assert read(grammar, "Must you help me?") == gm.Meaning(
+        "ask", (gm.MeaningFact("instance_of", "?v0", "help"), gm.MeaningFact("done_by", "?v0", "?listener"),
+                gm.MeaningFact("done_to", "?v0", "?speaker"),
+                gm.MeaningFact("has_property", "?v0", "necessary"))).canonical()
+    # The telling is unchanged, and so is every other modal's asking.
+    assert "necessary" in (read(grammar, "You must help me.") or "")
+    for modal in ("Could", "Would", "Can", "Will", "Might", "May"):
+        said = read(grammar, f"{modal} you help me?")
+        assert said and said.startswith("request:"), f"{modal}: {said}"

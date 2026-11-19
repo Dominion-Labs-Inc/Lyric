@@ -3856,6 +3856,24 @@
     ],
     "use": "modal",
     "only": true
+   },
+   {
+    "cat": "(S[q].e/(S[b].e\\NP.x))/NP.x",
+    "sem": [
+     [
+      "fact",
+      "has_property",
+      "e",
+      "necessary",
+      "-"
+     ],
+     [
+      "finite",
+      "e"
+     ]
+    ],
+    "use": "modal:q",
+    "only": true
    }
   ],
   "can": [

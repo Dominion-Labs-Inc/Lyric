@@ -128,6 +128,45 @@ both are said so in place rather than quietly:
   "has not ?slot0" with the one meaning, so both are English for it. The assertion now names both, and still
   fails on "Rex kicked the ball not." and on "Rex has not kick the ball.", which stood first before.
 
+**AND THEN: WHY "Must you help me?" READ NOTHING, AND WHAT GENERALISING WOULD BUY.** `english.json` writes a
+closed-class word's categories WORD BY WORD. A modal has three uses -- `modal` (telling), `modal:q` (asking) and
+`tag` -- and of the nine modals listed, "must" held only the first: no structure was built for "Must you help me?"
+at all, where every other modal read it.
+
+NOTHING COULD REPAIR THAT FROM EVIDENCE, and the chain has three links. A closed-class word's categories come only
+from its own row (`Lexicon.closed` <- `english.json["words"]`). The treebank's counts PRICE a row and never add
+one (`evidence.get(e["use"], -20.0)`), and the loop in `Lexicon.entries` that does add from evidence is gated on
+`cls in self.templates`, where `templates` is `english.json["classes"]` -- the six OPEN classes only. And
+`closed_uses` signs a treebank's uses THROUGH the word's own row, so `grammar_words._use` computes "modal:q"
+rightly for an inverted modal and the count is filed under a use that is not there, and dropped. A thousand
+written "Must you ...?" would teach it nothing.
+
+MEASURED, THE GENERALISATION BUYS ONE WORD. The use names mark inversion systematically (`modal`/`modal:q`,
+`do`/`do:q`, `be:ng`/`be:q:ng`), so every word holding a base use without its inverted twin can be counted:
+`be`, `been` and `being` lack all five `be:q:*`, `'s` lacks `have:q:perfect`, and `must` and `cannot` lack
+`modal:q`. Every one of those but "must" is a CORRECT refusal -- a non-finite form does not invert ("Be the dog a
+mammal?"), and "'s the dog barked?" is not written. So the table has been filled in by hand nearly completely and
+the ungeneralising mechanism costs one word on the closed classes. "must" was given its question row, carrying its
+own meaning and nothing invented, so it ASKS where the seven modals that had the row make a polite request: a
+`polite` fact is what makes theirs a request, and "Must you help me?" is no polite request.
+
+**ONE HOLE WITHDRAWN, AND THE INSTRUMENT THAT HID IT.** "The dog barked unless the cat ran." reads nothing and is
+NOT a hole: the structure is built, and "unless" is written `["gap", "@"]` -- the meaning language cannot say it,
+which is the known three-quarters coverage. Asking only whether a MEANING came back conflates a missing category
+with a meaning that cannot be said, and six candidate holes measured that way came down to four once the sign was
+asked for separately. The instrument is `r.sign is None` (no structure) against `r.meaning is None` (no meaning).
+
+**WHERE BREADTH ACTUALLY LOOKS REAL.** A determiner standing with no kind after it is the things it determines,
+and nothing gives it that: "Both barked.", "The dog chased both.", "The dog chased all." and "The dog chased
+some." build NO STRUCTURE while "They barked." and "The dog chased them." read. "both" is not even listed as a
+determiner -- its row says `ADJECTIVE:before`. Worse than a hole: "All barked." DOES read, as
+`done_by(?v0, all)`, a barking done by somebody called "All", because the capital opening the sentence lets it be
+taken for a name; lowercase "all barked." reads nothing. So the gap produces a wrong reading wherever a capital
+allows one. The rule is the shape `_unary` already holds for a bare noun ("a kind said with nothing saying which
+is a thing", `N=>NP`, priced by `Words.noun_alone`): `NP/N => NP`, priced by a count of how often the word is
+written alone rather than before a kind, which `Words` does not keep yet. That is a reader change plus one
+treebank count, so its cost wants `scripts/check_reading.py` against the live store.
+
 **HOW IT WAS VERIFIED.** `tests/test_derived_reading.py` and `tests/test_grammar.py`, with two new tests, each
 shown to fail on HEAD at the defect: the mark test fails at `'The “red” dog barked.' is not read as 'The red dog
 barked.' is`, and the quotation test at `The term “…” names a cycle.` Every mark measurement is files-only
