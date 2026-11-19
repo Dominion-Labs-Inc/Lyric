@@ -2034,7 +2034,16 @@ class BayesianUncertaintySystem:
         lambda      DOUBLE PRECISION NOT NULL,
         updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    ALTER TABLE unified.domain_volatility ADD COLUMN IF NOT EXISTS measures_movement BOOLEAN NOT NULL DEFAULT FALSE;
     """
+
+    #: WHAT A RATE WRITTEN BY THE OLD FORMULA CARRIES THAT THE NEW ONE DOES NOT. λ used to be
+    #: `0.01 + movement + regime`, a flat hour-rate added to every domain however settled; it is `movement +
+    #: regime` now. A rate already in the store was written by the old formula and is that much too high, and
+    #: `measures_movement` says whether a row has been brought over. This matters because nothing recomputes λ
+    #: until beliefs in that domain actually move, so a stale rate would have decided decay for as long as a
+    #: domain stayed quiet -- and the quietest domain is `english`, which is 98.9% of the World Model.
+    _OLD_CONSTANT_RATE = 0.01
 
     async def _ensure_volatility_table(self) -> None:
         if getattr(self, "_volatility_schema_ready", False):
@@ -2077,10 +2086,24 @@ class BayesianUncertaintySystem:
         try:
             await self._ensure_volatility_table()
             rows = await self.unified_db.execute_query(
-                "SELECT domain, lambda FROM unified.domain_volatility",
+                "SELECT domain, lambda, measures_movement FROM unified.domain_volatility",
                 fetch_all=True) or []
+            # A RATE WRITTEN BY THE OLD FORMULA IS BROUGHT OVER ONCE, HERE, because nothing else would: λ is
+            # recomputed only when beliefs in a domain move, and the domain this matters most for is the one
+            # that moves least. Taking the constant back off is exactly the difference between the two
+            # formulas, and the row then says so, so it is done once however often a store is opened.
+            carried = [r["domain"] for r in rows if not r["measures_movement"]]
             for r in rows:
-                self.domain_volatility[r["domain"]] = float(r["lambda"])
+                held = float(r["lambda"])
+                self.domain_volatility[r["domain"]] = (max(0.0, held - self._OLD_CONSTANT_RATE)
+                                                       if not r["measures_movement"] else held)
+            if carried:
+                await self.unified_db.execute_query(
+                    "UPDATE unified.domain_volatility SET lambda = GREATEST(lambda - $1, 0), "
+                    "measures_movement = TRUE, updated_at = now() WHERE NOT measures_movement",
+                    (self._OLD_CONSTANT_RATE,), commit=True)
+                logger.info("volatility: %d domain(s) brought over to measuring movement alone (%s)",
+                            len(carried), ", ".join(f"{d} {self.domain_volatility[d]:.6f}" for d in carried))
             if rows:
                 logger.info("restored volatility for %d domain(s)", len(rows))
             return len(rows)

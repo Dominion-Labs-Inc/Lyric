@@ -502,3 +502,57 @@ def test_the_belief_graph_is_read_once_a_start_however_many_ask_for_it():
     except Exception:
         pass                       # the stub cannot finish a real load; it only has to have been asked
     assert system.unified_db.reads > 0, "`again` reads the store afresh"
+
+
+def test_a_rate_written_by_the_old_formula_is_brought_over_once():
+    """λ used to be `0.01 + movement + regime` -- a flat hour-rate added to every domain however settled -- and
+    is `movement + regime` now. A rate ALREADY IN THE STORE was written by the old formula and is that much too
+    high, and nothing would have corrected it: λ is recomputed only when beliefs in a domain move, and the
+    domain this matters most for is the one that moves least. `english` is 98.9% of the World Model, sits at
+    0.01005 of which 99.5% is the constant, and with the decay clock now real a stale rate would have taken
+    842,741 beliefs to "no opinion" on the next pass.
+
+    Taking the constant back off is exactly the difference between the two formulas. The row then says it
+    measures movement, so it is done once however often the store is opened -- taken off twice, English would
+    sit at zero by accident rather than by measurement."""
+    import asyncio
+
+    class Store:
+        def __init__(self):
+            self.rows = [{"domain": "english", "lambda": 0.01005519894951844, "measures_movement": False},
+                         {"domain": "reading", "lambda": 0.020685416762009433, "measures_movement": False},
+                         {"domain": "settled", "lambda": 0.01, "measures_movement": False},
+                         {"domain": "already", "lambda": 0.00005, "measures_movement": True}]
+            self.updates = 0
+
+        async def execute_query(self, query, params=None, **kw):
+            if query.strip().startswith("SELECT"):
+                return self.rows
+            if query.strip().startswith("UPDATE"):
+                self.updates += 1
+                for r in self.rows:
+                    if not r["measures_movement"]:
+                        r["lambda"], r["measures_movement"] = max(0.0, r["lambda"] - params[0]), True
+            return None
+
+    from collections import defaultdict
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    system.unified_db = Store()
+    system._volatility_schema_ready = True
+    system.domain_volatility = defaultdict(lambda: 0.01)
+
+    asyncio.run(system._load_domain_volatility())
+    assert round(system.domain_volatility["english"], 8) == 0.0000552, system.domain_volatility["english"]
+    assert round(system.domain_volatility["reading"], 8) == 0.01068542
+    assert system.domain_volatility["settled"] == 0.0, "a domain that only ever had the constant does not fade"
+    assert system.domain_volatility["already"] == 0.00005, "a rate already measuring movement is left alone"
+    assert system.unified_db.updates == 1
+
+    # Opened again, nothing is taken off a second time.
+    second = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    second.unified_db = system.unified_db
+    second._volatility_schema_ready = True
+    second.domain_volatility = defaultdict(lambda: 0.01)
+    asyncio.run(second._load_domain_volatility())
+    assert round(second.domain_volatility["english"], 8) == 0.0000552, "taken off twice, by accident not measurement"
+    assert system.unified_db.updates == 1, "the correction is done once"
