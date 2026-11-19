@@ -55,6 +55,27 @@ CREATE TABLE IF NOT EXISTS unified.queue_instances (
     heartbeat_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ALTER TABLE unified.queue_instances ADD COLUMN IF NOT EXISTS role TEXT;
+-- WHAT THE SUBSTRATE'S PERIODIC WORK HAS ACTUALLY DONE. Every recurring job kept its record on the job
+-- object -- runs, errors, the last error, times it came due while still running, times it stood down for a
+-- person -- and a job object lives inside one process. So the only answer to "what has Lyric been doing"
+-- was to read 852 MB of log, and a restart erased the question's subject. One row per job per instance.
+CREATE TABLE IF NOT EXISTS unified.scheduled_jobs (
+    instance_id  TEXT NOT NULL,
+    name         TEXT NOT NULL,
+    interval_s   DOUBLE PRECISION NOT NULL,
+    priority     TEXT,
+    resumable    BOOLEAN NOT NULL DEFAULT FALSE,
+    runs         INTEGER NOT NULL DEFAULT 0,
+    errors       INTEGER NOT NULL DEFAULT 0,
+    skipped      INTEGER NOT NULL DEFAULT 0,
+    stood_down   INTEGER NOT NULL DEFAULT 0,
+    last_error   TEXT,
+    resume_at    TEXT,
+    last_run_at  TIMESTAMPTZ,
+    updated_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (instance_id, name)
+);
+CREATE INDEX IF NOT EXISTS scheduled_jobs_seen ON unified.scheduled_jobs (updated_at DESC);
 """
 
 
@@ -311,6 +332,28 @@ class QueuePersistence:
             "INSERT INTO unified.queue_instances (instance_id, role) VALUES ($1, $2)"
             " ON CONFLICT (instance_id) DO UPDATE SET heartbeat_at = NOW(), role = EXCLUDED.role",
             (self.instance_id, "worker" if is_worker() else "lyric"), commit=True)
+
+    async def what_a_job_did(self, *, name: str, interval_s: float, priority: Optional[str],
+                             resumable: bool, runs: int, errors: int, skipped: int, stood_down: int,
+                             last_error: Optional[str], resume_at: Any) -> None:
+        """Write down what one recurring job has done, so a restart does not erase it.
+
+        Written after the job fires rather than on a schedule of its own: the numbers only change when it
+        runs, and the write is one upsert of one row. `resume_at` is kept as text because a reflection's place
+        is text and nothing joins on it -- it is read to say where the pass is, never to find anything."""
+        await self.ensure_schema()
+        await self.db().execute_query(
+            "INSERT INTO unified.scheduled_jobs (instance_id, name, interval_s, priority, resumable, runs, "
+            "errors, skipped, stood_down, last_error, resume_at, last_run_at, updated_at) "
+            "VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,NOW(),NOW()) "
+            "ON CONFLICT (instance_id, name) DO UPDATE SET interval_s = EXCLUDED.interval_s, "
+            "priority = EXCLUDED.priority, resumable = EXCLUDED.resumable, runs = EXCLUDED.runs, "
+            "errors = EXCLUDED.errors, skipped = EXCLUDED.skipped, stood_down = EXCLUDED.stood_down, "
+            "last_error = EXCLUDED.last_error, resume_at = EXCLUDED.resume_at, "
+            "last_run_at = EXCLUDED.last_run_at, updated_at = NOW()",
+            (self.instance_id, str(name), float(interval_s), priority, bool(resumable), int(runs),
+             int(errors), int(skipped), int(stood_down), last_error,
+             None if resume_at is None else str(resume_at)), commit=True)
 
     async def others_alive(self, lease_s: float) -> int:
         """How many OTHER instances of this store are alive -- a heartbeat within `lease_s` -- this one not

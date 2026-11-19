@@ -1150,7 +1150,6 @@ class QueueAuthority:
 
     async def execute(self, job_id: str, func: Callable[..., Awaitable[Any]],
                       *args, background: bool = False,
-                      untimed: bool = False,
                       timeout: Optional[float] = None,
                       reasoning_type: Any = None, task_type: Any = None,
                       severity: Any = None, difficulty: float = 1.0, **kwargs) -> Any:
@@ -1165,12 +1164,23 @@ class QueueAuthority:
         # nothing short: a page read holds the loop, so the timer fired only once the reading was done, and threw
         # the finished look-up away and ran it again (lyric_dev, 2026-10-24: read for 12.5 minutes, "timed out after
         # 150s"). Background jobs keep theirs.
-        # `untimed`: WORK WHOSE STOPPING CONDITION IS A STAND-DOWN, NOT A CLOCK. A pass that may only run in
+        # `untimed`: WORK WHOSE STOPPING CONDITION IS A STAND-DOWN, NOT A CLOCK.
+        #
+        # READ OUT OF `kwargs`, NOT DECLARED AS A KEYWORD-ONLY PARAMETER. Declared, it broke the running
+        # resident for fourteen minutes: a process that had the new signature and callers that did not failed
+        # 130 times with `missing 1 required keyword-only argument: 'untimed'`, taking `queue_heartbeat`,
+        # `constitution_record`, `epistemic_affect`, `affect_refresh`, `system_awareness` and
+        # `idle_system_state_refresh` with it -- and a heartbeat that cannot run lets this instance's lease on
+        # its own work lapse (2026-11-19 12:48:06 to 13:01:50). This method is called from 74 places and the
+        # substrate runs while its files are edited, so a new argument on it is a new way for a live process
+        # to disagree with itself. Taken from `kwargs`, which the signature already has, there is nothing a
+        # caller can be missing. Popped, so it never reaches the function being run. A pass that may only run in
         # downtime stops the moment a person arrives and is taken up where it stopped; a time budget on top of
         # that cannot make it stop sooner for a person, and it does make the pass unable to finish. Reflection
         # over everything learned ran for the 300 s a background job is given by default and was killed with
         # TimeoutError, which is not a stand-down: its place was not recorded, so the next firing began the
         # same thirteen minutes again and it could never have reached its end (2026-11-19 12:47:02).
+        untimed = bool(kwargs.pop("untimed", False))
         job_timeout = None if not background or untimed else (
             timeout if timeout is not None else self.timeout_for(
                 reasoning_type=reasoning_type, task_type=task_type,
@@ -1553,6 +1563,29 @@ class QueueAuthority:
             job.last_error = f"{type(e).__name__}: {e}"
             self._scheduler_metrics["errors"] += 1
             logger.error("scheduled job %s failed: %s", job.name, job.last_error)
+        await self._wrote_down_what_it_did(job)
+
+    async def _wrote_down_what_it_did(self, job: _ScheduledJob) -> None:
+        """What this job has done, into the store, after every firing.
+
+        IT KEPT ITS RECORD ON ITSELF AND NOWHERE ELSE. Runs, errors, the last error, the times it came due
+        while still running and the times it stood down for a person all lived on the job object, and a job
+        object lives inside one process -- so the only way to ask what the substrate's periodic work had done
+        was to read the log, and a restart erased the subject of the question. A store error here is logged
+        and counted and never reaches the job: failing to write down what a job did must not make the job
+        look failed."""
+        p = self._persistence_or_none()
+        if p is None:
+            return
+        try:
+            await p.what_a_job_did(
+                name=job.name, interval_s=job.interval_s, priority=job.priority, resumable=job.resumable,
+                runs=job.runs, errors=job.errors, skipped=job.skipped,
+                stood_down=getattr(job, "stood_down", 0), last_error=job.last_error,
+                resume_at=job.resume_at)
+        except Exception as error:
+            self._persist_metrics["errors"] += 1
+            logger.error("what scheduled job %s did could not be written down: %s", job.name, error)
 
     async def _scheduler_loop(self) -> None:
         while self._running:

@@ -26,6 +26,7 @@ Features:
 """
 
 import logging
+from logging.handlers import RotatingFileHandler
 import asyncio
 import signal
 import sys
@@ -67,12 +68,21 @@ if str(SCRIPT_DIR) not in sys.path:
 # Create logs directory if it doesn't exist
 Path("logs").mkdir(exist_ok=True)
 
+# ROTATED, LIKE EVERY OTHER FILE THE SUBSTRATE WRITES. This was a plain
+# FileHandler, which never rolls over: `logs/lyric_main.log` reached 852 MB
+# (2026-11-19), which is the file every question about what the substrate has
+# been doing was being answered by grepping. The per-concern channels installed
+# below have been bounded at 64 MB x 5 each since they were written; the
+# combined log they were added beside was not, so the one unbounded file in the
+# tree was the one everybody reads. Same size and same keep as a channel, so
+# the whole of logging is bounded by one rule rather than two.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.StreamHandler(sys.stdout),
-        logging.FileHandler('logs/lyric_main.log')
+        RotatingFileHandler('logs/lyric_main.log', maxBytes=64 * 1024 * 1024,
+                            backupCount=5, encoding="utf-8")
     ]
 )
 

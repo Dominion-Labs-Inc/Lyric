@@ -336,6 +336,35 @@ def test_a_resumable_job_is_not_given_a_clock_to_be_killed_by():
     asyncio.run(run())
 
 
+def test_no_caller_of_execute_can_be_missing_untimed():
+    """It is read out of `kwargs`, not declared as a keyword-only parameter.
+
+    Declared, it broke the running resident for fourteen minutes: a process holding the new signature and
+    callers that did not failed 130 times with `missing 1 required keyword-only argument: 'untimed'`, taking
+    the queue heartbeat, the constitution record and four state samplers with it -- and a heartbeat that
+    cannot run lets this instance's lease on its own work lapse (2026-11-19 12:48:06 to 13:01:50). `execute`
+    is called from 74 places while the substrate's files are edited under it."""
+    import inspect
+    assert "untimed" not in inspect.signature(QueueAuthority.execute).parameters, \
+        "a new keyword-only argument on execute is a new way for a live process to disagree with itself"
+
+    async def run():
+        authority = QueueAuthority({"persist": False, "scheduler_tick_s": 0.01})
+        reached = {}
+
+        async def work(*args, **kwargs):
+            reached.update(kwargs)
+            return "done"
+
+        # Passed, it is consumed here and never reaches the work.
+        assert await authority.execute("j", work, background=True, untimed=True) == "done"
+        assert "untimed" not in reached, reached
+        # Not passed, nothing raises.
+        assert await authority.execute("j", work, background=True) == "done"
+
+    asyncio.run(run())
+
+
 def test_the_scheduler_runs_a_resumable_job_untimed():
     """The authority decides this, not the job: `resumable` is what says the job's stopping condition is a
     stand-down, so nothing has to remember to ask for it as well."""
