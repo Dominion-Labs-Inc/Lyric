@@ -99,9 +99,16 @@ and reading work ([ONE_LANGUAGE_PLAN.md](research/ONE_LANGUAGE_PLAN.md),
 [MEANING_COVERAGE.md](research/MEANING_COVERAGE.md)), hearing
 ([HEARING_BY_PHONES.md](research/HEARING_BY_PHONES.md)), generalisation
 ([GENERALIZING_BY_KIND.md](research/GENERALIZING_BY_KIND.md)), abstention
-([RESEARCH_OOD_ABSTENTION.md](research/RESEARCH_OOD_ABSTENTION.md)), the memory and separation maps, and
+([RESEARCH_OOD_ABSTENTION.md](research/RESEARCH_OOD_ABSTENTION.md)), the
+[memory](research/MEMORY_AGENT_MAP.md) and [separation](research/SEPARATION_MAP.md) maps,
+[TASK_COMPLETION_THESIS.md](research/TASK_COMPLETION_THESIS.md) on what makes work done, and
 the systemic epistemic governance paper. [research/REASONING_IN_A_COGNITIVE_SUBSTRATE.md](research/REASONING_IN_A_COGNITIVE_SUBSTRATE.md) is Paper I of the
 Cognitive Substrate Series.
+
+Three are dated plans rather than accounts of what runs, and each says so at its head:
+[SHAPES_CHANGE_MAP.md](research/SHAPES_CHANGE_MAP.md) (the work it maps was done; its file paths name the
+tree of 2026-09-27), [MEMORY_COMPACTION_PLAN.md](research/MEMORY_COMPACTION_PLAN.md) (planned, to be tried
+in the sandbox first) and [TOOLS_AUDIT_2026-09-30.md](research/TOOLS_AUDIT_2026-09-30.md).
 
 ## Governance, safety and harm
 
