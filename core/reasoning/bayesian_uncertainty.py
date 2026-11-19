@@ -2668,7 +2668,8 @@ class BayesianUncertaintySystem:
         return loaded
 
     async def review_against_evidence(self, resume_at: Optional[str] = None, *, batch: int = 2000,
-                                      stand_down: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
+                                      stand_down: Optional[Callable[[], bool]] = None,
+                                      reached=None) -> Dict[str, Any]:
         """THE SUBSTRATE READS ITS OWN EVIDENCE BACK AND RECORDS HOW OFTEN EACH BELIEF HAS BEEN BORNE OUT.
 
         Nothing did this. Reflection is belief-graph hygiene -- decay, consistency, volatility, schema decay -- and
@@ -2714,6 +2715,11 @@ class BayesianUncertaintySystem:
                     break
                 reviewed += len(weighed)
                 at = max(weighed)
+                # SAID AFTER EVERY BATCH, not only when it stands down. Standing down carries the place out in
+                # `StandDown`; a restart carries nothing, so a pass of thirteen minutes that kept its place
+                # only at the end would begin again every time the process did.
+                if reached is not None:
+                    await reached(at, reviewed)
         logger.info("reviewed %d belief(s) against their own evidence", reviewed)
         return {"reviewed": reviewed, "resume_at": None}
 

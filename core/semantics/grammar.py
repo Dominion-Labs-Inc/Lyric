@@ -7675,10 +7675,17 @@ class GrammarView:
         # the same empty list: `A dog barked.` was read whole and said as nothing, and which of the seven reasons
         # it was could only be had by calling `say` again from outside (2026-11-04).
         reason: Dict[str, Any] = {} if why is None else why
-        said = self.grammar.say(meaning, named, reason, how_surely)
+        # HOW SURE IT IS OF WHAT IT CHOSE, AND OF WHAT IT PASSED OVER. Only the first was said, so a sentence
+        # ranked first for a bad reason was indistinguishable from the only sentence there was: a dog being an
+        # animal was said as "A dog's an animal." with seven other sentences behind it and no way to see what
+        # they were or by how much they lost (2026-11-19). Kept for the caller that asked for it; made here
+        # for the log when nobody did, which costs a dict.
+        surely: Dict[str, float] = {} if how_surely is None else how_surely
+        said = self.grammar.say(meaning, named, reason, surely)
         if said:
-            logger.info("saying: %s -> %r%s", " & ".join(f.render() for f in meaning.facts), said[0],
-                        f" (and {len(said) - 1} more)" if len(said) > 1 else "")
+            logger.info("saying: %s -> %s", " & ".join(f.render() for f in meaning.facts),
+                        "; ".join(f"{text!r} {surely.get(text, 0.0):.2f}" for text in said[:3])
+                        + (f" (and {len(said) - 3} more)" if len(said) > 3 else ""))
         else:
             logger.info("saying: NOTHING SAID of %s -- %s",
                         " & ".join(f.render() for f in meaning.facts),

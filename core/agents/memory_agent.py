@@ -10258,7 +10258,14 @@ class MemoryAgent(IMemoryConsolidation):
         give_way = GiveWay(stand_down=stand_down)
         try:
             if step == "evidence":
-                counts["weighed"] += await self._weigh_what_is_held(at or None, stand_down=stand_down)
+                weighed_before = counts["weighed"]
+
+                async def kept(belief_id: str, weighed: int) -> None:
+                    counts["weighed"] = weighed_before + weighed
+                    await self._reflection_reached(held, f"evidence:{belief_id}", counts)
+
+                counts["weighed"] = weighed_before + await self._weigh_what_is_held(
+                    at or None, stand_down=stand_down, reached=kept)
                 step, at = "knowledge", ""
                 await self._reflection_reached(held, f"{step}:", counts)
             if step == "knowledge":
@@ -10281,7 +10288,7 @@ class MemoryAgent(IMemoryConsolidation):
                 "window": (held["window_from"], held["window_to"]), "settled": settled, **counts}
 
     async def _weigh_what_is_held(self, resume_at: Optional[str], *,
-                                  stand_down: Optional[Callable[[], bool]]) -> int:
+                                  stand_down: Optional[Callable[[], bool]], reached=None) -> int:
         """Every belief read back against its own evidence, so a verdict reached below is reached on what the
         evidence says NOW rather than on whatever it said when it was last asked.
 
@@ -10292,7 +10299,7 @@ class MemoryAgent(IMemoryConsolidation):
             raise RuntimeError(
                 "reflection cannot weigh what is held: the reasoning authority has no belief subsystem, so "
                 "bridge.initialize() has not run")
-        report = await beliefs.review_against_evidence(resume_at, stand_down=stand_down)
+        report = await beliefs.review_against_evidence(resume_at, stand_down=stand_down, reached=reached)
         return int(report.get("reviewed") or 0)
 
     async def _examine_what_was_learned(self, held: Dict[str, Any], counts: Dict[str, int],

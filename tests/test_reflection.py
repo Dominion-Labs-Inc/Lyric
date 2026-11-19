@@ -311,3 +311,33 @@ def test_reflection_without_a_memory_agent_is_a_wiring_defect_and_says_so():
     coord.config, coord.memory, coord.task_queue = {}, None, None
     with pytest.raises(RuntimeError, match="without a memory agent"):
         asyncio.run(coord._reflect_on_what_was_learned())
+
+
+def test_the_place_is_written_during_the_evidence_step_too():
+    """The evidence step is the long one -- 1,022,193 beliefs, around thirteen minutes while giving the loop
+    back by time -- and it used to record nothing until it ended or stood down. A restart carries no
+    `StandDown`, so a reflection interrupted inside that step began the whole step again.
+
+    Now the review says where it has got to after every batch and reflection writes it down, so the place is
+    in the store whether the pass stops politely or the process disappears."""
+    store = Store(memories(1))
+    agent = agent_over(store)
+
+    class Beliefs:
+        @staticmethod
+        async def review_against_evidence(resume_at=None, *, stand_down=None, reached=None):
+            assert reached is not None, "reflection asks to be told where the review has got to"
+            for n, belief in enumerate(("b_0100", "b_0200", "b_0300"), start=1):
+                await reached(belief, n * 2000)
+            return {"reviewed": 6000, "resume_at": None}
+
+    agent._reasoning_authority = lambda: type("Bridge", (), {"beliefs": Beliefs()})()
+    got = asyncio.run(agent.reflect_on_what_was_learned())
+    assert got["weighed"] == 6000, got
+
+    # Every batch's place reached the store, under the step it belongs to.
+    during = [where for where in store.positions if where.startswith("evidence:")]
+    assert during == ["evidence:b_0100", "evidence:b_0200", "evidence:b_0300"], store.positions
+    # And the count written with each place is the count reached by then, not the count at the end.
+    weighed = [params[1] for params in store.saved if params[0].startswith("evidence:")]
+    assert weighed == [2000, 4000, 6000], weighed

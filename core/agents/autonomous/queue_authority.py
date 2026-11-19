@@ -1150,6 +1150,7 @@ class QueueAuthority:
 
     async def execute(self, job_id: str, func: Callable[..., Awaitable[Any]],
                       *args, background: bool = False,
+                      untimed: bool = False,
                       timeout: Optional[float] = None,
                       reasoning_type: Any = None, task_type: Any = None,
                       severity: Any = None, difficulty: float = 1.0, **kwargs) -> Any:
@@ -1164,9 +1165,16 @@ class QueueAuthority:
         # nothing short: a page read holds the loop, so the timer fired only once the reading was done, and threw
         # the finished look-up away and ran it again (lyric_dev, 2026-10-24: read for 12.5 minutes, "timed out after
         # 150s"). Background jobs keep theirs.
-        job_timeout = None if not background else (timeout if timeout is not None else self.timeout_for(
-            reasoning_type=reasoning_type, task_type=task_type,
-            severity=severity, difficulty=difficulty))
+        # `untimed`: WORK WHOSE STOPPING CONDITION IS A STAND-DOWN, NOT A CLOCK. A pass that may only run in
+        # downtime stops the moment a person arrives and is taken up where it stopped; a time budget on top of
+        # that cannot make it stop sooner for a person, and it does make the pass unable to finish. Reflection
+        # over everything learned ran for the 300 s a background job is given by default and was killed with
+        # TimeoutError, which is not a stand-down: its place was not recorded, so the next firing began the
+        # same thirteen minutes again and it could never have reached its end (2026-11-19 12:47:02).
+        job_timeout = None if not background or untimed else (
+            timeout if timeout is not None else self.timeout_for(
+                reasoning_type=reasoning_type, task_type=task_type,
+                severity=severity, difficulty=difficulty))
         # A WORK JOB IS HELD BY WHAT RUNS IT, from the moment it waits for a
         # slot, so `cancel` can stop it wherever it is.
         if not background and asyncio.current_task() is not None:
@@ -1528,7 +1536,8 @@ class QueueAuthority:
                 # the moment a person arrives, and a stopped pass that starts from the beginning next time never
                 # reaches its end at all: it would redo the part it had already done, be stopped again, and hold
                 # a substrate that is used at all to the first few seconds of its work for ever.
-                await self.execute(f"scheduled:{job.name}", job.call, job.resume_at, background=True)
+                await self.execute(f"scheduled:{job.name}", job.call, job.resume_at,
+                                   background=True, untimed=True)
                 job.resume_at = None
             else:
                 await self.execute(f"scheduled:{job.name}", job.call, background=True)

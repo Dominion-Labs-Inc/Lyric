@@ -301,3 +301,47 @@ def test_the_downtime_question_is_answered_by_an_authority_that_predates_it():
     assert bare.elsewhere_working() is False
     assert bare.idle_for() >= 0.0
     assert QueueAuthority.stand_down_after(bare, 0.0)() is False, "it answers rather than raising"
+
+
+def test_a_resumable_job_is_not_given_a_clock_to_be_killed_by():
+    """A pass that may only run in downtime stops when a person arrives and is taken up where it stopped. A
+    time budget on top of that cannot make it stop sooner for anyone, and it does make the pass unable to
+    finish at all.
+
+    Measured: reflection over everything learned ran for the 300s a background job gets by default and was
+    killed with TimeoutError (2026-11-19 12:47:02). A timeout is not a stand-down, so nothing recorded where
+    it had got to, and the next firing began the same thirteen minutes again."""
+    async def run():
+        authority = QueueAuthority({"persist": False, "scheduler_tick_s": 0.01})
+        given = {}
+        held = authority._execute_held
+
+        async def watch(job_id, func, args, kwargs, semaphore, job_timeout):
+            given[job_id] = job_timeout
+            return await held(job_id, func, args, kwargs, semaphore, job_timeout)
+
+        authority._execute_held = watch
+
+        async def downtime_pass(resume_at=None):
+            return "finished"
+
+        async def upkeep():
+            return "done"
+
+        await authority.execute("downtime", downtime_pass, None, background=True, untimed=True)
+        await authority.execute("upkeep", upkeep, background=True)
+        assert given["downtime"] is None, f"a downtime pass is given no clock: {given['downtime']}"
+        assert given["upkeep"] is not None and given["upkeep"] > 0, "every other background job still has one"
+
+    asyncio.run(run())
+
+
+def test_the_scheduler_runs_a_resumable_job_untimed():
+    """The authority decides this, not the job: `resumable` is what says the job's stopping condition is a
+    stand-down, so nothing has to remember to ask for it as well."""
+    import inspect
+    source = inspect.getsource(QueueAuthority._fire_scheduled)
+    assert "untimed=True" in source, source
+    # And only on the resumable branch: an ordinary scheduled tier keeps its budget.
+    resumable_branch = source.split("if job.resumable:")[1].split("else:")[0]
+    assert "untimed=True" in resumable_branch, resumable_branch
