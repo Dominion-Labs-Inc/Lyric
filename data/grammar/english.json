@@ -5826,7 +5826,8 @@
       "@"
      ]
     ],
-    "label": "adv:after"
+    "label": "adv:after",
+    "crossing": true
    },
    {
     "cat": "(S[F].e\\NP.x)/(S[F].e\\NP.x)",

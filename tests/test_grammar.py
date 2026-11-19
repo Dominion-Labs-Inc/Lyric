@@ -2014,9 +2014,16 @@ def test_every_kind_of_piece_a_grammar_word_carries_is_answered_for_in_saying():
     English. Unchecked, `poss` was unknown and saying could not say a possessive, `now` was unknown and it had no
     present progressive, and `asked` was unknown and it could say no question whatever, while reading read all three
     (2026-10-31). This holds every kind in `data/grammar/english.json` to one of the three lists, so a kind added to
-    the grammar's words must be answered for on the saying side before it can be taught."""
+    the grammar's words must be answered for on the saying side before it can be taught.
+
+    BOTH TABLES, NOT ONLY THE WORDS. The grammar says how a word is read in two places -- `words`, a word of its
+    own, and `classes`, every word of a kind -- and this gathered only the first. `adv` (every adverb), `degree`
+    ("very", "quite") and `holder` (a preposition after a quality) are written ONLY in `classes`, so all three
+    reached the nothing at the end of `_piece_says` unchecked and every word carrying them was offered for no
+    meaning: a whole class of word silenced by the gap this test exists to close (measured 2026-11-19)."""
     held = json.loads(gm.ENGLISH.read_text(encoding="utf-8"))
-    kinds = {piece[0] for entries in held["words"].values()
+    kinds = {piece[0] for table in ("words", "classes")
+             for entries in held[table].values()
              for entry in (entries if isinstance(entries, list) else [entries])
              if isinstance(entry, dict) and entry.get("sem")
              for piece in entry["sem"] if piece}

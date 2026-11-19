@@ -1363,7 +1363,8 @@ class Lexicon:
                 if compares:
                     # "bigger", "biggest": the plain quality compared (`more`, `most`).
                     sem += (("compared", "q", compares),)
-                out.append((i + 1, Entry(t["cat"], sem, cls, name, p, t.get("label", ""))))
+                out.append((i + 1, Entry(t["cat"], sem, cls, name, p, t.get("label", ""),
+                                         bool(t.get("crossing")))))
         # A kind of word's other ways, each as often as the word is used that way.
         for use, p in evidence.items():
             cls = use.split(":")[0]
@@ -1376,7 +1377,7 @@ class Lexicon:
             for t in self.templates[cls]:
                 if t.get("use") == use:
                     out.append((i + 1, Entry(t["cat"], tuple(tuple(x) for x in t.get("sem", ())), cls, name, p,
-                                             t.get("label", ""))))
+                                             t.get("label", ""), bool(t.get("crossing")))))
         after = self._sound_after(tokens, i)
         if after:
             out = [(end, Entry(e.cat, e.sem, e.cls, e.name, e.score + after, e.label, e.crossing)) for end, e in out]
@@ -2616,12 +2617,9 @@ def _said_by_other(meaning: Meaning) -> Set[MeaningFact]:
 #: What a piece says of a meaning, counted here.
 SAYS_OF_A_MEANING = frozenset({"given", "past", "now", "future", "be", "poss", "deny", "other", "pron", "fact",
                                "asked", "degree_asked", "can", "may", "kind", "deny_arg", "compared",
-                               "quality", "counted", "than", "count", "during", "event"})
+                               "quality", "counted", "than", "count", "during", "event", "adv", "degree"})
 #: What says nothing of a meaning and so disqualifies no word: how a word is written or inflected, not what it means.
 SAYS_NOTHING_OF_A_MEANING = frozenset({"indefinite", "finite", "some"})
-#: STILL UNANSWERED FOR, each one silencing its words. `every` (all, every, everybody) is why a universal quantifier
-#: is lost; `deny_arg` (no) is why "Nobody is intelligent." comes back "Nothing is intelligent."; `npi` is "any";
-#: `compared`, `quality`, `counted` and `than` are the comparatives; `count` is "times"; `during` is "when".
 #: What says nothing of a meaning's FACTS, so disqualifies no word: how a sentence is addressed or joined.
 #: `event` WAS HELD HERE AFTER IT WAS ANSWERED FOR. `_piece_says` counts a verb's doing by what its thing does,
 #: and that branch stands above this one, so the kind never reached here and the two said opposite things of it:
@@ -2637,7 +2635,11 @@ SAYS_NOTHING_OF_FACTS = frozenset({"polite", "npi", "gap", "role"})
 #: right: answered for by that fact, "All owl is birds." was offered of one owl being a bird and ranked first
 #: (2026-10-31). This is why a universal quantifier is lost on the way out -- the gap is in what a meaning can
 #: HOLD, not in what saying can say, and it is fixed by giving the meaning language a universal, not here.
-NOT_YET_SAID = frozenset({"prep", "every"})
+#:
+#: `holder`: a preposition said after a quality ("red with rage", "full of water") is offered by its link exactly as
+#: `prep` is -- `Lexicon.said_with` reads the `holder` table beside `prep` and `prep_of` -- so answering for it here
+#: would offer every one of them twice, which is `prep`'s reason word for word.
+NOT_YET_SAID = frozenset({"prep", "every", "holder"})
 
 def _piece_says(piece: Tuple, meaning: Meaning, linking: Optional[Mapping[str, str]] = None) -> Optional[int]:
     """WHAT A PIECE OF A GRAMMAR WORD'S ENTRY SAYS IN A MEANING, as `spell_out` makes it: how many of the meaning's
@@ -2770,6 +2772,24 @@ def _piece_says(piece: Tuple, meaning: Meaning, linking: Optional[Mapping[str, s
                    or (f.relation == "has_property" and f.obj == "false"))
     # A QUALITY HELD TO A DEGREE ("more", "most", "less", "least", "than", "fewer").
     if kind in ("compared", "quality", "counted", "than"):
+        return sum(1 for f in facts if f.relation == "has_degree")
+    # AN ADVERB SAYS A QUALITY OF A DOING ("barked often", "chased quickly"), which `spell_out` writes as the
+    # adverb's own link of the doing's term, or as a degree that doing's quality is held to where a degree word
+    # grades it ("ran very fast"). Counted by the link alone it would be ANY thing's quality and an adverb would be
+    # offered to say "The dog is red.", so it is counted by what its thing DOES, as a verb's own doing is above.
+    #
+    # UNKNOWN HERE IT SILENCED EVERY ADVERB IN ENGLISH. The kinds this knows were held to the grammar's `words`
+    # table by a test and never to its `classes` table, and `adv` is only in `classes`, so it fell through to the
+    # nothing at the end: `_says_of` turns that nothing into None, and an entry worth None is offered for NO
+    # meaning. On the meaning of "The dog barked often.", which holds `has_property(bark, often)` and nothing else
+    # an adverb could say, an `adv` piece spent 0 (measured 2026-11-19). The same test now holds both tables.
+    if kind == "adv":
+        doings = {f.subject for f in facts if f.relation in _HAPPENING_LINKS}
+        link = (linking or {}).get("adverb") or "has_property"
+        return sum(1 for f in facts if f.subject in doings and f.relation in (link, "has_degree"))
+    # A DEGREE WORD SAYS HOW FAR A QUALITY IS HELD ("very red", "very fast"), which `spell_out` writes as the
+    # quality held to a degree, the same fact the comparatives above are counted by.
+    if kind == "degree":
         return sum(1 for f in facts if f.relation == "has_degree")
     # HOW MANY ("times").
     if kind == "count":
@@ -6090,6 +6110,14 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         if p[0] == "be" and p[3] in denied:
             denied.update(q[3] for q in pieces if q[0] == "quality" and q[1] == p[2])
 
+    # WHAT A PREDICATION IS HELD UNDER: the term a `be` piece ("a dog is a mammal") and a `quality` piece ("the dog
+    # is red") hold their saying under, which is what carries a denial above. A doing is held under its own term and
+    # is in `events`; these are not, and no fact names them, because what one thing is of another is written as the
+    # fact itself (`isa(dog, mammal)`, `has_property(dog, red)`) with nothing standing for the saying of it. So a
+    # word said OF the saying has nothing in a meaning to be said of, which is what the adverb below answers for.
+    predications: Set[Term] = {p[3] for p in pieces if p[0] == "be"}
+    predications.update(p[3] for p in pieces if p[0] == "quality" and len(p) > 3)
+
     # WHOM A PRONOUN STANDS FOR. "his", "her", "its", "their" before a thing are the nearest one before them that
     # they may be ("Tom unbuttoned his shirt": Tom's; "The man robbed her of her bag": hers); a pronoun nothing
     # before it may be is the one spoken of before, and that is one: a second ("He fixed it.") is a thing not named.
@@ -6531,6 +6559,24 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         elif what == "adv":
             _, e, name = p[:3]
             got, how = lexicon.link("adv", (name,), lexicon.linking.get("adverb"))
+            if e in predications:
+                # AN ADVERB SAID OF A PREDICATION SAYS NOTHING THE MEANING LANGUAGE CAN HOLD, so it says nothing
+                # here rather than a fact about a term no other fact names. "The dog barked often." holds the doing
+                # under its own term and `has_property(bark, often)` is said of it rightly; "A dog is also a
+                # mammal." and "The dog is often red." hold no doing at all -- the saying is written as the fact
+                # (`isa(dog, mammal)`), so `e` is the holder above and surfaces nowhere. Said anyway it came out
+                # `has_property(?v0, also)` beside `isa(dog, mammal)`, a fact about nothing, which the store would
+                # keep as a thing that is "also".
+                #
+                # WHAT IS LOST IS LOST IN WHAT A MEANING CAN HOLD, not here, and it is the same gap `every` is
+                # stated under (`NOT_YET_SAID`): "always" is a universal over occasions, "often" most of them,
+                # "only" that nothing else is so, "also" that something else was -- none of which a meaning can
+                # say. A denial is the one such word that CAN be said, and it is said: "never" and "not" carry
+                # `deny` instead of `adv` and reach the predication by its holder, which is what `denied` is for.
+                # The sentence's own claim is kept whole, which is what reading it is for; before the ADVERB class
+                # could compose across what it takes, these sentences read NOTHING at all.
+                decided.append(("adv", name, how, None))
+                continue
             # As a quality's, by the doing it is said of; the link under the name the word is read as.
             quality = lexicon.quality_sense_of(name, "ADVERB", _of_what(e, meant_of, kinds, words, "VERB"))
             if quality != name:
