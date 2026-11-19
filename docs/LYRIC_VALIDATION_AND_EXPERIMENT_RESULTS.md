@@ -12,13 +12,13 @@
 |---|---|
 | Document | Lyric Ai Validation & Experiment Results |
 | Role | Authoritative record of experimental validation for the Lyric computational substrate |
-| Version | 1.0 |
-| Compiled | 2026-09-20 |
-| Evidence cut-off | 2026-09-20T00:00Z (latest run artifact: RECOGNISE-01 and SEE-LOOP-01, 2026-09-20) |
-| System snapshot | 2026-09-19T20:49Z (§24) |
+| Version | 2.0 |
+| Compiled | 2026-11-19 |
+| Evidence cut-off | 2026-11-11 (latest run artifact: UNDERSTANDS-WORDNET-01) |
+| System snapshot | 2026-11-19, store and source both re-measured (§24) |
 | Canonical runtime | `./venv_lyric/bin/python3`, Python 3.11.14 |
 | Database | PostgreSQL 16.14, `lyric_db`, identity confirmed by asking the server |
-| Compiled from | 614 run artifacts + 27 manifest artifacts across 84 experiment directories |
+| Compiled from | 2,166 run records and 311 side records across 246 experiment directories, 188 of them carrying machine-written records |
 | Companion documents | *Lyric Ai Architecture*; *Lyric Ai Product & System Overview* |
 
 **Source-of-truth hierarchy.** Where sources conflict, the higher entry governs:
@@ -41,12 +41,19 @@ Lyric's validation program rests on one methodological commitment: **an experime
 system and verifies its outcome against the environment, not against the system's own report.**
 Experiments run against the real database, the real tool registry, the real rule store and real files.
 
-**What the corpus contains.** 84 experiment directories. 33 carry machine-written run records in the
-current `RunRecord` format (614 individual run artifacts); 27 carry an older single-file manifest; 24
-carry a README and a harness but no machine-readable artifact in the evidence tree.
+**What the corpus contains.** 246 experiment directories. **188 carry
+machine-written run records, 2,166 of them**, with 311 side records beside them, for
+2,477 artifacts in all. Most are in the current `RunRecord` format; a few of the
+earliest carry a single fixed-name manifest that each run replaced. 58 directories carry a README and
+a harness but no machine-readable artifact in the evidence tree.
 
-**A missing experiment is not a passing experiment.** The 24 directories without artifacts are listed in
-the registry with status `NO ARTIFACT` and contribute no evidence to any claim in this document.
+**A missing experiment is not a passing experiment.** The 58 directories without artifacts are listed
+in the registry with status `NO ARTIFACT` and contribute no evidence to any claim in this document.
+
+**The corpus has roughly quadrupled since this document's first edition**, which was compiled on
+2026-09-20 from 614 run artifacts across 84 directories. The growth is almost entirely the language and
+reading work: `GRAMMAR-01` alone holds 61 run records, `TRAIN-FORMAT-01` and `-02` 110 between them, and
+`RULE-AUTHORITY-01` and `-02` 54.
 
 **Every run is kept.** The `RunRecord` writer opens each file for exclusive creation, so a re-run never
 overwrites an earlier one; two runs starting in the same second produce `<ts>.json` and `<ts>_2.json`.
@@ -126,100 +133,294 @@ Status values used throughout this document. They are assigned from the evidence
 
 ## 5. Master Experiment Registry
 
-The registry is generated directly from the artifacts. `Result` is the latest recorded run. `Runs`
-is the number of preserved run records, the basis of §20.
+The registry is generated directly from the artifacts, never typed. `Runs` counts the preserved run
+records for that experiment, and `Result` is the latest of them.
 
-84 experiment directories. `Runs` counts preserved run records; `Result` is the latest run.
-Full records (research question, hypothesis, acceptance criteria, per-check outcomes and metrics) are in §25.
+**What a record is.** A run record is `experiments/<NAME>/results/<UTC stamp>.json`, and it carries the
+claim under test, the hypothesis, every check with its verdict and detail, metrics with units, and an
+environment block recording the commit, the count of uncommitted changes, and the database both as
+configuration resolved it and as the server answered when asked its own name. A run never overwrites an
+earlier one. Beside some runs sits a side record under the same stamp, `<stamp>_transcript.json`,
+`_cases.json`, `_prose.json`, holding what that run read, used or changed; those are evidence belonging to
+their run and are not counted as runs of their own.
+
+**The corpus, as generated on 2026-11-19.**
+
+| | |
+|---|---|
+| Experiment directories | 246 |
+| Carrying machine-written run records | 188 |
+| **Run records preserved** | **2,166** |
+| Side records beside them | 311 |
+| Artifacts in all | 2,477 |
+| Latest run | 2026-11-11 |
+
+By status: **142 VALIDATED**, 43 FINDING,
+3 measured without a pass count, and
+58 directories that hold a harness but no machine-readable artifact. Those
+58 contribute no evidence to any claim in this document and are listed so that the
+gap is visible rather than silent.
+
+**How to read a run dated on or after 2026-09-26.** On that date, by decision, the model's store was
+emptied: all 156 tables in `lyric_db`, with no backup, and the substrate was taught again from the first
+English lesson. A run against the emptied store measures an **untaught** substrate, not a broken one, and
+some checks cannot pass until the vocabulary they depend on exists. The clearest case is `BEARING-01`,
+which recorded 22/22 on 2026-09-19 and 20/23 on 2026-09-26: of its three failures, the first is
+*"what the substrate holds as harm is recognised as harm", 1/12*, and the cause is recorded the same day:
+on the wiped store the constitution's law vocabulary is empty, no word is yet a noun, so bearing and
+stakes cannot be computed until word kinds exist. The registry reports the latest run faithfully, which
+is why that row reads FINDING. **An untaught store is not an absent capability**, and nothing in this
+document should be read as one.
 
 | Experiment ID | Domain | Result | Status | Latest | Runs | Latest artifact |
 |---|---|---|---|---|---|---|
-| `ACTOR-IDENTITY-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `AFFECT-WIRING-01` | Self-monitoring | | NO ARTIFACT | | 0 | `none` |
-| `ATTEST-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `BEARING-01` | Epistemics | 22/22 | VALIDATED | 2026-09-19 | 15 | `20260919T152509Z.json` |
-| `BORROWED-KNOWLEDGE-01` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `CAPABILITY-BASELINE-01` | Capability | | NO ARTIFACT | | 0 | `none` |
-| `CAPABILITY-BENCHMARK-01` | Capability | see §25 | MEASURED (non-standard record) | | 1 | `20260916T150327Z_full_suite.json` |
-| `CHAT-CONCURRENCY-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `CONSTITUTION-01` | Governance | 39/39 | VALIDATED | 2026-09-19 | 60 | `20260919T152556Z.json` |
-| `CONSTITUTION-02` | Governance | 23/23 | VALIDATED | 2026-09-18 | 31 | `20260918T134117Z.json` |
-| `CONSTITUTION-03` | Governance | 7/8 | FINDING | 2026-09-17 | 5 | `20260917T004655Z.json` |
-| `CONTENT-01` | Governance | 20/20 | VALIDATED | 2026-09-19 | 26 | `20260919T233646Z.json` |
-| `CREDIT-01` | Intent | 25/25 | VALIDATED | 2026-09-17 | 9 | `20260917T172213Z.json` |
-| `DOM-KG-01` | Epistemics | see §25 | MEASURED (manifest) | 2026-09-18 | 1 | `result.json` |
+| `ACTOR-IDENTITY-01` | Coordination | 6/6 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `AFFECT-WIRING-01` | Self-monitoring | 9/9 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `AGENTS-01` | Coordination | 11/11 | VALIDATED | 2026-09-30 | 2 | `20260930T235350Z.json` |
+| `ARBITER-WIRING-01` | Governance | 24/24 | VALIDATED | 2026-09-25 | 8 | `20260925T052539Z.json` |
+| `ATTEST-01` | Coordination |  | NO ARTIFACT |  | 0 | `none` |
+| `BEARING-01` | Epistemics | 20/23 | FINDING | 2026-09-26 | 27 | `20260926T205004Z.json` |
+| `BORROWED-KNOWLEDGE-01` | Learning | 9/9 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `CANARY-01` | Epistemics | 57/59 | FINDING | 2026-10-07 | 22 | `20261007T162103Z.json` |
+| `CAPABILITY-BASELINE-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `CAPABILITY-BENCHMARK-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `CAPABILITY-EMERGE-01` | Learning | 44/44 | VALIDATED | 2026-10-21 | 6 | `20261021T211237Z.json` |
+| `CHAT-CONCURRENCY-01` | Coordination | 6/6 | VALIDATED | 2026-09-28 | 8 | `20260928T171653Z.json` |
+| `COMPOSE-01` | Language | 2/2 | VALIDATED | 2026-10-20 | 4 | `20261020T210127Z.json` |
+| `COMPREHENSION-01` | Capability | 30/30 | VALIDATED | 2026-10-03 | 8 | `20261003T052358Z.json` |
+| `CONSOLIDATION-01` | Learning | 32/32 | VALIDATED | 2026-09-28 | 5 | `20260928T143829Z.json` |
+| `CONSTITUTION-01` | Governance | 39/39 | VALIDATED | 2026-10-23 | 81 | `20261023T020259Z.json` |
+| `CONSTITUTION-02` | Governance | 23/23 | VALIDATED | 2026-09-28 | 48 | `20260928T173334Z.json` |
+| `CONSTITUTION-03` | Governance | 8/8 | VALIDATED | 2026-10-23 | 27 | `20261023T020602Z.json` |
+| `CONTENT-01` | Governance | 14/20 | FINDING | 2026-09-28 | 31 | `20260928T140856Z.json` |
+| `COUNTABILITY-01` | Language | 4/4 | VALIDATED | 2026-10-03 | 6 | `20261003T031802Z.json` |
+| `CREDIT-01` | Intent | 26/26 | VALIDATED | 2026-10-23 | 30 | `20261023T020447Z.json` |
+| `CSP-AGI-1` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `DEVICE-01` | Capability | 20/20 | VALIDATED | 2026-10-03 | 2 | `20261003T035215Z.json` |
+| `DOC-01` | Capability | 5/5 | VALIDATED |  | 3 | `20260924T023607Z.json` |
+| `DOM-KG-01` | Epistemics |  | NO ARTIFACT |  | 0 | `none` |
+| `DOMAIN-DISCOVERY-01` | Learning | 11/11 | VALIDATED | 2026-09-28 | 11 | `20260928T171432Z.json` |
 | `DRIFT-01` | Self-monitoring | 25/25 | VALIDATED | 2026-09-19 | 15 | `20260919T152542Z.json` |
-| `EDU-01` | Learning | see §25 | MEASURED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `EDU-02` | Learning | see §25 | MEASURED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `EDU-03` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `EDU-04` | Learning | see §25 | VALIDATED (manifest) | 2026-08-23 | 1 | `manifest.json` |
-| `EDU-05` | Learning | see §25 | VALIDATED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `EDU-06` | Learning | see §25 | VALIDATED (manifest) | 2026-08-23 | 1 | `manifest.json` |
-| `EDU-07` | Learning | see §25 | VALIDATED (manifest) | 2026-08-23 | 1 | `manifest.json` |
-| `EDU-08` | Learning | see §25 | VALIDATED (manifest) | 2026-08-23 | 1 | `manifest.json` |
-| `EDU-09` | Learning | see §25 | MEASURED (manifest) | 2026-08-23 | 1 | `manifest.json` |
-| `EDU-10` | Learning | see §25 | VALIDATED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `EDU-11` | Learning | see §25 | VALIDATED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `EDU-12` | Learning | see §25 | MEASURED (manifest) | 2026-08-20 | 1 | `manifest.json` |
-| `EDU-13` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `EDU-14` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `EDU-15` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `EDU-16` | Learning | see §25 | MEASURED (manifest) |  | 1 | `result.json` |
-| `ENV-INVESTIGATE-01` | Epistemics | 9/9 | VALIDATED | 2026-09-18 | 4 | `20260918T113503Z.json` |
-| `EPISTEMIC-AFFECT-01` | Epistemics | | NO ARTIFACT | | 0 | `none` |
-| `FALSIFY-01` | Perception | 8/8 | VALIDATED | 2026-09-19 | 10 | `20260919T212427Z.json` |
-| `FRAME-01` | Perception | 14/14 | VALIDATED | 2026-09-19 | 12 | `20260919T233516Z.json` |
-| `FRONTDOOR-IDENTITY-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `GATE-01` | Governance | 25/25 | VALIDATED | 2026-09-18 | 36 | `20260918T170319Z.json` |
-| `GOV-ABLATION-01` | Governance | see §25 | MEASURED (manifest) | 2026-09-18 | 1 | `manifest.json` |
-| `GOV-CASCADE-01` | Governance | see §25 | MEASURED (manifest) | 2026-09-18 | 1 | `manifest.json` |
-| `GOVERNANCE-ABSORPTION-01` | Governance | 11/12 | PARTIALLY VALIDATED | 2026-09-18 | 45 | `20260918T134238Z.json` |
-| `GOVERNANCE-MONITOR-01` | Governance | | NO ARTIFACT | | 0 | `none` |
-| `HARM-01` | Governance | 19/19 | VALIDATED | 2026-09-18 | 20 | `20260918T152140Z.json` |
-| `HARM-02` | Governance | 34/34 | VALIDATED | 2026-09-18 | 14 | `20260918T134057Z.json` |
-| `IDEMPOTENT-01` | Integrated | | NO ARTIFACT | | 0 | `none` |
-| `INPUT-VALIDATION-01` | Governance | | NO ARTIFACT | | 0 | `none` |
-| `INTEGRATION-LOOP-01` | Intent | 6/6 | VALIDATED | 2026-09-18 | 6 | `20260918T115913Z.json` |
-| `INTEGRITY-01` | Self-monitoring | 9/9 | VALIDATED | 2026-09-18 | 6 | `20260918T113331Z.json` |
-| `INTENT-01` | Intent | 14/14 | VALIDATED | 2026-09-18 | 20 | `20260918T115715Z.json` |
-| `INTENT-02` | Intent | 15/15 | VALIDATED | 2026-09-18 | 24 | `20260918T115727Z.json` |
-| `INTENT-03` | Intent | 13/13 | VALIDATED | 2026-09-18 | 24 | `20260918T115741Z.json` |
-| `INTENT-04` | Intent | 15/15 | VALIDATED | 2026-09-18 | 20 | `20260918T115802Z.json` |
+| `DRIVES-01` | Intent | 25/25 | VALIDATED | 2026-09-25 | 5 | `20260925T052539Z.json` |
+| `EDU-01` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-02` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-03` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-04` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-05` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-06` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-07` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-08` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-09` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-10` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-11` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-12` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-13` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-14` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-15` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `EDU-16` | Learning |  | NO ARTIFACT |  | 0 | `none` |
+| `ENCODER-01` | Capability | 11/18 | FINDING |  | 9 | `20260922T175155Z.json` |
+| `ENCODER-02` | Capability | 2/4 | FINDING |  | 7 | `20260922T175203Z.json` |
+| `ENCODER-03` | Capability | 3/6 | FINDING |  | 8 | `20260922T175319Z.json` |
+| `ENCODER-04` | Capability | 4/9 | FINDING |  | 8 | `20260922T175218Z.json` |
+| `ENCODER-05` | Capability | 1/9 | FINDING |  | 9 | `20260922T175326Z.json` |
+| `ENCODER-06` | Capability | 5/7 | FINDING |  | 7 | `20260922T175232Z.json` |
+| `ENCODER-07` | Capability | 5/7 | FINDING |  | 7 | `20260922T175241Z.json` |
+| `ENCODER-08` | Capability | 2/5 | FINDING |  | 7 | `20260922T175242Z.json` |
+| `ENCODER-09` | Capability | 5/5 | VALIDATED |  | 7 | `20260922T175242Z.json` |
+| `ENCODER-10` | Capability | 6/7 | FINDING |  | 7 | `20260922T175247Z.json` |
+| `ENCODER-11` | Capability | 3/10 | FINDING |  | 6 | `20260922T175256Z.json` |
+| `ENCODER-12` | Capability | 8/9 | FINDING |  | 5 | `20260922T175304Z.json` |
+| `ENCODER-13` | Capability | 10/10 | VALIDATED |  | 5 | `20260922T175305Z.json` |
+| `ENCODER-14` | Capability | 9/15 | FINDING |  | 7 | `20260922T175311Z.json` |
+| `ENGLISH-01` | Language | 28/28 | VALIDATED | 2026-10-07 | 17 | `20261007T231724Z.json` |
+| `ENGLISH-LESSON-01` | Language | 0/1 | FINDING | 2026-09-27 | 1 | `20260927T023716Z.json` |
+| `ENV-INVESTIGATE-01` | Epistemics | 10/10 | VALIDATED | 2026-10-07 | 7 | `20261007T115508Z.json` |
+| `EPISTEMIC-AFFECT-01` | Epistemics |  | NO ARTIFACT |  | 0 | `none` |
+| `EXPECT-01` | Learning | 20/20 | VALIDATED | 2026-10-23 | 9 | `20261023T024514Z.json` |
+| `EXPECT-02` | Learning | 22/22 | VALIDATED | 2026-10-23 | 11 | `20261023T021704Z.json` |
+| `EXPECT-02-pilot` | Learning | 15/22 | FINDING | 2026-10-22 | 8 | `20261022T163459Z.json` |
+| `FALSIFY-01` | Perception | 8/8 | VALIDATED | 2026-09-28 | 14 | `20260928T190147Z.json` |
+| `FEELING-OBJECT-01` | Capability | 20/20 | VALIDATED | 2026-09-26 | 5 | `20260926T203452Z.json` |
+| `FIFTY-01` | Learning | 16/16 | VALIDATED | 2026-10-21 | 2 | `20261021T203729Z.json` |
+| `FRAME-01` | Perception | 14/14 | VALIDATED | 2026-09-28 | 15 | `20260928T183825Z.json` |
+| `FRESH-LESSON-01` | Language | 30/32 | FINDING | 2026-10-05 | 3 | `20261005T120427Z.json` |
+| `FRESH-LESSON-02` | Language | 33/33 | VALIDATED | 2026-10-04 | 3 | `20261004T180519Z.json` |
+| `FRESH-LESSON-03` | Language | 30/32 | FINDING | 2026-10-04 | 3 | `20261004T201145Z.json` |
+| `FRONTDOOR-IDENTITY-01` | Coordination |  | NO ARTIFACT |  | 0 | `none` |
+| `GATE-01` | Governance | 25/25 | VALIDATED | 2026-09-28 | 54 | `20260928T173412Z.json` |
+| `GOV-ABLATION-01` | Governance |  | NO ARTIFACT |  | 0 | `none` |
+| `GOV-CASCADE-01` | Governance |  | NO ARTIFACT |  | 0 | `none` |
+| `GOVERNANCE-ABSORPTION-01` | Governance | 12/12 | VALIDATED | 2026-09-26 | 69 | `20260926T122208Z.json` |
+| `GOVERNANCE-MONITOR-01` | Governance |  | NO ARTIFACT |  | 0 | `none` |
+| `GRAMMAR-01` | Language | 4/4 | VALIDATED | 2026-11-01 | 61 | `20261101T181220Z.json` |
+| `GROUPS-01` | Language | 3/3 | VALIDATED | 2026-11-10 | 2 | `20261110T044912Z.json` |
+| `HANDOVER-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `HARM-01` | Governance | 19/19 | VALIDATED | 2026-09-28 | 31 | `20260928T173450Z.json` |
+| `HARM-02` | Governance | 34/34 | VALIDATED | 2026-09-28 | 15 | `20260928T143650Z.json` |
+| `HEAR-01` | Perception | 42/42 | VALIDATED | 2026-09-28 | 10 | `20260928T183637Z.json` |
+| `IDEMPOTENT-01` | Integrated |  | NO ARTIFACT |  | 0 | `none` |
+| `INPUT-VALIDATION-01` | Governance |  | NO ARTIFACT |  | 0 | `none` |
+| `INSTANCES-01` | Coordination | 22/22 | VALIDATED | 2026-10-24 | 19 | `20261024T004818Z.json` |
+| `INTEGRATION-LOOP-01` | Intent | 7/7 | VALIDATED | 2026-09-28 | 11 | `20260928T171557Z.json` |
+| `INTEGRITY-01` | Self-monitoring | 9/9 | VALIDATED | 2026-09-24 | 9 | `20260924T125644Z.json` |
+| `INTENT-01` | Intent | 14/14 | VALIDATED | 2026-10-23 | 25 | `20261023T020617Z.json` |
+| `INTENT-02` | Intent | 15/15 | VALIDATED | 2026-09-28 | 28 | `20260928T143642Z.json` |
+| `INTENT-03` | Intent | 13/13 | VALIDATED | 2026-10-23 | 39 | `20261023T025135Z.json` |
+| `INTENT-04` | Intent | 15/15 | VALIDATED | 2026-10-23 | 33 | `20261023T020633Z.json` |
 | `INTRINSIC-EVENTDRIVEN-01` | Self-monitoring | 8/9 | FINDING | 2026-09-18 | 3 | `20260918T113508Z.json` |
-| `KNOW-50` | Epistemics | see §25 | MEASURED (manifest) | 2026-09-18 | 1 | `manifest.json` |
-| `LOOKUP-SINGLEFLIGHT-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `MEMORY-INTENT-01` | Memory | 15/15 | VALIDATED | 2026-09-19 | 11 | `20260919T152549Z.json` |
-| `MEMORY-PERCEPT-01` | Memory | 15/15 | VALIDATED | 2026-09-19 | 21 | `20260919T211531Z.json` |
-| `MOTIVATION-CLOSEDLOOP-01` | Self-monitoring | 11/11 | VALIDATED | 2026-09-18 | 5 | `20260918T113449Z.json` |
-| `OPERABILITY-BAR-01` | Intent | | NO ARTIFACT | | 0 | `none` |
-| `OPERATOR-REMOVAL-01` | Learning | 21/21 | VALIDATED | 2026-09-18 | 46 | `20260918T134206Z.json` |
-| `PER-USER-CONCURRENCY-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `PERCEIVE-01` | Perception | see §25 | MEASURED (manifest) | 2026-09-17 | 1 | `manifest.json` |
-| `PERCEIVE-02` | Perception | see §25 | MEASURED (manifest) | 2026-09-18 | 1 | `manifest.json` |
-| `PERCEIVE-03` | Perception | see §25 | MEASURED (manifest) | 2026-09-19 | 1 | `manifest.json` |
-| `PERCEIVE-04` | Perception | see §25 | MEASURED (manifest) | 2026-09-17 | 1 | `manifest.json` |
-| `PERCEIVE-05` | Perception | | NO ARTIFACT | | 0 | `none` |
-| `PERCEIVE-AMBIG-01` | Perception | see §25 | MEASURED (manifest) | 2026-09-19 | 1 | `manifest.json` |
-| `PERCEIVE-AMBIG-02` | Perception | see §25 | MEASURED (manifest) | 2026-09-19 | 1 | `manifest.json` |
-| `PERCEIVE-EVAL` | Perception | see §25 | MEASURED (manifest) | 2026-09-17 | 1 | `manifest.json` |
-| `PERCEIVE-EVAL2` | Perception | see §25 | MEASURED (manifest) | 2026-09-17 | 1 | `manifest.json` |
-| `PERCEIVE-SEE-01` | Perception | see §25 | MEASURED (manifest) | 2026-09-19 | 1 | `manifest.json` |
-| `PIPELINE-01` | Integrated | | NO ARTIFACT | | 0 | `none` |
-| `PLANNING-01` | Reasoning | 39/39 | VALIDATED | 2026-09-18 | 41 | `20260918T113320Z.json` |
-| `POS-01` | Language | | NO ARTIFACT | | 0 | `none` |
-| `RECOGNISE-01` | Perception | 33/33 | VALIDATED | 2026-09-20 | 17 | `20260920T012706Z.json` |
-| `RECOGNISE-02` | Perception | 24/24 | VALIDATED | 2026-09-19 | 13 | `20260919T211419Z.json` |
-| `RECONCILE-01` | Intent | 27/27 | VALIDATED | 2026-09-18 | 23 | `20260918T134145Z.json` |
-| `REMEMBER-01` | Memory | | NO ARTIFACT | | 0 | `none` |
-| `SEE-LOOP-01` | Perception | 23/23 | VALIDATED | 2026-09-20 | 24 | `20260920T012555Z.json` |
-| `SELF-PARTITION-01` | Coordination | | NO ARTIFACT | | 0 | `none` |
-| `SESSION-01` | Memory | see §25 | MEASURED (manifest) | 2026-08-19 | 1 | `manifest.json` |
-| `TASK-RESULT-01` | Coordination | 9/9 | VALIDATED | 2026-09-18 | 5 | `20260918T113421Z.json` |
-| `VERIFY-01` | Integrated | see §25 | MEASURED (manifest) | 2026-09-17 | 1 | `manifest.json` |
-| `edu` | Learning | | NO ARTIFACT | | 0 | `none` |
-| `kite17_ablation` | Learning | see §25 | MEASURED (non-standard record) | | 2 | `kite17_ablation_INVALID_run1.json` |
+| `KNOW-50` | Epistemics |  | NO ARTIFACT |  | 0 | `none` |
+| `KNOWS-WORDNET-01` | Language | see §25 | MEASURED | 2026-09-24 | 1 | `20260924T202854Z.json` |
+| `LEARNED-WORK-01` | Learning | 2/2 | VALIDATED | 2026-10-05 | 3 | `20261005T000809Z.json` |
+| `LIVE-01` | Coordination | 16/18 | FINDING | 2026-10-12 | 7 | `20261012T155222Z.json` |
+| `LOOKUP-SINGLEFLIGHT-01` | Coordination | 8/8 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `MAIN-ENGLISH-01` | Language | 11/11 | VALIDATED | 2026-10-06 | 4 | `20261006T162045Z.json` |
+| `MELODY-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `MEMORY-INTENT-01` | Memory | 15/15 | VALIDATED | 2026-09-26 | 14 | `20260926T141022Z.json` |
+| `MEMORY-PERCEPT-01` | Memory | 15/15 | VALIDATED | 2026-09-29 | 25 | `20260929T212114Z.json` |
+| `MEMORY-SIGHT-01` | Perception | 17/17 | VALIDATED | 2026-09-29 | 2 | `20260929T211723Z.json` |
+| `MEMORY-SOUND-01` | Perception | 23/23 | VALIDATED | 2026-09-29 | 4 | `20260929T211836Z.json` |
+| `MESSAGE-01` | Coordination | 17/17 | VALIDATED | 2026-10-05 | 2 | `20261005T034336Z.json` |
+| `MOTIVATION-CLOSEDLOOP-01` | Self-monitoring | 11/11 | VALIDATED | 2026-09-28 | 11 | `20260928T173619Z.json` |
+| `NLU-01` | Language | 2/2 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-02` | Language | 14/20 | FINDING |  | 12 | `20260926T225940Z.json` |
+| `NLU-03` | Language | 6/6 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-04` | Language | 24/24 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-05` | Language | 6/6 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-06` | Language | 4/4 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-07` | Language | 14/15 | FINDING |  | 12 | `20260926T225940Z.json` |
+| `NLU-08` | Language | 6/6 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-09` | Language | 6/14 | FINDING |  | 12 | `20260926T225940Z.json` |
+| `NLU-10` | Language | 4/4 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-11` | Language | 10/10 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-12` | Language | 2/2 | VALIDATED |  | 12 | `20260926T225940Z.json` |
+| `NLU-13` | Language | 10/16 | FINDING |  | 8 | `20260926T225940Z.json` |
+| `OPERABILITY-BAR-01` | Intent | 11/11 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `OPERATOR-REMOVAL-01` | Learning | 22/22 | VALIDATED | 2026-10-23 | 64 | `20261023T020704Z.json` |
+| `ORG-01` | Coordination | 20/20 | VALIDATED | 2026-10-07 | 5 | `20261007T175934Z.json` |
+| `OUTSIDE-DB-01` | Capability | 10/10 | VALIDATED | 2026-09-30 | 2 | `20260930T200313Z.json` |
+| `PACKED-01` | Language | 3/3 | VALIDATED | 2026-10-20 | 6 | `20261020T115357Z.json` |
+| `PATHS-01` | Intent | 24/24 | VALIDATED | 2026-10-07 | 24 | `20261007T164635Z.json` |
+| `PATHS-02` | Intent | 15/15 | VALIDATED | 2026-10-07 | 6 | `20261007T175710Z.json` |
+| `PER-USER-CONCURRENCY-01` | Coordination | 8/8 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `PERCEIVE-01` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-02` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-03` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-04` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-05` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-AMBIG-01` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-AMBIG-02` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-EVAL` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-EVAL2` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PERCEIVE-SEE-01` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `PIPELINE-01` | Integrated |  | NO ARTIFACT |  | 0 | `none` |
+| `PLANNING-01` | Reasoning | 35/35 | VALIDATED | 2026-10-23 | 56 | `20261023T013109Z.json` |
+| `PMB-01` | Language | 3/3 | VALIDATED | 2026-10-21 | 4 | `20261021T025534Z.json` |
+| `POS-01` | Language |  | NO ARTIFACT |  | 0 | `none` |
+| `PROBE-01` | Language | 1/2 | FINDING |  | 1 | `20260923T224749Z.json` |
+| `PROPBANK-01` | Language | 4/4 | VALIDATED | 2026-10-17 | 1 | `20261017T135256Z.json` |
+| `PURSUIT-01` | Intent | 24/27 | FINDING | 2026-10-23 | 14 | `20261023T021541Z.json` |
+| `QUESTION-FORMS-01` | Language | 9/9 | VALIDATED | 2026-10-04 | 1 | `20261004T175021Z.json` |
+| `QUESTION-FORMS-02` | Language | 16/16 | VALIDATED | 2026-10-07 | 10 | `20261007T145740Z.json` |
+| `QUESTION-FORMS-03` | Language | 4/6 | FINDING | 2026-10-11 | 1 | `20261011T065653Z.json` |
+| `READ-01` | Language | 27/27 | VALIDATED | 2026-09-30 | 3 | `20260930T151829Z.json` |
+| `READ-LEARN-01` | Language | 0/2 | FINDING | 2026-10-25 | 4 | `20261025T201431Z.json` |
+| `READ-LONG-01` | Language |  | NO ARTIFACT |  | 0 | `none` |
+| `RECALL-01` | Memory | 11/11 | VALIDATED | 2026-09-28 | 3 | `20260928T183719Z.json` |
+| `RECOGNISE-01` | Perception | 33/33 | VALIDATED | 2026-09-28 | 26 | `20260928T190122Z.json` |
+| `RECOGNISE-02` | Perception | 24/24 | VALIDATED | 2026-09-28 | 17 | `20260928T185451Z.json` |
+| `RECONCILE-01` | Intent | 28/28 | VALIDATED | 2026-10-23 | 38 | `20261023T020817Z.json` |
+| `RELEASE-01` | Intent | 29/29 | VALIDATED | 2026-09-28 | 13 | `20260928T153635Z.json` |
+| `REMEMBER-01` | Memory |  | NO ARTIFACT |  | 0 | `none` |
+| `REPLAN-01` | Intent | 12/12 | VALIDATED | 2026-10-23 | 15 | `20261023T011934Z.json` |
+| `REPLAN-02` | Intent | 10/10 | VALIDATED | 2026-10-23 | 10 | `20261023T011818Z.json` |
+| `REPLAN-03` | Intent | 12/12 | VALIDATED | 2026-10-23 | 17 | `20261023T011806Z.json` |
+| `RESEARCH-WRITE-01` | Capability | 8/15 | FINDING | 2026-10-23 | 7 | `20261023T124829Z.json` |
+| `RETRIEVAL-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `ROLES-01` | Language | 1/1 | VALIDATED | 2026-10-17 | 4 | `20261017T164625Z.json` |
+| `ROLES-02` | Language | 1/1 | VALIDATED | 2026-10-17 | 1 | `20261017T173945Z.json` |
+| `RULE-AUTHORITY-01` | Learning | 7/7 | VALIDATED | 2026-10-27 | 11 | `20261027T141452Z.json` |
+| `RULE-AUTHORITY-02` | Learning | 9/9 | VALIDATED | 2026-10-29 | 43 | `20261029T102937Z.json` |
+| `RULE-EVIDENCE-01` | Learning | 21/21 | VALIDATED | 2026-10-27 | 7 | `20261027T022211Z.json` |
+| `SEE-LOOP-01` | Perception | 23/23 | VALIDATED | 2026-09-29 | 31 | `20260929T210435Z.json` |
+| `SELF-PARTITION-01` | Coordination | 23/23 | VALIDATED |  | 1 | `20260920T202725Z.json` |
+| `SELF-TEACH-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `SELFSTATE-01` | Epistemics | 9/9 | VALIDATED | 2026-09-28 | 5 | `20260928T144059Z.json` |
+| `SENSE-01` | Language | 40/40 | VALIDATED | 2026-10-03 | 15 | `20261003T034014Z.json` |
+| `SENSE-COVERAGE-01` | Language | 3/3 | VALIDATED | 2026-10-02 | 7 | `20261002T020607Z.json` |
+| `SENSE-RELATED-01` | Language | 2/2 | VALIDATED | 2026-10-12 | 1 | `20261012T005928Z.json` |
+| `SENSE-SAID-01` | Language | 2/2 | VALIDATED | 2026-10-01 | 4 | `20261001T214822Z.json` |
+| `SENSES-01` | Language | 3/3 | VALIDATED | 2026-10-19 | 6 | `20261019T235235Z.json` |
+| `SENSES-TOGETHER-01` | Language | 16/16 | VALIDATED | 2026-09-29 | 5 | `20260929T214804Z.json` |
+| `SEPARATION-01` | Capability | 29/33 | FINDING | 2026-10-05 | 15 | `20261005T004452Z.json` |
+| `SESSION-01` | Memory |  | NO ARTIFACT |  | 0 | `none` |
+| `SHAPES-BASELINE-01` | Language | 0/6 | FINDING | 2026-09-27 | 1 | `20260927T034210Z.json` |
+| `SHAPES-LEARN-01` | Language | 36/36 | VALIDATED | 2026-09-29 | 19 | `20260929T121142Z.json` |
+| `SHAPES-LEARN-02` | Language | 35/35 | VALIDATED | 2026-09-29 | 15 | `20260929T123039Z.json` |
+| `SHAPES-LEARN-03` | Language | 10/10 | VALIDATED | 2026-09-29 | 5 | `20260929T123215Z.json` |
+| `SHAPES-LEARN-04` | Language | 18/18 | VALIDATED | 2026-09-29 | 2 | `20260929T134813Z.json` |
+| `SHAPES-LEARN-05` | Language | 11/11 | VALIDATED | 2026-09-29 | 2 | `20260929T135132Z.json` |
+| `SHAPES-LEARN-06` | Language | 16/16 | VALIDATED | 2026-09-29 | 1 | `20260929T135032Z.json` |
+| `SHAPES-LEARN-07` | Language | 16/16 | VALIDATED | 2026-09-29 | 1 | `20260929T145115Z.json` |
+| `SHAPES-LEARN-08` | Language | 15/15 | VALIDATED | 2026-09-29 | 1 | `20260929T154631Z.json` |
+| `SHAPES-LEARN-09` | Language | 18/18 | VALIDATED | 2026-09-29 | 3 | `20260929T215535Z.json` |
+| `SHAPES-LEARN-10` | Language | 34/37 | FINDING | 2026-09-30 | 3 | `20260930T111909Z.json` |
+| `SONGS-01` | Language | 25/25 | VALIDATED | 2026-09-29 | 4 | `20260929T233853Z.json` |
+| `SPEECH-01` | Perception | 30/30 | VALIDATED | 2026-09-28 | 4 | `20260928T183549Z.json` |
+| `SPEECH-02` | Perception | 10/12 | FINDING | 2026-10-03 | 2 | `20261003T125738Z.json` |
+| `SPEECH-03` | Perception | 3/3 | VALIDATED | 2026-10-03 | 4 | `20261003T164034Z.json` |
+| `SPEECH-04` | Perception | 10/11 | FINDING | 2026-10-03 | 1 | `20261003T183310Z.json` |
+| `SPEECH-05` | Perception | 7/8 | FINDING | 2026-10-03 | 2 | `20261003T220404Z.json` |
+| `SPEECH-06` | Perception |  | NO ARTIFACT |  | 0 | `none` |
+| `SPLIT-01` | Language | 17/17 | VALIDATED | 2026-10-07 | 3 | `20261007T175853Z.json` |
+| `SPLITS-01` | Language | 5/5 | VALIDATED | 2026-10-23 | 2 | `20261023T134633Z.json` |
+| `STRUCTURE-01` | Language | 15/15 | VALIDATED | 2026-10-28 | 8 | `20261028T112437Z.json` |
+| `STRUCTURE-02` | Language | 5/5 | VALIDATED | 2026-10-17 | 7 | `20261017T170320Z.json` |
+| `STRUCTURE-03` | Language | 7/7 | VALIDATED | 2026-10-18 | 1 | `20261018T173729Z.json` |
+| `SYSML-01` | Capability | 13/13 | VALIDATED | 2026-10-14 | 1 | `20261014T130401Z.json` |
+| `SYSTEM-BELIEFS-01` | Integrated | 22/22 | VALIDATED | 2026-09-26 | 5 | `20260926T225557Z.json` |
+| `SYSTEM-CONVERSATION-01` | Coordination | 34/34 | VALIDATED | 2026-10-07 | 24 | `20261007T164704Z.json` |
+| `SYSTEM-DOMAIN-01` | Integrated | 14/14 | VALIDATED | 2026-09-28 | 8 | `20260928T171456Z.json` |
+| `SYSTEM-EXECUTION-01` | Integrated | 16/18 | FINDING | 2026-10-21 | 7 | `20261021T202824Z.json` |
+| `SYSTEM-HEALTH-01` | Integrated | 18/18 | VALIDATED | 2026-09-26 | 7 | `20260926T203208Z.json` |
+| `SYSTEM-INTENT-01` | Integrated | 13/13 | VALIDATED | 2026-09-28 | 6 | `20260928T143523Z.json` |
+| `SYSTEM-LEARNING-01` | Integrated | 19/19 | VALIDATED | 2026-10-04 | 10 | `20261004T144450Z.json` |
+| `SYSTEM-MEMORY-01` | Integrated | 18/18 | VALIDATED | 2026-09-29 | 17 | `20260929T214837Z.json` |
+| `SYSTEM-PERCEPTION-01` | Integrated | 18/18 | VALIDATED | 2026-09-29 | 8 | `20260929T212356Z.json` |
+| `SYSTEM-QUEUE-01` | Integrated | 24/24 | VALIDATED | 2026-09-28 | 8 | `20260928T130915Z.json` |
+| `SYSTEM-REASONING-01` | Integrated | 8/8 | VALIDATED | 2026-09-28 | 10 | `20260928T163845Z.json` |
+| `SYSTEM-SELF-01` | Integrated | 17/17 | VALIDATED | 2026-09-28 | 6 | `20260928T143850Z.json` |
+| `SYSTEM-SEMANTICS-01` | Integrated | 9/9 | VALIDATED | 2026-09-26 | 7 | `20260926T214136Z.json` |
+| `TASK-GATE-01` | Intent | 14/14 | VALIDATED | 2026-10-23 | 8 | `20261023T013006Z.json` |
+| `TASK-GATE-02` | Intent | 21/21 | VALIDATED | 2026-09-28 | 5 | `20260928T143604Z.json` |
+| `TASK-RESULT-01` | Coordination | 9/9 | VALIDATED | 2026-09-28 | 15 | `20260928T171645Z.json` |
+| `TASKS-AT-ONCE-01` | Intent | 14/14 | VALIDATED | 2026-09-30 | 2 | `20260930T175144Z.json` |
+| `TAUGHT-IN-ENGLISH-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `TEACH-ACTION-01` | Learning | 10/10 | VALIDATED | 2026-09-28 | 9 | `20260928T173608Z.json` |
+| `TEACH-AND-DO-01` | Learning | 17/18 | FINDING | 2026-09-28 | 12 | `20260928T163909Z.json` |
+| `THREAT-SENSE-01` | Governance | 13/13 | VALIDATED | 2026-09-26 | 8 | `20260926T152009Z.json` |
+| `THREAT-SENSE-02` | Governance | 29/29 | VALIDATED | 2026-09-26 | 5 | `20260926T225805Z.json` |
+| `TOLD-SEEN-01` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `TOOLDOMAIN-01` | Capability | 20/20 | VALIDATED | 2026-10-21 | 11 | `20261021T202756Z.json` |
+| `TOOLS-EXTERNAL-01` | Capability | 27/27 | VALIDATED | 2026-10-04 | 4 | `20261004T223553Z.json` |
+| `TRAIN-FORMAT-01` | Language | 15/15 | VALIDATED | 2026-10-28 | 36 | `20261028T112115Z.json` |
+| `TRAIN-FORMAT-02` | Language | 73/83 | FINDING | 2026-11-02 | 74 | `20261102T123904Z.json` |
+| `TRAIN-FORMAT-03` | Language |  | NO ARTIFACT |  | 0 | `none` |
+| `TRUTH-01` | Epistemics | 18/18 | VALIDATED | 2026-10-07 | 3 | `20261007T175754Z.json` |
+| `TUNES-01` | Language | see §25 | MEASURED (non-standard record) |  | 4 | `20260929_t_half_untaught.json` |
+| `UNASSERTED-01` | Epistemics | 10/10 | VALIDATED | 2026-10-07 | 11 | `20261007T152016Z.json` |
+| `UNDERSTANDS-PROSE-01` | Language | 2/6 | FINDING | 2026-11-05 | 19 | `20261105T143226Z.json` |
+| `UNDERSTANDS-PROSE-02` | Language | 4/7 | FINDING | 2026-11-06 | 9 | `20261106T002538Z.json` |
+| `UNDERSTANDS-WORDNET-01` | Language | 9/13 | FINDING | 2026-11-10 | 7 | `20261110T232816Z.json` |
+| `VERIFY-01` | Integrated |  | NO ARTIFACT |  | 0 | `none` |
+| `WORD-FORMS-01` | Language |  | NO ARTIFACT |  | 0 | `none` |
+| `WORK-TALK-01` | Coordination | 21/21 | VALIDATED | 2026-10-05 | 5 | `20261005T034248Z.json` |
+| `cleanup` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `diagnostics` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `experiments` | Capability | see §25 | MEASURED | 2026-08-17 | 2 | `kite17_ablation_INVALID_run1.json` |
+| `nlu` | Language | 108/129 | FINDING | 2026-09-26 | 12 | `20260926T225940Z.json` |
+| `subjects` | Capability |  | NO ARTIFACT |  | 0 | `none` |
+| `world` | Capability |  | NO ARTIFACT |  | 0 | `none` |
 
----
 ## 6. Governance & Safety Validation
 
 ### 6.1 CONSTITUTION-01: correct verdicts on real acts
@@ -1097,9 +1298,9 @@ variables, which this substrate does not set. Those records stand as captured.
 | # | Conflict | Sources | Resolution |
 |---|---|---|---|
 | 1 | Verdict on a proved irreversible removal: `redirect (Law 3)` vs `allow (Law 0)` | OPERATOR-REMOVAL-01 runs ≤2026-09-16 vs ≥2026-09-17 | **Resolved by evidence**, the harm definition made Law 3 conditional on reaching a party and an interest (§7.1). Documentation stating unconditional redirect is superseded |
-| 2 | Appraisal dimensions: **11** vs **12** | Technical Overview vs BEARING-01 artifact (`appraisal_dimensions: 12`) | **Unresolved.** The artifact is the later and more direct source; the discrepancy's cause is not established by available evidence |
+| 2 | Appraisal dimensions: **11** vs **12** | Technical Overview vs BEARING-01 artifact (`appraisal_dimensions: 12`) | **Resolved 2026-11-19 by reading the source.** `AppraisalSystem.DIMENSIONS` in `core/agents/autonomous/appraisal.py` declares **13**: valence, activation, confidence, epistemic opportunity, progress, controllability, competence, goal congruence, agency, integrity, risk, stakes, people reward. Both figures were counts taken while the set was growing, and neither was wrong when taken. The behavioural pressures remain 7 |
 | 3 | CONSTITUTION-02 checks: 21/21 vs 23/23 | Benchmark record (2026-09-16) vs artifact (2026-09-18) | **Resolved**, check count grew from 21 to 23 on 2026-09-17T00:10; both runs stand as captured |
-| 4 | OPERATOR-REMOVAL-01: 18/18, 19/19, 21/21 across documents | Benchmark record vs successive artifacts | **Resolved**, scope grew; 21/21 is current |
+| 4 | OPERATOR-REMOVAL-01: 18/18, 19/19, 21/21 across documents | Benchmark record vs successive artifacts | **Resolved**, scope grew. 22/22 is current, from the run of 2026-10-23; each earlier count stands as captured |
 | 5 | EDU-12 `model_calls: 0` vs a harness referencing deleted model modules | Manifest vs source tree | **Unresolved**, whether the reference lay on a live path during that run is not established |
 
 ---
@@ -1185,7 +1386,7 @@ BEARING-01 (interest vocabulary of 2 terms, 5 known recall gaps).
   **not** the code that ran (§19.1)
 - EDU-08, 09, 12, 13, 14, 15, 16 reference deleted modules and cannot be re-run as written
 - Random seeds are not recorded for any experiment in this corpus
-- 24 experiment directories have harnesses but no machine-readable artifacts
+- 58 experiment directories have harnesses but no machine-readable artifacts (§5)
 
 ### 21.5 Open research questions
 
@@ -3021,7 +3222,7 @@ Stable evidence identifiers, assigned `EVID-<EXPERIMENT>-NNN` in chronological o
 | `EVID-TASK-RESULT-01-003` | TASK-RESULT-01 | `experiments/TASK-RESULT-01/results/20260918T030422Z.json` | 2026-09-18T03:04:22 | 9/9 PASS |
 | `EVID-TASK-RESULT-01-005` | TASK-RESULT-01 | `experiments/TASK-RESULT-01/results/20260918T113421Z.json` | 2026-09-18T11:34:21 | 9/9 PASS |
 
-**611 run artifacts preserved in total.** The table lists the first, median and latest run per experiment; every intermediate run exists in the tree under the same naming scheme and is addressable by the same identifier pattern.
+**2,166 run records preserved in total, with 311 side records beside them.** The index above was built at the first edition's cut-off and lists the first, median and latest run per experiment as the corpus then stood. Every run since exists in the tree under the same naming scheme and is addressable by the same identifier pattern; §5 carries the current totals and the latest run per experiment.
 
 **Manifest-era artifacts:**
 
@@ -3094,7 +3295,7 @@ results generalised beyond scope; AGI overclaims; missing evidence references.
 Findings carried into the document rather than suppressed: three breached adversarial campaigns (§16.3);
 KNOW-50's 0/10 on false questions (§8.1); the goal-conclusion rate of 0.1964 (§8.3); the
 `redirect → allow` change (§20.1); the appraisal-dimension conflict (§19.4); the capability benchmark
-(§24.4); 24 experiment directories with no artifacts (§15, §21.4); and the uncommitted-tree
+(§24.4); 58 experiment directories with no artifacts (§5, §15, §21.4); the 43 experiments whose latest run is a FINDING rather than a pass (§5); and the uncommitted-tree
 reproducibility caveat (§19.1).
 
 ---

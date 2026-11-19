@@ -1399,38 +1399,90 @@ The current implementation, its recorded experiment results, and system-generate
 precedence over any description in this document. Where this document and the system disagree, the
 document is to be corrected.
 
-The figures below were measured **2026-09-19 at 20:49 UTC** against the live system, using the canonical
-runtime (`./venv_lyric/bin/python3`, Python 3.11.14) and the production database, whose identity was
-confirmed by asking the server rather than by reading configuration. **They carry that date and the state
-they describe has grown since**: development is active, and figures for retained knowledge, learned
-operators and recorded evidence rise with every teaching pass and every run. Counts of modules and lines
-elsewhere in this document were re-derived from the source on 2026-11-19; the table below is the one set
-of figures that requires the live store, and it is re-measured as a whole rather than row by row.
+The figures below were measured **2026-11-19** under the canonical runtime
+(`./venv_lyric/bin/python3`, Python 3.11.14). Store figures come from the live `lyric_db`, whose identity
+was confirmed by asking the server rather than by reading configuration; figures for what the substrate is
+made of were re-derived from the source on the same day; and the experimental figures each come from their
+own dated run artifact. Every row says which of the three it is. Development is active, and the store
+figures rise with every teaching pass.
 
 ### Verified Measurements
 
+**What is held in the model's store**, measured 2026-11-19 against `lyric_db`, whose identity the server
+confirmed when asked:
+
 | Measure | Value |
 |---|---|
-| Concepts retained | 302,240 |
-| Concept relations (of which *is-a*) | 516,110 (306,944) |
-| Evidence records / source classes in use | 482,491 / 7 |
-| Beliefs held | 514,132 |
-| Operator demonstrations recorded | 874 |
-| Learned rules on record / validated | 31 / 10 |
-| Operators holding execution authority (distinct) | 7 (5) |
-| Registered domains | 146 |
-| Memory records (hot / cold) | 17,945 / 150 |
-| Registered tools / categories | 356 / 16 |
-| Kinds of reasoning | 11 |
-| Memory types / tiers | 5 / 2 |
+| Concepts retained | 117,294 |
+| Surface words bound to a concept | 117,268 |
+| Concept relations | 590,614 |
+| of which *is-a* and *instance of* | 97,639 |
+| of which *defined with* | 442,896 |
+| Beliefs held | 1,022,193 |
+| Concept evidence records | 1,179,242 |
+| Belief evidence records | 1,783,544 |
+| Evidence envelopes | 588,925 |
+| Memory records (hot / cold) | 1,441,708 / 0 |
+| of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
+| Domains concepts are filed under | 23 |
+
+**What the store holds of language**, counted by the tag each memory record carries:
+
+| Measure | Value |
+|---|---|
+| Language records in all | 1,441,510 |
+| Admitted propositions | 592,233 |
+| Sentence templates learned (`language_pattern`) | 443,072 |
+| Word records | 146,732 |
+| Word-class records | 94,683 |
+| Sentences analysed / argued / derived | 12,544 / 10,495 / 8,679 |
+| Sentence records | 6,137 |
+| Taught sentences | 3,052 |
+| Word-form records / word groups | 3,537 / 302 |
+| **Ways of reading English, held in memory (`grammar_rule`)** | **497** |
+| **Pairs the grammar holds beside them (`grammar_pair`)** | **87** |
+| Perceptions recorded | 149 |
+
+**What the substrate is made of**, re-derived from the source on 2026-11-19:
+
+| Measure | Value |
+|---|---|
+| Substrate | 245,952 lines in 268 modules |
+| Kinds of reasoning | 11 classical, and 7 of a quantum family that is deactivated |
+| Tool classes defined | 257, in 17 categories. The live registry also holds tools registered at run time, per connector and per learned procedure |
 | Epistemic deficit types diagnosed | 9 |
 | Intrinsic motivation dimensions | 7 |
-| Appraisal dimensions / behavioural pressures | 11 / 7 |
+| Appraisal dimensions / behavioural pressures | 13 / 7 |
 | Governance laws / verdicts | 5 / 4 |
+| Substrate-owned health components | 15 |
+| Experiment series / carrying run records / run artifacts | 245 / 189 / 2,477 |
+| Teaching sessions on record | 440 |
+| Encoder (similarity only) | all-MiniLM-L6-v2, 384 dimensions, local, CPU |
+
+**What the experiments measured**, each from its own dated artifact rather than from the store:
+
+| Measure | Value |
+|---|---|
 | Governance judgement cost | ~0.02 ms (simple read) · ~1 ms mean (adversarial corpus) |
 | Adversarial attempts held / legitimate acts blocked | 23 of 23 / 0 of 8 |
 | Adversary campaigns held (each objective retried many ways) | 5 of 8 · 33 strategies |
-| Intents recorded / perceptions recorded | 1,643 / 7,788 |
-| Monitored health components | 29 |
-| Experiment series / carrying run records / run artifacts | 245 / 189 / 2,477 (source scan, 2026-11-19) |
-| Encoder (similarity only) | all-MiniLM-L6-v2, 384 dimensions, local, CPU |
+
+**Why these do not compare row for row with the September figures.** On 2026-09-26, by decision, **the
+store was emptied: all 156 tables in `lyric_db`, with no backup**, and the substrate was taught again from
+the first lesson. The figures above are what it has learned since. Two consequences are worth stating
+plainly rather than leaving a reader to infer them:
+
+- **Beliefs doubled and memory grew eighty-fold** on a store an eighth the size in concepts, because what
+  was taught the second time was language itself: how to read a sentence, what each word is, and what the
+  words of English do together. The 443,072 learned sentence templates and the 497 ways of reading did not
+  exist in September.
+- **Operator demonstrations, learned rules and recorded intents stand at zero or near it**, where
+  September recorded 874, 31 and 1,643. Those are accumulations of *running work*, not of teaching, and
+  they were emptied with everything else. The faculties that produce them are unchanged and are evidenced
+  by their own experiment series rather than by a standing count: `OPERATOR-REMOVAL-01` (21/21),
+  `RULE-AUTHORITY-01` and `-02`, `RULE-EVIDENCE-01`, `CREDIT-01` and `INTENT-01` to `-04`. A count of zero
+  here is an untaught store, not an absent capability.
+
+The current implementation, its recorded experiment results, and system-generated verification take
+precedence over any description in this document. Where this document and the system disagree, the
+document is to be corrected.
