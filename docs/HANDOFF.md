@@ -6,7 +6,18 @@ For an engineer, and their Claude Code session, picking this work up. Read this 
 to 2026-10-28 (67) in `docs/research/LAB_NOTEBOOK.md`.
 The previous handoff (2026-10-01) is in git history.
 
-## 0. Where it stands (2026-11-03)
+## 0. Where it stands
+
+**Since this was written, English's grammar moved into memory.** The reader no longer reads a grammar off
+disk and has no file to fall back on: the 497 ways of reading English and the 87 pairs beside them are
+memories, built into the reader's view by `MemoryAgent.grammar_taught` and `grammar_view`, and a way of
+reading added is one the view is rebuilt to see. Measured in the World Model on 2026-11-19: 497 and 87.
+Beside that, every adverb may stand after an auxiliary, an aside is what the thing is rather than another
+thing with it, a determiner standing alone is the things it determines, a quotation of a word is that word,
+and a plural possessive reads. **The figures below are from 2026-11-03 and have not been re-measured
+against those changes.**
+
+### As of 2026-11-03
 
 **THE WHOLE GAP, ACCOUNTED FOR.** 400 held-out PMB dev sentences, every failure put in exactly one bucket by whether
 the reader named the wrong things or named the right things and joined them wrong (lab notebook (109)):

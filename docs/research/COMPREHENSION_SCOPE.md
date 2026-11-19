@@ -97,13 +97,17 @@ every teaching pass so far.
 
 ## First: there must be ONE teaching pipeline
 
-There are seven teaching scripts — `teach_conceptnet.py`,
+**This was done.** Teaching has one entry point, `scripts/teach.py`, where a source names a format rather than
+carrying its own pipeline, and the one door into world knowledge is `UnifiedLearningSystem.consider`. The seven
+scripts below no longer exist; what follows is the argument as it stood.
+
+There were seven teaching scripts — `teach_conceptnet.py`,
 `teach_conceptnet_beliefs.py`, `teach_wordnet_taxonomy.py`,
 `teach_general_wikidata.py`, `teach_graduate_wikidata.py`, `teach_session.py`,
-`teach_theorems.py` — and the two ConceptNet ones parse the **same dump** with
+`teach_theorems.py` — and the two ConceptNet ones parsed the **same dump** with
 their own verbatim copies of `_term()` and `build_isa()`.
 
-`learning.learn_facts()` is the one authority underneath and that part is right.
+The learning authority underneath was the one authority and that part was right.
 What is duplicated is the **policy**: which source, what to harvest, which
 relations to keep, how a term is normalised, what quality floor applies, whether
 the part of speech survives. Every script decides all of that for itself, which

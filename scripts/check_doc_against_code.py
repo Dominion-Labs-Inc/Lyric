@@ -4,7 +4,8 @@
 What it can check mechanically, and does:
   - every `module.py` named exists, and every `(N lines)` claim matches
   - every `name (LINE)` claim lands on that definition in the module the section names
-  - every method or class named in backticks is defined somewhere in core/
+  - every method or class named in backticks is defined somewhere in core/ (a file that
+    lives in tests/, scripts/, experiments/ or archive/ is reported as found, not missing)
   - every cross-file `file.py:LINE` reference, whether that line is within the file
 
 What it CANNOT check, and nobody should read a clean run as covering:
@@ -17,8 +18,28 @@ import ast, glob, os, re, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.chdir(ROOT)
+# The substrate itself: what a document about the architecture is checked against.
 PY = {os.path.basename(p): p for p in glob.glob("core/**/*.py", recursive=True)}
 PY.setdefault("main.py", "core/main.py")
+
+# Everywhere else a document may legitimately name a file -- tests, scripts, experiments,
+# the archive. A path that resolves HERE is not a defect; it is simply not substrate code,
+# and reporting it as missing sent four documents to be "corrected" against files that exist.
+ELSEWHERE = {}
+for _root in ("tests", "scripts", "experiments", "archive", "tools", "."):
+    for _p in glob.glob(f"{_root}/**/*.py", recursive=True) if _root != "." else glob.glob("*.py"):
+        if _p.startswith(("venv", ".git", "core/")):
+            continue
+        ELSEWHERE.setdefault(os.path.basename(_p), _p)
+
+# Words that look like a call in prose and are not a substrate symbol: Python's own
+# builtins, and the logic atoms a reasoning document necessarily writes out ("human(x)",
+# "mortal(x)"). Checking these produced nothing but noise.
+import builtins as _b
+NOT_A_SYMBOL = set(dir(_b)) | {
+    "isa", "instance_of", "has_property", "located_in", "precedes", "capable_of",
+    "human", "mortal", "rained", "wet", "circle", "square", "triangle",
+}
 
 _defs_cache = {}
 def defs_of(path):
@@ -70,6 +91,8 @@ def check(doc):
     # 2. files named at all
     for f in set(re.findall(r"`([a-z_0-9]+\.py)`", t)):
         if f not in PY and not os.path.exists(f):
+            if f in ELSEWHERE:
+                continue                      # a real file, outside the substrate
             out.append(("path", f"{f} not found in core/"))
 
     # 3. `name (LINE)` against the primary module
@@ -82,6 +105,8 @@ def check(doc):
     # 4. every method or class named must exist somewhere
     for name in sorted(set(re.findall(r"`(?:async )?([a-z_][a-z_0-9]*)\(", t))):
         if not defined_anywhere(name):
+            if name in NOT_A_SYMBOL or name.endswith("_"):
+                continue
             out.append(("symbol", f"{name}() is defined nowhere in core/"))
 
     # 5. cross-file `file.py:LINE`

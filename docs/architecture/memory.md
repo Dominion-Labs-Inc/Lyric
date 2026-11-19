@@ -5,12 +5,12 @@ must stay true.*
 
 *Re-traced 2026-11-19.*
 
-*File:* `core/agents/memory_agent.py` — 9,974 lines. `MemoryAgent` at 109: 9,866 lines, **228 public and
-107 private methods**. Utilities live in `core/memory/`; the class lives in `core/agents/`.
+*File:* `core/agents/memory_agent.py` — about 9,970 lines, almost all of them one class: `MemoryAgent`,
+with **228 public and 107 private methods**. Utilities live in `core/memory/`; the class lives in `core/agents/`.
 
-`get_memory_agent()` (9907) is the one entry — async, returning a **ready** singleton under a lock, and
+`get_memory_agent()` is the one entry — async, returning a **ready** singleton under a lock, and
 raising if the backends will not connect. Callers await it and never construct `MemoryAgent()` directly.
-`initialize_memory_agent()` (9961) is a legacy alias, as are the names `MemoryManager`,
+`initialize_memory_agent()` is a legacy alias, as are the names `MemoryManager`,
 `CentralizedMemoryManager` and `UnifiedMemorySystem`.
 
 ---

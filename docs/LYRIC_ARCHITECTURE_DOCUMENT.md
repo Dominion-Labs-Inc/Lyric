@@ -482,7 +482,7 @@ The admission gate (§4) is the other half of this subsystem and is described th
 
 **Owns:** how conclusions are reached.
 **Principal modules:** `neural_bridge.py` (4,452 lines), `abstract_reasoning_engine.py` (2,727),
-`hierarchical_abstraction.py` (2,308), `bayesian_uncertainty.py` (2,884), `hypothesis_testing.py`
+`hierarchical_abstraction.py` (2,308), `bayesian_uncertainty.py` (about 2,900), `hypothesis_testing.py`
 (1,241), `temporal_reasoning.py` (1,535), plus intent authority, concept-graph reasoning, unification
 and the epistemic engine.
 
@@ -567,7 +567,7 @@ counted silently: losing a data point is recoverable, recording a false causal r
 ## 15. Memory
 
 **Owns:** what is remembered.
-**Principal modules:** `core/agents/memory_agent.py` (9,974 lines), `core/memory/live_recall.py` (465),
+**Principal modules:** `core/agents/memory_agent.py` (about 9,990 lines), `core/memory/live_recall.py` (465),
 `core/memory/media_store.py` (281).
 
 Memory is an active system, not a store: it decides what is worth keeping, merges repeated experience,

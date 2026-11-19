@@ -9,7 +9,7 @@ must stay true.*
 
 ## `BayesianUncertaintySystem` — the belief authority (the circulatory system)
 
-*`core/reasoning/bayesian_uncertainty.py` (2,884 lines). Class at 413.*
+*`core/reasoning/bayesian_uncertainty.py` (about 2,900 lines). Class at 413.*
 
 **Module level, before the class:** `log_odds_of` (47), `probability_of` (56), `evidence_step` (65),
 `belief_entropy` (70); the enums `UncertaintyType` (78), `KnowledgeState` (86), `RelationType` (94); and

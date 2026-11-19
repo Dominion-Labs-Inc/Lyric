@@ -1,7 +1,13 @@
 # Change map: moving sentence and word shapes into memory
 
 2026-09-27. Everything that has to change is mapped here before building, and each change is verified, so nothing
-is left half implemented. Nothing in it has been changed yet.
+is left half implemented.
+
+**The work mapped here was done.** Sentence and word shapes are held in memory: 443,072 learned ways English says
+things, 497 ways of reading it and the 87 pairs beside them, all read back through views rather than off disk. The
+modules this map set out to replace — `derived_reader.py` as it then was, `sentence_machine.py`, `class_induction.py`,
+`reading_registry.py`, `migrate_copular_relations.py` and their tests — are in `archive/superseded_language_2026-09-27/`.
+The file paths and line numbers below name the tree as it stood on that date.
 
 **What is being built** (`SENTENCE_AND_WORD_SHAPES.md` §7a–7b): the Leuven method. The substrate stores whole
 sentences with their meaning, turns the differences between them into slot patterns and word entries, and scores
