@@ -3024,6 +3024,82 @@ class MemoryAgent(IMemoryConsolidation):
             if collecting:
                 gc.enable()
 
+    #: WHAT A WORD HAS BEEN SEEN USED AS, KEPT, so a start need not work it out of 686,936 memories again.
+    #: The answer is 197,127 words; the working is 592,233 taught sentences shaped one by one. The answer is
+    #: what is kept, with the mark saying which memories it came from.
+    _WORD_CLASS_INDEX_DDL = (
+        "CREATE TABLE IF NOT EXISTS unified.word_class_index ("
+        "word VARCHAR NOT NULL, word_class VARCHAR NOT NULL, seen INTEGER NOT NULL, "
+        "PRIMARY KEY (word, word_class))",
+        "CREATE TABLE IF NOT EXISTS unified.word_class_index_from ("
+        "one BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (one), mark VARCHAR NOT NULL, "
+        "words INTEGER NOT NULL, built_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+    )
+    _word_class_index_schema_ready = False
+
+    async def _ensure_word_class_index_schema(self) -> None:
+        if self._word_class_index_schema_ready:
+            return
+        for statement in self._WORD_CLASS_INDEX_DDL:
+            await self._memory_db().execute_query(statement, commit=True)
+        self._word_class_index_schema_ready = True
+
+    @staticmethod
+    def _word_class_mark(*sets) -> str:
+        """WHAT THE INDEX WAS WORKED OUT FROM, as one word: how many memories of each kind went into it and a
+        sum over their ids that does not depend on the order they came back in.
+
+        A count alone would serve a stale index wherever a memory was replaced rather than added, and sorting
+        686,936 ids to hash them in order costs more than this saves. `crc32` is used rather than Python's own
+        `hash` because `hash` of a string is keyed per process: every start's mark would differ from every
+        other's and the index would never once be read back."""
+        from zlib import crc32
+        parts = []
+        for rows in sets:
+            total = 0
+            for row in rows:
+                total = (total + crc32(str(getattr(row, "memory_id", "") or "").encode("utf-8"))) % (1 << 61)
+            parts.append(f"{len(rows)}:{total}")
+        return "|".join(parts)
+
+    async def _word_classes_worked_out_before(self, mark: str) -> Optional[Dict[str, Dict[str, int]]]:
+        """The index as it was last worked out, where it was worked out from exactly these memories; None
+        otherwise, which is the honest answer and means the warm does the work."""
+        await self._ensure_word_class_index_schema()
+        rows = await self._memory_db().execute_query(
+            "SELECT mark, words FROM unified.word_class_index_from", fetch_all=True) or []
+        if not rows or str(rows[0]["mark"]) != mark:
+            return None
+        held = await self._memory_db().execute_query(
+            "SELECT word, word_class, seen FROM unified.word_class_index", fetch_all=True) or []
+        index: Dict[str, Dict[str, int]] = {}
+        for row in held:
+            index.setdefault(row["word"], {})[row["word_class"]] = int(row["seen"])
+        if len(index) != int(rows[0]["words"]):
+            # The mark says these memories and the count says another number of words. The two are written
+            # together, so disagreeing means a write was cut short: work it out again rather than read back
+            # half of one answer.
+            logger.warning("the word classes kept say %d word(s) where %d were counted: working them out again",
+                           len(index), int(rows[0]["words"]))
+            return None
+        return index
+
+    async def _keep_word_classes(self, index: Dict[str, Dict[str, int]], mark: str) -> int:
+        """Keep what the warm worked out, with what it was worked out from."""
+        await self._ensure_word_class_index_schema()
+        rows = [(word, cls, int(seen)) for word, classes in index.items() for cls, seen in classes.items()]
+        db = self._memory_db()
+        await db.execute_query("DELETE FROM unified.word_class_index", commit=True)
+        if rows:
+            await db.execute_many(
+                "INSERT INTO unified.word_class_index (word, word_class, seen) VALUES ($1,$2,$3) "
+                "ON CONFLICT (word, word_class) DO UPDATE SET seen = EXCLUDED.seen", rows)
+        await db.execute_query(
+            "INSERT INTO unified.word_class_index_from (one, mark, words, built_at) VALUES (TRUE,$1,$2,now()) "
+            "ON CONFLICT (one) DO UPDATE SET mark = EXCLUDED.mark, words = EXCLUDED.words, "
+            "built_at = EXCLUDED.built_at", (mark, len(index)), commit=True)
+        return len(rows)
+
     async def _rebuild_word_class_view(self) -> int:
         """Rebuild the word-class view FROM THE SUBSTRATE'S OWN MEMORIES.
 
@@ -3162,83 +3238,102 @@ class MemoryAgent(IMemoryConsolidation):
         refuted = 0
         told = 0
         derived = 0
-        for item in stated:
-            await give_way()
-            meta = item.metadata or {}
-            word = str(meta.get("word") or "").strip().lower()
-            cls = str(meta.get("word_class") or "").strip().upper()
-            if not word or not cls:
-                continue
-            bucket = index.setdefault(word, {})
-            bucket[cls] = bucket.get(cls, 0) + 1
-            told += 1
-        with timed("the classes those sentences imply"):
-          for item in (*taught, *unread):
-              await give_way()
-              meta = item.metadata or {}
+        # WORKED OUT ONCE AND KEPT, because working it out is the largest thing an ordinary start pays. The
+        # ANSWER -- what each word has been seen used as -- is 197,127 words; the WORKING is 592,233 taught
+        # sentences shaped one by one through `classes_implied_by`, and it came to 37.8s of a 140.9s warm, with
+        # the classes stated outright another 1.3s (measured on his start, 2026-11-19). Nothing about those
+        # memories changes between one start and the next, so the same work was done again every time.
+        #
+        # KEPT WITH WHAT IT WAS WORKED OUT FROM, never on its own: an index read back where the memories have
+        # moved on is worse than no index, because it is wrong in a way nothing downstream can see. The mark is
+        # how many memories of each kind went into it and a sum over their ids; one memory more, one fewer, or
+        # one replaced, and the work is done again in full.
+        worked_from = self._word_class_mark(taught, unread, stated)
+        kept_index = await self._word_classes_worked_out_before(worked_from)
+        if kept_index is not None:
+            index.update(kept_index)
+            told = sum(len(classes) for classes in index.values())
+            logger.info("the word classes were worked out before from these very memories: %d word(s) read "
+                        "back rather than worked out of %d sentence(s)",
+                        len(index), len(taught) + len(unread) + len(stated))
+        else:
+            for item in stated:
+                await give_way()
+                meta = item.metadata or {}
+                word = str(meta.get("word") or "").strip().lower()
+                cls = str(meta.get("word_class") or "").strip().upper()
+                if not word or not cls:
+                    continue
+                bucket = index.setdefault(word, {})
+                bucket[cls] = bucket.get(cls, 0) + 1
+                told += 1
+            with timed("the classes those sentences imply"):
+              for item in (*taught, *unread):
+                  await give_way()
+                  meta = item.metadata or {}
 
-              # EVIDENCE AGAINST, from the sentences a class actually cost.
-              #
-              # A reading that refused BECAUSE of a class counts against it. This
-              # is what makes a class earnable rather than merely assertable: a
-              # word wrongly observed as an ADJECTIVE breaks ordinary sentences,
-              # and each break argues it down until it stops being usable.
-              #
-              # `blamed` is narrow by construction -- the reader names a class
-              # only in the branches that refuse because of it -- so a sentence
-              # that failed for some unrelated reason refutes nothing.
-              for entry in self._blamed_in(item):
-                  if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
+                  # EVIDENCE AGAINST, from the sentences a class actually cost.
+                  #
+                  # A reading that refused BECAUSE of a class counts against it. This
+                  # is what makes a class earnable rather than merely assertable: a
+                  # word wrongly observed as an ADJECTIVE breaks ordinary sentences,
+                  # and each break argues it down until it stops being usable.
+                  #
+                  # `blamed` is narrow by construction -- the reader names a class
+                  # only in the branches that refuse because of it -- so a sentence
+                  # that failed for some unrelated reason refutes nothing.
+                  for entry in self._blamed_in(item):
+                      if not (isinstance(entry, (list, tuple)) and len(entry) >= 2):
+                          continue
+                      word, cls = str(entry[0]).lower(), str(entry[1]).upper()
+                      if not word or not cls:
+                          continue
+                      bucket = index.setdefault(word, {})
+                      bucket[cls] = bucket.get(cls, 0) - 1
+                      refuted += 1
+
+                  # ONLY A TELLING IS EVIDENCE ABOUT A WORD.
+                  #
+                  # A derived claim is the substrate's own conclusion, and a conclusion
+                  # is not testimony about how English uses a word. Sight describing a
+                  # kind it had seen wrote `<cat> has_property circle`, and the
+                  # property branch of `classes_implied_by` files a property's object
+                  # as ADJECTIVE -- so seeing round things taught the substrate that
+                  # `circle` is an adjective. The surface cannot settle this (it
+                  # contains the word either way); the PROVENANCE can, and
+                  # `ROOT_SOURCE_VALUES` is the set this substrate already uses
+                  # everywhere else to separate an observation from a conclusion.
+                  #
+                  # A memory recording no source type at all predates this and is left
+                  # as it was: absence of the record is not evidence that it was
+                  # derived, and discarding it would silently drop vocabulary.
+                  source_type = meta.get("source_type")
+                  if source_type is not None:
+                      from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
+                      if str(source_type).strip().lower() not in ROOT_SOURCE_VALUES:
+                          derived += 1
+                          continue
+
+                  reading = str(meta.get("reading") or "")
+                  if "|" not in reading:
+                      # Kept by `remember_told`: the sentence was remembered without
+                      # being understood, so it implies nothing about its words. It
+                      # stays in memory and teaches the reader nothing -- which is
+                      # the point of recording that it was not read.
+                      unparsed += 1
                       continue
-                  word, cls = str(entry[0]).lower(), str(entry[1]).upper()
-                  if not word or not cls:
-                      continue
-                  bucket = index.setdefault(word, {})
-                  bucket[cls] = bucket.get(cls, 0) - 1
-                  refuted += 1
+                  parts = [p.strip() for p in reading.split("|")]
+                  subject, relation = parts[0], parts[1] if len(parts) > 1 else ""
+                  obj = parts[2] if len(parts) > 2 else None
 
-              # ONLY A TELLING IS EVIDENCE ABOUT A WORD.
-              #
-              # A derived claim is the substrate's own conclusion, and a conclusion
-              # is not testimony about how English uses a word. Sight describing a
-              # kind it had seen wrote `<cat> has_property circle`, and the
-              # property branch of `classes_implied_by` files a property's object
-              # as ADJECTIVE -- so seeing round things taught the substrate that
-              # `circle` is an adjective. The surface cannot settle this (it
-              # contains the word either way); the PROVENANCE can, and
-              # `ROOT_SOURCE_VALUES` is the set this substrate already uses
-              # everywhere else to separate an observation from a conclusion.
-              #
-              # A memory recording no source type at all predates this and is left
-              # as it was: absence of the record is not evidence that it was
-              # derived, and discarding it would silently drop vocabulary.
-              source_type = meta.get("source_type")
-              if source_type is not None:
-                  from core.domain.concept_ingestion import ROOT_SOURCE_VALUES
-                  if str(source_type).strip().lower() not in ROOT_SOURCE_VALUES:
-                      derived += 1
-                      continue
+                  surface = item.content
+                  if isinstance(surface, dict):
+                      surface = surface.get("text") or surface.get("content") or ""
 
-              reading = str(meta.get("reading") or "")
-              if "|" not in reading:
-                  # Kept by `remember_told`: the sentence was remembered without
-                  # being understood, so it implies nothing about its words. It
-                  # stays in memory and teaches the reader nothing -- which is
-                  # the point of recording that it was not read.
-                  unparsed += 1
-                  continue
-              parts = [p.strip() for p in reading.split("|")]
-              subject, relation = parts[0], parts[1] if len(parts) > 1 else ""
-              obj = parts[2] if len(parts) > 2 else None
-
-              surface = item.content
-              if isinstance(surface, dict):
-                  surface = surface.get("text") or surface.get("content") or ""
-
-              for word, cls in classes_implied_by(
-                      str(surface or ""), subject, relation, obj).items():
-                  bucket = index.setdefault(word, {})
-                  bucket[cls] = bucket.get(cls, 0) + 1
+                  for word, cls in classes_implied_by(
+                          str(surface or ""), subject, relation, obj).items():
+                      bucket = index.setdefault(word, {})
+                      bucket[cls] = bucket.get(cls, 0) + 1
 
         # WHAT WORDS ARE SAID OF, in the same pass: how English uses a word, read from memory at the same events.
         with timed("what words are said of"):
@@ -3284,6 +3379,16 @@ class MemoryAgent(IMemoryConsolidation):
                 for other in others:
                     inventory.hear((earlier, word, other))
 
+        # KEPT FOR THE NEXT START, with what it was worked out from.
+        if kept_index is None:
+            try:
+                rows_kept = await self._keep_word_classes(index, worked_from)
+                logger.info("what each word has been seen used as: %d word(s) in %d row(s), kept",
+                            len(index), rows_kept)
+            except Exception as not_kept:
+                # NOT SILENT: a start that could not keep this pays for it at the next one.
+                logger.warning("the word classes were worked out but not kept, so the next start works "
+                               "them out again: %s: %s", type(not_kept).__name__, not_kept)
         self._word_class_index = index
         self._word_classes_warm = True
         # The reader stands a word where its class's part stands (`PatternInventory.of_its_class`): the same index,
