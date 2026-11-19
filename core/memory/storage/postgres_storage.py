@@ -485,7 +485,7 @@ class PostgresStorage:
     _UPDATABLE = frozenset({"content", "embedding", "confidence_score", "status",
                             "access_count", "last_accessed", "importance_score",
                             "tags", "metadata", "related_memories", "reasoning_trace",
-                            "thinking_state"})
+                            "thinking_state", "memory_admission"})
 
     async def update_memory(
         self,
@@ -580,6 +580,20 @@ class PostgresStorage:
                             f"metadata = COALESCE(metadata, '{{}}'::jsonb) || ${param_idx}::jsonb")
                     else:
                         set_clauses.append(f"metadata = ${param_idx}::jsonb")
+                    params.append(json.dumps(value) if isinstance(value, dict) else value)
+                    param_idx += 1
+                elif key == "memory_admission":
+                    # ALWAYS MERGED, NEVER REPLACED. This column is the record
+                    # of what let a memory in: the filter's decision, and what
+                    # a reflection concluded on examining it. Those are
+                    # different acts by different parts of the substrate and
+                    # neither may overwrite the other, so there is no "replace"
+                    # form of this write -- a caller passes the keys it owns.
+                    # COALESCE for the same reason it is load-bearing above:
+                    # `NULL || '{...}'::jsonb` is NULL, and a taught memory is
+                    # written with no admission at all.
+                    set_clauses.append(
+                        f"memory_admission = COALESCE(memory_admission, '{{}}'::jsonb) || ${param_idx}::jsonb")
                     params.append(json.dumps(value) if isinstance(value, dict) else value)
                     param_idx += 1
                 elif key == "thinking_state":

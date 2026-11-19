@@ -2098,12 +2098,10 @@ class BayesianUncertaintySystem:
                 self.domain_volatility[r["domain"]] = (max(0.0, held - self._OLD_CONSTANT_RATE)
                                                        if not r["measures_movement"] else held)
             if carried:
-                await self.unified_db.execute_query(
-                    "UPDATE unified.domain_volatility SET lambda = GREATEST(lambda - $1, 0), "
-                    "measures_movement = TRUE, updated_at = now() WHERE NOT measures_movement",
-                    (self._OLD_CONSTANT_RATE,), commit=True)
+                from core.agents.memory_agent import memory_agent
+                moved = await memory_agent().bring_domain_volatility_over(self._OLD_CONSTANT_RATE)
                 logger.info("volatility: %d domain(s) brought over to measuring movement alone (%s)",
-                            len(carried), ", ".join(f"{d} {self.domain_volatility[d]:.6f}" for d in carried))
+                            len(moved), ", ".join(f"{d} {self.domain_volatility[d]:.6f}" for d in moved))
             if rows:
                 logger.info("restored volatility for %d domain(s)", len(rows))
             return len(rows)
@@ -2700,6 +2698,7 @@ class BayesianUncertaintySystem:
         it stopped (`GiveWay`, `QueueAuthority.stand_down_after`): `resume_at` is the last belief reviewed, and
         `StandDown` carries it out. Reads and writes the STORE, not what this process happens to hold, because
         the evidence is a fact of the store and a process holds only what it has loaded."""
+        from core.agents.memory_agent import memory_agent
         from core.utils.give_way import GiveWay
         await self._ensure_beliefs_schema()
         give_way = GiveWay(stand_down=stand_down)
@@ -2710,27 +2709,11 @@ class BayesianUncertaintySystem:
                 continue                      # a frozen release is read: its rows are what they were when cut
             while True:
                 await give_way(at=at or None)
-                rows = await self.unified_db.execute_query(
-                    "WITH taken AS ("
-                    "  SELECT belief_id FROM unified.beliefs WHERE belief_id > $1 ORDER BY belief_id LIMIT $2"
-                    "), tally AS ("
-                    "  SELECT e.belief_id,"
-                    "         count(*) FILTER (WHERE e.supports) AS supported,"
-                    "         count(*) FILTER (WHERE NOT e.supports AND NOT (e.entry ? 'withdraws')) AS opposed"
-                    "  FROM unified.belief_evidence e JOIN taken t ON t.belief_id = e.belief_id"
-                    "  GROUP BY e.belief_id"
-                    ") UPDATE unified.beliefs b"
-                    "   SET supported = COALESCE(y.supported, 0),"
-                    "       opposed   = COALESCE(y.opposed, 0),"
-                    "       reviewed_at = now()"
-                    "  FROM taken k LEFT JOIN tally y ON y.belief_id = k.belief_id"
-                    " WHERE b.belief_id = k.belief_id"
-                    " RETURNING b.belief_id",
-                    (at, int(batch)), fetch_all=True, commit=True, store=store) or []
-                if not rows:
+                weighed = await memory_agent().weigh_beliefs_against_their_evidence(at, int(batch), store)
+                if not weighed:
                     break
-                reviewed += len(rows)
-                at = max(str(r["belief_id"]) for r in rows)
+                reviewed += len(weighed)
+                at = max(weighed)
         logger.info("reviewed %d belief(s) against their own evidence", reviewed)
         return {"reviewed": reviewed, "resume_at": None}
 

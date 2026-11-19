@@ -20,6 +20,26 @@ from core.reasoning.bayesian_uncertainty import (  # noqa: E402
     BayesianBelief, BayesianUncertaintySystem)
 
 
+from contextlib import contextmanager  # noqa: E402
+
+
+@contextmanager
+def as_the_memory_agent(agent):
+    """The memory agent the belief system hands its writes to.
+
+    The memory agent is the only writer of the substrate's memory (`scripts/separation_map.py`,
+    `tests/test_memory_writers.py`), so a pass that belongs to the belief system -- the walk, the batching,
+    standing down for a person -- asks it to do the writing. These tests stand in for it."""
+    import core.agents.memory_agent as agent_module
+    was = agent_module.memory_agent
+    agent_module.memory_agent = lambda: agent
+    try:
+        yield agent
+    finally:
+        agent_module.memory_agent = was
+
+
+
 def _belief(system, belief_id, claim, domain):
     belief = BayesianBelief(belief_id=belief_id, claim=claim, domain=domain,
                             prior_probability=0.5, likelihood=1.0,
@@ -223,21 +243,21 @@ def test_the_review_counts_what_bore_a_belief_out_and_changes_no_belief():
     1,022,193 beliefs, 99.95% of them at a confidence of 0.9 or more, alongside 1,783,544 observations of whether
     they had actually been borne out, and never once looked (lyric_db, 2026-11-19).
 
-    A WITHDRAWAL IS NOT A FAILURE. Half of all opposing evidence carries `withdraws` -- a teaching taken back,
-    whose quality is what that word was contributing so that taking it back removes exactly what it added.
-    Counted as failures, the worst belief in the model read as borne out 49.4% of the time; counted rightly,
-    66.1%. This test pins that distinction, because getting it wrong is what made a sound belief look broken.
-
-    AND IT CHANGES NO BELIEF: it writes `supported`, `opposed` and `reviewed_at`, and nothing else. A belief borne
-    out two times in three is a good belief that is not a certainty, and saying so is not overruling it."""
+    The walk is the belief system's and the write is the memory agent's; what the statement itself must say is
+    pinned by the test below."""
     import asyncio
 
-    class Store:
-        """A store that answers the review's one statement, standing in for Postgres."""
-
+    class Agent:
         def __init__(self):
-            self.rows = {"b1": {"supports": [8, 0, 0]}, "b2": {"supports": [6, 3, 5]}}
-            self.written = []
+            self.ids = ["b1", "b2"]
+            self.asked = []
+
+        async def weigh_beliefs_against_their_evidence(self, after, batch, store):
+            self.asked.append(store)
+            return [k for k in self.ids if k > after][:batch]
+
+    class Store:
+        def __init__(self):
             self.frozen = "release"
 
         def schema_stores(self):
@@ -247,39 +267,69 @@ def test_the_review_counts_what_bore_a_belief_out_and_changes_no_belief():
             return store == self.frozen
 
         async def execute_query(self, query, params=None, **kw):
-            if query.strip().startswith(("ALTER", "CREATE")):
-                return None
-            assert "withdraws" in query, "a withdrawal must not be counted as a failure"
-            assert "SET supported" in query and "opposed" in query and "reviewed_at" in query
-            assert "confidence" not in query and "log_odds" not in query, "the review moves no belief"
-            after, _limit = params
-            take = sorted(k for k in self.rows if k > after)
-            if not take:
-                return []
-            self.written.append((kw.get("store"), tuple(take)))
-            return [{"belief_id": k} for k in take]
+            assert query.strip().startswith(("ALTER", "CREATE")), f"the review reads no rows itself: {query}"
+            return None
 
     system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
     system.unified_db = Store()
     system._beliefs_schema_ready = True
-
-    got = asyncio.run(system.review_against_evidence(batch=10))
+    with as_the_memory_agent(Agent()) as agent:
+        got = asyncio.run(system.review_against_evidence(batch=10))
     assert got["reviewed"] == 2, got
     # A FROZEN RELEASE IS READ, NEVER WRITTEN: its rows are what they were when it was cut.
-    assert [store for store, _ in system.unified_db.written] == ["main"], system.unified_db.written
+    assert set(agent.asked) == {"main"}, agent.asked
+
+
+def test_the_statement_that_weighs_a_belief_excludes_a_withdrawal_and_moves_no_belief():
+    """A WITHDRAWAL IS NOT A FAILURE. Half of all opposing evidence carries `withdraws` -- a teaching taken
+    back, whose quality is what that word was contributing so that taking it back removes exactly what it
+    added. Counted as failures, the worst belief in the model read as borne out 49.4% of the time; counted
+    rightly, 66.1%. This pins that distinction, because getting it wrong is what made a sound belief look
+    broken.
+
+    AND IT CHANGES NO BELIEF: it writes `supported`, `opposed` and `reviewed_at`, and nothing else. A belief
+    borne out two times in three is a good belief that is not a certainty, and saying so is not overruling
+    it."""
+    import asyncio
+
+    from core.agents.memory_agent import MemoryAgent
+
+    said = {}
+
+    class Db:
+        async def execute_query(self, query, params=None, **kw):
+            said["query"] = " ".join(query.split())
+            said["params"], said["store"], said["commit"] = params, kw.get("store"), kw.get("commit")
+            return [{"belief_id": "b1"}]
+
+    agent = MemoryAgent.__new__(MemoryAgent)
+    agent._memory_db = lambda: Db()
+    got = asyncio.run(agent.weigh_beliefs_against_their_evidence("b0", 10, "main"))
+    assert got == ["b1"], got
+    assert "withdraws" in said["query"], "a withdrawal must not be counted as a failure"
+    assert all(word in said["query"] for word in ("SET supported", "opposed", "reviewed_at")), said["query"]
+    assert "confidence" not in said["query"] and "log_odds" not in said["query"], "the review moves no belief"
+    assert (said["params"], said["store"], said["commit"]) == (("b0", 10), "main", True), said
 
 
 def test_the_review_stands_down_for_a_person_and_says_where_it_stopped():
     """The review may only run in downtime. It walks in `belief_id` order so it can stop where it is and be taken
     up from there, rather than starting again and never reaching its end on a substrate that is used at all."""
     import asyncio
+
     from core.utils.give_way import StandDown
 
-    class Store:
+    class Agent:
         def __init__(self):
             self.ids = [f"b{n:03d}" for n in range(200)]
             self.seen = []
 
+        async def weigh_beliefs_against_their_evidence(self, after, batch, store):
+            take = [k for k in self.ids if k > after][:batch]
+            self.seen.extend(take)
+            return take
+
+    class Store:
         def schema_stores(self):
             return ["main"]
 
@@ -287,38 +337,35 @@ def test_the_review_stands_down_for_a_person_and_says_where_it_stopped():
             return False
 
         async def execute_query(self, query, params=None, **kw):
-            if query.strip().startswith(("ALTER", "CREATE")):
-                return None
-            after, limit = params
-            take = [k for k in self.ids if k > after][:limit]
-            self.seen.extend(take)
-            return [{"belief_id": k} for k in take]
+            return None
+
+    def system_over(store):
+        system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+        system.unified_db = store
+        system._beliefs_schema_ready = True
+        return system
 
     async def run():
         asyncio.get_running_loop().slow_callback_duration = 0.0    # ask at every give-way
-        system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
-        system.unified_db = Store()
-        system._beliefs_schema_ready = True
         asked = {"n": 0}
 
         def busy_after_three():
             asked["n"] += 1
             return asked["n"] > 3
 
-        try:
-            await system.review_against_evidence(batch=10, stand_down=busy_after_three)
-            raise AssertionError("it did not stand down")
-        except StandDown as stood:
-            stopped_at = stood.at
-        done = len(system.unified_db.seen)
-        assert stopped_at == system.unified_db.seen[-1], f"it said where it got to: {stopped_at}"
+        with as_the_memory_agent(Agent()) as agent:
+            try:
+                await system_over(Store()).review_against_evidence(batch=10, stand_down=busy_after_three)
+                raise AssertionError("it did not stand down")
+            except StandDown as stood:
+                stopped_at = stood.at
+            done = len(agent.seen)
+        assert stopped_at == agent.seen[-1], f"it said where it got to: {stopped_at}"
         assert 0 < done < 200, f"it stopped part way: {done}"
 
         # Taken up from there, it reviews the rest and none of what it already did.
-        again = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
-        again.unified_db = Store()
-        again._beliefs_schema_ready = True
-        got = await again.review_against_evidence(resume_at=stopped_at, batch=1000)
+        with as_the_memory_agent(Agent()):
+            got = await system_over(Store()).review_against_evidence(resume_at=stopped_at, batch=1000)
         assert got["reviewed"] == 200 - done, f"it took up where it stopped: {got} after {done}"
 
     asyncio.run(run())
@@ -517,42 +564,52 @@ def test_a_rate_written_by_the_old_formula_is_brought_over_once():
     sit at zero by accident rather than by measurement."""
     import asyncio
 
+    rows = [{"domain": "english", "lambda": 0.01005519894951844, "measures_movement": False},
+            {"domain": "reading", "lambda": 0.020685416762009433, "measures_movement": False},
+            {"domain": "settled", "lambda": 0.01, "measures_movement": False},
+            {"domain": "already", "lambda": 0.00005, "measures_movement": True}]
+
     class Store:
+        async def execute_query(self, query, params=None, **kw):
+            assert query.strip().startswith(("SELECT", "CREATE", "ALTER")), f"the load writes nothing: {query}"
+            return rows if query.strip().startswith("SELECT") else None
+
+    class Agent:
         def __init__(self):
-            self.rows = [{"domain": "english", "lambda": 0.01005519894951844, "measures_movement": False},
-                         {"domain": "reading", "lambda": 0.020685416762009433, "measures_movement": False},
-                         {"domain": "settled", "lambda": 0.01, "measures_movement": False},
-                         {"domain": "already", "lambda": 0.00005, "measures_movement": True}]
             self.updates = 0
 
-        async def execute_query(self, query, params=None, **kw):
-            if query.strip().startswith("SELECT"):
-                return self.rows
-            if query.strip().startswith("UPDATE"):
-                self.updates += 1
-                for r in self.rows:
-                    if not r["measures_movement"]:
-                        r["lambda"], r["measures_movement"] = max(0.0, r["lambda"] - params[0]), True
-            return None
+        async def bring_domain_volatility_over(self, off):
+            self.updates += 1
+            moved = []
+            for row in rows:
+                if not row["measures_movement"]:
+                    row["lambda"] = max(0.0, row["lambda"] - off)
+                    row["measures_movement"] = True
+                    moved.append(row["domain"])
+            return moved
 
     from collections import defaultdict
-    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
-    system.unified_db = Store()
-    system._volatility_schema_ready = True
-    system.domain_volatility = defaultdict(lambda: 0.01)
 
-    asyncio.run(system._load_domain_volatility())
-    assert round(system.domain_volatility["english"], 8) == 0.0000552, system.domain_volatility["english"]
-    assert round(system.domain_volatility["reading"], 8) == 0.01068542
-    assert system.domain_volatility["settled"] == 0.0, "a domain that only ever had the constant does not fade"
-    assert system.domain_volatility["already"] == 0.00005, "a rate already measuring movement is left alone"
-    assert system.unified_db.updates == 1
+    def system_over(store):
+        system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+        system.unified_db = store
+        system._volatility_schema_ready = True
+        system.domain_volatility = defaultdict(lambda: 0.01)
+        return system
+
+    store, agent = Store(), Agent()
+    first = system_over(store)
+    with as_the_memory_agent(agent):
+        asyncio.run(first._load_domain_volatility())
+    assert round(first.domain_volatility["english"], 8) == 0.0000552, first.domain_volatility["english"]
+    assert round(first.domain_volatility["reading"], 8) == 0.01068542
+    assert first.domain_volatility["settled"] == 0.0, "a domain that only ever had the constant does not fade"
+    assert first.domain_volatility["already"] == 0.00005, "a rate already measuring movement is left alone"
+    assert agent.updates == 1
 
     # Opened again, nothing is taken off a second time.
-    second = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
-    second.unified_db = system.unified_db
-    second._volatility_schema_ready = True
-    second.domain_volatility = defaultdict(lambda: 0.01)
-    asyncio.run(second._load_domain_volatility())
+    second = system_over(store)
+    with as_the_memory_agent(agent):
+        asyncio.run(second._load_domain_volatility())
     assert round(second.domain_volatility["english"], 8) == 0.0000552, "taken off twice, by accident not measurement"
-    assert system.unified_db.updates == 1, "the correction is done once"
+    assert agent.updates == 1, "the correction is done once"

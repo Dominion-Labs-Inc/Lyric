@@ -4437,6 +4437,51 @@ class MemoryAgent(IMemoryConsolidation):
             "   updated_at = NOW()",
             (domain, lam), commit=True)
 
+    async def bring_domain_volatility_over(self, off: float) -> List[str]:
+        """Take the old formula's constant back off every domain rate that still carries it, once.
+
+        A domain's λ is recomputed only when beliefs in it move, and the domain this matters most for is the
+        one that moves least -- so nothing else would ever bring it over. The row says it has been brought
+        over, so opening the store again does not take the constant off twice. Names the domains it moved."""
+        rows = await self._memory_db().execute_query(
+            "UPDATE unified.domain_volatility SET lambda = GREATEST(lambda - $1, 0), "
+            "measures_movement = TRUE, updated_at = now() WHERE NOT measures_movement RETURNING domain",
+            (float(off),), fetch_all=True, commit=True) or []
+        return [str(r["domain"]) for r in rows]
+
+    async def weigh_beliefs_against_their_evidence(self, after: str, batch: int, store: str) -> List[str]:
+        """Record, for a batch of beliefs in `belief_id` order after `after`, how often each has been borne
+        out by its own evidence and how often genuinely contradicted. Names the beliefs it weighed.
+
+        A WITHDRAWAL IS NOT A FAILURE: evidence carrying `withdraws` is a teaching taken back, whose weight is
+        exactly what that word was contributing, so counting it as a contradiction made the worst belief in
+        the model read as borne out 49.4% of the time against a real 66.1%.
+
+        IT MOVES NO BELIEF. Three columns say what the evidence says; no confidence and no log-odds is
+        touched. A belief borne out two times in three is a good belief that is not a certainty, and saying
+        so is not overruling it.
+
+        The walk, the batching and standing down for a person belong to the belief system, which owns beliefs.
+        The write is here because the memory agent is the only writer of the substrate's memory."""
+        rows = await self._memory_db().execute_query(
+            "WITH taken AS ("
+            "  SELECT belief_id FROM unified.beliefs WHERE belief_id > $1 ORDER BY belief_id LIMIT $2"
+            "), tally AS ("
+            "  SELECT e.belief_id,"
+            "         count(*) FILTER (WHERE e.supports) AS supported,"
+            "         count(*) FILTER (WHERE NOT e.supports AND NOT (e.entry ? 'withdraws')) AS opposed"
+            "  FROM unified.belief_evidence e JOIN taken t ON t.belief_id = e.belief_id"
+            "  GROUP BY e.belief_id"
+            ") UPDATE unified.beliefs b"
+            "   SET supported = COALESCE(y.supported, 0),"
+            "       opposed   = COALESCE(y.opposed, 0),"
+            "       reviewed_at = now()"
+            "  FROM taken k LEFT JOIN tally y ON y.belief_id = k.belief_id"
+            " WHERE b.belief_id = k.belief_id"
+            " RETURNING b.belief_id",
+            (after, int(batch)), fetch_all=True, commit=True, store=store) or []
+        return [str(r["belief_id"]) for r in rows]
+
     async def hold_known_unknown(self, *, unknown_id: str, question: str, domain: str,
                                  knowledge_state: str, information_value: float,
                                  urgency: float, can_be_resolved: bool,
@@ -10067,6 +10112,343 @@ class MemoryAgent(IMemoryConsolidation):
             f"{report['schemas_formed']} schema(s), backlog {report['backlog']}"
         )
         return report
+
+    # ════════════════════════════════════════════════════════════════════════════════════════════════════════
+    # SELF-REFLECTION
+    # ════════════════════════════════════════════════════════════════════════════════════════════════════════
+    #
+    # WHAT A REFLECTION IS. It takes a window of what was learned and asks of each piece whether it has held
+    # up: whether its own evidence bears it out, and whether anything held contradicts it. It reaches a
+    # verdict and records the ones that need recording. A pass that reads knowledge and concludes nothing has
+    # not reflected on it.
+    #
+    # WHY IT IS NOT `reflect_on_beliefs`. That is belief-graph hygiene -- decay, consistency, volatility,
+    # schema decay -- and it is the last step here rather than the whole of it. It runs over the graph as it
+    # stands, with no window and no verdict, and it opens neither `unified.belief_evidence` nor a single
+    # memory. The substrate held 1,022,193 beliefs and 1,783,544 observations about whether they had been
+    # borne out and had never once read them back; `review_against_evidence` was written to do that and
+    # nothing called it. This is what calls it.
+    #
+    # IT RUNS IN DOWNTIME AND NEVER BLOCKS. Registered on the queue authority as a resumable job and handed a
+    # `stand_down` that is true the moment the substrate has work: the pass stops where it is, says where it
+    # had got to, and is taken up from there. Nothing waits on it and nothing is slowed by it.
+    #
+    # ITS PLACE SURVIVES A RESTART, which is the point of keeping it in the store. `QueueAuthority` holds
+    # where a resumable job stood down on the job object, and a job object lives inside one process; a
+    # reflection over thirteen days of learning does not finish inside one. A partial unique index allows one
+    # unfinished reflection per subject, so a process that starts finds the one in hand and continues it
+    # instead of opening a second and reading the same window twice.
+    #
+    # TWO REFLECTIONS, ONE PASS. `whose='own'` is the substrate reflecting on what it learned itself -- the
+    # instance's own day, which is complete in itself and stays where it is. An instance's name is the World
+    # Model reflecting on what that instance learned, which is the same walk over another store and is the
+    # only route by which knowledge leaves an instance. That refuses today, by name: no release has been cut,
+    # so there is no instance to read, and saying so is the whole of the honest answer. Reading nothing and
+    # reporting a reflection would be worse than refusing.
+
+    #: Whose learning a reflection is of, when it is the substrate's own.
+    OWN_LEARNING = "own"
+
+    #: The steps of a reflection, in the order they are taken. Kept in the position so a reflection taken up
+    #: after standing down resumes the step it was in rather than the first.
+    REFLECTION_STEPS = ("evidence", "knowledge", "settling")
+
+    #: How many memories a reflection reads at a time. The walk is ordered by (created_at, memory_id), which
+    #: `memory_hot_tagged_idx` covers, so a page is an indexed range read and the position is the last pair
+    #: it reached.
+    REFLECTION_PAGE = 2000
+
+    _REFLECTION_DDL = (
+        # `window_from` and `window_to` are naive, like the memory tables' `created_at` they are compared
+        # against. A window held with a zone and compared against a column without one selects by whatever
+        # offset the session happens to have, which is a different window on a different machine.
+        "CREATE TABLE IF NOT EXISTS unified.reflections ("
+        "reflection BIGSERIAL PRIMARY KEY, "
+        "whose VARCHAR NOT NULL, "
+        "window_from TIMESTAMP NOT NULL, "
+        "window_to TIMESTAMP NOT NULL, "
+        "began_at TIMESTAMPTZ NOT NULL DEFAULT now(), "
+        "ended_at TIMESTAMPTZ, "
+        "position VARCHAR, "
+        "weighed INTEGER NOT NULL DEFAULT 0, "
+        "examined INTEGER NOT NULL DEFAULT 0, "
+        "bore_out INTEGER NOT NULL DEFAULT 0, "
+        "questioned INTEGER NOT NULL DEFAULT 0, "
+        "did_not_hold INTEGER NOT NULL DEFAULT 0, "
+        "nothing_to_weigh INTEGER NOT NULL DEFAULT 0, "
+        "stood_down INTEGER NOT NULL DEFAULT 0, "
+        "settled JSONB)",
+        # ONE REFLECTION OF A SUBJECT AT A TIME, ENFORCED WHERE IT IS TRUE. Two processes, or one process
+        # across a restart, must not each open their own and walk the same window: the store refuses the
+        # second, so finding the one in hand is the only way to proceed.
+        "CREATE UNIQUE INDEX IF NOT EXISTS one_reflection_in_hand ON unified.reflections (whose) "
+        "WHERE ended_at IS NULL",
+    )
+    _reflection_schema_ready = False
+
+    async def _ensure_reflection_schema(self) -> None:
+        if self._reflection_schema_ready:
+            return
+        for statement in self._REFLECTION_DDL:
+            await self._memory_db().execute_query(statement, commit=True)
+        self._reflection_schema_ready = True
+
+    #: What a reflection concluded about one piece of knowledge.
+    #:
+    #: `opposed` on a belief is already genuine contradiction: `review_against_evidence` excludes evidence
+    #: carrying `withdraws`, because a teaching taken back is not a claim that failed. So the line between
+    #: BORE OUT and QUESTIONED is whether anything ever contradicted it at all, and the line between
+    #: QUESTIONED and DID NOT HOLD is whether contradiction outweighs support -- the majority, not a
+    #: threshold anybody chose.
+    BORE_OUT = "bore out"
+    QUESTIONED = "questioned"
+    DID_NOT_HOLD = "did not hold"
+    NOTHING_TO_WEIGH = "nothing to weigh"
+
+    async def reflect_on_what_was_learned(self, resume_at: Optional[str] = None, *,
+                                          whose: str = OWN_LEARNING,
+                                          stand_down: Optional[Callable[[], bool]] = None,
+                                          page: Optional[int] = None) -> Dict[str, Any]:
+        """Reflect over a window of what was learned, and record what did not hold up.
+
+        Called with where it last stood down (the queue authority's resumable job contract) and stops by
+        raising `StandDown`, which carries the place out so the next sitting takes it up. The place is written
+        to the store before it is raised, so a restart in between loses nothing.
+        """
+        from core.utils.give_way import GiveWay, StandDown
+        await self._ensure_reflection_schema()
+        if whose != self.OWN_LEARNING:
+            raise ValueError(
+                f"a reflection of {whose!r} reads that instance's own learning store, and no release has been "
+                f"cut, so there is no instance to read: core/database/releases.py cut() makes the first one "
+                f"(docs/architecture/world-model-and-instances.md section 4)")
+        held = await self._reflection_in_hand(whose)
+        if not held:
+            return {"reflected": False, "because": "nothing has been learned yet"}
+        counts = {name: int(held.get(name) or 0) for name in
+                  ("weighed", "examined", "bore_out", "questioned", "did_not_hold", "nothing_to_weigh")}
+        step, _, at = (held.get("position") or resume_at or self.REFLECTION_STEPS[0]).partition(":")
+        if step not in self.REFLECTION_STEPS:
+            step, at = self.REFLECTION_STEPS[0], ""
+        give_way = GiveWay(stand_down=stand_down)
+        try:
+            if step == "evidence":
+                counts["weighed"] += await self._weigh_what_is_held(at or None, stand_down=stand_down)
+                step, at = "knowledge", ""
+                await self._reflection_reached(held, f"{step}:", counts)
+            if step == "knowledge":
+                await self._examine_what_was_learned(held, counts, at, give_way, page)
+                step, at = "settling", ""
+                await self._reflection_reached(held, f"{step}:", counts)
+            settled = await self.reflect_on_beliefs()
+        except StandDown as stopped:
+            where = f"{step}:{'' if stopped.at is None else stopped.at}"
+            await self._reflection_reached(held, where, counts, stood_down=True)
+            logger.info("reflection %s stood down at %s", held["reflection"], where)
+            raise StandDown(where)
+        await self._reflection_ended(held, counts, settled)
+        logger.info(
+            "reflected on %s -> %s: %d piece(s) of knowledge examined, %d bore out, %d questioned, "
+            "%d did not hold, %d with nothing to weigh; %d belief(s) weighed against their own evidence",
+            held["window_from"], held["window_to"], counts["examined"], counts["bore_out"],
+            counts["questioned"], counts["did_not_hold"], counts["nothing_to_weigh"], counts["weighed"])
+        return {"reflected": True, "reflection": held["reflection"],
+                "window": (held["window_from"], held["window_to"]), "settled": settled, **counts}
+
+    async def _weigh_what_is_held(self, resume_at: Optional[str], *,
+                                  stand_down: Optional[Callable[[], bool]]) -> int:
+        """Every belief read back against its own evidence, so a verdict reached below is reached on what the
+        evidence says NOW rather than on whatever it said when it was last asked.
+
+        This is the pass that nothing called. It changes no belief: it writes how often each has been borne
+        out and how often genuinely contradicted, and leaves what is held exactly as it was."""
+        beliefs = getattr(self._reasoning_authority(), "beliefs", None)
+        if beliefs is None:
+            raise RuntimeError(
+                "reflection cannot weigh what is held: the reasoning authority has no belief subsystem, so "
+                "bridge.initialize() has not run")
+        report = await beliefs.review_against_evidence(resume_at, stand_down=stand_down)
+        return int(report.get("reviewed") or 0)
+
+    async def _examine_what_was_learned(self, held: Dict[str, Any], counts: Dict[str, int],
+                                        at: str, give_way, page: Optional[int]) -> None:
+        """Walk the window's memories oldest first, weigh each by what came of it, and record the ones that
+        did not hold up.
+
+        ONLY A FINDING IS WRITTEN BACK. Marking every piece of knowledge `fine` would rewrite the whole store
+        to say what the reflection's own counts already say, and nothing would ever read it. What needs to be
+        on the knowledge itself is the verdict somebody has to look at."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        db = self._memory_db()
+        many = int(page or self.REFLECTION_PAGE)
+        from_store, since, last = self._reflection_place(at)
+        reached = from_store is None
+        for store in db.maintained_stores():
+            if not reached:
+                if store != from_store:
+                    continue          # already walked, in an earlier sitting
+                reached = True
+            else:
+                since, last = held["window_from"], ""
+            while True:
+                rows = await db.execute_query(
+                    "SELECT memory_id, created_at FROM ("
+                    "  SELECT memory_id, created_at, user_id FROM memory_hot.memory_hot"
+                    "  UNION ALL"
+                    "  SELECT memory_id, created_at, user_id FROM memory_cold.memory_cold) m "
+                    "WHERE COALESCE(user_id, '') = ANY($1::text[]) "
+                    "AND created_at >= $2 AND created_at < $3 AND (created_at, memory_id) > ($4, $5) "
+                    "ORDER BY created_at, memory_id LIMIT $6",
+                    (list(SUBSTRATE_OWNERS), held["window_from"], held["window_to"], since, last, many),
+                    fetch_all=True, store=store, deadline=None) or []
+                if not rows:
+                    break
+                came_of_it = await self._what_came_of_it([str(r["memory_id"]) for r in rows], store)
+                for row in rows:
+                    memory_id, made_at = str(row["memory_id"]), row["created_at"]
+                    verdict, borne, against, beliefs = self._verdict_on(came_of_it.get(memory_id))
+                    counts["examined"] += 1
+                    counts[{self.BORE_OUT: "bore_out", self.QUESTIONED: "questioned",
+                            self.DID_NOT_HOLD: "did_not_hold",
+                            self.NOTHING_TO_WEIGH: "nothing_to_weigh"}[verdict]] += 1
+                    if verdict in (self.QUESTIONED, self.DID_NOT_HOLD):
+                        await self._record_verdict(memory_id, held["reflection"], verdict,
+                                                   borne, against, beliefs)
+                    since, last = made_at, memory_id
+                    await give_way(f"{store}|{made_at.isoformat()}|{memory_id}")
+                await self._reflection_reached(
+                    held, f"knowledge:{store}|{since.isoformat()}|{last}", counts)
+
+    @staticmethod
+    def _reflection_place(at: str):
+        """The store, time and memory a reflection's walk had reached, out of its position."""
+        if not at:
+            return None, None, ""
+        store, _, rest = at.partition("|")
+        when, _, memory_id = rest.partition("|")
+        return store, datetime.fromisoformat(when), memory_id
+
+    async def _what_came_of_it(self, memory_ids: List[str], store: str) -> Dict[str, Any]:
+        """For each memory, the beliefs that came of it and how their own evidence has borne them out.
+
+        By `memory_id`, which every one of the 1,022,193 beliefs held carries and `idx_beliefs_memory_id`
+        covers, so a page of knowledge costs one indexed lookup rather than a scan of the belief graph."""
+        rows = await self._memory_db().execute_query(
+            "SELECT memory_id, count(*) AS beliefs, COALESCE(sum(supported), 0) AS borne, "
+            "COALESCE(sum(opposed), 0) AS against FROM unified.beliefs "
+            "WHERE memory_id = ANY($1::text[]) GROUP BY memory_id",
+            (list(memory_ids),), fetch_all=True, store=store, deadline=None) or []
+        return {str(r["memory_id"]): r for r in rows}
+
+    def _verdict_on(self, came_of_it) -> Tuple[str, int, int, int]:
+        """What a reflection concludes about one piece of knowledge, from what came of it."""
+        if came_of_it is None:
+            return self.NOTHING_TO_WEIGH, 0, 0, 0
+        borne = int(came_of_it["borne"] or 0)
+        against = int(came_of_it["against"] or 0)
+        beliefs = int(came_of_it["beliefs"] or 0)
+        if against == 0:
+            # Never contradicted. Not the same as proven, and not recorded as such: a belief with no evidence
+            # either way reaches here too, and `borne` says which it was.
+            return self.BORE_OUT, borne, against, beliefs
+        if against >= borne:
+            return self.DID_NOT_HOLD, borne, against, beliefs
+        return self.QUESTIONED, borne, against, beliefs
+
+    async def _record_verdict(self, memory_id: str, reflection: int, verdict: str,
+                              borne: int, against: int, beliefs: int) -> None:
+        """Put the verdict on the knowledge itself, beside the admission that let it in.
+
+        MERGED, NEVER REPLACED. `memory_admission` is the memory filter's record of why this was worth
+        keeping at all; a reflection has no business overwriting it. It is written under `reflected`, so a
+        piece of knowledge carries both what admitted it and what examining it concluded."""
+        await self.update_memory(memory_id, {"memory_admission": {"reflected": {
+            "at": datetime.now().isoformat(), "reflection": int(reflection), "verdict": verdict,
+            "borne_out": borne, "contradicted": against, "beliefs": beliefs}}})
+
+    async def _reflection_window(self, whose: str):
+        """From where the last reflection of `whose` learning ended, to now.
+
+        Open at the top: a memory written while the pass runs belongs to the next window, not this one, or a
+        reflection would never reach its own end. `window_to` is fixed when the reflection opens for the same
+        reason -- a window that moves while it is walked is not a window."""
+        db = self._memory_db()
+        done = await db.execute_query(
+            "SELECT max(window_to) AS upto FROM unified.reflections WHERE whose = $1 AND ended_at IS NOT NULL",
+            (whose,), fetch_all=True, deadline=None) or []
+        from_when = done[0]["upto"] if done and done[0]["upto"] is not None else None
+        if from_when is None:
+            from_when = await self._earliest_learned()
+        return from_when, datetime.now()
+
+    async def _earliest_learned(self) -> Optional[datetime]:
+        """When the oldest memory the substrate holds of its own was made, or None if it holds none.
+
+        THE FIRST REFLECTION COVERS EVERYTHING EVER LEARNED, and is not cut short to make it quicker. It
+        stands down for every arriving person and is taken up again afterwards, so it finishes across as many
+        sittings of downtime as it takes. A first window shortened to the last day would leave the thirteen
+        days before it unexamined with nothing recording that they had been skipped."""
+        from core.database.releases import SUBSTRATE_OWNERS
+        db = self._memory_db()
+        earliest: Optional[datetime] = None
+        for store in db.maintained_stores():
+            for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                rows = await db.execute_query(
+                    f"SELECT min(created_at) AS first FROM {table} "
+                    "WHERE COALESCE(user_id, '') = ANY($1::text[])",
+                    (list(SUBSTRATE_OWNERS),), fetch_all=True, store=store, deadline=None) or []
+                when = rows[0]["first"] if rows else None
+                if when is not None and (earliest is None or when < earliest):
+                    earliest = when
+        return earliest
+
+    async def _reflection_in_hand(self, whose: str) -> Dict[str, Any]:
+        """The reflection of `whose` learning being made, opened if none is.
+
+        Found rather than created, because one unfinished reflection per subject is all the store allows: a
+        restart mid-pass has to continue the one that is there."""
+        db = self._memory_db()
+        wanted = ("reflection", "whose", "window_from", "window_to", "position", "weighed", "examined",
+                  "bore_out", "questioned", "did_not_hold", "nothing_to_weigh", "stood_down")
+        rows = await db.execute_query(
+            f"SELECT {', '.join(wanted)} FROM unified.reflections WHERE whose = $1 AND ended_at IS NULL "
+            "ORDER BY reflection LIMIT 1", (whose,), fetch_all=True, deadline=None) or []
+        if rows:
+            return {name: rows[0][name] for name in wanted}
+        from_when, upto = await self._reflection_window(whose)
+        if from_when is None:
+            return {}
+        opened = await db.execute_query(
+            "INSERT INTO unified.reflections (whose, window_from, window_to) VALUES ($1, $2, $3) "
+            "RETURNING reflection", (whose, from_when, upto), fetch_all=True, commit=True) or []
+        logger.info("reflecting on %s learned between %s and %s", whose, from_when, upto)
+        return {"reflection": opened[0]["reflection"], "whose": whose, "window_from": from_when,
+                "window_to": upto, "position": None, "weighed": 0, "examined": 0, "bore_out": 0,
+                "questioned": 0, "did_not_hold": 0, "nothing_to_weigh": 0, "stood_down": 0}
+
+    async def _reflection_reached(self, held: Dict[str, Any], where: str, counts: Dict[str, int],
+                                  *, stood_down: bool = False) -> None:
+        """Write where the reflection has got to, and what it has found so far."""
+        await self._memory_db().execute_query(
+            "UPDATE unified.reflections SET position = $1, weighed = $2, examined = $3, bore_out = $4, "
+            "questioned = $5, did_not_hold = $6, nothing_to_weigh = $7, stood_down = stood_down + $8 "
+            "WHERE reflection = $9",
+            (where, counts["weighed"], counts["examined"], counts["bore_out"], counts["questioned"],
+             counts["did_not_hold"], counts["nothing_to_weigh"], 1 if stood_down else 0,
+             held["reflection"]), commit=True)
+
+    async def _reflection_ended(self, held: Dict[str, Any], counts: Dict[str, int],
+                                settled: Optional[Dict[str, Any]]) -> None:
+        """Close the reflection. `ended_at` is what the store's one-at-a-time index reads, so writing it is
+        what allows the next window to be opened."""
+        await self._memory_db().execute_query(
+            "UPDATE unified.reflections SET ended_at = now(), position = NULL, weighed = $1, examined = $2, "
+            "bore_out = $3, questioned = $4, did_not_hold = $5, nothing_to_weigh = $6, settled = $7::jsonb "
+            "WHERE reflection = $8",
+            (counts["weighed"], counts["examined"], counts["bore_out"], counts["questioned"],
+             counts["did_not_hold"], counts["nothing_to_weigh"],
+             json.dumps(settled, default=str) if settled is not None else None,
+             held["reflection"]), commit=True)
 
     async def reflect_on_beliefs(self):
         """Reflection is belief-graph hygiene — REASONING. The memory agent asks

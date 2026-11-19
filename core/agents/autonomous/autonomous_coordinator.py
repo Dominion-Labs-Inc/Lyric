@@ -13738,12 +13738,49 @@ class AutonomousCoordinator:
                     f"exist on the coordinator — cannot schedule")
             self.task_queue.schedule_recurring(name, bound, float(interval), priority)
 
+        # REFLECTION, WHICH IS NOT A TIER LIKE THE OTHERS AND IS REGISTERED APART FROM THEM.
+        #
+        # Every tier above runs whether or not the substrate is busy, is called with nothing, and runs to its
+        # end. Reflection may only happen in downtime, is called with where it last stood down, and stops the
+        # moment a person arrives -- so it is registered `resumable`, which is what makes the authority hand
+        # it its place back and treat a stand-down as neither a failure nor a completed run.
+        #
+        # The cadence is how often it is OFFERED, not how long it takes. A firing that finds the substrate in
+        # use does nothing and costs a question; a firing that finds it quiet carries the reflection on from
+        # where the last one stopped. A reflection of everything learned so far takes as many sittings as it
+        # takes, and that is the design rather than a shortcoming of it.
+        self.task_queue.schedule_recurring(
+            "reflection", self._reflect_on_what_was_learned,
+            float(self.config.get("reflection_interval_s", 600.0)), "low", resumable=True)
+
         # The authority now owns cadence — start its scheduler loop.
         self.task_queue.start()
         self._idle_subsystems_registered = True
         logger.info(
             f"[IDLE] {len(registrations)} tiers scheduled on the queue authority "
             f"(scheduler running)")
+
+    async def _reflect_on_what_was_learned(self, resume_at=None):
+        """Reflect over what has been learned, if the substrate is quiet enough to.
+
+        THE IDLE FLOOR IS ASKED HERE AND HANDED DOWN. Asking it here keeps a firing that arrives in the
+        middle of someone's turn from doing any work at all; handing the same floor down as the pass's
+        `stand_down` is what stops it part-way through when somebody arrives after it began. One number, both
+        questions, so reflection cannot begin under conditions it would immediately stand down under.
+
+        Returns without touching anything when the substrate is in use -- not a stand-down, because nothing
+        was begun and there is no new place to record."""
+        if self.memory is None:
+            # Not caught and not skipped into a green count: reflection reads and writes the substrate's
+            # memory, so without the memory agent there is nothing to reflect on and nothing to record it in.
+            raise RuntimeError(
+                "reflection was scheduled without a memory agent; the coordinator was constructed with "
+                "memory=None and nothing can be examined or recorded")
+        floor = float(self.config.get("reflection_idle_floor_s", 120.0))
+        if self.task_queue.idle_for() < floor:
+            return {"reflected": False, "because": f"in use within the last {floor:.0f}s"}
+        return await self.memory.reflect_on_what_was_learned(
+            resume_at, stand_down=self.task_queue.stand_down_after(floor))
 
     async def _thinnest_knowledge_topics(self, limit: int = 8) -> List[str]:
         """Where the substrate's knowledge is thinnest, as research topics.

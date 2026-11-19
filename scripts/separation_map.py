@@ -158,7 +158,10 @@ NOT_MEMORY = {
 MEMORY_TABLES = (frozenset(STORE_TABLES["model"]) | frozenset(STORE_TABLES["user_context"])
                  | frozenset(t for t, store in PER_OWNER_TABLES.items() if store == "model"))
 
-_IS_WRITE = re.compile(r"\b(INSERT\s+INTO|UPDATE\s+\S+\s+(AS\s+\w+\s+)?SET|DELETE\s+FROM|TRUNCATE)\b", re.I)
+#: `AS` is optional in SQL and was required here, so `UPDATE unified.beliefs b SET ...` -- a table with a bare
+#: alias, which is how every statement with a CTE or a FROM clause is written -- was not read as a write at all.
+_IS_WRITE = re.compile(
+    r"\b(INSERT\s+INTO|UPDATE\s+\S+\s+((AS\s+)?\w+\s+)?SET|DELETE\s+FROM|TRUNCATE)\b", re.I)
 _WRITE_TARGET = re.compile(
     r"\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|MERGE\s+INTO)\s+(?:ONLY\s+)?"
     r"(\{[^}]*\}|[A-Za-z_\"][\w.\"]*)", re.I)
