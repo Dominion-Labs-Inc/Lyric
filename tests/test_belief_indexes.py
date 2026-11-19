@@ -321,3 +321,80 @@ def test_the_review_stands_down_for_a_person_and_says_where_it_stopped():
         assert got["reviewed"] == 200 - done, f"it took up where it stopped: {got} after {done}"
 
     asyncio.run(run())
+
+
+def test_the_belief_graph_is_kept_and_read_back_at_a_start():
+    """EVERYTHING ELSE THE BELIEF AUTHORITY HOLDS HAS A TABLE AND THE GRAPH HAD NONE. The beliefs, their
+    evidence, the known unknowns and each domain's volatility are all written and read back; which belief
+    contradicts, implies or supports which was built in memory, used by the process that built it, and gone at
+    the next start. So `check_belief_consistency` walked an empty dict and reported no contradiction in a store
+    of a million beliefs -- not because it was broken, but because it was reading a structure nobody had saved.
+
+    An edge is kept only where both of its beliefs are held: propagation walks beliefs, and an edge to a belief
+    that is gone leads nowhere."""
+    import asyncio
+    from core.reasoning.bayesian_uncertainty import BeliefRelationship, RelationType
+
+    class Store:
+        def __init__(self):
+            self.kept = []
+
+        def schema_stores(self):
+            return ["main", "release"]
+
+        def is_frozen_store(self, store):
+            return store == "release"
+
+        async def execute_query(self, query, params=None, **kw):
+            if query.strip().startswith(("ALTER", "CREATE")):
+                return None
+            if query.strip().startswith("INSERT"):
+                self.kept.append((kw.get("store"), params))
+                return None
+            return [{"relationship_id": "rel_a", "source_belief_id": "b1", "target_belief_id": "b2",
+                     "relation_type": "contradicts", "strength": 0.8, "confidence": 0.9,
+                     "discovered_by": "a teacher"},
+                    # An edge to a belief this start does not hold leads nowhere and is passed over.
+                    {"relationship_id": "rel_gone", "source_belief_id": "b1", "target_belief_id": "b_missing",
+                     "relation_type": "implies", "strength": 1.0, "confidence": 1.0, "discovered_by": "x"}]
+
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    system.unified_db = Store()
+    system._beliefs_schema_ready = True
+    system.beliefs = {"b1": object(), "b2": object()}
+    system.relationships = {}
+    from collections import defaultdict
+    system.forward_edges, system.backward_edges = defaultdict(set), defaultdict(set)
+
+    loaded = asyncio.run(system.load_relationships())
+    assert loaded == 1, "an edge whose beliefs are not both held is passed over"
+    kept = system.relationships["rel_a"]
+    assert kept.relation_type is RelationType.CONTRADICTS and kept.strength == 0.8
+    assert kept.discovered_by == "a teacher"
+    assert "rel_a" in system.forward_edges["b1"] and "rel_a" in system.backward_edges["b2"]
+
+    # And writing one: the frozen release is never written.
+    async def write():
+        system.persistence_drops = 0
+        system._write_tasks = set()
+        system._save_relationship(BeliefRelationship(
+            relationship_id="rel_new", source_belief_id="b1", target_belief_id="b2",
+            relation_type=RelationType.SUPPORTS, strength=1.0, confidence=1.0, discovered_by="system"))
+        await asyncio.gather(*list(system._write_tasks))
+    asyncio.run(write())
+    assert [store for store, _ in system.unified_db.kept] == ["main"], system.unified_db.kept
+
+
+def test_fading_is_not_refutation_and_only_what_rests_on_nothing_is_let_go():
+    """A belief that drifts to even odds has not been contradicted: nobody has spoken of it lately, which is a
+    fact about the conversation and not about the world.
+
+    This let go of any belief at even odds resting on fewer than THREE observations, and in the World Model
+    993,357 of 1,022,193 beliefs rest on fewer than three -- 97.2%. While the decay clock reset at every start
+    nothing reached the band and nothing was ever deleted; the moment the clock becomes real, that threshold
+    would delete most of what the substrate knows for not having been mentioned. What is let go is what rests on
+    NOTHING, which is the belief `is_grounded` refuses to write in the first place."""
+    import inspect
+    source = inspect.getsource(BayesianUncertaintySystem.apply_temporal_decay_to_all_beliefs)
+    assert "_evidence_count == 0" in source, "a belief resting on an observation is kept, however far it fades"
+    assert "_evidence_count < 3" not in source, "the old threshold would delete 97.2% of the World Model"

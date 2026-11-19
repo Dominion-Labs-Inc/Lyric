@@ -1080,6 +1080,11 @@ class BayesianUncertaintySystem:
 
         self.stats['relationships_discovered'] += 1
 
+        # KEPT, so the next start holds the graph this one built. Fire-and-forget, as a belief's own write is:
+        # with no loop running there is nothing to schedule it on and the edge stands in this process only,
+        # which is what every edge used to do.
+        self._save_relationship(relationship)
+
         logger.info(
             f"Relationship added: {source_belief_id[:8]} {relation_type.value} {target_belief_id[:8]} "
             f"(strength={strength:.2f}, confidence={confidence:.2f})"
@@ -2148,6 +2153,21 @@ class BayesianUncertaintySystem:
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS supported INTEGER",
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS opposed INTEGER",
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
+        # WHICH BELIEF BEARS ON WHICH, kept. Everything else the belief authority holds has a table and is read
+        # back at a start -- the beliefs, their evidence, the known unknowns, each domain's volatility -- and the
+        # GRAPH between them had none. It was built in memory, used by whatever process built it, and gone at the
+        # next start, so `check_belief_consistency` walked an empty dict and reported no contradiction in a store
+        # of a million beliefs for as long as it has existed. Its rows go with their beliefs: deleting either
+        # belief deletes the edge.
+        "CREATE TABLE IF NOT EXISTS unified.belief_relationships ("
+        "relationship_id VARCHAR(64) PRIMARY KEY, "
+        "source_belief_id VARCHAR(64) NOT NULL REFERENCES unified.beliefs(belief_id) ON DELETE CASCADE, "
+        "target_belief_id VARCHAR(64) NOT NULL REFERENCES unified.beliefs(belief_id) ON DELETE CASCADE, "
+        "relation_type VARCHAR(32) NOT NULL, strength DOUBLE PRECISION NOT NULL, "
+        "confidence DOUBLE PRECISION NOT NULL, discovered_by VARCHAR(64), "
+        "created_at TIMESTAMP NOT NULL DEFAULT now())",
+        "CREATE INDEX IF NOT EXISTS idx_belief_rel_source ON unified.belief_relationships(source_belief_id)",
+        "CREATE INDEX IF NOT EXISTS idx_belief_rel_target ON unified.belief_relationships(target_belief_id)",
     )
     _beliefs_schema_ready = False
 
@@ -2360,6 +2380,25 @@ class BayesianUncertaintySystem:
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
                     )
                     b.stored_count = b.update_count
+                    # WHEN EVIDENCE LAST ARRIVED, FROM THE EVIDENCE. Decay measures time since a belief was last
+                    # borne out, and `last_evidence_time` defaults to `datetime.now()` and was restored from
+                    # nothing -- so every restart reset every belief's clock and a substrate restarted often
+                    # never decayed at all. The mechanism exists to "prevent epistemic ossification by requiring
+                    # continuous evidence reinforcement", and a restart was handing every belief a free full
+                    # reinforcement: 1,022,193 beliefs, 99.95% of them at 0.9 or more, none of them ever faded
+                    # (lyric_db, 2026-11-19). Each observation carries the moment it was made, so the answer was
+                    # in the store; where none does, when the belief was last written is the nearest truth.
+                    #
+                    # NOT TURNED ON YET, AND THE MEASUREMENT IS WHY. The clock is the easy half; the decay RATE
+                    # is the half that was never under real pressure. λ is clamped to [0.005, 0.1] per hour and
+                    # 98.9% of the World Model's beliefs are in one domain, `english`. Measured 2026-11-19: the
+                    # median belief's newest observation is 287 hours old, so at the default λ the median
+                    # log-odds would fall 2.700 -> 0.153 and 842,741 beliefs (82.4%) would land in the band that
+                    # means "no opinion" -- in ONE reflection pass, the first time the clock was ever real. Even
+                    # the floor leaves 23.8%. A rate range fitted to a clock that could only ever read hours is
+                    # not a rate range for one that reads days, and "'Whales' names whale" does not become
+                    # doubtful because nobody said it for a fortnight. The rate is settled first.
+                    said_at: List[float] = []
                     self._register_belief(b)
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
@@ -2379,6 +2418,10 @@ class BayesianUncertaintySystem:
             # And how well its confidence has tracked what happened. Recorded
             # and never read back, every restart began uncalibrated.
             await self._load_calibrations()
+            # AND WHICH BELIEF BEARS ON WHICH. The graph was the one thing the authority held that had no table:
+            # built in memory, used by the process that built it, gone at the next start. Read back after the
+            # beliefs, because an edge is kept only where both of its beliefs are held.
+            await self.load_relationships()
             # Persistence is up now — replay anything buffered before the DB was
             # ready, so no early belief update is lost.
             await self.flush_pending_writes()
@@ -2440,8 +2483,21 @@ class BayesianUncertaintySystem:
                     # the moment any belief reached the neutral band, aborting the
                     # whole decay loop and returning zeroed stats (a silent negative:
                     # "0 decayed" actually meant "the method crashed").
+                    # FADING IS NOT REFUTATION, AND A BELIEF IS NOT FORGOTTEN FOR WANT OF MENTION. A belief that
+                    # drifts to even odds has not been contradicted: nobody has spoken of it lately, which is a
+                    # fact about the conversation and not about the world. This let go of any belief resting on
+                    # fewer than THREE observations, and in the World Model 993,357 of 1,022,193 beliefs rest on
+                    # fewer than three -- 97.2%. While the decay clock reset at every start nothing ever reached
+                    # the band and nothing was ever deleted; the moment the clock became real (`load_from_db`
+                    # restores `last_evidence_time` from the evidence) that threshold would have deleted most of
+                    # what the substrate knows, quietly, for not having been mentioned in a fortnight.
+                    #
+                    # What is let go is what rests on NOTHING: no observation for it and none against it. Such a
+                    # belief holds no stance the substrate ever met, which is what `is_grounded` refuses to write
+                    # in the first place. Six beliefs in the World Model are of that kind. Anything resting on
+                    # even one observation fades toward even odds and is KEPT, because the observation happened.
                     _evidence_count = len(belief.evidence_for) + len(belief.evidence_against)
-                    if 0.45 <= belief.posterior_probability <= 0.55 and _evidence_count < 3:
+                    if 0.45 <= belief.posterior_probability <= 0.55 and _evidence_count == 0:
                         # DURABLE: dropped from what is held and from its row, so
                         # load_from_db cannot resurrect it (`let_go`).
                         await self.let_go(belief_id)
@@ -2479,6 +2535,70 @@ class BayesianUncertaintySystem:
                 'beliefs_removed': 0,
                 'error': str(e),
             }
+
+    def _save_relationship(self, relationship: "BeliefRelationship") -> None:
+        """Write one edge of the belief graph, fire-and-forget (`_save_belief`'s shape). An edge whose beliefs are
+        not both stored yet is refused by the foreign key and dropped; it is written again whenever it is formed
+        again, and the beliefs it joins are written before any propagation reads it."""
+        async def _write() -> None:
+            try:
+                await self._ensure_beliefs_schema()
+                for store in self.unified_db.schema_stores():
+                    if self.unified_db.is_frozen_store(store):
+                        continue
+                    await self.unified_db.execute_query(
+                        "INSERT INTO unified.belief_relationships (relationship_id, source_belief_id, "
+                        "target_belief_id, relation_type, strength, confidence, discovered_by) "
+                        "VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (relationship_id) DO UPDATE SET "
+                        "strength = EXCLUDED.strength, confidence = EXCLUDED.confidence",
+                        (relationship.relationship_id, relationship.source_belief_id,
+                         relationship.target_belief_id, relationship.relation_type.value,
+                         float(relationship.strength), float(relationship.confidence),
+                         str(relationship.discovered_by)), commit=True, store=store)
+            except Exception as e:
+                # NOT SILENT. An edge that is not kept is a contradiction the next start cannot see, which is the
+                # whole of what this was written for.
+                self.persistence_drops += 1
+                logger.warning("belief relationship %s was not kept: %s: %s",
+                               relationship.relationship_id, type(e).__name__, e)
+        import asyncio
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return                      # no loop: the edge stands in this process, as every edge used to
+        task = loop.create_task(_write())
+        self._write_tasks.add(task)
+        task.add_done_callback(self._write_tasks.discard)
+
+    async def load_relationships(self) -> int:
+        """The belief graph as the store holds it, back into `relationships` and both edge maps. Read at a start
+        beside the beliefs themselves (`load_from_db`): an edge whose beliefs are not both held is passed over,
+        since propagation walks beliefs."""
+        await self._ensure_beliefs_schema()
+        rows = await self.unified_db.execute_query(
+            "SELECT relationship_id, source_belief_id, target_belief_id, relation_type, strength, confidence, "
+            "discovered_by FROM unified.belief_relationships", fetch_all=True) or []
+        loaded = 0
+        for row in rows:
+            if row["source_belief_id"] not in self.beliefs or row["target_belief_id"] not in self.beliefs:
+                continue
+            try:
+                kind = RelationType(row["relation_type"])
+            except ValueError:
+                logger.warning("belief relationship %s names no relation this grammar has: %r",
+                               row["relationship_id"], row["relation_type"])
+                continue
+            held = BeliefRelationship(
+                relationship_id=row["relationship_id"], source_belief_id=row["source_belief_id"],
+                target_belief_id=row["target_belief_id"], relation_type=kind,
+                strength=float(row["strength"]), confidence=float(row["confidence"]),
+                discovered_by=row["discovered_by"] or "system")
+            self.relationships[held.relationship_id] = held
+            self.forward_edges[held.source_belief_id].add(held.relationship_id)
+            self.backward_edges[held.target_belief_id].add(held.relationship_id)
+            loaded += 1
+        logger.info("belief graph: %d edge(s) read back of %d held", loaded, len(rows))
+        return loaded
 
     async def review_against_evidence(self, resume_at: Optional[str] = None, *, batch: int = 2000,
                                       stand_down: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
