@@ -24,7 +24,7 @@ g01 = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(g01)
 
 import erg_parse
-from core.learning.teaching_sources import WordNetSource, file_words
+from core.learning.teaching_sources import english_grammar, WordNetSource, file_words
 from core.semantics import erg_meanings as em
 from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
@@ -37,7 +37,7 @@ def main():
     want = int(sys.argv[1]) if len(sys.argv) > 1 and sys.argv[1].isdigit() else None
     show = int(sys.argv[sys.argv.index("--show") + 1]) if "--show" in sys.argv else 12
     pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
-    words = file_words(ROOT / "test_data/syntax/UD_English-EWT/en_ewt-ud-train.conllu", gm.closed_uses())
+    words = file_words(ROOT / "test_data/syntax/UD_English-EWT/en_ewt-ud-train.conllu", gm.closed_uses(english_grammar()))
     sense_names = WordNetSource()._sense_names()
 
     def sense_name(sense):

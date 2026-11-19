@@ -5,6 +5,45 @@ import json
 from core.learning.teaching_sources import RecordFact, RecordWord, SentenceRecord
 from core.semantics import grammar as gm
 
+#: What the helpers below build, held by name so replacing `gm.Lexicon(` with `english_lexicon(` through
+#: this file could not rewrite their own bodies into calls on themselves.
+GRAMMAR_CLASSES = {"Lexicon": gm.Lexicon, "GrammarView": gm.GrammarView, "closed_uses": gm.closed_uses}
+
+
+def english_lexicon(words, grammar=None):
+    """The words with English's grammar. THE LESSON IS READ IN ONE PLACE
+    (`teaching_sources.english_grammar`), the teaching source that teaches it into memory; `grammar.Lexicon`
+    requires a grammar and reads nothing, so a store that was never taught English reads nothing and says so
+    instead of falling back to the file."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["Lexicon"](words, english_grammar() if grammar is None else grammar)
+
+
+def grammar_view(words, grammar=None, **rest):
+    """`grammar.GrammarView` with English's grammar, read as `lexicon` reads it."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["GrammarView"](words, english_grammar() if grammar is None else grammar, **rest)
+
+
+
+def taught_english(agent):
+    """English's grammar held by a memory agent, as a teaching pass holds it (`EnglishGrammarSource` is the first
+    source a fresh store is taught). A bare agent holds no grammar and reads NOTHING -- there is no file to fall
+    back on -- so anything that reads with memory's own view must be taught it first, as a store is."""
+    from core.learning.teaching_sources import EnglishGrammarSource
+    source = EnglishGrammarSource()
+    agent._grammar_rules = {rule.key(): rule for rule in source.grammar_rules()}
+    agent._grammar_pairs = {pair.key(): pair for pair in source.grammar_pairs()}
+    return agent
+
+
+def closed_uses():
+    """Each grammar word's uses, from the lesson the teaching source reads."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["closed_uses"](english_grammar())
+
+
+
 TEXT = "Tom chased a cat."
 
 
@@ -72,7 +111,7 @@ def test_memory_learns_each_words_class_and_name_from_a_record():
 
 def test_a_word_of_the_grammars_own_no_sentence_held_is_never_a_name():
     from core.semantics.grammar_words import HeldWords
-    words = HeldWords((), gm.closed_uses(), lambda word, cls: word.lower())
+    words = HeldWords((), closed_uses(), lambda word, cls: word.lower())
     assert "NAME" not in words.uses("Who") and "wh:subject" in words.uses("Who")
     assert words.uses("Zork") == {"NAME": 1.0}
 
@@ -80,7 +119,7 @@ def test_a_word_of_the_grammars_own_no_sentence_held_is_never_a_name():
 def test_a_reading_by_the_grammar_holds_what_each_word_named():
     from core.semantics.derived_reader import _said_by_words
     from tests.test_grammar import Held
-    grammar = gm.Grammar(gm.Lexicon(Held()))
+    grammar = gm.Grammar(english_lexicon(Held()))
     read = grammar.read(gm.tokens_of("The dog chased a cat.", grammar.lexicon.words))
     said = {(" ".join(c.words), c.value) for c in _said_by_words(read)}
     assert said == {("dog", "dog"), ("chased", "chase"), ("cat", "cat")}
@@ -178,7 +217,7 @@ def test_a_verbs_frames_are_held_by_sense_and_say_each_place_by_the_places_said_
     said = peck.frames_said()
     assert said["peck"] == {conative: 1}, "chew-39.2-1 is part of chew-39.2; swat-18.2 is no class of the sense"
     assert said[""] == {conative: 1, hit: 1} and "nag" not in said
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     view.hold_word(peck)
     lexicon, name = view.grammar.lexicon, view.words.name("peck", "VERB")
     # ASKED FOR THE WHOLE HAPPENING'S PLACES AT ONCE, which is the only way a frame may be read (`places_framed`:
@@ -215,7 +254,7 @@ def test_memory_learns_a_words_forms_classes_and_names_and_the_grammar_its_frame
     agent._learn_word_record(word, index, forms, agent.structure_view())
     assert forms.bases_of("painted") == ["paint"] and index["paints"] == {"VERB": 1}
     assert agent.name_of("paint", "VERB") == "paint" and agent.name_of("paint", "NOUN") == "coating paint"
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
+    view = grammar_view(HeldWords((), closed_uses(), agent.name_of, forms=forms))
     view.hold_word(word)
     assert dict(view.words.frames("paint")) == {"intransitive": 17.0, "transitive": 30.0}
     assert view.grammar.lexicon.learned["role"][("paint", "subject")] == {"done_by": 1}
@@ -361,7 +400,7 @@ def test_a_nouns_sense_is_the_one_the_things_around_it_bear_on():
                   (("covering.n.02", "artifact covering"),), 1, covers=(76, 1675))))
     agent, forms = MemoryAgent(), HeldForms()
     agent._learn_word_record(coat, {}, forms, agent.structure_view())
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), agent.name_of, forms=forms))
+    view = grammar_view(HeldWords((), closed_uses(), agent.name_of, forms=forms))
     view.hold_word(coat)
     lexicon = view.grammar.lexicon
     lexicon.words.kinds = lambda name, cls: {"coating paint": ["coating", "artifact covering"]}.get(name, [])
@@ -383,7 +422,7 @@ def test_what_a_preposition_says_joining_things_is_held_by_what_it_takes():
                     joins_things=(("made_of", ("cheese", "food"), 2), ("word_of", (), 5),
                                   ("part_of", ("year", "time period"), 1)))
     assert not of.problems(), of.problems()
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     view.hold_word(of)
     learned = view.grammar.lexicon.learned
     assert learned["prep"][("of", "thing", "-")] == {"word_of": 5, "made_of": 2}
@@ -410,8 +449,8 @@ def test_a_verb_of_several_words_is_read_as_one_where_the_clause_ends_after_it()
     assert WordRecord("make it", make_it.forms, make_it.senses, together=(10, 91)).problems(), "four counts, or none"
     agent, forms = MemoryAgent(), HeldForms()
     agent._learn_word_record(make_it, {}, forms, agent.structure_view())
-    words = HeldWords((), gm.closed_uses(), agent.name_of, forms=forms)
-    view = gm.GrammarView(words)
+    words = HeldWords((), closed_uses(), agent.name_of, forms=forms)
+    view = grammar_view(words)
     view.hold_word(make_it)
     assert words.said_together("make", "it") == (10.0, 91.0)
     assert words.said_together("make", "it", ends=True) == (5.0, 3.0)
@@ -424,9 +463,9 @@ def test_research_takes_no_kind_from_a_word_that_names_none():
     from core.agents.memory_agent import MemoryAgent
     from core.semantics.grammar_words import HeldWords
     agent = MemoryAgent()
-    words = HeldWords((), gm.closed_uses(), agent.name_of)
+    words = HeldWords((), closed_uses(), agent.name_of)
     words.uses = lambda w: {"into": {"PREPOSITION": 196.0, "NOUN": 2.0}, "mammal": {"NOUN": 40.0}}.get(w, {})
-    agent._grammar_view = gm.GrammarView(words)
+    agent._grammar_view = grammar_view(words)
     assert not agent.says_a_kind("into")
     assert agent.says_a_kind("domestic mammal") and agent.says_a_kind("zorp"), "nothing held of it: it may"
 
@@ -456,7 +495,7 @@ def test_a_closed_words_forms_their_sounds_and_the_subjects_each_took_are_held_b
         "been", "AUXILIARY", "Tense=Past|VerbForm=Part", 3, (), (), (("NOUN", "", 1),)),), ()).problems())
     assert any("more than it was used so" in p for p in WordRecord(
         "be", be.forms, (), used_as=be.used_as, used_before_doing=(("is", "be:ng", 11),)).problems())
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     words = view.words
     for word in (a, be):
         view.hold_word(word)
@@ -494,7 +533,7 @@ def test_the_nouns_a_determiner_was_said_with_and_what_a_copula_said_things_were
     for word in (a, be):
         assert not word.problems(), word.problems()
         assert WordRecord.from_dict(json.loads(json.dumps(word.to_dict()))) == word
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     words = view.words
     for word in (a, be):
         view.hold_word(word)
@@ -552,7 +591,7 @@ def test_what_an_analysed_sentence_teaches_of_a_word_its_record_carries():
     assert WordRecord.from_dict(json.loads(json.dumps(pick.to_dict()))) == pick
     assert any("no verb form" in p for p in WordRecord("pick", pick.forms, pick.senses,
                                                        shapes=(("picks", "doing", 1),)).problems())
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     view.hold_word(pick)
     words = view.words
     assert words.capitalized("Pick").get("NAME") == 1.0
@@ -582,7 +621,7 @@ def test_how_often_a_noun_is_said_bare_is_held_from_its_record():
     assert WordRecord.from_dict(json.loads(json.dumps(wall.to_dict()))) == wall
     assert any("no noun form" in p for p in WordRecord("wall", wall.forms, wall.senses,
                                                        said_alone=(("walled", 1, 1),)).problems())
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     view.hold_word(wall)
     assert view.words.noun_alone("wall") == {"bare": 2.0, "determined": 17.0}
     view.drop_word(wall)
@@ -618,7 +657,7 @@ def test_an_adjective_is_weighed_by_what_it_is_of_and_what_that_is_a_kind_of():
                   pertains_to=(("norway.n.01", "norway", ("european country", "country")),)),))
     assert not norwegian.problems(), norwegian.problems()
     assert WordRecord.from_dict(json.loads(json.dumps(norwegian.to_dict()))) == norwegian
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of, GraphKnowledge()))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of, GraphKnowledge()))
     words, lexicon = view.words, view.grammar.lexicon
     assert lexicon.inherited("quality", "norway", "ADJECTIVE", (), "has_property")[0] == "has_property"
     view.hold_word(norwegian)
@@ -649,7 +688,7 @@ def test_what_a_verb_took_as_an_object_reaches_the_words_layer_from_a_word_recor
     assert WordForm.from_dict(json.loads(json.dumps(
         WordForm("mislead", "VERB", "VerbForm=Inf", 2).to_dict()))).objects == ()
 
-    view = gm.GrammarView(HeldWords((), gm.closed_uses(), MemoryAgent().name_of))
+    view = grammar_view(HeldWords((), closed_uses(), MemoryAgent().name_of))
     view.hold_word(misled)
     assert dict(view.words.objects("misled")) == {("PRONOUN", "Case=Acc|Number=Sing|Person=1"): 4.0,
                                                   ("NOUN", "Number=Sing"): 3.0}
@@ -689,7 +728,7 @@ def test_a_word_memory_holds_under_the_same_stamp_is_not_recorded_again():
             return word
         return Built(lambda: iter((word,)), 1, over=(("word", word.word),), one=one)
 
-    agent = MemoryAgent()
+    agent = taught_english(MemoryAgent())
     agent._word_classes_warm = True
     stored: list = []
     rows: dict = {}

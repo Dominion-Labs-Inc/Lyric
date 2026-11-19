@@ -44,6 +44,7 @@ import re
 import time
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field, replace
+from functools import lru_cache
 from pathlib import Path
 from typing import (Any, Callable, Deque, Dict, FrozenSet, Iterable, List, Mapping, Optional, Sequence, Set,
                     Tuple, Union)
@@ -877,9 +878,19 @@ class Lexicon:
     meanings: the link each of a verb's places makes, what each preposition means, how a thing is someone's, what
     each adverb says, what "is a" says (`learn`)."""
 
-    def __init__(self, words: Words, grammar: Optional[Mapping[str, Any]] = None):
+    def __init__(self, words: Words, grammar: Mapping[str, Any]):
+        #: ENGLISH'S GRAMMAR IS GIVEN, NEVER READ FROM DISK HERE. It is taught into memory like everything else
+        #: (`teaching_sources.EnglishGrammarSource`, 497 ways of reading and 87 pairs), and the one model holds it.
+        #: This read the lesson off disk whenever it was handed none, so a store that held nothing read anyway and
+        #: nothing ever said so: the model could be empty while reading went on as though it were full. There is no
+        #: second place a grammar may come from now, and a caller with none fails here saying so.
         self.words = words
-        self.grammar = dict(grammar) if grammar is not None else json.loads(ENGLISH.read_text(encoding="utf-8"))
+        if not grammar or "words" not in grammar or "classes" not in grammar:
+            raise ValueError(
+                "English's grammar was not given. It is taught into memory like everything else "
+                "(`teaching_sources.EnglishGrammarSource`, from `data/grammar/english.json`), and a store that has "
+                "not been taught it reads nothing: there is no second grammar to fall back on.")
+        self.grammar = dict(grammar)
         self.closed: Dict[str, List[Mapping[str, Any]]] = {w.lower(): list(v) for w, v in
                                                            self.grammar["words"].items()}
         self.templates: Dict[str, List[Mapping[str, Any]]] = self.grammar["classes"]
@@ -1291,7 +1302,14 @@ class Lexicon:
         for end, entry in self._together(tokens, i):
             out.append((end, entry))
         closed = self.closed.get(low, [])
-        if not any(ch.isalnum() for ch in word):
+        # A MARK IS NO WORD, EXCEPT WHERE THE GRAMMAR SAYS IT IS ONE. Nothing written without a letter or a digit
+        # in it is read as a word -- which is right for every mark but the one that carries a meaning, the
+        # apostrophe a plural's possessive is written with. It has had its row all along
+        # (`'`: `(NP.x/N.x)\NP.o`, `poss`) and this returned before any row was read, so "The dogs' bone is red."
+        # built NO STRUCTURE while "The dog's bone is red." read `owned_by(bone, dog)`: "'s" has an "s" in it and
+        # passed, "'" has nothing and did not. The lesson holds a row for exactly one mark, so this lets exactly
+        # that one through, and a mark the grammar says nothing about is still no word (2026-11-19).
+        if not any(ch.isalnum() for ch in word) and not closed:
             return out
         if _formula(word):
             # A formula written in the sentence ("100 / 4", "sqrt(144)", "15%") is one thing it speaks of, read
@@ -2470,7 +2488,10 @@ SAID_AT_MOST = 8
 #: across the whole system, traded for the sentences between the two numbers, and it was his trade to make.
 MADE_WITHOUT_GETTING_FURTHER = 6000
 #: Punctuation that closes a sentence, and what it says the speaker wants.
-CLOSING = {".": "tell", "!": "tell", "?": "ask"}
+#: THE MARKS A SENTENCE ENDS WITH, and what ending it that way makes it. The ellipsis is a telling trailing off and
+#: ends a sentence as a stop does; written as one piece ("…") or as three ("..."), neither closed anything, so a
+#: sentence ending in one was read as no sentence at all.
+CLOSING = {".": "tell", "!": "tell", "?": "ask", "…": "tell", "...": "tell"}
 
 #: THE MARKS SOMETHING SAID MAY OPEN AFTER, inside a sentence: the marks a quotation opens with, as a text or a
 #: treebank writes them, and the colon. A capitalised word standing right after one of them is capitalised for
@@ -6975,11 +6996,19 @@ def pronoun_person(word: str) -> Optional[bool]:
 
 # ── the sentences taught with their meanings, aligned to their words; the view memory keeps ────────────────────────
 
-def closed_uses(grammar: Optional[Mapping[str, Any]] = None) -> Dict[str, Set[str]]:
+def closed_uses(grammar: Mapping[str, Any]) -> Dict[str, Set[str]]:
     """Each grammar word's uses, as its entries name them ("is": `be:ng`, `be:np`, ...): how a treebank's uses of it
-    are signed (`grammar_words.HeldWords`)."""
-    data = dict(grammar) if grammar is not None else json.loads(ENGLISH.read_text(encoding="utf-8"))
-    return {w.lower(): {e["use"] for e in entries if "use" in e} for w, entries in data["words"].items()}
+    are signed (`grammar_words.HeldWords`).
+
+    THE GRAMMAR IS GIVEN. This read the lesson off disk whenever it was handed none, which is the same fallback
+    `Lexicon` had: a store holding no grammar signed a treebank's uses by the file's grammar and nothing said the
+    two could differ."""
+    if not grammar or "words" not in grammar:
+        raise ValueError(
+            "English's grammar was not given, so a treebank's uses cannot be signed. It is taught into memory "
+            "(`teaching_sources.EnglishGrammarSource`, from `data/grammar/english.json`), and there is no second "
+            "grammar to fall back on.")
+    return {w.lower(): {e["use"] for e in entries if "use" in e} for w, entries in dict(grammar)["words"].items()}
 
 
 def align_by_anchors(tokens: Sequence[str], text: str, anchors: Iterable[Tuple[str, Sequence[Any]]]
@@ -7062,10 +7091,17 @@ def align_by_names(tokens: Sequence[str], meaning: Meaning, lexicon: "Lexicon") 
     return dict(out)
 
 
-def _rules_written() -> str:
+def _rules_written(grammar: Mapping[str, Any]) -> str:
     """The rules a sentence is read by as written: this module, how it counts how words are used (`grammar_words`),
-    the grammar's own words (`data/grammar/english.json`), and the reader that chooses among what they offer
-    (`derived_reader`). What a sentence taught is kept under them, and learned again once they change.
+    the reader that chooses among what they offer (`derived_reader`), and THE GRAMMAR IN HAND -- the ways of reading
+    the one model holds, not a file's bytes. What a sentence taught is kept under them, and learned again once they
+    change.
+
+    THE GRAMMAR IS HASHED FROM WHAT MEMORY GAVE, as it must be once memory is where the grammar comes from. This
+    hashed `data/grammar/english.json` at import, before any memory exists, so once the lesson was taught the key
+    said nothing about the grammar actually read with: a grammar changed in memory looked identical across starts
+    and every remembered reading would have been served as current. That is the same failure the reader's own
+    absence caused below, and it is the one thing a key must not do.
 
     THE READER IS AMONG THEM BECAUSE THE READER DECIDES THE READING. It was left out, and three commits changed it
     between two generations of the remembered tool readings (`AutonomousCoordinator._tools_by_doing`): of the same
@@ -7075,13 +7111,27 @@ def _rules_written() -> str:
     import hashlib
     digest = hashlib.sha256()
     for path in (Path(__file__), Path(__file__).with_name("grammar_words.py"),
-                 Path(__file__).with_name("derived_reader.py"), ENGLISH):
+                 Path(__file__).with_name("derived_reader.py")):
         digest.update(path.read_bytes())
+    digest.update(json.dumps(grammar, sort_keys=True, ensure_ascii=False).encode("utf-8"))
     return digest.hexdigest()[:16]
 
 
-#: The rules what each sentence taught was learned under (`GrammarView.hold`, `MemoryAgent.keep_grammar_learning`).
-RULES = _rules_written()
+@lru_cache(maxsize=8)
+def _rules_for(written: str) -> str:
+    """`_rules_written` of a grammar already written out, kept: the key is asked for once per sentence held and the
+    modules are read from disk to make it."""
+    return _rules_written(json.loads(written))
+
+
+def rules_of(grammar: Mapping[str, Any]) -> str:
+    """The rules a grammar is read by (`_rules_written`), which is what a sentence taught is learned under
+    (`GrammarView.rules`, `MemoryAgent.keep_grammar_learning`).
+
+    THERE IS NO MODULE CONSTANT FOR THIS ANY MORE. `RULES` was computed at import from the lesson on disk, which
+    only worked while the file was the grammar; once the grammar is what memory holds, the key has to be of the
+    grammar in hand, so it is asked for with it."""
+    return _rules_for(json.dumps(grammar, sort_keys=True, ensure_ascii=False))
 
 
 def _tupled(value: Any) -> Any:
@@ -7111,7 +7161,7 @@ class GrammarView:
     PMB's), each learned from when next read; a sentence taught again corrected is taken back (`drop`) and learned
     from as corrected."""
 
-    def __init__(self, words: Words, grammar: Optional[Mapping[str, Any]] = None, structure: Optional[Any] = None):
+    def __init__(self, words: Words, grammar: Mapping[str, Any], structure: Optional[Any] = None):
         self.grammar = Grammar(Lexicon(words, grammar))
         self.grammar.structure = structure
         self._waiting: List[Any] = []
@@ -7144,12 +7194,15 @@ class GrammarView:
 
     @property
     def rules(self) -> str:
-        """What a sentence taught is learned under: the grammar's rules as written (`RULES`) and the sentences derived
-        by hand it holds, which decide which reading of a taught sentence is learned from (`hold_derived`). Learning
-        kept under other rules is learned again (`hold`, `MemoryAgent.keep_grammar_learning`)."""
+        """What a sentence taught is learned under: the grammar's rules as written, THE WAYS OF READING THIS VIEW
+        HOLDS AMONG THEM (`rules_of`), and the sentences derived by hand it holds, which decide which reading of a
+        taught sentence is learned from (`hold_derived`). Learning kept under other rules is learned again (`hold`,
+        `MemoryAgent.keep_grammar_learning`)."""
         if self._rules is None:
-            self._rules = RULES if not (self._derived or self._words) else hashlib.sha256(
-                (RULES + "".join(sorted(self._derived)) + "".join(sorted(self._words))).encode("utf-8")).hexdigest()[:16]
+            written = rules_of(self.grammar.lexicon.grammar)
+            self._rules = written if not (self._derived or self._words) else hashlib.sha256(
+                (written + "".join(sorted(self._derived))
+                 + "".join(sorted(self._words))).encode("utf-8")).hexdigest()[:16]
         return self._rules
 
     def hold_word(self, word: Any) -> None:

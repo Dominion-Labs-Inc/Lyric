@@ -289,7 +289,7 @@ def words_of_sentence(tokens):
 def main() -> int:
     from experiments._evidence import RunRecord
     from nltk.corpus import wordnet as wn
-    from core.learning.teaching_sources import PMBSource, WordNetSource
+    from core.learning.teaching_sources import english_grammar, PMBSource, WordNetSource
     from core.semantics import grammar as gm
     from core.semantics import pmb_meanings as pm
     from core.semantics.derived_reader import Meaning, MeaningFact, is_variable
@@ -305,10 +305,10 @@ def main() -> int:
                               "before unnamed)")
     started = time.perf_counter()
     EV.check("the PMB is on disk", (pmb / "split" / "en" / "dev" / "standard.sbn").exists(), str(pmb))
-    words = file_words(data / "UD_English-EWT" / "en_ewt-ud-train.conllu", gm.closed_uses())
+    words = file_words(data / "UD_English-EWT" / "en_ewt-ud-train.conllu", gm.closed_uses(english_grammar()))
     # The structure view decides which word takes which where the words' readings do not (`Grammar._joined`);
     # `--without-structure` reads as before it did.
-    view = gm.GrammarView(words, structure=None if "--without-structure" in sys.argv else
+    view = gm.GrammarView(words, english_grammar(), structure=None if "--without-structure" in sys.argv else
                           file_structure(data / "UD_English-EWT" / "en_ewt-ud-train.conllu"))
     grammar = view.grammar
     say(f"words ready ({words.sentences:,} analysed sentences), {time.perf_counter() - started:.0f}s")

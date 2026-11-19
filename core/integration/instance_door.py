@@ -167,7 +167,14 @@ class InstanceDoor:
                 understanding = await get_conversation(session, remembers=False).understand(question, look_up=False)
             finally:
                 end_conversation(session)
-            verdicts = {a.verdict for a in (understanding.answers or []) if a.verdict is not None}
+            # EVERY PART'S VERDICT, AND A VERDICT FOR THE WHOLE ONLY WHERE EVERY PART HAS ONE. This gathered the
+            # verdicts that were not None and reported the one survivor, so a text whose parts were partly
+            # unsettled came back as though it had been answered: asked "Do whales breathe air? Is a whale a
+            # mammal?" it replied "Yes. A whale's a mammal." with `verdict True` -- and the store holds no
+            # happening that fills the first question at all, so the "Yes." is the second's and the first went
+            # unanswered with nothing saying so. Unsettled is not agreement.
+            said = [a.verdict for a in (understanding.answers or [])]
+            verdicts = {v for v in said if v is not None} if said and None not in said else set()
             # WHY NOTHING ANSWERED IT, CARRIED OUT WITH THE REPLY. `_understand` gathers this for exactly this
             # reason -- "so a person asking, and anything reading the reply, is told which path stopped where
             # instead of only that there is no answer" -- and this door threw it away, which is the whole of what
@@ -178,6 +185,7 @@ class InstanceDoor:
             # question carries an empty list, since `_understand` empties it where there are answers.
             answers.append({"asked": question, "reply": understanding.reply,
                             "verdict": verdicts.pop() if len(verdicts) == 1 else None,
+                            "verdicts": said,
                             "why_not": [{name: value if isinstance(value, (str, int, float, bool, type(None)))
                                          else str(value) for name, value in reason.items()}
                                         for reason in (understanding.why_not or ())]})

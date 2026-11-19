@@ -90,7 +90,7 @@ def main() -> int:
     asked.add_argument("--only", default=None, help="one word, instead of every record in the file")
     args = asked.parse_args()
 
-    from core.learning.teaching_sources import RecordSource, WordRecord
+    from core.learning.teaching_sources import english_grammar, RecordSource, WordRecord
     from core.semantics.grammar import GrammarView, closed_uses
     from core.semantics.grammar_words import GraphKnowledge, HeldWords
     from core.semantics.structure import StructureView
@@ -113,10 +113,10 @@ def main() -> int:
     def held(record: Any) -> Dict[str, int]:
         """What is held after this record is taught into views holding nothing else, BOTH HALVES of teaching a word:
         English's grammar (`GrammarView.hold_word`) and memory's own views (`MemoryAgent._learn_word_record`)."""
-        words = HeldWords(analysed=(), closed=closed_uses(), name_of=lambda w, c: w,
+        words = HeldWords(analysed=(), closed=closed_uses(english_grammar()), name_of=lambda w, c: w,
                           knowledge=GraphKnowledge(classes=None, names=None))
         structure = StructureView()
-        view = GrammarView(words, structure=structure)
+        view = GrammarView(words, english_grammar(), structure=structure)
         forms, index, named = HeldForms(), {}, {}
         before = _snapshot(view) | _memorys(forms, structure, index, named)
         view.hold_word(record)

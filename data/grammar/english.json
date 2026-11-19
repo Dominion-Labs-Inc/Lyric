@@ -5129,6 +5129,79 @@
     "label": "letter",
     "only": true
    }
+  ],
+  "as": [
+   {
+    "cat": "(S[F].a\\S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.x)\\(S[F].e\\NP.x))/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "(S[F].a/S[F].a)/S[dcl].b",
+    "sem": [
+     [
+      "prep",
+      "a",
+      "b",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "sub"
+   },
+   {
+    "cat": "((S[F].e\\NP.z)\\(S[F].e\\NP.z))/NP.y",
+    "sem": [
+     [
+      "prep",
+      "e",
+      "y",
+      "@",
+      "-"
+     ]
+    ],
+    "use": "PREPOSITION"
+   }
+  ],
+  "’": [
+   {
+    "cat": "(NP.x/N.x)\\NP.o",
+    "sem": [
+     [
+      "poss",
+      "x",
+      "o"
+     ]
+    ],
+    "use": "poss"
+   }
+  ],
+  "/": [
+   {
+    "cat": "conj[or]",
+    "use": "conj"
+   }
   ]
  },
  "numbers": {

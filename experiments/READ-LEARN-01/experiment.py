@@ -100,7 +100,7 @@ def told_kinds(reading, words) -> list:
 def main() -> int:
     from experiments._evidence import RunRecord
     from nltk.corpus import wordnet as wn
-    from core.learning.teaching_sources import ListeningSource, PMBSource, WordNetSource
+    from core.learning.teaching_sources import english_grammar, ListeningSource, PMBSource, WordNetSource
     from core.semantics import grammar as gm
     from core.semantics import pmb_meanings as pm
     from core.semantics.composition import TaughtSentence
@@ -116,9 +116,9 @@ def main() -> int:
                               "read are no less right (F1)")
     started = time.perf_counter()
     treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu"
-    words = file_words(treebank, gm.closed_uses())
+    words = file_words(treebank, gm.closed_uses(english_grammar()))
     ends = sentence_ends(treebank)
-    view = gm.GrammarView(words, structure=file_structure(treebank))
+    view = gm.GrammarView(words, english_grammar(), structure=file_structure(treebank))
     lessons = [TaughtSentence(s, m, "lessons") for s, m in ListeningSource(tuple(
         str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
     gold = list(PMBSource.of("gold", str(pmb)).taught_sentences())

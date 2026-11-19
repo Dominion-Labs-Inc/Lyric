@@ -8,6 +8,51 @@ import pytest
 
 from core.semantics import grammar as gm
 
+#: What the helpers below build, held by name so replacing `gm.Lexicon(` with `english_lexicon(` through
+#: this file could not rewrite their own bodies into calls on themselves.
+GRAMMAR_CLASSES = {"Lexicon": gm.Lexicon, "GrammarView": gm.GrammarView, "closed_uses": gm.closed_uses}
+
+
+def english_lexicon(words, grammar=None):
+    """The words with English's grammar. THE LESSON IS READ IN ONE PLACE
+    (`teaching_sources.english_grammar`), the teaching source that teaches it into memory; `grammar.Lexicon`
+    requires a grammar and reads nothing, so a store that was never taught English reads nothing and says so
+    instead of falling back to the file."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["Lexicon"](words, english_grammar() if grammar is None else grammar)
+
+
+def grammar_view(words, grammar=None, **rest):
+    """`grammar.GrammarView` with English's grammar, read as `lexicon` reads it."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["GrammarView"](words, english_grammar() if grammar is None else grammar, **rest)
+
+
+
+def english_grammar():
+    """The lesson, read where it is read (`teaching_sources.english_grammar`)."""
+    from core.learning.teaching_sources import english_grammar as read_it
+    return read_it()
+
+
+def taught_english(agent):
+    """English's grammar held by a memory agent, as a teaching pass holds it (`MemoryAgent.remember_grammar_rules`
+    over `EnglishGrammarSource`). A bare agent holds no grammar and reads NOTHING -- there is no file to fall back
+    on any more -- so a test that reads with memory's own view must teach it first, which is what a store does."""
+    from core.learning.teaching_sources import EnglishGrammarSource
+    source = EnglishGrammarSource()
+    agent._grammar_rules = {rule.key(): rule for rule in source.grammar_rules()}
+    agent._grammar_pairs = {pair.key(): pair for pair in source.grammar_pairs()}
+    return agent
+
+
+def closed_uses():
+    """Each grammar word's uses, from the lesson the teaching source reads."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["closed_uses"](english_grammar())
+
+
+
 NOUNS = {"dog": "dog", "dogs": "dog", "cat": "cat", "ball": "ball", "whale": "whale", "whales": "whale",
          "mammal": "mammal", "mammals": "mammal", "bird": "bird", "birds": "bird", "valve": "valve", "tank": "tank",
          "shirt": "shirt", "account": "account", "park": "park", "card": "card", "cards": "card", "credit": "credit",
@@ -107,7 +152,7 @@ class Held(gm.Words):
 
 @pytest.fixture(scope="module")
 def grammar():
-    return gm.Grammar(gm.Lexicon(Held()))
+    return gm.Grammar(english_lexicon(Held()))
 
 
 def read(grammar, text: str) -> Optional[str]:
@@ -182,7 +227,7 @@ def test_words_joined_by_hyphens_are_one_word_where_memory_holds_one_and_their_w
         def spelled(self, word: str) -> Optional[str]:
             w = word.lower()
             return next((s for s in (w, w.replace("-", "")) if s in whole), None)
-    g = gm.Grammar(gm.Lexicon(Hyphened()))
+    g = gm.Grammar(english_lexicon(Hyphened()))
     barked = ("tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & {} & instance_of(?v0, bark) & "
               "precedes(?v0, ?now)")
     assert read(g, "The bullet-proof dog barked.") == barked.format("has_property(?v1, bulletproof)")
@@ -252,7 +297,7 @@ def test_a_sentence_the_grammar_cannot_read_whole_is_not_read(grammar):
 
 def test_learned_links_replace_the_grammars_own(grammar):
     from core.semantics.derived_reader import Meaning, MeaningFact
-    taught = gm.Grammar(gm.Lexicon(Held()))
+    taught = gm.Grammar(english_lexicon(Held()))
     words = gm.tokens_of("The dog sleeps in the park.", taught.lexicon.words)
     meaning = Meaning("tell", (MeaningFact("instance_of", "?d", "dog", given=True),
                                MeaningFact("instance_of", "?e", "sleep"), MeaningFact("done_by", "?e", "?d"),
@@ -276,7 +321,7 @@ def test_a_treebanks_uses_are_signed_as_the_grammars_entries_name_them():
                  (4, 4, 4, 0, 4), ("nsubj", "cop", "det", "root", "punct")),
         Analysed(("Who", "barked", "?"), ("PRONOUN", "VERB", "PUNCTUATION"), (2, 0, 2), ("nsubj", "root", "punct")),
     ]
-    words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
+    words = HeldWords(held, closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
     assert words.uses("is") == {"be:ng": 1.0, "be:np": 1.0}
     assert words.uses("who") == {"wh:subject": 1.0}
     assert words.uses("dog") == {"NOUN": 1.0}
@@ -292,7 +337,7 @@ def test_a_treebanks_things_said_of_a_doing_with_no_preposition_are_counted():
     held = [Analysed(("The", "dog", "barked", "that", "morning", "."),
                      ("DETERMINER", "NOUN", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"), (2, 3, 0, 5, 3, 3),
                      ("det", "nsubj", "root", "det", "obl:unmarked", "punct"))]
-    words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
+    words = HeldWords(held, closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
     assert words.bare_modifier("morning") == {"modifier": 1.0}
     assert words.bare_modifier("dog") == {"otherwise": 1.0}
 
@@ -313,7 +358,7 @@ def test_a_time_said_with_no_preposition_says_when_a_doing_was():
         def is_time(self, term: str) -> Optional[str]:
             return "stretch" if str(term).lower() == "morning" else None
 
-    timed = gm.Grammar(gm.Lexicon(Timed()))
+    timed = gm.Grammar(english_lexicon(Timed()))
     for said in ("That morning the dog barked.", "The dog barked that morning."):
         meaning = read(timed, said)
         assert meaning is not None and "during(?v0, " in meaning and "instance_of(?v0, bark)" in meaning, \
@@ -326,7 +371,7 @@ def test_a_sentence_taught_again_corrected_is_taken_back_from_what_was_learned()
     alone."""
     from core.semantics.composition import TaughtSentence
     from core.semantics.derived_reader import Meaning, MeaningFact
-    view = gm.GrammarView(Held())
+    view = grammar_view(Held())
 
     def taught(link):
         return TaughtSentence("The dog sleeps in the park.", Meaning("tell", (
@@ -356,7 +401,7 @@ def test_memory_reads_with_the_grammar_built_from_what_it_holds():
                                        ("NAME", "VERB", "DETERMINER", "NOUN", "PUNCTUATION"), (2, 0, 4, 2, 2),
                                        ("nsubj", "root", "det", "obj", "punct")))
     agent._grammar_links = [("lincoln", "instance of", "president"), ("president", "isa", "person")]
-    view = agent.grammar_view()
+    view = taught_english(agent).grammar_view()
     assert view.words.capitalized("Lincoln").get("NAME", 0) > 0
     assert view.words.is_person("president")
     assert view.compose_sentence("Tom chased a cat.") == view.compose_sentence("Tom chased a cat.")
@@ -387,8 +432,8 @@ def test_an_order_is_a_sentence_and_said_as_often_as_orders_are():
     often as what is said is each. "Fish swim." reads either way by its words: as seldom as orders are, it tells
     of fish swimming; were orders said as often as tellings are now, it would ask the listener to fish."""
     assert gm._rank(gm.parse_category("S[b]\\NP")) == 2 and gm._rank(gm.parse_category("NP")) == 0
-    seldom = gm.Grammar(gm.Lexicon(Ordering(ordered=7.0, told=150.0)))
-    often = gm.Grammar(gm.Lexicon(Ordering(ordered=150.0, told=7.0)))
+    seldom = gm.Grammar(english_lexicon(Ordering(ordered=7.0, told=150.0)))
+    often = gm.Grammar(english_lexicon(Ordering(ordered=150.0, told=7.0)))
     assert read(seldom, "Fish swim.") == "tell: done_by(?v0, fish) & instance_of(?v0, swim)"
     assert read(often, "Fish swim.").startswith("request:"), read(often, "Fish swim.")
 
@@ -405,7 +450,7 @@ def test_a_treebanks_orders_are_counted_from_who_does_the_doing():
         Analysed(("Who", "barked", "?"), ("PRONOUN", "VERB", "PUNCTUATION"), (2, 0, 2), ("nsubj", "root", "punct")),
         Analysed(("UPDATE", ":"), ("NOUN", "PUNCTUATION"), (0, 1), ("root", "punct")),
     ]
-    words = HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
+    words = HeldWords(held, closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower()))
     assert words.orders() == (1.0, 1.0)
 
 
@@ -414,7 +459,7 @@ def test_what_a_happening_was_during_is_learned_a_time():
     (`Lexicon.time_of`): learned from the lessons where memory holds nothing of what a morning is. A happening
     another was during ("The dog barked when the cat ran.") is no time: counted as one, `run` was."""
     from core.semantics.derived_reader import Meaning, MeaningFact as F
-    g = gm.Grammar(gm.Lexicon(Held()))
+    g = gm.Grammar(english_lexicon(Held()))
     assert g.lexicon.time_of("morning") is None
     barked = Meaning("tell", (F("instance_of", "?v0", "bark"), F("during", "?v0", "?v1"),
                               F("instance_of", "?v1", "morning")))
@@ -435,13 +480,13 @@ def test_what_a_sentence_taught_is_kept_and_not_learned_again():
     taught = TaughtSentence("The dog barked in the morning.",
                             Meaning("tell", (F("instance_of", "?v0", "bark"), F("during", "?v0", "?v1"),
                                              F("instance_of", "?v1", "morning"))))
-    first = gm.GrammarView(Held())
+    first = grammar_view(Held())
     first.hold(taught)
     assert first.learn_waiting() == 1
     kept = first.unkept()
     assert list(kept) == [taught.key()] and first.unkept() == {}, "each is given once"
     stored = [[table, list(key), list(link) if isinstance(link, tuple) else link] for table, key, link in kept[taught.key()]]
-    second = gm.GrammarView(Held())
+    second = grammar_view(Held())
     second.hold(taught, stored)
     assert second.learn_waiting() == 0, "nothing is read again"
     assert second.learned_from == 1
@@ -463,7 +508,7 @@ def test_reading_teaches_how_words_are_used_only_where_it_may_and_once():
                      ("det", "nsubj", "root", "punct"))]
 
     def view():
-        return gm.GrammarView(HeldWords(held, gm.closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower())))
+        return grammar_view(HeldWords(held, closed_uses(), lambda word, cls: VERBS.get(word.lower(), word.lower())))
     reader = view()
     before = dict(reader.words.uses("dog"))
     reader.read("The dog barked.")
@@ -498,7 +543,7 @@ def test_what_a_preposition_says_is_decided_by_what_its_thing_is():
 
         def kinds(self, name: str, cls: str):
             return kinds.get(name, [])
-    g = gm.Grammar(gm.Lexicon(Kinds()))
+    g = gm.Grammar(english_lexicon(Kinds()))
 
     def teach(sentence: str, link: F, what: str, given: bool) -> None:
         meaning = Meaning("tell", (F("instance_of", "?v0", "bark"), F("done_by", "?v0", "?v1"),
@@ -523,7 +568,7 @@ def test_a_kind_memory_takes_in_is_known_at_once():
     from core.semantics.grammar_words import GraphKnowledge, HeldWords
     knowledge = GraphKnowledge()
     knowledge.add("university", "isa", "institution")
-    words = HeldWords((), gm.closed_uses(), lambda word, cls: word.lower(), knowledge)
+    words = HeldWords((), closed_uses(), lambda word, cls: word.lower(), knowledge)
     assert words.kinds("harvard", "NOUN") == []
     words.hear_kind("Harvard", "instance_of", "university")
     assert words.kinds("harvard", "NOUN") == ["university", "institution"]
@@ -533,7 +578,7 @@ def test_a_kind_memory_takes_in_is_known_at_once():
 def test_words_joined_by_hyphens_are_held_as_memory_spells_them():
     from core.semantics.grammar_words import GraphKnowledge, HeldWords
     held = {"bulletproof": {"ADJECTIVE": 1.0}, "ice cream": {"NOUN": 1.0}, "know-how": {"NOUN": 1.0}}
-    words = HeldWords((), gm.closed_uses(), lambda word, cls: word.lower(),
+    words = HeldWords((), closed_uses(), lambda word, cls: word.lower(),
                       GraphKnowledge(classes=lambda w: held.get(w.lower(), {})))
     assert [words.spelled(w) for w in ("bullet-proof", "ice-cream", "Know-how", "novel-based")] == [
         "bulletproof", "ice cream", "know-how", None]
@@ -596,7 +641,7 @@ def test_a_derivations_words_are_named_as_the_grammars_entries_name_them():
     (`Lexicon.uses_derived`), what the bank says otherwise put as the grammar says it: a phrase of a preposition a
     verb takes ("gave milk to the cat") read as telling of the giving, so "gave" takes the milk alone; "my" before a
     relational noun ("my uncle") the grammar's determiner; a verb's frame from its category."""
-    lexicon = gm.Lexicon(Held())
+    lexicon = english_lexicon(Held())
     gave = _derived([("Tom", "n"), ("gave", "((s:dcl\\np)/pp)/np"), ("milk", "n"), ("to", "pp/np"), ("the", "np/n"),
                      ("cat", "n"), (".", ".")], ["NNP", "VBD", "NN", "TO", "DT", "NN", "."],
                     ("rp", "s:dcl", ("ba", "s:dcl", ("lx", "np", "n", 0),
@@ -661,7 +706,7 @@ def test_a_degree_word_grades_the_quality_or_the_doings_quality_it_is_said_of():
             if w == "very":
                 return {"ADVERB:degree": 50.0, "ADVERB": 2.0}
             return {"ADVERB": 10.0} if w == "loudly" else super().uses(word)
-    g = gm.Grammar(gm.Lexicon(Graded()))
+    g = gm.Grammar(english_lexicon(Graded()))
     assert read(g, "The dog is very happy.") == (
         "tell: given instance_of(?v0, dog) & has_degree(?v0, ?v1) & has_property(?v1, very) & instance_of(?v1, happy)")
     assert read(g, "The dog barked very loudly.") == (
@@ -684,7 +729,7 @@ def test_a_words_category_is_chosen_beside_the_words_around_it():
         def name(self, word, cls):
             return "fight" if word.lower() == "fight" else super().name(word, cls)
 
-    view = gm.GrammarView(Fight())
+    view = grammar_view(Fight())
     lexicon = view.grammar.lexicon
     before = lexicon._evidence(("Dogs", "will", "fight", "."), 2)
     assert before["NOUN"] > before["VERB"]
@@ -699,7 +744,10 @@ def test_a_words_category_is_chosen_beside_the_words_around_it():
         view.hold_derived(item)
         view.hold_derived(item)
     assert lexicon.derived["uses"][""]["VERB"] == 4, "each sentence is counted once"
-    assert view.rules != gm.RULES
+    # THE RULES ARE OF THE GRAMMAR IN HAND, never a module constant: `gm.RULES` was computed at import from the
+    # lesson on disk, which could only be right while the file was the grammar.
+    plain = gm.rules_of(english_grammar())
+    assert view.rules != plain
     after_will = lexicon._evidence(("Dogs", "will", "fight", "."), 2)
     assert after_will["VERB"] > after_will["NOUN"]
     after_the = lexicon._evidence(("The", "fight", "ended", "."), 1)
@@ -712,7 +760,7 @@ def test_a_words_category_is_chosen_beside_the_words_around_it():
     assert alone["intransitive"] > alone["transitive"]
     for item in held:
         view.drop_derived(item)
-    assert not any(lexicon.derived["uses"].values()) and view.rules == gm.RULES
+    assert not any(lexicon.derived["uses"].values()) and view.rules == plain
 
 
 def test_memory_hands_the_sentences_it_holds_derived_to_the_grammar():
@@ -731,8 +779,9 @@ def test_memory_hands_the_sentences_it_holds_derived_to_the_grammar():
                                                                  F("done_by", "?v0", "?v1"),
                                                                  F("instance_of", "?v1", "dog", given=True))))
     agent._grammar_taught = {taught.key(): taught}
-    agent._grammar_learned = {taught.key(): ("m1", [["verb", ["bark"], ""]], gm.RULES)}
-    view = agent.grammar_view()
+    agent._grammar_learned = {taught.key(): ("m1", [["verb", ["bark"], ""]],
+                                             gm.rules_of(english_grammar()))}
+    view = taught_english(agent).grammar_view()
     assert view.grammar.lexicon.derived["uses"]["barked"] == {"VERB": 1}
     assert view.learn_waiting() == 1, "learned under the rules before the derivations: learned again"
 
@@ -753,7 +802,7 @@ def test_a_verbs_places_are_learned_from_the_sentence_as_derived():
                        ["NNP", "VBD", "DT", "NN", "."],
                        ("rp", "s:dcl", ("ba", "s:dcl", ("lx", "np", "n", 0), ("fa", "s:dcl\\np", 1, ("fa", "np", 2, 3))),
                         4), "pmb/p00/d0001", "Tom chased the cat.")
-    view = gm.GrammarView(Held())
+    view = grammar_view(Held())
     view.hold_derived(derived)
     view.hold(taught)
     view.learn_waiting()
@@ -766,7 +815,7 @@ def test_a_verbs_places_are_learned_from_the_sentence_as_derived():
                                                 [derived], taught.sentence, counted)
     assert placed == {1} and sorted(counted) == roles, "the derivation placed the verb's places"
     view.grammar.unlearn(counted)
-    alone = gm.GrammarView(Held())
+    alone = grammar_view(Held())
     alone.hold(taught)
     alone.learn_waiting()
     assert sorted(c for c in alone._counted[taught.key()] if c[0] == "role") == sorted(roles)
@@ -801,7 +850,7 @@ def test_which_word_takes_which_is_decided_by_how_the_structure_view_joins_them(
     said = "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & given instance_of(?v2, cat) " \
            "& given instance_of(?v3, park) & instance_of(?v0, chase) & precedes(?v0, ?now) & "
     for head, where in ((None, "word_in(?v0, ?v3)"), ("chased", "word_in(?v0, ?v3)"), ("cat", "word_in(?v2, ?v3)")):
-        g = gm.Grammar(gm.Lexicon(Held()))
+        g = gm.Grammar(english_lexicon(Held()))
         g.structure = Joins(head) if head else None
         assert read(g, "The dog chased the cat in the park.") == said + where, head
 
@@ -822,7 +871,7 @@ def test_a_meaning_is_said_only_in_sentences_the_grammar_reads_back_to_it():
     gives exactly the meaning said, a kind said of a kind with one word saying `be` ("is" and "'s" both say it, the
     one said only as surely as it is read), never a question's word in a telling; nothing said of a thing no word is
     held for."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),))
     said = g.say(meaning)
     assert said
@@ -869,7 +918,7 @@ def test_the_word_a_thing_is_used_to_be_spoken_of_by_is_said_before_a_word_that_
     thing is spoken of by: "Fe is a metallic element." of iron, which memory holds "iron" used for 17 times and
     "fe" 2; "creature" (18) for `animal` (78); "tel" (20) for `telephone` (26). Both words are still said: the rarer
     one is weighed below the other, never refused (lyric_db, 2026-11-02)."""
-    g = gm.Grammar(gm.Lexicon(UsedFor()))
+    g = gm.Grammar(english_lexicon(UsedFor()))
     meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),))
     said = g.say(meaning)
     assert said, "nothing said of a dog being a mammal"
@@ -884,7 +933,7 @@ def test_the_word_a_thing_is_used_to_be_spoken_of_by_is_said_before_a_word_that_
         def used_for(self, name: str, cls: str) -> Mapping[str, float]:
             return {"mammal": 30.0, "beast": 30.0} if name == "mammal" and cls == "NOUN" \
                 else super().used_for(name, cls)
-    alike = gm.Grammar(gm.Lexicon(Alike())).say(meaning)
+    alike = gm.Grammar(english_lexicon(Alike())).say(meaning)
     assert "beast" in alike[0].lower(), alike[:4]
     assert any("mammal" in s.lower() for s in alike), alike
 
@@ -898,7 +947,7 @@ def test_do_support_takes_no_auxiliary_that_carries_its_own_tense_except_in_an_o
     and nothing in the categories stood in the way. Of the eight sentences saying offered for `ask isa(dog, animal)`
     the first four began "Does a dog be", and with the copula alone refused "Does Roy have painted a wall?" was
     still said third of eight (lyric_db, 2026-11-02)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
 
     def reads(sentence: str):
         return g.read(gm.tokens_of(sentence, g.lexicon.words)).meaning
@@ -926,7 +975,7 @@ def test_do_support_takes_no_auxiliary_that_carries_its_own_tense_except_in_an_o
 
 def test_a_happening_is_said_with_its_doer_and_what_it_was_done_to():
     """A sentence read, said again: the meaning it read to said by the same grammar, read back to the same meaning."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
     said = g.say(told)
     assert said and all(read(g, s) == told.canonical() for s in said)
@@ -999,7 +1048,7 @@ class Sounding(Speaking):
 def test_a_or_an_is_said_as_the_word_after_it_is_said():
     """Of the forms of "a" the analysts mark nothing apart, the one said before the word after it, by its first sound
     (`Lexicon._sound_after`): "an owl", "a bird"; read, "a owl" is read less surely than "an owl"."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "owl", "bird"),)))
     assert said and said[0].startswith("An owl "), said[:5]
     # Saying stops once it has said enough (`SAID_AT_MOST`): "an bird", less sure, is said after "a bird" or never.
@@ -1014,7 +1063,7 @@ def test_a_or_an_is_said_as_the_word_after_it_is_said():
 def test_a_subject_agrees_with_its_verb_as_the_subjects_it_took():
     """A subject weighed with its verb's finite form by the subjects that form took (`Grammar._agreement`): "a dog
     am" is read less surely than "a dog is", and what is said of a dog being a mammal first says it agreeing."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
             for text in ("A dog is a mammal.", "A dog am a mammal.", "Dogs are mammals.", "Dogs is mammals.")}
     assert sure["A dog is a mammal."] > sure["A dog am a mammal."]
@@ -1087,7 +1136,7 @@ def test_a_form_the_sound_after_it_decides_is_not_weighed_by_how_often_it_is_wri
             return {"owl": 78.0, "bird": 18.0} if name == "fowl" and cls == "NOUN" \
                 else super().used_for(name, cls)
 
-    g = gm.Grammar(gm.Lexicon(Gap()))
+    g = gm.Grammar(english_lexicon(Gap()))
     meaning = gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "fowl"),))
     said = g.say(meaning)
     assert said and all(read(g, s) == meaning.canonical() for s in said)
@@ -1100,7 +1149,7 @@ def test_a_determiner_agrees_with_its_noun_and_a_thing_with_what_it_is_said_to_b
     things said to be such (`Grammar._met`), wherever the two first stand together: "a mammals" is read less surely
     than "a mammal" though "is a" is composed before the noun; "Dogs are a mammal." less surely than "Dogs are
     mammals."; what is said first of a dog being a mammal agrees throughout."""
-    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    g = gm.Grammar(english_lexicon(Agreeing()))
     sure = {text: g.read(gm.tokens_of(text, g.lexicon.words)).sign.score
             for text in ("A dog is a mammal.", "A dog is a mammals.", "Dogs are mammals.", "Dogs are a mammal.")}
     assert sure["A dog is a mammal."] > sure["A dog is a mammals."] + 1.0, sure
@@ -1113,7 +1162,7 @@ def test_a_finite_verb_is_kept_apart_by_its_form_until_its_subject_is_taken():
     """Saying keeps "is" and "are" apart while their subject is yet to come, as the subject is weighed with the form:
     a dog being a mammal is said "A dog is a mammal." and "Dogs are mammals.", each form with the subject it agrees
     with. Packed by meaning alone, one form was kept for every subject ("The medal were painted.", 2026-10-28)."""
-    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    g = gm.Grammar(english_lexicon(Agreeing()))
     said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "dog", "mammal"),)))
     assert "A dog is a mammal." in said and "Dogs are mammals." in said, said[:8]
 
@@ -1122,7 +1171,7 @@ def test_the_speakers_verb_is_their_word_in_any_form_and_their_noun_as_they_wrot
     """The speaker's own words (`named`) are said before others: a verb as any of its forms, its subject and time
     choosing which ("chase" asked, "chased" said of a chasing before now); a noun as written, its form saying how
     many ("cat" asked, never "cats" said of one cat)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
     said = g.say(told, named={"chase": "chase", "cat": "cat"})
     assert said and "chased" in said[0].split() and "did" not in said[0].split(), said[:5]
@@ -1134,7 +1183,7 @@ def test_another_is_one_of_a_kind_not_one_given_and_is_said_only_so():
     "Tom chased another cat." is a cat chased, a cat known, the two NOT THE SAME THING (`same_as` denied, never
     `equals`: two cats are not a number), and is said back of that meaning, first;
     of a dog being a mammal, "another" is never said. Saying nothing, it was read as "a"."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased another cat.", g.lexicon.words)).meaning
     facts = {(f.relation, f.positive, f.given) for f in told.facts}
     assert ("same_as", False, False) in facts and ("instance_of", True, True) in facts, told.canonical()
@@ -1148,7 +1197,7 @@ def test_any_is_one_of_a_kind_only_where_denied_asked_or_supposed():
     """"Any" is read as a thing of its kind where a denial, a question or an "if" takes it (Ladusaw 1979; the
     Parallel Meaning Bank's "Tom didn't break any laws."), as "a" is; told with none of these, the meaning language
     has no words for it, so it is never said for "a"."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     assert read(g, "Did Tom chase any cat?") == read(g, "Did Tom chase a cat?")
     assert g.read(gm.tokens_of("Tom did not chase any cat.", g.lexicon.words)).meaning is not None
     assert g.read(gm.tokens_of("Tom chased any cat.", g.lexicon.words)).meaning is None
@@ -1161,7 +1210,7 @@ def test_some_is_a_thing_of_its_kind_and_never_the_kind():
     "a potato"), and never the kind: "Some dogs bark." tells of some dogs, where "Dogs bark." tells of dogs, and what
     a thing is said to be with "some" is no kind it is of (Partee 1987). In saying, it says nothing a meaning holds,
     as "a" does."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     assert read(g, "Tom chased some dogs.") == read(g, "Tom chased a dog.")
     some_dogs = g.read(gm.tokens_of("Some dogs bark.", g.lexicon.words)).meaning
     assert any(f.relation == "instance_of" and f.obj == "dog" and gm.is_variable(f.subject) for f in some_dogs.facts)
@@ -1192,7 +1241,7 @@ def test_a_name_memorys_store_writes_joined_is_said_as_reading_writes_it():
     (`award_decoration`); a sentence said is read back to reading's name (`award decoration`). Compared as written,
     no sentence was the meaning, nothing was said, and "What did Roy fasten?" was answered "Medal." (TRAIN-FORMAT-01,
     lyric_dev2, 2026-10-28)."""
-    g = gm.Grammar(gm.Lexicon(Awarding()))
+    g = gm.Grammar(english_lexicon(Awarding()))
     told = gm.Meaning("tell", (gm.MeaningFact("done_by", "?v0", "tom"), gm.MeaningFact("done_to", "?v0", "?k0"),
                                gm.MeaningFact("instance_of", "?k0", "award_decoration", given=True),
                                gm.MeaningFact("instance_of", "?v0", "chase"), gm.MeaningFact("precedes", "?v0", "?now")))
@@ -1208,7 +1257,7 @@ def test_a_word_saying_nothing_is_said_only_where_something_needs_it():
     assert gm._leaves_as_is(gm.parse_category("NP.x/NP.x")) and gm._leaves_as_is(gm.parse_category("S[F].a/S[F].a"))
     assert not gm._leaves_as_is(gm.parse_category("S[em].c/S[dcl].c"))
     assert not gm._leaves_as_is(gm.parse_category("(S[to].e\\NP.x)/(S[b].e\\NP.x)"))
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased a cat.", g.lexicon.words)).meaning
     said = g.say(told)
     assert "Tom chased a cat." in said
@@ -1220,7 +1269,7 @@ def test_a_doing_of_five_facts_is_said_kay_binding():
     """KAY BINDING: each word put in bound to the meaning's terms ("in" to the chasing and the park), what can never be
     completed dropped, a word taking what no word can make not offered: "Tom chased a cat in the park." is said, every
     sentence reading back to it (unbound, it was never said: 131,665 items after 90 s)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = g.read(gm.tokens_of("Tom chased a cat in the park.", g.lexicon.words)).meaning
     said = g.say(told)
     assert "Tom chased a cat in the park." in said, said[:6]
@@ -1232,7 +1281,7 @@ def test_a_verbs_place_is_what_its_frame_says_by_the_places_said_with_it():
     VerbNet's frames, as the PMB's roles are): falling is done to the one falling ("NP:Patient V"); "in" after
     "chase" where to, as the frame said with a thing chased and "in" says; a verb no frame is held of by the
     grammar's own links; and what a sentence taught said of the verb's place stands over its frames."""
-    g = gm.Grammar(gm.Lexicon(Held()))
+    g = gm.Grammar(english_lexicon(Held()))
     lexicon = g.lexicon
     assert read(g, "The dog fell.") == (
         "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, fall) & precedes(?v0, ?now)")
@@ -1285,7 +1334,7 @@ def test_a_things_sense_is_taken_by_the_place_of_the_doing_it_fills():
         def kinds(self, name: str, cls: str) -> Sequence[str]:
             return kinds.get(name, []) if cls == "NOUN" else []
 
-    lexicon = gm.Lexicon(Eaten())
+    lexicon = english_lexicon(Eaten())
     # Two senses of "egg", the reproductive body named by the word and the foodstuff named apart, with how much each
     # of them and each of their kinds covers of what was said (`WordSense.covers`, Resnik's information).
     lexicon.thing_used["egg"].update({"egg": 10, "foodstuff egg": 3})
@@ -1323,7 +1372,7 @@ def test_what_a_verb_memory_holds_no_form_of_says_of_its_subject_is_answered_onc
         def form_features(self, word: str, cls: str) -> Mapping[str, float]:
             return {}
 
-    g = gm.Grammar(gm.Lexicon(NoForms()))
+    g = gm.Grammar(english_lexicon(NoForms()))
     assert g._agrees_as("sparkles") == "", "a verb memory holds no form of says nothing of its subject"
     assert g._written_like("twinkles") == "", "nor do the verbs written as it is, memory holding no form of them"
     assert g._subjects_like("sparkles") == {}, "so there is nothing to weigh its subject by"
@@ -1348,7 +1397,7 @@ def test_saying_keeps_how_surely_each_sentence_it_says_reads_back():
     and never how surely, so the number reading already made at the deciding place was thrown away. Each sentence said
     now carries the share of its whole readings which is the meaning asked for (`Reading.sure`), the sentence said
     first at the head, and a sentence nothing else can be read from stands above one of several readings."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     told = gm.Meaning("tell", (gm.MeaningFact("isa", "owl", "bird"),))
     how_surely: dict = {}
     said = g.say(told, how_surely=how_surely)
@@ -1366,7 +1415,7 @@ def test_saying_keeps_how_surely_each_sentence_it_says_reads_back():
 
 def test_how_surely_is_not_filled_where_nothing_is_said():
     """Nothing said is not something said unsurely: `how_surely` is emptied, and `why` says why instead."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     how_surely: dict = {"left": 0.5}
     why: dict = {}
     assert g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "griffin", "mammal"),)),
@@ -1381,7 +1430,7 @@ def test_reading_says_which_words_memory_does_not_hold():
     words taught. "This sparkles." read whole at 0.915 sure with `sparkles` a concept minted from its own letters
     (lyric_db, 2026-10-30). `sure` is the reading's share of every whole reading, which is sureness about STRUCTURE;
     nothing said how much of the sentence memory holds, and now the reading itself does."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     words = g.lexicon.words
 
     def unheld(text: str) -> tuple:
@@ -1410,7 +1459,7 @@ def test_a_sentence_that_reads_no_whole_says_the_word_nothing_holds():
     """Why a sentence did not read is worth the word it turned on: a reading that reads no whole now says which of
     its words memory does not hold, where before the two causes -- a grammar that cannot join them and a word nobody
     taught -- arrived as one sentence of English with nothing to tell them apart."""
-    g = gm.Grammar(gm.Lexicon(Sounding()))
+    g = gm.Grammar(english_lexicon(Sounding()))
     words = g.lexicon.words
     reading = g.read(gm.tokens_of("Zarquon blerf zib quux glorp wibble frob.", words))
     if reading.sign is None:
@@ -1449,7 +1498,7 @@ def test_a_form_saying_nothing_of_a_feature_is_no_evidence_of_having_none():
             return self._held.get(word.lower(), {})
 
     def features_of(held, token, cls="PRONOUN"):
-        g = gm.Grammar(gm.Lexicon(TwoWays(held)))
+        g = gm.Grammar(english_lexicon(TwoWays(held)))
         g._tokens = (token,)
         g._agreeing = {}
         return dict(g._features(cls, 0))
@@ -1503,7 +1552,7 @@ def test_a_subject_form_no_verb_ever_took_is_evidence_against_not_no_evidence():
                     "they": {"Case=Nom|Number=Plur|Person=3": 1.0}}.get(word.lower(), {})
 
     def agreed(subject, verb="is"):
-        g = gm.Grammar(gm.Lexicon(Subjects()))
+        g = gm.Grammar(english_lexicon(Subjects()))
         g._tokens, g._agreeing = (subject,), {}
         words = g.lexicon.words
         return g._agreed(words.subjects(verb), words.subjects(), "PRONOUN", 0)
@@ -1549,14 +1598,14 @@ def test_a_verb_no_subject_was_held_of_is_weighed_by_the_verbs_written_as_it_is(
                     "stink": {"VerbForm=Inf": 1.0}}.get(word.lower(), {})
 
     def agreed(subject, verb):
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (subject,), {}
         words = g.lexicon.words
         return g._agreed(words.subjects(verb) or g._subjects_like(verb), words.subjects(), "NOUN", 0)
 
     # WRITTEN AS A VERB WITH SUBJECTS, a verb with none of its own is weighed by what those took.
-    assert gm.Grammar(gm.Lexicon(Few()))._agrees_as("stinks") == \
-        gm.Grammar(gm.Lexicon(Few()))._agrees_as("barks"), "the two are written as the same form"
+    assert gm.Grammar(english_lexicon(Few()))._agrees_as("stinks") == \
+        gm.Grammar(english_lexicon(Few()))._agrees_as("barks"), "the two are written as the same form"
     assert agreed("person", "stinks") > agreed("people", "stinks") + 1.0, \
         (agreed("person", "stinks"), agreed("people", "stinks"))
     # And it is weighed as the verb it is written as is, neither better nor worse.
@@ -1564,7 +1613,7 @@ def test_a_verb_no_subject_was_held_of_is_weighed_by_the_verbs_written_as_it_is(
 
     # A FORM WRITTEN AS NOTHING ELSE IS is weighed by nothing, rather than by whatever else has no subjects: an
     # infinitive takes no subject, so nothing of the finite forms' subjects is borrowed for it.
-    g = gm.Grammar(gm.Lexicon(Few()))
+    g = gm.Grammar(english_lexicon(Few()))
     g._tokens, g._agreeing = ("person",), {}
     assert g._subjects_like("stink") == {}
 
@@ -1578,7 +1627,7 @@ def test_the_one_grammar_word_a_thing_is_said_by_is_found_whatever_the_thing_is(
     None of the three was ever weighed against a verb or kept apart from the others by its case, so they packed
     together and the surest alone was said: of the speaker and another being intelligent, "Ourselves is intelligent."
     was all there was, and it was the one reading, said at 1.000 (lyric_db, 2026-10-30)."""
-    g = gm.Grammar(gm.Lexicon(Held()))
+    g = gm.Grammar(english_lexicon(Held()))
     g._tokens = ("we", "are", "happy")
 
     def said_by(pieces, ref):
@@ -1641,7 +1690,7 @@ def test_a_subject_already_raised_is_weighed_against_its_verb_like_any_other():
 
     def said_with(subject: str, verb: str) -> float:
         """What the rule weighs joining the subject, stated raised, to the phrase its verb heads."""
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
         left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
         right = gm.Sign(phrase, (("finite", raised.res.ref, 1),), 0.0, 1, 3, ">")
@@ -1652,7 +1701,7 @@ def test_a_subject_already_raised_is_weighed_against_its_verb_like_any_other():
     def composed_with(subject: str, verb: str) -> float:
         """What the rule weighs composing the subject with its verb, before the verb has taken its adjective: the
         other way the same sentence is built, and the way that was cheapest while it went unweighed."""
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
         taking = gm.parse_category("(S[dcl].e\\NP.x)/(S[adj].e\\NP.x)")
         left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
@@ -1716,7 +1765,7 @@ def test_a_thing_standing_after_a_verb_is_weighed_by_what_stood_there_before():
 
     def stood_after(verb: str, thing: str) -> float:
         """What the rule weighs the verb taking the thing after it."""
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (verb, thing), {}
         left = gm.Sign(taking, (), 0.0, 0, 1, "lex", head=0)
         right = gm.Sign(gm.parse_category("NP.y"), (("word", 1, "GRAMMAR", 1, 2),), 0.0, 1, 2, "lex", head=1)
@@ -1769,13 +1818,13 @@ def test_a_subject_of_a_verb_that_agrees_in_nothing_is_still_weighed_by_its_case
             return {"is": {"Mood=Ind|Number=Sing|Person=3|Tense=Pres|VerbForm=Fin": 229.0},
                     "misled": {"Tense=Past|VerbForm=Fin": 40.0}}.get(word.lower(), {})
 
-    g = gm.Grammar(gm.Lexicon(Few()))
+    g = gm.Grammar(english_lexicon(Few()))
     # CASE IS WHAT A VERB IS NEVER WRITTEN WITH, so it is what is left to mark the place.
     assert g._marking_features() == {"Case"}, g._marking_features()
     assert "Number" in g._shared_features() and "Person" in g._shared_features()
 
     def stood_as_subject(word: str, verb: str) -> float:
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (word, verb), {}
         subject = gm.Sign(gm.parse_category("NP.x"), (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex", head=0)
         doing = gm.Sign(gm.parse_category("S[dcl].e\\NP.x"), (("finite", 1, 1),), 0.0, 1, 2, "lex", head=1)
@@ -1817,15 +1866,15 @@ def test_a_verb_memory_holds_no_form_of_is_weighed_by_the_verbs_ending_as_it_doe
                     "stinks": {"Mood=Ind|Number=Sing|Person=3|VerbForm=Fin": 5.0},
                     "bark": {"Mood=Ind|Number=Plur|Person=3|VerbForm=Fin": 4.0}}.get(word.lower(), {})
 
-    g = gm.Grammar(gm.Lexicon(Few()))
+    g = gm.Grammar(english_lexicon(Few()))
     # MEMORY HOLDS NO FORM OF IT, and the verbs ending as it does say what it says.
     assert g.lexicon.words.form_features("sparkles", "VERB") == {}
     assert g._agrees_as("sparkles") == g._agrees_as("barks"), g._agrees_as("sparkles")
     # A word ending like nothing memory holds is left saying nothing, rather than guessed at.
-    assert gm.Grammar(gm.Lexicon(Few()))._agrees_as("zzq") == ""
+    assert gm.Grammar(english_lexicon(Few()))._agrees_as("zzq") == ""
 
     def agreed(subject: str, verb: str) -> float:
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (subject,), {}
         words = g.lexicon.words
         return g._agreed(words.subjects(verb) or g._subjects_like(verb), words.subjects(), "PRONOUN", 0)
@@ -1925,7 +1974,7 @@ def test_a_thing_stands_after_a_verb_only_as_its_form_says_it_may():
     def stands(verb: gm.Cat, word: str, own: bool, by: str = "?speaker") -> bool:
         """Whether the verb may take the word standing after it, by the word's form alone. `by`: the thing the
         doing is done by, as the verb's own place holds it (`roles_bound` binds it before a word is put in)."""
-        g = gm.Grammar(gm.Lexicon(Held()))
+        g = gm.Grammar(english_lexicon(Held()))
         g._tokens, g._agreeing = ("misled", word), {}
         pieces = (("role", "e", by, "subject", 0), ("word", "misled", "VERB", 0, 1))
         doing = gm.Sign(verb, pieces, 0.0, 0, 1, "lex", head=0)
@@ -1943,7 +1992,7 @@ def test_a_thing_stands_after_a_verb_only_as_its_form_says_it_may():
     assert not stands(other, "myself", own=True, by="?previous"), '"They misled myself." is no sentence of English'
 
     # A THING SAID BY A WORD OF ITS OWN STANDS AS IT IS, having no form saying it is the subject again.
-    g = gm.Grammar(gm.Lexicon(Held()))
+    g = gm.Grammar(english_lexicon(Held()))
     g._tokens, g._agreeing = ("misled", "Tom"), {}
     named = gm.Sign(gm.parse_category("(S[dcl].e\\NP.tom)/NP.tom"),
                     (("role", "e", "tom", "subject", 0), ("word", "misled", "VERB", 0, 1)), 0.0, 0, 1, "lex", head=0)
@@ -1979,7 +2028,7 @@ def test_a_thing_no_word_names_is_said_by_a_pronoun():
                             F("has_member", "?v1", "?speaker")))
     assert not [k for k in gm._things_said(ours) if k[1] == "PRONOUN"], gm._things_said(ours)
 
-    grammar = gm.Grammar(gm.Lexicon(Held()))
+    grammar = gm.Grammar(english_lexicon(Held()))
     said = {word for word, _, _ in grammar._pronouns()}
     assert {"he", "him", "they", "them", "it", "himself", "themselves"} <= said, sorted(said)
     assert not said & {"i", "me", "myself", "you", "we", "us", "ourselves"}, sorted(said)
@@ -1995,7 +2044,7 @@ def test_a_possessive_says_what_a_thing_is_owned_by():
     at all. Of the 108 PMB gold sentences main reads exactly, the six holding an `owned_by` fact said nothing, and
     `I lost my sunglasses.` was still being searched after 10,000 chart items with no sentence ever read back; said
     here, it comes back in 1,413 items (2026-10-31)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     meaning = gm.Meaning("tell", (gm.MeaningFact("instance_of", "?v0", "ball"),
                                   gm.MeaningFact("owned_by", "?v0", "?speaker"),
                                   gm.MeaningFact("has_property", "?v0", "red")))
@@ -2098,7 +2147,7 @@ def test_a_qualitys_sense_is_taken_by_the_thing_it_is_said_of():
         def kinds(self, name: str, cls: str) -> Sequence[str]:
             return kinds.get(name, []) if cls == "NOUN" else []
 
-    lexicon = gm.Lexicon(SaidOf())
+    lexicon = english_lexicon(SaidOf())
     lexicon.quality_used[("hot", "ADJECTIVE")].update({"hot": 12, "spicy hot": 4})
     lexicon.quality_seen[("hot", "ADJECTIVE")]["hot"].update({"dog": 40})
     lexicon.quality_seen[("hot", "ADJECTIVE")]["spicy hot"].update({"food": 40})
@@ -2115,7 +2164,7 @@ def test_a_qualitys_sense_is_taken_by_the_thing_it_is_said_of():
 
 def test_a_quality_read_in_a_sentence_says_the_sense_the_thing_it_is_said_of_takes():
     """The whole way through: the thing's own sense is taken first (`thing_sense_of`), and the quality's by it."""
-    g = gm.Grammar(gm.Lexicon(Held()))
+    g = gm.Grammar(english_lexicon(Held()))
     lexicon = g.lexicon
     lexicon.quality_used[("hot", "ADJECTIVE")].update({"hot": 12, "spicy hot": 4})
     lexicon.quality_seen[("hot", "ADJECTIVE")]["hot"].update({"dog": 40})
@@ -2143,7 +2192,7 @@ def test_what_taught_sentences_said_of_a_verbs_place_is_not_overruled_by_its_pro
 
     `hold_word` already records PropBank's own share apart (`place_links`) for exactly this, and `taught_role` already
     says what taught sentences said is not overruled by the verb's frames. The place decision now does the same."""
-    lexicon = gm.Lexicon(Held())
+    lexicon = english_lexicon(Held())
     # As `GrammarView.learn` counts it from "You tortured a prisoner."
     lexicon.learned["role"][("torture", "subject")]["done_by"] += 1
     assert lexicon.inherited("role", "torture", "VERB", ("subject",), "done_by") == ("done_by", "own")
@@ -2171,7 +2220,7 @@ def test_a_copula_says_the_same_thing_or_the_same_number_and_never_confuses_the_
     `part_of(sub_region_1, asia)` and could not reach `part_of(south asia, asia)` -- both edges in hand, answer
     `unknown` (UNDERSTANDS-PROSE-02, 2026-11-01). What a thing is a KIND of is neither, and stays as it was.
     """
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     # one thing, two descriptions
     assert "same_as(tom, ?v0)" in read(g, "Tom is the dog.")
     assert "same_as(?v1, ?v0)" in read(g, "The dog is the cat.")
@@ -2190,7 +2239,7 @@ def test_an_unknown_a_reading_mints_is_a_variable_and_never_a_number():
     written as a number must ask it only of a STRING. Asked of the int, the mint's own counter read as a number and
     every described thing was numeric: "Tom is the dog." was arithmetic, and "Rex is more careful than the dog."
     compared two numbers instead of two degrees of carefulness (2026-11-01)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     told = read(g, "Tom is the dog.")
     assert "equals" not in told, told
     # A DEGREE COMPARED IS A DEGREE, not a number, when both sides are things described: "more happy than" holds a
@@ -2212,7 +2261,7 @@ def test_a_pronoun_of_its_own_sentence_is_never_a_subject():
 
     WHAT A REFLEXIVE IS FOR IS UNTOUCHED: it still says the thing done to where that is the one doing it.
     """
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     # WHAT READING FORGIVES, SAYING DOES NOT PRODUCE. Reading still understands it -- said by someone learning the
     # language, typed in haste -- and that is a capability, so the refusal holds only while saying (`_saying`).
     assert g.read(("myself", "'m", "red", ".")).meaning is not None
@@ -2278,7 +2327,7 @@ def test_saying_refuses_a_form_that_cannot_agree_with_its_subject_though_reading
     phrase = gm.parse_category("S[dcl].e\\NP.x")
 
     def joined(subject: str, verb: str, *, saying: bool):
-        g = gm.Grammar(gm.Lexicon(Few()))
+        g = gm.Grammar(english_lexicon(Few()))
         g._tokens, g._agreeing = (subject, verb, "intelligent"), {}
         g._saying = saying
         left = gm.Sign(raised, (("word", 0, "GRAMMAR", 0, 1),), 0.0, 0, 1, "lex")
@@ -2311,7 +2360,7 @@ def test_saying_refuses_a_determiner_that_cannot_take_its_noun_though_reading_fo
     weighed is how much rarer the noun is after THIS determiner than after determiners at large, by the reading
     `_letter_prefers` makes of the same question -- rarer by at least twice and by more than the standard error.
     """
-    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    g = gm.Grammar(english_lexicon(Agreeing()))
 
     def puts_one_before_many(sentence: str) -> bool:
         words = [w.strip(".?").lower() for w in sentence.split()]
@@ -2363,7 +2412,7 @@ def test_saying_puts_no_article_before_a_noun_memory_holds_no_count_of(monkeypat
     REFUSED ON WHAT IS HELD, NOT ON THE WORD: the second half of this test hands the same grammar the same
     sentence with "air" held `count`, and the article comes back. Nothing about the word is written down."""
     monkeypatch.setattr(gm, "live_view", lambda: HoldsUses())
-    g = gm.Grammar(gm.Lexicon(Agreeing()))
+    g = gm.Grammar(english_lexicon(Agreeing()))
     # READING STILL FORGIVES IT, as it must: a person may write "An air is a vapour." and be understood.
     assert g.read(gm.tokens_of("An air is a vapour.", g.lexicon.words)).sign is not None, "still read"
     said = g.say(gm.Meaning("tell", (gm.MeaningFact("isa", "air", "vapour"),)))
@@ -2376,7 +2425,7 @@ def test_saying_puts_no_article_before_a_noun_memory_holds_no_count_of(monkeypat
 
     # HELD `count`, THE SAME SENTENCE IS SAID: the refusal follows the evidence and nothing else.
     monkeypatch.setattr(gm, "live_view", lambda: HoldsUses({"air": "count", "vapour": "count"}))
-    counted = gm.Grammar(gm.Lexicon(Agreeing())).say(
+    counted = gm.Grammar(english_lexicon(Agreeing())).say(
         gm.Meaning("tell", (gm.MeaningFact("isa", "air", "vapour"),)))
     assert [t for t in counted if says_one_of(t, "air")], counted[:8]
 
@@ -2408,7 +2457,7 @@ def test_a_kind_named_before_a_things_own_name_is_read_as_the_one_thing_memory_h
 
     Held on main all along: `"Genus Pan" names mammal genus pan`. Of 29 `member_of` questions a review asked, 18
     named such a run and it answered 0; where both terms were one word it answered 33 of 33 (2026-11-10)."""
-    g = gm.Grammar(gm.Lexicon(Speaking()))
+    g = gm.Grammar(english_lexicon(Speaking()))
     assert read(g, "A genus Pan is a mammal.") == gm.Meaning(
         "tell", (gm.MeaningFact("isa", "mammal genus pan", "mammal"),)).canonical()
     # A RUN WHOSE FIRST WORD IS CAPITALISED TOO IS STILL LEFT TO THE NAME READER, which is what reads "Credit Card"
@@ -2434,7 +2483,7 @@ def test_a_quality_before_a_noun_names_one_thing_only_where_memory_holds_that_na
         def kinds(self, name: str, cls: str):
             return ["shrub"] if name == "black haw" and cls == "NOUN" else []
 
-    g = gm.Grammar(gm.Lexicon(WithKinds()))
+    g = gm.Grammar(english_lexicon(WithKinds()))
     assert read(g, "A black haw is a mammal.") == gm.Meaning(
         "tell", (gm.MeaningFact("isa", "black haw", "mammal"),)).canonical()
     said = read(g, "A red ball is a mammal.")
@@ -2570,7 +2619,7 @@ def test_an_aside_between_commas_is_what_the_thing_is_and_not_another_thing_with
     THIS word sets off an aside and how often it joins a list, as the analysts marked it (`Words.comma_before`,
     their `appos` against their `conj`). Both readings are weighed by it now, so the evidence decides and nothing
     here does."""
-    grammar = gm.Grammar(gm.Lexicon(Asides()))
+    grammar = gm.Grammar(english_lexicon(Asides()))
     # An aside: one doer, and what it is said of it.
     assert read(grammar, "Tom, the teacher, barked.") == (
         "tell: done_by(?v0, tom) & given instance_of(?v1, teacher) & instance_of(?v0, bark) & "
@@ -2605,3 +2654,29 @@ def test_an_aside_in_brackets_is_what_the_thing_is_and_costs_nothing(grammar):
     assert read(grammar, "The dog (a mammal) chased a cat.") == (
         "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
         "instance_of(?v2, cat) & instance_of(?v3, mammal) & precedes(?v0, ?now) & same_as(?v1, ?v3)")
+
+
+def test_what_a_comma_sets_off_is_counted_from_a_sentence_as_analysed():
+    """The counts the aside is weighed by are the analysts' own, counted from a sentence as they analyse it
+    (`HeldWords.beside`, `Words.comma_before`): a phrase they mark as renaming what came before it (`appos`)
+    against one they mark as another of a list (`conj`), and only where a comma stands before it.
+
+    This is what makes the fix arrive without a teaching run: these come from the sentences memory holds analysed,
+    at the warm, exactly as a determiner standing alone does. Counted from the COMMA's side instead it was dead
+    code -- the counting loop passes over every mark before it reaches the body -- which is worth a test of its
+    own, since a count that never fires looks exactly like a count of nothing."""
+    from core.semantics.grammar_words import HeldWords
+    from core.semantics.structure import Analysed
+    aside = Analysed(("Tom", ",", "the", "teacher", ",", "barked", "."),
+                     ("NAME", "PUNCTUATION", "DETERMINER", "NOUN", "PUNCTUATION", "VERB", "PUNCTUATION"),
+                     (6, 4, 4, 1, 4, 0, 6),
+                     ("nsubj", "punct", "det", "appos", "punct", "root", "punct"))
+    listed = Analysed(("Ken", ",", "Bill", "and", "Yumi", "sang", "."),
+                      ("NAME", "PUNCTUATION", "NAME", "CONJUNCTION", "NAME", "VERB", "PUNCTUATION"),
+                      (6, 3, 1, 5, 1, 0, 6),
+                      ("nsubj", "punct", "conj", "cc", "conj", "root", "punct"))
+    words = HeldWords((aside, listed), closed_uses(), lambda word, cls: word.lower())
+    assert words.comma_before("teacher") == {"aside": 1.0}
+    assert words.comma_before("Bill") == {"listed": 1.0}
+    # Joined by a conjunction with no comma before it, so the comma says nothing of it either way.
+    assert words.comma_before("Yumi") == {}

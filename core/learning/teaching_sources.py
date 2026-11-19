@@ -475,6 +475,25 @@ class GrammarPair:
                    source=str(data.get("source") or ""))
 
 
+def english_grammar() -> Mapping[str, Any]:
+    """THE ONE PLACE THE LESSON IS READ FROM DISK. English's grammar is taught into memory like everything else
+    (`EnglishGrammarSource`: 497 ways of reading and 87 pairs), and what reads with it asks MEMORY for it
+    (`MemoryAgent.grammar_taught`). `data/grammar/english.json` is the teaching source and nothing else, so this is
+    the only function that opens it; `Lexicon`, `GrammarView` and `closed_uses` all require a grammar now and read
+    nothing.
+
+    Kept, because the lesson is a tenth of a megabyte of JSON and a teaching pass asks for it once per source."""
+    global _ENGLISH_GRAMMAR
+    if _ENGLISH_GRAMMAR is None:
+        from core.semantics.grammar import ENGLISH
+        _ENGLISH_GRAMMAR = json.loads(ENGLISH.read_text(encoding="utf-8"))
+    return _ENGLISH_GRAMMAR
+
+
+#: The lesson, once read (`english_grammar`).
+_ENGLISH_GRAMMAR: Optional[Mapping[str, Any]] = None
+
+
 @dataclass
 class EnglishGrammarSource:
     """ENGLISH'S GRAMMAR AS LYRIC IS TAUGHT IT, from the lesson that states it (`data/grammar/english.json`): every
@@ -495,8 +514,7 @@ class EnglishGrammarSource:
         return _provenance("english-grammar", "english_grammar", source_type="USER_SUPPLIED")
 
     def _grammar(self) -> Mapping[str, Any]:
-        from core.semantics.grammar import ENGLISH
-        return json.loads(ENGLISH.read_text(encoding="utf-8"))
+        return english_grammar()
 
     def records(self) -> Iterator[TaughtRecord]:
         """Nothing: a category is no claim about the world."""
@@ -1009,7 +1027,7 @@ class WordNetSource:
         from nltk.corpus import wordnet as wn
 
         from core.semantics import grammar as gm
-        pronouns = {word for word, uses in gm.closed_uses().items() if "pron" in uses}
+        pronouns = {word for word, uses in gm.closed_uses(english_grammar()).items() if "pron" in uses}
         weight: Dict[str, Dict[str, float]] = defaultdict(lambda: defaultdict(float))
         for synset in wn.all_synsets():
             word_class = _POS_CLASS.get(synset.pos())
@@ -4418,7 +4436,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
         for w, c, base in zip(analysed.words, analysed.classes, bases):
             if w.lower() in written and (base == word or not single):
                 classes[(w.lower(), c)] = classes.get((w.lower(), c), 0) + 1
-    counted = HeldWords(held, closed_uses(), lambda w, c: w.lower())
+    counted = HeldWords(held, closed_uses(english_grammar()), lambda w, c: w.lower())
     uses: Dict[str, Counter] = {form: Counter() for form in written}
     doing: Dict[str, Counter] = {form: Counter() for form in written}
     asking: Dict[str, Counter] = {form: Counter() for form in written}
@@ -4496,7 +4514,7 @@ def _pmb_meant(cache: Dict[str, Any]) -> Tuple[Any, Dict[str, Counter]]:
         from pathlib import Path
         from core.semantics import grammar as gm
         ewt = Path(SYNTAX_DATA) / "UD_English-EWT" / "en_ewt-ud-train.conllu"
-        words = file_words(ewt, gm.closed_uses())
+        words = file_words(ewt, gm.closed_uses(english_grammar()))
         view = gm.GrammarView(words, structure=file_structure(ewt))
         for item in PMBDerivationSource().derived():
             view.hold_derived(item)
@@ -5353,7 +5371,7 @@ def records_written(_cache: Dict[str, str] = {}) -> str:
     So the stamp is what decides whether a correction can be found, and it is built to miss nothing it could see:
     the module's own bytes catch every change to how a record is made, and the file walk catches every re-fetch of
     every corpus. It is the same way the grammar keeps what a sentence taught it under the rules it was taught
-    under (`grammar.RULES`), over more sources.
+    under (`grammar.rules_of`), over more sources.
 
     The walk is 17 seconds over 677,000 files, paid once a pass and never once a word."""
     if "stamp" not in _cache:

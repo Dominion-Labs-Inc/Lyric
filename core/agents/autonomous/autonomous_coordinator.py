@@ -21174,7 +21174,10 @@ The substrate must realign with its constitutional responsibilities immediately.
         # are unchanged, so a description that changed or a reader that changed is read again
         # (`MemoryAgent.tool_doings`) -- and NOT while the count of what was taught is unchanged, which is what it
         # asked at first and which meant the recall never once hit on a substrate that is taught every day.
-        from core.semantics.grammar import RULES as rules
+        # THE RULES THESE WERE READ BY ARE THE GRAMMAR'S OWN, which is what memory holds, so the key is asked of
+        # the view memory reads with. It was a module constant computed at import from the lesson on disk, which
+        # said nothing about the grammar actually read with once the grammar came from memory.
+        rules = self.memory.grammar_view().rules
         try:
             remembered = await self.memory.tool_doings(rules)
         except Exception as not_remembered:              # reading them is the substrate's own work either way

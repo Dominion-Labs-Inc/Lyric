@@ -20,7 +20,7 @@ spec.loader.exec_module(rl)
 g01 = rl.g01
 
 from nltk.corpus import wordnet as wn
-from core.learning.teaching_sources import ListeningSource, PMBSource, WordNetSource
+from core.learning.teaching_sources import english_grammar, ListeningSource, PMBSource, WordNetSource
 from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
 from core.semantics.composition import TaughtSentence
@@ -31,9 +31,9 @@ SPLIT = sys.argv[1]
 pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
 treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu"
 t0 = time.perf_counter()
-words = file_words(treebank, gm.closed_uses())
+words = file_words(treebank, gm.closed_uses(english_grammar()))
 ends = rl.sentence_ends(treebank)
-view = gm.GrammarView(words, structure=file_structure(treebank))
+view = gm.GrammarView(words, english_grammar(), structure=file_structure(treebank))
 from core.learning.teaching_sources import PMBDerivationSource
 for item in PMBDerivationSource().derived():
     view.hold_derived(item)

@@ -23,6 +23,33 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from core.learning.teaching_sources import EnglishGrammarSource, GrammarPair, GrammarRule, grammar_from
 from core.semantics import grammar as gm
 
+#: What the helpers below build, held by name so replacing `gm.Lexicon(` with `english_lexicon(` through
+#: this file could not rewrite their own bodies into calls on themselves.
+GRAMMAR_CLASSES = {"Lexicon": gm.Lexicon, "GrammarView": gm.GrammarView, "closed_uses": gm.closed_uses}
+
+
+def english_lexicon(words, grammar=None):
+    """The words with English's grammar. THE LESSON IS READ IN ONE PLACE
+    (`teaching_sources.english_grammar`), the teaching source that teaches it into memory; `grammar.Lexicon`
+    requires a grammar and reads nothing, so a store that was never taught English reads nothing and says so
+    instead of falling back to the file."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["Lexicon"](words, english_grammar() if grammar is None else grammar)
+
+
+def grammar_view(words, grammar=None, **rest):
+    """`grammar.GrammarView` with English's grammar, read as `lexicon` reads it."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["GrammarView"](words, english_grammar() if grammar is None else grammar, **rest)
+
+
+def closed_uses():
+    """Each grammar word's uses, from the lesson the teaching source reads."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["closed_uses"](english_grammar())
+
+
+
 
 def _rows():
     source = EnglishGrammarSource()
@@ -60,8 +87,8 @@ def test_a_grammar_built_from_the_rows_reads_what_the_file_reads():
     The words are the base `Words`, which holds no counts, so what is compared is the grammar's own tables and
     nothing a store happens to know."""
     rules, pairs = _rows()
-    from_file = gm.Grammar(gm.Lexicon(gm.Words()))
-    from_rows = gm.Grammar(gm.Lexicon(gm.Words(), grammar_from(rules, pairs)))
+    from_file = gm.Grammar(english_lexicon(gm.Words()))
+    from_rows = gm.Grammar(english_lexicon(gm.Words(), grammar_from(rules, pairs)))
     said = ["The dog chased a cat.", "A dog is a mammal.", "Every dog is a mammal.", "Must you help me?",
             "Could you help me?", "What did the dog chase?", "The dog did not bark.", "No dog barked.",
             "The dog chased a cat and a bird.", "The cat chased the dog that barked.", "Chase the cat, Tom.",
@@ -105,3 +132,51 @@ def test_memory_knows_which_kind_of_thing_each_grammar_memory_holds():
     assert MemoryAgent._whole_item("grammar_pair", pairs[0].to_dict()) == pairs[0]
     # And each is kept under the tag that reads it back.
     assert MemoryAgent.GRAMMAR_RULE_TAG == "grammar_rule" and MemoryAgent.GRAMMAR_PAIR_TAG == "grammar_pair"
+
+
+def test_there_is_no_grammar_to_fall_back_on():
+    """ENGLISH'S GRAMMAR COMES FROM MEMORY AND FROM NOWHERE ELSE. `Lexicon`, `GrammarView` and `closed_uses` each
+    read `data/grammar/english.json` whenever they were handed no grammar, so a store that held NOTHING read
+    anyway and nothing anywhere said so: the one model could be empty while reading went on exactly as though it
+    were full. That is what happened -- 497 ways of reading were taught into a sandbox, the model stayed empty, and
+    every measurement still said reading worked.
+
+    Each of them requires a grammar now and a caller with none fails saying why, so an empty model cannot look
+    like a full one. The lesson is read in ONE place, the teaching source that teaches it in
+    (`teaching_sources.english_grammar`); `scripts/teach.py --source english-grammar` is the name to teach it by,
+    which it did not have when it was first taught."""
+    import pytest
+    from core.learning.teaching_sources import english_grammar
+    for nothing in ({}, {"classes": {}}, {"words": {}}):
+        with pytest.raises(ValueError, match="taught into memory"):
+            gm.Lexicon(gm.Words(), nothing)
+    with pytest.raises(ValueError, match="taught into memory"):
+        gm.closed_uses({})
+    with pytest.raises(TypeError):
+        gm.Lexicon(gm.Words())             # the grammar is not an optional argument any more
+    with pytest.raises(TypeError):
+        gm.closed_uses()
+    # And nothing in the reader opens the lesson: only the teaching source does.
+    from pathlib import Path
+    reader = Path("core/semantics/grammar.py").read_text(encoding="utf-8")
+    assert "ENGLISH.read_text" not in reader, "the reader reads the lesson off disk again"
+    assert english_grammar() is english_grammar(), "the lesson is read once"
+
+
+def test_the_rules_a_sentence_is_kept_under_are_of_the_grammar_in_hand():
+    """What a sentence taught was learned under has to say which grammar read it. `RULES` was a module constant
+    hashed at import from the lesson's bytes, which could only be right while the file WAS the grammar: once the
+    grammar is what memory holds, a grammar changed in memory looked identical across starts and every remembered
+    reading would have been served as current. A key that misses what decides the answer keeps the wrong answer.
+
+    So the key is asked of the grammar in hand (`rules_of`), and two different grammars are never kept under one
+    key."""
+    from core.learning.teaching_sources import english_grammar
+    import copy
+    lesson = english_grammar()
+    assert gm.rules_of(lesson) == gm.rules_of(copy.deepcopy(lesson)), "the same grammar, the same key"
+    changed = copy.deepcopy(lesson)
+    changed["words"]["must"] = [row for row in changed["words"]["must"] if row.get("use") != "modal:q"]
+    assert gm.rules_of(changed) != gm.rules_of(lesson), (
+        "a grammar missing a way of reading is kept under the same key as one that holds it")
+    assert not hasattr(gm, "RULES"), "the module constant is back"

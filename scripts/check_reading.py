@@ -192,7 +192,6 @@ async def start() -> Tuple[Any, Any]:
     """Started the way a start starts it, each phase timed, because the start is most of what this costs."""
     from core.agents.memory_agent import get_memory_agent
     from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
-    from core.semantics.grammar import RULES
     import core.semantics.derived_reader as dr
 
     at = time.time()
@@ -225,7 +224,8 @@ async def start() -> Tuple[Any, Any]:
     with contextlib.redirect_stdout(QUIET), contextlib.redirect_stderr(QUIET):
         dr.read_text("Read the contents of a file.")      # the structure worked out, once, as a first read does
     say(f"  the first read    {time.time()-at:6.0f}s")
-    say(f"  rules {RULES!r}, {len(dr.live_view()):,} construction(s) held")
+    # The rules of the grammar memory holds, which is where the grammar comes from.
+    say(f"  rules {agent.grammar_view().rules!r}, {len(dr.live_view()):,} construction(s) held")
     return agent, coordinator
 
 

@@ -29,7 +29,8 @@ PARTS = {"ADJECTIVE": (wn.ADJ, wn.ADJ_SAT), "ADVERB": (wn.ADV,)}
 
 
 from core.semantics import grammar as gm
-PRON = {w for w, uses in gm.closed_uses().items() if "pron" in uses}
+from core.learning.teaching_sources import english_grammar
+PRON = {w for w, uses in gm.closed_uses(english_grammar()).items() if "pron" in uses}
 WITH_PRONOUNS = "--with-pronouns" in sys.argv
 
 

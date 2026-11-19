@@ -18,11 +18,38 @@ import pytest
 
 from core.semantics import grammar as gm
 
+#: What the helpers below build, held by name so replacing `gm.Lexicon(` with `english_lexicon(` through
+#: this file could not rewrite their own bodies into calls on themselves.
+GRAMMAR_CLASSES = {"Lexicon": gm.Lexicon, "GrammarView": gm.GrammarView, "closed_uses": gm.closed_uses}
+
+
+def english_lexicon(words, grammar=None):
+    """The words with English's grammar. THE LESSON IS READ IN ONE PLACE
+    (`teaching_sources.english_grammar`), the teaching source that teaches it into memory; `grammar.Lexicon`
+    requires a grammar and reads nothing, so a store that was never taught English reads nothing and says so
+    instead of falling back to the file."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["Lexicon"](words, english_grammar() if grammar is None else grammar)
+
+
+def grammar_view(words, grammar=None, **rest):
+    """`grammar.GrammarView` with English's grammar, read as `lexicon` reads it."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["GrammarView"](words, english_grammar() if grammar is None else grammar, **rest)
+
+
+def closed_uses():
+    """Each grammar word's uses, from the lesson the teaching source reads."""
+    from core.learning.teaching_sources import english_grammar
+    return GRAMMAR_CLASSES["closed_uses"](english_grammar())
+
+
+
 
 def _lexicon(frames):
     """A lexicon holding these frames of the verb "paint", of its sense `coat paint` and of the word; no word is
     held (`gm.Words` answers for a word nothing is held of), so the frames are all the evidence here."""
-    lexicon = gm.Lexicon(gm.Words())
+    lexicon = english_lexicon(gm.Words())
     lexicon.sense_used["paint"]["coat paint"] = 14
     lexicon.sense_used["paint"]["represent paint"] = 12
     for key, held in frames.items():

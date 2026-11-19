@@ -16,6 +16,114 @@ Conventions:
 
 ---
 
+## 126. A licence written on three words instead of on a word class; two readings of the same marks scored exactly alike; a mark that carried a meaning was never read as a word; and the grammar stops having a file to fall back on (2026-11-19)
+
+**Asked**: what is left of the reading, understanding and responding — and then: all of it.
+
+### The generalization problem, located
+
+Crossed composition — what lets a word stand between an auxiliary and what it takes — was licensed by a
+`crossing` field on exactly **three rows in all of English**: `not`, `n't`, `never`. So `A dog is never a mammal.`
+read and `A dog is also a mammal.` read NOTHING, the same sentence shape. The cause was not in the lesson but in
+the code: `crossing` was read at ONE site, the closed-word path of `Lexicon.entries`, and the two open-class paths
+built their entries without it, so **a word class could not carry the licence at all**.
+
+This is what broke the live paragraph. In the 110-word Wikipedia "Rain" reading (981 s, entry 123's instrument),
+the reply returned `'It is'` and `'often accompanied by other weather phenomena such'` as two separate
+fragments — the sentence split exactly at `often`. Every one of `often also always only still already just
+probably usually` is held by memory as an adverb (WordNet `r`) with no row of its own, so all of them took the dead
+path.
+
+Measured on 34 sentences: **30 identical, signs 4150 → 4261 (1.027×)**, and four that read nothing read their
+claim. `A dog is also a mammal.` → `tell: isa(dog, mammal)`.
+
+**An adverb said of a predication says nothing the meaning language can hold**, and now says nothing instead of a
+fact about nothing. A doing is held under its own term, so `has_property(bark, often)` is right. A predication is
+not: what one thing is of another is written as the fact itself, `isa(dog, mammal)`, with no term standing for the
+saying of it — only a holder that carries denials and surfaces in no fact. Said anyway the adverb came out
+`has_property(?v0, also)`, a fact about a thing nothing else names. The same gap `every` is stated under. A denial
+is the one such word that CAN be said, and still is, by `deny` and that holder.
+
+### Saying could say no adverb at all
+
+`_piece_says` must know every kind `spell_out` makes a fact from: an unknown kind falls through to the nothing at
+the end, `_says_of` turns that into None, and the word is offered for **no meaning**. `adv`, `degree` and `holder`
+were all unknown. The test written to catch exactly this gathered kinds from the grammar's `words` table and never
+from its `classes` table — and those three are written only in `classes`. On the meaning of `The dog barked
+often.`, which holds `has_property(bark, often)` and nothing else an adverb could say, an `adv` piece spent 0.
+
+### Nothing was deciding between an aside and a list
+
+`Tom, the teacher, barked.` read as Tom AND the teacher both barking; `A dog (a mammal) barked.` as a mammal
+barking the dog. Wrong meanings, not refusals.
+
+I first said the marks had no rows and the aside's words were left bare. **That was wrong.** The grammar has had an
+apposition rule all along, and `_combine` called by hand on the two signs returns it. The rule and the comma's
+list reading make a noun phrase of the same span out of the same two words and **neither cost anything**, so they
+scored −2.485 and −2.485 and the reading taken was whichever the chart held first.
+
+What tells them apart is not in the marks, which are identical, but in the words: how often a comma before that
+very word sets off an aside and how often it joins a list, as UD's analysts marked it (`appos` against `conj`).
+With the counts supplied as they give them, 40:1 reads one doer and what it is, 1:40 reads a list, and an
+`and`-joined list is untouched either way.
+
+Two mistakes worth keeping: keyed by the **sign's** head, every phrase beginning with a determiner shared one
+meaningless key (`the`) and the counts never reached the reading at all — the analysts head "the teacher" by
+*teacher*. And counted from the **comma's** side the count was dead code: the counting loop passes over every mark
+before it reaches the body.
+
+Brackets cost nothing, because brackets set off an aside and nothing else.
+
+### A mark that carried a meaning was never read as a word
+
+`The dogs' bone is red.` built NO STRUCTURE while `The dog's bone is red.` read `owned_by(bone, dog)`. The
+apostrophe has had its row since the grammar was written (`(NP.x/N.x)\NP.o`, `poss`) and a guard stood above every
+row: nothing written without a letter or a digit in it is read as a word. `'s` has an `s` and passed; `'` has
+nothing and did not. The lesson holds a row for exactly one mark, so exactly one is let through.
+
+### The rows that were simply missing
+
+Every subordinator in English is written in the grammar's words — `because`, `while`, `since`, `when`, `although`,
+`though`, `unless`, `if` — **except `as`**, which was written nowhere, and which nothing can teach: WordNet's only
+senses for "as" are arsenic, American Samoa and the angstrom, every one a NOUN. Unwritten it was worse than
+silent: `The dog barked as the cat slept.` read "as" as a thing the barking was received by. Also added: `’` (the
+possessive a modern text writes), `/` (written as `or` is written, so what it joins are alternatives), and `…` /
+`...` as a sentence's end. 22 of 26 identical, 1.032×.
+
+### The fallback is gone
+
+`Lexicon`, `GrammarView` and `closed_uses` each read `data/grammar/english.json` whenever they were handed no
+grammar. That is how one model came to hold 497 ways of reading while the other held none and every measurement
+still said reading worked: **the one model could be empty while reading went on exactly as though it were full.**
+All three require a grammar now; a caller with none fails saying why. The lesson is read in one place, the
+teaching source that teaches it in (`teaching_sources.english_grammar`).
+
+`RULES` went with it. It was a module constant hashed at import from the lesson's bytes, which could only be right
+while the file WAS the grammar: once the grammar is what memory holds, a grammar changed in memory looked
+identical across starts and every remembered reading would have been served as current — the one thing a key must
+not do, which is what that function's own docstring says about the reader. It is `rules_of(grammar)` now, asked of
+the grammar in hand.
+
+And `english-grammar` was not a source `scripts/teach.py` knew, which is why the first store taught it was taught
+by a script of my own — the thing I was pulled up on. It is a source the pass can teach now, and on a fresh store
+it is the first one to teach.
+
+### What this leaves
+
+- The comma's two readings tie until the counts are there. They come from the analysed sentences at the warm, as
+  `determined` does, not from a teaching run.
+- The one model's 497 rows are the lesson as it was. The lesson changed here (the ADVERB licence, four rows for
+  `as`, `’`, `/`), so `--source english-grammar` has to run again for reading to have them. **His run.**
+- An adverb inside an inverted question (`Is a dog also a mammal?`) reads "also" as a thing. The question's
+  category is `/`-shaped, which `_verb_phrase` excludes, so no adverb row can modify it. Unchanged by any of this.
+- The dash still sets off nothing. An aside's words must make a noun phrase before the rule can see them, which
+  the marks beside it do by being absorbed, and absorbing a dash is what gave `The dog -- a mammal -- barked.` a
+  mammal barking the dog. It needs the absorption and the rule together: a measurement of its own.
+- `Do whales breathe air?` is untaught, not misread, and the door throws away the reason: it drops unanswered
+  parts and reports the one verdict left, which is why two questions came back `True` when only one was settled.
+
+---
+
 ## 125. English's grammar stops being a file the reader reads and becomes something memory holds: 497 ways of reading and 87 pairs, taught, read back and identical (2026-11-18)
 
 **WHAT WAS ASKED.** "We need to teach english.json into memory because the postgres is Lyric's only memory." And:

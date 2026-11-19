@@ -32,7 +32,7 @@ So this starts the substrate and teaches it while it is running:
 
   --source   conceptnet | wordnet | wordnet-examples | wordnet-usage | wordnet-classes | listening | treebank | propbank
              | composition
-             | pmb | word-groups | wikidata | closed-classes | lesson
+             | pmb | word-groups | wikidata | closed-classes | english-grammar | lesson
              wordnet-examples: WordNet's examples of English and none of its facts, for a store WordNet was taught
              to before they were said: its nouns' plurals ("Hawks are raptors."), its verbs' forms ("Tom strolled.")
              and kinds ("To stroll is to walk."), its adjectives' likenesses ("To be lovely is to be beautiful.")
@@ -101,7 +101,8 @@ DUMP = ROOT / "data" / "bulk" / "conceptnet-assertions-5.7.0.csv.gz"
 
 def build_source(args):
     from core.learning.teaching_sources import (ClosedClassSource,
-                                                CompositionSource, ConceptNetSource, ListeningSource,
+                                                CompositionSource, ConceptNetSource, EnglishGrammarSource,
+                                                ListeningSource,
                                                 PMBDerivationSource, PMBSource, PropBankSource, RecordSource, TreebankSource,
                                                 WikidataSource,
                                                 WordNetClassesSource, WordNetExamplesSource,
@@ -142,6 +143,12 @@ def build_source(args):
         return RecordSource(args.records)
     if args.source == "word-groups":
         return WordGroupsSource()
+    if args.source == "english-grammar":
+        # ENGLISH'S GRAMMAR ITSELF (`data/grammar/english.json`): every way a word may be read and every pair its
+        # tables hold, so the reader reads with what MEMORY holds and not with a file. It had no name here at all,
+        # which is why the first time it was taught it was taught by a script of its own -- and a store that has
+        # not been taught it reads nothing now, so this is the name to teach first on a fresh store.
+        return EnglishGrammarSource()
     if args.source == "closed-classes":
         # The finite classes of English. No facts, only what class each word
         # has -- which is the half of language a taxonomy source cannot state.
@@ -304,7 +311,8 @@ async def main() -> int:
                         choices=("conceptnet", "wordnet", "wordnet-examples", "wordnet-usage", "wordnet-classes",
                                  "wordnet-words",
                                  "listening", "treebank", "propbank", "composition", "pmb", "pmb-derivations",
-                                 "records", "word-groups", "wikidata", "closed-classes", "lesson"))
+                                 "records", "word-groups", "wikidata", "closed-classes", "english-grammar",
+                                 "lesson"))
     parser.add_argument("--domain", default="general")
     parser.add_argument("--limit", type=int, default=None)
     parser.add_argument("--small", type=int, default=None)

@@ -30,17 +30,17 @@ ROOT = HERE.parents[2]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(HERE.parent))
 from core.semantics import grammar as gm  # noqa: E402
-from core.learning.teaching_sources import PMBDerivationSource  # noqa: E402
+from core.learning.teaching_sources import english_grammar, PMBDerivationSource  # noqa: E402
 from words import file_structure, file_words  # noqa: E402
 
 N = int(next((a for a in sys.argv[1:] if a.isdigit()), "200"))
 treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu"
-words = file_words(treebank, gm.closed_uses())
+words = file_words(treebank, gm.closed_uses(english_grammar()))
 if "--without-carried" in sys.argv:
     # WITHOUT A PREPOSITION BEING CARRIED ALONG WITH THE WH-PHRASE IT OPENS (`Lexicon._carried`), so the same
     # measurement prices that rule: the preposition is left with its six modifier categories alone, as before it.
     gm.Lexicon._carried = lambda self, tokens, i, evidence: []
-view = gm.GrammarView(words, structure=None if "--without-structure" in sys.argv else file_structure(treebank))
+view = gm.GrammarView(words, english_grammar(), structure=None if "--without-structure" in sys.argv else file_structure(treebank))
 for d in PMBDerivationSource().derived():
     view.hold_derived(d)
 g = view.grammar

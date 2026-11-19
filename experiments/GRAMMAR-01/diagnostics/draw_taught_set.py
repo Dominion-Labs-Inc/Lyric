@@ -19,7 +19,7 @@ from pathlib import Path
 ROOT = Path("/Users/stefan/Dominion Labs/Lyric")
 sys.path.insert(0, str(ROOT))
 S = Path("/private/tmp/claude-501/-Users-stefan-Dominion-Labs/ab7a2550-74ab-46ff-b647-d3356ba73943/scratchpad")
-from core.learning.teaching_sources import WordNetSource, file_words
+from core.learning.teaching_sources import english_grammar, WordNetSource, file_words
 from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
 from nltk.corpus import wordnet as wn
@@ -233,7 +233,7 @@ def sense_name(sense):
 # TOKENIZED AS LYRIC TOKENIZES, never by a pattern of my own: the store holds "n't" as a negator, so it splits a
 # contraction and "isn't" is "is" + "n't", both held. Counted as one word, 100 sentences looked out of reach that
 # are not.
-file_vocab = file_words(ROOT / "test_data/syntax/UD_English-EWT/en_ewt-ud-train.conllu", gm.closed_uses())
+file_vocab = file_words(ROOT / "test_data/syntax/UD_English-EWT/en_ewt-ud-train.conllu", gm.closed_uses(english_grammar()))
 WORD = re.compile(r"[A-Za-z]+(?:['’][A-Za-z]+)?")
 
 def words_of(text):

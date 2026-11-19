@@ -2701,7 +2701,8 @@ class MemoryAgent(IMemoryConsolidation):
         (`_read_tools_by_doing`) and the dead weight of remembering it anyway.
 
         What decides whether a sentence reads the same is the READER, and `rules` is its hash
-        (`grammar.RULES`: the grammar, its words, the reader and English's own). A reader that changed sends them
+        (`grammar.rules_of` of the grammar memory holds: the grammar, its words, the reader and the ways of
+        reading themselves). A reader that changed sends them
         all back, as it should and as the store shows it has -- nine complete sets, one per reader. What is
         taught narrows a word rather than re-spelling the grammar, so a description read to a doing under this
         reader is still read to that doing; one that has newly become readable is picked up when the reader
@@ -3109,6 +3110,12 @@ class MemoryAgent(IMemoryConsolidation):
         # So every name a process writes is now worked out from the whole of what Lyric holds. Where a name is
         # still wrong it is wrong by what was taught and not by when it was asked -- "sellers" reduces because
         # nothing holds it as a name of its own -- and that is a thing teaching can fix.
+        # ENGLISH'S GRAMMAR FIRST, BEFORE ANYTHING THAT READS. It is 584 rows and a moment to read, and
+        # everything after this point may ask for the view memory reads with (`grammar_view`), which now requires
+        # the grammar because there is no file to fall back on. Read where the other grammar memories were read,
+        # most of a warm later, a reader that asked early got nothing and said the store had never been taught.
+        self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
+        self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
         index: Dict[str, Dict[str, int]] = {}
         groups = await self._word_group_memories()
         structure = await self._analysed_memories(groups)
@@ -3215,8 +3222,6 @@ class MemoryAgent(IMemoryConsolidation):
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
-        self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
-        self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
         for row, record in await self._record_memories():
             await give_way()
@@ -7326,7 +7331,12 @@ class MemoryAgent(IMemoryConsolidation):
         """ENGLISH'S GRAMMAR AS THE READER TAKES IT (`grammar.Lexicon`), built from what memory holds: every way of
         reading and every pair, back under the tables that state them (`teaching_sources.grammar_from`). Empty
         where nothing has been taught yet, which is the honest answer -- a store that was never taught English
-        reads nothing, and the lesson it is taught from is `data/grammar/english.json`."""
+        reads nothing, and what reads refuses saying so (`grammar.Lexicon`, `grammar.closed_uses`).
+
+        THE LESSON IS TAUGHT BY `scripts/teach.py --source english-grammar`, from `data/grammar/english.json`. It
+        had no name there at all until the fallback went, which is why the first store taught it was taught by a
+        script of its own -- and that is how one model came to hold 497 ways of reading while the other held
+        none."""
         from core.learning.teaching_sources import grammar_from
         if not self._grammar_rules and not self._grammar_pairs:
             return {}
@@ -7671,10 +7681,17 @@ class MemoryAgent(IMemoryConsolidation):
             for subject, relation, target in self._grammar_links:
                 knowledge.add(subject, relation, target)
             analysed = self._structure_view.analysed() if self._structure_view is not None else ()
-            view = GrammarView(HeldWords(analysed, closed_uses(), self.name_of, knowledge, self._word_forms,
+            # ENGLISH'S GRAMMAR AS MEMORY HOLDS IT, which is the only place it comes from. It was taught in like
+            # everything else (`teaching_sources.EnglishGrammarSource`) and both of these read it off disk instead,
+            # so the one model could hold nothing and reading went on as though it held the lesson -- which is
+            # exactly what happened: 497 ways of reading were taught into a sandbox and the model stayed empty,
+            # and nothing anywhere said so. A store that has not been taught the grammar now reads nothing and
+            # says why, which is what it should always have done.
+            taught = self.grammar_taught()
+            view = GrammarView(HeldWords(analysed, closed_uses(taught), self.name_of, knowledge, self._word_forms,
                                          recorded=self.recorded_name, written_for=self.words_for,
                                          used_for=self.used_for),
-                               structure=self._structure_view)
+                               taught, structure=self._structure_view)
             for word in self._grammar_words.values():
                 view.hold_word(word)
             for record in self._grammar_records:

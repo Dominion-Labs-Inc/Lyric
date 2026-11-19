@@ -21,7 +21,7 @@ spec.loader.exec_module(rl)
 g01 = rl.g01
 
 from nltk.corpus import wordnet as wn
-from core.learning.teaching_sources import ListeningSource, PMBSource, WordNetSource
+from core.learning.teaching_sources import english_grammar, ListeningSource, PMBSource, WordNetSource
 from core.semantics import grammar as gm
 from core.semantics import pmb_meanings as pm
 from core.semantics.composition import TaughtSentence
@@ -32,9 +32,9 @@ SPLIT = sys.argv[1]
 pmb = ROOT / "test_data" / "semantics" / "pmb" / "pmb-5.1.0"
 treebank = ROOT / "test_data" / "syntax" / "UD_English-EWT" / "en_ewt-ud-train.conllu"
 t0 = time.perf_counter()
-words = file_words(treebank, gm.closed_uses())
+words = file_words(treebank, gm.closed_uses(english_grammar()))
 ends = rl.sentence_ends(treebank)
-view = gm.GrammarView(words, structure=file_structure(treebank))
+view = gm.GrammarView(words, english_grammar(), structure=file_structure(treebank))
 lessons = [TaughtSentence(s, m, "lessons") for s, m in ListeningSource(tuple(
     str(p) for p in sorted((ROOT / "data" / "lessons").glob("english_[0-9][0-9].json")))).listening_pairs()]
 for taught in lessons + list(PMBSource.of("gold", str(pmb)).taught_sentences()):
