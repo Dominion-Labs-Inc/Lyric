@@ -537,3 +537,89 @@ documented figure, so none was touched:
 Everything in §3 is reported as found and re-verified against the code and the artifacts. No capability was
 marked missing on the evidence of an old file: where a document named something that is gone, the capability
 was traced to where it lives now and that is what §3.2 and §3.8 record.
+
+---
+
+## 6. Second pass: the subsystem documents read against their modules
+
+The first pass verified wiring — that paths resolve, counts match and named symbols exist. That finds a
+stale number. It does not find a document that describes the wrong mechanism in correct-looking prose.
+This pass read each document against the module it names.
+
+### 6.1 One document per subsystem
+
+`core/agents/autonomous/autonomous_coordinator.py` is 27,378 lines in 59 classes. The document covering it
+was 207 lines describing one class's method names, and **3,042 lines in seven classes were not mentioned
+anywhere**. It is now four documents, one per subsystem the module holds:
+
+| | Lines of code | Document |
+|---|---|---|
+| `AutonomousCoordinator` | 14,206 | [`architecture/coordinator.md`](../architecture/coordinator.md) |
+| `Constitution` and its apparatus | 6,993 | [`architecture/constitution.md`](../architecture/constitution.md) |
+| `Conversation` and `_Held` | 5,454 | [`architecture/conversation.md`](../architecture/conversation.md) |
+| `Drift` and its five detectors | 602 | [`architecture/drift.md`](../architecture/drift.md) |
+
+The constitution had no document of its own: the five laws, the three doors into them, the eleven gates in
+their fixed order, the four accounts an act may have, the 272-tool consequence table, the sixteen
+capabilities and eight weaponised combinations, the halt and the quarantine, the integrity baseline and
+code adoption, and the eighteen standing measurements were described in nine lines.
+
+### 6.2 Substantive corrections, not stale numbers
+
+- **The learning authority's one door is `consider`.** `learning.md` documented `learn_fact`, `learn_facts`,
+  `learn_rule`, `recognize`, `fan_out_ingested`, `_route_declarative_takeaway`, `_classifier_dir`,
+  `predict_optimal_retry_delay` and `run_self_improvement_cycle` — **none of which is defined anywhere in
+  `core/`**. The door is `consider` / `consider_many` / `consider_rule` / `consider_envelope`, and
+  recognition is `name_instance`.
+- **Four capabilities recorded as unimplemented are measured.** `learning.md` stated that
+  `predict_outcome`, `update_strategy_effectiveness`, `recommend_strategies` and `consolidate_learning`
+  raise `NotImplementedError`. None does; each is computed from recorded outcomes, and the module contains
+  no `raise NotImplementedError` at all.
+- **The reasoning authority cannot reach a model at all.** `reasoning.md` said `_model_available` reports
+  whether escalating to a teacher is possible. The teacher subsystem is retired and it returns False
+  permanently. `_calculate_complexity_score` does not exist; complexity is `complexity_of`, scored once
+  from what the request means as it arrives.
+- **The drift faculty's readings are not taken.** Nothing in the running substrate calls
+  `Drift.perceive()`; `DRIFT-01` is its only caller. The product overview stated that drift "is felt" and
+  that its findings feed appraisal's pressures; that route is not wired. Recorded at §21.1 of the
+  validation document and stated in `drift.md` and `DRIFT_CONSOLIDATION.md`.
+- **`memory.md` described a module a third of its size.** It gave `core/agents/memory_agent.py` as ~3,999
+  lines; it is about 9,990, with 228 public methods. Whole families of what memory holds — concepts,
+  beliefs, rules, domains, expectations, calibration, what reasoning produced, perception, each person's
+  context, and the language views — had no entry.
+- **The completion bar is what two confirmations give.** A completion belief opens at 0.15; the bar rises
+  with caution toward 0.99 but is capped at 0.975, which is what two independent strong confirmations
+  actually yield. Caution cannot demand what no evidence gives.
+- **The systems map named 80 symbols that do not exist.** It was a line-number index of "every method,
+  grouped by pipeline", with 154 stale line numbers. It is now what the index bills it as: every system by
+  name and size, measured, with its authority and its document.
+- **Counts re-measured against the store.** 443,072 memories were called "learned sentence templates";
+  they are tagged `language_pattern` and are the constructions and links memory holds. The latest run
+  artifact is 2026-11-10, not 2026-11-11, by its own `started_at`. Every stored-state row now names the
+  table or tag it is counted from. The substrate is 242,794 lines in 263 modules.
+- **Executed plans say the work was done.** `SHAPES_CHANGE_MAP.md` read "Nothing in it has been changed
+  yet"; the work ran and its modules are in `archive/superseded_language_2026-09-27/`.
+  `COMPREHENSION_SCOPE.md` argued for one teaching pipeline in the present tense; there is one,
+  `scripts/teach.py`.
+
+### 6.3 Line numbers
+
+A method's line number cannot stay true in a tree under edit: three modules moved during this pass alone.
+Per-method line citations are removed from the subsystem documents, which name symbols instead. Line
+numbers are kept only where they anchor a class or a module-level function, and line **counts** are kept
+where they are a dated measurement.
+
+### 6.4 The instrument
+
+`scripts/check_doc_against_code.py` now resolves a file named in a document against `tests/`, `scripts/`,
+`experiments/` and `archive/` as well as `core/`, and does not report Python builtins or the relations of
+the meaning language as missing symbols. Those false positives had four documents listed as defective
+against files that exist. It still prints its own limit on every run: a clean result means the names and
+numbers resolve, not that the prose is true.
+
+### 6.5 What this pass did not do
+
+No behavioural claim in any document was verified by running anything. Every check here located code and
+read it. The documents that remain mechanically unclean are dated records — the lab notebook, the design
+decisions, the completed consolidations, the 2026-08-11 safety inventory — each of which states its date
+and its status at its head, and each of which is kept as found.
