@@ -14,7 +14,7 @@
 | Role | Authoritative record of experimental validation for the Lyric computational substrate |
 | Version | 2.0 |
 | Compiled | 2026-11-19 |
-| Evidence cut-off | 2026-11-11 (latest run artifact: UNDERSTANDS-WORDNET-01) |
+| Evidence cut-off | 2026-11-10 (latest run artifact: UNDERSTANDS-WORDNET-01, `20261110T232816Z`) |
 | System snapshot | 2026-11-19, store and source both re-measured (§24) |
 | Canonical runtime | `./venv_lyric/bin/python3`, Python 3.11.14 |
 | Database | PostgreSQL 16.14, `lyric_db`, identity confirmed by asking the server |
@@ -151,7 +151,7 @@ their run and are not counted as runs of their own.
 | **Run records preserved** | **2,166** |
 | Side records beside them | 311 |
 | Artifacts in all | 2,477 |
-| Latest run | 2026-11-11 |
+| Latest run | 2026-11-10 |
 
 By status: **142 VALIDATED**, 43 FINDING,
 3 measured without a pass count, and
@@ -1488,14 +1488,14 @@ Measured 2026-11-19 against `lyric_db`, identity confirmed by asking the server.
 | Measure | Value |
 |---|---|
 | Concepts retained | 117,294 |
-| Surface words bound to a concept | 117,268 |
+| Surface words bound to a concept (`concept_aliases`) | 117,268 |
 | Concept relations | 590,614 |
 | of which *is-a* and *instance of* | 97,639 |
 | of which *defined with* | 442,896 |
 | Beliefs held | 1,022,193 |
 | Concept evidence records | 1,179,242 |
 | Belief evidence records | 1,783,544 |
-| Evidence envelopes | 588,925 |
+| Evidence envelopes (`evidence_envelopes`) | 588,925 |
 | Evidence source classes in use | 3 |
 | Memory records (hot / cold) | 1,441,708 / 0 |
 | of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
@@ -1507,8 +1507,8 @@ Measured 2026-11-19 against `lyric_db`, identity confirmed by asking the server.
 | Domains concepts are filed under | 23 |
 | Operator demonstrations recorded | 0 |
 | Learned rules on record | 0 |
-| Intents recorded | 1 |
-| Perceptions recorded | 149 |
+| Intents recorded (`intents`) | 1 |
+| Perceivings remembered (episodic memories tagged `percept`) | 149 |
 
 **Evidence by source class:** imported knowledge 588,412 · perception 503 · user supplied 10.
 

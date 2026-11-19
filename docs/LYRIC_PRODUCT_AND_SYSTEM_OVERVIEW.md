@@ -1170,7 +1170,7 @@ with no model in the loop. Each row names the date of the run it came from; ever
 own dated artifact under the experiment's `results/` folder, and a re-run never overwrites an earlier one.
 
 **The record as it stands.** 245 experiment series, 189 of them carrying machine-written run records,
-**2,477 run artifacts**, the most recent on 2026-11-11. Each artifact carries the claim under test, the
+**2,477 run artifacts**, the most recent on 2026-11-10. Each artifact carries the claim under test, the
 hypothesis, every check with its verdict, metrics with units, and an environment block recording the
 commit, the count of uncommitted changes, and the database both as configuration resolved it and as the
 server reported its own name. **The tables in this section are a selection**, chosen to show what each
@@ -1414,14 +1414,14 @@ confirmed when asked:
 | Measure | Value |
 |---|---|
 | Concepts retained | 117,294 |
-| Surface words bound to a concept | 117,268 |
+| Surface words bound to a concept (`concept_aliases`) | 117,268 |
 | Concept relations | 590,614 |
 | of which *is-a* and *instance of* | 97,639 |
 | of which *defined with* | 442,896 |
 | Beliefs held | 1,022,193 |
 | Concept evidence records | 1,179,242 |
 | Belief evidence records | 1,783,544 |
-| Evidence envelopes | 588,925 |
+| Evidence envelopes (`evidence_envelopes`) | 588,925 |
 | Memory records (hot / cold) | 1,441,708 / 0 |
 | of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
 | Domains concepts are filed under | 23 |
@@ -1441,7 +1441,7 @@ confirmed when asked:
 | Word-form records / word groups | 3,537 / 302 |
 | **Ways of reading English, held in memory (`grammar_rule`)** | **497** |
 | **Pairs the grammar holds beside them (`grammar_pair`)** | **87** |
-| Perceptions recorded | 149 |
+| Perceivings remembered (episodic memories tagged `percept`) | 149 |
 
 **What the substrate is made of**, re-derived from the source on 2026-11-19:
 
