@@ -863,7 +863,40 @@ class HealthMonitor:
             self.stats['total_checks'] += 1
             self.stats['last_check_time'] = datetime.now().isoformat()
 
-            logger.info(f"Component health check: {component} = {health.status.value} ({check_duration:.2f}s)")
+            # A VERDICT THAT DOES NOT SAY WHY CANNOT BE ACTED ON. This line
+            # named a component and a status and stopped there, so
+            # "learning = degraded", every thirty seconds, told nobody — not a
+            # person reading the log, not the improvement system choosing a
+            # target — WHICH part was unwell or WHAT was wrong with it. The
+            # findings were computed right here (`health.issues`, and the gates
+            # the assessment failed) and persisted to component_health, and then
+            # not said. They are said now, with the verdict that rests on them.
+            #
+            # AND SAID WHEN IT IS NEWS. Fourteen components restating an
+            # unchanged verdict every thirty seconds was 8% of everything the
+            # substrate wrote. A verdict that has not moved, and whose reasons
+            # have not changed, is still recorded — at DEBUG; one that moved is
+            # said at the level its status deserves, so a component going
+            # degraded is a WARNING carrying its reasons and not another line in
+            # a wall of them.
+            reasons = list(health.issues)
+            reasons += [f"gate failed: {gate}"
+                        for gate in (health.metrics.get("_gate_failures") or ())]
+            spoken = getattr(self, "_verdict_spoken", None)
+            if spoken is None:
+                spoken = self._verdict_spoken = {}
+            said = (health.status.value, tuple(reasons))
+            again = spoken.get(component) == said
+            spoken[component] = said
+            if again:
+                say_at = logging.DEBUG
+            elif health.status == HealthStatus.HEALTHY:
+                say_at = logging.INFO
+            else:
+                say_at = logging.WARNING
+            logger.log(say_at, "Component health check: %s = %s (%.2fs)%s%s",
+                       component, health.status.value, check_duration,
+                       " — " if reasons else "", "; ".join(reasons))
 
             # Persist the assessment so the improvement system can select
             # targets from measured components instead of invented ones.

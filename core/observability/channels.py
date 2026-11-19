@@ -447,6 +447,8 @@ def _heartbeat(every: float, after: float, level: int) -> None:
     This is the only part of the apparatus that reports work in progress, so
     it is the part that answers "what is it doing right now".
     """
+    seen: Optional[Tuple[tuple, tuple]] = None
+    still = time.monotonic()
     while True:
         time.sleep(every)
         # THE ROSTER GOES OUT EVERY TICK, not only when a task is standing.
@@ -454,15 +456,48 @@ def _heartbeat(every: float, after: float, level: int) -> None:
         # synchronous reading inside a task that already existed, so `_LIVE`
         # is empty and gating the roster on standing tasks reported NOTHING
         # through the exact event this apparatus is for.
-        for thread in threads_now():
-            logging.getLogger("core.system.thread").log(
-                level, "thread %s%s is on %s", thread["thread"],
-                " (daemon)" if thread["daemon"] else "", thread["on"])
+        here = threads_now()
         standing = [row for row in running_now() if row["running_for_s"] >= after]
+
+        # A TICK THAT REPEATS THE LAST ONE IS NOT A REPORT. Fifteen identical
+        # lines every thirty seconds -- four threads on the same four lines,
+        # eleven tasks still standing -- was 9% of a run's log, and it buried the
+        # ticks where something did move. What can move is WHERE each thread is
+        # and WHICH work is standing; how long it has stood is the one thing that
+        # cannot help but change, so it is not what decides.
+        #
+        # SILENCE WOULD BE WORSE THAN REPETITION. A thread on one line for 400
+        # seconds IS the event this apparatus exists for, and a log that went
+        # quiet while it sat there would read as an idle substrate. So a tick
+        # with news says every line at the installed level; a tick without says
+        # them at DEBUG and keeps ONE line at the installed level -- alive, where,
+        # and how long it has been there.
+        now = (tuple((row["thread"], row["daemon"], row["on"]) for row in here),
+               tuple((row["what"], row["where"]) for row in standing))
+        news = now != seen
+        seen = now
+        if news:
+            still = time.monotonic()
+        say_at = level if news else logging.DEBUG
+        for thread in here:
+            logging.getLogger("core.system.thread").log(
+                say_at, "thread %s%s is on %s", thread["thread"],
+                " (daemon)" if thread["daemon"] else "", thread["on"])
         for row in standing:
             logging.getLogger(row["logger"]).log(
-                level, "STILL RUNNING after %.1fs: %s (%s)",
+                say_at, "STILL RUNNING after %.1fs: %s (%s)",
                 row["running_for_s"], row["what"], row["where"])
+        if not news:
+            longest = max(standing, key=lambda row: row["running_for_s"],
+                          default=None)
+            logging.getLogger("core.system.thread").log(
+                level, "nothing moved for %.0fs: %d thread(s) where they were, "
+                       "%d still running%s",
+                time.monotonic() - still, len(here), len(standing),
+                "" if longest is None else
+                ", longest %s at %.0fs (%s)" % (longest["what"],
+                                                longest["running_for_s"],
+                                                longest["where"]))
 
 
 def watch_background_work(level: int = logging.INFO, *,

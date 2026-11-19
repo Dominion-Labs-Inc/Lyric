@@ -9792,10 +9792,29 @@ class AutonomousCoordinator:
         a burst of state-changing events produces at most one in-flight + one
         queued selection, and a change arriving mid-selection re-arms it. The
         cycle owns its own gating (queue pressure, exploration cap, disposition,
-        dedup) and error handling — a fault there is surfaced, never swallowed."""
-        while self._pursuit_dirty:
+        dedup) and error handling — a fault there is surfaced, never swallowed.
+
+        SETTLED AND BOUNDED, like every other coalesced drain. This one was
+        neither, and it is the drain most easily re-woken: a selection cycle
+        collects system context and asks the Self for a disposition, and the
+        drains answering the same events emit while it does. Measured 2026-11-18:
+        this drain and the two domain drains woke each other for 147 seconds
+        without a pause — 1,139 full appraisal→arbiter cycles at eight a second,
+        every one answering "proceed, do not explore", 2,278 log lines saying so,
+        77% of everything the substrate wrote while it ran. Waiting
+        `_COALESCE_SETTLE_S` after a pass makes a burst of any size one more
+        selection, which is what coalescing is for; the bound is the backstop the
+        siblings have. Nothing is dropped — the flag outlives the drain, so work
+        left at the bound resumes on the next wake."""
+        passes = 0
+        while self._pursuit_dirty and passes < self._COALESCE_MAX_PASSES:
+            passes += 1
             self._pursuit_dirty = False
             await self._run_exploration_cycle()
+            await asyncio.sleep(self._COALESCE_SETTLE_S)
+        if self._pursuit_dirty:
+            logger.info("[REACT] pursuit selection ran %d passes while events kept "
+                        "arriving; it resumes on the next wake", self._COALESCE_MAX_PASSES)
 
     async def _react_induce(self, event: SelfEvent) -> None:
         """OUTCOME_OBSERVED also wakes the induction drain — a belt-and-suspenders
@@ -13914,11 +13933,23 @@ class AutonomousCoordinator:
             # A real zero, reported as one. "No task has completed since the
             # last pass" and "the reader is broken" must not look alike.
             self._domain_expansion_status = "NOTHING_PENDING"
-            logger.info(
+            # A REAL ZERO IS WORTH SAYING ONCE. A drain woken by a burst reports
+            # the same zero on every pass — 75 identical lines in 147 seconds on
+            # 2026-11-18 — and "nothing has completed since the last pass" does
+            # not become a different finding by being reached again. Recorded on
+            # every pass still, at DEBUG while the count holds; the mark is
+            # cleared the moment there IS something pending, so the next zero is
+            # news again rather than permanently muted.
+            _found = len(outcomes)
+            _again = _found == getattr(self, "_expansion_zero_said", None)
+            self._expansion_zero_said = _found
+            logger.log(
+                logging.DEBUG if _again else logging.INFO,
                 "[IDLE:DOMAIN] %d task-outcome memory(ies) found, none unexpanded",
-                len(outcomes))
+                _found)
             return 0
 
+        self._expansion_zero_said = None
         expanded = 0
         transfers = 0
         skipped: Dict[str, int] = {}
@@ -14423,7 +14454,22 @@ class AutonomousCoordinator:
                     queue_pressure=_pressure,
                 )
                 _max_goals = max(0, min(cap, _directive.max_goals))
-                logger.info(
+                # A DISPOSITION IS NEWS WHEN IT CHANGES. The same stance said
+                # again is the substrate repeating itself, and every wake of this
+                # cycle said it twice: one pair of these lines per event, for as
+                # long as events arrived. The stance is still recorded on every
+                # cycle — at DEBUG while it holds, at the channel's own level the
+                # moment any part of it moves — so the log carries the
+                # dispositions taken rather than the count of times the same one
+                # was reached.
+                _stance = (_directive.mode, bool(_directive.should_explore),
+                           _max_goals,
+                           round(float(_directive.verification_intensity), 2),
+                           tuple(_directive.reason_codes or ()))
+                _again = _stance == getattr(self, "_behaviour_stance_said", None)
+                self._behaviour_stance_said = _stance
+                logger.log(
+                    logging.DEBUG if _again else logging.INFO,
                     "🧭 Behaviour: mode=%s explore=%s goals=%d verify=%.2f %s",
                     _directive.mode, _directive.should_explore,
                     _max_goals, _directive.verification_intensity,
@@ -14433,7 +14479,9 @@ class AutonomousCoordinator:
                     # An arbiter that says "not now" is a real decision, not an
                     # error. Escalation-dominant states must not thrash through
                     # self-directed exploration.
-                    logger.info("🧘 Exploration declined by arbiter (%s)", _directive.mode)
+                    logger.log(logging.DEBUG if _again else logging.INFO,
+                               "🧘 Exploration declined by arbiter (%s)",
+                               _directive.mode)
                     self._exploration_status = "DECLINED_BY_ARBITER"
                     return
             except Exception as _arb_err:
