@@ -342,15 +342,137 @@ empty `core/health/README.md`.
 **11. The mechanical set.** 66 broken links, 36 missing experiment READMEs, 47 index gaps, the
 `TEACHING.md` measurement date, the `torinai-chat` reference, the duplicate belief documents.
 
+## 4b. What was repaired, same day
+
+Everything in §4 except the three runs was done on 2026-11-19 and is in the repository. What follows is
+what changed, so this audit reads as a record rather than a backlog.
+
+**The index.** `docs/README.md` rewritten. It opened by calling Lyric an AGI system and then taught the
+reader to add a chaos scenario and import a metadata structure; it is now a register of the four
+documents, the system's size, the experiment corpus, the teaching record, the substrate reference, the
+standing records and the evaluation data. Lyric is not an open model, so nothing in it is written for a
+reader intending to modify the substrate. Its links all resolve.
+
+**The architecture document.** Component map re-measured from the source: 243,434 lines across 262
+subsystem modules plus 2,607 in the six at `core/` itself, 245,952 in 268 in all. Nine subsystems that
+were missing from the table are in it (`security/`, `connectors/`, `services/`, `api/`, `guardian/`,
+`optimization/` among them), and the `execution/` row now records where its three capabilities went. The
+supporting-subsystems table in §29 gained the same six. Cover moved to November 2026, and the
+verification preamble now separates the source scan, re-run on 2026-11-19, from the stored-state figures,
+which still carry 2026-09-19.
+
+**The product overview.** §13 rewritten from 25 lines to an account of the reader (a categorial grammar
+with meaning built alongside, replacing the reader that matched remembered sentences and was wrong about
+one time in three), the grammar held in memory rather than read from a file, the one door knowledge comes
+through with its support floor and its surfaced contradictions, held conditionals, conversation, and how
+the reading is taught and measured. §17's framing corrected from "32 named suites" to 245 series, 189 with
+run records, 2,477 artifacts, stating plainly that its tables are a selection and the registry is in the
+validation document, and naming the held-out corpora. §23's preamble now says which figures carry
+2026-09-19 and why. Cover moved to November 2026.
+
+**The external drive is accounted for.** `/Volumes/ESD-USB/LyricData`, 3.4 GB in six archives written
+2026-11-14, was referenced by nothing in the repository. Its contents are now in the index and in §17 of
+the product overview: the Parallel Meaning Bank (840,698 entries), PropBank release and frames, the six
+Universal Dependencies English treebanks, STREUSLE, LibriSpeech alignments and per-word audio with MSWC
+English, a vision instruction set, and the gold record sets runs are scored against. 871,253 entries in
+the evaluation archive alone.
+
+**Retired systems archived, each with a note tracing where the capability went.**
+`docs/governance/` (21 files) to `docs/archive/governance/`: judgement is now `Constitution` in the
+coordinator, reached through `judge_act()`, five laws and four verdicts. The three perimeter documents to
+`docs/archive/perimeter_security/`: those modules are held disabled in `core/security/_disabled/` and
+containment is Tet's, outside the substrate. `LYRIC_REFERENCE.md` to
+`docs/archive/LYRIC_REFERENCE_2026-03-06.md`. `docs/archive/README.md` now states that nothing in the
+folder describes the running system, and tabulates what superseded what.
+
+**The repository root.** 36 of the 39 files to `archive/torinai_notes_2025_2026/` with a note on why none
+of it is current; `HANDOFF.md` and `HIDDEN.md` stay. The company `README.md` named TorinAI as a product
+and Cloudflare R2 as storage; it now names Lyric Ai and LyricOS, and R2 is gone.
+
+**Two further staleness findings, made during the repair.** Both documents now carry the measurement and
+say what replaced what, and the second needs more work than this pass gave it:
+
+- `docs/security/SAFETY_ARCHITECTURE.md` names 21 modules and **18 no longer exist.** Its reasoning about
+  what a control plane must decide still holds, which is why it is kept; its module map does not. Its note
+  traces each one: the governance modules into the constitution, completion into a belief on the task
+  settled by the truth gate, the watchdog into the guardian daemon, the perimeter out to Tet, and the
+  self-upgrade set removed deliberately. The index no longer presents it as the current account.
+- `docs/architecture/coordinator.md` names 128 handles and methods and **39 are no longer present**, with
+  line numbers from an earlier state of a 21,000-line file. The accessor signature and the teacher model
+  are corrected, and the confirmed differences are listed, but **it needs a full re-trace against the
+  source** before it is relied on method by method.
+
+**Corrections to documents that described completed work as pending.** `INTRINSIC_MOTIVATION_REDESIGN.md`
+said "PLAN (not yet built)"; the system is `core/agents/autonomous/intrinsic_motivation.py` over seven
+dimensions, with the `INTRINSIC-EVENTDRIVEN-01`, `MOTIVATION-CLOSEDLOOP-01` and `DRIVES-01` series behind
+it. `DRIFT_CONSOLIDATION.md` read as a pending absorption plan; drift is a faculty of the coordinator.
+`PUBLIC_BETA_ROLE_PROFILES.md` said the conversation surface was missing an endpoint and that
+`torinai-chat` was declared without an implementation; the surface was built on 2026-10-29 and nothing
+declares that service now.
+
+**Stale pricing.** `OFFERINGS_RESEARCH.md` carried $19.99, $59.99, $49.99, per-seat add-ons and the names
+"Lyric Auto" and "Lyric Starter", which were never published. Its status note now carries the published
+set, read from the live plans page: Free $0 at 7.5 action minutes in any 24 hours, Pro $20 or $17 annual
+at 2,340 a month, Max 1x $80 at 14,400, Max 2x $100 at 21,600, Teams standard seat $20 at 2,340 and
+premium $100 or $80 annual at 14,400, Enterprise by agreement at 2,000 by default. Its capability
+research, which is the part that matters, is unchanged and still holds.
+
+**Authority resolved.** `docs/ARCHITECTURE.md` and `LYRIC_ARCHITECTURE_DOCUMENT.md` both called themselves
+the canonical architecture document; the first is now the engineering master and the root of the substrate
+reference, the second the document the company issues. `docs/design/BELIEFS.md` and
+`docs/design/memory_filtering.md` are dated and subordinated to the living authorities in
+`architecture/`.
+
+**Documents lifted out of the code tree.** `core/reasoning/REASONING.md` is
+`docs/research/REASONING_IN_A_COGNITIVE_SUBSTRATE.md` (Paper I of the Cognitive Substrate Series);
+`REASONING_PIPELINE.md` and `REASONING_PATHS_VERIFIED.md` are in `docs/architecture/`, the second with a
+note that the model it proved unnecessary has since been removed entirely. The three files containing
+nothing (`core/neural_bridge/README.md`, which described a federated learning architecture that was never
+there, `core/agents/agent_capability_test.md` and the empty `core/health/README.md`) are deleted.
+
+**Links.** Eleven broken links outside the archive repaired or accounted for: the retirement note
+repointed into the archive, five perimeter modules repointed into `_disabled/`, `DHCM/TET.md` repointed to
+`Tet/TET.md`, `core/memory/lift.py` to the memory agent's `_lift`, and `semantics/lexicon.py` to
+`semantics/grammar.py`, where the `Lexicon` class lives. Three remain unresolved in
+`CONFIGURATION_AUDIT_FINDINGS.md` and its note says they were removed outright. The 56 inside
+`docs/archive/` are left as written: they recorded paths that existed when they were written, and the
+archive says so.
+
+**Date corrections.** `TEACHING.md` claimed every number was measured on 2026-09-20 though it was edited
+on 2026-11-15; its header now says each figure carries its own date and points at the 440 session records.
+
+---
+
 ## 5. What needs your word before it happens
 
-- **Runs.** Items 1, 2 and 5 are runs against the store, and runs start when you say so. Item 2 also needs
-  the live database connection, which the sandbox would not let me read from `.env`.
-- **Moves and archiving.** Items 7, 8 and 9 move files. None of them deletes anything and none removes a
-  capability, but they change what is in the repository root and in two folders, so they are yours to
-  approve.
-- **Re-renders.** Once the sources are current, the four documents re-render to Word and PDF through the
-  Word pipeline and the data room picks them up on its next `sync`.
+**Three runs, deferred on your word.** These are the only items from §4 not done:
+
+1. **Regenerate the validation document's registry** from the full 2,477-artifact corpus. The document's
+   structure does not change; it covers 82 experiments and 614 artifacts and should cover 189 and 2,477.
+   This is the highest-value piece of work left in the estate.
+2. **Re-measure the product overview's §23 table** against the live store under
+   `./venv_lyric/bin/python3`. The source-scan figures elsewhere in both documents were re-derived on
+   2026-11-19; §23 is the one set that needs the database. Reading `Lyric/.env` was refused by the sandbox,
+   so this needs either the connection or the run from you.
+3. **Bring `docs/research/BENCHMARKS.md` forward** from 2026-09-28, from the artifacts and the lab notebook
+   entries that already record the runs.
+
+**One re-trace, larger than this pass.** `docs/architecture/coordinator.md` needs tracing method by method
+against a 21,000-line file. It now states its own staleness rather than reading as current.
+
+**Then the re-renders.** Once the sources are current, the four documents re-render to Word and PDF through
+the Word pipeline, and the data room picks them up on its next `sync`. Until then the room is serving the
+September renders of all four.
+
+**Code items found while auditing documents, reported not changed.** Each would alter behaviour or a
+documented figure, so none was touched:
+
+- `core/tools/database_tools.py` offers tools over R2 buckets named `torinai-system-data`,
+  `torinai-short-term-memory` and `torinai-ml-models`. R2 is retired, so these are dead tools carrying the
+  old name, and the registered-tool count is a figure the product overview quotes.
+- The `lyric` CLI suggests starting PostgreSQL from `/opt/homebrew/var/torinai-pg16`.
+- `core/agents/autonomous/` holds an orphaned `governance_block_schema.cpython-311.pyc` with no source.
+- `core/cache/`, `core/data/` and `core/databases/` hold no modules at all.
 
 Everything in §3 is reported as found and re-verified against the code and the artifacts. No capability was
 marked missing on the evidence of an old file: where a document named something that is gone, the capability
