@@ -3316,7 +3316,7 @@ class MemoryAgent(IMemoryConsolidation):
             # sentence(s)" about a complete index.
             logger.info("the word classes were worked out before from these very memories: %d word(s) read "
                         "back rather than worked out of %s sentence(s)",
-                        len(index), kept_from if kept_from is not None else "a number of")
+                        len(index), kept_from if kept_from is not None else "an unrecorded number of")
         else:
             for item in stated:
                 await give_way()
@@ -3533,7 +3533,7 @@ class MemoryAgent(IMemoryConsolidation):
             logger.info(
                 "word-class view warmed: %d word(s) read back, worked out before from %s taught memory(ies); "
                 "%d taught construction(s) and link(s)",
-                len(index), f"{kept_from}" if kept_from is not None else "a number not recorded then",
+                len(index), f"{kept_from}" if kept_from is not None else "an unrecorded number of",
                 len(inventory))
         else:
             logger.info(
