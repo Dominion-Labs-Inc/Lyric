@@ -438,6 +438,29 @@ repointed into the archive, five perimeter modules repointed into `_disabled/`, 
 `docs/archive/` are left as written: they recorded paths that existed when they were written, and the
 archive says so.
 
+**A second pass found `docs/design/`, which the first had only touched at the edges.** A full marker scan
+of all 64 live documents, after the index was rewritten, turned up 49 markers in 15 files. Most were
+documents correctly stating that something had been deleted. Three were not:
+
+- **`docs/design/IDENTITY_PROMPT_MAP.md` was the inventory that drove the model's retirement**, written to
+  find every place Lyric's identity and cognition were pinned to a language model before that was taken
+  out, and it describes that state in the present tense: *"Lyric's 'self' lives in the LLM in two forms."*
+  The module it inventories, `core/services/unified_llm.py`, does not exist. **This was the single most
+  damaging sentence left in the estate**, and it was in the folder the first pass skimmed. Archived as
+  `docs/archive/IDENTITY_PROMPT_MAP_2026-09.md` with a note that the substrate-native path it calls a
+  third, parallel path is now the only path.
+- `docs/design/MEMORY_SEMANTICS_CONVERSATION.md`, at 153 KB the largest design record, keeps its analysis
+  and gains a note on three components that moved: the reading registry, whose `DerivedReading` is now
+  formalised in the neural bridge and whose structure side is `Derived` in `semantics/grammar.py`; the
+  convergence gate, gone with the `execution/` subsystem; and `general_purpose_executor.py`, whose state
+  the coordinator absorbed.
+- `OFFERINGS_RESEARCH.md` still carried $19.99, $59.99, $49.99 and the per-seat annual figures in three
+  tables **below** its new status note. A status note is not enough when a reader can still find a wrong
+  price in the body; those rows now read superseded and point at the published prices.
+
+The scan now returns nothing in the live set that is not a document stating a deletion, and three broken
+links, all in `CONFIGURATION_AUDIT_FINDINGS.md`, whose note says those modules were removed outright.
+
 **Date corrections.** `TEACHING.md` claimed every number was measured on 2026-09-20 though it was edited
 on 2026-11-15; its header now says each figure carries its own date and points at the 440 session records.
 
