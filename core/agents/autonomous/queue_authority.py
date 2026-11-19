@@ -209,6 +209,14 @@ class _ScheduledJob:
     running: Optional["asyncio.Future"] = None
     #: Times it came due while its last run was still going, and so did not start.
     skipped: int = 0
+    #: WHETHER THE JOB MAY BE TAKEN UP WHERE IT STOPPED. A resumable job is called with where it last stood down
+    #: (None the first time) and may raise `give_way.StandDown` to stop. Every other job is called with nothing
+    #: and cannot stand down, which is how every job registered before this one behaves.
+    resumable: bool = False
+    #: Where it stood down, kept until it is taken up again; None once it ran to its end.
+    resume_at: Any = None
+    #: Times it stood down for work rather than finishing.
+    stood_down: int = 0
 
 
 class QueueAuthority:
@@ -276,6 +284,14 @@ class QueueAuthority:
         self._bg_semaphore = asyncio.Semaphore(self.bg_max_parallel)
         self._pool_stats = _PoolStats()
         self._pool_lock = asyncio.Lock()
+        #: WORK JOBS IN FLIGHT, AND WHEN THE LAST ONE ENDED. `_pool_stats.active` counts work and background
+        #: alike, so it cannot say whether anyone is being served: a reflection running on the background budget
+        #: would read as the substrate being busy with itself. These count WORK only -- a person's turn becomes a
+        #: task here (`handle_user_request`), so a turn in flight is a work job in flight -- and they are counted
+        #: from the moment the job is handed over, before it waits for a slot, because a person waiting for a slot
+        #: is a person waiting. `busy` and `idle_for` are what downtime work asks (`GiveWay`'s `stand_down`).
+        self._work_in_flight = 0
+        self._last_work_ended = time.monotonic()
         #: The reasoning authority, consulted (lazily) for the MEASURED
         #: reasoning-difficulty factor in `timeout_for`. The queue owns the
         #: timeout formula; the reasoning authority owns how hard the thinking is.
@@ -1128,6 +1144,8 @@ class QueueAuthority:
             self._running_jobs[job_id] = asyncio.current_task()
         # WHOSE WORK IT IS, for the tools it runs (`acting_for`, `compute_used`).
         acting = _acting_job.set(self.tasks_by_id.get(job_id)) if not background else None
+        if not background:
+            self._work_in_flight += 1
         try:
             return await self._execute_held(job_id, func, args, kwargs, semaphore, job_timeout)
         finally:
@@ -1135,6 +1153,9 @@ class QueueAuthority:
                 _acting_job.reset(acting)
             if not background:
                 self._running_jobs.pop(job_id, None)
+                self._work_in_flight = max(0, self._work_in_flight - 1)
+                if not self._work_in_flight:
+                    self._last_work_ended = time.monotonic()
 
     async def _execute_held(self, job_id: str, func: Callable[..., Awaitable[Any]],
                             args: tuple, kwargs: Dict[str, Any], semaphore: asyncio.Semaphore,
@@ -1365,31 +1386,73 @@ class QueueAuthority:
     # `submit(..., delay_s=)`; stopping any job is `cancel`)
     # ══════════════════════════════════════════════════════════════════════
 
-    def schedule_recurring(self, name: str, call: Callable[[], Awaitable[Any]],
-                           interval_s: float, priority: str = "medium") -> None:
+    def schedule_recurring(self, name: str, call: Callable[..., Awaitable[Any]],
+                           interval_s: float, priority: str = "medium",
+                           resumable: bool = False) -> None:
         """Register a recurring job the authority fires every `interval_s`. This
         is where the substrate's periodic work lives — nothing runs its own
         interval loop.
 
         Registering a name that is already scheduled RETUNES it — new call,
         cadence and priority, next run one new interval from now — and keeps
-        the job's run/error record. This is how a cadence is changed."""
+        the job's run/error record. This is how a cadence is changed.
+
+        `resumable`: the job may only run in downtime and may stand down for work. It is called with where it last
+        stood down (None the first time) and stops by raising `give_way.StandDown`, which says where it had got
+        to. Every other job is called with nothing and runs to its end, as every job registered before this
+        did."""
         interval_s = float(interval_s)
         next_due = time.monotonic() + interval_s
         job = self._scheduled.get(name)
         if job is not None:
             job.call, job.interval_s = call, interval_s
             job.priority, job.next_due = priority, next_due
+            # RETUNING DOES NOT THROW AWAY WHERE IT STOPPED: a cadence changed mid-pass must not make the pass
+            # start again. Only a job that is no longer resumable gives up its place.
+            job.resumable = resumable
+            if not resumable:
+                job.resume_at = None
             logger.info("retuned recurring job %s to every %.0fs", name, interval_s)
             return
         self._scheduled[name] = _ScheduledJob(
             name=name, call=call, interval_s=interval_s,
-            next_due=next_due, priority=priority)
+            next_due=next_due, priority=priority, resumable=resumable)
         logger.info("scheduled recurring job %s every %.0fs", name, interval_s)
 
 
     def scheduled_jobs(self) -> List[str]:
         return list(self._scheduled)
+
+    # ── downtime ──────────────────────────────────────────────────────────────────────────────────────────────
+    def busy(self) -> bool:
+        """Whether the substrate has work in flight: a person's turn, or any other acting task.
+
+        Background work does not count. Reflection and the substrate's own upkeep run on the background budget,
+        and they are exactly what this is asked on behalf of: work that must stand down for a person must not read
+        itself as the person."""
+        return self._work_in_flight > 0
+
+    def idle_for(self) -> float:
+        """Seconds since the last work job ended, and 0.0 while any is in flight.
+
+        This is what says downtime has lasted long enough to begin something that may only happen in downtime. It
+        is monotonic, so it is unaffected by the clock being set."""
+        if self._work_in_flight:
+            return 0.0
+        return max(0.0, time.monotonic() - self._last_work_ended)
+
+    def stand_down_after(self, idle_s: float = 0.0) -> Callable[[], bool]:
+        """A `stand_down` for `GiveWay`: true once the substrate is busy again, or once it has not been idle for
+        `idle_s`. Handed to a long pass that may only run in downtime, so the pass stops where it is."""
+        def should() -> bool:
+            return self.busy() or self.idle_for() < idle_s
+        return should
+
+    def resume_at(self, name: str) -> Any:
+        """Where a resumable scheduled job stood down, or None if it has not. Set by `_fire_scheduled` when the job
+        raises `StandDown`, and cleared when the job runs to its end."""
+        job = self._scheduled.get(name)
+        return getattr(job, "resume_at", None) if job is not None else None
 
     def start(self) -> None:
         """Start the scheduler loop (idempotent). The authority now fires due
@@ -1420,9 +1483,24 @@ class QueueAuthority:
         is logged BY NAME and counted (no orphaned-task warning, no silent loss);
         a tier that succeeds bumps its run count. `execute` still owns the timeout
         and the pool counters — this only adds the per-tier truth."""
+        from core.utils.give_way import StandDown
         try:
-            await self.execute(f"scheduled:{job.name}", job.call, background=True)
+            if job.resumable:
+                # TAKEN UP WHERE IT STOPPED, never begun again. A job that may only run in downtime is stopped
+                # the moment a person arrives, and a stopped pass that starts from the beginning next time never
+                # reaches its end at all: it would redo the part it had already done, be stopped again, and hold
+                # a substrate that is used at all to the first few seconds of its work for ever.
+                await self.execute(f"scheduled:{job.name}", job.call, job.resume_at, background=True)
+                job.resume_at = None
+            else:
+                await self.execute(f"scheduled:{job.name}", job.call, background=True)
             job.runs += 1
+        except StandDown as stopped:
+            # STOOD DOWN IS NOT FAILED. The job gave way to work, said where it had got to, and is due again as
+            # usual; nothing is logged as an error and its error count does not move.
+            job.resume_at = stopped.at
+            job.stood_down += 1
+            logger.info("scheduled job %s stood down for work at %r", job.name, stopped.at)
         except Exception as e:  # includes asyncio.TimeoutError from execute
             job.errors += 1
             job.last_error = f"{type(e).__name__}: {e}"
@@ -1549,7 +1627,12 @@ class QueueAuthority:
     def scheduled_job_status(self) -> List[Dict[str, Any]]:
         """Per-job diagnostics (name, cadence, runs, errors, last_error) — the
         substrate's window on what its periodic work is actually doing. Not a
-        health scalar (the probe drops nested/list values); read on demand."""
+        health scalar (the probe drops nested/list values); read on demand.
+
+        A JOB THAT STOOD DOWN HAS NOT FAILED AND HAS NOT RUN, so it is said apart from both: `stood_down` is how
+        often it gave way to work, and `resume_at` is where it is waiting to be taken up from. Counted under
+        either of the others, downtime work on a substrate in use would read as a job erroring every few minutes
+        or as one that never runs at all."""
         out: List[Dict[str, Any]] = []
         for job in self._scheduled.values():
             out.append({
@@ -1558,6 +1641,8 @@ class QueueAuthority:
                 "runs": job.runs,
                 "errors": job.errors,
                 "skipped": job.skipped,
+                "stood_down": job.stood_down,
+                "resume_at": job.resume_at,
                 "last_error": job.last_error,
             })
         return out
