@@ -204,6 +204,14 @@ class MemoryAgent(IMemoryConsolidation):
         #: The sentences memory holds as derived by hand in a categorial grammar (`remember_derived`), which the
         #: grammar chooses each word's category by (`grammar.Derived`, `GrammarView.hold_derived`).
         self._grammar_derived: Dict[str, Any] = {}
+        #: ENGLISH'S GRAMMAR AS MEMORY HOLDS IT (`remember_grammar_rules`, `remember_grammar_pairs`): every way of
+        #: reading it was taught (`teaching_sources.GrammarRule`) and every pair it holds beside them
+        #: (`GrammarPair`), by the record's key. `data/grammar/english.json` is the lesson these are taught from,
+        #: and was read straight off disk by `grammar.Lexicon` -- a second authority beside memory, which a wipe
+        #: could not clear, teaching could not grow and no evidence could argue with. `grammar_taught` hands them
+        #: back as the reader takes them.
+        self._grammar_rules: Dict[str, Any] = {}
+        self._grammar_pairs: Dict[str, Any] = {}
         #: What each word names, as the sentences recorded whole name it ((word, class) -> names, counted): "medal"
         #: as a noun names `award decoration` (`name_of`).
         self._record_names: Dict[Tuple[str, str], Counter] = {}
@@ -3207,6 +3215,8 @@ class MemoryAgent(IMemoryConsolidation):
         arguments = await self._argued_memories()
         composition, taught_sentences = await self._composition_memories(arguments)
         derived = await self._derived_memories()
+        self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
+        self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
         # AND THE SENTENCES RECORDED WHOLE: each layer of each into the view that learns from it.
         for row, record in await self._record_memories():
             await give_way()
@@ -7250,6 +7260,78 @@ class MemoryAgent(IMemoryConsolidation):
         if self._grammar_view is not None:
             self._grammar_view.hold_derived(item)
 
+    GRAMMAR_RULE_TAG = "grammar_rule"
+    GRAMMAR_PAIR_TAG = "grammar_pair"
+
+    async def _grammar_rule_memories(self) -> List[Any]:
+        """The ways of reading English memory holds (`teaching_sources.GrammarRule`), for the grammar it reads
+        with (`grammar_taught`)."""
+        from core.learning.teaching_sources import GrammarRule
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        held: List[Any] = []
+        for row in await self._rows_tagged(self.GRAMMAR_RULE_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("grammar_rule")
+            if data:
+                held.append(GrammarRule.from_dict(data))
+        return held
+
+    async def _grammar_pair_memories(self) -> List[Any]:
+        """The pairs English's grammar holds, as memory holds them (`teaching_sources.GrammarPair`)."""
+        from core.learning.teaching_sources import GrammarPair
+        from core.utils.give_way import GiveWay
+        give_way = GiveWay()
+        held: List[Any] = []
+        for row in await self._rows_tagged(self.GRAMMAR_PAIR_TAG):
+            await give_way()
+            data = (row.metadata or {}).get("grammar_pair")
+            if data:
+                held.append(GrammarPair.from_dict(data))
+        return held
+
+    async def remember_grammar_rules(self, rules, progress: Optional[Callable[[int, int], None]] = None
+                                     ) -> Dict[str, Any]:
+        """Remember the ways English is read (`teaching_sources.GrammarRule`), one memory each; one held already is
+        not held again, and one taught otherwise for the same way of reading the same thing is corrected
+        (`_correct_whole`). Returns `kept`, `corrected` and counts, as `remember_derived`."""
+        return await self._remember_whole(
+            rules, view=lambda: None, tag=self.GRAMMAR_RULE_TAG, field="grammar_rule", progress=progress,
+            total=len(rules) if hasattr(rules, "__len__") else 0,
+            content=lambda item: item.said(), add=lambda _, item: self._hold_grammar_rule(item),
+            drop=lambda _, item: self._grammar_rules.pop(item.key(), None))
+
+    async def remember_grammar_pairs(self, pairs, progress: Optional[Callable[[int, int], None]] = None
+                                     ) -> Dict[str, Any]:
+        """Remember the pairs English's grammar holds (`teaching_sources.GrammarPair`), one memory each, as
+        `remember_grammar_rules` keeps the ways of reading."""
+        return await self._remember_whole(
+            pairs, view=lambda: None, tag=self.GRAMMAR_PAIR_TAG, field="grammar_pair", progress=progress,
+            total=len(pairs) if hasattr(pairs, "__len__") else 0,
+            content=lambda item: item.said(), add=lambda _, item: self._hold_grammar_pair(item),
+            drop=lambda _, item: self._grammar_pairs.pop(item.key(), None))
+
+    def _hold_grammar_rule(self, item) -> None:
+        """A way of reading English held. The grammar reads with what memory holds, so one more way of reading is
+        one the view must be built again to see (`grammar_view`)."""
+        self._grammar_rules[item.key()] = item
+        self._grammar_view = None
+
+    def _hold_grammar_pair(self, item) -> None:
+        """A pair English's grammar holds."""
+        self._grammar_pairs[item.key()] = item
+        self._grammar_view = None
+
+    def grammar_taught(self) -> Dict[str, Any]:
+        """ENGLISH'S GRAMMAR AS THE READER TAKES IT (`grammar.Lexicon`), built from what memory holds: every way of
+        reading and every pair, back under the tables that state them (`teaching_sources.grammar_from`). Empty
+        where nothing has been taught yet, which is the honest answer -- a store that was never taught English
+        reads nothing, and the lesson it is taught from is `data/grammar/english.json`."""
+        from core.learning.teaching_sources import grammar_from
+        if not self._grammar_rules and not self._grammar_pairs:
+            return {}
+        return grammar_from(self._grammar_rules.values(), self._grammar_pairs.values())
+
     RECORD_TAG = "sentence_record"
 
     async def _record_memories(self) -> List[Tuple[Any, Any]]:
@@ -8234,6 +8316,12 @@ class MemoryAgent(IMemoryConsolidation):
         if field == "word_record":
             from core.learning.teaching_sources import WordRecord
             return WordRecord.from_dict(data)
+        if field == "grammar_rule":
+            from core.learning.teaching_sources import GrammarRule
+            return GrammarRule.from_dict(data)
+        if field == "grammar_pair":
+            from core.learning.teaching_sources import GrammarPair
+            return GrammarPair.from_dict(data)
         from core.semantics.composition import TaughtSentence
         return TaughtSentence.from_dict(data)
 

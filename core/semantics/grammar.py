@@ -7160,6 +7160,16 @@ class GrammarView:
                     alone[form][how] += times * n
                     if alone[form][how] <= 0:
                         del alone[form][how]
+        # HOW OFTEN EACH DETERMINER IS WRITTEN WITH NOTHING AFTER IT SAYING WHAT OF, as an analysed sentence counts
+        # it (`determiner_alone`): a determiner standing for the things it determines costs as seldom as it is so
+        # written (`_unary`, "NP/N=>NP").
+        determined = getattr(words, "determined", None)
+        if determined is not None:
+            for form, standing, before in getattr(word, "determined_alone", ()):
+                for how, n in (("alone", standing), ("before", before)):
+                    determined[form][how] += times * n
+                    if determined[form][how] <= 0:
+                        del determined[form][how]
         # AND THE REST AN ANALYSED SENTENCE TEACHES OF A WORD (`HeldWords._count`), as its record carries it: each form
         # written with a capital inside a sentence (`capitalized`), each -ing or participle form's shape (`verb_shapes`),
         # each noun said of a doing with no preposition (`bare_modifier`), each word said after the verb, as one with it

@@ -273,6 +273,11 @@ class Report:
     word_forms: Dict[str, int] = field(default_factory=dict)
     #: The same for the sentences it gave as derived by hand in a categorial grammar (`learn_derived`).
     derived: Dict[str, int] = field(default_factory=dict)
+    #: The ways English is read and the pairs its grammar holds, taught from the lesson that states them
+    #: (`teaching_sources.EnglishGrammarSource`): what the reader reads with, held by memory rather than read off
+    #: disk.
+    grammar_rules: Dict[str, int] = field(default_factory=dict)
+    grammar_pairs: Dict[str, int] = field(default_factory=dict)
     word_records: Dict[str, int] = field(default_factory=dict)
     sentence_records: Dict[str, int] = field(default_factory=dict)
     #: WHAT THIS SOURCE DOES NOT TEACH AT ALL, by report field. A source is asked for each kind of thing it might
@@ -323,6 +328,8 @@ class Report:
             f"word groups       : {self._said('word_groups', self.word_groups, 'none given')}",
             f"word forms        : {self._said('word_forms', self.word_forms, 'none given')}",
             f"derived by hand   : {self._said('derived', self.derived, 'none given')}",
+            f"ways English is read: {self._said('grammar_rules', self.grammar_rules, 'none stated')}",
+            f"its grammar's pairs : {self._said('grammar_pairs', self.grammar_pairs, 'none stated')}",
             f"words recorded    : {self._said('word_records', self.word_records, 'none given')}",
             f"recorded whole    : {self._said('sentence_records', self.sentence_records, 'none given')}",
             f"seconds           : {self.seconds:.1f}",
@@ -565,6 +572,8 @@ class TeachingPass:
                 ("word_groups", learning.learn_word_groups, "word groups", "word_groups"),
                 ("word_forms", learning.learn_word_forms, "word forms", "word_forms"),
                 ("derived", learning.learn_derived, "sentences derived by hand", "derived"),
+                ("grammar_rules", learning.learn_grammar_rules, "ways English is read", "grammar_rules"),
+                ("grammar_pairs", learning.learn_grammar_pairs, "pairs English's grammar holds", "grammar_pairs"),
                 ("word_records", learning.learn_word_records, "words recorded whole", "word_records"),
                 ("sentence_records", learning.learn_records, "sentences recorded whole", "sentence_records")):
             if not hasattr(self.source, method):

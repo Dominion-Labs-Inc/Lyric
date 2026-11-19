@@ -336,6 +336,228 @@ class ClosedClassSource:
 
 
 
+@dataclass(frozen=True)
+class GrammarRule:
+    """ONE WAY ENGLISH IS READ, as Lyric is taught it: what it is a rule of, the way it is read, the category that
+    says what it combines with and what it makes, and what its part of the sentence means.
+
+    WHY THIS IS A RECORD AND NOT A FILE. `data/grammar/english.json` is read straight off disk by
+    `grammar.Lexicon`, which makes it a second authority beside memory: a wipe could not clear it, teaching could
+    not grow it, and no evidence could argue with it -- the very thing said of the closed classes when they
+    stopped being frozensets in code (`CLOSED_CLASSES`). It is not a small gap. Of a closed-class word the
+    hand-written row is the ONLY source of categories, and all three roads evidence travels are filtered through
+    it: `closed_uses` signs a treebank's uses through the word's own row, `Lexicon.entries` prices rows and adds
+    none (`evidence.get(e["use"], -20.0)`, and the loop that does add is gated on the six OPEN classes), and
+    `Lexicon.hear_derived` drops what a hand-derived sentence says outright -- "a category the grammar has no
+    meaning for [is] not counted". So "must" could not learn the category that reads "Must you help me?" however
+    often anybody wrote it, and the row had to be added by hand (2026-11-18).
+
+    `of`: the word ("must"), the kind of word ("NOUN"), the form of a verb ("base"), or the run of words read as
+    one ("no one"). `table`: which of the grammar's tables says it. `frame`: for a verb's form, which frame
+    (`verbs`). `use`, `label`, `only`, `crossing`: as the table writes them, `only` for a way that is the word's
+    whole reading. The file stays in the tree as the TEACHING SOURCE, read into a fresh store as the lessons are,
+    so a wipe clears what memory holds and teaching reads the lesson again."""
+
+    of: str
+    table: str
+    category: str
+    means: Tuple[Tuple[str, ...], ...] = ()
+    use: str = ""
+    frame: str = ""
+    label: str = ""
+    only: bool = False
+    crossing: bool = False
+    source: str = ""
+
+    def key(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True).encode("utf-8")).hexdigest()[:32]
+
+    def identity(self) -> Optional[Tuple[str, str]]:
+        """What it is a rule of: one way of reading one thing. Recorded again, it corrects the memory holding the
+        first."""
+        return ("grammar rule", f"{self.table}/{self.of}/{self.frame}/{self.use}/{self.category}")
+
+    def claim(self) -> str:
+        return f'the way "{self.of}" is read as {self.use or self.table} ({self.key()[:8]})'
+
+    def said(self) -> str:
+        """The rule as memory keeps a record of it; never read as a claim about the world."""
+        of = f'"{self.of}"' if self.table == "words" else self.of
+        way = f" as {self.use}" if self.use else (f" in a {self.frame} frame" if self.frame else "")
+        return f"{of} is read{way}: {self.category}"
+
+    def row(self) -> Dict[str, Any]:
+        """The rule as the grammar's own table writes it (`grammar.Lexicon`), so what memory holds goes back to the
+        reader unchanged."""
+        out: Dict[str, Any] = {"cat": self.category}
+        if self.means:
+            out["sem"] = [list(piece) for piece in self.means]
+        if self.use:
+            out["use"] = self.use
+        if self.label:
+            out["label"] = self.label
+        if self.only:
+            out["only"] = True
+        if self.crossing:
+            out["crossing"] = True
+        return out
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"of": self.of, "table": self.table, "category": self.category,
+                "means": [list(piece) for piece in self.means], "use": self.use, "frame": self.frame,
+                "label": self.label, "only": self.only, "crossing": self.crossing, "source": self.source}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "GrammarRule":
+        return cls(of=str(data["of"]), table=str(data["table"]), category=str(data["category"]),
+                   means=tuple(tuple(str(x) for x in piece) for piece in data.get("means") or ()),
+                   use=str(data.get("use") or ""), frame=str(data.get("frame") or ""),
+                   label=str(data.get("label") or ""), only=bool(data.get("only")),
+                   crossing=bool(data.get("crossing")), source=str(data.get("source") or ""))
+
+    @classmethod
+    def of_row(cls, table: str, of: str, row: Mapping[str, Any], frame: str = "",
+               source: str = "") -> "GrammarRule":
+        """One row of one of the grammar's tables, as the table writes it."""
+        return cls(of=of, table=table, category=str(row["cat"]),
+                   means=tuple(tuple(str(x) for x in piece) for piece in row.get("sem") or ()),
+                   use=str(row.get("use") or ""), frame=frame, label=str(row.get("label") or ""),
+                   only=bool(row.get("only")), crossing=bool(row.get("crossing")), source=source)
+
+
+#: The grammar's tables that say a category with a meaning, keyed by what the way is of. `verbs` is keyed twice
+#: over -- by the form of the verb and then by the frame it is used in -- so it is read apart from these.
+_RULE_TABLES: Tuple[str, ...] = ("words", "classes", "together")
+
+#: The grammar's tables that say a plain pair: what each place of a doing links, which kind of word a phrase of
+#: several words is read as, what each number word is worth, and which of WordNet's frame numbers are which frame.
+_PAIR_TABLES: Tuple[str, ...] = ("linking", "phrases", "numbers", "number_scales", "wordnet_frames")
+
+
+@dataclass(frozen=True)
+class GrammarPair:
+    """ONE PAIR ENGLISH'S GRAMMAR HOLDS, as Lyric is taught it: what each place of a doing links ("subject" ->
+    `done_by`), which kind of word a phrase of several words is read as ("in front of" -> a PREPOSITION), what
+    each number word is worth ("zero" -> 0) and its scale ("thousand" -> 1000), which words may stand inside a
+    name ("de", "van"), and which of WordNet's frame numbers are which frame.
+
+    A pair, not a way of reading: it says nothing about what combines with what (`GrammarRule`). `says` is what
+    the grammar's own table holds, written as the table writes it, so what memory holds goes back to the reader
+    unchanged."""
+
+    table: str
+    of: str
+    says: str = ""
+    source: str = ""
+
+    def key(self) -> str:
+        import hashlib
+        return hashlib.sha256(json.dumps(self.to_dict(), sort_keys=True).encode("utf-8")).hexdigest()[:32]
+
+    def identity(self) -> Optional[Tuple[str, str]]:
+        """What it is a pair of: one table, one key. Recorded again, it corrects the memory holding the first."""
+        return ("grammar pair", f"{self.table}/{self.of}")
+
+    def claim(self) -> str:
+        return f'what the grammar\'s {self.table} says of "{self.of}" ({self.key()[:8]})'
+
+    def said(self) -> str:
+        """The pair as memory keeps a record of it; never read as a claim about the world."""
+        return f"the grammar's {self.table}: {self.of}" + (f" is {self.says}" if self.says else "")
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {"table": self.table, "of": self.of, "says": self.says, "source": self.source}
+
+    @classmethod
+    def from_dict(cls, data: Mapping[str, Any]) -> "GrammarPair":
+        return cls(table=str(data["table"]), of=str(data["of"]), says=str(data.get("says") or ""),
+                   source=str(data.get("source") or ""))
+
+
+@dataclass
+class EnglishGrammarSource:
+    """ENGLISH'S GRAMMAR AS LYRIC IS TAUGHT IT, from the lesson that states it (`data/grammar/english.json`): every
+    way each of its words is read, the ways each kind of word is read, the ways a verb is read in each of its
+    frames, and each run of words read as one (`grammar_rules`, `GrammarRule`); and the pairs the grammar holds
+    beside them -- what each place of a doing links, which kind of word a phrase of several is read as, what each
+    number word is worth, and which of WordNet's frame numbers are which frame (`grammar_pairs`).
+
+    It states NO FACTS ABOUT THE WORLD and no sentence: there is no such thing as a claim that "must" has a
+    category. It is knowledge about English, taught as the closed classes are (`ClosedClassSource`), so that what
+    the reader reads with is something memory holds and can be asked about, corrected and argued with."""
+
+    name: str = "english-grammar"
+    quality: float = 0.95
+    curated: bool = True
+
+    def provenance(self):
+        return _provenance("english-grammar", "english_grammar", source_type="USER_SUPPLIED")
+
+    def _grammar(self) -> Mapping[str, Any]:
+        from core.semantics.grammar import ENGLISH
+        return json.loads(ENGLISH.read_text(encoding="utf-8"))
+
+    def records(self) -> Iterator[TaughtRecord]:
+        """Nothing: a category is no claim about the world."""
+        return iter(())
+
+    def grammar_rules(self) -> Iterator[GrammarRule]:
+        """Every way of reading the grammar states, each as the table that states it writes it."""
+        grammar = self._grammar()
+        for table in _RULE_TABLES:
+            for of, rows in (grammar.get(table) or {}).items():
+                for row in rows:
+                    yield GrammarRule.of_row(table, of, row, source=self.name)
+        for form, frames in (grammar.get("verbs") or {}).items():
+            if not isinstance(frames, dict):
+                continue
+            for frame, rows in frames.items():
+                if not isinstance(rows, list):
+                    # `verbs.frames` says which frames there are, not how one is read: a pair, not a way.
+                    continue
+                for row in rows:
+                    yield GrammarRule.of_row("verbs", form, row, frame=frame, source=self.name)
+
+    def grammar_pairs(self) -> Iterator[GrammarPair]:
+        """Every pair the grammar holds (`GrammarPair`), each written as the grammar writes it so that what memory
+        holds goes back to the reader unchanged."""
+        grammar = self._grammar()
+        for table in _PAIR_TABLES:
+            for key, value in (grammar.get(table) or {}).items():
+                yield GrammarPair(table, str(key), json.dumps(value), source=self.name)
+        for word in grammar.get("name_particles") or ():
+            yield GrammarPair("name_particles", str(word), source=self.name)
+        for frame, holds in ((grammar.get("verbs") or {}).get("frames") or {}).items():
+            yield GrammarPair("verbs.frames", str(frame), json.dumps(holds), source=self.name)
+
+def grammar_from(rules: Iterable[GrammarRule], pairs: Iterable[GrammarPair]) -> Dict[str, Any]:
+    """THE GRAMMAR AS THE READER TAKES IT (`grammar.Lexicon`), built from what memory holds: the ways of reading
+    back under the tables that state them, and the pairs back as they were written.
+
+    The inverse of `EnglishGrammarSource`, and the whole of what makes the move safe: what memory holds has to go
+    back to the reader unchanged, or a store would read with a grammar that is not the one it was taught
+    (`tests/test_english_grammar.py` reads the lesson and rebuilds it, row for row)."""
+    out: Dict[str, Any] = {table: {} for table in _RULE_TABLES}
+    out["verbs"] = {}
+    for rule in rules:
+        if rule.table == "verbs":
+            out["verbs"].setdefault(rule.of, {}).setdefault(rule.frame, []).append(rule.row())
+        else:
+            out.setdefault(rule.table, {}).setdefault(rule.of, []).append(rule.row())
+    particles: List[str] = []
+    for pair in pairs:
+        if pair.table == "name_particles":
+            particles.append(pair.of)
+        elif pair.table == "verbs.frames":
+            out["verbs"].setdefault("frames", {})[pair.of] = json.loads(pair.says)
+        else:
+            out.setdefault(pair.table, {})[pair.of] = json.loads(pair.says)
+    if particles:
+        out["name_particles"] = particles
+    return out
+
+
 class PronunciationSource:
     """How words are said, as the CMU Pronouncing Dictionary writes them (`nltk`'s `cmudict`; 123,455 words, each
     with the phones of every way of saying it, stress marked), with how often real text uses each word (the Brown
@@ -3750,6 +3972,11 @@ class WordRecord:
     #: a word that does ("the wall", "my wall"): (form, bare, determined), as reading weighs a kind said bare
     #: (`Words.noun_alone`). Untaught, "Wall is a partition." cost no more than "A wall is a partition." (2026-10-28).
     said_alone: Tuple[Tuple[str, int, int], ...] = ()
+    #: Of each determiner form, how often it was written with nothing after it saying what of ("all are ready") and
+    #: how often with the kind it determines ("all dogs"): (form, alone, before), as reading weighs a determiner
+    #: standing for the things it determines (`Words.determiner_alone`, `Grammar._unary`'s "NP/N=>NP"). The grammar
+    #: counted these only from sentences ANALYSED, so a store taught words recorded whole held none of them.
+    determined_alone: Tuple[Tuple[str, int, int], ...] = ()
     #: AS THE GRAMMAR COUNTS AN ANALYSED SENTENCE (`HeldWords`), what a word's record carries of it: each form written
     #: with a capital inside a sentence, used as which kind of word (written, kind, how often: "Wall" a NAME, of Wall
     #: Street; `Words.capitalized`); each -ing or participle form of the verb, standing as a thing, after a thing,
@@ -3817,7 +4044,9 @@ class WordRecord:
                     "used_before_doing": [list(u) for u in self.used_before_doing],
                     "used_asking": [list(u) for u in self.used_asking]}
                     if self.used_before_doing or self.used_asking else {}) | (
-                    {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {}) | {
+                    {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {}) | (
+                    {"determined_alone": [list(a) for a in self.determined_alone]}
+                    if self.determined_alone else {}) | {
                     layer: [list(x) for x in getattr(self, layer)]
                     for layer in ("capitalized", "shapes", "said_of_doing", "said_after") if getattr(self, layer)} | (
                     {"means": [[table, cls, list(rest), list(said) if isinstance(said, tuple) else said, n]
@@ -3841,6 +4070,7 @@ class WordRecord:
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_before_doing") or ()),
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()),
                    tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_alone") or ()),
+                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("determined_alone") or ()),
                    tuple((str(c[0]), str(c[1]), int(c[2])) for c in data.get("capitalized") or ()),
                    tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("shapes") or ()),
                    tuple((str(b[0]), int(b[1]), int(b[2])) for b in data.get("said_of_doing") or ()),
@@ -4140,7 +4370,7 @@ def _frame_places(frame: Any) -> Tuple[Tuple[str, str], ...]:
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
                    ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
                               Dict[str, Counter], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
-                              Dict[str, Counter]]:
+                              Dict[str, Counter], Dict[str, Counter]]:
     """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
     which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
     analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word); and of those, how
@@ -4183,6 +4413,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     doing: Dict[str, Counter] = {form: Counter() for form in written}
     asking: Dict[str, Counter] = {form: Counter() for form in written}
     alone: Dict[str, Counter] = {form: Counter() for form in written}
+    determined: Dict[str, Counter] = {form: Counter() for form in written}
     capital: Dict[str, Counter] = defaultdict(Counter)
     shapes: Dict[str, Counter] = defaultdict(Counter)
     of_doing: Dict[str, Counter] = defaultdict(Counter)
@@ -4202,6 +4433,13 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
             if cls[i] == "NOUN" and not relations[i].startswith("compound"):
                 alone[w.lower()]["determined" if any(relations[k] in ("det", "det:poss", "nmod:poss")
                                                      for k in under[i]) else "bare"] += 1
+            if cls[i] == "DETERMINER":
+                # BEFORE THE KIND IT DETERMINES, OR STANDING FOR THE THINGS THEMSELVES ("all are ready"), as the
+                # grammar counts it from an analysed sentence (`HeldWords.determined`, `Words.determiner_alone`).
+                # Counted here too because the grammar read these only from sentences ANALYSED, so a store taught
+                # words recorded whole held none of them and priced the reading at the floor for ever -- the same
+                # gap `capitalized` and `verb_shapes` were written for (lyric_dev2, 2026-10-28).
+                determined[w.lower()]["before" if relations[i] in ("det", "det:poss") else "alone"] += 1
             doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
             asking[w.lower()][use] += asks
             if i > 0 and w[:1].isupper() and words[i - 1] not in OPENS_WHAT_IS_SAID:
@@ -4213,7 +4451,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                     after[words[i + 1].lower()][heads[i + 1] == i + 1 and relations[i + 1] == "compound:prt"] += 1
             if cls[i] in ("NOUN", "NAME") and not relations[i].startswith("compound"):
                 of_doing[w.lower()]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
-    return classes, uses, doing, asking, alone, capital, shapes, of_doing, after
+    return classes, uses, doing, asking, alone, determined, capital, shapes, of_doing, after
 
 
 #: WHAT A SENTENCE'S MEANING TEACHES A GRAMMAR OF ONE WORD (`Grammar.learn`), each table by the class of the word its
@@ -5435,7 +5673,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     closed_written = _closed_forms(word, treebanks, _cache) if not rest else Counter()
     written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of} | \
         {form for form, _, _ in closed_written}
-    classes, uses_of, doing_of, asking_of, alone_of, capital_of, shapes_of, of_doing, after_of = _treebank_uses(
+    (classes, uses_of, doing_of, asking_of, alone_of, determined_of, capital_of, shapes_of, of_doing,
+     after_of) = _treebank_uses(
         word, written, treebanks, _cache)
     forms: List[WordForm] = []
     for cls in sorted(by_class):
@@ -5550,6 +5789,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     used_asking = tuple((form, use, asking_of[form][use]) for form, use, _ in used_as if asking_of[form][use] > 0)
     said_alone = tuple((form, alone_of[form]["bare"], alone_of[form]["determined"]) for form in sorted(written)
                        if (form, "NOUN") in as_class and sum(alone_of[form].values()) > 0)
+    determined_alone = tuple((form, determined_of[form]["alone"], determined_of[form]["before"])
+                             for form in sorted(written) if sum(determined_of[form].values()) > 0)
     capitalized = tuple((w, kind, n) for w in sorted(capital_of) for kind, n in sorted(
         capital_of[w].items(), key=lambda x: (-x[1], x[0])) if n > 0 and w.lower() in written)
     shapes = tuple((form, shape, n) for form in sorted(shapes_of) for shape, n in sorted(
@@ -5662,7 +5903,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
-                      together, used_before_doing, used_asking, said_alone, capitalized, shapes, said_of_doing,
+                      together, used_before_doing, used_asking, said_alone, determined_alone, capitalized, shapes,
+                      said_of_doing,
                       said_after, tuple(means), **layers)
 
 

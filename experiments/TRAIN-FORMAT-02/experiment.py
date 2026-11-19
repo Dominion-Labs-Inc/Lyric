@@ -156,6 +156,17 @@ async def store_checks() -> int:
               if lexicon.words.form_uses.get(form, {}).get(use, 0) < n]
     EV.check("the grammar holds how the treebanks used each form, as its entries name the uses (\"for\" a "
              "preposition, a subordinator)", not unused, str(unused)[:300], reads=("used_as",))
+    # A DETERMINER STANDING WITH NOTHING AFTER IT IS THE THINGS IT DETERMINES ("all are ready"), as often as the
+    # word is written so (`Grammar._unary`, "NP/N=>NP"). The grammar counted this only from sentences ANALYSED, so
+    # a store taught words recorded whole held none of it and priced the reading at the floor; the record carries
+    # it now (`WordRecord.determined_alone`) and this is what says the grammar got it.
+    undetermined = [(form, standing, before, dict(lexicon.words.determined.get(form, {})))
+                    for w in words for form, standing, before in w.determined_alone
+                    if lexicon.words.determined.get(form, {}).get("alone", 0) < standing
+                    or lexicon.words.determined.get(form, {}).get("before", 0) < before]
+    EV.check("the grammar holds how often each determiner is written with nothing after it saying what of "
+             "(\"all are ready\") and with the kind it determines (\"all dogs\")",
+             not undetermined, str(undetermined)[:300], reads=("determined_alone",))
     unjoined = [(w.word, link, n) for w in words for link, n in w.joins
                 if lexicon.learned["prep"].get((w.word, "event", "-"), {}).get(link, 0) < n]
     EV.check("the grammar holds what each preposition says joining a doing to a thing (\"for\" done_for, "

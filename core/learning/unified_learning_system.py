@@ -4537,6 +4537,29 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                                       subject_kind="derived_sentence", provenance=provenance, quality=quality,
                                       progress=progress)
 
+    async def learn_grammar_rules(self, rules, *, provenance: Any = None, quality: float,
+                                  progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """THE WAYS ENGLISH IS READ (`teaching_sources.GrammarRule`): each word's categories, each kind of word's,
+        each of a verb's frames and each run of words read as one, taught from the lesson that states them
+        (`data/grammar/english.json`, `EnglishGrammarSource`). Each is held by memory whole
+        (`MemoryAgent.remember_grammar_rules`) and the grammar reads with what memory holds.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(rules, what="ways English is read", remember="remember_grammar_rules",
+                                      subject_kind="grammar_rule", provenance=provenance, quality=quality,
+                                      progress=progress)
+
+    async def learn_grammar_pairs(self, pairs, *, provenance: Any = None, quality: float,
+                                  progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
+        """THE PAIRS ENGLISH'S GRAMMAR HOLDS (`teaching_sources.GrammarPair`): what each place of a doing links,
+        which kind of word a phrase of several is read as, what each number word is worth, which words may stand
+        inside a name, and which of WordNet's frame numbers are which frame.
+
+        Returns counts: `remembered`, `already`, `refused`, `total`."""
+        return await self._learn_held(pairs, what="pairs English's grammar holds",
+                                      remember="remember_grammar_pairs", subject_kind="grammar_pair",
+                                      provenance=provenance, quality=quality, progress=progress)
+
     async def learn_word_records(self, records, *, provenance: Any = None, quality: float,
                                  progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, int]:
         """Words recorded whole (`teaching_sources.WordRecord`: every form, every sense, how a verb is used): each held
