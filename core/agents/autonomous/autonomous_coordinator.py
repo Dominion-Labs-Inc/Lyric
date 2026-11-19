@@ -23261,6 +23261,13 @@ def phrases(words: Sequence[str]) -> List[Tuple[int, int, str]]:
 class Conversation:
     """Reads a sentence and answers out of what the substrate holds."""
 
+    #: WHICH OF A TEXT'S MEANINGS WAS TAKEN, kept so one turn chooses once (`_meaning`). On the class as well
+    #: as in `__init__`, because this substrate adopts code into a running process: a conversation built
+    #: before this attribute existed would raise AttributeError inside the adopted method, which is how the
+    #: same mistake broke the reflection job ten minutes after it was made (2026-11-19 12:21:36).
+    _last_meant = None
+
+
     def __init__(self, db=None, identity=None, session="default",
                  actor_identity=None, source: Optional[TaskSource] = None,
                  remembers: bool = True, within: str = ""):
@@ -23359,6 +23366,11 @@ class Conversation:
         #: The last text listened to, and what memory was found to hold about
         #: the meanings its words could have (`_listen`).
         self._last_heard: Optional[Tuple[Tuple[str, int], Tuple[Any, Any]]] = None
+        #: Which of a text's meanings was taken, so one turn CHOOSES once as well as reading once. Weighing is
+        #: settled by the readings and by what memory holds of them, both already kept, so a second weighing
+        #: can only reach the same answer -- and said so: eleven identical `listening:` lines for one question
+        #: (2026-11-19). Declared on the class as well, because code is adopted into a running process.
+        self._last_meant: Optional[Tuple[Any, Any]] = None
         #: The things talked of, most recent last: what a word that names
         #: several things is weighed against, as a listener keeps the
         #: conversation in mind ("We went to the river. The bank was steep.").
@@ -23401,6 +23413,9 @@ class Conversation:
         with composing_width(SPOKEN_READINGS):
             utterances = self._known_here(read_text(str(text), live_view(), parts=True))
         self._last_read = (key, utterances)
+        # A NEW READING IS A NEW CHOICE. Keyed the same way, a stale choice could not be returned for this
+        # text -- but clearing it here keeps the three in step rather than relying on the keys agreeing.
+        self._last_meant = None
         return utterances
 
     def _known_here(self, utterances: Tuple[Any, ...]) -> Tuple[Any, ...]:
@@ -23483,11 +23498,26 @@ class Conversation:
         """What `text` means: the meaning of its last utterance, when every
         utterance read and the listener can tell which meaning the last one was
         meant to have. None otherwise. A sentence understood as what it asks
-        (`understand_as`) means that."""
+        (`understand_as`) means that.
+
+        CHOSEN ONCE, as the reading and the listening already are. Reading `text` and asking memory what it
+        holds about its meanings are both kept (`_last_read`, `_last_heard`); CHOOSING between the meanings
+        was not, and nineteen places along the answering path ask what a sentence means. So the listener
+        weighed the same readings against the same `Heard` eleven times for one question -- the same answer
+        every time, it cannot be otherwise -- and said so each time: eleven identical `listening:` lines
+        within six milliseconds (2026-11-19 12:50:01). Kept under the same key, which is the text, what was
+        taught and the kinds talked of here, and under whether memory had been asked yet, because the choice
+        before listening is a different question from the choice after it."""
         taken = self._taken_as.get(str(text))
         if taken is not None:
             return taken
-        return _meaning_of(self._read(text), self._heard(text))
+        heard = self._heard(text)
+        key = (self._reading_key(text), heard is not None)
+        if self._last_meant is not None and self._last_meant[0] == key:
+            return self._last_meant[1]
+        meaning = _meaning_of(self._read(text), heard)
+        self._last_meant = (key, meaning)
+        return meaning
 
     async def understand_as(self, sentence: str, meaning) -> "Understanding":
         """`sentence` understood as `meaning`, what it was read to ask: "Research photosynthesis." as the question it
@@ -26283,6 +26313,7 @@ class Conversation:
             key = self._reading_key(said)
             self._last_read = (key, (utterance,))
             self._last_heard = (key, heard)
+            self._last_meant = None
             each.append(await self._understand(said, look_up))
         return _replace(
             each[-1], sentence=text,
