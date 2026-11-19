@@ -1039,14 +1039,14 @@ The schema split *is* the memory tiering described in §15. What is stored, meas
 | Structure | Count |
 |---|---|
 | Concepts retained | 117,294 |
-| Surface words bound to a concept | 117,268 |
+| Surface words bound to a concept (`concept_aliases`) | 117,268 |
 | Concept relations | 590,614 |
 | of which *is-a* and *instance of* | 97,639 |
 | of which *defined with* | 442,896 |
 | Beliefs held | 1,022,193 |
 | Concept evidence records | 1,179,242 |
 | Belief evidence records | 1,783,544 |
-| Evidence envelopes | 588,925 |
+| Evidence envelopes (`evidence_envelopes`) | 588,925 |
 | Memory records (hot / cold) | 1,441,708 / 0 |
 | of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
 | Learned ways English says things (`language_pattern`) | 443,072 |
@@ -1054,10 +1054,10 @@ The schema split *is* the memory tiering described in §15. What is stored, meas
 | Taught sentences | 3,052 |
 | Ways of reading English, held in memory | 497 |
 | Pairs the grammar holds beside them | 87 |
-| Domains concepts are filed under | 23 |
-| Operator demonstrations / learned rules | 0 / 0 |
-| Intents recorded | 1 |
-| Perceptions recorded | 149 |
+| Domains concepts are filed under (distinct `concepts.domain`; the `domains` table holds 8) | 23 |
+| Operator demonstrations / learned rules (`operator_demonstrations`, `learned_rules`) | 0 / 0 |
+| Intents recorded (`intents`) | 1 |
+| Perceivings remembered (episodic memories tagged `percept`) | 149 |
 
 **Evidence by source class**, which is how provenance is enforced rather than asserted: imported
 knowledge 588,412 · perception 503 · user supplied 10. Three of the declared classes are in use; the
