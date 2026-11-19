@@ -3,23 +3,20 @@
 *Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
 update when the authority changes. Line numbers drift; the explanations must stay true.*
 
-*Re-traced against the source on 2026-11-19. The module had grown from ~1,851 lines to 2,659 and 41 of
-the 54 line references here were stale, several by more than 800 lines; those are corrected below. **One
-explanation was not merely stale but wrong**: the update was described as a clamped posterior, which is
-the mechanism that was deliberately replaced on 2026-10-07. §3 now describes what runs.*
+*Re-traced 2026-11-19.*
 
 ## `BayesianUncertaintySystem` — the belief authority (the circulatory system)
 
-*`core/reasoning/bayesian_uncertainty.py` (2,659 lines). Class at 413.*
+*`core/reasoning/bayesian_uncertainty.py` (2,730 lines). Class at 413.*
 
 **Module level, before the class:** `log_odds_of` (47), `probability_of` (56), `evidence_step` (65),
 `belief_entropy` (70); the enums `UncertaintyType` (78), `KnowledgeState` (86), `RelationType` (94); and
 the dataclasses `BeliefRelationship` (105), `BayesianBelief` (136), `KnownUnknown` (326),
 `ResolutionGrounds` (371), `ConfidenceCalibration` (394), with `_EvidenceIndex` (223) and `_indexed` (316)
-between them. Singletons `get_uncertainty_system` (2646) and `get_bayesian_uncertainty` (2657).
+between them. Singletons `get_uncertainty_system` (2717) and `get_bayesian_uncertainty` (2728).
 
 ### 1. Purpose
-The substrate's **single belief store** — every graded, revisable, provenance-aware proposition. Not a boolean fact table: each belief is a Bayesian posterior with prior, likelihood, evidence lists, entropy, credible interval, and a temporal-decay clock. **Revisable** (asserted today, moved/reversed tomorrow) and **provenance-aware** (evidence carries `quality`+`source`). Its defining door is **find-or-create-by-claim** (`observe_claim`, 298): normalise → O(1) index lookup → mint or move the *same* belief, so "I was told X" is idempotent. It is the **circulation hub**: learning/reasoning/hypothesis-testing/domain/epistemic pump evidence IN; completion/memory/motivation/health read posteriors OUT. Singleton `get_uncertainty_system` (2646; alias `get_bayesian_uncertainty` 1849).
+The substrate's **single belief store** — every graded, revisable, provenance-aware proposition. Not a boolean fact table: each belief is a Bayesian posterior with prior, likelihood, evidence lists, entropy, credible interval, and a temporal-decay clock. **Revisable** (asserted today, moved/reversed tomorrow) and **provenance-aware** (evidence carries `quality`+`source`). Its defining door is **find-or-create-by-claim** (`observe_claim`, 298): normalise → O(1) index lookup → mint or move the *same* belief, so "I was told X" is idempotent. It is the **circulation hub**: learning/reasoning/hypothesis-testing/domain/epistemic pump evidence IN; completion/memory/motivation/health read posteriors OUT. Singleton `get_uncertainty_system` (2717; alias `get_bayesian_uncertainty` 1849).
 
 ### 2. State (`__init__`, 176)
 `unified_db` (Postgres), `beliefs: Dict[id, BayesianBelief]` (181), **`_claim_ids: Dict[claim_key, List[id]]`** + **`_domain_ids: Dict[domain_key, Set[id]]`** (the indexes every read by claim or domain uses; kept exact by `_register_belief` / `_unregister_belief`, the only writers of `beliefs`. The LAST id for a claim is the belief `observe_claim` moves and `belief_for_claim` returns — 1,902 claims are held by more than one belief, and a scan returned the first while observation moved the last), `persistence_drops` (190, surfaced in stats), `_pending_writes` (197, DB-down buffer, upsert+replay), `_write_tasks` (203, tracked fire-and-forget writes for the shutdown drain), `known_unknowns` (206), `calibrations` (209), `domain_volatility` (212, per-domain λ default 0.01), `domain_belief_changes` (213, last-50 window), `domain_regime_shifts` (214), `relationships` (217, CONTRADICTS/SUPPORTS/IMPLIES/WEAKENS/REQUIRES/MUTUALLY_EXCLUSIVE graph), `forward_edges`/`backward_edges` (218-219), `propagation_queue` (220), `stats` (223).
@@ -40,9 +37,8 @@ The substrate's **single belief store** — every graded, revisable, provenance-
   log-odds**; (4) **reversal detection** on crossing 0.5; (5) volatility update, recompute entropy and
   credible interval, persist; and if the posterior moved more than 0.05, `propagate_constraints(...)`.
 
-  **Why it is log-odds and not a clamped posterior, which is what this document described until
-  2026-11-19.** The posterior used to be the belief itself, clamped just short of certainty after every
-  step. Past five or six agreeing sources every belief sat at the same value, so **a claim six hundred
+  **Why it is log-odds and not a clamped posterior.** The posterior used to be the belief itself,
+  clamped just short of certainty after every step. Past five or six agreeing sources every belief sat at the same value, so **a claim six hundred
   sources hold was as easy to overturn as one six hold**, and a few contrary words brought either to even.
   `TRUTH-01` measured that on 2026-10-07 and the representation changed the same day. In log-odds a claim
   many sources hold is held more firmly than one a few hold, and it takes as much contrary evidence to
@@ -65,7 +61,7 @@ The substrate's **single belief store** — every graded, revisable, provenance-
 - **`_calculate_entropy(probability)`** (957) — Shannon binary entropy; 0 at p∈{0,1}.
 - **`_apply_temporal_decay(belief)`** (962) — drifts toward 0.5 with elapsed time (`λ`, `decay=1-exp(-λΔt)`); read-only (caller assigns).
 - **`_update_domain_volatility(domain, belief_change, is_reversal=False)`** (996) — adapts λ per domain: rolling window + regime penalty, clamp `[0.005, 0.1]`.
-- **`_adjust_evidence_with_domain_support(belief, evidence, base_weight)`** (2611) — cross-domain consensus (scientific/mathematical/technical) boosts weight ×1.15.
+- **`_adjust_evidence_with_domain_support(belief, evidence, base_weight)`** (2682) — cross-domain consensus (scientific/mathematical/technical) boosts weight ×1.15.
 
 #### Retrieval / interpretation
 - **`get_belief(belief_id)`** (1307) — id lookup or None (completion reads its posterior).
@@ -90,9 +86,9 @@ The substrate's **single belief store** — every graded, revisable, provenance-
 - **`async _delete_belief_row(belief_id) -> bool`** (1324) — deletes a row (so a decayed-out belief isn't resurrected by load).
 - **`_VOLATILITY_DDL` / `async _ensure_volatility_table`** (2011/1349) · **`async save_domain_volatility() -> int`** (1357, persists per-domain λ) · **`async _load_domain_volatility() -> int`** (1378).
 - **`async decay_belief(belief_id)`** (2063) — decays ONE belief without new evidence (escape from ossification); clock = `last_updated` so repeated calls apply only the increment; durably flushes on a real move.
-- **`_save_known_unknown`** (2205) · **`_save_calibration_data`** (2279) — fire-and-forget upserts.
-- **`async load_from_db()`** (2316) — startup hydration: rebuild `beliefs` and both indexes, then `_load_domain_volatility` + `flush_pending_writes`.
-- **`get_statistics()`** (2384) — `stats` + `active_beliefs`, `persistence_drops`, `persistence_healthy`, known-unknowns, calibrated domains, overconfidence rate.
+- **`_save_known_unknown`** (2211) · **`_save_calibration_data`** (2285) — fire-and-forget upserts.
+- **`async load_from_db()`** (2322) — startup hydration: rebuild `beliefs` and both indexes, then `_load_domain_volatility` + `flush_pending_writes`.
+- **`get_statistics()`** (2390) — `stats` + `active_beliefs`, `persistence_drops`, `persistence_healthy`, known-unknowns, calibrated domains, overconfidence rate.
 
 #### Maintenance (reflection-loop, async — each guarded by `raise_if_structural`)
 - **`async apply_temporal_decay_to_all_beliefs() -> Dict`** (1589) — decays idle (>1h) beliefs; drops a belief in `[0.45,0.55]` with `<3` evidence (deletes row); else durably writes. Returns `beliefs_decayed`, `avg_decay_amount`, `beliefs_removed` (the *actual* delete count).
@@ -101,13 +97,9 @@ The substrate's **single belief store** — every graded, revisable, provenance-
 
 #### Known-unknowns / calibration / deferral
 - **`register_known_unknown(question, domain, blocking_factors=None, required_info=None)`** (1394) · **`_estimate_information_value`** (1456) · **`_suggest_resolution_strategy`** (1474) · **`get_high_value_unknowns(min_value=0.7)`** (1498) · **`resolve_known_unknown(unknown_id, resolution)`** (1560, flips to KNOWN + mints a belief) · **`record_prediction(domain, predicted_confidence, actual_outcome)`** (1595) · **`_update_calibration_metrics`** (1663, Brier + calibration error) · **`get_calibrated_confidence(domain, raw_confidence)`** (1698) · **`should_defer_to_expert(domain, confidence, entropy)`** (1722).
-- **Module:** `get_uncertainty_system()` (2646) · `get_bayesian_uncertainty()` (2657).
+- **Module:** `get_uncertainty_system()` (2717) · `get_bayesian_uncertainty()` (2728).
 
 ### 4. Feeds / feeds-into — the circulation hub
-
-*Re-traced 2026-11-19 by counting call sites rather than citing line numbers, which had gone stale: the
-three the document cited pointed at a comment about domain resolution, a debug log, and a frozenset of
-conclusion kinds. Counts survive edits; line numbers in a 7,000-line module do not.*
 
 Everything reaches the belief store through `get_uncertainty_system()`, **46 call sites across the
 substrate**, and the single largest caller is the learning authority with 27 of them.
@@ -126,9 +118,9 @@ substrate**, and the single largest caller is the learning authority with 27 of 
 | `autonomous_coordinator.py` | `register_known_unknown` | what it found it did not know |
 | `intrinsic_motivation.py` | `register_known_unknown` | what it is curious about |
 
-**The coordinator no longer writes beliefs directly.** This document listed it as creating, updating and
-flushing them; it has no such call site now. Completion is a belief held on the task
-(`completion_log_odds`), and the coordinator reaches the store to **read**: `belief_for_claim`, four sites.
+**The coordinator does not write beliefs.** Completion is a belief held on the task
+(`completion_log_odds`), and the coordinator reaches the store only to **read**: `belief_for_claim`, four
+sites.
 
 **CONSUMERS, posteriors out:**
 
@@ -142,11 +134,10 @@ flushing them; it has no such call site now. Completion is a belief held on the 
 | `neural_bridge.py` | reads posteriors; drives the three maintenance passes from the reflection loop | reasoning |
 | `main.py` | `load_from_db` at boot, `drain_writes` at shutdown | lifecycle |
 
-`derived_reader.py` and `capabilities.py` are consumers this document did not name, and the reader being
-one matters: what a reading may rely on is now a question asked of the belief store rather than of the
-reader itself.
+The reader is a consumer: what a reading may rely on is a question asked of the belief store rather than
+of the reader itself.
 
 Because feeders and consumers touch the *same* posteriors through the *same* singleton, a fact taught once
 is instantly visible to every completion check, memory and reasoning pass. That is the circulatory system,
-and it is the reason the representation in §3 matters: a clamped posterior flattened every
-well-witnessed claim to the same value everywhere at once.
+and it is why the representation in §3 matters: a clamped posterior flattened every well-witnessed claim to
+the same value everywhere at once.

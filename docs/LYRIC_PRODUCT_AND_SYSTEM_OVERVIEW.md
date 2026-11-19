@@ -1467,21 +1467,19 @@ confirmed when asked:
 | Adversarial attempts held / legitimate acts blocked | 23 of 23 / 0 of 8 |
 | Adversary campaigns held (each objective retried many ways) | 8 of 8 · 34 strategies (2026-10-23) |
 
-**Why these do not compare row for row with the September figures.** On 2026-09-26, by decision, **the
-store was emptied: all 156 tables in `lyric_db`, with no backup**, and the substrate was taught again from
-the first lesson. The figures above are what it has learned since. Two consequences are worth stating
-plainly rather than leaving a reader to infer them:
+**The store was emptied on 2026-09-26**, by decision: all 156 tables in `lyric_db`, with no backup, and
+the substrate was taught again from the first lesson. The figures above are what it has learned since.
 
-- **Beliefs doubled and memory grew eighty-fold** on a store an eighth the size in concepts, because what
-  was taught the second time was language itself: how to read a sentence, what each word is, and what the
-  words of English do together. The 443,072 learned sentence templates and the 497 ways of reading did not
-  exist in September.
-- **Operator demonstrations, learned rules and recorded intents stand at zero or near it**, where
-  September recorded 874, 31 and 1,643. Those are accumulations of *running work*, not of teaching, and
-  they were emptied with everything else. The faculties that produce them are unchanged and are evidenced
-  by their own experiment series rather than by a standing count: `OPERATOR-REMOVAL-01` (21/21),
-  `RULE-AUTHORITY-01` and `-02`, `RULE-EVIDENCE-01`, `CREDIT-01` and `INTENT-01` to `-04`. A count of zero
-  here is an untaught store, not an absent capability.
+What was taught the second time was language itself: how to read a sentence, what each word is, and what
+the words of English do together. That is why beliefs doubled and memory grew eighty-fold on a store an
+eighth the size in concepts, and why the 443,072 learned sentence templates and the 497 ways of reading
+exist at all.
+
+**Operator demonstrations, learned rules and recorded intents stand at zero or near it.** Those are
+accumulations of *running work* rather than of teaching, and they went with everything else. The
+faculties that produce them are evidenced by their own experiment series rather than by a standing count:
+`OPERATOR-REMOVAL-01` (22/22), `RULE-AUTHORITY-01` and `-02`, `RULE-EVIDENCE-01`, `CREDIT-01` and
+`INTENT-01` to `-04`. A count of zero here is an untaught store, not an absent capability.
 
 The current implementation, its recorded experiment results, and system-generated verification take
 precedence over any description in this document. Where this document and the system disagree, the

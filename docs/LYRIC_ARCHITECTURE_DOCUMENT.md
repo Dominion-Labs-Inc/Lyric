@@ -767,12 +767,11 @@ success nor failure.
 **Owns:** what the substrate can do, and the single point at which it does it.
 **Principal modules** (2026-11-19): `tool_registry.py` (2,607 lines) plus 29 tool modules totalling 38,284 lines, 40,891 in all.
 
-**257 `Tool` subclasses are defined in the source across 17 categories** (counted 2026-11-19), and the
-live registry additionally holds tools registered at run time, per connector and per learned procedure.
-**The registry loads lazily, and this is a trap worth naming:** at import time only four tools are
-present, so a count taken before boot undercounts by two orders of magnitude. A figure for the live
-registry must be read from a booted system and stated as the union of the eagerly loaded set and the
-factories, which is how the 356 recorded in September was arrived at.
+**257 `Tool` subclasses are defined in the source across 17 categories** (2026-11-19), and the live
+registry additionally holds tools registered at run time, per connector and per learned procedure. **The
+registry loads lazily:** at import time only four tools are present, so a count taken before boot
+undercounts by two orders of magnitude. A figure for the live registry is read from a booted system as the
+union of the eagerly loaded set and the factories.
 
 | Safety level | Tools (of the eagerly loaded set) |
 |---|---|
@@ -900,8 +899,7 @@ interpret raw signals for itself. **Thirteen dimensions** (valence, activation, 
 opportunity, progress, controllability, competence, goal congruence, agency, integrity, risk, stakes,
 people reward) yield **seven behavioural pressures**: approach, avoidance, exploration, persistence,
 replan, escalation, caution. Appraisal also records a structured attribution of *why* an outcome
-occurred. Counted from `AppraisalSystem.DIMENSIONS` on 2026-11-19; the set has grown, and earlier
-documents recording eleven or twelve were each correct when written.
+occurred.
 
 **Integrity is coherence, not success.** It is measured across goal, intention, action and outcome, so a
 faithful attempt defeated by an external cause keeps integrity intact. **Affective states are derived,
@@ -1056,25 +1054,20 @@ The schema split *is* the memory tiering described in §15. What is stored, meas
 | Pairs the grammar holds beside them | 87 |
 | Domains concepts are filed under | 23 |
 | Operator demonstrations / learned rules | 0 / 0 |
+| Intents recorded | 1 |
+| Perceptions recorded | 149 |
 
-**Why two of those rows are zero, and why that is not a defect.** On **2026-09-26**, by decision, the
-store was emptied: all 156 tables it then had, with no backup, and the substrate was taught again from the
-first English lesson. Everything above was learned since. Operator demonstrations and learned rules
-accumulate from **running work**, not from teaching, so they were emptied with everything else and have
-not been rebuilt, because what has been taught since is language itself. The faculties that produce them
-are unchanged and are evidenced by their own experiment series, `OPERATOR-REMOVAL-01` at 22/22 and
-`RULE-AUTHORITY-02` at 9/9 among them, rather than by a standing count. The September figures this table
-carried before (302,240 concepts, 514,132 beliefs, 874 demonstrations, 31 rules) belong to the store that
-was emptied and do not compare row for row with these.
-| Intents recorded | 1,643 |
-| Perceptions recorded | 7,788 |
+**Evidence by source class**, which is how provenance is enforced rather than asserted: imported
+knowledge 588,412 · perception 503 · user supplied 10. Three of the declared classes are in use; the
+others are filed against only by running work.
 
-**Evidence by source class**, which is how provenance is enforced rather than asserted: user-supplied
-460,472 · perception 8,090 · imported knowledge 6,263 · induced rule 5,483 · task artifact 2,052 ·
-research finding 82 · tool observation 49.
-
-All seven declared source classes are in use, which matters: a provenance taxonomy with unused members
-is a taxonomy nobody is actually filing against.
+**The store was emptied on 2026-09-26**, by decision: all 156 tables it then had, with no backup, and the
+substrate was taught again from the first English lesson. Everything above was learned since. Operator
+demonstrations, learned rules and recorded intents accumulate from **running work** rather than from
+teaching, so they went with everything else and have not been rebuilt, because what has been taught since
+is language. The faculties that produce them are evidenced by their own experiment series,
+`OPERATOR-REMOVAL-01` at 22/22 and `RULE-AUTHORITY-02` at 9/9 among them, rather than by a standing
+count.
 
 ## 31. Multi-tenancy and scoped context
 
@@ -1147,11 +1140,11 @@ described in §24.
 | Admission gate rules and thresholds | Read directly from `cognitive_ingress.py`, including the refusal strings quoted in §4 |
 | Learning fan-out reach | Read from the learning authority's fan-out method |
 | Event types, reactions, scheduled jobs | Enumerated from the coordinator's event enum, its registration calls and its scheduler table, **2026-11-19**: nine event types, eleven reactions over fourteen registrations, seven recurring jobs |
-| Module and line counts | Derived by scanning the current source, **2026-11-19**. Every per-module count in this document was re-derived that day and 27 of them were corrected |
+| Module and line counts | Derived by scanning the current source, **2026-11-19** |
 | Tool counts | 257 `Tool` subclasses counted in the source, **2026-11-19**. The live registry additionally holds tools registered at run time, per connector and per learned procedure, so a count taken before boot undercounts: at import time only four are present |
 | Stored state, schemas, extensions, size | Queried against the live `lyric_db`, **2026-11-19**, through the system's own configuration authority, with the identity confirmed by asking the server rather than by reading configuration |
 | Capability results | Read from each experiment's own dated run artifact, never from a summary |
-| Appraisal dimensions | Counted from `AppraisalSystem.DIMENSIONS`, **2026-11-19**: thirteen. Earlier counts of eleven and twelve were each correct when taken |
+| Appraisal dimensions | Counted from `AppraisalSystem.DIMENSIONS`, **2026-11-19**: thirteen |
 | Authority of learned rules at scale | RULE-AUTHORITY-02: worlds generated, and Lyric's answers judged, by programs that share no code or representation with Lyric, run as separate processes on inputs fingerprinted before Lyric ran (§34.1) |
 
 ### 34.1 The rule authority benchmark, and four questions a reviewer asks

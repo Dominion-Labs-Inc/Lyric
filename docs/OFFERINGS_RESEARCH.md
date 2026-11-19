@@ -2,10 +2,9 @@
 
 *Research from the code, started 2026-10-08.*
 
-**Status note, 2026-11-19. The offerings were set differently after this was written, and the published
-plans are the authority.** The body of this document, what Lyric's code can actually do and which file
-each capability comes from, is the part that matters and still holds. The offering names, prices, seat
-structures and allowances in it are the October proposal and are superseded. As published:
+**The published plans are the authority** (read 2026-11-19). The offering names, prices, seat structures
+and allowances below are an October proposal and are superseded; what Lyric's code can do, and which file
+each capability comes from, stands. As published:
 
 | Offering | Price | Action minutes |
 |---|---|---|
@@ -18,17 +17,17 @@ structures and allowances in it are the October proposal and are superseded. As 
 | Lyric Enterprise | Set by agreement | 2,000 a month per seat by default, until the organization's agreement says otherwise |
 
 Autonomy by offering: Lyric Free is Observe; Lyric Pro is Observe and Assist; Lyric Max, Teams and
-Enterprise add Delegate. "Lyric Auto" and "Lyric Starter", which appear below, were never published names.
+Enterprise add Delegate. "Lyric Auto" and "Lyric Starter" were never published names.
 There is no per-seat add-on model: Teams carries seats, 2 to 100 people, and Enterprise is by agreement.
 
 The purpose is to see what Lyric's system can do, so that each offering can list what it gets. Every claim below comes from reading the code and names the file it comes from. Where something exists in code but nothing calls it, or is called but has not been shown working, that is said next to it.
 
-## The offerings as proposed on 2026-10-08 (superseded, see the status note above)
+## The offerings as proposed on 2026-10-08 (superseded)
 
 | | Lyric Free | Lyric Pro | Lyric Auto |
 |---|---|---|---|
 | For | | Developers and teams | Enterprises: a dedicated Lyric instance |
-| Price | *(superseded; see the published prices in the status note above)* | *(superseded)* | *(superseded)* |
+| Price | *(superseded; see the published prices above)* | *(superseded)* | *(superseded)* |
 | Billing | | Monthly, or annually at 20% off | Monthly or annual |
 | Seats | 1 | Up to 4 | One per user an admin creates; at least 10, bought ahead |
 | Context | The person's own | Each person's own, plus the team's shared context | Each person has their own, plus one organization-wide context that feeds the organization's goals and tasks |
@@ -80,7 +79,7 @@ Each offering lists what you set first, then what I drafted from the research (s
 - **For:** developers and teams.
 - **Price:**
   - *Superseded. Lyric Pro is published at $20 a month, or $17 a month billed annually, and there is no
-    per-seat add-on: seats are Lyric Teams, 2 to 100 people. See the status note at the top.*
+    per-seat add-on: seats are Lyric Teams, 2 to 100 people.*
 - **Seats:** a seat's usage this period stays with the seat. Replacing a teammate doesn't reset its limits.
 - **Autonomy:** Observe and Assist. Lyric does the work you ask for, and each act waits for your yes.
 - **Context:** each person has their own, plus the team's shared context.
@@ -860,7 +859,7 @@ The three offerings above became four. The sections above are the dated record o
 | | Lyric Starter | Lyric Pro | Lyric Max | Lyric Enterprise |
 |---|---|---|---|---|
 | For | Getting started with Lyric | Individuals | Developers and teams | Organizations, on a dedicated Lyric instance |
-| Price | *(superseded; see the published prices in the status note above)* | *(superseded)* | *(superseded)* | Set by agreement |
+| Price | *(superseded; see the published prices above)* | *(superseded)* | *(superseded)* | Set by agreement |
 | Autonomy | Observe | Observe and Assist | Observe, Assist and Delegate | Observe, Assist and Delegate, set by the organization's administrators |
 | Concurrent tasks | 2 | 3, plus scheduled jobs | 5 per seat, plus scheduled jobs | Custom |
 | Workflows and scheduled jobs | | ✓ | ✓ | ✓ |

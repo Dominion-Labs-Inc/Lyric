@@ -3,43 +3,16 @@
 *Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
 update when the body changes. Line numbers drift; the explanations must stay true.*
 
-*Re-traced against the source on 2026-11-19.* §2 (state, authorities, reactions) and §F (what the
-scheduler runs) were rebuilt from that reading; §H was found to have moved out of the coordinator
-altogether. **Line numbers are from 2026-11-19 and drift with every edit**; where one no longer lands, the
-explanation beside it is what to trust, and the symbol names resolve.
-
-What the re-trace found, recorded so the next reader knows what changed rather than inferring it:
-
-- **The optional teacher model is gone**, and so is the model argument to the constructor and the
-  accessor. There is no handle in the body a model could be given to.
-- **`self.perception` and `self.vision` are one handle**, `self.vision = get_perception_faculty()`.
-- **`self.asi_self_improvement`, `self.monitoring_coordinator`, `self.security_controller`,
-  `self.slack_notifier`, `self.watchdog` and `self.completed_tasks` are gone.** Self-modification was
-  removed deliberately, the perimeter left the substrate for Tet, and the guardian runs as a daemon
-  outside this process (`core/guardian/supervisor.py`).
-- **Ten of the fifteen idle tiers are gone**, and seven recurring jobs remain (§F). What was a timer is
-  now a reaction on the event spine wherever a discrete event exists to react to.
-- **Fourteen reactions are registered at construction**, not the seven this document claimed, over eight
-  event types.
-- **Faculties the document did not name are held**: the behaviour arbiter, drift, appraisal, the
-  constitution's reading, the capability register and the outbox, alongside the four it grouped as
-  "awareness layers" (environment state, active discovery, behavioural analysis, infrastructure topology),
-  which are now named individually in §2.
+*Re-traced 2026-11-19.*
 
 ## `AutonomousCoordinator` — the body and self
 
-*`core/agents/autonomous/autonomous_coordinator.py` (~14,220 lines; class L267–L12094).
-Module helpers: `_subsystem_readiness` (100), `SelfEventType` (122), `SelfEvent` (181), `Evidence` (194), `_tool_resource` (257). The conversation/language faculty (`Conversation`, `SelfState`, `say`) lives below the class (L12216+), reached via `conversation()`.*
-
 ### 1. Purpose
-The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). Every substrate path is model-free and reports an honest capability fault rather than falling back. **The optional teacher model is gone**: the coordinator holds no model handle at all, and `get_autonomous_coordinator(config)` takes no model argument.
-Authorities held are tabulated in §2, re-traced against the source. The belief store is reached via `self.learning`, not a separate handle.
+The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). Every substrate path is model-free and reports an honest capability fault rather than falling back. **The coordinator holds no model handle**, and `get_autonomous_coordinator(config)` takes no model argument.
+Authorities held are tabulated in §2. The belief store is reached via `self.learning`, not a separate handle.
 Accessor: `get_autonomous_coordinator(config)` (async singleton).
 
 ### 2. State
-
-*Re-traced against the source on 2026-11-19. Line numbers are from that reading and drift with every
-edit; the explanations are what must stay true.*
 
 **Held authorities and faculties**, each assigned in `__init__` (class at 7958, `__init__` at 7993):
 
@@ -74,18 +47,17 @@ edit; the explanations are what must stay true.*
 | `health_monitor` | `get_health_monitor()` | 8608 |
 | `log_db` | injected, `LoggingDatabase()`, or `None` | 8611-8620 |
 
-**Handles that are gone**, and were in this document before the re-trace: `perception` (merged into
-`vision`, one faculty, one handle), `planning`, `security_controller` and `monitoring_coordinator` (the
-perimeter and the monitoring daemon both left the substrate), `slack_notifier`, `asi_self_improvement`
-(self-modification was removed deliberately), `watchdog`, `agent_coordinator`, and **`teacher_model`**,
-with which the last place a model could have been handed to the body is gone.
+**The body holds no model handle.** There is no `teacher_model`, and the accessor takes no model
+argument: there is nowhere a model could be handed to it. Nor does it hold `security_controller` or
+`monitoring_coordinator`, the perimeter and the monitoring daemon both having left the substrate, or
+`asi_self_improvement`, self-modification having been removed. `perception` and `vision` are one handle.
 
 **Own self-state:** `system_state` (8050), `coordination_cycle_interval` (8051), `reply_debug` (8078),
 `self_state` (8417, `None` until assembled), `last_cycle_time` (8631), `stats` (8634). The self is
 **derived, not stored**: it is assembled on demand by `state()`.
 
-**Reactions registered at construction: fourteen**, over eight event types and ten distinct reactions.
-The document said seven before this re-trace.
+**Reactions registered at construction: fourteen**, over nine event types and eleven distinct
+reactions. Several reactions answer to more than one event.
 
 | Event | Reaction | Line |
 |---|---|---|
@@ -156,10 +128,8 @@ The document said seven before this re-trace.
 
 #### F — What the scheduler runs
 
-*Re-traced 2026-11-19. **Ten of the fifteen tiers this section used to list are gone**, and what is left
-is not a tier system: it is seven recurring jobs, each sampling state that drifts continuously and has no
-discrete event to react to. Everything that could be driven by an event now is, which is the change those
-ten removals are.*
+Background work is not a tier system: it is **seven recurring jobs**, each sampling state that drifts
+continuously and has no discrete event to react to. Everything that can be driven by an event is.
 
 - **`_register_idle_subsystems()`** (13636) — hands each job to
   `task_queue.schedule_recurring(name, method, interval, priority)`. The authority's scheduler fires it on
@@ -183,14 +153,13 @@ ten removals are.*
 performance metrics, which the constitution's law-compliance check reads live. It had been dead, leaving
 the constitution with stale values from initialisation.
 
-**The ten that went**, with what replaced each: `_idle_system_review_work`,
+**Ten routines that were timed are reactions on the event spine now** (§E): `_idle_system_review_work`,
 `_idle_knowledge_refresh_work`, `_idle_self_improvement_work`, `_idle_meta_learning_work`,
 `_learning_phase`, `_idle_analogy_discovery_work`, `_idle_operator_exploration_work`,
-`_idle_operator_induction_work`, `_idle_self_optimization_work` and `_idle_abstraction_work`. Operator
-induction and exploration, abstraction, transfer resolution and outcome expansion are now reactions on the
-event spine (§E): they run when an outcome is observed, evidence is admitted or competence moves, rather
-than on a timer that fires whether or not anything happened. Self-improvement went with
-self-modification, which was removed deliberately.
+`_idle_operator_induction_work`, `_idle_self_optimization_work` and `_idle_abstraction_work` are no
+longer defined. Operator induction and exploration, abstraction, transfer resolution and outcome expansion
+run when an outcome is observed, evidence is admitted or competence moves, rather than on a timer that
+fires whether or not anything happened. Self-improvement went with self-modification.
 
 **Still defined and still used, outside the scheduler:** `_idle_domain_expansion_work`,
 `_idle_domain_discovery_work`, `_check_constitutional_alignment` and `_run_exploration_cycle`, the last
@@ -205,9 +174,9 @@ driven by a pursuit rather than by a timer.
 - Memory helpers: `store_memory` (2388), `search_memories` (2726), `get_intelligent_memory_context` (3203), `_build_memory_narrative` (2214), `_store_governance_block_meta_memory` (2484), `_store_task_outcome_meta_memory` (2545), `_infer_domain_from_task` (2643).
 
 #### H — Health integration
-- *Re-traced 2026-11-19: this region is gone from the coordinator.* `_receive_health_event` and its
-  support, `_diagnose_health`, `_health_action_risk`, `_execute_recovery`, `_verify_recovery` and
-  `_create_recovery_goal_from_health_event`, are no longer defined here, and neither is the
+- **The coordinator holds no health region.** `_receive_health_event` and its support,
+  `_diagnose_health`, `_health_action_risk`, `_execute_recovery`, `_verify_recovery` and
+  `_create_recovery_goal_from_health_event`, are not defined here, and neither is the
   `MonitoringCoordinator` whose callback they were wired into. Health is monitored by `self.health_monitor`
   (8608) and supervised from outside the process by `core/guardian/supervisor.py`, so that a watchdog whose
   job is to survive a crash does not die in it. **What a health verdict reaches, and what it does not, is
@@ -220,7 +189,7 @@ driven by a pursuit rather than by a timer.
 - `handle_user_request(...)` — **the front door**, typed or heard alike (called by `core.perception.live` for what is said to it and by Tet's turn channel). It takes the turn (`_take_turn`: `_request_kind`, a turn about the substrate's OWN work answered from the queue authority by `_about_my_work` — what it is doing, whether it finished, stop it (`stop_work` → `QueueAuthority.cancel`, waiting or running), keep going — a request not to act answered and never made a job, `_answer_from_what_is_held`, else work queued and said "I'm on it") and returns its reply with whatever the substrate owes that person and no listening front end took (`_with_what_waits`, from the outbox); `metadata={"notices": True}` asks for that alone. `set_reply_debug` switches reply detail. (WORK-TALK-01)
 - **Speaking first** (MESSAGE-01) — `speak_to(actor, text, why, about, at)` owes a person a message in the durable outbox (`outbox.py`, `unified.outbox`), due now or at a moment, and records it in their conversation (`Conversation.note_said`); `on_message(actor, listener)` is a front end listening for that person, pushed each message the moment it is due (and anything already waiting); delivered once (`mark_delivered`, by `push`/`reply`/`asked`); a later message is delivered by the queue authority's timed job, and `_rearm_messages` arms what is still owed at boot (in `start_coordination`, beside `restore_pending`). Work a person asked for that ENDS is said by the substrate itself: the queue authority announces it (`on_work_ended`) and `_speak_of_ended_work` tells them how it ended and what it found. The live senses listen for the person in the room.
 - **Asking before an act** (CAPABILITY-EMERGE-01) — when a task's declared steps are an instance of a capability not unlocked for its person, `_execute_declared_tools` returns `awaiting_person` before the act and keeps the run on the task (`capability_run`: method, acts done, the act asked about, the act confirmed). `execute_task` and `_execute_operation` pass it up untold and unreconciled; `_execute_and_validate_task` hands it to `_wait_for_person`, which holds the job (`QueueAuthority.hold_for_person`) and asks once for that act (`speak_to`, why `confirm`). `_about_my_work` reads "Yes." (`go`: `go_on_with` → `resume_task`) and "No." (`decline`: `stop_work`) as answers to that question; `_doing_said` says a held job as the question it waits on. `shutdown()` stops the queue authority, releasing this instance's lease so what it owes is claimed by the next instance at once.
-- `teach(sentence)` (13395) + `_ingest(...)` (13280) live on the **`Conversation`** class, via `conversation()`; `understand` (13717), `say` (13931); `get_conversation`/`end_conversation`/`held_conversations` (14115/14136/14141).
+- `teach(sentence)` (25343) lives on the **`Conversation`** class (23221), reached via `conversation()`; `understand` (26197), `say` (26799), `_hand_over`/`_hand_over_turn` (26109/26128); `get_conversation`, `end_conversation` and `held_conversations` are module level. What a turn admits goes through the cognitive ingress (`architecture/semantics-ingress.md`), not through a method of this class.
 - **`look_up(phrase)`** (Conversation) — research a genuine gap via the `web_search` tool, with a **process-wide single-flight** (`_LOOKUPS_INFLIGHT`, module-level, keyed by `normalize_term(phrase)`): one self behind up to 64 sessions, so a crowd asking the same unknown at once collapses to ONE real research + ONE shared-store write, the rest piggyback on the same Future (`_research_phrase` holds the old body). NOT a cross-time cache (entry lives only while in flight → a later ask re-verifies). Benchmark: `experiments/LOOKUP-SINGLEFLIGHT-01`.
 - Perception: `see(path, ...)` and `hear(path, ...)` — two named doors onto one act, `_perceive_file` (sense → remember → admit → name → judge → hand over as an experience). `_DOORS` says what each opens: `see` images, videos and documents; `hear` recordings and videos (a video is seen AND heard on one percept). `remember_image` keeps the picture and its gist; `remember_sound` keeps a trace of the sounds, never the recording; `recall_media` returns what was stored; `recollect(memory_id)` REBUILDS what a memory met (a sound from its trace, a picture from its gist), which is how the substrate remembers; `_image_caption`. The environment scan sees images and hears sound files (`_ENV_SOUND_EXTS`). `learn_word(word, path)` and `learn_voice(person, path)` teach by HEARING: `_hear_lesson` runs `_perceive_file` with a `lesson`, so the example is sensed, admitted, judged, remembered and handed over as any hearing is; `remember_sound` tags the memory with what it taught and keeps the measured example in its trace; once remembered, the faculty takes it in (`hold_lesson`). What was said and whose voice said it are claims of the hearing like any other: `_sensed_claims` adds `<subject> said <word>` and `<subject> spoken_by <person>`, and `remember_sound` keeps `said`, `heard_text` and `spoken_by` in the perceived structure, so the memory reads in words.
 

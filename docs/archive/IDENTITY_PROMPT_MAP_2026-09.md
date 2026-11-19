@@ -1,14 +1,13 @@
 # Map of prompts & "identity" — `unified_llm` and `autonomous_coordinator`
 
-*Archived 2026-11-19. **This is the inventory that drove the model's retirement, and the retirement is
-done.** It was written to find every place Lyric's identity and cognition were pinned to a language model,
-before that was taken out, and it describes that state in the present tense: "Lyric's self lives in the
-LLM in two forms." That is no longer true of any part of the system, and the module it inventories,
-`core/services/unified_llm.py`, does not exist. Nothing here describes the running system. The
-identity-as-prompt table, the cognition-as-model routing and the persona strings are all gone; the
-substrate-native path this document calls "a third, parallel path" is now the only path. The current
-account is `../LYRIC_ARCHITECTURE_DOCUMENT.md` §1.1, and the retirement sequence is `LLM_RETIREMENT.md`
-and `LLM_CALLSITE_MAP.md` in this folder.*
+*Written September 2026. Archived 2026-11-19.*
+
+**Superseded.** This inventoried every place Lyric's identity and cognition were pinned to a language
+model, before that was taken out, and describes that state in the present tense. No generative model
+participates in Lyric's reasoning, planning, judgement of actions or its decision to act, and
+`core/services/unified_llm.py` does not exist. The substrate-native path this calls a third, parallel path
+is the only path. See `../LYRIC_ARCHITECTURE_DOCUMENT.md` §1.1, and `LLM_RETIREMENT.md` and
+`LLM_CALLSITE_MAP.md` in this folder.
 
 Purpose: before renaming/rewriting `unified_llm` and stripping the "brain" out of
 the coordinator, inventory **every place Lyric's identity and cognition are

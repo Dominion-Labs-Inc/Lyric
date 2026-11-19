@@ -1,12 +1,12 @@
 # Lyric Configuration Audit Findings
 
-*Status note, 2026-11-19. Kept as found. Eight of the modules this audit examines were the in-substrate
-host and network perimeter; they were taken out of the substrate and are held disabled, imported by
-nothing, in `core/security/_disabled/`, with containment now Tet's job outside the substrate. The links
-to the five still held there now point at them; the three that were removed outright
-(`content_security.py`, `malware_sandbox.py`, `threat_intelligence.py`) are left unresolved as the record
-of what was audited.
-Findings about `core/main.py` and about configuration precedence still stand.*
+*Audited September 2026. Re-read 2026-11-19.*
+
+**The perimeter this audit examines is no longer in the substrate.** Five of its modules are held
+disabled, imported by nothing, in `core/security/_disabled/` and are linked there below; three
+(`content_security.py`, `malware_sandbox.py`, `threat_intelligence.py`) were removed outright and their
+links do not resolve. Containment is Tet's, outside the substrate. The findings about `core/main.py` and
+about configuration precedence stand.
 **Date**: 2026-02-05
 **Audit Type**: System Integration Configuration Verification
 

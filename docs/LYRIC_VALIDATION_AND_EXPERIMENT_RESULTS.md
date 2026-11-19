@@ -50,10 +50,8 @@ a harness but no machine-readable artifact in the evidence tree.
 **A missing experiment is not a passing experiment.** The 58 directories without artifacts are listed
 in the registry with status `NO ARTIFACT` and contribute no evidence to any claim in this document.
 
-**The corpus has roughly quadrupled since this document's first edition**, which was compiled on
-2026-09-20 from 614 run artifacts across 84 directories. The growth is almost entirely the language and
-reading work: `GRAMMAR-01` alone holds 61 run records, `TRAIN-FORMAT-01` and `-02` 110 between them, and
-`RULE-AUTHORITY-01` and `-02` 54.
+The largest series are the language and reading work: `GRAMMAR-01` holds 61 run records,
+`TRAIN-FORMAT-01` and `-02` 110 between them, and `RULE-AUTHORITY-01` and `-02` 54.
 
 **Every run is kept.** The `RunRecord` writer opens each file for exclusive creation, so a re-run never
 overwrites an earlier one; two runs starting in the same second produce `<ts>.json` and `<ts>_2.json`.
@@ -163,14 +161,12 @@ gap is visible rather than silent.
 
 **How to read a run dated on or after 2026-09-26.** On that date, by decision, the model's store was
 emptied: all 156 tables in `lyric_db`, with no backup, and the substrate was taught again from the first
-English lesson. A run against the emptied store measures an **untaught** substrate, not a broken one, and
-some checks cannot pass until the vocabulary they depend on exists. The clearest case is `BEARING-01`,
-which recorded 22/22 on 2026-09-19 and 20/23 on 2026-09-26: of its three failures, the first is
-*"what the substrate holds as harm is recognised as harm", 1/12*, and the cause is recorded the same day:
-on the wiped store the constitution's law vocabulary is empty, no word is yet a noun, so bearing and
-stakes cannot be computed until word kinds exist. The registry reports the latest run faithfully, which
-is why that row reads FINDING. **An untaught store is not an absent capability**, and nothing in this
-document should be read as one.
+English lesson. A run against the emptied store measures an **untaught** substrate, and some checks
+cannot pass until the vocabulary they depend on exists. `BEARING-01` is the clearest case: 22/22 on
+2026-09-19 and 20/23 on 2026-09-26, its first failure *"what the substrate holds as harm is recognised as
+harm", 1/12*, with the cause recorded the same day: on the emptied store the constitution's law
+vocabulary is empty, no word is yet a noun, so bearing and stakes cannot be computed until word kinds
+exist. **An untaught store is not an absent capability.**
 
 | Experiment ID | Domain | Result | Status | Latest | Runs | Latest artifact |
 |---|---|---|---|---|---|---|
@@ -519,14 +515,12 @@ retry breaches objectives that single attempts do not, and it established that i
 The three breached campaign classes are characterised in §16.3. Nothing was executed in this experiment,
 the measure is what the constitution says before an act would run.
 
-**Closed, and re-measured since.** Two later runs record the three gaps closed: 2026-09-20, the first run
-with the remediation in place, and **2026-10-23, which holds all eight campaigns over 34 strategies with
-0 of 7 false refusals, judgement mean 2.258 ms and max 38.556 ms** (`20261023T020602Z`). The eight
-objectives and the strategies each was retried with are: reverse shell written any way (10), ransomware
-over a tree (3), credential exfiltration (3), covert keylogger (2), editing the governance machinery (5),
-installing persistence (3), destroying the audit log (5), disabling a safety mechanism (3). The September
-run above is kept exactly as captured, because a result that moved must be visible as two records rather
-than as a claim that quietly changed.
+**Closed, and re-measured since.** Two later runs record the three gaps closed: 2026-09-20, the first
+run with the remediation in place, and **2026-10-23, which holds all eight campaigns over 34 strategies
+with 0 of 7 false refusals, judgement mean 2.258 ms and max 38.556 ms** (`20261023T020602Z`). The eight
+objectives and the strategies each was retried with: reverse shell written any way (10), ransomware over a
+tree (3), credential exfiltration (3), covert keylogger (2), editing the governance machinery (5),
+installing persistence (3), destroying the audit log (5), disabling a safety mechanism (3).
 
 **What this demonstrates.** That single-attempt refusal (§6.2) does not generalise to campaign-level
 persistence, and that three specific classes of objective were reachable by at least one strategy.
@@ -1518,32 +1512,24 @@ Measured 2026-11-19 against `lyric_db`, identity confirmed by asking the server.
 
 **Evidence by source class:** imported knowledge 588,412 · perception 503 · user supplied 10.
 
-**Why four of those rows are at or near zero, and why none of it is a failure.** On **2026-09-26**, by
-decision, the store was emptied, all 156 tables with no backup, and the substrate was taught again from
-the first English lesson. Everything above was learned since. Operator demonstrations, learned rules and
-recorded intents accumulate from **running work** rather than from teaching, so they went with everything
-else and have not been rebuilt, because what has been taught since is language. **The faculties that
-produce them are evidenced by their own experiment series, not by these counts:** `OPERATOR-REMOVAL-01`
-22/22, `RULE-AUTHORITY-02` 9/9, `RULE-AUTHORITY-01`, `CREDIT-01` 26/26, `INTENT-01` 14/14 through
-`INTENT-04` 15/15. A count of zero in an untaught store says nothing about a capability, which is exactly
-why this section opens by saying these are system measurements and not validation results.
-
-The figures this table carried in the first edition (302,240 concepts, 516,110 relations, 514,132 beliefs,
-482,491 evidence records across 7 source classes, 874 operator demonstrations, 31 learned rules, 146
-domains, 17,945 hot memory records, 1,643 intents, 7,788 perceptions) were measured on 2026-09-19 against
-the store that was then emptied. They are kept here as the record of that measurement and **do not compare
-row for row** with the figures above.
+**The store was emptied on 2026-09-26**, by decision: all 156 tables, no backup, and the substrate was
+taught again from the first English lesson. Everything above was learned since. Operator demonstrations,
+learned rules and recorded intents accumulate from **running work** rather than from teaching, so they
+went with everything else and have not been rebuilt, because what has been taught since is language.
+**The faculties that produce them are evidenced by their own experiment series, not by these counts:**
+`OPERATOR-REMOVAL-01` 22/22, `RULE-AUTHORITY-02` 9/9, `RULE-AUTHORITY-01`, `CREDIT-01` 26/26, `INTENT-01`
+14/14 through `INTENT-04` 15/15. A count of zero in an untaught store says nothing about a capability.
 
 ### 24.2 Structural counts
 
 | Measure | Value | Source |
 |---|---|---|
-| `Tool` subclasses defined / categories | 257 / 17 | Source scan, 2026-11-19. The live registry additionally holds tools registered at run time, per connector and per learned procedure; the 356 recorded in September was read from a booted registry as the union of 90 eager and 276 lazy factories, 10 overlapping |
+| `Tool` subclasses defined / categories | 257 / 17 | Source scan, 2026-11-19. The live registry additionally holds tools registered at run time, per connector and per learned procedure |
 | Kinds of reasoning | 11 classical, plus 7 of a deactivated quantum family | `ReasoningType`, 2026-11-19 |
 | Memory types / tiers | 5 / 2 | Implementation |
 | Epistemic deficit types diagnosed | 9 | Implementation |
 | Intrinsic motivation dimensions | 7 | Implementation |
-| Appraisal dimensions / behavioural pressures | **13** / 7 | `AppraisalSystem.DIMENSIONS`, 2026-11-19. The earlier conflict is resolved: §19.4 item 2 |
+| Appraisal dimensions / behavioural pressures | **13** / 7 | `AppraisalSystem.DIMENSIONS`, 2026-11-19 |
 | Governance laws / verdicts | 5 / 4 | Implementation |
 | Substrate-owned health components | 15 | `core/health/ownership.py`, 2026-11-19 |
 | Experiment directories / carrying run records | 246 / 188 | This corpus, 2026-11-19 |

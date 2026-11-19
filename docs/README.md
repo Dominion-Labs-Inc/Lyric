@@ -29,9 +29,9 @@ answers one question and they do not overlap.
 
 ## The system
 
-Everything in this table was measured on 2026-11-19: the substrate from a source scan, the store through
-the system's own configuration authority against `lyric_db`, whose identity the server confirmed when
-asked, and the corpus from the artifacts themselves.
+Measured 2026-11-19: the substrate from a source scan, the store through the system's own configuration
+authority against `lyric_db`, whose identity the server confirmed when asked, and the corpus from the
+artifacts themselves.
 
 | | |
 |---|---|
@@ -50,10 +50,9 @@ metrics with units, and an environment block recording the commit, the count of 
 the database both as resolved and as the server reported it. A run never overwrites an earlier one.
 
 **The store was emptied on 2026-09-26, by decision, and taught again from the first English lesson.**
-Everything in the knowledge, memory and language rows above was learned since. It is why the figures do
-not compare row for row with anything written before that date, and why counts of *running* work, learned
-rules and operator demonstrations, stand at zero: those accumulate from use, not from teaching, and the
-faculties that produce them are evidenced by their experiment series rather than by a standing count.
+Everything in the knowledge, memory and language rows above was learned since. Counts of *running* work,
+learned rules and operator demonstrations, stand at zero: those accumulate from use rather than from
+teaching, and the faculties that produce them are evidenced by their experiment series.
 
 ## The substrate reference
 
@@ -64,7 +63,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 |---|---|
 | [architecture/SUBSTRATE_SYSTEMS_MAP.md](architecture/SUBSTRATE_SYSTEMS_MAP.md) | Every system by name and size |
 | [architecture/world-model-and-instances.md](architecture/world-model-and-instances.md) | What the Lyric World Model is, what an instance is, and how what an instance learns reaches the World Model |
-| [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the fourteen reactions on its event spine, the cognitive cycle, and what its scheduler runs. Re-traced against the source 2026-11-19 |
+| [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the fourteen reactions on its event spine, the cognitive cycle, and what its scheduler runs |
 | [architecture/memory.md](architecture/memory.md) | What persists, in which tier, and how it is recalled |
 | [architecture/beliefs.md](architecture/beliefs.md) | How a belief forms, moves and is retired |
 | [architecture/learning.md](architecture/learning.md) | The learning authorities and what each may admit |
@@ -79,7 +78,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 
 | | |
 |---|---|
-| [research/BENCHMARKS.md](research/BENCHMARKS.md) | The standing record of measurements, current to 2026-11-19. Each run appends a dated row rather than replacing the last, so a regression shows as a number that moved. Nine sections: governance, operator acquisition, intent, planning, credit, system isolation and the reading work |
+| [research/BENCHMARKS.md](research/BENCHMARKS.md) | The standing record of measurements. Each run appends a dated row rather than replacing the last, so a regression shows as a number that moved. Nine sections: governance, operator acquisition, intent, planning, credit, system isolation and the reading work |
 | [research/LAB_NOTEBOOK.md](research/LAB_NOTEBOOK.md) | Every session, in order, with what was tried and what it showed |
 | [TEACHING.md](TEACHING.md) | How the substrate is taught, what it has been taught, and from which sources |
 | [HANDOFF.md](HANDOFF.md) | Where the reading and understanding work stands, for the engineer taking it up |

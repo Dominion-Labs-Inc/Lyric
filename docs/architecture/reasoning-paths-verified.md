@@ -1,11 +1,11 @@
 # The Eleven Reasoning Paths — Verified Against the Real System
 
-*Status note, 2026-11-19. This is a dated verification record, kept as found. It was run when a model was
-still installed in the environment as a last resort, and what it proves is that none of the eleven kinds
-of reasoning ever reached for it: all twenty-two checks pass with the model forbidden. **The model has
-since been removed entirely**, so the "last resort" this record describes no longer exists and the
-model-free result it established is now simply the architecture. Nothing in the finding changed; the
-fallback it ruled out is gone.*
+*Recorded 2026-09-29. Re-read 2026-11-19.*
+
+**No model is installed.** This record was made when one was still present in the environment as a last
+resort, and what it establishes is that none of the eleven kinds of reasoning ever reached for it: all
+twenty-two checks pass with the model forbidden. The model has since been removed entirely, so there is
+no longer a last resort for anything to fall back to.
 
 This document describes each of Lyric's eleven kinds of thinking, states what a
 correct test of each one must show, and records the result of testing all eleven

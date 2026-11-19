@@ -1,13 +1,15 @@
 # Lyric Safety & Governance Architecture
 
-*Status note, 2026-11-19. **This is a dated inventory, taken on 2026-08-11, and the control plane has since
-been reorganised: 18 of the 21 modules it names no longer exist.** Its reasoning about what a control plane
-must decide still holds, and that is why it is kept; its module map does not. The current account of
-governed autonomy is §10 of [../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md](../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md)
-and Part II of [../LYRIC_ARCHITECTURE_DOCUMENT.md](../LYRIC_ARCHITECTURE_DOCUMENT.md), with the live
-authority in [../architecture/coordinator.md](../architecture/coordinator.md).*
+*Inventoried 2026-08-11. Re-read 2026-11-19.*
 
-*Where the capability went, traced rather than assumed:*
+**Eighteen of the twenty-one modules inventoried below are no longer in the substrate.** The reasoning
+about what a control plane must decide holds; the module map does not. The current account of governed
+autonomy is §10 of [../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md](../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md) and
+Part II of [../LYRIC_ARCHITECTURE_DOCUMENT.md](../LYRIC_ARCHITECTURE_DOCUMENT.md), with the live authority
+in [../architecture/coordinator.md](../architecture/coordinator.md).
+
+*Where each capability lives now:*
+
 
 | Named here | Now |
 |---|---|
