@@ -185,3 +185,103 @@ def test_a_resumable_job_is_taken_up_where_it_stopped_and_never_begun_again():
         assert status["stood_down"] >= 2, f"standing down is counted on the job: {status}"
 
     asyncio.run(run())
+
+
+def test_downtime_work_stands_down_for_another_substrate_on_the_same_store():
+    """`busy()` is answered inside one process and cannot see a second substrate on the same store.
+
+    `scripts/teach.py` starts a full substrate of its own against the same World Model. While one teaches,
+    this process is idle by every measure it has -- no turn, no task, nothing in flight -- so a pass that may
+    run only in downtime would begin a long walk over the database being written. The heartbeat reads how many
+    other instances are alive, and downtime work stands down for them as it does for a person."""
+    async def run():
+        authority = QueueAuthority({"persist": False, "scheduler_tick_s": 0.01})
+        should = authority.stand_down_after(0.0)
+        assert not authority.busy() and not authority.elsewhere_working()
+        assert not should(), "nothing is working this store"
+
+        # A teaching run comes up: another instance, beating.
+        authority._others_alive = 1
+        assert authority.elsewhere_working()
+        assert should(), "a pass must stand down while something else works the store"
+        assert not authority.busy(), "and it is not this process that is busy"
+
+        # It finishes.
+        authority._others_alive = 0
+        assert not should()
+
+    asyncio.run(run())
+
+
+def test_the_heartbeat_reads_who_else_is_alive_and_a_store_error_leaves_the_last_answer():
+    """Read on the heartbeat's cadence, not per give-way: downtime work asks at every give-way, and a store
+    read each time would cost more than the pass it guards.
+
+    A failed read leaves the last answer standing. Reading "nothing else is working" from a failure would
+    start a long pass on a guess; reading "something is" would stop downtime work for ever on a store that
+    stays unwell."""
+    async def run():
+        authority = QueueAuthority({"persist": False, "scheduler_tick_s": 0.01})
+
+        class Persistence:
+            def __init__(self):
+                self.alive, self.fail, self.beats = 2, False, 0
+
+            async def heartbeat(self):
+                self.beats += 1
+
+            async def others_alive(self, lease_s):
+                assert lease_s > 0, "asked with the lease the work it guards is held under"
+                if self.fail:
+                    raise RuntimeError("the store is unwell")
+                return self.alive
+
+        persistence = Persistence()
+        authority._persistence_or_none = lambda: persistence
+
+        await authority.heartbeat()
+        assert persistence.beats == 1, "its own lease is still renewed"
+        assert authority._others_alive == 2 and authority.elsewhere_working()
+
+        persistence.fail = True
+        await authority.heartbeat()
+        assert authority._others_alive == 2, "a failed read leaves the last answer standing"
+        assert persistence.beats == 2, "and does not stop the heartbeat"
+
+        persistence.fail, persistence.alive = False, 0
+        await authority.heartbeat()
+        assert not authority.elsewhere_working()
+
+    asyncio.run(run())
+
+
+def test_the_store_is_asked_for_other_instances_and_never_counts_this_one():
+    """The statement excludes this instance by id and bounds freshness by the lease. Counting itself, every
+    substrate would read as having company and no downtime work would ever run."""
+    from core.agents.autonomous.queue_persistence import QueuePersistence
+
+    asked = {}
+
+    class Db:
+        async def execute_query(self, query, params=None, **kw):
+            asked["query"] = " ".join(query.split())
+            asked["params"] = params
+            return {"n": 3}
+
+    persistence = QueuePersistence.__new__(QueuePersistence)
+    persistence.instance_id = "queue_me"
+    persistence._db = Db()
+    persistence._schema_ready = True
+
+    assert asyncio.run(persistence.others_alive(120.0)) == 3
+    assert "instance_id <> $1" in asked["query"], asked["query"]
+    assert "heartbeat_at >= NOW() - make_interval(secs => $2)" in asked["query"], asked["query"]
+    assert asked["params"] == ("queue_me", 120.0), asked["params"]
+
+    # No row at all is no company, not an error.
+    class Empty(Db):
+        async def execute_query(self, query, params=None, **kw):
+            return None
+
+    persistence._db = Empty()
+    assert asyncio.run(persistence.others_alive(120.0)) == 0

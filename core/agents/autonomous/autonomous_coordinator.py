@@ -13779,6 +13779,11 @@ class AutonomousCoordinator:
         floor = float(self.config.get("reflection_idle_floor_s", 120.0))
         if self.task_queue.idle_for() < floor:
             return {"reflected": False, "because": f"in use within the last {floor:.0f}s"}
+        # AND WHETHER ANYTHING ELSE IS WORKING THIS STORE, which the line above cannot tell: it is answered
+        # inside this process, and a teaching run is a full substrate of its own against the same World Model.
+        # While one teaches, this process is idle by every measure it has.
+        if self.task_queue.elsewhere_working():
+            return {"reflected": False, "because": "another substrate is working this store"}
         return await self.memory.reflect_on_what_was_learned(
             resume_at, stand_down=self.task_queue.stand_down_after(floor))
 

@@ -312,6 +312,28 @@ class QueuePersistence:
             " ON CONFLICT (instance_id) DO UPDATE SET heartbeat_at = NOW(), role = EXCLUDED.role",
             (self.instance_id, "worker" if is_worker() else "lyric"), commit=True)
 
+    async def others_alive(self, lease_s: float) -> int:
+        """How many OTHER instances of this store are alive -- a heartbeat within `lease_s` -- this one not
+        counted.
+
+        WHAT IT IS FOR. Work that may only happen in downtime asks whether the substrate is busy, and that
+        question is answered inside one process: a pass here cannot see a second substrate on the same store
+        at all. A teaching run is exactly that -- `scripts/teach.py` starts a full substrate of its own
+        against the same World Model -- so while one teaches, this process reads as perfectly idle and a long
+        pass would start over the database being written.
+
+        ALIVENESS IS THE SIGNAL, rather than a count of what the other one is doing. A second substrate on
+        one store exists in order to work it: two must not serve one store at once, and teaching runs with
+        the resident stopped. And nothing it does passes through this process, so there is nothing else here
+        to read. If workers are ever used on this store -- there are none in it today -- one merely alive
+        would read as working, and that is a decision to revisit rather than a line to soften now."""
+        await self.ensure_schema()
+        row = await self.db().execute_query(
+            "SELECT count(*) AS n FROM unified.queue_instances"
+            " WHERE instance_id <> $1 AND heartbeat_at >= NOW() - make_interval(secs => $2)",
+            (self.instance_id, float(lease_s)), fetch_one=True)
+        return int(row["n"]) if row else 0
+
     async def workers_alive(self, lease_s: float) -> int:
         """How many workers are alive: a heartbeat within `lease_s`."""
         await self.ensure_schema()

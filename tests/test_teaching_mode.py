@@ -122,3 +122,27 @@ def test_quiet_for_teaching_is_module_level_and_not_a_method():
     import core.main as m
     assert callable(m.quiet_for_teaching)
     assert not hasattr(m.LyricSystem, "quiet_for_teaching")
+
+
+def test_starting_the_resident_does_not_put_it_in_teaching_mode():
+    """`LYRIC_TEACHING=1` has to be a decision somebody made for a run, which is what `quiet_for_teaching`'s
+    own docstring says it is for.
+
+    `lyric-start` exported it unconditionally from 17 November 2026, added inside a commit about Ctrl-C
+    handling, so every start of the resident that SERVES came up with its state sampling, its motivation
+    refresh and its self-monitoring cancelled -- and the log said so every time, to nobody. The switch and
+    the way the resident is started must not be the same thing."""
+    from pathlib import Path
+    start = Path(__file__).resolve().parents[1] / "lyric-start"
+    assert start.exists(), start
+    exported = [line for line in start.read_text().splitlines()
+                if line.strip().startswith("export") and "LYRIC_TEACHING" in line]
+    assert exported == [], f"starting the resident forces teaching mode: {exported}"
+
+
+def test_reflection_is_not_a_tier_teaching_mode_decides_about():
+    """It is left running by name in the log line, and it is not left to that line to protect the store: the
+    pass asks the store itself whether another substrate is working it (`QueueAuthority.elsewhere_working`),
+    because a teaching run is another process and nothing it does reaches this one's idea of busy."""
+    assert "reflection" not in TEACHING_KEEPS
+    assert hasattr(QueueAuthority, "elsewhere_working")

@@ -245,3 +245,69 @@ def test_nothing_learned_yet_is_not_a_reflection():
 if __name__ == "__main__":
     import pytest
     raise SystemExit(pytest.main([__file__, "-q"]))
+
+
+def test_reflection_declines_while_anything_else_is_working_the_store():
+    """Two gates, both asked before a window is opened: how long THIS process has been quiet, and whether
+    another substrate is working the same store. The second cannot be read from the first -- a teaching run is
+    a full substrate of its own against the same World Model, and while one teaches this process is idle by
+    every measure it has."""
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
+
+    class Queue:
+        def __init__(self, idle, elsewhere):
+            self.idle, self.elsewhere, self.floors = idle, elsewhere, []
+
+        def idle_for(self):
+            return self.idle
+
+        def elsewhere_working(self):
+            return self.elsewhere
+
+        def stand_down_after(self, floor):
+            self.floors.append(floor)
+            return lambda: False
+
+    def coordinator(idle, elsewhere, memory="the agent"):
+        coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+        coord.config, coord.memory = {}, memory
+        coord.task_queue = Queue(idle, elsewhere)
+        return coord
+
+    # In use a moment ago: nothing is begun, and it is not a stand-down -- there is no new place to record.
+    busy = coordinator(idle=4.0, elsewhere=False)
+    assert asyncio.run(busy._reflect_on_what_was_learned()) == {
+        "reflected": False, "because": "in use within the last 120s"}
+
+    # Quiet here, but something else is working the store.
+    taught = coordinator(idle=9999.0, elsewhere=True)
+    assert asyncio.run(taught._reflect_on_what_was_learned()) == {
+        "reflected": False, "because": "another substrate is working this store"}
+    assert taught.task_queue.floors == [], "the pass was never begun, so no floor was handed down"
+
+    # Quiet, and nothing else about: the pass is begun, with the same floor handed down as its stand-down.
+    class Memory:
+        def __init__(self):
+            self.asked = None
+
+        async def reflect_on_what_was_learned(self, resume_at=None, *, stand_down=None):
+            self.asked = (resume_at, stand_down)
+            return {"reflected": True}
+
+    memory = Memory()
+    quiet = coordinator(idle=9999.0, elsewhere=False, memory=memory)
+    assert asyncio.run(quiet._reflect_on_what_was_learned("knowledge:main|x|y")) == {"reflected": True}
+    assert memory.asked[0] == "knowledge:main|x|y", "it is taken up where it stopped"
+    assert quiet.task_queue.floors == [120.0], "one number answers both questions"
+
+
+def test_reflection_without_a_memory_agent_is_a_wiring_defect_and_says_so():
+    """Not caught and not skipped into a green count: reflection reads and writes the substrate's memory, so
+    without the memory agent there is nothing to reflect on and nowhere to record it."""
+    import pytest
+    from core.agents.autonomous.autonomous_coordinator import AutonomousCoordinator
+
+    coord = AutonomousCoordinator.__new__(AutonomousCoordinator)
+    coord.config, coord.memory, coord.task_queue = {}, None, None
+    with pytest.raises(RuntimeError, match="without a memory agent"):
+        asyncio.run(coord._reflect_on_what_was_learned())

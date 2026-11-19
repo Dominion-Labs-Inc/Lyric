@@ -292,6 +292,11 @@ class QueueAuthority:
         #: is a person waiting. `busy` and `idle_for` are what downtime work asks (`GiveWay`'s `stand_down`).
         self._work_in_flight = 0
         self._last_work_ended = time.monotonic()
+        #: How many OTHER instances of this store were alive when the heartbeat last ran. Read from the store
+        #: on the heartbeat's own cadence rather than asked for on demand: the only thing that asks is work
+        #: which may run in downtime alone, and that asks at every give-way -- a store read per give-way would
+        #: cost more than the pass it guards.
+        self._others_alive = 0
         #: The reasoning authority, consulted (lazily) for the MEASURED
         #: reasoning-difficulty factor in `timeout_for`. The queue owns the
         #: timeout formula; the reasoning authority owns how hard the thinking is.
@@ -916,10 +921,21 @@ class QueueAuthority:
     HEARTBEAT_INTERVAL_S = 30.0
 
     async def heartbeat(self) -> None:
-        """Scheduled: renew this instance's lease on the work it owns."""
+        """Scheduled: renew this instance's lease on the work it owns, and read back whether another substrate
+        is working this store -- which downtime work must stand down for and this process cannot otherwise
+        see.
+
+        A store error leaves the last answer standing, logged and counted. Reading "nothing else is working"
+        from a failed read would start a long pass on a guess; reading "something is" would stop downtime work
+        for ever on a store that stays unwell."""
         p = self._persistence_or_none()
         if p is not None:
             await p.heartbeat()
+            try:
+                self._others_alive = await p.others_alive(self._lease_s())
+            except Exception as e:
+                self._persist_metrics["errors"] += 1
+                logger.error("whether another substrate is working this store could not be read: %s", e)
 
     @staticmethod
     def _queued_meta(queued: "QueuedTask") -> Dict[str, Any]:
@@ -1441,11 +1457,20 @@ class QueueAuthority:
             return 0.0
         return max(0.0, time.monotonic() - self._last_work_ended)
 
+    def elsewhere_working(self) -> bool:
+        """Whether another substrate is working this store, as of the last heartbeat (within 30s).
+
+        `busy()` is answered inside this process and cannot see a second substrate on the same store -- a
+        teaching run, which starts a full substrate of its own against the same World Model. While one teaches
+        this process is idle by every measure it has, which is exactly when a long pass must not begin."""
+        return self._others_alive > 0
+
     def stand_down_after(self, idle_s: float = 0.0) -> Callable[[], bool]:
-        """A `stand_down` for `GiveWay`: true once the substrate is busy again, or once it has not been idle for
-        `idle_s`. Handed to a long pass that may only run in downtime, so the pass stops where it is."""
+        """A `stand_down` for `GiveWay`: true once the substrate is busy again, once another substrate is
+        working this store, or once this one has not been idle for `idle_s`. Handed to a long pass that may
+        only run in downtime, so the pass stops where it is."""
         def should() -> bool:
-            return self.busy() or self.idle_for() < idle_s
+            return self.busy() or self.elsewhere_working() or self.idle_for() < idle_s
         return should
 
     def resume_at(self, name: str) -> Any:
