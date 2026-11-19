@@ -63,6 +63,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 |---|---|
 | [architecture/SUBSTRATE_SYSTEMS_MAP.md](architecture/SUBSTRATE_SYSTEMS_MAP.md) | Every system by name and size |
 | [architecture/world-model-and-instances.md](architecture/world-model-and-instances.md) | What the Lyric World Model is, what an instance is, and how what an instance learns reaches the World Model |
+| [architecture/releases.md](architecture/releases.md) | Versions of the model: how one is cut, checked, served, replaced and rolled back, and how what a served release learned is brought back |
 | [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the nineteen registrations on its event spine, the cognitive cycle, and what its scheduler runs |
 | [architecture/constitution.md](architecture/constitution.md) | The law: the five laws, the three doors into them, what an act is judged on, and the eighteen measurements of standing state |
 | [architecture/conversation.md](architecture/conversation.md) | A thread of talk: what it remembers, how a turn is understood, and the one path from what is held to what is said |

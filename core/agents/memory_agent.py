@@ -3034,6 +3034,11 @@ class MemoryAgent(IMemoryConsolidation):
         "CREATE TABLE IF NOT EXISTS unified.word_class_index_from ("
         "one BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (one), mark VARCHAR NOT NULL, "
         "words INTEGER NOT NULL, built_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+        # HOW MANY MEMORIES IT WAS WORKED OUT FROM, so a start that reads the answer back can say what the
+        # answer was worked out from. Without it the warm reported "197127 word(s) from 0 taught memory(ies)"
+        # on every hit -- the sets are not fetched, so their lengths are zero -- which reads as a warm that
+        # found nothing (2026-11-19 12:28). Nullable: the row written before this column existed cannot say.
+        "ALTER TABLE unified.word_class_index_from ADD COLUMN IF NOT EXISTS sentences INTEGER",
         # AND THE NAMES THOSE SAME SENTENCES HOLD, worked out from the same memories and kept beside them, so a
         # start that need not work the classes out need not fetch the sentences at all. `which` is `holds` for a
         # name memory holds a concept under and `particular` for one it holds a single thing under.
@@ -3080,12 +3085,13 @@ class MemoryAgent(IMemoryConsolidation):
             parts.append(f"{found}:{summed}")
         return "|".join(parts)
 
-    async def _word_classes_worked_out_before(self, mark: str) -> Optional[Dict[str, Dict[str, int]]]:
-        """The index as it was last worked out, where it was worked out from exactly these memories; None
-        otherwise, which is the honest answer and means the warm does the work."""
+    async def _word_classes_worked_out_before(self, mark: str):
+        """The index as it was last worked out, and how many memories it was worked out from, where it was
+        worked out from exactly these memories; None otherwise, which is the honest answer and means the warm
+        does the work. The count is None for an index kept before it was recorded."""
         await self._ensure_word_class_index_schema()
         rows = await self._memory_db().execute_query(
-            "SELECT mark, words FROM unified.word_class_index_from", fetch_all=True) or []
+            "SELECT mark, words, sentences FROM unified.word_class_index_from", fetch_all=True) or []
         if not rows or str(rows[0]["mark"]) != mark:
             return None
         held = await self._memory_db().execute_query(
@@ -3100,7 +3106,8 @@ class MemoryAgent(IMemoryConsolidation):
             logger.warning("the word classes kept say %d word(s) where %d were counted: working them out again",
                            len(index), int(rows[0]["words"]))
             return None
-        return index
+        worked_out_from = rows[0]["sentences"]
+        return index, (int(worked_out_from) if worked_out_from is not None else None)
 
     async def _names_worked_out_before(self):
         """The names those same sentences hold, as they were last worked out. Read only where the index was:
@@ -3111,7 +3118,8 @@ class MemoryAgent(IMemoryConsolidation):
         particular = frozenset(tuple(r["name"].split(" ")) for r in rows if r["which"] == "particular")
         return holds, particular
 
-    async def _keep_word_classes(self, index: Dict[str, Dict[str, int]], mark: str) -> int:
+    async def _keep_word_classes(self, index: Dict[str, Dict[str, int]], mark: str,
+                                 sentences: int = 0) -> int:
         """Keep what the warm worked out, with what it was worked out from."""
         await self._ensure_word_class_index_schema()
         rows = [(word, cls, int(seen)) for word, classes in index.items() for cls, seen in classes.items()]
@@ -3122,9 +3130,11 @@ class MemoryAgent(IMemoryConsolidation):
                 "INSERT INTO unified.word_class_index (word, word_class, seen) VALUES ($1,$2,$3) "
                 "ON CONFLICT (word, word_class) DO UPDATE SET seen = EXCLUDED.seen", rows)
         await db.execute_query(
-            "INSERT INTO unified.word_class_index_from (one, mark, words, built_at) VALUES (TRUE,$1,$2,now()) "
+            "INSERT INTO unified.word_class_index_from (one, mark, words, sentences, built_at) "
+            "VALUES (TRUE,$1,$2,$3,now()) "
             "ON CONFLICT (one) DO UPDATE SET mark = EXCLUDED.mark, words = EXCLUDED.words, "
-            "built_at = EXCLUDED.built_at", (mark, len(index)), commit=True)
+            "sentences = EXCLUDED.sentences, built_at = EXCLUDED.built_at",
+            (mark, len(index), int(sentences)), commit=True)
         return len(rows)
 
     async def _keep_names(self, holds, particular) -> int:
@@ -3201,7 +3211,8 @@ class MemoryAgent(IMemoryConsolidation):
         worked_from = await self._tagged_mark(self.TAUGHT_PROPOSITION_TAG, self.UNREAD_TELLING_TAG,
                                               self.WORD_CLASS_TAG)
         with timed("asking whether anything changed"):
-            kept_index = await self._word_classes_worked_out_before(worked_from)
+            kept = await self._word_classes_worked_out_before(worked_from)
+        kept_index, kept_from = kept if kept is not None else (None, None)
         taught: List[Any] = []
         unread: List[Any] = []
         stated: List[Any] = []
@@ -3300,9 +3311,12 @@ class MemoryAgent(IMemoryConsolidation):
         if kept_index is not None:
             index.update(kept_index)
             told = sum(len(classes) for classes in index.values())
+            # The sentence count comes from the row, not from the sets: on this path they are never fetched,
+            # which is the whole point, so their lengths are zero and reporting them said "worked out of 0
+            # sentence(s)" about a complete index.
             logger.info("the word classes were worked out before from these very memories: %d word(s) read "
-                        "back rather than worked out of %d sentence(s)",
-                        len(index), len(taught) + len(unread) + len(stated))
+                        "back rather than worked out of %s sentence(s)",
+                        len(index), kept_from if kept_from is not None else "a number of")
         else:
             for item in stated:
                 await give_way()
@@ -3447,7 +3461,8 @@ class MemoryAgent(IMemoryConsolidation):
         # KEPT FOR THE NEXT START, with what it was worked out from.
         if kept_index is None:
             try:
-                rows_kept = await self._keep_word_classes(index, worked_from)
+                rows_kept = await self._keep_word_classes(
+                    index, worked_from, len(taught) + len(unread) + len(stated))
                 names_kept = await self._keep_names(inventory.names_memory_holds,
                                                     inventory.names_of_particulars)
                 logger.info("what each word has been seen used as: %d word(s) in %d row(s), and %d name(s) "
@@ -3511,13 +3526,23 @@ class MemoryAgent(IMemoryConsolidation):
         logger.info("the warm's time, read by read: %s",
                     ", ".join(f"{what} {how_long:.1f}s" for what, how_long
                               in sorted(spent.items(), key=lambda kv: -kv[1])))
-        logger.info(
-            "word-class view warmed: %d word(s) from %d taught memory(ies) "
-            "(%d remembered but never read, %d refusal(s) counted against a "
-            "class, %d class(es) stated outright, %d derived claim(s) that "
-            "teach no vocabulary); %d taught construction(s) and link(s)",
-            len(index), len(taught) + len(unread) + len(stated), unparsed,
-            refuted, told, len(derived), len(inventory))
+        if kept_index is not None:
+            # READ BACK, SO THE BUILD'S OWN NUMBERS WERE NEVER MEASURED. Printing them anyway said "from 0
+            # taught memory(ies), 0 remembered but never read" on a start that read a complete index back,
+            # which reads as a warm that found nothing.
+            logger.info(
+                "word-class view warmed: %d word(s) read back, worked out before from %s taught memory(ies); "
+                "%d taught construction(s) and link(s)",
+                len(index), f"{kept_from}" if kept_from is not None else "a number not recorded then",
+                len(inventory))
+        else:
+            logger.info(
+                "word-class view warmed: %d word(s) from %d taught memory(ies) "
+                "(%d remembered but never read, %d refusal(s) counted against a "
+                "class, %d class(es) stated outright, %d derived claim(s) that "
+                "teach no vocabulary); %d taught construction(s) and link(s)",
+                len(index), len(taught) + len(unread) + len(stated), unparsed,
+                refuted, told, len(derived), len(inventory))
         return len(index)
 
     @profile_performance("memory_agent", "search_memories")

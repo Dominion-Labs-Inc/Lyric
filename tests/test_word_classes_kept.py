@@ -74,16 +74,16 @@ def test_the_index_is_read_back_only_where_the_memories_are_the_same():
     import asyncio
 
     class Store:
-        def __init__(self, mark, words, rows):
+        def __init__(self, mark, words, rows, sentences=686936):
             self.mark, self.words, self.rows = mark, words, rows
-            self.reads = 0
+            self.sentences, self.reads = sentences, 0
 
         async def execute_query(self, query, params=None, **kw):
             q = query.strip()
-            if q.startswith(("CREATE", "DELETE", "INSERT")):
+            if q.startswith(("CREATE", "DELETE", "INSERT", "ALTER")):
                 return None
             if "word_class_index_from" in q:
-                return [{"mark": self.mark, "words": self.words}]
+                return [{"mark": self.mark, "words": self.words, "sentences": self.sentences}]
             self.reads += 1
             return self.rows
 
@@ -94,8 +94,17 @@ def test_the_index_is_read_back_only_where_the_memories_are_the_same():
 
     store = Store("the-same", 2, rows)
     agent._memory_db = lambda: store
-    got = asyncio.run(agent._word_classes_worked_out_before("the-same"))
-    assert got == {"dog": {"NOUN": 3}, "barked": {"VERB": 2}}, got
+    index, worked_out_from = asyncio.run(agent._word_classes_worked_out_before("the-same"))
+    assert index == {"dog": {"NOUN": 3}, "barked": {"VERB": 2}}, index
+    # HOW MANY MEMORIES IT WAS WORKED OUT FROM COMES BACK WITH IT. On this path the memories are never
+    # fetched, so the warm has no count of its own: reporting the sets' lengths said "197127 word(s) ...
+    # worked out of 0 sentence(s)" about a complete index (2026-11-19 12:28).
+    assert worked_out_from == 686936, worked_out_from
+
+    # An index kept before the count was recorded says so rather than claiming a number.
+    store = Store("the-same", 2, rows, sentences=None)
+    agent._memory_db = lambda: store
+    assert asyncio.run(agent._word_classes_worked_out_before("the-same"))[1] is None
 
     # A different mark: the memories moved on, so the work is done again.
     store = Store("something-else", 2, rows)
