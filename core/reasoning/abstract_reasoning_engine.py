@@ -162,6 +162,11 @@ class ReasoningContext:
     
     # Reasoning configuration
     allowed_reasoning_types: List[ReasoningType] = field(default_factory=list)
+    #: WHICH KINDS THE QUESTION ITSELF ASKED FOR, as its meaning gave them (`kinds_of_thinking_for`): a cause
+    #: asks for causal thinking, a kind for deductive. It does NOT restrict -- `allowed_reasoning_types` does,
+    #: and `is_applicable` decides whether a permitted kind can help. Kept so the account of a reasoning can
+    #: say what was apt alongside what ran (`_select_strategies`, `_kinds_for`).
+    asked_for: List[ReasoningType] = field(default_factory=list)
     max_inference_depth: int = 5
     confidence_threshold: float = 0.5
     
@@ -2201,7 +2206,10 @@ class AbstractReasoningEngine:
             # so a reasoning that tried nothing still says what it was asked for and why nothing ran.
             account.update({
                 "held": len(self.strategies),
-                "asked_for": sorted(t.value for t in (context.allowed_reasoning_types or ())),
+                # What the QUESTION asked for (apt), and what was PERMITTED to run. They were one field, and
+                # the aptness was spent as a veto (`NeuralSymbolicBridge._kinds_for`).
+                "asked_for": sorted(t.value for t in (context.asked_for or ())),
+                "allowed": sorted(t.value for t in (context.allowed_reasoning_types or ())),
                 "selected": [t.value for t, _ in applicable],
                 "not_allowed": sorted(not_allowed),
                 "declined": sorted(declined),

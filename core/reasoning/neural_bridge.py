@@ -3591,12 +3591,10 @@ class NeuralSymbolicBridge:
 
         # PROPOSE: derive candidates once; the engine is deterministic, so
         # revision walks down these by confidence rather than re-deriving.
-        kinds = (list(request.kinds)
-                 or list(kinds_of_thinking_for(question_of(request)))
-                 or list(CLASSICAL_REASONING_TYPES))
+        kinds, asked_for = self._kinds_for(request)
         try:
             engine = create_abstract_reasoning_engine()
-            result = await engine.reason(self._build_reasoning_context(request, kinds))
+            result = await engine.reason(self._build_reasoning_context(request, kinds, asked_for))
         except Exception as e:
             logger.warning(f"hybrid propose failed: {e}")
             return None
@@ -3944,7 +3942,39 @@ class NeuralSymbolicBridge:
             logger.error(f"Neuro-symbolic arbitration error: {e}")
             return None
 
-    def _build_reasoning_context(self, request: "ReasoningRequest", kinds: list):
+    def _kinds_for(self, request: "ReasoningRequest") -> Tuple[List["ReasoningType"], List["ReasoningType"]]:
+        """Which kinds of thinking may run for this request, and which its question ASKED FOR.
+
+        WHAT A QUESTION IS ABOUT SAYS WHICH KINDS ARE APT, NOT WHICH ARE PERMITTED. Whether a kind can help is
+        `ReasoningStrategy.is_applicable`'s to answer -- that is the whole of what it is for, and it reads the
+        premises the question actually carries. A table of relations cannot.
+
+        This was three tiers, and the middle one restricted:
+
+            kinds = (list(request.kinds)
+                     or list(kinds_of_thinking_for(question_of(request)))
+                     or list(CLASSICAL_REASONING_TYPES))
+
+        So PARTIAL KNOWLEDGE WAS STRICTLY WORSE THAN NONE. A relation `THINKING_FOR_LINK_KIND` says nothing
+        about got all eleven kinds tried; a relation it knew ONE thing about got that one and the other ten
+        excluded before they were asked. `isa` and `instance_of` map to DEDUCTIVE alone, so every question about
+        what something is permitted exactly one kind -- which needs a rule, and the model holds none. Measured
+        2026-11-19: thirteen times "NO kind will be tried -- 11 held; not allowed here: inductive, abductive,
+        analogical, causal, counterfactual, spatial, fuzzy, logical, probabilistic, temporal; said it could not
+        help: deductive". Nine of those ten need no rule at all.
+
+        NAMING KINDS STILL RESTRICTS, because a caller that names them means it: a proof asks for LOGICAL
+        (`reasoning_tools`), a causal analysis for CAUSAL (`causal_feedback_analyzer`). What a reading DERIVES is
+        a reading, and is kept as what was asked for rather than spent as a veto.
+        """
+        named = [k for k in (request.kinds or ())]
+        if named:
+            return list(named), list(named)
+        asked_for = list(kinds_of_thinking_for(question_of(request)))
+        return list(CLASSICAL_REASONING_TYPES), asked_for
+
+    def _build_reasoning_context(self, request: "ReasoningRequest", kinds: list,
+                                 asked_for: Optional[List["ReasoningType"]] = None):
         """The ONE place a ReasoningRequest becomes a ReasoningContext.
 
         Shared by every substrate route that runs the kinds -- `_reason_by_kind`
@@ -4018,6 +4048,9 @@ class NeuralSymbolicBridge:
             # model. What is being asked about is the query itself.
             target_conclusions=[request.query],
             allowed_reasoning_types=kinds,
+            # WHAT THE QUESTION ASKED FOR, kept apart from what may run (`_kinds_for`): it belongs in the
+            # account of the reasoning, not in a veto over the kinds.
+            asked_for=list(asked_for or ()),
             # Deliberately permissive: this gate is about whether a conclusion
             # was DERIVED, and the strategies already refuse when the material
             # is absent. A high floor here would silently drop sound
@@ -4076,9 +4109,7 @@ class NeuralSymbolicBridge:
             logger.debug("kind-based reasoning unavailable: %s", error)
             return None
 
-        kinds = (list(request.kinds)
-                 or list(kinds_of_thinking_for(question_of(request)))
-                 or list(CLASSICAL_REASONING_TYPES))
+        kinds, asked_for = self._kinds_for(request)
 
         # PREFER kinds that have SETTLED queries before: order by measured quality
         # so historically-successful kinds are considered first. Cold kinds keep
@@ -4087,7 +4118,7 @@ class NeuralSymbolicBridge:
         # reasoning authority's, symmetric to reasoning_difficulty.)
         kinds.sort(key=lambda k: self.reasoning_quality(k), reverse=True)
 
-        context = self._build_reasoning_context(request, kinds)
+        context = self._build_reasoning_context(request, kinds, asked_for)
 
         try:
             # Use the authority's PERSISTENT engine so its per-kind stats

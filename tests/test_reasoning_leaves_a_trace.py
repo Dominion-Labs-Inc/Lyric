@@ -66,10 +66,12 @@ def test_the_account_names_what_was_asked_for():
     engine = _engine()
     account = {}
     context = ReasoningContext(context_id="t2", domain="general", problem_type="question",
+                               asked_for=[ReasoningType.DEDUCTIVE],
                                allowed_reasoning_types=[ReasoningType.DEDUCTIVE], rules=[], premises=[])
     asyncio.run(engine._select_strategies(context, account=account))
     assert account["asked_for"] == ["deductive"]
-    assert set(account) == {"held", "asked_for", "selected", "not_allowed", "declined"}
+    assert account["allowed"] == ["deductive"]
+    assert set(account) == {"held", "asked_for", "allowed", "selected", "not_allowed", "declined"}
 
 
 def test_every_kind_is_accounted_for_exactly_once():
@@ -82,6 +84,52 @@ def test_every_kind_is_accounted_for_exactly_once():
     seen = set(account["selected"]) | set(account["not_allowed"]) | set(account["declined"])
     assert len(seen) == account["held"] == len(engine.strategies)
     assert not (set(account["not_allowed"]) & set(account["declined"]))
+
+
+def test_what_a_question_asks_for_does_not_veto_the_other_kinds():
+    """A reading says which kinds are APT. It used to say which were PERMITTED, so partial knowledge was
+    strictly worse than none: a relation the table knew nothing about got all eleven kinds tried, and one it
+    knew a single thing about got that one and the other ten excluded before being asked."""
+    from core.reasoning.neural_bridge import NeuralSymbolicBridge
+    from core.reasoning.reasoning_interfaces import CLASSICAL_REASONING_TYPES
+    from core.semantics.derived_reader import Meaning, MeaningFact as F
+
+    bridge = NeuralSymbolicBridge.__new__(NeuralSymbolicBridge)
+    NeuralSymbolicBridge.__init__(bridge)
+
+    #: `isa` maps to DEDUCTIVE alone, and DEDUCTIVE needs a rule the model does not hold.
+    about_a_kind = ReasoningRequest(query="Is a dog a mammal?",
+                                    reading=Meaning("ask", (F("isa", "dog", "mammal"),)))
+    allowed, asked_for = bridge._kinds_for(about_a_kind)
+    assert [k.value for k in asked_for] == ["deductive"], "the reading still says what it asks for"
+    assert len(allowed) == len(CLASSICAL_REASONING_TYPES), (
+        "a question about a kind still permits only the kinds a relation table happens to know")
+    assert set(allowed) == set(CLASSICAL_REASONING_TYPES)
+
+
+def test_a_caller_that_names_its_kinds_still_restricts():
+    """A proof asks for LOGICAL and a causal analysis for CAUSAL. Naming them means it, and must keep meaning
+    it -- widening those would run ten kinds nobody asked for."""
+    from core.reasoning.neural_bridge import NeuralSymbolicBridge
+    from core.reasoning.reasoning_interfaces import ReasoningType
+
+    bridge = NeuralSymbolicBridge.__new__(NeuralSymbolicBridge)
+    NeuralSymbolicBridge.__init__(bridge)
+    for named in (ReasoningType.LOGICAL, ReasoningType.CAUSAL):
+        allowed, asked_for = bridge._kinds_for(ReasoningRequest(query="q", kinds=[named]))
+        assert allowed == [named] and asked_for == [named], named
+
+
+def test_the_account_tells_apart_what_was_apt_from_what_could_run():
+    engine = _engine()
+    account = {}
+    context = ReasoningContext(context_id="t4", domain="general", problem_type="question",
+                               asked_for=[ReasoningType.DEDUCTIVE],
+                               allowed_reasoning_types=list(engine.strategies), rules=[], premises=[])
+    asyncio.run(engine._select_strategies(context, account=account))
+    assert account["asked_for"] == ["deductive"]
+    assert len(account["allowed"]) == len(engine.strategies)
+    assert account["not_allowed"] == [], "every kind was permitted, so none is excluded"
 
 
 def test_recording_is_not_decided_by_whether_memory_was_recalled():
