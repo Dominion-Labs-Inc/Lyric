@@ -3,22 +3,28 @@
 *Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
 update when the body changes. Line numbers drift; the explanations must stay true.*
 
-*Staleness note, 2026-11-19, from a check of this document against the coordinator source. Of the 128
-handles and methods it names, **39 are no longer present**, and the line numbers throughout are from an
-earlier state of a file that has since changed. **This document needs a full re-trace against the source
-before it is relied on method by method.** Its account of what the coordinator is and which authorities it
-holds is still right, and the following are the specific differences confirmed so far:*
+*Re-traced against the source on 2026-11-19.* §2 (state, authorities, reactions) and §F (what the
+scheduler runs) were rebuilt from that reading; §H was found to have moved out of the coordinator
+altogether. **Line numbers are from 2026-11-19 and drift with every edit**; where one no longer lands, the
+explanation beside it is what to trust, and the symbol names resolve.
 
-- *The optional teacher model, `self.teacher_model`, is gone, and so is the model argument to the accessor.*
-- *`self.perception` and `self.vision` are now one handle, `self.vision = get_perception_faculty()`.*
-- *`self.asi_self_improvement`, `self.monitoring_coordinator`, `self.security_controller`,
-  `self.slack_notifier`, `self.watchdog` and `self.completed_tasks` are gone. Self-modification was removed
-  deliberately, the perimeter left the substrate for Tet, and the guardian now runs as a daemon outside
-  this process (`core/guardian/supervisor.py`).*
-- *The idle and recovery private methods this document lists (`_handle_idle_state`,
-  `_idle_abstraction_work`, `_execute_recovery`, `_verify_recovery`, `_diagnose_health`,
-  `_create_recovery_goal_from_health_event`, `_curiosity_driven_optimization`, `_start_integrity_watcher`
-  and others) are gone with the idle tiers.*
+What the re-trace found, recorded so the next reader knows what changed rather than inferring it:
+
+- **The optional teacher model is gone**, and so is the model argument to the constructor and the
+  accessor. There is no handle in the body a model could be given to.
+- **`self.perception` and `self.vision` are one handle**, `self.vision = get_perception_faculty()`.
+- **`self.asi_self_improvement`, `self.monitoring_coordinator`, `self.security_controller`,
+  `self.slack_notifier`, `self.watchdog` and `self.completed_tasks` are gone.** Self-modification was
+  removed deliberately, the perimeter left the substrate for Tet, and the guardian runs as a daemon
+  outside this process (`core/guardian/supervisor.py`).
+- **Ten of the fifteen idle tiers are gone**, and seven recurring jobs remain (§F). What was a timer is
+  now a reaction on the event spine wherever a discrete event exists to react to.
+- **Fourteen reactions are registered at construction**, not the seven this document claimed, over eight
+  event types.
+- **Faculties the document did not name are held**: the behaviour arbiter, drift, appraisal, the
+  constitution's reading, the capability register and the outbox, alongside the four it grouped as
+  "awareness layers" (environment state, active discovery, behavioural analysis, infrastructure topology),
+  which are now named individually in §2.
 
 ## `AutonomousCoordinator` — the body and self
 
@@ -27,20 +33,81 @@ Module helpers: `_subsystem_readiness` (100), `SelfEventType` (122), `SelfEvent`
 
 ### 1. Purpose
 The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). Every substrate path is model-free and reports an honest capability fault rather than falling back. **The optional teacher model is gone**: the coordinator holds no model handle at all, and `get_autonomous_coordinator(config)` takes no model argument.
-Authorities held: `self.learning` (355, the one `UnifiedLearningSystem`), `self.memory` (672/946), `self.neural_bridge` (707/1048), `self.universal_domain_master` (773/1049), `self.security_controller` (836). The belief store is reached via `self.learning`, not a separate handle.
+Authorities held are tabulated in §2, re-traced against the source. The belief store is reached via `self.learning`, not a separate handle.
 Accessor: `get_autonomous_coordinator(config)` (async singleton).
 
 ### 2. State
-**Held authorities/subsystems** (`self.X = get_Y()`): `coordinator_config` (307), `circuit_breakers` (311), `perception` (340), `vision` (345), `planning` (346), **`learning` (355)**, `intrinsic_motivation` (377), `directive_system` (534), awareness layers (540-550), `constitution` (557), `threat` (ThreatSense), **`task_queue` = `get_queue_authority()` (576, the shared QueueAuthority — backlog, concurrency pool, await-jobs, idle scheduling)**, `db` (584), reasoning toolkit (691-700), `neural_bridge` (707→1048), `intelligence`/`watchdog` (721-722), cognitive toolkit (730-765), `domain_registry` (772), `universal_domain_master` (773→1049), `health_monitor` (782), `log_db` (817), `security_controller` (836), `monitoring_coordinator` (840, wires `singleton_callback=self._receive_health_event` at 846), `slack_notifier` (852); injected by main.py: `asi_self_improvement` (713), `agent_coordinator` (858); `tool_registry` (585→11012), `memory` (672/675→946).
-**Own self-state:** `system_state` (336), `stats` (865-895, honest counters incl. reactive), `reply_debug` (359), `_started_at_ts` (289), `teacher_model` (304). The self is **derived, not stored** — assembled on demand by `state()`.
-**Event registries:** `_completion_callbacks` (410), `_reactions`/`_reactive_queue`/`_work_ready`/`_reactive_worker`/`_emit_depth`+`_max_emit_depth=8` (418-423), coalescing (`_motivation_dirty`/`_motivation_refresh_task` 430-431), integrity watcher (438).
-**Task/execution state:** `_inflight_tasks`; `_max_parallel_tasks`=60 (the acting budget, everyone's together; given to the queue authority, which holds it: `QueueAuthority.configure` puts it in force even when another faculty made the authority first) and `_per_actor_max`=3 (how many one person may hold at once); directive caps (a directive may hold the budget lower on measured failure, never above it) (628-637); exploration state (588-622); `_idle_subsystems_registered` (623); per-tier timestamps/snapshots (646-919); `_step_execution_log` (641); `_component_recovery_state` (667).
-**Registered at construction:** one completion callback (`RESEARCH/AUTONOMOUS→_on_knowledge_refresh_complete`) and **seven reactions** via `on(...)`: `TASK_COMPLETED→_react_affect` (460), `OUTCOME_OBSERVED→_react_induce/_react_expand_outcome/_react_resolve_transfers` (469-478), `EVIDENCE_ADMITTED→_react_crystallize_taught` (486), `JOB_COMPLETED→_react_job_completed` (494), `COMPETENCE_CHANGED→_react_competence_changed` (503), `INTEGRITY_REAUDIT→_react_integrity_reaudit` (511), `DEFICIT_DIAGNOSED→_react_close_deficit` (530).
+
+*Re-traced against the source on 2026-11-19. Line numbers are from that reading and drift with every
+edit; the explanations are what must stay true.*
+
+**Held authorities and faculties**, each assigned in `__init__` (class at 7958, `__init__` at 7993):
+
+| Handle | From | Line |
+|---|---|---|
+| `coordinator_config` | `CoordinatorConfig.from_dict` | 8016 |
+| `circuit_breakers` | `get_circuit_breaker_registry()` | 8020 |
+| `system_state` | `SystemState()` | 8050 |
+| `vision` | `get_perception_faculty()` | 8059 |
+| `learning` | `get_learning_authority()`, the one `UnifiedLearningSystem`; the belief store is reached through it | 8074 |
+| `intrinsic_motivation` | `get_intrinsic_motivation_system()` | 8096 |
+| `directive_system` | `DirectiveSystem()` | 8281 |
+| `env_state`, `discovery`, `behavioral`, `topology` | environment state, active discovery, behavioural analysis, infrastructure topology | 8287-8297 |
+| `constitution` | `get_constitution()` | 8315 |
+| `capabilities` | `get_capabilities()` | 8322 |
+| `threat` | `ThreatSense()` | 8336 |
+| `arbiter` | `get_behavior_arbiter()` | 8349 |
+| `reading` | `self.constitution.reading` | 8350 |
+| `drift` | `Drift()` | 8387 |
+| `appraisal` | `get_appraisal_system()` | 8405 |
+| `task_queue` | `get_queue_authority(...)`, the shared authority holding the backlog, the concurrency pool, await-jobs and the recurring scheduler | 8430 |
+| `outbox` | `get_outbox()` | 8440 |
+| `db` | `LyricUnifiedDatabase()` | 8448 |
+| `tool_registry` | `None` at construction, bound at startup | 8449 |
+| `memory` | injected, or `None` | 8517-8520 |
+| `abstract_reasoning`, `proof_engine` | abstract and logical reasoning, formal proof | 8529-8531 |
+| `quantum_reasoning` | `None` unless `enable_quantum`, which is off | 8534-8538 |
+| `neural_bridge` | `None` at construction, `get_neural_bridge()` at startup | 8545 |
+| `intelligence` | `get_predictive_intelligence()` | 8557 |
+| `causal_analyzer` | `CausalFeedbackAnalyzer()`, or `None` | 8565-8569 |
+| `meta_learning` | `get_meta_learner(...)`, or `None` | 8574-8584 |
+| `health_monitor` | `get_health_monitor()` | 8608 |
+| `log_db` | injected, `LoggingDatabase()`, or `None` | 8611-8620 |
+
+**Handles that are gone**, and were in this document before the re-trace: `perception` (merged into
+`vision`, one faculty, one handle), `planning`, `security_controller` and `monitoring_coordinator` (the
+perimeter and the monitoring daemon both left the substrate), `slack_notifier`, `asi_self_improvement`
+(self-modification was removed deliberately), `watchdog`, `agent_coordinator`, and **`teacher_model`**,
+with which the last place a model could have been handed to the body is gone.
+
+**Own self-state:** `system_state` (8050), `coordination_cycle_interval` (8051), `reply_debug` (8078),
+`self_state` (8417, `None` until assembled), `last_cycle_time` (8631), `stats` (8634). The self is
+**derived, not stored**: it is assembled on demand by `state()`.
+
+**Reactions registered at construction: fourteen**, over eight event types and ten distinct reactions.
+The document said seven before this re-trace.
+
+| Event | Reaction | Line |
+|---|---|---|
+| `TASK_COMPLETED` | `_react_affect` | 8175 |
+| `OUTCOME_OBSERVED` | `_react_induce` | 8184 |
+| `OUTCOME_OBSERVED` | `_react_expand_outcome` | 8190 |
+| `COMPETENCE_CHANGED` | `_react_expand_outcome` | 8195 |
+| `EVIDENCE_ADMITTED` | `_react_expand_outcome` | 8197 |
+| `OUTCOME_OBSERVED` | `_react_resolve_transfers` | 8199 |
+| `EVIDENCE_ADMITTED` | `_react_crystallize_taught` | 8208 |
+| `COMPETENCE_CHANGED` | `_react_crystallize_taught` | 8212 |
+| `JOB_COMPLETED` | `_react_job_completed` | 8220 |
+| `COMPETENCE_CHANGED` | `_react_competence_changed` | 8229 |
+| `DEFICIT_DIAGNOSED` | `_react_close_deficit` | 8241 |
+| `PERCEPT_RECOGNIZED` | `_react_percept` | 8251 |
+| `ENVIRONMENT_ENCOUNTERED` | `_react_investigate_environment` | 8257 |
+| `EXPECTATION_UNMET` | `_react_expectation_unmet` | 8263 |
 
 ### 3. Methods by region
 
 #### A — Lifecycle & the coordination loop
-- **`__init__(config, teacher_model)`** (284) — wires every authority, registers callbacks+reactions, sets up the queue authority. Model-optional.
+- **`__init__(config)`** (7993) — wires every authority, registers the fourteen reactions (§2), and sets up the queue authority. **No model argument:** there is nothing to hand a model to.
 - **`initialize(start_loop=False)`** (921) — async bring-up; binds memory (946), neural_bridge/domain_master (1048-1049); no model connected.
 - **`start_coordination()`** (1298) / **`start_background_tasks()`** (1335, calls `_register_idle_subsystems` + starts the queue scheduler).
 - **Workers** (`is_worker`, `LYRIC_ROLE=worker`, `./lyric worker [n]`; 2026-10-23) — more Lyric processes on the one store, each taking queued work in its own process (one queue: `QueueAuthority.get_next_task`) and learning from it. A worker is not in the world, opens no senses, and runs none of the self's scheduled work (`start_coordination` skips `_rearm_messages`, `_attend_to_expectations`, `_register_idle_subsystems`; `main.py` skips health monitoring, concept embedding, backups and the system-control loop) and none of the self's reactions (`SELF_REACTIONS`: `pursue_frontier`, `motivation_refresh`): `emit` skips them and tells the self (`_tell_the_self`, `pg_notify` on `SELF_CHANNEL`, "event:<type>"). The Lyric it works for hears it (`_hear_workers`, `LyricUnifiedDatabasePostgres.listen`) and wakes the self's reactions registered for that event (`_pursuit_due`, `_motivation_due`). A message a worker owes a person (`speak_to`) is owed in the outbox and said by the self ("said:<id>", `_say_what_a_worker_owes`: kept in their conversation, armed unless a front end took it first). A handover renews workers on the new code (`scripts/handover.py` step 6). INSTANCES-01 F.
@@ -87,28 +154,47 @@ Accessor: `get_autonomous_coordinator(config)` (async singleton).
 - **`_react_pursue_frontier`** — THE developmental drive, event-driven: registered on COMPETENCE_CHANGED / OUTCOME_OBSERVED / EVIDENCE_ADMITTED / ENVIRONMENT_ENCOUNTERED / DEFICIT_DIAGNOSED (LOW priority, so state-updating reactions run first); coalesced single-flight (`_coalesced_pursue`) runs ONE `_run_exploration_cycle`. A completed pursuit emits the events that wake the next → self-sustaining, quiet when nothing changes. A boot kick in `start_background_tasks` resumes it after a restart. REPLACES the retired idle-timer exploration poll (INTRINSIC-EVENTDRIVEN-01).
 - Support: `_coalesced_motivation_refresh` (1849), `_register_deficit_unknown` (4522), `_deficit_is_closed` (4554), `_mark_reflection_due` (4577); integrity watcher `_integrity_watched_paths` (1715), `_start_integrity_watcher` (1738).
 
-#### F — Idle tiers (on the QueueAuthority scheduler)
-- **`_register_idle_subsystems()`** (4624) — registers each tier as a recurring job via `task_queue.schedule_recurring(name, method, interval, priority)` on the background budget (never steals an acting slot); a missing tier method raises loudly. The table:
+#### F — What the scheduler runs
 
-| Tier | Method | Priority / interval | Line |
+*Re-traced 2026-11-19. **Ten of the fifteen tiers this section used to list are gone**, and what is left
+is not a tier system: it is seven recurring jobs, each sampling state that drifts continuously and has no
+discrete event to react to. Everything that could be driven by an event now is, which is the change those
+ten removals are.*
+
+- **`_register_idle_subsystems()`** (13636) — hands each job to
+  `task_queue.schedule_recurring(name, method, interval, priority)`. The authority's scheduler fires it on
+  the **background budget**, separate from the acting cap, so a job can never take an acting slot, and
+  records each one's runs and errors on the job itself. The coordinator no longer owns cadence, nothing
+  here loops on its own interval, and nothing schedules outside the authority. A tier naming a method that
+  does not exist **raises**: a missing method is a wiring defect, surfaced loudly, never skipped into a
+  green count.
+
+| Job | Method | Priority | Interval |
 |---|---|---|---|
-| `idle_system_review` | `_idle_system_review_work` | high/180s | 5118 |
-| `idle_knowledge_refresh` | `_idle_knowledge_refresh_work` | medium/6h | 5253 |
-| `idle_self_improvement` | `_idle_self_improvement_work` | medium/900s | 5602 |
-| `idle_meta_learning` | `_idle_meta_learning_work` | medium/300s | 6401 |
-| `idle_learning` | `_learning_phase` | medium/600s | 9731 |
-| `idle_domain_expansion` | `_idle_domain_expansion_work` | medium/900s | 5723 |
-| `idle_domain_discovery` | `_idle_domain_discovery_work` | medium/900s | 5897 |
-| `idle_analogy_discovery` | `_idle_analogy_discovery_work` | medium/1200s | 6028 |
-| `idle_operator_exploration` | `_idle_operator_exploration_work` | medium/300s | 5929 |
-| `idle_operator_induction` | `_idle_operator_induction_work` | medium/300s | 5998 |
-| `idle_self_optimization` | `_idle_self_optimization_work` | low/120s | 6963 |
-| `idle_system_state_refresh` | `_update_system_state` | low/60s | 10401 |
-| `motivation_refresh` | `_refresh_motivation_signals` | high/10s | 4212 |
-| `system_awareness` | `_run_system_awareness_cycle` | medium/60s | 4256 |
-| `idle_constitution_check` | `_check_constitutional_alignment` | low/1800s | 9516 |
+| `idle_system_state_refresh` | `_update_system_state` | low | 60 s |
+| `motivation_refresh` | `_refresh_motivation_signals` | high | 60 s |
+| `epistemic_affect` | `integrate_epistemic_affect` | high | 60 s |
+| `constitution_record` | `_drain_constitution_record` | high | 30 s |
+| `constitution_integrity` | `_check_constitution_integrity` | high | 120 s |
+| `affect_refresh` | `_refresh_affect` | high | 60 s |
+| `system_awareness` | `_run_system_awareness_cycle` | medium | 60 s |
 
-- `_run_exploration_cycle` (the selection — now sources `_intrinsic_pursuits` via `_pursuit_to_goal`, not the old IMS generator; driven by `_react_pursue_frontier`, no longer by an idle timer — `_run_idle_exploration` is retired) · support: `_expand_one_outcome` (5827), `_resolve_transfer_outcomes` (6255), `_task_outcomes_by_field` (6360), `_idle_abstraction_work` (6560, **not scheduled** — abstraction is event-driven now), `_rule_root_count` (6104), `_should_trigger_curiosity_optimization` (7031), `_curiosity_driven_optimization` (7057), `_propose_directive_improvements` (7138), knowledge-cutoff persistence (5389-5545), `_observe_system_performance` (7258), `_predict_and_resolve_system_state` (7275), `_persist_prediction_result` (7328), `_decision_context` (7380).
+`idle_system_state_refresh` is the sole writer of `system_state.resource_usage`, its timestamp and its
+performance metrics, which the constitution's law-compliance check reads live. It had been dead, leaving
+the constitution with stale values from initialisation.
+
+**The ten that went**, with what replaced each: `_idle_system_review_work`,
+`_idle_knowledge_refresh_work`, `_idle_self_improvement_work`, `_idle_meta_learning_work`,
+`_learning_phase`, `_idle_analogy_discovery_work`, `_idle_operator_exploration_work`,
+`_idle_operator_induction_work`, `_idle_self_optimization_work` and `_idle_abstraction_work`. Operator
+induction and exploration, abstraction, transfer resolution and outcome expansion are now reactions on the
+event spine (§E): they run when an outcome is observed, evidence is admitted or competence moves, rather
+than on a timer that fires whether or not anything happened. Self-improvement went with
+self-modification, which was removed deliberately.
+
+**Still defined and still used, outside the scheduler:** `_idle_domain_expansion_work`,
+`_idle_domain_discovery_work`, `_check_constitutional_alignment` and `_run_exploration_cycle`, the last
+driven by a pursuit rather than by a timer.
 
 #### G — Reasoning / prediction APIs
 - **`reason_about(question, context, ...)`** (3332) — answer with the substrate; returns a `ReasoningResult`, never None (`model_available` 3307, `agent_allowance` 3313, `_model_calls_on` 3429). Keeps no memory of its own: the one memory of the reasoning is the memory agent's (`take_in_reasoning`, with the reason and whether it was verified); it wrote a second, "I was asked: ...", until 2026-10-23.
@@ -119,7 +205,13 @@ Accessor: `get_autonomous_coordinator(config)` (async singleton).
 - Memory helpers: `store_memory` (2388), `search_memories` (2726), `get_intelligent_memory_context` (3203), `_build_memory_narrative` (2214), `_store_governance_block_meta_memory` (2484), `_store_task_outcome_meta_memory` (2545), `_infer_domain_from_task` (2643).
 
 #### H — Health integration
-- **`_receive_health_event(health_event)`** (10549) — the callback wired into `MonitoringCoordinator.singleton_callback` (846): analyze (startup grace) → diagnose → recover. Support: `_diagnose_health` (10765), `_health_action_risk` (10823), `_execute_recovery` (10836), `_verify_recovery` (10973), `_create_recovery_goal_from_health_event` (9666), `_report_failure` (1277).
+- *Re-traced 2026-11-19: this region is gone from the coordinator.* `_receive_health_event` and its
+  support, `_diagnose_health`, `_health_action_risk`, `_execute_recovery`, `_verify_recovery` and
+  `_create_recovery_goal_from_health_event`, are no longer defined here, and neither is the
+  `MonitoringCoordinator` whose callback they were wired into. Health is monitored by `self.health_monitor`
+  (8608) and supervised from outside the process by `core/guardian/supervisor.py`, so that a watchdog whose
+  job is to survive a crash does not die in it. **What a health verdict reaches, and what it does not, is
+  the open question here:** the loop receives a count, and `DEFICIT_DIAGNOSED` fires on task failure.
 - Health is the health monitor's alone: it checks every component every 30 s. The idle health tier, the idle work playbook it ran, its step log and the coordinator's recovery-manager handle were REMOVED 2026-10-01. (The security audit worker, its 120s tier, `handle_security_finding`, the remediation callback and the integrity watcher were REMOVED 2026-09-14; world security is the Tet world factory's security-audit agent.)
 - Constitution: `_check_constitutional_alignment` (9516, idle tier) · `_check_constitutional_alignment_quick` (9653, **VESTIGIAL: 0 callers** — the every-cycle quick check left dead when the poll loop was retired).
 
@@ -139,7 +231,7 @@ Accessor: `get_autonomous_coordinator(config)` (async singleton).
 `deploy_agent` (1390) · `await_agent` (1414) · `collect_agent_findings` (1422) · `pending_agents` (1431) — via the bound `agent_coordinator`. `deploy_agent` has **0 in-repo callers** (bound, not yet invoked).
 
 ### 4. Feeds / holds
-**Holds & drives (down):** learning/belief authority, memory, neural_bridge, domain master + registry, intrinsic_motivation, planning, perception + vision, intelligence/watchdog, health monitor + recovery, monitoring coordinator, constitution + governance, directive system, meta_learning/causal/improvement, agent_coordinator, and the QueueAuthority. Each is one pipeline within the one process.
+**Holds and drives (down):** the learning and belief authority, memory, the neural bridge, the domain master and registry, intrinsic motivation, vision, the constitution with its reading and record, the behaviour arbiter, drift, appraisal, threat sense, the directive system, predictive intelligence, meta-learning and the causal analyzer, the health monitor, the capability register, the outbox, and the QueueAuthority. Each is one pipeline within the one process.
 **Driven by (up):** `main.py` (constructs, injects, initializes/starts); the cognition loop (pulls its own next task from the shared QueueAuthority); the event spine (`emit`/`on` reactions + drain worker); the QueueAuthority scheduler (owns the cadence of all idle tiers); health/security callbacks (`_receive_health_event`, `handle_security_finding`, remediation-complete); the agent factory (`execute_task`) and experiments/tests.
 
 ### Vestigial (present but 0 wired callers — the code-flip punch-list)
