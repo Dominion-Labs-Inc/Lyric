@@ -282,6 +282,68 @@ def memory_written_outside_the_agent():
     return outside, scripts
 
 
+#: THE ONE REASONING AUTHORITY, and the oracle only it may reach for. `concept_graph_reasoning.answer_over_graph`
+#: derives a verdict over the concept graph -- TRUE, FALSE or unknown, open-world -- which is reasoning, and
+#: there is one authority for that (`NeuralSymbolicBridge.reason`, and its published read
+#: `what_the_graph_holds`). A caller that imports the oracle itself takes a verdict off the one path: it is
+#: unrecorded, no kind of thinking is selected for it, and nothing can later say how it was reached.
+#:
+#: Two did. `review_learned` answered its own 200 questions with it, so a review measured the reach of a graph
+#: walk and recorded that as the domain's COMPETENCE without the authority being consulted once; and the
+#: learning door's contradiction check derived FALSE with it at every admission (2026-11-19).
+REASONING_AUTHORITY = ("core/reasoning/neural_bridge.py",
+                       "core/reasoning/concept_graph_reasoning.py")
+
+#: The oracle's name, as code would reach for it.
+_ORACLE_NAME = "answer_over_graph"
+
+
+def oracle_references(source: str, rel: str):
+    """Every place this source REACHES FOR the graph oracle in code: [(file, line, how)].
+
+    READ FROM THE SYNTAX, NOT THE TEXT. A note about the oracle -- a comment, or a docstring recording that
+    something used to call it -- is not a use of it, and a scanner that matched the name anywhere flagged the
+    very docstrings written to say the bypass was closed."""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return []
+    found = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                if alias.name == _ORACLE_NAME:
+                    found.append((rel, node.lineno, f"imports {_ORACLE_NAME}"))
+        elif isinstance(node, ast.Name) and node.id == _ORACLE_NAME:
+            found.append((rel, node.lineno, f"names {_ORACLE_NAME}"))
+        elif isinstance(node, ast.Attribute) and node.attr == _ORACLE_NAME:
+            found.append((rel, node.lineno, f"reaches .{_ORACLE_NAME}"))
+    return sorted(set(found))
+
+
+def graph_oracle_outside_the_authority():
+    """Every place in `core/` that reaches for the graph oracle from outside the reasoning authority:
+    [(file, line, how)]. The authority publishes `what_the_graph_holds` for callers that need a read of the
+    graph without submitting a whole reasoning."""
+    found = []
+    for dirpath, dirs, files in os.walk(os.path.join(ROOT, "core")):
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
+        for fn in sorted(files):
+            if not fn.endswith(".py"):
+                continue
+            path = os.path.join(dirpath, fn)
+            rel = os.path.relpath(path, ROOT)
+            if rel in REASONING_AUTHORITY:
+                continue
+            try:
+                with open(path, encoding="utf-8") as handle:
+                    source = handle.read()
+            except OSError:
+                continue
+            found.extend(oracle_references(source, rel))
+    return found
+
+
 def main() -> int:
     show_all = "--all" in sys.argv
     rows = []

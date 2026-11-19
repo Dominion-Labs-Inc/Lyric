@@ -3942,6 +3942,36 @@ class NeuralSymbolicBridge:
             logger.error(f"Neuro-symbolic arbitration error: {e}")
             return None
 
+    async def what_the_graph_holds(self, subject: str, relation: Any, obj: str, *, max_hops: int = 4,
+                                   actor: Optional[str] = None,
+                                   not_taken_in: Sequence[str] = ()) -> Any:
+        """What the concept graph holds about one proposition, open-world: the authority's own oracle, exposed.
+
+        THIS IS A READ, NOT A REASONING. Nothing is selected, nothing is tried, nothing is recorded, and no
+        verdict is reported to anybody as an answer. It is for a caller that needs to know what the graph
+        holds in order to decide something structural -- whether admitting a claim would contradict what is
+        already held (`UnifiedLearningSystem._held_against`) -- and such a caller is not asking a question.
+
+        IT EXISTS SO THAT NEED NOT REACH PAST THE AUTHORITY. There is one reasoning authority
+        (`reason()`), and a caller wanting a graph verdict had two options: submit a full reasoning, or import
+        `concept_graph_reasoning.answer_over_graph` and go around. The gate took the second, which put a
+        derived FALSE off the one path. The first is not available to it either: the gate runs ONCE PER FACT at
+        the learning door, and a reference corpus is 83,093 facts -- a `reason()` each would add some seventeen
+        minutes to a teach and write a reasoning record per taught fact. So the oracle is published here
+        instead, and the gate is on the path by construction and pays nothing for it.
+
+        `actor` scopes it as `reason()` scopes it: None answers over the shared mind alone, a user's id
+        overlays their own edges and no one else's. `not_taken_in` is what the asker said that was not taken in
+        whole, so no answer closes the world on it.
+
+        Only the authority imports the oracle (`tests/test_reasoning_authority.py` holds that).
+        """
+        from core.database import get_database_manager
+        from core.reasoning.concept_graph_reasoning import answer_over_graph
+        return await answer_over_graph(get_database_manager(), subject, relation, obj,
+                                       max_hops=max_hops, actor=actor,
+                                       not_taken_in=tuple(not_taken_in or ()))
+
     def _kinds_for(self, request: "ReasoningRequest") -> Tuple[List["ReasoningType"], List["ReasoningType"]]:
         """Which kinds of thinking may run for this request, and which its question ASKED FOR.
 

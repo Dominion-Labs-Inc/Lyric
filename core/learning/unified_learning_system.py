@@ -3685,11 +3685,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         if rows:
             return f"{subject} {'not ' if positive else ''}{relation} {obj} is held", claim, not positive
         if positive and relation in ("isa", "instance of"):
-            from core.reasoning.concept_graph_reasoning import answer_over_graph, load_denials, load_subgraph
+            from core.reasoning.concept_graph_reasoning import load_denials, load_subgraph
+            from core.reasoning.neural_bridge import get_neural_bridge
             from core.reasoning.relation_algebra import FALSE, INSTANCE_OF, ISA
             from core.semantics.relation_types import SemanticRelation
             kind = SemanticRelation.ISA if relation == "isa" else SemanticRelation.INSTANCE_OF
-            answer = await answer_over_graph(db, subject, kind, obj)
+            # ASKED OF THE AUTHORITY'S OWN ORACLE, not of the oracle behind its back
+            # (`NeuralSymbolicBridge.what_the_graph_holds`). This is a read, so it costs what the read costs:
+            # the gate runs once per fact at the learning door, and submitting a reasoning for each would add
+            # some seventeen minutes to a reference corpus and write a record per taught fact.
+            answer = await get_neural_bridge().what_the_graph_holds(subject, kind, obj)
             if getattr(answer, "verdict", None) == FALSE and getattr(answer, "basis", "") != "disjoint":
                 # WHICH HELD DENIAL: the one on the subject or a kind it is, by the reasoner's own rule (`answer`).
                 edges = await load_subgraph(db, [subject])
