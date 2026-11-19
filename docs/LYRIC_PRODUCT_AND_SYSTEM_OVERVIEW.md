@@ -869,24 +869,28 @@ deterministically rather than given an invented preference.
 ### 11.5 Drift: one faculty of self-perception
 
 Drift is a **first-class faculty of the coordinator**: one authority for how the system is changing,
-beside the constitution. Drift is not a separate reporting channel. It is **felt**. Its findings feed
-the same appraisal pressures that already govern behaviour:
+beside the constitution. The pairing is the design: the constitution judges acts, drift perceives the
+system. Judging one act at a time cannot see what a thousand permitted acts add up to.
 
-- **caution**: verify more before accepting that work is done;
-- **replan**: the approach is wrong, not the situation;
-- **escalation**: this cannot be fixed from here.
+**What it watches** — five named detectors, each with its own declared baseline, reporting separately
+rather than into a single score, because averaging would imply the questions are tradeable:
 
-**What it watches:**
-
-- **Calibration**: whether stated confidence matches actual correctness, that is, whether confidence is *earned*,
-  not merely high.
+- **Goal conclusion**: whether the system finishes what it starts — the fraction of goals that ever reach
+  a conclusion, over the goals that could reach one.
+- **Calibration**: whether stated confidence matches actual correctness, that is, whether confidence is
+  *earned*, not merely high.
 - **Knowledge**: how the system's own beliefs have moved since its last snapshot.
 - **Standards**: whether its learning parameters are relaxing against declared baselines, including how
   fast they are moving.
-- **Lawfulness**: per-law standing against the constitution's measured conditions.
-- **Policy**: drift in the outcomes of its standing directives.
+- **Lawfulness**: how many of the five laws the system cannot currently measure itself against — counted,
+  not averaged.
 
-Each of these is a named detector with its own baseline (goal-conclusion, calibration, knowledge, lawfulness and standards drift) and they report separately rather than into a single score.
+Goal-conclusion drift is what a per-act gate cannot see, and it found a real defect: the rate was low
+because two of three execution paths never closed the goals they finished.
+
+The faculty, its invariants and its five detectors are proven by `DRIFT-01` (25/25). Taking its readings
+on the system's own cadence, and routing them into the appraisal pressures that govern behaviour, is the
+step that follows; §21.1 of the validation document records exactly where that stands.
 
 **Invariants it holds:**
 

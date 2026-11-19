@@ -4,8 +4,11 @@
 record rather than as pending work. Drift is now a faculty of the coordinator beside the Constitution:
 `DriftDetector`, `DriftSignal`, `DriftState` and `DriftSeverityBand` in
 `core/agents/autonomous/autonomous_coordinator.py`, with the statistical detector retained at
-`core/learning/drift_monitoring/`. Its evidence is the `DRIFT-01` series, and the current account is §11 of
-`LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md`. The inventory below describes the eight places drift was computed
+`core/learning/drift_monitoring/`. Its evidence is the `DRIFT-01` series, and the current account is
+[`architecture/drift.md`](architecture/drift.md). **The absorption ran; the consumer did not follow.**
+Nothing in the running substrate calls `Drift.perceive()`, so the readings this plan argues for are not
+taken and the route into appraisal is not wired — recorded at §21.1 of
+`LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md`. The inventory below describes the eight places drift was computed
 **before** the absorption; it is a record of what was consolidated, not of what runs.
 
 **Purpose.** One first-class Drift faculty in the coordinator, beside the Constitution,

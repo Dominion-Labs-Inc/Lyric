@@ -1366,6 +1366,12 @@ All other experiments with artifacts end at PASS.
    goal count is not recorded in available evidence. The drift
    faculty detected and smoothed its expectation; the underlying rate is unexplained in the corpus.
 3. **Frontier ranking does not surface a seeded gap**, rank 91/106, below a limit-50 cut (§13.1).
+4. **The drift faculty is not read by the running substrate.** The coordinator constructs it with its five
+   detectors and logs how many it holds; no scheduled job, reaction or cognitive-cycle step calls
+   `Drift.perceive()`, and drift does not appear among the interoceptive variables the self composes. The
+   route the design states — drift felt through interoception, then appraisal's pressures, then the
+   behaviour arbiter — is not wired. The faculty and its eleven invariants are proven by `DRIFT-01`
+   (25/25, 2026-09-19), which is also its only caller. Measured by reading the source on 2026-11-19.
 
 ### 21.2 Coverage gaps: no experiment exists
 
@@ -1398,6 +1404,8 @@ BEARING-01 (interest vocabulary of 2 terms, 5 known recall gaps).
 - Does cross-domain transfer hold beyond one source/target pair?
 - What explains a ~20% goal-conclusion rate?
 - Does disjunctive recognition generalise to held-out data, where exact induction produces no rule?
+- What does a drifting signal change about behaviour once it reaches appraisal, and on what cadence should
+  the readings be taken?
 
 ---
 

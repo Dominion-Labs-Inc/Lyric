@@ -37,7 +37,12 @@ for _root in ("tests", "scripts", "experiments", "archive", "tools", "."):
 # "mortal(x)"). Checking these produced nothing but noise.
 import builtins as _b
 NOT_A_SYMBOL = set(dir(_b)) | {
+    # Relations of the meaning language. They are data the substrate holds, written in
+    # prose as `isa(x, y)`, and they are not methods anywhere.
     "isa", "instance_of", "has_property", "located_in", "precedes", "capable_of",
+    "done_by", "done_to", "has_member", "has_part", "part_of", "owns", "equals", "prep",
+    "made_of", "member_of", "similar_to", "antonym_of", "defined_with", "causes",
+    # Atoms a reasoning document necessarily writes out to show a derivation.
     "human", "mortal", "rained", "wet", "circle", "square", "triangle",
 }
 
