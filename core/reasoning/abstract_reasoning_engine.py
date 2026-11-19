@@ -1924,13 +1924,26 @@ class AbstractReasoningEngine:
                 context=context
             )
             
-            # Select applicable strategies
-            applicable_strategies = await self._select_strategies(context)
-            
+            # Select applicable strategies, and keep WHAT WAS DECIDED, not only the fact that nothing was.
+            selection: Dict[str, Any] = {}
+            applicable_strategies = await self._select_strategies(context, account=selection)
+            working.append({"kinds": selection})
+
             if not applicable_strategies:
-                result.error_message = "No applicable reasoning strategies found"
+                # A REASONING THAT TRIED NOTHING STILL SAYS WHY, AND THE WORKING TRAVELS WITH IT. This set an
+                # error message and returned, so `working` -- built just above, and the only record of what was
+                # asked, what was given and which kinds were ruled out -- was thrown away on exactly the branch
+                # that most needs it. Nothing was then written anywhere: no trace, no steps, no account. Asked
+                # why it had not reasoned, there was a counter saying it had been attempted and nothing saying
+                # what happened (2026-11-19).
+                result.error_message = (
+                    f"no kind of thinking was tried: {len(selection.get('not_allowed') or ())} not allowed here"
+                    f"{' (' + ', '.join(selection['not_allowed']) + ')' if selection.get('not_allowed') else ''}"
+                    f", {len(selection.get('declined') or ())} said they could not help"
+                    f"{' (' + ', '.join(selection['declined']) + ')' if selection.get('declined') else ''}")
+                result.intermediate_results = working
                 return result
-            
+
             # Execute reasoning with each strategy
             all_conclusions = []
             
@@ -2137,9 +2150,19 @@ class AbstractReasoningEngine:
 
         return lines
 
-    async def _select_strategies(self, context: ReasoningContext) -> List[Tuple[ReasoningType, ReasoningStrategy]]:
-        """Select applicable reasoning strategies for the context"""
-        
+    async def _select_strategies(self, context: ReasoningContext, *,
+                                 account: Optional[Dict[str, Any]] = None
+                                 ) -> List[Tuple[ReasoningType, ReasoningStrategy]]:
+        """Select applicable reasoning strategies for the context.
+
+        `account`, when given, is filled with WHICH kinds were selected, which were not allowed here and which
+        said they could not help -- the same three the log line below says, as data. It was said only to the log,
+        and a log is read by whoever is watching the process; in production nobody is. So the one line that
+        answers "why did it not reason?" existed nowhere a reader could reach: thirteen times on 2026-11-19 it
+        said ten of eleven kinds were not allowed and the eleventh declined, and that was recoverable only by
+        grepping a rotating file.
+        """
+
         applicable = []
         # WHICH KINDS, AND WHY NOT THE REST. This said `Selected 0 reasoning strategies` and nothing else, which is
         # the one case where the count answers nothing: 0 can mean the context allowed no kind, or that it allowed
@@ -2173,8 +2196,18 @@ class AbstractReasoningEngine:
                         len(self.strategies),
                         f"not allowed here: {', '.join(not_allowed)}" if not_allowed else "every kind was allowed",
                         f"said it could not help: {', '.join(declined)}" if declined else "none declined")
+        if account is not None:
+            # AS DATA, NOT AS A LOG LINE. Carried out with the answer (`ReasoningResult.intermediate_results`),
+            # so a reasoning that tried nothing still says what it was asked for and why nothing ran.
+            account.update({
+                "held": len(self.strategies),
+                "asked_for": sorted(t.value for t in (context.allowed_reasoning_types or ())),
+                "selected": [t.value for t, _ in applicable],
+                "not_allowed": sorted(not_allowed),
+                "declined": sorted(declined),
+            })
         return applicable
-    
+
     async def _validate_conclusion(self, conclusion: ReasoningConclusion, context: ReasoningContext) -> bool:
         """Validate a reasoning conclusion"""
         

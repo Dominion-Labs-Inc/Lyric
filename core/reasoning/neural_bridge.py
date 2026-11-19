@@ -139,6 +139,17 @@ class ReasoningRequest:
     # Empty list [] = skip injection (memories already in conversation)
     # None = perform fresh memory search
     cached_memories: Optional[List] = None
+    #: WHETHER THIS REASONING'S RECORD IS KEPT BY SOMEONE ELSE: an iteration inside a task whose outcome is
+    #: written once at task end (`_store_task_outcome_meta_memory`). True keeps no record here, which is what
+    #: stops a task paying for an embedding and a vector search every turn.
+    #:
+    #: WHETHER TO RECALL AND WHETHER TO RECORD ARE TWO QUESTIONS. `cached_memories` answered both: it means
+    #: "skip memory injection, the memories are already here", and the capture gate read `cached_memories is
+    #: None` as consent to record. So a caller that merely wanted to reason over the premises it had -- the
+    #: conversation's own reasoning, the causal analyzer, both saying so in as many words -- silently got no
+    #: record of having reasoned at all. Nothing in the store carried a `reasoning_trace`: 0 of 1,441,783
+    #: memories, and not one reasoning experience in the pool (2026-11-19).
+    recorded_elsewhere: bool = False
     # Token budget from caller (if None, neural_bridge uses its own default)
     max_tokens: Optional[int] = None
 
@@ -1589,6 +1600,9 @@ class NeuralSymbolicBridge:
 
         # Memory agent for persisting reasoning traces
         self.memory_agent = None
+        #: The in-flight writes of reasoning records, held so the loop's own weak reference to each is not the
+        #: only one (`reason`). Each discards itself when it finishes.
+        self._recording: Set[asyncio.Task] = set()
 
         # ── Owned reasoning subsystems ───────────────────────────────────────
         # These are REASONING, so the reasoning authority owns them — not the
@@ -1727,11 +1741,19 @@ class NeuralSymbolicBridge:
         difference that is invisible until someone asks why the record looks
         the way it does.
 
-        Capture is for a standalone call (`cached_memories is None`). A completed
-        task's outcome is captured once at task end, as the task's memory, which
-        the pool queues (`_store_task_outcome_meta_memory`); storing each iteration would pay for
+        Capture is skipped only where the caller says its record is kept elsewhere
+        (`recorded_elsewhere`): a completed task's outcome is captured once at task
+        end, as the task's memory, which the pool queues
+        (`_store_task_outcome_meta_memory`); storing each iteration would pay for
         embeddings and a pgvector search per turn to write records the filter
         mostly declines anyway.
+
+        IT USED TO ASK `cached_memories is None`, which answers a different question
+        -- whether to RECALL -- so every caller that reasoned over the premises it
+        already had recorded nothing. Both of them say so in as many words. And the
+        executor iteration the test was written for is gone with the models: no
+        caller passes an empty list for that reason any more, so the gate suppressed
+        only records that should have been kept.
 
         A refusal (an empty answer) is captured as an experience -- what the
         substrate could not represent is a challenge it met -- and is never
@@ -1741,8 +1763,16 @@ class NeuralSymbolicBridge:
         self._update_stats(request, result)
 
         from core.memory.remembering import remembered
-        if self.memory_agent and request.cached_memories is None and remembered():
-            asyncio.create_task(self._capture_reasoning_memory(request, result))
+        # WHETHER SOMEONE ELSE KEEPS THE RECORD, asked of the caller that knows (`recorded_elsewhere`), never
+        # read off `cached_memories`, which answers whether to RECALL.
+        if self.memory_agent and not request.recorded_elsewhere and remembered():
+            # HELD, SO IT CANNOT BE COLLECTED BEFORE IT RUNS. The loop keeps only a WEAK reference to a task,
+            # so a fire-and-forget `create_task` whose result nobody holds may be garbage collected mid-flight
+            # -- and this one is the only writer of a reasoning's record. It would also never reach its own
+            # `except`, which is why no failure was ever logged for a trace that was never written.
+            task = asyncio.create_task(self._capture_reasoning_memory(request, result))
+            self._recording.add(task)
+            task.add_done_callback(self._recording.discard)
 
         return result
 
