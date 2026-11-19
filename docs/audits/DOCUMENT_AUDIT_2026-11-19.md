@@ -466,26 +466,63 @@ on 2026-11-15; its header now says each figure carries its own date and points a
 
 ---
 
-## 5. What needs your word before it happens
+## 5. The four deferred items, done
 
-**Three runs, deferred on your word.** These are the only items from §4 not done:
+All four were completed on 2026-11-19 after the audit was written. What follows replaces the list of
+pending work this section used to hold.
 
-1. **Regenerate the validation document's registry** from the full 2,477-artifact corpus. The document's
-   structure does not change; it covers 82 experiments and 614 artifacts and should cover 189 and 2,477.
-   This is the highest-value piece of work left in the estate.
-2. **Re-measure the product overview's §23 table** against the live store under
-   `./venv_lyric/bin/python3`. The source-scan figures elsewhere in both documents were re-derived on
-   2026-11-19; §23 is the one set that needs the database. Reading `Lyric/.env` was refused by the sandbox,
-   so this needs either the connection or the run from you.
-3. **Bring `docs/research/BENCHMARKS.md` forward** from 2026-09-28, from the artifacts and the lab notebook
-   entries that already record the runs.
+**1. The registry is regenerated from the whole corpus.** §5 of *Validation & Experiment Results* now
+covers **246 experiment directories, 188 carrying machine-written run records, 2,166 run records** with
+311 side records beside them, against the 614 across 84 the first edition carried. 142 validated, 43
+findings, 58 directories with a harness and no artifact. The generator is kept at
+`scripts/gen_registry.py`: it reads all four artifact formats the corpus has accumulated, picks the latest
+run by the UTC stamp in the filename, and does not count a transcript or a cases file as a run of its own.
+The next edition is regenerated, not retyped.
 
-**One re-trace, larger than this pass.** `docs/architecture/coordinator.md` needs tracing method by method
-against a 21,000-line file. It now states its own staleness rather than reading as current.
+**2. The store is measured.** Reading `.env` was refused, so the measurement went through the system's own
+configuration authority (`PostgresConfig.resolve()`), which is the method the documents already declare:
+ask the server its own name rather than trust resolution. `lyric_db`, PostgreSQL 16.14, 350 tables, 10 GB.
+117,294 concepts, 590,614 relations, 1,022,193 beliefs, 1,441,708 memory records, 443,072 learned sentence
+templates, and **497 ways of reading English with 87 pairs beside them**, which confirms a figure that had
+only ever appeared in a source comment. §23 of the *Product & System Overview*, §24.1 of *Validation* and
+§30 of *Architecture* all carry it, each row saying whether it came from the store, the source or a run
+artifact.
 
-**Then the re-renders.** Once the sources are current, the four documents re-render to Word and PDF through
-the Word pipeline, and the data room picks them up on its next `sync`. Until then the room is serving the
-September renders of all four.
+**The measurement found something the audit had not.** On **2026-09-26, by decision, the store was emptied,
+all 156 tables with no backup**, and the substrate was taught again from the first English lesson. That is
+why concepts fell from 302,240 while beliefs doubled and memory grew eighty-fold: what was taught the
+second time was language itself. It is also why operator demonstrations and learned rules read zero. Those
+accumulate from running work rather than from teaching, and **a count of zero in an untaught store is not
+an absent capability**: the faculties are evidenced by `OPERATOR-REMOVAL-01` at 22/22 and
+`RULE-AUTHORITY-02` at 9/9. All three documents now say this rather than leaving a reader to infer a
+collapse. `BEARING-01` reading 20/23 has the same cause, recorded the same day: on the emptied store the
+constitution's law vocabulary was empty, so bearing could not be computed until word kinds existed.
+
+**3. `BENCHMARKS.md` is brought forward** from 2026-09-28 with nine runs, and gains a ninth section for the
+reading work it never covered. **Every row was built to its own table's columns after reading that header**,
+which matters because the file's tables have seven different shapes: a first attempt wrote four-cell rows
+into tables of three, five, six and seven columns, and into the wrong sections. Both passes were reverted
+and redone, and a checker now confirms no row in the file mismatches its header.
+
+**4. `coordinator.md` is re-traced.** Of 128 handles and methods, 39 were not in the source. The state
+section is rebuilt from the constructor with every authority and the line it is assigned on; fourteen
+reactions are registered at construction, not seven; ten of fifteen idle tiers are gone with seven
+recurring jobs left; and the health region had moved out of the coordinator entirely.
+
+**Two improvements surfaced, both material and both in the right direction.** CONSTITUTION-03 holds **all
+eight campaigns over 34 strategies** as of 2026-10-23, where September breached three; the September run is
+kept exactly as captured. And the appraisal-dimension conflict the document carried as unresolved is
+resolved: thirteen, read from `AppraisalSystem.DIMENSIONS`, with both earlier counts correct when taken.
+
+### What is still open
+
+- **The four documents have not been re-rendered.** The data room is serving the September PDFs of all
+  four. The sources are current; the re-render and `investor_room.py sync` are the remaining step, and the
+  one-pager still needs authoring.
+- **A mistake worth recording.** I published a first pass of the benchmark rows with eight of nine rows in
+  the wrong shape and several in the wrong section, and a first pass of §9 with two invented run-record
+  stamps. Both were caught by checking rather than by reading, and both are the same lesson: in a file
+  whose tables differ, read the header before writing the row, and verify every artifact name resolves.
 
 **Code items found while auditing documents, reported not changed.** Each would alter behaviour or a
 documented figure, so none was touched:
