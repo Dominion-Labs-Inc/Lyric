@@ -16,7 +16,8 @@ Security has two owners that never share control:
 ## A) Internal safety — one authority
 
 **The `Constitution`** (`core/agents/autonomous/autonomous_coordinator.py`, `get_constitution()`) is
-the only thing that decides whether an act or a task may happen.
+the only thing that decides whether an act or a task may happen. It is set out in full in
+[constitution.md](constitution.md); this is where it sits beside world security.
 
 - **Tool gate.** Every tool call passes `tool_registry.execute_tool`, which puts it to
   `Constitution.judge` (via `judge_act`) with the acting intent and actor from the async context.

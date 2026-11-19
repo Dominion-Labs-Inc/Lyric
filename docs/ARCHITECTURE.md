@@ -82,7 +82,9 @@ flowchart TB
 | Beliefs | `BayesianUncertaintySystem` — `get_uncertainty_system()` | `core/reasoning/bayesian_uncertainty.py` | [beliefs.md](architecture/beliefs.md) |
 | Domain | `UniversalDomainMaster` — `get_universal_domain_master()` | `core/integration/universal_domain_master.py` | [domain.md](architecture/domain.md) |
 | Semantics-write | `CognitiveIngress` — `get_cognitive_ingress()` | `core/semantics/cognitive_ingress.py` | [semantics-ingress.md](architecture/semantics-ingress.md) |
-| Governance (the act gate) | `Constitution` — `get_constitution()` / `judge_act()` | `core/agents/autonomous/autonomous_coordinator.py` | [security.md](architecture/security.md) |
+| Governance (the act gate) | `Constitution` — `get_constitution()` / `judge_act()` | `core/agents/autonomous/autonomous_coordinator.py` | [constitution.md](architecture/constitution.md) |
+| Self-perception over time | `Drift` — `coordinator.drift` | `core/agents/autonomous/autonomous_coordinator.py` | [drift.md](architecture/drift.md) |
+| Conversation | `Conversation` — `get_conversation(session)` | `core/agents/autonomous/autonomous_coordinator.py` | [conversation.md](architecture/conversation.md) |
 | Body / control plane | `AutonomousCoordinator` — `get_autonomous_coordinator()` | `core/agents/autonomous/autonomous_coordinator.py` | [coordinator.md](architecture/coordinator.md) |
 
 ### The belief circulation (feeders → hub → consumers)
@@ -268,15 +270,20 @@ Each links to its exhaustive method reference.
   job back (`go_on_with`, `resume_task`), no stops it (`stop_work`). Asked what it is doing, it says the
   question a held job waits on, which is how a person answers after a restart has emptied the
   conversation. Every act, confirmed or on its own, still goes through the constitution.
-- **Governance** — [`architecture/security.md`](architecture/security.md). The substrate's own law,
-  held by the `Constitution` inside the coordinator and applied at the single gate every tool call
-  passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense`
-  together. World/Tet security lives in the world's factory, outside Lyric.
+- **Governance** — [`architecture/constitution.md`](architecture/constitution.md). The substrate's own
+  law, held by the `Constitution` inside the coordinator and applied at the single gate every tool call
+  passes (`tool_registry.execute_tool`); self-defense is the Constitution and `ThreatSense` together.
+  [`architecture/security.md`](architecture/security.md) sets it beside world security, which lives in
+  the world's factory, outside Lyric.
 - **The body / coordinator** — [`architecture/coordinator.md`](architecture/coordinator.md).
   Holds every authority; execution faculty (`execute_task`), the self (`state`/`render`/
   `disposition`), grounded completion (`_derive_completion_anchor`→`_decide_completion`, DID+SAW),
-  the event spine + reactions, and the idle tiers. The substrate never modifies itself: it has no
+  the event spine + reactions, and the recurring jobs. The substrate never modifies itself: it has no
   model weights and never rewrites its code or configuration — it improves only by learning.
+- **Self-perception over time** — [`architecture/drift.md`](architecture/drift.md). The constitution
+  judges acts; drift perceives the substrate, which is what judging one act at a time cannot see.
+- **Conversation** — [`architecture/conversation.md`](architecture/conversation.md). A thread of talk:
+  what it remembers, how a turn is understood, and the one path from what is held to what is said.
 
 ---
 

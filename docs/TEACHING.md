@@ -159,16 +159,18 @@ Four things, all present in the repo today:
 Measured at the call sites:
 
 **The memory column no longer has a choice in it** — `remember` was deleted on
-2026-09-20 (§7.3). This is what the call sites looked like before that.
+2026-09-20 (§7.3) — and the six scripts below no longer exist: teaching has one
+entry point, `scripts/teach.py`, and a source names a format rather than carrying
+its own pipeline. This is what the call sites looked like.
 
-| script | line | fan-out | memory |
-|---|---|---|---|
-| `teach_session.py` | [157](../scripts/teach_session.py#L157) | ✅ on | ✅ configurable |
-| `teach_conceptnet.py` | [121](../scripts/teach_conceptnet.py#L121) | ✅ on | ❌ `remember=False` |
-| `teach_general_wikidata.py` | [242](../scripts/teach_general_wikidata.py#L242) | ✅ on | ❌ `remember=False` |
-| `teach_graduate_wikidata.py` | [115](../scripts/teach_graduate_wikidata.py#L115) | ❌ **off** | ❌ `remember=False` |
-| `teach_wordnet_taxonomy.py` | [118](../scripts/teach_wordnet_taxonomy.py#L118) | ❌ **off** | ❌ `remember=False` |
-| `teach_conceptnet_beliefs.py` | [93](../scripts/teach_conceptnet_beliefs.py#L93) | — **bypasses the authority entirely** | — |
+| script | fan-out | memory |
+|---|---|---|
+| `teach_session.py` | ✅ on | ✅ configurable |
+| `teach_conceptnet.py` | ✅ on | ❌ `remember=False` |
+| `teach_general_wikidata.py` | ✅ on | ❌ `remember=False` |
+| `teach_graduate_wikidata.py` | ❌ **off** | ❌ `remember=False` |
+| `teach_wordnet_taxonomy.py` | ❌ **off** | ❌ `remember=False` |
+| `teach_conceptnet_beliefs.py` | — **bypasses the authority entirely** | — |
 
 That last row is the tell. `teach_conceptnet_beliefs.py` exists *to repair the
 solo teach that preceded it* — it re-reads the same dump and calls

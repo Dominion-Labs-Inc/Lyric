@@ -1,134 +1,262 @@
 # Learning — `UnifiedLearningSystem`
 
-*Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
-update when the authority changes. Line numbers drift; the explanations must stay true.*
+*Part of the [substrate architecture reference](../ARCHITECTURE.md). Line numbers drift; the explanations
+must stay true.*
 
-## `UnifiedLearningSystem` — the one learning authority
+*Re-traced 2026-11-19.*
 
-*File:* `core/learning/unified_learning_system.py` (class at line 284; `class UnifiedLearningSystem(ILearningAuthority, ILearningSystem)`)
+*File:* `core/learning/unified_learning_system.py` — 7,236 lines. `UnifiedLearningSystem` at 835: 6,052
+lines, **104 public and 44 private methods**. The singletons `get_unified_learning_system()` (6802) and
+`get_learning_authority()` (6810) return the same object, and every faculty reaches it as `coord.learning`.
 
-### 1. Purpose
+---
 
-`UnifiedLearningSystem` is the substrate's single learning authority — the subsystem every faculty reaches as `coord.learning` (`autonomous_coordinator.py:355`) or through the module singletons `get_learning_authority()` / `get_unified_learning_system()` (lines 3173, 3181, which return the same object). It was once the *declared* authority while a separate `learning_authority.py` held the *real* model-free implementation; that file was deleted and its whole implementation folded in here, so this one class now owns both the strategy/experience machinery (meta-learning, memory routing, transfer) and the model-free authority core (rule store, inducer, and the propose→attest boundary). Its governing principle is **propose vs. attest**: a contributor may propose a hypothesis, situation, or formalization, but nothing it offers is evidence — everything admitted enters as `CANDIDATE` with zero evidence roots, and only world-supplied outcomes move it. It holds **no model handle**: a language model is the teacher's alone; nothing in this file generates.
+## 1. One authority, one door
 
-### 2. State (instance attributes, set in `__init__`, lines 287–357)
+`UnifiedLearningSystem` is the substrate's **single learning authority**. It was once the *declared*
+authority while a separate learning-authority module held the real model-free implementation; that file is
+gone and its implementation folded in here, so one class now owns both the strategy and experience
+machinery — meta-learning, memory routing, transfer — and the model-free authority core: the rule store,
+the inducer, and the propose-versus-attest boundary.
 
-- **`_store`** (291) — lazy handle to the induced-rule store (`get_rule_store()`). Accessed via the `store` property.
-- **`_inducer`** (292) — lazy rule inducer (`get_rule_inducer()`), the hypothesis-search engine. Via the `inducer` property.
-- **`_contributors`** (293) — `{name: role}` registry of recognised proposers. `contribute()`/`admit_projection()` admit only from a registered contributor; registration is provenance, not permission to attest.
-- **`_admissions`** (294) — append-only ledger of every `Admission`, accepted and rejected alike.
-- **`_clause_classifiers`** (299) — `{name: {"model": CTM, "labels", "encode"}}`. Parametric perceptual learners (Convolutional Tsetlin Machines) OWNED by the authority; a mechanism whose recognitions become knowledge only via `recognize` → `learn_fact`.
-- **`config` / `domain_master` / `initialized`** (300–302) — config dict, optional injected domain master, started flag.
-- **`memory_system`** (305) — the memory agent, injected by `main.py` or fetched lazily in `start()`.
-- **`meta_learning`** (308) — the global `MetaLearner` singleton, the shared strategy-selection/credit engine.
-- **`domain_registry`, `universal_ontology`, `cross_domain_reasoner`** (312–313) — domain-knowledge singletons for transfer.
-- **`domain_learning_stats`** (315) — `cross_domain_transfers`, `domain_specific_learning`, `transfer_learning_successes`.
-- **`log_db`** (322) — `LoggingDatabase` for compliance logging.
-- **`active_learning_tasks`** (327) / **`_max_queued_events`** (328, =200) — bounded event queue.
-- **`_event_tasks`** (332) — strong refs to in-flight event tasks (no GC mid-flight).
-- **`system_metrics`** (341) — per-process counters, reset on restart (`knowledge_base_size` removed — measured from stores now).
-- **`recent_strategy_usage` / `max_recent_strategies`** (348–349) — rolling window (100) feeding the exploration-quota hard gate.
-- **`_max_nesting_depth`** (354, =3) — circular-dependency limit; the depth is the per-task `_learning_depth` ContextVar (module line 103).
-- **`slack_notifier`** (357) / **`_pending_notifications`** (class attr 363) — milestone notifier + strong refs.
-- **`_asi_self_improvement`** (used at 2777) — optional self-improvement engine, an internal collaborator.
+It holds **no model handle**. A language model is the teacher's alone; nothing in this file generates.
 
-*Module-level support:* `_LEARNING_TYPE_TO_TASK_FAMILY` (69, the lossy bridge); `_learning_depth` ContextVar (103); `_json_safe` (106); induction bounds `_BASIS_*` (141–143) + `_bounded_basis` (146) + `_relevant_frame` (197); `ContributionKind` (244), `Contribution` (256), `Admission` (268, `is_knowledge` at 279 — never true on admission).
+Its governing principle is **propose, then attest**. A contributor may propose a hypothesis, a situation or
+a formalization, but nothing it offers is evidence: everything admitted enters as `CANDIDATE` with zero
+evidence roots, and only world-supplied outcomes move it.
 
-### 3. Methods by functional area
+## 2. `consider` — the one door into world knowledge
 
-#### Lifecycle & internal plumbing
-- **`__init__(config=None, domain_master=None)`** — 287. Constructs all state; wires meta-learner, logging DB, notifier, bounded event queue.
-- **`_notify(**kwargs)`** — 365. Fire-and-forget Slack notification off the learning path; failures logged and dropped (a blocking webhook once deadlocked every `reason()`).
-- **`async start()`** — 413. Full async startup: logging DB, memory system (idempotent, *verified* not asserted), domain systems, meta-learner; registers `analogical_projection`; reloads persisted classifiers. Raises on critical failure.
-- **`async initialize() -> bool`** — 1065. Interface shim: delegates to `start()`.
-- **`get_system_status() -> dict`** — 1052. Snapshot of initialised/readiness/metrics/active tasks.
-- **`async shutdown()`** — 3162. Honest no-op teardown (persistence delegated to the demo/rule stores).
-- **`async _report_unmapped_learning_type(name)`** — 558. Records a `LearningType` with no `TaskFamily` on the failure record (a gap watchers can read).
-- **`_calculate_exploration_quota() -> float`** — 1003. Fraction of recent uses that were exploratory (`trials<20`), feeding the meta-learner hard gate.
-- **`_track_strategy_usage(strategy)`** — 1021. Appends to the rolling window, trims to 100.
+Whatever says a claim about the world — a person, a page, Lyric's senses, the outcome of its own work, a
+lesson — it is judged by **whether it is true**, and nothing else writes the world.
+(`docs/research/SEPARATION_MAP.md` §11.4.)
 
-#### Experience / procedural learning (the strategy-credit lane)
-- **`async learn_from_example(example) -> dict`** — 581. **The primary entry the coordinator invokes.** (1) fires the declarative takeaway through the gate first; (2) resolves `LearningType`/`TaskFamily` (stated wins, else lossy map, else `unmapped_learning_type` — no default family); (3) selects a strategy via the meta-learner hard gate, capturing decision id — when every arm fails the gate (`gate_blocked` in the decision sink) the example is still stored and transferred but **no arm is credited** (`strategy_used=None`, `strategy_gate_blocked` reasons, `credit_applied=False`), and the empty decision still counts in the exploration budget so it can recover; (4) memory-stores; (5) records outcome with honest credit (`INSUFFICIENT_EVIDENCE` when unstated); (6) fires cross-domain transfer gated on the *domain*, not success. Guards recursion per-task.
-- **`async process_interaction(user_input, system_response)`** — 1041. Wraps a chat turn as an example.
-- **`async learn_from_data(data, learning_type) -> Any`** — 1074. Shim: injects `learning_type` into the example; wraps result with the example's stated confidence.
-- **`async learn_from_experience(experience) -> Any`** — 1100. `learn_from_data(experience, CONTINUAL)`.
-- **`async learn_from_feedback(feedback) -> dict`** — 1104. A verdict on a claim already made+remembered: FLAGS the existing memory (merge-only), credits a *strategy* only with a `decision_id` (credit invariant), and moves the *belief* through the gate (`_route_declarative_takeaway` / `observe_claim`).
-- **`async process_experience(experience) -> dict`** — 1375. Wrapper over `learn_from_example`.
-- **`learn_from_event(event) -> bool`** — 1318. Sync entry for autonomous events; hands to `learn_from_example` as a task; returns whether learning *began* (False → queued in the bounded list). (Old version returned True having learned nothing.)
-- **`async drain_events(timeout=30.0) -> dict`** — 1404. Awaits in-flight event tasks before shutdown so decision rows close.
-- **`async query_experiences(query) -> list`** — 1431. Searches `unified.operation_logs` by type/strategy/success/source/since/limit.
-- **`async get_experience_count() -> int`** — 1485. Counts recorded rows (survives restart), not the queue length.
+`consider(subject, relation, obj, *, evidence, domain, positive, …)` takes a claim through four steps:
 
-#### Prediction / metrics / self-improvement (several deliberate `NotImplementedError`)
-- **`async knowledge_base_size() -> dict|None`** — 1226. Measures actual holdings (concepts + learned_rules + memories), or None.
-- **`async get_learning_metrics() -> dict`** — 1253. Process counters + recorded total + KB sizes + tool-usage (labelled separately).
-- **`async tool_usage() -> dict`** — Each tool's success rate over the runs with a verdict and its mean time over the timed runs, from the tool runs a task did (`MemoryAgent.tool_runs`); `available` False with the reason when none is held.
-- **`async observe_method_outcome(method_memory_id, *, worked, observation, person, world) -> dict`** — One counted outcome of a lifted method as one witness: the shared belief "the substrate's method <id> works" when the method is the world's, and the person's own belief in it. Weight per outcome: `COMPETENCE_EVIDENCE_QUALITY`.
-- **`async get_learning_state() -> dict`** — 1288. State for self-improvement; genuinely-checked component activity (None = absent).
-- **`get_domain_learning_stats() -> dict`** — 2094. Transfer counters + `transfer_success_rate` (None when no attempts).
-- **`async consolidate_learning()`** — 1308. **Raises NotImplementedError** (owned by memory tiering).
-- **`async predict_optimal_retry_delay(context)`** — 1364. **Raises** (used to return constant 3.0).
-- **`async update_strategy_effectiveness(strategy, effectiveness)`** — 1380. **Raises** (owned by `MetaLearner`).
-- **`async recommend_strategies(context)`** — 1393. **Raises** (use `MetaLearner.select_strategy`).
-- **`async predict_outcome(context)`** — 1505. **Raises** (used to return 0.85/0.8; `PredictiveIntelligenceSystem` owns it).
-- **`async run_self_improvement_cycle(scope=None, target_components=None, context=None)`** — 2767. Runs one self-improvement cycle through the injected `_asi_self_improvement` engine — self-repair as a *kind of learning* reached here.
+1. **Shape and evidence quality.** What the store cannot hold is refused (`shape_proposition`), and so is
+   what is too weakly supported — below `MIN_ADMIT_QUALITY`, the ingress's own floor.
+2. **A person's word has a rate.** Beyond `PERSON_CLAIMS_PER_HOUR` (120) in the hour, a `USER_SUPPLIED`
+   claim waits.
+3. **What is held against it** (`_held_against`): the same claim held the other way, or, for a kind, a
+   denial it inherits. It is counted either way, and held only once its independent witnesses outweigh
+   those on the other side (`witness_weight`, owned by the belief authority). Until then it is **refused**
+   where that side is settled and **doubted** where it is not. Many sources take many to overturn; a flood
+   of one source's word is one witness.
+4. **Held.** Written to the world through the one admission (`_admit_to_world`), the belief moved by this
+   evidence exactly once (keyed on `evidence.key`), and its standing read back from the belief.
 
-#### Transfer / cross-domain
-- **`async transfer_learning(source, target) -> bool`** — 1214. Shim → `transfer_learning_across_domains` (replaced a bare `True`).
-- **`async _transfer_from_known_domains(target, max_sources=3, task_id=None) -> dict|None`** — 1518. On new learning in a domain: resolve reference → rank candidate sources by `UniversalDomainMaster.similar_domains` (cheap) then re-rank by `suggest_mappings` strength (real signal) → transfer from the best. A failed mapping probe is logged at ERROR and returned in `probe_failures`, never folded into "none share a mapping". Fired from `learn_from_example`.
-- **`async transfer_learning_across_domains(source, target, knowledge) -> dict`** — 1666. Full worker: candidates from `UniversalDomainMaster.suggest_mappings`; validates each and persists it WITH its verdict through the Master (`record_mapping`, `record_knowledge_transfer`, `record_mapping_usage`) — the Master is the one writer, the registry stores; content-addressed `KnowledgeTransfer` row; candidate vs validated counts kept apart. Typed negatives (`no_candidate`/`no_validated_mapping`/`unknown_domain`/`operational`).
-- **`async learn_with_domain_context(example: LearningExample, domain) -> LearningResult`** — 1889. Domain-scoped: resolve to a populated field; state `type=CONTINUAL` + true `task_family`; lift the producer's stated outcome; report **learned** and **earned-credit** separately (so `(recorded=True, credit=False)` is representable).
+**One claim is one belief however it was spelled.** The claim is named in the store's own terms before
+anything else, so "Flippers" and "flipper", "fire truck" and "fire_truck", told by two sources, are two
+witnesses of one claim rather than two claims.
 
-#### Perception / clause classifiers (gated mechanisms)
-- **`register_clause_classifier(name, model, labels, *, encode=None)`** — 2140. Registers a trained CTM + a `clause_classifier:<name>` contributor; knowledge only via `recognize`.
-- **`_classifier_dir() -> str`** — 2153. Durable on-disk home (`data/classifiers`).
-- **`save_classifiers(directory=None) -> int`** — 2160. `torch.save`s each mechanism (TA/weights/polarity/shape) so it survives restart; `encode` not persisted.
-- **`load_classifiers(directory=None) -> int`** — 2179. Restores on startup, re-homing tensors to device; `encode` = None.
-- **`async recognize(name, instance, instance_id, *, domain="perception", threshold=0.0) -> Admission|None`** — 2207. Runs the classifier, margin-based confidence, and TEACHES the finding through the gate via `learn_fact` (`instance_id isa <category>`, PERCEPTION provenance, confidence as quality). None below threshold/unregistered.
+The door has four shapes, and nothing else writes world knowledge:
 
-#### Operator induction (model-free)
-- **`induce(examples, target_predicate=None)`** — 2245. Learn a rule from demonstrations (delegates to the inducer).
-- **`async record(result, examples, *, domain_id, rule_kind="state_transition")`** — 2249. Persists induction keyed on the producing demonstrations.
-- **`async induce_category(category, positives, negatives=(), *, domain="perception")`** — 2256. Anti-unifies labelled instances' feature facts into a naming rule (`CANDIDATE`); fans per-instance naming through `learn_fact`. Refuses with <2 positives / no feature facts.
-- **`async record_demonstration(example, *, domain_id) -> bool`** — 2788. Cheap hot-path half: keep one demo; no induction here.
-- **`async reinduce_operator(*, domain_id, predicate, arity) -> dict`** — 2799. Online half: re-induce one operator off the hot path; promote to executable when held-out experience confirms.
-- **`async drain_pending_induction(*, limit=50) -> dict`** — 2807. Induce every signature that gathered demos since last induced.
-- **`async _induce_signature(*, domain_id, predicate, arity) -> dict`** — 2841. Expensive core: load demos + contrastives, reserve held-out, bound the basis, induce, record, validate on the full world, project to concepts on promotion.
-- **`async _project_operator_to_concepts(record, basis, *, domain_id) -> bool`** — 2907. Records induction roots as concept-graph demonstrations, submits the rule as their derivative (operator↔concept learning meet). Never fatal.
-- **`derive_procedure(operators, guards, examples, terminal="RESULT", max_rules=None)`** — 2938. Second acquisition MODE: composes learned operators into a length-general procedure from I/O (widens *sequence*, not the learner).
-- **`induce_causal_structure(observations)`** — 2950. Learns which conditions gate an outcome (owns `ProbabilisticVersionSpace`); None if trials unusable.
-- **`induce_sequence_rule(terms)`** — 2989. Learns a numeric sequence's rule and predicts the next value; None when undetermined.
+| | |
+|---|---|
+| `consider` | One claim |
+| `consider_many` | Many claims from one source — a lesson, a corpus — each judged as `consider` judges one |
+| `consider_rule` | A rule about the world ("if the valve is closed then the tank overflows", of kinds) |
+| `consider_envelope` | Structured evidence: what a sense, a tool, a page or a demonstration gives in one envelope — concepts and relations together |
+| `learn_concept` | A concept node and its relationships, through `consider` |
 
-#### The contribution boundary (propose → attest)
-- **`register_contributor(name, role)`** — 2131. Records a named proposer (provenance).
-- **`async contribute(contribution: Contribution) -> Admission`** — 3045. The one proposal door: rejects unregistered; non-hypothesis kinds accepted as proposals not stored; a hypothesis (`CandidateRule`) enters as `CANDIDATE` with zero evidence roots. Never above `CANDIDATE`.
-- **`async admit_projection(projection, *, contributor, rule_kind="projected") -> Admission`** — 3094. Admits an analogically-projected operator via `record_projection` (element-level provenance kept); `CANDIDATE`.
+`_fan_out_learning` is the shared post-admission fan-out, so a fact and a rule touch the **same** systems:
+beliefs, metrics, and the domain (`ensure_domain`, then an `EVIDENCE_ADMITTED` announcement on the body's
+event spine). Its arms are isolated, every belief write moves a posterior, and `quality` is required rather
+than defaulted.
 
-#### Beliefs door (delegates to `bayesian_uncertainty`, one owner)
-- **`create_belief(claim, domain, prior=0.5, evidence=None, *, source="derived")`** — 2577. Records a belief; `source` = provenance (evidence applied only if a real evidence dict is given).
-- **`update_belief(belief_id, evidence, evidence_supports=True)`** — 2604. Bayesian update on the single store.
-- **`get_belief(belief_id)`** — 2613 · **`belief_for_claim(claim)`** — 2619 · **`beliefs_for_domain(domain, limit=8)`** — 2625. Reads.
-- **`async flush_belief(belief_id) -> bool`** — 2631. Durably persists a decision-critical belief; replays buffered writes.
-- **`observe_claim(claim, domain="language", *, supports=True, quality=0.9, source="observed")`** — 2638. Find-or-create-by-claim: first mints, later moves the same posterior (the completion-belief door).
+## 3. Learning from what it did
 
-#### Declarative teaching / fan-out (the one door for TOLD knowledge)
-- **`async learn_fact(subject, relation, obj, *, positive=True, surface=None, provenance=None, domain="conversation", description="", word_class_of=None, emit=None, quality=0.9)`** — 2347. Admits one fact through the ingress then runs `_fan_out_learning`. Returns the `Admission`.
-- **`async learn_facts(facts, *, provenance=None, domain="conversation", fan_out=True, remember=True, progress=None) -> dict`** — 2377. Many facts, admitted each but fanned out ONCE over the batch. `{admitted, already, refused, total}`.
-- **`async learn_concept(name, *, domain="conversation", description="", relationships=None, provenance=None, emit=None) -> list`** — 2428. Concept node + edges through the one path (the method a discoverer calls instead of writing `unified.concepts`).
-- **`async learn_rule(antecedent, consequent, *, surface, provenance=None, domain="conversation", emit=None)`** — 2459. Told conditional as a held rule via `admit_conditional`, fanning out like a fact.
-- **`async _route_declarative_takeaway(payload, *, domain)`** — 2490. Routes a payload's declarative takeaway (s/r/o or `fact`/`claim`) through `learn_fact`; nothing when no claim (credit invariant). Called first inside `learn_from_example` and by `learn_from_feedback`.
-- **`async learn_word_classes(classes, *, provenance=None, quality=0.9) -> dict`** — 2941. What CLASS a word has, taught INTO MEMORY as ordinary semantic knowledge — one memory per `(word, CLASS)`, tagged `word_class`. Returns `{told, skipped, already, total}`. Replaces `learn_word`/`learn_words`, which wrote to a lexicon file that no longer exists. **`WORD_CLASSES`** declares the 19 classes the substrate can hold: the four open classes (NOUN, VERB, ADJECTIVE, ADVERB), the closed classes (PRONOUN, DETERMINER, PREPOSITION, CONJUNCTION, SUBORDINATOR, AUXILIARY, MODAL, NEGATOR, COPULA, RELATIVE, QUANTIFIER, NUMERAL, INTERJECTION, PARTICLE) and PUNCTUATION. Before this only three existed, because a class could only be derived from a proposition's subject/relation/object slots — so every word that never stands in one was unlearnable, and lived in frozensets inside the reader.
-- **`async fan_out_ingested(result, *, domain="researched", surface="") -> int`** — Fan-out over relations an ingestion already admitted (closes the belief gap for direct-ingest producers).
-- **`async _fan_out_learning(*, memory_id=None, surface, claim, clauses, positive, domain, emit, emit_payload, quality)`** — 3415. **The shared post-admission fan-out** every `learn_*` runs so a fact and a rule touch the SAME systems: BELIEFS, METRICS, DOMAIN (`ensure_domain`, then an `EVIDENCE_ADMITTED` announcement). Isolated arms; every belief write moves a posterior. There is no LEXICON arm and no `save_lexicon` flag — both went with the lexicon. `quality` is required, never defaulted.
+The strategy-and-credit lane, driven by the coordinator.
 
-#### Properties & module singletons
-- **`store`** (2119) · **`inducer`** (2125) · **`contributors`** (2136) · **`admissions`** (3144) — lazy accessors / copies.
-- **`async rules(domain_id=None)`** — 3149. Loads stored rules for a domain.
-- **`async metrics() -> dict`** — 3152. Authority-boundary metrics (contributors; contributions seen/accepted/promoted).
-- **`get_unified_learning_system()`** — 3173 · **`get_learning_authority()`** — 3181. Both return the one singleton.
+| | |
+|---|---|
+| `learn_from_example` | The primary entry. Resolves the learning type and task family — stated wins, else the lossy map, else `unmapped_learning_type`, never a default family — selects a strategy through the meta-learner's hard gate, stores to memory, records the outcome with honest credit, and fires cross-domain transfer gated on the **domain**, not on success |
+| `learn_from_feedback` | A verdict on a claim the substrate already made and already remembers. Flags the existing memory, credits a strategy **only** with a decision id, and moves the belief through the door |
+| `learn_from_event` | Sync entry for autonomous events; returns whether learning **began**. An earlier version returned true having learned nothing |
+| `learn_from_data` / `learn_from_experience` / `process_experience` / `process_interaction` | Shims onto `learn_from_example` |
+| `drain_events` | Awaits in-flight event tasks before shutdown, so decision rows close |
+| `query_experiences` / `get_experience_count` | Recorded experiences, which survive a restart — not the queue length |
 
-### 4. Feeds / feeds-into
+**When every arm fails the gate**, the example is still stored and transferred but no arm is credited:
+`strategy_used` is None, the reasons are carried, credit is not applied, and the empty decision still counts
+toward the exploration budget so the system can recover.
 
-**Feeders (what calls this authority):** `core/main.py` (815–843, 1963, boot wiring + shutdown `save_classifiers`); `autonomous_coordinator.py` (heaviest — `self.learning` at 355; `reinduce_operator` 6167/6198/6230, `recognize` 7954, `record_demonstration` 11617, `learn_fact` 13305, `learn_rule` 13425); reasoning faculties (`abstract_reasoning_engine`, `epistemic_engine`, `hypothesis_testing`, `analogy_discovery`, `hierarchical_abstraction`, `neural_bridge:1886`); `execution/list_synthesis:85`, `semantics/derived_reader:330`, `domain/evidence_producers`, `health/monitoring_coordinator`, `learning/exploration`, plus EDU experiments/tests.
+The event queue is **bounded** at 200. It used to grow for the life of the process because nothing removed
+from it. In-flight event tasks are held by strong reference: without that, asyncio keeps only a weak one and
+a task can be collected mid-flight, losing the learning silently. Recursion is guarded per task by a
+`ContextVar` depth against `_max_nesting_depth` (3).
 
-**Feeds-into (dependencies):** `cognitive_ingress` (`admit_relation`/`admit_conditional`, `Provenance`); `bayesian_uncertainty` (`get_uncertainty_system` — the belief store); `universal_domain_master` (similarity, mapping, `ensure_domain`); `agents.memory_agent` (`store_memory` for a stated word class, `warm_word_classes` for a derived one — `semantics.lexicon` is deleted); `meta_learning` (`select_strategy` — the production gate filters arms BEFORE Thompson sampling, so recorded propensities are those of the policy that chose, and an all-blocked selection returns None with per-arm reasons instead of the blocked arm; `track_learning_outcome`); rule/demo substrate (`rule_store`, `rule_induction`, `demonstration_store`, `procedure_synthesis`, `probabilistic_version_space`, `tsetlin_gpu`); domain layer (`domain_registry`, `universal_ontology`, `cross_domain_reasoner`, `concept_ingestion`); infra (`database`, `LoggingDatabase`, `observability.failure_record`, `slack_notifier`).
+## 4. Prediction and credit, measured
+
+Four capabilities on this interface were once `NotImplementedError` because what stood there was fabricated.
+Each is now measured from recorded outcomes.
+
+| | |
+|---|---|
+| `predict_outcome` | The probability that a strategy succeeds on a task family: the mean of the same Beta(successes+1, failures+1) posterior the bandit samples from, with its Wilson interval and how many outcomes it rests on. **With no outcome recorded the prediction is None** — there is nothing to predict from. It returned 0.85/0.8 for every context |
+| `update_strategy_effectiveness` | Records how a strategy actually performed, through the meta-learner, which persists the posterior and applies the credit gate so an infrastructure failure never charges a strategy. Where the decision carried a prediction, it is checked against what happened — a prediction never checked could not be wrong |
+| `recommend_strategies` | Ranked by the **lower bound** of each arm's measured success rate (Wilson, 95%), so an arm that has won once is not ranked above one that has won ninety times in a hundred. Untried arms come last with no rate: untried is not a number. It returned a fixed list of four subsystem names that were not strategies |
+| `consolidate_learning` | Settles what learning left open, on the authority's own schedule: known unknowns whose answer has since been learned, decisions whose outcome will never arrive (closed as indeterminate and credit-ineligible, never as failures), and trained classifiers persisted so a recognizer survives a crash rather than only a clean shutdown |
+
+`tool_usage` reports each tool's success rate over the runs that have a verdict and its mean time over the
+timed runs, and reports `available: False` with the reason when none is held. `knowledge_base_size` measures
+what the substrate actually holds, by store, and is None if unreadable — it used to be a counter nothing
+assigned, reported as 0 forever. `get_learning_metrics` reports this process's counters **and** the recorded
+totals, labelled separately.
+
+## 5. Transfer across domains
+
+| | |
+|---|---|
+| `_transfer_from_known_domains` | On new learning in a domain: rank candidate sources by `similar_domains` (cheap), then re-rank by `suggest_mappings` strength (the real signal), and transfer from the best. A failed mapping probe is logged and returned as a probe failure, never folded into "none share a mapping" |
+| `transfer_learning_across_domains` | The full worker: candidates from `suggest_mappings`, each validated, each persisted **with its verdict** through the domain master, which is the one writer. Candidate and validated counts are kept apart, and negatives are typed |
+| `learn_with_domain_context` | Domain-scoped learning that reports **learned** and **earned credit** separately, so recorded-without-credit is representable |
+| `transfer_learning` / `get_domain_learning_stats` | A shim onto the worker; the transfer counters and a success rate that is None when there have been no attempts |
+
+## 6. Inducing an operator
+
+The world is the only teacher here.
+
+| | |
+|---|---|
+| `record_demonstration` | The cheap hot-path half: keep one executed demonstration, induce nothing |
+| `drain_pending_induction` | Induce every signature that gathered demonstrations since it was last induced |
+| `reinduce_operator` | Re-induce one operator off the hot path; promote to executable when **held-out** experience confirms |
+| `induce` / `induce_on_thread` / `induce_bounded` | Learn a rule from demonstrations; on a worker thread for coroutines that learn; from a bounded basis that leaves out no miss |
+| `induce_category` | Learn a rule that **names** a category, by anti-unifying labelled instances' feature facts. Refuses with fewer than two positives or no feature facts |
+| `record` | Persist what induction produced, keyed against the demonstrations that produced it |
+| `executable_producers` | The executable rules in a domain whose effects produce a predicate |
+| `rules` / `store` / `inducer` | The stored rules, the rule store, the hypothesis-search engine |
+
+The basis is bounded — `_BASIS_POSITIVES` and `_BASIS_NEGATIVES` at 8, `_BASIS_CONTRASTIVE` at 6 — through
+`_bounded_basis` and `_relevant_frame`.
+
+**A second acquisition mode** sits beside induction: `derive_procedure` composes learned operators into a
+length-general procedure from input/output evidence alone, which widens the *sequence* rather than the
+learner. `induce_causal_structure` learns which conditions gate an outcome from trials, and
+`induce_sequence_rule` learns a numeric sequence's rule and what comes next — each None when the evidence
+cannot decide.
+
+## 7. Regularities — what a world does on its own
+
+A change the substrate did not cause is still something to learn from.
+
+| | |
+|---|---|
+| `record_world_change` | Keep one change the world made on its own |
+| `separates` | Whether something observed tells an unmet expectation apart from the times it was met |
+| `regularity_claim` / `regularity_belief` / `regularity_record` | The claim that a kind of change can be relied on, how far it can be relied on now, and how that kind has fared in its world |
+| `observe_regularity` | One settled expectation as one witness of whether a regularity holds |
+| `regularity_relied_on` | Whether a person's habit is relied on |
+
+## 8. Learning English
+
+Language is taught into **memory** as knowledge, not written to a file. The lexicon file is gone, and so is
+`save_lexicon`.
+
+| | |
+|---|---|
+| `learn_word_classes` | What class a word has — one memory per `(word, class)`. `WORD_CLASSES` declares the **nineteen** the substrate can hold: four open (NOUN, VERB, ADJECTIVE, ADVERB), fourteen closed (PRONOUN, DETERMINER, PREPOSITION, CONJUNCTION, SUBORDINATOR, AUXILIARY, MODAL, NEGATOR, COPULA, RELATIVE, QUANTIFIER, NUMERAL, INTERJECTION, PARTICLE), and PUNCTUATION. Before this only three existed, because a class could only be derived from a proposition's subject, relation or object slot — so every word that never stands in one was unlearnable |
+| `learn_grammar_rules` / `learn_grammar_pairs` | The ways English is read, and the pairs its grammar holds — each word's categories and what each place of a doing links |
+| `learn_patterns` | How English says things, from sentences taught **with** their meaning |
+| `learn_structure` / `learn_arguments` / `learn_derived` | How a sentence's words go together, from a treebank; which phrases are a happening's arguments; what each word takes beside the words around it, from a categorial grammar |
+| `learn_word_records` / `learn_records` | Words and sentences recorded whole — every form, every sense, how a verb is used; every layer of each sentence |
+| `learn_taught_sentences` | How a sentence's meaning is composed from how its words go together |
+| `learn_pronunciations` / `learn_said` / `learn_usage` | How words are said; what words are said of, counted in real use; how often each word names each thing |
+| `learn_word_groups` / `learn_word_forms` | Which words keep the same company; the forms words are written in |
+| `learn_listening` | What the listener's evidence is worth, counted on sentences whose meaning it was taught |
+| `withdraw_pairs` / `withdraw_links` | The teacher withdrew these: what they vouched for no longer rests on them, and the beliefs and memories go with them |
+| `review_learned` | Ask itself about what it was taught in a domain, and let how it does move its standing |
+
+Punctuation is part of written language, not scenery: a full stop is where one claim ends and the next
+begins. The reader acts on these marks in a dozen places and the substrate could not say what any of them
+were.
+
+## 9. Perceptual classifiers as gated mechanisms
+
+Convolutional Tsetlin Machines are **owned** by the authority as mechanisms. Their recognitions become
+knowledge only by passing the one door.
+
+| | |
+|---|---|
+| `train_clause_classifier` | Grow a clause population for a set of categories from labelled examples |
+| `register_clause_classifier` | Own a trained classifier, and register a `clause_classifier:<name>` contributor |
+| `name_instance` | What the classifier calls an instance, **and the evidence for it** — a reading, which then goes through `consider` |
+| `save_classifiers` / `load_classifiers` | Persist the mechanism so it survives a restart, and restore it on startup |
+| `has_clause_classifier` / `clause_classifier_vocabulary` | Whether one is registered, and the feature order it reads |
+
+## 10. The contribution boundary
+
+| | |
+|---|---|
+| `register_contributor` | Named, so provenance survives. An anonymous proposal is untraceable, and registration is provenance rather than permission to attest |
+| `contribute` | The one proposal door. An unregistered contributor is rejected; a hypothesis enters as `CANDIDATE` with zero evidence roots; nothing enters above `CANDIDATE` |
+| `admit_projection` | An analogically-projected operator through the same boundary, element-level provenance kept |
+| `admissions` | The full record — accepted and rejected alike |
+| `metrics` | Contributors, and contributions seen, accepted and promoted |
+
+`Admission.is_knowledge` is never true on admission.
+
+## 11. The belief door
+
+Every belief call delegates to the one belief authority (`bayesian_uncertainty`); see
+[beliefs.md](beliefs.md).
+
+`create_belief`, `update_belief`, `get_belief`, `belief_for_claim`, `beliefs_for_domain`, `flush_belief`,
+`observe_claim` — the last being find-or-create-by-claim: it mints on the first observation and moves the
+same posterior afterwards, which is the completion-belief door.
+
+`resolve_known_unknown`, `resolve_open_unknowns` and `resolution_grounds` put open known-unknowns through
+the gate: resolved **if and only if** the answer is actually held, and `resolution_grounds` gives the
+verdict without acting on it.
+
+## 12. Capability tracking
+
+`track_capability_baseline` tracks a capability metric against its long-term baseline;
+`get_capability_regressions` names every capability whose baseline is currently degrading; `record_metric`
+upserts a metric's definition with its latest value; `benchmark_capability` measures the substrate against
+the frozen benchmark suite and tracks the result.
+
+## 13. Shared learning
+
+`shared_learning` reports where each of an owner's switches stands — whether that kind of their work goes
+into shared learning, and who decided. `set_shared_learning` sets one, or every one when no category is
+named. `shares_learning` answers whether what Lyric learns from this kind of an owner's work may go into
+shared learning; **Lyric's own work always does.** See
+[world-model-and-instances.md](world-model-and-instances.md).
+
+## 14. Who reaches it
+
+**Callers:** `core/main.py` (boot wiring, and `save_classifiers` on shutdown); the coordinator, the
+heaviest, as `coord.learning`; the reasoning faculties (`abstract_reasoning_engine`, `epistemic_engine`,
+`hypothesis_testing`, `analogy_discovery`, `hierarchical_abstraction`, `neural_bridge`); the memory agent;
+the domain master; `domain/evidence_producers`; `learning/exploration`; `capabilities`;
+`intelligence/predictive_intelligence_system`; `integration/world_inhabitant`; `health/health_monitor`;
+`quantum/quantum_learning_bridge`; and the experiments.
+
+**Depends on:** `cognitive_ingress` (`MIN_ADMIT_QUALITY`, `shape_proposition`, `admit_conditional`,
+`Provenance`); `bayesian_uncertainty` (the belief store, and `witness_weight`); `universal_domain_master`
+(similarity, mappings, `ensure_domain`); `agents.memory_agent` (memories for taught word classes);
+`meta_learning` (`select_strategy`, where the production gate filters arms **before** Thompson sampling so
+recorded propensities are those of the policy that chose, and an all-blocked selection returns None with
+per-arm reasons rather than the blocked arm; `track_learning_outcome`); the rule and demonstration
+substrate (`rule_store`, `rule_induction`, `demonstration_store`, `procedure_synthesis`,
+`probabilistic_version_space`, `tsetlin_gpu`); the domain layer (`domain_registry`, `universal_ontology`,
+`cross_domain_reasoner`, `concept_ingestion`); and the infrastructure (`database`, `LoggingDatabase`,
+`observability.failure_record`).
+
+## 15. `ActFrame` — the world an act touches
+
+`ActFrame` (6887) reads the world one act is about to touch, and reads it again after: `open` takes the
+before-reading or declines to watch, and `close` re-reads and returns `(before, after)` over the readings
+that were taken. This is what turns an executed act into a demonstration the learner can use.
+
+## 16. Evidence
+
+| | |
+|---|---|
+| `experiments/RULE-AUTHORITY-02` | The propose-versus-attest boundary, 9/9 |
+| `experiments/OPERABILITY-BAR-01` · `BORROWED-KNOWLEDGE-01` | What competence in a domain is worth, and what a related domain lends it |
+| [../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md](../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md) | Results, with the negative ones |
+| [../TEACHING.md](../TEACHING.md) | How the substrate is taught, and from which sources |
+| [beliefs.md](beliefs.md) · [domain.md](domain.md) · [semantics-ingress.md](semantics-ingress.md) | The belief authority, the domain authority, and the admission gate |

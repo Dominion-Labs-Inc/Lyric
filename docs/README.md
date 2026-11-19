@@ -63,7 +63,10 @@ the authority map and the belief circulation. Each faculty then has its own docu
 |---|---|
 | [architecture/SUBSTRATE_SYSTEMS_MAP.md](architecture/SUBSTRATE_SYSTEMS_MAP.md) | Every system by name and size |
 | [architecture/world-model-and-instances.md](architecture/world-model-and-instances.md) | What the Lyric World Model is, what an instance is, and how what an instance learns reaches the World Model |
-| [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the fourteen reactions on its event spine, the cognitive cycle, and what its scheduler runs |
+| [architecture/coordinator.md](architecture/coordinator.md) | The body: every authority it holds, the nineteen registrations on its event spine, the cognitive cycle, and what its scheduler runs |
+| [architecture/constitution.md](architecture/constitution.md) | The law: the five laws, the three doors into them, what an act is judged on, and the eighteen measurements of standing state |
+| [architecture/conversation.md](architecture/conversation.md) | A thread of talk: what it remembers, how a turn is understood, and the one path from what is held to what is said |
+| [architecture/drift.md](architecture/drift.md) | The substrate perceiving its own change: eleven invariants and five detectors |
 | [architecture/memory.md](architecture/memory.md) | What persists, in which tier, and how it is recalled |
 | [architecture/beliefs.md](architecture/beliefs.md) | How a belief forms, moves and is retired |
 | [architecture/learning.md](architecture/learning.md) | The learning authorities and what each may admit |
@@ -104,7 +107,8 @@ Cognitive Substrate Series.
 
 | | |
 |---|---|
-| [architecture/coordinator.md](architecture/coordinator.md) | The live control plane: the constitution that judges every act, the drift faculty, the cognitive cycle |
+| [architecture/constitution.md](architecture/constitution.md) | The constitution that judges every act: five laws, four verdicts, eleven gates in one order, and the halt |
+| [architecture/drift.md](architecture/drift.md) | What a thousand permitted acts add up to, which judging one act at a time cannot see |
 | [security/SAFETY_ARCHITECTURE.md](security/SAFETY_ARCHITECTURE.md) | What a control plane must decide, reasoned out in full. A dated inventory from 2026-08-11: its argument holds, its module map does not, and its own status note traces where each capability went |
 | [HARM_DEFINITION.md](HARM_DEFINITION.md) | What harm means, as the basis for Law 3 |
 | [SIGNAL_PROVENANCE.md](SIGNAL_PROVENANCE.md) | Where every number the system reports about itself comes from, so that nothing that looks like a measurement carries none |

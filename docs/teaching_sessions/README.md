@@ -9,7 +9,7 @@ the index that ties them together.*
 
 > **How teaching works end-to-end** — the one path, admission, fan-out (beliefs /
 > lexicon / domain / metrics), the O(1) belief index, sourcing, and the scaling
-> rules — is documented in [`../TEACHING_ARCHITECTURE.md`](../TEACHING_ARCHITECTURE.md).
+> rules — is documented in [`../TEACHING.md`](../TEACHING.md).
 > Read it before running a large teaching session.
 
 ## What "teach a fact" does

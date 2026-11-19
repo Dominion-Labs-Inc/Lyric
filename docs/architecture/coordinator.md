@@ -1,20 +1,39 @@
-# The body / control plane — `AutonomousCoordinator`
+# The body — `AutonomousCoordinator`
 
-*Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
-update when the body changes. Line numbers drift; the explanations must stay true.*
+*Part of the [substrate architecture reference](../ARCHITECTURE.md). Line numbers drift; the explanations
+must stay true.*
 
 *Re-traced 2026-11-19.*
 
-## `AutonomousCoordinator` — the body and self
+`core/agents/autonomous/autonomous_coordinator.py` is **27,378 lines across 59 classes and 707
+definitions**. It holds four subsystems, and each has its own document:
 
-### 1. Purpose
-The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). Every substrate path is model-free and reports an honest capability fault rather than falling back. **The coordinator holds no model handle**, and `get_autonomous_coordinator(config)` takes no model argument.
-Authorities held are tabulated in §2. The belief store is reached via `self.learning`, not a separate handle.
-Accessor: `get_autonomous_coordinator(config)` (async singleton).
+| Subsystem | Lines, with its supporting types | Document |
+|---|---|---|
+| `AutonomousCoordinator` — the body and self | 14,206 (the class alone 13,891, 292 methods) | this one |
+| `Constitution` — the law every act passes through | 6,993 (the class alone 3,608, 86 methods) | [constitution.md](constitution.md) |
+| `Conversation` — reading a sentence and answering from what is held | 5,454 (the class alone 4,107, 90 methods) | [conversation.md](conversation.md) |
+| `Drift` — the substrate perceiving its own change | 602 | [drift.md](drift.md) |
 
-### 2. State
+They are in one module because the self holds its own law and its own speech rather than submitting to an
+outside judge or calling out to a service for either.
 
-**Held authorities and faculties**, each assigned in `__init__` (class at 7958, `__init__` at 7993):
+---
+
+## 1. What the body is
+
+The coordinator **is the substrate's body and self**: one process that holds every faculty-authority as a
+handle and reaches each faculty *through* itself rather than constructing a rival. The state that used to
+live in a separate `GeneralPurposeExecutor` was absorbed here — execution is the self's own faculty.
+
+Every substrate path is **model-free** and reports an honest capability fault rather than falling back. The
+coordinator holds no model handle, and `get_autonomous_coordinator(config)` — the async singleton accessor —
+takes no model argument. `model_available()` is retained for compatibility and answers that there is none.
+
+## 2. What it holds
+
+Each authority is assigned in `__init__` (class at 7983, `__init__` at 8004) and is reached only through
+the handle below. The belief store is reached via `self.learning`, not a separate handle.
 
 | Handle | From | Line |
 |---|---|---|
@@ -22,122 +41,138 @@ Accessor: `get_autonomous_coordinator(config)` (async singleton).
 | `circuit_breakers` | `get_circuit_breaker_registry()` | 8020 |
 | `system_state` | `SystemState()` | 8050 |
 | `vision` | `get_perception_faculty()` | 8059 |
-| `learning` | `get_learning_authority()`, the one `UnifiedLearningSystem`; the belief store is reached through it | 8074 |
+| `learning` | `get_learning_authority()` — the one `UnifiedLearningSystem`; beliefs are reached through it | 8074 |
 | `intrinsic_motivation` | `get_intrinsic_motivation_system()` | 8096 |
 | `directive_system` | `DirectiveSystem()` | 8281 |
-| `env_state`, `discovery`, `behavioral`, `topology` | environment state, active discovery, behavioural analysis, infrastructure topology | 8287-8297 |
+| `env_state`, `discovery`, `behavioral`, `topology` | environment state, active discovery, behavioural analysis, infrastructure topology | 8287–8297 |
 | `constitution` | `get_constitution()` | 8315 |
 | `capabilities` | `get_capabilities()` | 8322 |
 | `threat` | `ThreatSense()` | 8336 |
 | `arbiter` | `get_behavior_arbiter()` | 8349 |
-| `reading` | `self.constitution.reading` | 8350 |
+| `reading` | the constitution's own reading ledger | 8350 |
 | `drift` | `Drift()` | 8387 |
 | `appraisal` | `get_appraisal_system()` | 8405 |
-| `task_queue` | `get_queue_authority(...)`, the shared authority holding the backlog, the concurrency pool, await-jobs and the recurring scheduler | 8430 |
+| `task_queue` | `get_queue_authority(...)` | 8430 |
 | `outbox` | `get_outbox()` | 8440 |
 | `db` | `LyricUnifiedDatabase()` | 8448 |
-| `tool_registry` | `None` at construction, bound at startup | 8449 |
-| `memory` | injected, or `None` | 8517-8520 |
-| `abstract_reasoning`, `proof_engine` | abstract and logical reasoning, formal proof | 8529-8531 |
-| `quantum_reasoning` | `None` unless `enable_quantum`, which is off | 8534-8538 |
-| `neural_bridge` | `None` at construction, `get_neural_bridge()` at startup | 8545 |
+| `memory` | the memory agent, bound during start-up | 8517 |
+| `abstract_reasoning`, `proof_engine` | abstract reasoning engine, proof engine | 8529–8531 |
+| `neural_bridge` | bound during start-up (`get_neural_bridge()`) | 8545 |
 | `intelligence` | `get_predictive_intelligence()` | 8557 |
-| `causal_analyzer` | `CausalFeedbackAnalyzer()`, or `None` | 8565-8569 |
-| `meta_learning` | `get_meta_learner(...)`, or `None` | 8574-8584 |
+| `causal_analyzer` | `CausalFeedbackAnalyzer()` | 8565 |
+| `meta_learning` | `get_meta_learner(...)` | 8574 |
 | `health_monitor` | `get_health_monitor()` | 8608 |
-| `log_db` | injected, `LoggingDatabase()`, or `None` | 8611-8620 |
+| `agent_coordinator` | the agent authority, bound later | 8627 |
+| `tool_registry` | bound by `initialize_execution_faculty` | 8449 |
 
-**The body holds no model handle.** There is no `teacher_model`, and the accessor takes no model
-argument: there is nowhere a model could be handed to it. Nor does it hold `security_controller` or
-`monitoring_coordinator`, the perimeter and the monitoring daemon both having left the substrate, or
-`asi_self_improvement`, self-modification having been removed. `perception` and `vision` are one handle.
+## 3. Bring-up and the cognitive cycle
 
-**Own self-state:** `system_state` (8050), `coordination_cycle_interval` (8051), `reply_debug` (8078),
-`self_state` (8417, `None` until assembled), `last_cycle_time` (8631), `stats` (8634). The self is
-**derived, not stored**: it is assembled on demand by `state()`.
+`initialize(start_loop=False)` brings every subsystem up and binds memory, the neural bridge and the
+meta-learner. `start_coordination()` starts the cognition loop; `start_background_tasks()` registers the
+recurring jobs and starts the queue authority's scheduler. `shutdown()` stops the queue authority, which
+releases this instance's lease so what it owes is claimed by the next instance at once.
 
-**Reactions registered at construction: fourteen**, over nine event types and eleven distinct
-reactions. Several reactions answer to more than one event.
+**`_coordination_cycle()`** is the cognition loop, and what remains on its tick is only task dispatch and
+reaping:
 
-| Event | Reaction | Line |
+- **Reap first.** Finished tasks are collected before the pull, so the slots they free are filled in the
+  same cycle and failures are observed rather than discarded. Reaping after the pull left a finished task's
+  slot idle for a whole extra cycle — about 3 s at the default 2 s interval.
+- **Fill every free slot.** The first pull may wait briefly; the rest take only what is ready now and stop
+  at the first empty answer. One pull per cycle let a backlog start at most one task per cycle interval.
+- **Its own backlog first**, then the next job another instance queued and has not started — one queue,
+  many instances.
+- **Per-user caps are recomputed before each pull**, so one user's backlog cannot monopolise the pool. The
+  substrate's own actor is never capped. The acting cap is directive-driven when an active
+  `resource_allocation` directive exists (`_effective_max_parallel`).
+- **Launch, do not await** (`_launch_task`). Awaiting a task blocked the whole loop for that task's
+  lifetime, which is what made the substrate single-threaded. Concurrency is bounded by the queue
+  authority's semaphore.
+
+`apply_throttle` applies a temporary throttle. Active-task counts everywhere come from
+`task_queue.active_tasks()`.
+
+**Intrinsic exploration is not polled here.** It reacts to state-changing events (§5), and each completed
+pursuit emits the events that wake the next — a self-sustaining drive that is quiet when nothing changes.
+
+## 4. Workers
+
+More Lyric processes on the one store, each taking queued work in its own process and learning from it
+(`LYRIC_ROLE=worker`, `./lyric worker [n]`; `is_worker`). A worker is not in the world: it opens no senses,
+runs none of the self's scheduled work, and runs none of the self's own reactions (`SELF_REACTIONS`:
+`pursue_frontier`, `motivation_refresh`).
+
+Instead it **tells the self** what it must hear — `_tell_the_self` posts to `SELF_CHANNEL` (`lyric_self`).
+The Lyric it works for hears it (`_hear_workers`, `_heard_from_a_worker`) and wakes the self's reactions
+registered for that event. A message a worker owes a person is kept in the outbox and said by the self
+(`_say_what_a_worker_owes`). Evidence: `INSTANCES-01`.
+
+## 5. The event spine
+
+An event names something that happened to the substrate and carries the specific unit of work it concerns —
+never "go scan a table". `on(event, handler, *, name, mode, priority)` registers a reaction; `emit(event)`
+dispatches it. Synchronous reactions run inline in priority order, isolated; deferred reactions queue to
+`_reactive_drain_worker`, which is **woken by `emit` and never runs on an interval**. `_max_emit_depth`
+guards recursion.
+
+**Nine event types** (`SelfEventType`, 124):
+
+| Event | Raised when | Carries |
 |---|---|---|
-| `TASK_COMPLETED` | `_react_affect` | 8175 |
-| `OUTCOME_OBSERVED` | `_react_induce` | 8184 |
-| `OUTCOME_OBSERVED` | `_react_expand_outcome` | 8190 |
-| `COMPETENCE_CHANGED` | `_react_expand_outcome` | 8195 |
-| `EVIDENCE_ADMITTED` | `_react_expand_outcome` | 8197 |
-| `OUTCOME_OBSERVED` | `_react_resolve_transfers` | 8199 |
-| `EVIDENCE_ADMITTED` | `_react_crystallize_taught` | 8208 |
-| `COMPETENCE_CHANGED` | `_react_crystallize_taught` | 8212 |
-| `JOB_COMPLETED` | `_react_job_completed` | 8220 |
-| `COMPETENCE_CHANGED` | `_react_competence_changed` | 8229 |
-| `DEFICIT_DIAGNOSED` | `_react_close_deficit` | 8241 |
-| `PERCEPT_RECOGNIZED` | `_react_percept` | 8251 |
-| `ENVIRONMENT_ENCOUNTERED` | `_react_investigate_environment` | 8257 |
-| `EXPECTATION_UNMET` | `_react_expectation_unmet` | 8263 |
+| `TASK_COMPLETED` | A task finished and was judged complete, or not | the task and its verdict |
+| `OUTCOME_OBSERVED` | A completed task's outcome became durable | domain, meta-memory id |
+| `COMPETENCE_CHANGED` | Learning moved a domain's competence | the domain |
+| `EVIDENCE_ADMITTED` | Something was admitted to the concept store | subject, relation, object, domain |
+| `JOB_COMPLETED` | A submitted background job came back | job id, name, result, error |
+| `DEFICIT_DIAGNOSED` | A planning attempt could not reach a goal | a typed `EpistemicDeficit` |
+| `PERCEPT_RECOGNIZED` | A percept was recognised and compared to the acceptance band | claim, posterior, ACT/VERIFY/ABSTAIN, domain, classifier |
+| `ENVIRONMENT_ENCOUNTERED` | A place was met for the first time | environment id, domain, facts |
+| `EXPECTATION_UNMET` | The world did not do what the substrate expected | a `Departure` |
 
-### 3. Methods by region
+`EXPECTATION_UNMET` is the one event that starts from the substrate's own expectation rather than from
+something that happened.
 
-#### A — Lifecycle & the coordination loop
-- **`__init__(config)`** (7993) — wires every authority, registers the fourteen reactions (§2), and sets up the queue authority. **No model argument:** there is nothing to hand a model to.
-- **`initialize(start_loop=False)`** (921) — async bring-up; binds memory (946), neural_bridge/domain_master (1048-1049); no model connected.
-- **`start_coordination()`** (1298) / **`start_background_tasks()`** (1335, calls `_register_idle_subsystems` + starts the queue scheduler).
-- **Workers** (`is_worker`, `LYRIC_ROLE=worker`, `./lyric worker [n]`; 2026-10-23) — more Lyric processes on the one store, each taking queued work in its own process (one queue: `QueueAuthority.get_next_task`) and learning from it. A worker is not in the world, opens no senses, and runs none of the self's scheduled work (`start_coordination` skips `_rearm_messages`, `_attend_to_expectations`, `_register_idle_subsystems`; `main.py` skips health monitoring, concept embedding, backups and the system-control loop) and none of the self's reactions (`SELF_REACTIONS`: `pursue_frontier`, `motivation_refresh`): `emit` skips them and tells the self (`_tell_the_self`, `pg_notify` on `SELF_CHANNEL`, "event:<type>"). The Lyric it works for hears it (`_hear_workers`, `LyricUnifiedDatabasePostgres.listen`) and wakes the self's reactions registered for that event (`_pursuit_due`, `_motivation_due`). A message a worker owes a person (`speak_to`) is owed in the outbox and said by the self ("said:<id>", `_say_what_a_worker_owes`: kept in their conversation, armed unless a front end took it first). A handover renews workers on the new code (`scripts/handover.py` step 6). INSTANCES-01 F.
-- **`_coordination_cycle()`** (4080) — the cognition loop: **fills every free slot each cycle** — the first pull waits briefly (`get_next_task(timeout=0.1–0.2)`), the rest take only ready work (`timeout=0`, the queue's non-blocking pull), recomputing the per-user cap set before each pull; its own backlog first, and with nothing of its own ready the next job another instance queued and has not started (`QueueAuthority.get_next_task` → `claim_waiting`; each start claimed, `claim_start`, 2026-10-23) — and dequeues only while a slot is free (`_effective_max_parallel`), **launch not await** (`_launch_task`), reap tasks, collect jobs. Finished tasks are reaped FIRST each cycle, so their slots are refilled in the same cycle (until 2026-09-28 the reap came after the pull and a freed slot sat idle an extra cycle). (Until 2026-09-26 it pulled one task per cycle, so a backlog started at most one task per `cycle_interval`.) All 15+ timed tiers moved OFF this loop onto the queue scheduler (Phase-5 poll retirement). Active-task counts in `get_status`, predictions, the decision context and novelty come from `task_queue.active_tasks()`; `SystemState` no longer has an `active_tasks` field (deleted 2026-09-28 with the executor-era `_check_task_completions` scanner and `self.completed_tasks`, none of which anything wrote or called).
-- **`_launch_task`** (4302) · **`_reap_finished_tasks`** (4331) · **`_collect_finished_jobs`** (4349, surfaces `JOB_COMPLETED`) · **`apply_throttle`** (4196) · **`_handle_error`** (7214) · **`shutdown()`** (10461).
+**Nineteen registrations** wire **twelve reactions** to those nine events. One runs inline; every other
+is deferred to the drain worker, off the acting path.
 
-#### B — The self / identity (derived, None-honest)
-- **`state()`** (3916) — compose the current self from the faculties; honest about missing pieces.
-- **`render(audience="human")`** (3947) — the self as language, from `state()`, no model.
-- **Where it is — the host, and the devices it operates through.** `_situate` observes the host (`_observe_environment`: platform, release, machine, hostname, user, root; identity = a hash of the facts that make the place the place) and registers it through **`_register_environment`**, the one registration for every place: an ENVIRONMENT domain through `UniversalDomainMaster.ensure_domain` (a max-uncertainty competence belief, so the place surfaces to investigate) and, when NEW, `ENVIRONMENT_ENCOUNTERED` (payload `EnvironmentEncountered`, its `facts` the observations by name). **`situate_device(report, actor_identity)`** (2026-10-02) does the same for a device a person operates Lyric through: the device answers for itself (its `kind`: platform, major release, model, form, maker; its `surface`: what exists on it at all; the person's `settings`). The KIND is the place, keyed by what it is, not whose it is, so a second device of the same kind is not new; what exists there is the substrate's own knowledge of that kind of place. The device and its settings are the person's, perceived with their origin (`process_input(..., "device")`). **`_react_investigate_environment`** holds every fact observed (no longer a fixed list of host fields) and each surface capability as `offers`, with negative polarity for one that is not there; only a place with a root gets its folder scanned and counted. `_situation` reports the host for `state()`. DEVICE-01 (20/20).
-- **`identity_prompt(role=None)`** (3996) — a stable model-facing identity seed.
-- **`disposition(*, slots_available, queue_pressure)`** (3880) — standing disposition → a `BehavioralDirective`.
-- Accessors: `_appraisal`/`_arbiter`/`_constitution` (3749/3754/3759), `_temperament` (3807), `_competence` (3827, VALIDATED operators per domain), `_purpose` (3847, ACTIVE directives), `_attitude` (3796, None if unappraised), `_interoception` (3785), `_drives`/`_values`/`_continuity`/`motivation` (3812/3822/3863/3763), `_affect_snapshot` (3933), `_describe_attitude` (4008), `_refresh_directive_guidance` (3899), `_effective_max_parallel` (3891).
-- **`_update_system_state()`** (10401) — the **sole writer** of `system_state.resource_usage`/metrics the constitution reads; idle tier `idle_system_state_refresh`.
-- `get_system_status` (4022) · `get_status` (12071) · `get_intelligence_capabilities` (10524).
+| Reaction | On | Mode |
+|---|---|---|
+| `_react_affect` | `TASK_COMPLETED` | sync |
+| `_react_induce` | `OUTCOME_OBSERVED` | deferred |
+| `_react_expand_outcome` | `OUTCOME_OBSERVED`, `COMPETENCE_CHANGED`, `EVIDENCE_ADMITTED` | deferred |
+| `_react_resolve_transfers` | `OUTCOME_OBSERVED` | deferred |
+| `_react_crystallize_taught` | `EVIDENCE_ADMITTED`, `COMPETENCE_CHANGED` | deferred |
+| `_react_job_completed` | `JOB_COMPLETED` | deferred |
+| `_react_competence_changed` | `COMPETENCE_CHANGED` | deferred |
+| `_react_close_deficit` | `DEFICIT_DIAGNOSED` | deferred |
+| `_react_percept` | `PERCEPT_RECOGNIZED` | deferred |
+| `_react_investigate_environment` | `ENVIRONMENT_ENCOUNTERED` | deferred |
+| `_react_expectation_unmet` | `EXPECTATION_UNMET` | deferred |
+| `_react_pursue_frontier` | all five state-changing events | deferred, priority 10 |
 
-#### B2 — KNOW→DO operability (the hybrid, domain-dependent bar)
-*Can the self OPERATE in a domain yet? A pure MEASUREMENT (`operable=False` ⇒ abstain + keep researching); the authority-side signals live in [domain.md](domain.md). Benchmarks: `experiments/OPERABILITY-BAR-01`, `experiments/BORROWED-KNOWLEDGE-01`. Full design: `docs/INTRINSIC_MOTIVATION_REDESIGN.md`.*
-- **`_domain_satisfaction(domain_id)`** — the KNOW side: knowledge COVERAGE (`structural_complexity`) **noisy-OR** belief CONFIDENCE (`1 − mean entropy`), `None` if unknown.
-- **`_domain_stakes(domain_id)`** + `_ACTION_STAKES` (investigate .2 → execute .95) — the bar's base from the domain's operators' `ActionClass` (`action_consequence._declared_consequence`); neutral 0.5 where no operator resolves (**inert on current data — 0/94 domains have executable operators**).
-- **`_borrowed_satisfaction(domain_id)`** + `_BORROW_REL_MIN=0.30`/`_BORROW_NEIGHBORS=5`/`_BORROW_CAP=0.5` — cross-domain transfer on the KNOW side: confidently-related KNOWN domains (`udm.similar_domains`) each lend `similarity × neighbor's OWN satisfaction` (ONE hop), noisy-OR'd, capped. **LIVE on 83/94 domains** (unlike stakes). Distinct from operator transfer (`transfer_relation`).
-- **`async _domain_operability(domain_id)`** + `_OPERABILITY_BAND=0.3`/`_FLOOR=0.2`/`_CEIL=0.99` — composes it: `bar = clamp(stakes − BAND·(earned−0.5), FLOOR, CEIL)` (earned = `udm.operating_reliability`, Wilson lower bound); `effective = noisy-OR(own, borrowed)`; `operable = effective ≥ bar`. Reports own/borrowed/effective separately; reasons `unknown-domain` / `satisfied` / `satisfied-via-transfer` / `below-bar-researching|earning`.
+`_react_pursue_frontier` is **the developmental drive**. It is registered at low priority so the reactions
+that *update* the state — induction to competence, domain expansion, environment investigation — run first
+on the same event and the pursuit reads the post-update self. It is coalesced single-flight
+(`_coalesced_pursue`), running one `_run_exploration_cycle`. A boot kick resumes it after a restart.
+Evidence: `INTRINSIC-EVENTDRIVEN-01`.
 
-#### C — Execution faculty (substrate-first, model-free)
-- **`execute_task(task)`** (12009) — public entry (agent factory `agents.py:303`, experiments): `_execute_grounded_operator` → `_drive_substrate_goal` → `_execute_operation`; else an **honest gap** (`success:False, model_free:True`).
-- **`_execute_and_validate_task(task)`** (8128, ~820 lines, largest) — the real per-task path (from `_launch_task`); executes then decides completion from the task's completion belief `G` (no separate validator); binds the per-task `ActionContract`. **Producer of the EARNED operability signal:** records `udm.record_operating_outcome(domain, success)` for domain-tagged NON-drive tasks (domain from `provenance` OR `metadata`; drive goals feed competence — see B2). `success` = the goal-holds posterior ≥ 0.5 (operating-CORRECTNESS), not the cautious ~0.95 done-acceptance — so correct-but-not-yet-accepted work still earns operating trust. Full loop proven end-to-end in `experiments/INTEGRATION-LOOP-01` (6/6, real coordinator + world).
-- **`_execute_grounded_operator(task)`** (11320) — deterministic execution of a VALIDATED operator; re-establishes authority + world vs *current* state.
-- **`_drive_substrate_goal(task)`** (11194) — plans a STATE goal over learned operators; the re-observed world decides success.
-- **`_execute_operation(task)`** (11861) — the ONE operation path (no per-TaskType switch): declared tools or the knowledge loop.
-- **A question's look-up is work** (2026-10-24): the front door gives the person's conversation `_looking_up` (`_look_up_as_work`), so a question that needs a look-up queues a RESEARCH task carrying the question (`told_taken_on`, the person's conversation) and is answered "I don't hold X yet; I'm looking it up." (`Understanding.looking_up`); whichever instance takes it (a worker, while one is alive) answers it through the knowledge loop, and the ended work is said to the person (`_speak_of_ended_work`). A conversation without `_looking_up` (the door's /check, a test, the knowledge loop's own) looks up in the turn as before. A look-up that found nothing ends saying so, not "no substrate handler".
-- `_execute_declared_tools` (11889) · `_answer_via_knowledge_loop` (11953, via the single `understand` loop) · `_run_tool` (11708) · `_appraise_tool_outcome` (11779) · `_observe_tool_belief` (11845) · `_record_tool_metrics` (11822) · `_record_execution_demonstration` (11556) · `_appraise_substrate_execution` (11656) · `_execute_drive_goal` (6116, an intrinsic DRIVE goal as real learning).
-- Bring-up: `initialize_execution_faculty` (11004, binds `tool_registry`), `_ensure_dotenv_loaded` (11027), `_config_value` (11069), `_observe_world` (11085), `_derive_goal_spec` (11101), `_pursue_described_goal` (17760).
-- Adaptive type/experience: `_task_family_for`, `_record_adaptive_type_outcome`, `_record_experience_outcome`, **`_select_adaptive_task_type`** (the MetaLearner's CONTROL `tasktype:` arms; **None when no arm passes the production gate** — the exploration cycle then queues no task for that goal this cycle, and the decision still counts toward the exploration budget; the keyword match on the description that used to answer is deleted), `_recall_similar_task_experience` (8005), `_select_retry_method` (8060), `_extract_task_outcome` (7977).
+**Expensive work is coalesced.** `_react` starts one single-flight reaction unless it is already running;
+`_coalesced_induction_drain` drains to completion; `_coalesced_domain_expansion` is progress-bounded;
+`_coalesced_domain_discovery` is a full sweep; `_coalesced_motivation_refresh` drains a dirty flag so a
+burst of competence changes costs one refresh. `_stop_reactions` stops every one before anything they read
+closes.
 
-#### D — Grounded completion (DID / SAW belief pipeline)
-- **`knowledge_domain_of(task_type, declared_domain)`** / **`_task_domain(task)`** — the knowledge domain a task acts in, from what the task IS: a declared `domain_id`, else None. Replaced a keyword classifier over the description, which filed every remediation (its contract text says "investigate") under `scientific` → biology. Task outcome records carry it as `knowledge_domain`; `_expand_one_outcome` and `_task_outcomes_by_field` derive it the same way for old records and mark an outcome with no domain `no_knowledge_domain`. · `_completion_domain` (operation bucket: `op:<tools>`, else the task's domain, else `task:<type>`) · **`_derive_completion_anchor`** (7685, the proposition `G`) · **`_mint_completion_belief`** (7712, LOW prior in the task's domain) · **`_observe_completion_evidence`** (7753, moves on INDEPENDENT groundings only) · **`_gather_did_evidence`** (7793, DID = the intervention's own report) · `_did_intent_achieved` (7837) · **`_saw_reobserve`** (7849, SAW = a fresh independent measurement — re-observes filesystem tools by `intervention_target`, learned facts by re-retrieval, AND a grounded operator's world effects via a FRESH `get_binding_registry().observe_world(domain)`: without that last path a grounded op had only DID≈0.72 and could never reach the 0.95 band, so verified successes were marked failed — see INTEGRATION-LOOP-01) · `_saw_memory_holds` (7889) · **`_independent_groundings`** (7901, drop derived/group) · **`_decide_completion`** (7915, DONE iff `G`'s posterior reaches the acceptance band).
-- **`perceive(classifier, instance, instance_id, ...)`** (7967) — the one recognition primitive: recognize AND let confidence govern ACT / VERIFY / ABSTAIN against the completion acceptance band, then **emit `PERCEPT_RECOGNIZED`** so the decision governs behaviour via the spine (no caller re-decides). WIRED: called by `see` when a recognizer is attached (`attach_recognizer`), and reachable directly. Records the recognition into the perceptual awareness hub (awareness-only).
-- **`attach_recognizer(domain, classifier)`** (8031) — wire a route's sensation to its recognition; a classifier attached to a domain makes `see` chain sensation→`perceive`.
-- **`integrate_epistemic_affect()`** (1753) — the body relays reasoning→emotion: asks `neural_bridge.epistemic_affect_signal()` (how knowledge MOVED, any source) and hands it to appraisal. Interprets nothing; changes no belief and no decision (knowledge→feeling→disposition only). Called by `_react_affect`.
+## 6. What the scheduler runs
 
-#### E — Event spine + reactions
-- `register_completion_callback` (1576) · `_execute_completion_callbacks` (8946, from `_execute_and_validate_task`) · **`on(event_type, handler, *, name, mode, priority)`** (1625) · **`emit(event)`** (1651, sync reactions inline in priority order/isolated, deferred queued to the worker; `_max_emit_depth` guard) · `_start_reactive_worker` (1679) · **`_reactive_drain_worker`** (1685, woken by `emit`, never on an interval).
-- Reactions: `_react_affect` (1707, the reference reaction), `_react_induce` (1864), `_react_expand_outcome` (1891), `_react_resolve_transfers` (1919), `_react_crystallize_taught` (1928), `_react_job_completed` (4372), `_react_competence_changed` (1835), `_react_integrity_reaudit` (1823), `_react_close_deficit` (4401).
-- **`_react_pursue_frontier`** — THE developmental drive, event-driven: registered on COMPETENCE_CHANGED / OUTCOME_OBSERVED / EVIDENCE_ADMITTED / ENVIRONMENT_ENCOUNTERED / DEFICIT_DIAGNOSED (LOW priority, so state-updating reactions run first); coalesced single-flight (`_coalesced_pursue`) runs ONE `_run_exploration_cycle`. A completed pursuit emits the events that wake the next → self-sustaining, quiet when nothing changes. A boot kick in `start_background_tasks` resumes it after a restart. REPLACES the retired idle-timer exploration poll (INTRINSIC-EVENTDRIVEN-01).
-- Support: `_coalesced_motivation_refresh` (1849), `_register_deficit_unknown` (4522), `_deficit_is_closed` (4554), `_mark_reflection_due` (4577); integrity watcher `_integrity_watched_paths` (1715), `_start_integrity_watcher` (1738).
-
-#### F — What the scheduler runs
-
-Background work is not a tier system: it is **seven recurring jobs**, each sampling state that drifts
+Background work is not a tier system. It is **seven recurring jobs**, each sampling state that drifts
 continuously and has no discrete event to react to. Everything that can be driven by an event is.
 
-- **`_register_idle_subsystems()`** (13636) — hands each job to
-  `task_queue.schedule_recurring(name, method, interval, priority)`. The authority's scheduler fires it on
-  the **background budget**, separate from the acting cap, so a job can never take an acting slot, and
-  records each one's runs and errors on the job itself. The coordinator no longer owns cadence, nothing
-  here loops on its own interval, and nothing schedules outside the authority. A tier naming a method that
-  does not exist **raises**: a missing method is a wiring defect, surfaced loudly, never skipped into a
-  green count.
+`_register_idle_subsystems()` hands each to `task_queue.schedule_recurring(name, method, interval,
+priority)`. The scheduler fires them on the **background budget**, separate from the acting cap, so a job
+can never take an acting slot, and records each one's runs and errors. The coordinator owns no cadence,
+nothing here loops on its own interval, and nothing schedules outside the authority. A registration naming
+a method that does not exist **raises** — a wiring defect is surfaced loudly, never skipped into a green
+count.
 
 | Job | Method | Priority | Interval |
 |---|---|---|---|
@@ -149,59 +184,260 @@ continuously and has no discrete event to react to. Everything that can be drive
 | `affect_refresh` | `_refresh_affect` | high | 60 s |
 | `system_awareness` | `_run_system_awareness_cycle` | medium | 60 s |
 
-`idle_system_state_refresh` is the sole writer of `system_state.resource_usage`, its timestamp and its
-performance metrics, which the constitution's law-compliance check reads live. It had been dead, leaving
-the constitution with stale values from initialisation.
+`idle_system_state_refresh` is the **sole writer** of `system_state.resource_usage`, its timestamp and its
+performance metrics, which the constitution's standing assessment reads live. It had been dead, leaving the
+constitution with values from initialisation.
 
-**Ten routines that were timed are reactions on the event spine now** (§E): `_idle_system_review_work`,
-`_idle_knowledge_refresh_work`, `_idle_self_improvement_work`, `_idle_meta_learning_work`,
-`_learning_phase`, `_idle_analogy_discovery_work`, `_idle_operator_exploration_work`,
-`_idle_operator_induction_work`, `_idle_self_optimization_work` and `_idle_abstraction_work` are no
-longer defined. Operator induction and exploration, abstraction, transfer resolution and outcome expansion
-run when an outcome is observed, evidence is admitted or competence moves, rather than on a timer that
-fires whether or not anything happened. Self-improvement went with self-modification.
+`_check_constitution_integrity` both verifies the governing machinery and **takes up code that changed on
+disk** — the adoption path in [constitution.md](constitution.md) §10.
 
-**Still defined and still used, outside the scheduler:** `_idle_domain_expansion_work`,
-`_idle_domain_discovery_work`, `_check_constitutional_alignment` and `_run_exploration_cycle`, the last
-driven by a pursuit rather than by a timer.
+Ten routines that were timed are reactions on the spine now, and are no longer defined:
+`_idle_system_review_work`, `_idle_knowledge_refresh_work`, `_idle_self_improvement_work`,
+`_idle_meta_learning_work`, `_learning_phase`, `_idle_analogy_discovery_work`,
+`_idle_operator_exploration_work`, `_idle_operator_induction_work`, `_idle_self_optimization_work`,
+`_idle_abstraction_work`. Self-improvement went with self-modification.
 
-#### G — Reasoning / prediction APIs
-- **`reason_about(question, context, ...)`** (3332) — answer with the substrate; returns a `ReasoningResult`, never None (`model_available` 3307, `agent_allowance` 3313, `_model_calls_on` 3429). Keeps no memory of its own: the one memory of the reasoning is the memory agent's (`take_in_reasoning`, with the reason and whether it was verified); it wrote a second, "I was asked: ...", until 2026-10-23.
-- **`perform_cross_domain_reasoning(query_text, ...)`** (3493).
-- **`predict_system_behavior`** (3444) · **`make_enhanced_prediction`** (3617) · **`get_domain_insights`** (3685) — **all VESTIGIAL: 0 callers.**
-- No self-modification API: the substrate improves only by learning (the learning authority). The governed `change_*` / `allocate_resources` / `_apply_self_modification` path and the `SELF_MODIFIED` event were removed 2026-09-15.
-- `set_goal` (2073, STATE goal via `extract_state_conditions` 2042) · `generate_curiosity_driven_goals` (2118, from `_run_exploration_cycle` + tests).
-- Memory helpers: `store_memory` (2388), `search_memories` (2726), `get_intelligent_memory_context` (3203), `_build_memory_narrative` (2214), `_store_governance_block_meta_memory` (2484), `_store_task_outcome_meta_memory` (2545), `_infer_domain_from_task` (2643).
+Still defined and used outside the scheduler: `_idle_domain_expansion_work`, `_idle_domain_discovery_work`,
+`_check_constitutional_alignment`, and `_run_exploration_cycle` — the last driven by a pursuit rather than
+a timer.
 
-#### H — Health integration
-- **The coordinator holds no health region.** `_receive_health_event` and its support,
-  `_diagnose_health`, `_health_action_risk`, `_execute_recovery`, `_verify_recovery` and
-  `_create_recovery_goal_from_health_event`, are not defined here, and neither is the
-  `MonitoringCoordinator` whose callback they were wired into. Health is monitored by `self.health_monitor`
-  (8608) and supervised from outside the process by `core/guardian/supervisor.py`, so that a watchdog whose
-  job is to survive a crash does not die in it. **What a health verdict reaches, and what it does not, is
-  the open question here:** the loop receives a count, and `DEFICIT_DIAGNOSED` fires on task failure.
-- Health is the health monitor's alone: it checks every component every 30 s. The idle health tier, the idle work playbook it ran, its step log and the coordinator's recovery-manager handle were REMOVED 2026-10-01. (The security audit worker, its 120s tier, `handle_security_finding`, the remediation callback and the integrity watcher were REMOVED 2026-09-14; world security is the Tet world factory's security-audit agent.)
-- Constitution: `_check_constitutional_alignment` (9516, idle tier) · `_check_constitutional_alignment_quick` (9653, **VESTIGIAL: 0 callers** — the every-cycle quick check left dead when the poll loop was retired).
+## 7. The self
 
-#### I — Conversation / teach
-- **`conversation(session="default", *, db=None)`** (3767) — a `Conversation` bound to this substrate (understands a sentence + answers through the brain that owns reasoning/memory/language).
-- `handle_user_request(...)` — **the front door**, typed or heard alike (called by `core.perception.live` for what is said to it and by Tet's turn channel). It takes the turn (`_take_turn`: `_request_kind`, a turn about the substrate's OWN work answered from the queue authority by `_about_my_work` — what it is doing, whether it finished, stop it (`stop_work` → `QueueAuthority.cancel`, waiting or running), keep going — a request not to act answered and never made a job, `_answer_from_what_is_held`, else work queued and said "I'm on it") and returns its reply with whatever the substrate owes that person and no listening front end took (`_with_what_waits`, from the outbox); `metadata={"notices": True}` asks for that alone. `set_reply_debug` switches reply detail. (WORK-TALK-01)
-- **Speaking first** (MESSAGE-01) — `speak_to(actor, text, why, about, at)` owes a person a message in the durable outbox (`outbox.py`, `unified.outbox`), due now or at a moment, and records it in their conversation (`Conversation.note_said`); `on_message(actor, listener)` is a front end listening for that person, pushed each message the moment it is due (and anything already waiting); delivered once (`mark_delivered`, by `push`/`reply`/`asked`); a later message is delivered by the queue authority's timed job, and `_rearm_messages` arms what is still owed at boot (in `start_coordination`, beside `restore_pending`). Work a person asked for that ENDS is said by the substrate itself: the queue authority announces it (`on_work_ended`) and `_speak_of_ended_work` tells them how it ended and what it found. The live senses listen for the person in the room.
-- **Asking before an act** (CAPABILITY-EMERGE-01) — when a task's declared steps are an instance of a capability not unlocked for its person, `_execute_declared_tools` returns `awaiting_person` before the act and keeps the run on the task (`capability_run`: method, acts done, the act asked about, the act confirmed). `execute_task` and `_execute_operation` pass it up untold and unreconciled; `_execute_and_validate_task` hands it to `_wait_for_person`, which holds the job (`QueueAuthority.hold_for_person`) and asks once for that act (`speak_to`, why `confirm`). `_about_my_work` reads "Yes." (`go`: `go_on_with` → `resume_task`) and "No." (`decline`: `stop_work`) as answers to that question; `_doing_said` says a held job as the question it waits on. `shutdown()` stops the queue authority, releasing this instance's lease so what it owes is claimed by the next instance at once.
-- `teach(sentence)` (25343) lives on the **`Conversation`** class (23221), reached via `conversation()`; `understand` (26197), `say` (26799), `_hand_over`/`_hand_over_turn` (26109/26128); `get_conversation`, `end_conversation` and `held_conversations` are module level. What a turn admits goes through the cognitive ingress (`architecture/semantics-ingress.md`), not through a method of this class.
-- **`look_up(phrase)`** (Conversation) — research a genuine gap via the `web_search` tool, with a **process-wide single-flight** (`_LOOKUPS_INFLIGHT`, module-level, keyed by `normalize_term(phrase)`): one self behind up to 64 sessions, so a crowd asking the same unknown at once collapses to ONE real research + ONE shared-store write, the rest piggyback on the same Future (`_research_phrase` holds the old body). NOT a cross-time cache (entry lives only while in flight → a later ask re-verifies). Benchmark: `experiments/LOOKUP-SINGLEFLIGHT-01`.
-- Perception: `see(path, ...)` and `hear(path, ...)` — two named doors onto one act, `_perceive_file` (sense → remember → admit → name → judge → hand over as an experience). `_DOORS` says what each opens: `see` images, videos and documents; `hear` recordings and videos (a video is seen AND heard on one percept). `remember_image` keeps the picture and its gist; `remember_sound` keeps a trace of the sounds, never the recording; `recall_media` returns what was stored; `recollect(memory_id)` REBUILDS what a memory met (a sound from its trace, a picture from its gist), which is how the substrate remembers; `_image_caption`. The environment scan sees images and hears sound files (`_ENV_SOUND_EXTS`). `learn_word(word, path)` and `learn_voice(person, path)` teach by HEARING: `_hear_lesson` runs `_perceive_file` with a `lesson`, so the example is sensed, admitted, judged, remembered and handed over as any hearing is; `remember_sound` tags the memory with what it taught and keeps the measured example in its trace; once remembered, the faculty takes it in (`hold_lesson`). What was said and whose voice said it are claims of the hearing like any other: `_sensed_claims` adds `<subject> said <word>` and `<subject> spoken_by <person>`, and `remember_sound` keeps `said`, `heard_text` and `spoken_by` in the perceived structure, so the memory reads in words.
+Composed from the faculties, derived, and **honest about what is missing**: every accessor returns None
+rather than a default when nothing has been measured.
 
-#### J — Capability plug-in system (archived 2026-10-04)
-`register_capability`, `unregister_capability`, `_execute_registered_capabilities` and `_check_capability_conditions` were archived with the old capability discovery (`archive/superseded_capability_discovery_2026-10-04`): nothing registered a job and nothing called the runner. Capabilities are now the capabilities faculty (`coord.capabilities`, `core/capabilities.py`). **Vestigial:** `_handle_idle_state` (9511) is legacy/0-callers; `process_input` (2016) + `_analyze_for_goal_creation` (10262) have no live callers. `_learning_phase` (9731) + `_apply_learning_recommendation` (10282) are alive via `idle_learning`.
+| Accessor | What it reads |
+|---|---|
+| `state()` | Composes the whole self; `SelfState` (27328) is the snapshot |
+| `render(audience)` | The self as language, from `state()`. No model |
+| `identity_prompt(role)` | The stable identity statement |
+| `_interoception` | The measured interoceptive variables, from appraisal's current state |
+| `_attitude` | Derived emotions — eagerness, doubt, frustration, satisfaction, valence, attribution. None if unappraised |
+| `_temperament` | The standing drives — what it is, before any situation |
+| `_drives` | How strongly each drive is active now |
+| `_values` | The laws it is bound by, read from the constitution, not restated |
+| `_competence` | What it is actually good at — the operators it has **validated**, per domain |
+| `_purpose` | What it is for — the **active** directives |
+| `_continuity` | Who it has been, from durable state only |
+| `_development` | How developed it is — a global read of how much it holds and has lived |
+| `_situation` | Where it is, the outward half of the self |
 
-#### Agent-of-self deployment
-`deploy_agent` (1390) · `await_agent` (1414) · `collect_agent_findings` (1422) · `pending_agents` (1431) — via the bound `agent_coordinator`. `deploy_agent` has **0 in-repo callers** (bound, not yet invoked).
+`disposition(*, slots_available, queue_pressure)` turns the standing disposition into a
+`BehavioralDirective`. `_refresh_directive_guidance` refreshes the directive-driven knobs from the active
+directives.
 
-### 4. Feeds / holds
-**Holds and drives (down):** the learning and belief authority, memory, the neural bridge, the domain master and registry, intrinsic motivation, vision, the constitution with its reading and record, the behaviour arbiter, drift, appraisal, threat sense, the directive system, predictive intelligence, meta-learning and the causal analyzer, the health monitor, the capability register, the outbox, and the QueueAuthority. Each is one pipeline within the one process.
-**Driven by (up):** `main.py` (constructs, injects, initializes/starts); the cognition loop (pulls its own next task from the shared QueueAuthority); the event spine (`emit`/`on` reactions + drain worker); the QueueAuthority scheduler (owns the cadence of all idle tiers); health/security callbacks (`_receive_health_event`, `handle_security_finding`, remediation-complete); the agent factory (`execute_task`) and experiments/tests.
+`integrate_epistemic_affect()` relays reasoning to emotion: it asks the neural bridge how knowledge **moved**
+and hands that to appraisal. It interprets nothing and changes no belief and no decision — knowledge to
+feeling to disposition only.
 
-### Vestigial (present but 0 wired callers — the code-flip punch-list)
-`perceive`, `predict_system_behavior`, `make_enhanced_prediction`, `get_domain_insights`, `_handle_idle_state`, `_check_constitutional_alignment_quick`, `process_input`/`_analyze_for_goal_creation`, `deploy_agent` (bound, not invoked). (`_idle_abstraction_work` exists but is intentionally not scheduled — abstraction is event-driven.)
+## 8. Where it is
+
+`_observe_environment` reads the host live — platform, release, machine, hostname, user, root — with
+nothing hardcoded, and the environment's identity is a hash of the facts that make the place the place.
+`_situate` establishes it as a first-class **environment domain** and notices if it is new;
+`_register_environment` is the one registration for every place, through the one domain authority, with a
+maximum-uncertainty competence belief so the place surfaces to be investigated, and emits
+`ENVIRONMENT_ENCOUNTERED` when new.
+
+`situate_device(report, actor_identity)` does the same for a device a person operates Lyric through. The
+device answers for itself: its kind (platform, release, model, form, maker), its surface (what exists on it
+at all), and the person's settings. **The kind is the place**, keyed by what it is rather than whose it is,
+so a second device of the same kind is not new. Evidence: `DEVICE-01` (20/20).
+
+`_react_investigate_environment` holds every fact observed and each surface capability as `offers`, with
+negative polarity for one that is not there. Only a place with a root gets its folder scanned.
+
+## 9. Perceiving
+
+**One act of perceiving.** `perceive_moment(things)` takes in everything met at one moment, by every sense
+that can take something from it, at the same time, as one experience. Four named doors open onto it:
+
+| Door | Sense | Opens |
+|---|---|---|
+| `see(path)` | sight | images, videos |
+| `hear(path)` | hearing | recordings, and the sound track of a video |
+| `read(path)` | reading | PDFs, Word, Excel, any file of text |
+| `take_in(path)` | every sense that can | one real file |
+
+A video is seen **and** heard on one percept. `_sense_and_recall` takes the file in by every sense that can
+and asks memory, by what was sensed, what it already holds; `_heard_before`, `_seen_before` and
+`_read_before` recall the earlier encounters of the same thing.
+
+`remember_met` keeps what was met — a picture and its gist, a trace of sounds but never the recording.
+`recall_media` returns what was stored; `recollect(memory_id)` **rebuilds** what a memory holds of what was
+met, which is how the substrate remembers.
+
+**Teaching by perceiving**: `learn_word`, `learn_voice`, `learn_phones`, `learn_song` and `learn_thing` are
+the same act with a lesson attached (`_hear_lesson`) — the example is sensed, admitted, judged, remembered
+and handed over as any perceiving is. What was said and whose voice said it are claims of the hearing like
+any other (`_sensed_claims`).
+
+**Recognition is one primitive.** `perceive(classifier, instance, ...)` recognises and lets the posterior
+govern ACT / VERIFY / ABSTAIN against the same acceptance band the completion decision uses, then emits
+`PERCEPT_RECOGNIZED` so the decision governs behaviour through the spine instead of each call site
+re-deciding. `attach_recognizer(domain, classifier)` wires a route's sensation to its recognition, which is
+what makes `see` chain sensation to recognition. `recognise_sensed` names what was seen **without being
+asked**; `describe_kind` says what a kind looks like from what sight observed of its instances.
+
+## 10. Taking work on
+
+| | |
+|---|---|
+| `handle_user_request` | **The front door** — one turn from a person, typed or heard alike |
+| `_take_turn` | Takes the turn: its kind, a turn about the substrate's own work, an answer from what is held, else work queued and "I'm on it" |
+| `_about_my_work` | Answered from the queue authority: what it is doing, whether it finished, stop it, keep going |
+| `stop_work` | Because they asked — the queue authority cancels, waiting or running |
+| `_answer_from_what_is_held` | Answer out of the concept store and memory, and remember the exchange |
+| `set_goal` | Set itself a goal and take it on: its intent formed, its work queued |
+| `generate_curiosity_driven_goals` | Goals from curiosity and exploration targets |
+| `execute_task` | The public entry, substrate-first |
+
+A request **not** to act is answered and never made a job. `set_reply_debug` switches reply detail. Evidence:
+`WORK-TALK-01`.
+
+**Speaking first.** `speak_to(actor, text, why, about, at)` owes a person a message in the durable outbox,
+due now or at a moment, and records it in their conversation. `on_message(actor, listener)` is a front end
+listening for that person, pushed each message the moment it is due and anything already waiting; each is
+delivered once. A later message is delivered by the queue authority's timed job, and `_rearm_messages` arms
+what is still owed at boot. Work a person asked for that **ends** is said by the substrate itself:
+the queue authority announces it and `_speak_of_ended_work` tells them how it ended and what it found.
+Evidence: `MESSAGE-01`.
+
+**Asking before an act.** When a task's declared steps are an instance of a capability not unlocked for its
+person, the act returns `awaiting_person` **before** it happens and the run is kept on the task.
+`_wait_for_person` holds the job and asks once for that act; "Yes." resumes it (`go_on_with`) and "No."
+stops it. Evidence: `CAPABILITY-EMERGE-01`.
+
+## 11. Doing the work
+
+`_execute_and_validate_task` is the real per-task path from `_launch_task`: it executes, then decides
+completion from the task's own completion belief — there is no separate validator. It is also the producer
+of the **earned operability** signal, recording the operating outcome for domain-tagged non-drive tasks.
+Success there is the goal-holds posterior reaching 0.5 — operating *correctness* — not the cautious
+done-acceptance band, so correct-but-not-yet-accepted work still earns operating trust.
+
+`_execute_task_paths` runs the model-free paths in order, or returns the honest gap:
+
+| Path | |
+|---|---|
+| `_execute_grounded_operator` | Deterministic execution of a **validated** operator, re-establishing authority and world against *current* state |
+| `_drive_substrate_goal` | Plans a state goal over learned operators; the re-observed world decides success |
+| `_execute_operation` | The one operation path for every task — no per-type handler switch: declared tools, or the knowledge loop |
+
+`_task_gate` asks the constitution whether the task may begin at all. Each tool runs through `_run_tool`,
+and every tool call reaches the constitution in the tool registry.
+
+**Planning and routes.** `_plan_route` plans a state goal over what the substrate holds; `_route_of` records
+a proved route as the steps that walk it; `_pursue_proved_route` runs it and closes it out;
+`_perform_reading_step` reads a file the route is about to act on, **because the law requires it**;
+`_worth_planning_again` decides whether a stopped walk has something new to plan over. `_premise_gone`
+retires a goal whose premise no longer holds.
+
+**Why work exists.** `intend` records why at the moment the work is taken on; `_reconcile_intent` and
+`_reconcile_plan_intent` attach what actually happened; `conclude_pursuit` closes the pursuit with what
+ended it. `_account_for_creation_steps` records why each step that must make something is happening.
+
+**Learning from acting.** `_learn_what_the_act_did` closes the frame and files what the act did as a
+demonstration; `_record_execution_demonstration` files one executed action for the learner;
+`_record_calibration_outcome` records whether the confidence was earned — the pair that makes calibration
+real; `_appraise_substrate_execution` and `_appraise_tool_outcome` report to appraisal in measured signals
+only.
+
+**Plain words to tools.** `_tools_for_request` decides which tools do what a person asked, from what they
+asked as Lyric read it. Each tool's own description is **read** for what it says it does
+(`_read_tools_by_doing`, `said_of`, `doing_said`), so a tool is selected by the doing it names rather than
+by a keyword table. `ready_to_read` warms what that needs before anyone is read to.
+
+## 12. Grounded completion — DID and SAW
+
+A task is done when the substrate's own belief that the goal holds reaches the acceptance band. Nothing else
+decides it.
+
+| | |
+|---|---|
+| `_derive_completion_anchor` | The completion proposition `G` for the task |
+| `_completion_domain` | The task-specific domain the belief and its outcome memories live in |
+| `_open_completion` | Opens `G` at the **low** prior, on the task itself |
+| `_expected_outcomes` / `_stated_outcomes` | Everything the task is expected to leave true |
+| `_gather_did_evidence` | **DID** — the intervention's own report that it produced the effect |
+| `_saw_reobserve` | **SAW** — a fresh, independent measurement of the resulting world state |
+| `_rerun_check` | Runs a check again against a disposable copy of the end state it checked |
+| `_saw_memory_holds` | Fresh independent retrieval: is the claim actually held now? |
+| `_independent_groundings` | Reduces raw evidence to independent groundings — derived items dropped, the rest grouped |
+| `_observe_completion_evidence` | Moves the belief on independent groundings, one belief per grounding |
+| `_decide_completion` | Done from the posterior, against the band |
+| `_acceptance_band` | `(verification_intensity, accept)` — the same band `perceive` uses |
+| `_corroborated` | The most caution may ask: two independent strong groundings |
+
+DID alone cannot reach the band. A grounded operator that had only its own report sat at roughly 0.72 and
+could never reach 0.95, so verified successes were being marked failed until `_saw_reobserve` learned to
+re-observe a grounded operator's world effects through a fresh `observe_world`. Evidence:
+`INTEGRATION-LOOP-01` (6/6, real coordinator and world).
+
+## 13. Closing an epistemic deficit
+
+When planning cannot reach a goal, the domain authority diagnoses **why** and `DEFICIT_DIAGNOSED` carries
+the typed deficit. `_react_close_deficit` acts on it — reactively, model-free, and only when the disposition
+and the deficit's kind both allow. Exploration runs off the acting path.
+
+Closing moves the belief authority too: `_register_deficit_unknown` registers the ignorance as a
+known-unknown, and `_deficit_is_closed` resolves it **only** on a close verified against the world. A goal
+given up for want of something learnable waits (`_await_knowledge`) and is drawn again once it is there
+(`_revisit_awaiting`).
+
+## 14. Reasoning and prediction
+
+`reason_about(question, context)` answers with the substrate and returns a `ReasoningResult`, never None.
+It keeps no memory of its own — the one memory of the reasoning is the memory agent's, recorded with the
+reason and whether it was verified. `agent_allowance` says how many agents-of-self a reasoning kind warrants
+in parallel. `perform_cross_domain_reasoning` reasons across domains through the universal domain master.
+
+`_attend_to_expectations` wires the predictive intelligence system's world expectations to this body, and
+`_predict_and_resolve_system_state` closes the world-model loop: predict, wait, observe, score.
+`_observe_system_performance` is the observable a system-performance prediction is scored against.
+
+**There is no self-modification API.** The substrate improves only by learning. The governed `change_*` and
+`allocate_resources` path, `_apply_self_modification` and the `SELF_MODIFIED` event were removed on
+2026-09-15. What the development team changes on disk enters through the constitution's adoption path.
+
+## 15. Agents of self
+
+`deploy_agent(description, allowed_tools)` deploys an agent of self through the bound agent authority;
+`await_agent` blocks until one returns; `collect_agent_findings` takes every agent that has come back since
+the last collect without blocking; `pending_agents` names those still running. Findings come back as
+`JOB_COMPLETED`.
+
+## 16. Health
+
+**The coordinator holds no health region.** Health is the health monitor's alone (`self.health_monitor`),
+which checks every component on its own cadence, and it is supervised from outside the process by
+`core/guardian/supervisor.py`, so a watchdog whose job is to survive a crash does not die in it.
+
+What reaches cognition is a **count**: `_health_counts` reads how many components are graded, how many were
+last graded below healthy, and when. `DEFICIT_DIAGNOSED` fires on task failure. A health verdict does not
+otherwise reach the cognitive loop.
+
+`_check_constitutional_alignment` asks the constitution for its standing assessment.
+
+## 17. Feeds and holds
+
+**Holds and drives:** the learning and belief authority, memory, the neural bridge, the domain master and
+registry, intrinsic motivation, perception, the constitution with its reading ledger and durable record,
+the behaviour arbiter, drift, appraisal, threat sense, the directive system, predictive intelligence,
+meta-learning, the causal analyzer, the health monitor, the capability register, the outbox and the queue
+authority. Each is one pipeline within the one process.
+
+**Driven by:** `core/main.py` (constructs, injects, initializes, starts); the cognition loop pulling its own
+next task from the shared queue authority; the event spine; the queue authority's scheduler, which owns the
+cadence of every recurring job; the agent factory through `execute_task`; and the experiments.
+
+## 18. Evidence
+
+| | |
+|---|---|
+| `experiments/INTEGRATION-LOOP-01` | The whole loop end to end on a real coordinator and world, 6/6 |
+| `experiments/INTRINSIC-EVENTDRIVEN-01` | The developmental drive as reactions rather than a timer |
+| `experiments/INSTANCES-01` | Workers on one store |
+| `experiments/systems/DEVICE-01` | Learning a device as a place, 20/20 |
+| `experiments/MESSAGE-01` · `WORK-TALK-01` · `CAPABILITY-EMERGE-01` | Speaking first, talking about its own work, asking before an act |
+| [../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md](../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md) | Results, with the negative ones |
