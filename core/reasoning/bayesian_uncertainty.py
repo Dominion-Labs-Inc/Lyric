@@ -15,7 +15,7 @@ import logging
 import math
 import time
 import uuid
-from typing import Dict, Any, List, Optional, Tuple, Set
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
@@ -2142,6 +2142,12 @@ class BayesianUncertaintySystem:
         "belief_id VARCHAR(64) NOT NULL REFERENCES unified.beliefs(belief_id) ON DELETE CASCADE, "
         "supports BOOLEAN NOT NULL, entry JSONB NOT NULL)",
         "CREATE INDEX IF NOT EXISTS idx_belief_evidence_belief ON unified.belief_evidence(belief_id, seq)",
+        # HOW OFTEN A BELIEF HAS BEEN BORNE OUT, as its own evidence says (`review_against_evidence`): the
+        # observations that bore it out, the observations that did not, and when they were last counted. A
+        # withdrawal is neither: a teaching taken back is not the belief being wrong.
+        "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS supported INTEGER",
+        "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS opposed INTEGER",
+        "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
     )
     _beliefs_schema_ready = False
 
@@ -2473,6 +2479,71 @@ class BayesianUncertaintySystem:
                 'beliefs_removed': 0,
                 'error': str(e),
             }
+
+    async def review_against_evidence(self, resume_at: Optional[str] = None, *, batch: int = 2000,
+                                      stand_down: Optional[Callable[[], bool]] = None) -> Dict[str, Any]:
+        """THE SUBSTRATE READS ITS OWN EVIDENCE BACK AND RECORDS HOW OFTEN EACH BELIEF HAS BEEN BORNE OUT.
+
+        Nothing did this. Reflection is belief-graph hygiene -- decay, consistency, volatility, schema decay -- and
+        not one of its steps opens `unified.belief_evidence`. So the substrate held 1,022,193 beliefs, 99.95% of
+        them at a confidence of 0.9 or more, while holding 1,783,544 observations about whether they had actually
+        been borne out, and never once looked (lyric_db, 2026-11-19).
+
+        WHAT IS WRONG IS NOT THE ARITHMETIC. A belief's log-odds are its evidence summed, and the sum is right:
+        evidence adds without a cap, so a claim many observations bear out is held more firmly than one a few do,
+        which is what log-odds are for and must not be capped. What is lost is in the SUMMARY. A belief at 11,337
+        log-odds and one at 30 both read as `confidence 1.0000`; the first is borne out two times in three across
+        30,000 observations and the second has never been contradicted, and nothing downstream can tell them apart
+        because confidence is all anything downstream reads. The rate is already in the store. This records it
+        beside the belief so it can be asked for.
+
+        IT CHANGES NO BELIEF. No confidence moves, no log-odds moves, nothing is deleted. It writes three columns
+        that say what the evidence says, and leaves what is held exactly as it was: a belief borne out two times
+        in three is a perfectly good belief, it is simply not a certainty, and saying so is not the same as
+        overruling it.
+
+        A WITHDRAWAL IS NOT A FAILURE, and counting it as one is the mistake this was nearly built on. Half of all
+        opposing evidence in the store carries `withdraws` -- a teaching taken back, whose quality is what that
+        word was contributing (`_share_at`) so that taking it back removes exactly what it added. Counted as
+        failures, the worst belief in the model read as borne out 49.4% of the time; counted rightly, 66.1%.
+
+        Walked in `belief_id` order in batches, so it may stand down for a person mid-pass and be taken up where
+        it stopped (`GiveWay`, `QueueAuthority.stand_down_after`): `resume_at` is the last belief reviewed, and
+        `StandDown` carries it out. Reads and writes the STORE, not what this process happens to hold, because
+        the evidence is a fact of the store and a process holds only what it has loaded."""
+        from core.utils.give_way import GiveWay
+        await self._ensure_beliefs_schema()
+        give_way = GiveWay(stand_down=stand_down)
+        at = resume_at or ""
+        reviewed = 0
+        for store in self.unified_db.schema_stores():
+            if self.unified_db.is_frozen_store(store):
+                continue                      # a frozen release is read: its rows are what they were when cut
+            while True:
+                await give_way(at=at or None)
+                rows = await self.unified_db.execute_query(
+                    "WITH taken AS ("
+                    "  SELECT belief_id FROM unified.beliefs WHERE belief_id > $1 ORDER BY belief_id LIMIT $2"
+                    "), tally AS ("
+                    "  SELECT e.belief_id,"
+                    "         count(*) FILTER (WHERE e.supports) AS supported,"
+                    "         count(*) FILTER (WHERE NOT e.supports AND NOT (e.entry ? 'withdraws')) AS opposed"
+                    "  FROM unified.belief_evidence e JOIN taken t ON t.belief_id = e.belief_id"
+                    "  GROUP BY e.belief_id"
+                    ") UPDATE unified.beliefs b"
+                    "   SET supported = COALESCE(y.supported, 0),"
+                    "       opposed   = COALESCE(y.opposed, 0),"
+                    "       reviewed_at = now()"
+                    "  FROM taken k LEFT JOIN tally y ON y.belief_id = k.belief_id"
+                    " WHERE b.belief_id = k.belief_id"
+                    " RETURNING b.belief_id",
+                    (at, int(batch)), fetch_all=True, commit=True, store=store) or []
+                if not rows:
+                    break
+                reviewed += len(rows)
+                at = max(str(r["belief_id"]) for r in rows)
+        logger.info("reviewed %d belief(s) against their own evidence", reviewed)
+        return {"reviewed": reviewed, "resume_at": None}
 
     async def check_belief_consistency(self) -> Dict[str, Any]:
         """

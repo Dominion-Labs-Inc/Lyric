@@ -214,3 +214,110 @@ def test_the_memory_an_observation_is_of_is_not_stored_twice():
     assert every["b2"][0] == [{"source": "read"}], every["b2"]
     # The memory is read beside the row, never guessed: both reads join the belief it belongs to.
     assert all("unified.beliefs" in sql for sql in store.asked), store.asked
+
+
+def test_the_review_counts_what_bore_a_belief_out_and_changes_no_belief():
+    """THE SUBSTRATE READS ITS OWN EVIDENCE BACK. Reflection is belief-graph hygiene -- decay, consistency,
+    volatility, schema decay -- and not one of its steps opens `unified.belief_evidence`. So the World Model held
+    1,022,193 beliefs, 99.95% of them at a confidence of 0.9 or more, alongside 1,783,544 observations of whether
+    they had actually been borne out, and never once looked (lyric_db, 2026-11-19).
+
+    A WITHDRAWAL IS NOT A FAILURE. Half of all opposing evidence carries `withdraws` -- a teaching taken back,
+    whose quality is what that word was contributing so that taking it back removes exactly what it added.
+    Counted as failures, the worst belief in the model read as borne out 49.4% of the time; counted rightly,
+    66.1%. This test pins that distinction, because getting it wrong is what made a sound belief look broken.
+
+    AND IT CHANGES NO BELIEF: it writes `supported`, `opposed` and `reviewed_at`, and nothing else. A belief borne
+    out two times in three is a good belief that is not a certainty, and saying so is not overruling it."""
+    import asyncio
+
+    class Store:
+        """A store that answers the review's one statement, standing in for Postgres."""
+
+        def __init__(self):
+            self.rows = {"b1": {"supports": [8, 0, 0]}, "b2": {"supports": [6, 3, 5]}}
+            self.written = []
+            self.frozen = "release"
+
+        def schema_stores(self):
+            return ["main", self.frozen]
+
+        def is_frozen_store(self, store):
+            return store == self.frozen
+
+        async def execute_query(self, query, params=None, **kw):
+            if query.strip().startswith(("ALTER", "CREATE")):
+                return None
+            assert "withdraws" in query, "a withdrawal must not be counted as a failure"
+            assert "SET supported" in query and "opposed" in query and "reviewed_at" in query
+            assert "confidence" not in query and "log_odds" not in query, "the review moves no belief"
+            after, _limit = params
+            take = sorted(k for k in self.rows if k > after)
+            if not take:
+                return []
+            self.written.append((kw.get("store"), tuple(take)))
+            return [{"belief_id": k} for k in take]
+
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    system.unified_db = Store()
+    system._beliefs_schema_ready = True
+
+    got = asyncio.run(system.review_against_evidence(batch=10))
+    assert got["reviewed"] == 2, got
+    # A FROZEN RELEASE IS READ, NEVER WRITTEN: its rows are what they were when it was cut.
+    assert [store for store, _ in system.unified_db.written] == ["main"], system.unified_db.written
+
+
+def test_the_review_stands_down_for_a_person_and_says_where_it_stopped():
+    """The review may only run in downtime. It walks in `belief_id` order so it can stop where it is and be taken
+    up from there, rather than starting again and never reaching its end on a substrate that is used at all."""
+    import asyncio
+    from core.utils.give_way import StandDown
+
+    class Store:
+        def __init__(self):
+            self.ids = [f"b{n:03d}" for n in range(200)]
+            self.seen = []
+
+        def schema_stores(self):
+            return ["main"]
+
+        def is_frozen_store(self, store):
+            return False
+
+        async def execute_query(self, query, params=None, **kw):
+            if query.strip().startswith(("ALTER", "CREATE")):
+                return None
+            after, limit = params
+            take = [k for k in self.ids if k > after][:limit]
+            self.seen.extend(take)
+            return [{"belief_id": k} for k in take]
+
+    async def run():
+        asyncio.get_running_loop().slow_callback_duration = 0.0    # ask at every give-way
+        system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+        system.unified_db = Store()
+        system._beliefs_schema_ready = True
+        asked = {"n": 0}
+
+        def busy_after_three():
+            asked["n"] += 1
+            return asked["n"] > 3
+
+        try:
+            await system.review_against_evidence(batch=10, stand_down=busy_after_three)
+            raise AssertionError("it did not stand down")
+        except StandDown as stood:
+            stopped_at = stood.at
+        done = len(system.unified_db.seen)
+        assert stopped_at == system.unified_db.seen[-1], f"it said where it got to: {stopped_at}"
+        assert 0 < done < 200, f"it stopped part way: {done}"
+
+        # Taken up from there, it reviews the rest and none of what it already did.
+        again = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+        again.unified_db = Store()
+        again._beliefs_schema_ready = True
+        got = await again.review_against_evidence(resume_at=stopped_at, batch=1000)
+        assert got["reviewed"] == 200 - done, f"it took up where it stopped: {got} after {done}"
+
+    asyncio.run(run())
