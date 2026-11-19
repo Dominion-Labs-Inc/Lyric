@@ -23,32 +23,49 @@ def _rows(*ids):
     return [SimpleNamespace(memory_id=i, metadata={}) for i in ids]
 
 
-def test_the_mark_says_which_memories_the_index_came_from():
-    """One memory more, one fewer, or one replaced, and the mark differs -- so the work is done again. It does
-    NOT depend on the order the rows came back in, because nothing guarantees that order between starts."""
-    mark = MemoryAgent._word_class_mark
-    taught, unread, stated = _rows("m1", "m2", "m3"), _rows("u1"), _rows("s1", "s2")
-    same = mark(taught, unread, stated)
+def test_the_mark_is_asked_of_the_store_and_costs_no_fetch():
+    """A question that costs the fetch cannot save it. The three sets the warm works the classes out of are
+    592,253 memories and 176 MB, and the only thing worth knowing before reading them is whether they have
+    CHANGED -- so the mark is counted in the store and nothing comes back but a number for each tag.
 
-    assert mark(_rows("m3", "m1", "m2"), unread, stated) == same, "the order rows come back in is not meaning"
-    assert mark(_rows("m1", "m2"), unread, stated) != same, "one memory fewer is other evidence"
-    assert mark(_rows("m1", "m2", "m3", "m4"), unread, stated) != same, "one memory more is other evidence"
-    assert mark(_rows("m1", "m2", "mX"), unread, stated) != same, "one memory replaced is other evidence"
-    assert mark(taught, unread, _rows("s1")) != same, "each kind counts apart from the others"
+    It is counted over the same tables and owners `_rows_tagged` reads, or it would answer for a different set
+    of memories than the work is done from. A count alone would serve a stale answer wherever a memory was
+    replaced rather than added, so the ids are summed too; summed rather than hashed in order, because nothing
+    guarantees the order rows come back in between starts."""
+    import asyncio
 
-    # DETERMINISTIC ACROSS PROCESSES. Python's own `hash` of a string is keyed per process, so a mark built
-    # with it would differ at every start and the index would never once be read back.
-    import subprocess
-    out = subprocess.run(
-        [sys.executable, "-c",
-         "import sys; sys.path.insert(0, %r)\n"
-         "from types import SimpleNamespace\n"
-         "from core.agents.memory_agent import MemoryAgent\n"
-         "r = lambda *i: [SimpleNamespace(memory_id=x, metadata={}) for x in i]\n"
-         "print(MemoryAgent._word_class_mark(r('m1','m2','m3'), r('u1'), r('s1','s2')))"
-         % str(Path(__file__).resolve().parents[1])],
-        capture_output=True, text=True, env={"PYTHONHASHSEED": "1", "PATH": "/usr/bin:/bin"})
-    assert out.stdout.strip() == same, f"the mark must not depend on the process: {out.stdout!r} {out.stderr[-300:]}"
+    class Store:
+        def __init__(self):
+            self.asked = []
+            self.counts = {"admitted_proposition": (592233, 111), "told_but_unread": (20, 7),
+                           "word_class": (94683, 55)}
+
+        def maintained_stores(self):
+            return ["main"]
+
+        async def execute_query(self, query, params=None, **kw):
+            import json
+            assert "count(*)" in query and "md5(memory_id)" in query, query
+            assert "memory_hot" in query or "memory_cold" in query, "both tiers are read"
+            assert "user_id" in query, "the same owners `_rows_tagged` reads"
+            tag = json.loads(params[0])[0]
+            self.asked.append((tag, "memory_hot" in query))
+            n, s = self.counts.get(tag, (0, 0))
+            return [{"n": n if "memory_hot" in query else 0, "s": s if "memory_hot" in query else 0}]
+
+    agent = MemoryAgent.__new__(MemoryAgent)
+    store = Store()
+    agent._memory_db = lambda: store
+    mark = asyncio.run(agent._tagged_mark("admitted_proposition", "told_but_unread", "word_class"))
+    assert mark == "592233:111|20:7|94683:55", mark
+    # Both tiers of each store, for each tag, and nothing else.
+    assert len(store.asked) == 6, store.asked
+    # One memory more and the mark differs, so the work is done again.
+    store.counts["admitted_proposition"] = (592234, 111)
+    assert asyncio.run(agent._tagged_mark("admitted_proposition", "told_but_unread", "word_class")) != mark
+    # One memory REPLACED: the count is the same and the sum is not.
+    store.counts["admitted_proposition"] = (592233, 112)
+    assert asyncio.run(agent._tagged_mark("admitted_proposition", "told_but_unread", "word_class")) != mark
 
 
 def test_the_index_is_read_back_only_where_the_memories_are_the_same():
@@ -121,3 +138,46 @@ def test_keeping_it_writes_every_word_and_the_mark_together():
     # And the mark is written with how many words it covers, so a cut-short write can be told.
     assert any(verb == "INSERT" and params and params[0] == "a-mark" and params[1] == 2
                for verb, params in store.statements), store.statements
+
+
+def test_the_names_those_sentences_hold_are_kept_beside_the_classes():
+    """Everything the warm takes from a taught proposition is the classes it implies and the names it holds.
+    Keeping the classes alone would have left the warm fetching 176 MB of sentences for the names and nothing
+    else, so the names are kept under the same mark and read back with them."""
+    import asyncio
+
+    class Store:
+        def __init__(self):
+            self.rows, self.many, self.deleted = [], [], []
+
+        async def execute_query(self, query, params=None, **kw):
+            q = query.strip()
+            if q.startswith("DELETE"):
+                self.deleted.append(q)
+            elif q.startswith("SELECT") and "names_memory_holds" in q:
+                return self.rows
+            return None
+
+        async def execute_many(self, query, rows):
+            self.many.extend(rows)
+            return len(rows)
+
+    agent = MemoryAgent.__new__(MemoryAgent)
+    agent._word_class_index_schema_ready = True
+    store = Store()
+    agent._memory_db = lambda: store
+
+    holds = frozenset({("credit", "card"), ("hair", "dryer")})
+    particular = frozenset({("marie", "curie")})
+    kept = asyncio.run(agent._keep_names(holds, particular))
+    assert kept == 3, kept
+    assert sorted(store.many) == [("holds", "credit card"), ("holds", "hair dryer"),
+                                  ("particular", "marie curie")]
+    assert store.deleted, "the old names go first, so one no longer held does not linger"
+
+    # And read back, each name as its words again.
+    store.rows = [{"which": "holds", "name": "credit card"}, {"which": "holds", "name": "hair dryer"},
+                  {"which": "particular", "name": "marie curie"}]
+    back_holds, back_particular = asyncio.run(agent._names_worked_out_before())
+    assert back_holds == holds, back_holds
+    assert back_particular == particular, back_particular

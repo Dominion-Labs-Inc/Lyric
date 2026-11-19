@@ -3034,6 +3034,11 @@ class MemoryAgent(IMemoryConsolidation):
         "CREATE TABLE IF NOT EXISTS unified.word_class_index_from ("
         "one BOOLEAN PRIMARY KEY DEFAULT TRUE CHECK (one), mark VARCHAR NOT NULL, "
         "words INTEGER NOT NULL, built_at TIMESTAMPTZ NOT NULL DEFAULT now())",
+        # AND THE NAMES THOSE SAME SENTENCES HOLD, worked out from the same memories and kept beside them, so a
+        # start that need not work the classes out need not fetch the sentences at all. `which` is `holds` for a
+        # name memory holds a concept under and `particular` for one it holds a single thing under.
+        "CREATE TABLE IF NOT EXISTS unified.names_memory_holds ("
+        "which VARCHAR NOT NULL, name VARCHAR NOT NULL, PRIMARY KEY (which, name))",
     )
     _word_class_index_schema_ready = False
 
@@ -3044,22 +3049,35 @@ class MemoryAgent(IMemoryConsolidation):
             await self._memory_db().execute_query(statement, commit=True)
         self._word_class_index_schema_ready = True
 
-    @staticmethod
-    def _word_class_mark(*sets) -> str:
-        """WHAT THE INDEX WAS WORKED OUT FROM, as one word: how many memories of each kind went into it and a
-        sum over their ids that does not depend on the order they came back in.
+    async def _tagged_mark(self, *tags: str) -> str:
+        """WHAT A SET OF MEMORIES IS, AS ONE WORD, WITHOUT READING THEM: for each tag, how many memories carry
+        it and a sum over their ids. Asked of the store, so the whole of what is kept under the tag is covered
+        and none of it is fetched -- the point being to know whether the work has to be done at all before
+        paying 176 MB to find out.
 
-        A count alone would serve a stale index wherever a memory was replaced rather than added, and sorting
-        686,936 ids to hash them in order costs more than this saves. `crc32` is used rather than Python's own
-        `hash` because `hash` of a string is keyed per process: every start's mark would differ from every
-        other's and the index would never once be read back."""
-        from zlib import crc32
-        parts = []
-        for rows in sets:
-            total = 0
-            for row in rows:
-                total = (total + crc32(str(getattr(row, "memory_id", "") or "").encode("utf-8"))) % (1 << 61)
-            parts.append(f"{len(rows)}:{total}")
+        A count alone would serve a stale answer wherever a memory was replaced rather than added. The sum is
+        over the ids and does not depend on the order they come back in, which nothing guarantees between
+        starts. It is computed IN the store rather than over rows in hand, because a mark that costs a fetch
+        cannot save one, and over the same tables and owners `_rows_tagged` reads, or it would answer for a
+        different set of memories than the one the work is done from."""
+        import json as _json
+        from core.database.releases import SUBSTRATE_OWNERS
+        db = self._memory_db()
+        parts: List[str] = []
+        for tag in tags:
+            found, summed = 0, 0
+            for store in db.maintained_stores():
+                for table in ("memory_hot.memory_hot", "memory_cold.memory_cold"):
+                    rows = await db.execute_query(
+                        f"SELECT count(*) AS n, COALESCE(SUM(('x'||substr(md5(memory_id),1,8))::bit(32)::bigint),"
+                        f" 0) AS s FROM {table} WHERE tags @> $1::jsonb "
+                        f"AND COALESCE(user_id, '') = ANY($2::text[])",
+                        (_json.dumps([tag]), list(SUBSTRATE_OWNERS)),
+                        fetch_all=True, store=store, deadline=None) or []
+                    if rows:
+                        found += int(rows[0]["n"] or 0)
+                        summed = (summed + int(rows[0]["s"] or 0)) % (1 << 61)
+            parts.append(f"{found}:{summed}")
         return "|".join(parts)
 
     async def _word_classes_worked_out_before(self, mark: str) -> Optional[Dict[str, Dict[str, int]]]:
@@ -3084,6 +3102,15 @@ class MemoryAgent(IMemoryConsolidation):
             return None
         return index
 
+    async def _names_worked_out_before(self):
+        """The names those same sentences hold, as they were last worked out. Read only where the index was:
+        the two are kept together under one mark and are worked out from the same memories."""
+        rows = await self._memory_db().execute_query(
+            "SELECT which, name FROM unified.names_memory_holds", fetch_all=True) or []
+        holds = frozenset(tuple(r["name"].split(" ")) for r in rows if r["which"] == "holds")
+        particular = frozenset(tuple(r["name"].split(" ")) for r in rows if r["which"] == "particular")
+        return holds, particular
+
     async def _keep_word_classes(self, index: Dict[str, Dict[str, int]], mark: str) -> int:
         """Keep what the warm worked out, with what it was worked out from."""
         await self._ensure_word_class_index_schema()
@@ -3098,6 +3125,19 @@ class MemoryAgent(IMemoryConsolidation):
             "INSERT INTO unified.word_class_index_from (one, mark, words, built_at) VALUES (TRUE,$1,$2,now()) "
             "ON CONFLICT (one) DO UPDATE SET mark = EXCLUDED.mark, words = EXCLUDED.words, "
             "built_at = EXCLUDED.built_at", (mark, len(index)), commit=True)
+        return len(rows)
+
+    async def _keep_names(self, holds, particular) -> int:
+        """Keep the names those sentences hold, beside the classes, under the same mark."""
+        await self._ensure_word_class_index_schema()
+        db = self._memory_db()
+        await db.execute_query("DELETE FROM unified.names_memory_holds", commit=True)
+        rows = ([("holds", " ".join(name)) for name in holds]
+                + [("particular", " ".join(name)) for name in particular])
+        if rows:
+            await db.execute_many(
+                "INSERT INTO unified.names_memory_holds (which, name) VALUES ($1,$2) "
+                "ON CONFLICT (which, name) DO NOTHING", rows)
         return len(rows)
 
     async def _rebuild_word_class_view(self) -> int:
@@ -3153,16 +3193,25 @@ class MemoryAgent(IMemoryConsolidation):
         # which there are none, since a sentence is either read or not. The
         # sentences that read supply evidence FOR a class; the ones that
         # refused because of a class supply evidence AGAINST it.
-        with timed("taught propositions"):
-            taught = await self._rows_tagged(self.TAUGHT_PROPOSITION_TAG)
-        with timed("tellings never read"):
-            unread = await self._rows_tagged(self.UNREAD_TELLING_TAG)
-        # THE THIRD KIND OF EVIDENCE: a class the substrate was TOLD, rather
-        # than one implied by a sentence it read. This is where every closed
-        # class and every adverb comes from -- words that never stand in a
-        # subject, relation or object slot and so can be implied by nothing.
-        with timed("classes stated outright"):
-            stated = await self._rows_tagged(self.WORD_CLASS_TAG)
+        # WHAT THESE SENTENCES SAY, ASKED FOR BEFORE THEY ARE READ. The three sets below are 592,253
+        # memories and 176 MB, and everything the warm takes from them -- what each word has been seen used as,
+        # and the names they hold -- was worked out from them last start and kept. So the question is whether
+        # they have CHANGED, and a question that costs the fetch cannot save it: the mark is counted in the
+        # store (`_tagged_mark`) and nothing comes back but a number for each tag.
+        worked_from = await self._tagged_mark(self.TAUGHT_PROPOSITION_TAG, self.UNREAD_TELLING_TAG,
+                                              self.WORD_CLASS_TAG)
+        with timed("asking whether anything changed"):
+            kept_index = await self._word_classes_worked_out_before(worked_from)
+        taught: List[Any] = []
+        unread: List[Any] = []
+        stated: List[Any] = []
+        if kept_index is None:
+            with timed("taught propositions"):
+                taught = await self._rows_tagged(self.TAUGHT_PROPOSITION_TAG)
+            with timed("tellings never read"):
+                unread = await self._rows_tagged(self.UNREAD_TELLING_TAG)
+            with timed("classes stated outright"):
+                stated = await self._rows_tagged(self.WORD_CLASS_TAG)
 
         # THE TAUGHT PATTERNS, IN THE SAME PASS, AND BEFORE ANY CLASS IS IMPLIED FROM A SENTENCE. How English says
         # things is language knowledge like a word's class, read from memory at the same events, so there is one
@@ -3248,8 +3297,6 @@ class MemoryAgent(IMemoryConsolidation):
         # moved on is worse than no index, because it is wrong in a way nothing downstream can see. The mark is
         # how many memories of each kind went into it and a sum over their ids; one memory more, one fewer, or
         # one replaced, and the work is done again in full.
-        worked_from = self._word_class_mark(taught, unread, stated)
-        kept_index = await self._word_classes_worked_out_before(worked_from)
         if kept_index is not None:
             index.update(kept_index)
             told = sum(len(classes) for classes in index.values())
@@ -3379,16 +3426,6 @@ class MemoryAgent(IMemoryConsolidation):
                 for other in others:
                     inventory.hear((earlier, word, other))
 
-        # KEPT FOR THE NEXT START, with what it was worked out from.
-        if kept_index is None:
-            try:
-                rows_kept = await self._keep_word_classes(index, worked_from)
-                logger.info("what each word has been seen used as: %d word(s) in %d row(s), kept",
-                            len(index), rows_kept)
-            except Exception as not_kept:
-                # NOT SILENT: a start that could not keep this pays for it at the next one.
-                logger.warning("the word classes were worked out but not kept, so the next start works "
-                               "them out again: %s: %s", type(not_kept).__name__, not_kept)
         self._word_class_index = index
         self._word_classes_warm = True
         # The reader stands a word where its class's part stands (`PatternInventory.of_its_class`): the same index,
@@ -3397,8 +3434,28 @@ class MemoryAgent(IMemoryConsolidation):
         inventory.senses_memory_holds = self._senses_memory_holds(grammar_links)
         # And the names of several words memory holds concepts under, from the propositions read above: what tells
         # the reader that a run of words is ONE name where its own two tests cannot (`_names_memory_holds`).
-        inventory.names_memory_holds = self._names_memory_holds(taught)
-        inventory.names_of_particulars = self._names_of_particulars(taught)
+        # AND THE NAMES THOSE SENTENCES HOLD, from the same place the classes came from. Worked out of
+        # `taught` as they were, they would have made the warm fetch 176 MB of sentences it had no other use
+        # for: everything the warm takes from a taught proposition is these and the classes.
+        if kept_index is not None:
+            inventory.names_memory_holds, inventory.names_of_particulars = (
+                await self._names_worked_out_before())
+        else:
+            inventory.names_memory_holds = self._names_memory_holds(taught)
+            inventory.names_of_particulars = self._names_of_particulars(taught)
+
+        # KEPT FOR THE NEXT START, with what it was worked out from.
+        if kept_index is None:
+            try:
+                rows_kept = await self._keep_word_classes(index, worked_from)
+                names_kept = await self._keep_names(inventory.names_memory_holds,
+                                                    inventory.names_of_particulars)
+                logger.info("what each word has been seen used as: %d word(s) in %d row(s), and %d name(s) "
+                            "those sentences hold, kept", len(index), rows_kept, names_kept)
+            except Exception as not_kept:
+                # NOT SILENT: a start that could not keep this pays for it at the next one.
+                logger.warning("the word classes were worked out but not kept, so the next start works "
+                               "them out again: %s: %s", type(not_kept).__name__, not_kept)
         # AND THE SCORES THE VIEW READS, WHICH ARE NOT IN IT. `PatternInventory` copies no score: every
         # construction's score is its BELIEF's posterior, read as it stands (`derived_reader._held_score`), and the
         # beliefs are brought up by `BayesianUncertaintySystem.load_from_db` -- called from `core/main.py` at boot,
