@@ -4586,7 +4586,45 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
     #: How many facts a review looks at for each question it means to ask, at most.
     _REVIEW_TRIES = 20
 
+    async def _reviewed_by_the_authority(self, question: str, fact: Any, *, domain: str) -> Any:
+        """What the ONE reasoning authority makes of a question the substrate put to itself: TRUE or FALSE for
+        the AFFIRMATIVE of `fact`, and None where it settled nothing.
+
+        THROUGH THE AUTHORITY, NOT AROUND IT. There is one reasoning authority, `NeuralSymbolicBridge.reason()`,
+        and a review is reasoning. This asked `answer_over_graph` -- the graph oracle the authority uses inside
+        itself -- so the review never reached `reason()`: not one of the eleven kinds was selected, tried or
+        declined for any of its questions, and what it recorded as COMPETENCE was the reach of a graph walk.
+
+        THE AFFIRMATIVE IS WHAT IS ASKED, as the graph was asked it: the verdict is about the proposition
+        standing up, and `fact.positive` says which verdict would be right. A review of a denial that asked the
+        denial would get "yes" for the wrong reason.
+
+        ONE READER OF A VERDICT. The reasoner reports it in the answer text, and `Conversation._affirmed` is
+        what reads it ("Proved", "Yes", "Entailed" / "Disproved", "No"). A second reader here would be a second
+        authority on what the first one said -- the duplicate-authority defect, in the small.
+        """
+        from core.agents.autonomous.autonomous_coordinator import Conversation
+        from core.agents.autonomous.shared_types import SUBSTRATE_ACTOR
+        from core.reasoning.neural_bridge import ReasoningRequest, get_neural_bridge
+        from core.reasoning.relation_algebra import FALSE, TRUE
+        from core.semantics.derived_reader import Meaning, MeaningFact
+
+        bridge = get_neural_bridge()
+        if hasattr(bridge, "initialize"):
+            await bridge.initialize()
+        affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
+        result = await bridge.reason(ReasoningRequest(
+            query=question, reading=affirmative,
+            # ITS OWN REVIEW IS ITS OWN WORK: a review is the substrate asking itself about what it was
+            # taught, so what the reasoning writes down is the substrate's, not any person's.
+            task_metadata={"actor": SUBSTRATE_ACTOR, "domain": domain, "review": True}))
+        if not (result.metadata or {}).get("verified") or not result.answer:
+            return None
+        affirmed = Conversation._affirmed(result.answer)
+        return None if affirmed is None else (TRUE if affirmed else FALSE)
+
     async def review_learned(self, domain: str, *, sample: Optional[int] = None, seed: Optional[int] = None,
+                             claims: Optional[Iterable[str]] = None,
                              progress: Optional[Callable[[int, int], None]] = None) -> Dict[str, Any]:
         """REVIEW WHAT WAS LEARNED: ask itself about things it was taught in `domain`, and let how it does move its
         competence there.
@@ -4595,14 +4633,28 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         all of WordNet, stayed at 0.5 with no update (2026-10-10). A review is the substrate's own outcome in the
         domain. For each fact sampled from what it holds as learned there (its beliefs, each on the memory of being
         told), it SAYS the question in the English it was taught (`derived_reader.say` of the fact asked), READS its
-        own question back with the one reader, checks it read what it meant to ask, and ANSWERS it by reasoning over
-        what it holds (`answer_over_graph`). Right is evidence it is competent there; a fact it holds but cannot
+        own question back with the one reader, checks it read what it meant to ask, and ANSWERS it through the ONE
+        reasoning authority (`_reviewed_by_the_authority`). Right is evidence it is competent there; a fact it holds
+        but cannot
         ask, read back or answer is evidence it is not, and a miss to work on. Each is recorded on the domain's
         competence belief (`record_competence_evidence`, `source="review"`).
 
         It writes no memory for each question: a conversation turn remembers what was said, and a sentence it could
         not read argues down the word classes it blamed, neither of which a question it put to itself should do. The
         review is remembered once, whole.
+
+        WHAT WAS LEARNED, WHERE THE CALLER SAYS WHAT THAT WAS (`claims`): the claims a run left held, as the one
+        door names them (`consider_many(kept=...)`, carried on `Report.claims`). Only beliefs on those claims are
+        reviewed, so the review is the size of the run.
+
+        Its size used to be a constant and had nothing to do with the run. A teaching pass that admitted 3 facts
+        drew `REVIEW_SAMPLE` from EVERY belief in the domain and asked itself 200 questions -- about facts held
+        for weeks, almost none of them the three just taught -- 51 minutes after a teach that took under one
+        (2026-11-19). That is also not what this is for: "its count is the pass's own outcome".
+
+        `claims=None` reviews the domain, which is what asking for a domain's review means
+        (`scripts/review.py`). An empty `claims` reviews nothing, because a run that left nothing held taught
+        nothing to review; competence does not move, and nothing stands in for the evidence it did not get.
 
         Returns counts: `reviewed` (facts looked at), `asked` (questions put, each an outcome), `right`, the misses
         by why (`unread`, `misread`, `denied`, `not_derived`), `cannot_ask` (looked at, no question taught for it:
@@ -4614,10 +4666,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         from core.integration.universal_domain_master import get_universal_domain_master
         from core.memory.utils.interfaces import MemoryType, Origin
         from core.reasoning.bayesian_uncertainty import get_uncertainty_system
-        from core.reasoning.concept_graph_reasoning import answer_over_graph
         from core.reasoning.relation_algebra import FALSE, TRUE
         from core.semantics import derived_reader as dr
-        from core.semantics.relation_types import SemanticRelation
         from core.utils.give_way import GiveWay
 
         if self._refused_while_frozen(f"review_learned ({domain})"):
@@ -4639,6 +4689,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         held = [b for b in list(unc.beliefs.values())
                 if b.domain == domain and b.memory_id and b.posterior_probability > 0.5
                 and not str(b.claim).startswith('"') and not str(b.claim).startswith(dm.COMPETENCE_CLAIM)]
+        if claims is not None:
+            # WHAT THIS RUN LEFT HELD, and nothing else: the review is the size of the run (`Report.claims`).
+            wanted = {str(c) for c in claims}
+            held = [b for b in held if str(b.claim) in wanted]
+            logger.info("reviewing what was learned: %d claim(s) this run left held, %d of them held as beliefs "
+                        "here", len(wanted), len(held))
         # ASKED, NOT LOOKED AT. A fact the substrate cannot put as a question in the English it was taught (a
         # definition's word links, "perch defined with spiny-finned", are three in four of what WordNet taught) says
         # nothing of how it does at what it can ask: counted against it, one review of 30 took English's competence
@@ -4701,13 +4757,15 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 elif reading.meaning.act != "ask" or [key(f) for f in reading.meaning.facts] != [key(fact)]:
                     why = "misread"
                 else:
-                    try:
-                        relation = SemanticRelation(fact.relation)
-                    except ValueError:
-                        relation = None
-                    answer = (await answer_over_graph(db, fact.subject, relation, fact.obj, max_hops=4)
-                              if relation is not None else None)
-                    verdict = getattr(answer, "verdict", None)
+                    # ANSWERED THROUGH THE ONE REASONING AUTHORITY, NOT AROUND IT. This asked
+                    # `answer_over_graph` directly -- the graph oracle the authority uses INSIDE itself -- so
+                    # the review never reached `reason()` at all: not one of the eleven kinds of thinking was
+                    # selected, tried or declined for any of its questions, and what it measured as COMPETENCE
+                    # was the reach of a graph walk. `not_derived` meant "the walk did not get there", never
+                    # "no kind of thinking could settle it". Of 200 questions on 2026-11-19 it recorded 49
+                    # right and took the domain from 0.4859 to 0.4346 without consulting the authority once
+                    # (`core/tools/reasoning_tools.py`: "THROUGH THE REASONING AUTHORITY, NOT AROUND IT").
+                    verdict = await self._reviewed_by_the_authority(question, fact, domain=domain)
                     if verdict == TRUE and fact.positive or verdict == FALSE and not fact.positive:
                         counts["right"] += 1
                         per["right"] += 1
@@ -4900,7 +4958,7 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         return memory_id if stored and memory_id else None
 
     async def consider_many(self, facts, *, evidence: Evidence, domain: str, positive: bool = True,
-                            progress: Any = None) -> Dict[str, int]:
+                            progress: Any = None, kept: Any = None) -> Dict[str, int]:
         """Many claims from one source -- a lesson, a corpus -- each judged as `consider` judges one (its shape,
         what the world holds against it), with the fan-out to beliefs, the lexicon, the domain and metrics done
         ONCE over what was held: a reference-sized teach fact by fact re-ran it tens of thousands of times. Each
@@ -4908,17 +4966,21 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         Returns {admitted, already, doubted, refused, total}.
 
         THE EPISODE IS NOT OPTIONAL: the ingress remembers every fact it takes, as it does one considered alone,
-        so a fact taught from a corpus is recalled by meaning as a fact taught in a sentence is."""
+        so a fact taught from a corpus is recalled by meaning as a fact taught in a sentence is.
+
+        `kept(claim)`, when given, is told each claim this call left HELD -- admitted, or already held from
+        before -- as the claim is named here. It is how a caller knows what it put in the world, so that what
+        was learned can be reviewed rather than a sample of everything in the domain (`review_learned`)."""
         from core.memory import knowledge_ledger as _ledger
         _batch = _ledger.begin_batch(f"learning.bulk_teach.{evidence.producer}", actor=None)
         try:
             return await self._consider_many(facts, evidence=evidence, domain=domain, positive=positive,
-                                              progress=progress)
+                                              progress=progress, kept=kept)
         finally:
             _ledger.end_batch(_batch)
 
     async def _consider_many(self, facts, *, evidence: Evidence, domain: str, positive: bool,
-                             progress: Any) -> Dict[str, int]:
+                             progress: Any, kept: Any = None) -> Dict[str, int]:
         from core.memory import knowledge_ledger as _ledger
         from core.semantics.cognitive_ingress import MIN_ADMIT_QUALITY, get_cognitive_ingress, shape_proposition
         facts = list(facts)
@@ -4973,8 +5035,12 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             # Already held from this source is checked FIRST: a re-teach is not a second witness.
             if getattr(admission, "already_present", False):
                 counts["already"] += 1
+                if kept is not None:
+                    kept(claim)
             elif getattr(admission, "admitted", False):
                 counts["admitted"] += 1
+                if kept is not None:
+                    kept(claim)
                 held_clauses.append((subject_term, relation_term, obj_term, getattr(admission, "memory_id", None)))
             else:
                 counts["refused"] += 1

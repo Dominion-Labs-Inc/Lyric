@@ -238,6 +238,15 @@ class Report:
     read: int = 0
     below_floor: int = 0
     taught: Dict[str, int] = field(default_factory=dict)
+    #: THE CLAIMS THIS PASS PUT IN THE WORLD, as the one door names them (`consider_many`): the facts it
+    #: admitted, and those it found already held, which are held either way. A construction's claim is not
+    #: among them -- it is a quoted sentence, reviewed by reading.
+    #:
+    #: What "review what was learned" reviews (`review_learned(claims=...)`). Without it the review drew a
+    #: sample of the WHOLE domain, so its size was a constant and had nothing to do with the run: a pass that
+    #: admitted 3 facts asked itself 200 questions about facts it had held for weeks, 51 minutes after a
+    #: teach that took under one (2026-11-19).
+    claims: Tuple[str, ...] = ()
     #: {told, skipped, total} for the word classes the source STATED.
     word_classes: Dict[str, int] = field(default_factory=dict)
     #: {learned, already, refused, total} for the sentences taught WITH their
@@ -877,6 +886,11 @@ class TeachingPass:
             # taught (`consider_many`).
             return Evidence.from_provenance(provenance, quality)
 
+        # WHAT THIS PASS LEFT HELD IN THE WORLD, named as the one door names it: what the review reviews
+        # (`Report.claims`). A speaker's own facts are not here -- they are held in their context, and the
+        # domain's competence is not about them.
+        kept: Set[str] = set()
+
         for (quality, positive, speaker), facts in sorted(
                 buckets.items(), key=lambda item: (item[0][0], item[0][1], item[0][2] or "")):
             for start in range(0, len(facts), self.batch_size):
@@ -894,7 +908,8 @@ class TeachingPass:
                 else:
                     # THE WORLD'S, judged as every claim is: the one door (`consider_many`).
                     counts = await learning.consider_many(
-                        chunk, evidence=evidence(quality), domain=self.domain, positive=positive)
+                        chunk, evidence=evidence(quality), domain=self.domain, positive=positive,
+                        kept=kept.add)
                 for key, value in (counts or {}).items():
                     totals[key] = totals.get(key, 0) + int(value)
                 # FLUSH PER BATCH. Belief writes are fire-and-forget; without
@@ -922,6 +937,7 @@ class TeachingPass:
 
         report.patterns = taught_patterns
         report.meanings = meanings if patterns else {}
+        report.claims = tuple(sorted(kept))
         return totals
 
     @staticmethod

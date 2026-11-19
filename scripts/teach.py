@@ -428,10 +428,16 @@ async def main() -> int:
         await coordinator.ready_to_read()
     # WHAT WAS LEARNED, REVIEWED BY THE SUBSTRATE ITSELF: it asks itself about what it holds in the domain and
     # answers, and how it does moves its competence there (`review_learned`). Its count is the pass's own outcome.
-    print("reviewing what was learned…", flush=True)
+    # WHAT THIS RUN TAUGHT IS WHAT IS REVIEWED, not a sample of everything the domain holds: the claims the one
+    # door left held, gathered from every source this run taught from (`Report.claims`). Asked of the whole
+    # domain, the review's size was a constant -- 200 questions about facts held for weeks, 51 minutes after a
+    # teach of 3 facts that took under one (2026-11-19).
+    taught_claims = tuple(dict.fromkeys(c for _name, r in reports for c in (r.claims or ())))
+    print(f"reviewing what was learned ({len(taught_claims)} claim(s) this run left held)…", flush=True)
     with contextlib.redirect_stderr(quiet):
         review = await coordinator.learning.review_learned(
-            args.domain, progress=lambda done, of: progress(done, of, {"phase": "reviewing what was learned"}))
+            args.domain, claims=taught_claims,
+            progress=lambda done, of: progress(done, of, {"phase": "reviewing what was learned"}))
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
         after = await snapshot(db)
         competence_after = await competence(db, args.domain)
