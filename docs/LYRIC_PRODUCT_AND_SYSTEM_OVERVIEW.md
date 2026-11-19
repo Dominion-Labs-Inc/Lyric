@@ -1,7 +1,7 @@
 # DOMINION LABS, INC.
 # LYRIC AI PRODUCT & SYSTEM OVERVIEW
 
-**October 2026**
+**November 2026**
 
 ---
 
@@ -968,33 +968,134 @@ applies.
 
 ---
 
-## 13. Language & Knowledge Foundation
+## 13. Language, Reading & Knowledge Foundation
 
-Lyric holds a large structured knowledge base. It reads language through **a single model-free reader**:
-one component owns what a sentence asserts, so the system cannot hold two incompatible readings of the same
-text. Where a sentence is beyond what the reader can parse, the system says it could not read it rather
-than guessing.
+Language is the largest faculty in the substrate and the one with the most evidence behind it. It is
+`core/semantics/`, 29,250 lines across 23 modules, and it does two separable jobs: **reading**, which
+decides what a sentence says, and **admission**, which decides whether what was said becomes knowledge.
+One component owns each, so the system cannot hold two incompatible readings of the same text, and nothing
+becomes knowledge without passing a single door.
 
-**The foundation is taught, and characterised as such.** General and lexical knowledge (curated from WordNet, ConceptNet and Wikidata and admitted through the same learning path as everything else) forms
-the bulk of what is retained. It gives the system vocabulary and structure to reason with and to attach
-experience to. Knowledge acquired from the system's own operation is distinguished from this taught
-foundation by evidence class.
+### 13.1 How a sentence is read
+
+Reading is by grammar, not by resemblance. A compiler reads a program it has never seen, the first time,
+because it holds a grammar and the meaning of each piece, never because it saw a program like it. Lyric
+reads a sentence the way the Parallel Meaning Bank's own meanings were first made: with a **categorial
+grammar** and a meaning built alongside the derivation.
+
+Three things compose:
+
+- **The words.** Each word's category says what it combines with and what it makes: *the* makes a thing
+  from a kind, *detects* makes a sentence from a thing after it and a thing before it. Its meaning says
+  what its part of the sentence holds.
+- **The rules.** General combination, applied to whatever stands in the right relation, so a phrase of any
+  length or shape works where a single word works: "carbon dioxide and water" stands where "water" stands.
+- **The meaning, built with the structure.** "The dog chased a cat." is a chasing done by the known dog,
+  done to a cat, before now. What each word stands for, and what two words near one another say together,
+  is learned from sentences taught with their meanings and aligned to their words.
+
+**Which phrase plays which part** is decided by how it stands to its predicate, not by where it sits in the
+string: the subject of an active verb is who did it, its second object who received it, *to* a person who
+received it, *in* a place where it happened. This is learned over structures, so it holds for phrases the
+system has never seen.
+
+This replaced an earlier reader that matched a new sentence against remembered ones. That approach was
+measured and found wanting: real sentences rarely resemble any remembered one closely enough, and where
+none did, the decision was wrong about one time in three. The change is why the faculty grew as it did.
+
+### 13.2 English's grammar is held in memory, not in a file
+
+The grammar the reader reads with is **taught into memory like everything else**, through the same learning
+path as any other knowledge, and the one model holds it. There is no second place a grammar may come from,
+and a reader handed none fails saying so rather than quietly reading a file.
+
+This matters for a reason that is not cosmetic: what the reader reads with is something the system **holds,
+can be asked about, can be corrected, and can argue with**. The lesson that states English carries 161
+closed-class words with every way each is read, the ways each kind of word is read, the ways a verb is read
+in each of its frames, the runs of words read as one, and the pairs held beside them: what each place of a
+doing links, which kind of word a phrase of several is read as, what each number word is worth, and which
+of WordNet's frame numbers are which frame.
+
+It states **no facts about the world**. There is no such thing, in Lyric, as a claim that *must* has a
+grammatical category: knowledge about English is knowledge about English, and it is kept apart from
+knowledge about what is true.
+
+### 13.3 The one door knowledge comes through
+
+A sentence that has been read is not yet knowledge. Something must admit it, and exactly one thing does:
+the **cognitive ingress**. The division of labour is strict: the reader interprets, the ingress admits,
+reasoning consumes.
+
+The door admits each proposition **once**, with provenance that is required rather than optional, and fans
+it to every store with a stake: the concept graph, the alias binding that is what makes a surface word mean
+something, the evidence record that becomes the root of a belief, and the recallable episode in memory. It
+returns a record of exactly what admitting did, every field a count or a flag.
+
+Three properties of that door are worth stating plainly, because each is a decision that could have gone
+the other way:
+
+- **It does not decide truth.** Epistemic status follows from accumulated independent evidence, never from
+  who said it.
+- **It has a support floor.** Below a minimum evidence quality the door **refuses**, leaving true absence,
+  no concept and no belief, rather than minting a weakly held belief that later reads like knowledge. A
+  stricter deployment raises the floor.
+- **It surfaces contradiction rather than resolving it.** A polarity clash against what is already held is
+  returned with the conflicting evidence identifiers attached. Nothing is silently overwritten.
+
+The door also checks admissibility itself rather than trusting its callers: whether a term may name a
+concept at all, whether a relation is a relation and not a clause, and what the canonical form of a surface
+term is, so that one surface has one interpretation at the single point where it matters.
+
+**A taught conditional is held as a rule, not as a fact.** "If a door is open, the room is not sealed." is
+stored as a first-class held conditional whose two clauses each pass the gates a fact passes, while
+**neither side is asserted**. The reasoner consumes those as held rules; they are never re-parsed from the
+original wording.
+
+### 13.4 What the knowledge base holds
+
+Lyric holds a large structured knowledge base. General and lexical knowledge, curated from WordNet,
+ConceptNet and Wikidata and admitted through the same door as everything else, forms the bulk of what is
+retained, and gives the system vocabulary and structure to reason with and to attach experience to.
+Knowledge acquired from the system's own operation is distinguished from this taught foundation by evidence
+class, so the two are never confused.
 
 The knowledge base combines two kinds of structure:
 
 - **taxonomic**: *is-a* relations;
 - **operational**: what actions provide, add, remove, accept and require.
 
-**Conversation.** People interact with Lyric in natural language. The system:
+### 13.5 Conversation
+
+People interact with Lyric in natural language. The system:
 
 - classifies each utterance as a question, a statement to learn from, or a job to do;
 - answers from what it holds;
 - learns what it is told, within the speaker's scope (§14);
 - recalls what was said earlier in the conversation.
 
-When a question turns on a genuinely unknown term, the system can research it, where the deployment permits network access, and read the finding into structured knowledge, so the next question is answered
-from its own store. If many people ask about the same unknown at once, only one lookup is made, and every
-asker receives its result.
+When a question turns on a genuinely unknown term, the system can research it, where the deployment permits
+network access, and read the finding into structured knowledge, so the next question is answered from its
+own store. If many people ask about the same unknown at once, only one lookup is made, and every asker
+receives its result.
+
+Where a sentence is beyond what the reader can parse, the system says it could not read it rather than
+guessing.
+
+### 13.6 How the reading is taught and how it is measured
+
+Teaching is recorded, not asserted. Every pass over a source writes a machine-generated session record
+naming the source, the domain, the coverage, how many records were read, how many fell below the quality
+floor, and how many facts were admitted, already present, doubted or refused. **440 such sessions** are on
+record, from 2026-09-08 to 2026-11-17, against a substrate that was live while it was taught, so that what
+the learning authority announced was heard and reacted to.
+
+Reading and hearing are measured against **held-out corpora the system was not taught on**: the Parallel
+Meaning Bank for sentence meaning, PropBank for predicate argument structure, the Universal Dependencies
+English treebanks (EWT, GUM, ParTUT, LinES, Atis and PUD) and STREUSLE for structure, and LibriSpeech
+forced alignments with MSWC English for hearing. The experiment series behind this section are
+`GRAMMAR-01`, `ENGLISH-01`, `UNDERSTANDS-PROSE-01` and `-02`, `UNDERSTANDS-WORDNET-01`, `SENSE-01`,
+`SENSES-01`, `STRUCTURE-01` to `-03`, `SHAPES-LEARN-01` to `-10`, `QUESTION-FORMS-01` to `-03`,
+`PROPBANK-01`, `PMB-01`, `ROLES-01` and `-02`, `COMPOSE-01`, `COUNTABILITY-01` and `READ-01`.
 
 ---
 
@@ -1066,8 +1167,21 @@ Lyric's capability claims rest on an experimental record maintained alongside th
 exercise the **live system**: real database, real tools, real files, real images. They verify outcomes
 against the environment rather than against the system's own reports. Every result below was produced
 with no model in the loop. Each row names the date of the run it came from; every run is saved to its
-own dated artifact under the experiment's `results/` folder, and a re-run never overwrites an earlier
-one. The current series is 32 named suites with saved runs, the most recent on 2026-09-19.
+own dated artifact under the experiment's `results/` folder, and a re-run never overwrites an earlier one.
+
+**The record as it stands.** 245 experiment series, 189 of them carrying machine-written run records,
+**2,477 run artifacts**, the most recent on 2026-11-11. Each artifact carries the claim under test, the
+hypothesis, every check with its verdict, metrics with units, and an environment block recording the
+commit, the count of uncommitted changes, and the database both as configuration resolved it and as the
+server reported its own name. **The tables in this section are a selection**, chosen to show what each
+capability rests on; the full registry, every per-experiment result, the ablations, the adversarial
+campaigns and the negative results are in the *Validation & Experiment Results* document.
+
+**What the language work is measured against.** Reading and hearing are scored on held-out corpora the
+system was not taught on, kept off-repository for size: the Parallel Meaning Bank for sentence meaning,
+PropBank for predicate argument structure, the Universal Dependencies English treebanks (EWT, GUM, ParTUT,
+LinES, Atis, PUD) and STREUSLE for structure, and LibriSpeech forced alignments with MSWC English for
+hearing. A vision instruction set with its images serves the same purpose for sight.
 
 **Governance**
 
@@ -1285,10 +1399,13 @@ The current implementation, its recorded experiment results, and system-generate
 precedence over any description in this document. Where this document and the system disagree, the
 document is to be corrected.
 
-Measurements were taken **2026-09-19 at 20:49 UTC** against the live system, using the canonical
+The figures below were measured **2026-09-19 at 20:49 UTC** against the live system, using the canonical
 runtime (`./venv_lyric/bin/python3`, Python 3.11.14) and the production database, whose identity was
-confirmed by asking the server rather than by reading configuration. Development is active. Figures for retained knowledge, learned operators and
-recorded evidence are expected to grow.
+confirmed by asking the server rather than by reading configuration. **They carry that date and the state
+they describe has grown since**: development is active, and figures for retained knowledge, learned
+operators and recorded evidence rise with every teaching pass and every run. Counts of modules and lines
+elsewhere in this document were re-derived from the source on 2026-11-19; the table below is the one set
+of figures that requires the live store, and it is re-measured as a whole rather than row by row.
 
 ### Verified Measurements
 
@@ -1315,5 +1432,5 @@ recorded evidence are expected to grow.
 | Adversary campaigns held (each objective retried many ways) | 5 of 8 · 33 strategies |
 | Intents recorded / perceptions recorded | 1,643 / 7,788 |
 | Monitored health components | 29 |
-| Named experiment suites (current series) | 32 |
+| Experiment series / carrying run records / run artifacts | 245 / 189 / 2,477 (source scan, 2026-11-19) |
 | Encoder (similarity only) | all-MiniLM-L6-v2, 384 dimensions, local, CPU |

@@ -13797,7 +13797,7 @@ lives only in `sbir/`.
 ## 2026-09-12 — Tet: naming the world; the consumer/sovereign split; entitlements as the pack primitive
 
 *Architecture decision record, not an experiment — no hypothesis/verification arc. Full record:
-[`DHCM/TET.md`](../../../DHCM/TET.md); working log in `DHCM/DHCM NOTES.md`. Logged here so the
+[`DHCM/TET.md`](../../../Tet/TET.md); working log in `DHCM/DHCM NOTES.md`. Logged here so the
 session is not lost evidence; the DHCM files remain the authority (no duplicate record).*
 
 **Objective.** Name the persistent autonomous AI world and settle the architecture for two products

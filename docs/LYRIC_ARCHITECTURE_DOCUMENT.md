@@ -1,7 +1,7 @@
 # DOMINION LABS, INC.
 # LYRIC AI: ARCHITECTURE
 
-**September 2026**
+**November 2026**
 
 ---
 
@@ -13,10 +13,11 @@ answers *what*, this one answers *how*.
 
 **How every statement here was verified.** Nothing was carried over from an earlier description.
 Component names, ownership, interfaces and control flow were read from the current source. Counts of
-modules, methods, events and lines were derived by scanning that source. Every figure for stored state
-was measured against the live production database on **2026-09-19 at 20:49 UTC**, under the canonical
-runtime (`./venv_lyric/bin/python3`, Python 3.11.14), with the database identity confirmed by asking
-the server rather than by reading configuration. §34 records the method used for each class of claim.
+modules and lines were derived by scanning that source, most recently on **2026-11-19**. Figures for
+stored state were measured against the live production database on **2026-09-19 at 20:49 UTC**, under the
+canonical runtime (`./venv_lyric/bin/python3`, Python 3.11.14), with the database identity confirmed by
+asking the server rather than by reading configuration; those figures carry that date and the state they
+describe has grown since. §34 records the method used for each class of claim.
 
 **What is deliberately gated.** This document describes structure, ownership, interfaces and control
 flow. It does not reproduce credentials, key material, deployment addresses, or the method-by-method
@@ -82,32 +83,47 @@ own memory.
 
 ## 2. Scale of the implementation
 
-Measured by scanning the current tree on 2026-09-19.
+Measured by scanning the current tree on 2026-11-19.
 
 | Subsystem | Lines | Modules | What it is |
 |---|---|---|---|
-| `tools/` | 48,524 | 35 | Tool registry, the governed execution path, and the tool implementations |
-| `agents/` | 40,713 | 32 | The coordinator (the body) and the memory agent |
-| `reasoning/` | 21,713 | 22 | Reasoning bridge, beliefs, abstraction, hypothesis testing, temporal reasoning |
-| `learning/` | 17,326 | 27 | Learning authority, rule induction, rule store, meta-learning, recognisers |
-| `domain/` | 7,527 | 9 | Domain registry, concept ingestion, evidence producers, cross-domain reasoning |
-| `integration/` | 5,485 | 4 | Universal domain master: cross-domain orchestration |
-| `health/` | 5,209 | 5 | Health monitor, recovery manager, ownership declaration |
-| `quantum/` | 5,152 | 10 | Quantum integration: **deactivated**; retained, not in the cognitive path |
-| `semantics/` | 4,828 | 14 | The sentence reader, the admission gate, relation typing, language operations |
-| `chaos/` | 4,188 | 8 | Fault-injection framework with its own safety controller |
-| `execution/` | 4,804 | 9 | Effect verification, domains derived from the tools and the self's perception, procedures over learned operators |
-| `database/` | 2,056 | 3 | PostgreSQL interface, logging database, configuration authority |
-| `perception/` | 1,899 | 2 | Deterministic vision and the single sight entry point |
-| `system/` | 1,871 | 5 | Environment state, service location, active discovery, topology |
-| `utils/` | 1,704 | 6 | Environment loading, notification, chunking, port management |
-| `intelligence/` | 1,506 | 2 | Predictive framework |
-| `observability/` | 916 | 4 | The one failure record, regression record, capture, channels |
-| `memory/` | 534 | 3 | Live recall during reasoning, media store |
+| `agents/` | 52,430 | 27 | The coordinator (the body), which holds the constitution, the drift faculty, the behaviour arbiter, intrinsic motivation and the cognitive cycle, and the memory agent |
+| `tools/` | 40,891 | 30 | Tool registry, the governed execution path, and the tool implementations |
+| `learning/` | 29,767 | 29 | Learning authorities, rule induction, rule store, rule grounding, procedure synthesis over learned operators, exploration, meta-learning, recognisers, statistical drift detection |
+| `semantics/` | 29,250 | 23 | The sentence reader and sentence machine, the admission gate, the grammar and its words, argument structure, composition, word senses and forms, relation typing, document reading, conversation |
+| `reasoning/` | 24,342 | 23 | Reasoning bridge, beliefs, abstraction, hypothesis testing, temporal reasoning |
+| `perception/` | 8,915 | 10 | Deterministic vision and the single sight entry point, hearing by phones, speech |
+| `chaos/` | 8,505 | 23 | Fault-injection framework with its own safety controller |
+| `domain/` | 8,144 | 10 | Domain registry, concept ingestion, evidence producers, cross-domain reasoning |
+| `integration/` | 6,364 | 6 | Universal domain master: cross-domain orchestration |
+| `memory/` | 5,453 | 13 | Live recall during reasoning, the media store, what persists across tiers |
+| `quantum/` | 5,264 | 11 | Quantum integration: **deactivated**; retained, not in the cognitive path |
+| `health/` | 4,788 | 5 | Health monitor, recovery manager, ownership declaration, system control |
+| `database/` | 3,609 | 5 | PostgreSQL interface, logging database, configuration authority |
+| `intelligence/` | 2,218 | 3 | Predictive framework and effect verification |
+| `system/` | 1,920 | 6 | Environment state, service location, active discovery, topology |
+| `utils/` | 1,560 | 8 | Environment loading, notification, chunking, port management |
+| `observability/` | 1,329 | 5 | The one failure record, regression record, capture, channels |
+| `security/` | 1,276 | 3 | Secret handling and the security training pipeline. The host and network perimeter that once ran here was taken out of the substrate: its five modules are held disabled, imported by nothing, in `security/_disabled/` (3,589 lines), and containment is Tet's, outside the substrate |
+| `connectors/` | 906 | 4 | Speaking the Model Context Protocol with a connector a service runs, as its client |
+| `services/` | 822 | 2 | The backup scheduler |
+| `monitoring/` | 596 | 4 | Prometheus metrics export |
+| `api/` | 590 | 2 | The companion channel: device authorisation and key attestation for the one permitted device |
 | `simulation/` | 411 | 2 | Numerical and system-dynamics simulation |
-| `monitoring/` | 234 | 1 | Prometheus metrics export |
+| `guardian/` | 269 | 2 | The guardian, a supervising daemon outside the substrate's process, so that a watchdog does not die with what it watches |
+| `optimization/` | 226 | 1 | Optimisation utilities |
 
-Roughly 175,000 lines across the subsystems listed, excluding tests, experiments and tooling.
+**243,434 lines across the subsystems listed, in 262 modules**, plus 2,607 lines in the six modules at
+`core/` itself (`main.py`, `capabilities.py`, `database.py`, `service_configuration.py`,
+`structural_defects.py` and the package initialiser): **245,952 lines in 268 modules** in all, excluding
+tests, experiments and tooling.
+
+**`execution/` no longer exists as a subsystem.** It held effect verification, domains derived from the
+tools and the self's perception, and procedures over learned operators. Those three were taken into the
+subsystems that own them: effect verification is `intelligence/effect_verification.py`, procedure synthesis
+over learned operators is `learning/procedure_synthesis.py` with `learning/rule_store.py`, and a plan built
+from learned operators runs through `agents/autonomous/execution_plan_adapter.py`. No capability was lost
+in the move.
 
 ![Figure 1: Subsystem map](figures/fig1_subsystems.png)
 
@@ -903,6 +919,12 @@ server answered when asked its own name.
 | `monitoring/` | Prometheus metrics export |
 | `utils/` | Environment loading, notification, research chunking, port management |
 | `quantum/` | Quantum integration, **deactivated**. Retained in the tree; not part of the cognitive path, and no capability claim rests on it |
+| `connectors/` | The Model Context Protocol client: a session with a connector a service runs, reading its tools and calling them |
+| `api/` | The companion channel: device authorisation and key attestation, admitting one permitted device and no second door |
+| `guardian/` | A supervising daemon that runs outside the substrate's process, so that a watchdog whose job is to survive a crash does not die in it |
+| `services/` | The backup scheduler |
+| `optimization/` | Optimisation utilities |
+| `security/` | Secret handling and the security training pipeline. The host and network perimeter that once ran in the substrate was taken out of it and is held disabled, imported by nothing; containment is Tet's, outside the substrate (§15 of the *Product & System Overview*) |
 
 ---
 

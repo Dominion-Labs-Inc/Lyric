@@ -363,10 +363,12 @@ Three things verified 2026-09-22 that shrink the estimate:
 3. **The conversation surface is a wrapper, not new cognition.** `talk.py` already holds a working
    conversation: `Conversation().understand(text).reply`, re-exported from the coordinator. Binding a
    turn to a user identity is already proved correct — `ACTOR-IDENTITY-01` 6/6 shows a bound
-   conversation scopes to the identity and nothing lands under the bare session string. What is
-   missing is an HTTP/WS endpoint over an existing faculty. Note `torinai-chat` on port 9080 is
-   *declared* in `core/system/infrastructure_topology.py` as a CRITICAL service with **no
-   implementation** — declare-without-build, and it should be either built or removed.
+   conversation scopes to the identity and nothing lands under the bare session string.
+
+   *Resolved since this was written (2026-10-29).* The surface was built: a message from the web platform
+   or the phone crosses into the world and reaches Lyric's real front door, one conversation per person,
+   and Lyric's answer in that turn is written back. The `torinai-chat` service that was declared on port
+   9080 with no implementation is gone from the topology; nothing declares it now.
 
 `TET.md` §8 calls the pack tool surface "the single largest net-new build". That is true for the
 consumer edition and its MCP pack catalogue. **It is not true for a pilot**, which needs one

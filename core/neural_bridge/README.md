@@ -1,2 +1,0 @@
-# Neural Bridge Module
-This module implements a decentralized, federated learning architecture for distributed training across edge devices using secure peer-to-peer communication protocols and privacy-preserving techniques.

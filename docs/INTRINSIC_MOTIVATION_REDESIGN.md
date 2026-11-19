@@ -1,6 +1,12 @@
 # Intrinsic Motivation Redesign — the substrate's developmental engine
 
-Status: **PLAN (not yet built)**. Written for review before any code.
+Status: **BUILT.** This was written for review before any code, and the design it argues for is the one that
+ran. It is kept as the design record, not as pending work. The system is
+`core/agents/autonomous/intrinsic_motivation.py`: `IntrinsicMotivationSystem` over the seven dimensions
+`MotivationDimension` declares, curiosity, competence, novelty, mastery, autonomy, social and impact, each
+weighted, with an event-scoped `IntrinsicReward` kept deliberately distinct from a drive level. Its evidence
+is the `INTRINSIC-EVENTDRIVEN-01`, `MOTIVATION-CLOSEDLOOP-01` and `DRIVES-01` experiment series, and the
+current account is §5 of `LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md`.
 
 ## Thesis
 Intrinsic motivation is the substrate's **developmental engine**: from its *whole* state it feels

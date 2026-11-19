@@ -1,10 +1,29 @@
 # What Lyric can do, per offering
 
-*Research from the code, started 2026-10-08. Added to as we go.*
+*Research from the code, started 2026-10-08.*
+
+**Status note, 2026-11-19. The offerings were set differently after this was written, and the published
+plans are the authority.** The body of this document, what Lyric's code can actually do and which file
+each capability comes from, is the part that matters and still holds. The offering names, prices, seat
+structures and allowances in it are the October proposal and are superseded. As published:
+
+| Offering | Price | Action minutes |
+|---|---|---|
+| Lyric Free | $0 | 7.5 in any 24 hours |
+| Lyric Pro | $20 a month, or $17 a month billed annually | 2,340 a month |
+| Lyric Max 1x | $80 a month | 14,400 a month |
+| Lyric Max 2x | $100 a month | 21,600 a month |
+| Lyric Teams, standard seat | $20 a month | 2,340 a month |
+| Lyric Teams, premium seat | $100 a month, or $80 a month billed annually | 14,400 a month |
+| Lyric Enterprise | Set by agreement | 2,000 a month per seat by default, until the organization's agreement says otherwise |
+
+Autonomy by offering: Lyric Free is Observe; Lyric Pro is Observe and Assist; Lyric Max, Teams and
+Enterprise add Delegate. "Lyric Auto" and "Lyric Starter", which appear below, were never published names.
+There is no per-seat add-on model: Teams carries seats, 2 to 100 people, and Enterprise is by agreement.
 
 The purpose is to see what Lyric's system can do, so that each offering can list what it gets. Every claim below comes from reading the code and names the file it comes from. Where something exists in code but nothing calls it, or is called but has not been shown working, that is said next to it.
 
-## The offerings as set (2026-10-08)
+## The offerings as proposed on 2026-10-08 (superseded, see the status note above)
 
 | | Lyric Free | Lyric Pro | Lyric Auto |
 |---|---|---|---|

@@ -1,7 +1,9 @@
 # Beliefs — the substrate's revisable model of the world
 
-*Reference. Traced against code 2026-09-06. What a belief is, what moves it, what
-it touches, and how it persists.*
+*Conceptual reference, traced against code 2026-09-06: what a belief is, what moves it, what it touches,
+and how it persists. The living authority for the module that holds beliefs is
+[../architecture/beliefs.md](../architecture/beliefs.md); where the two disagree, that one is current and
+this one is the account of the idea.*
 
 A **belief** is a proposition the substrate holds with a probability, revisable as
 evidence arrives. Beliefs are the substrate's model of the world and of itself:

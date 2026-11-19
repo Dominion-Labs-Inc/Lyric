@@ -1,4 +1,12 @@
 # Lyric Configuration Audit Findings
+
+*Status note, 2026-11-19. Kept as found. Eight of the modules this audit examines were the in-substrate
+host and network perimeter; they were taken out of the substrate and are held disabled, imported by
+nothing, in `core/security/_disabled/`, with containment now Tet's job outside the substrate. The links
+to the five still held there now point at them; the three that were removed outright
+(`content_security.py`, `malware_sandbox.py`, `threat_intelligence.py`) are left unresolved as the record
+of what was audited.
+Findings about `core/main.py` and about configuration precedence still stand.*
 **Date**: 2026-02-05
 **Audit Type**: System Integration Configuration Verification
 
@@ -250,7 +258,7 @@ if hasattr(self.autonomous_coordinator, 'set_security_audit_worker'):
 
 **Security TOOLS** (Utilities - Correctly Available):
 - ✅ [content_security.py](../core/security/content_security.py) - Input sanitization, XSS prevention, email/URL validation
-- ✅ [system_security.py](../core/security/system_security.py) - SQL injection prevention, path traversal checks, rate limiting, password hashing
+- ✅ [system_security.py](../../core/security/_disabled/system_security.py) - SQL injection prevention, path traversal checks, rate limiting, password hashing
 - ✅ [malware_sandbox.py](../core/security/malware_sandbox.py) - Static/dynamic malware analysis utilities
 
 **Security SYSTEMS** (Stateful Components - Should Run Continuously):
@@ -262,10 +270,10 @@ if hasattr(self.autonomous_coordinator, 'set_security_audit_worker'):
 
 **NOT INITIALIZED (Critical Gap)**:
 - ❌ **ThreatIntelligenceEngine** ([threat_intelligence.py](../core/security/threat_intelligence.py)) - Multi-source threat intel (AbuseIPDB, VirusTotal, OTX AlienVault)
-- ❌ **RealTimeFirewallManager** ([firewall_manager.py](../core/security/firewall_manager.py)) - OS firewall integration (iptables/pf)
-- ❌ **CloudflareWAFManager** ([cloudflare_waf.py](../core/security/cloudflare_waf.py)) - Cloudflare WAF integration
-- ❌ **ThreatBlockingEngine** ([threat_blocking.py](../core/security/threat_blocking.py)) - Coordinated active defense system
-- ❌ **SecurityController** ([controller.py](../core/security/controller.py)) - Central security coordination
+- ❌ **RealTimeFirewallManager** ([firewall_manager.py](../../core/security/_disabled/firewall_manager.py)) - OS firewall integration (iptables/pf)
+- ❌ **CloudflareWAFManager** ([cloudflare_waf.py](../../core/security/_disabled/cloudflare_waf.py)) - Cloudflare WAF integration
+- ❌ **ThreatBlockingEngine** ([threat_blocking.py](../../core/security/_disabled/threat_blocking.py)) - Coordinated active defense system
+- ❌ **SecurityController** ([controller.py](../../core/security/_disabled/controller.py)) - Central security coordination
 
 **Verification**:
 ```bash
@@ -327,7 +335,7 @@ def create_integrated_security_system(
 - **Security Gap**: Only reactive security (audit worker) is active, no proactive defense
 
 **Recommended Fix**:
-Add to [main.py](../core/main.py) Phase 11 (after line 1153, alongside SecurityTrainingPipeline):
+Add to [main.py](../../core/main.py) Phase 11 (after line 1153, alongside SecurityTrainingPipeline):
 
 ```python
 # Phase 11: Initialize Integrated Security System (Active Defense)

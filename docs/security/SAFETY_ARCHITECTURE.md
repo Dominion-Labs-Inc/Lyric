@@ -1,13 +1,34 @@
 # Lyric Safety & Governance Architecture
 
+*Status note, 2026-11-19. **This is a dated inventory, taken on 2026-08-11, and the control plane has since
+been reorganised: 18 of the 21 modules it names no longer exist.** Its reasoning about what a control plane
+must decide still holds, and that is why it is kept; its module map does not. The current account of
+governed autonomy is §10 of [../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md](../LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md)
+and Part II of [../LYRIC_ARCHITECTURE_DOCUMENT.md](../LYRIC_ARCHITECTURE_DOCUMENT.md), with the live
+authority in [../architecture/coordinator.md](../architecture/coordinator.md).*
+
+*Where the capability went, traced rather than assumed:*
+
+| Named here | Now |
+|---|---|
+| `agents/autonomous/singleton_constitution.py`, `governance_agent.py`, `runtime_governance.py` | `Constitution` and `ConstitutionalAssessment` in `core/agents/autonomous/autonomous_coordinator.py`, reached through `judge_act()`. Five laws, four verdicts, judged on every act |
+| `agents/autonomous/completion_protocol.py`, `success_validator.py` | Completion is a belief held on the task (`completion_log_odds`), settled by the truth gate: the belief bar plus at least two independent witnesses. As-built record in `../research/SEPARATION_MAP.md` §11.11 |
+| `execution/convergence_gate.py` | The `execution/` subsystem was dissolved; effect verification is `core/intelligence/effect_verification.py` |
+| `health/system_watchdog.py` | `core/guardian/supervisor.py`, a supervising daemon outside the substrate's process, so a watchdog does not die with what it watches |
+| `security/asi_safety.py`, `safety_framework.py`, `service_abstractions.py`, `controller.py` | The perimeter left the substrate. `controller.py` is held disabled in `core/security/_disabled/`; the rest were removed. Containment is Tet's, outside the substrate |
+| `learning/upgrade_sandbox.py`, `upgrade_validator.py`, `safe_upgrade_deployer.py`, `mutation_detector.py`, `governance_pattern_learner.py` | **Removed deliberately.** Self-modification was taken out of the substrate, with the governed path, the `SELF_MODIFIED` event and its statistics; the removal is recorded in `../research/LAB_NOTEBOOK.md` |
+| `agents/autonomous/reality_verifier.py`, `content_quality_verifier.py` | No longer present. Not traced to a single successor here |
+
 **Date**: 2026-08-11
 **Scope**: The control plane — what decides whether an agent action may run, whether it really
 happened, who authorized it, and under what policy.
 
-This is **not** about network defense. Host/perimeter security (threat intel, firewall, WAF, IP
-blocking) is covered by [SECURITY_GUARDIAN_ARCHITECTURE.md](SECURITY_GUARDIAN_ARCHITECTURE.md),
-[SECURITY_FOLDER_AUDIT.md](SECURITY_FOLDER_AUDIT.md) and
-[SECURITY_INTEGRATION_ANALYSIS.md](SECURITY_INTEGRATION_ANALYSIS.md).
+This is **not** about network defense, and network defense is no longer part of the substrate. The
+host and perimeter layer (threat intelligence, firewall, WAF, IP blocking) was taken out of Lyric: its
+modules are held disabled in `core/security/_disabled/`, their capabilities are catalogued in
+[CAPABILITIES_CATALOG.md](CAPABILITIES_CATALOG.md), and containment is now the job of Tet, a separate
+program outside the substrate. The three documents that described the old in-substrate perimeter are in
+[../archive/perimeter_security/](../archive/perimeter_security/).
 
 ---
 
@@ -406,7 +427,7 @@ and unbounded mutation, and safety-infrastructure writes (TOOL_EXECUTION: 10 -> 
 
 **Governance session retired** — 293 lines plus `approval_pipeline`, `approval_manager`
 and the `/approval` endpoint moved to `archive/governance_session/`. See
-[GOVERNANCE_SESSION_RETIRED.md](GOVERNANCE_SESSION_RETIRED.md). Row counts identical
+[GOVERNANCE_SESSION_RETIRED.md](../archive/governance/GOVERNANCE_SESSION_RETIRED.md). Row counts identical
 before and after; provably a no-op.
 
 ### Corrections to the plan made during implementation

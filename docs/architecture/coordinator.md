@@ -3,15 +3,32 @@
 *Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
 update when the body changes. Line numbers drift; the explanations must stay true.*
 
+*Staleness note, 2026-11-19, from a check of this document against the coordinator source. Of the 128
+handles and methods it names, **39 are no longer present**, and the line numbers throughout are from an
+earlier state of a file that has since changed. **This document needs a full re-trace against the source
+before it is relied on method by method.** Its account of what the coordinator is and which authorities it
+holds is still right, and the following are the specific differences confirmed so far:*
+
+- *The optional teacher model, `self.teacher_model`, is gone, and so is the model argument to the accessor.*
+- *`self.perception` and `self.vision` are now one handle, `self.vision = get_perception_faculty()`.*
+- *`self.asi_self_improvement`, `self.monitoring_coordinator`, `self.security_controller`,
+  `self.slack_notifier`, `self.watchdog` and `self.completed_tasks` are gone. Self-modification was removed
+  deliberately, the perimeter left the substrate for Tet, and the guardian now runs as a daemon outside
+  this process (`core/guardian/supervisor.py`).*
+- *The idle and recovery private methods this document lists (`_handle_idle_state`,
+  `_idle_abstraction_work`, `_execute_recovery`, `_verify_recovery`, `_diagnose_health`,
+  `_create_recovery_goal_from_health_event`, `_curiosity_driven_optimization`, `_start_integrity_watcher`
+  and others) are gone with the idle tiers.*
+
 ## `AutonomousCoordinator` — the body and self
 
 *`core/agents/autonomous/autonomous_coordinator.py` (~14,220 lines; class L267–L12094).
 Module helpers: `_subsystem_readiness` (100), `SelfEventType` (122), `SelfEvent` (181), `Evidence` (194), `_tool_resource` (257). The conversation/language faculty (`Conversation`, `SelfState`, `say`) lives below the class (L12216+), reached via `conversation()`.*
 
 ### 1. Purpose
-The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). It holds the language model only as an optional teacher, never its brain (291-304); every substrate path is model-free and reports an honest capability fault rather than falling back.
+The coordinator **is the substrate's body and self**: one process that *holds* every faculty-authority as a handle and reaches each faculty *through* itself rather than constructing a rival. "The coordinator is the BODY"; "EXECUTION is the self's own faculty" — the state that used to live in a separate `GeneralPurposeExecutor` was absorbed here (580-595). Every substrate path is model-free and reports an honest capability fault rather than falling back. **The optional teacher model is gone**: the coordinator holds no model handle at all, and `get_autonomous_coordinator(config)` takes no model argument.
 Authorities held: `self.learning` (355, the one `UnifiedLearningSystem`), `self.memory` (672/946), `self.neural_bridge` (707/1048), `self.universal_domain_master` (773/1049), `self.security_controller` (836). The belief store is reached via `self.learning`, not a separate handle.
-Accessor: `get_autonomous_coordinator(config, teacher_model)` (L12095, async singleton; returns a coordinator with OR without a model — the "LLM is mandatory" rule was removed).
+Accessor: `get_autonomous_coordinator(config)` (async singleton).
 
 ### 2. State
 **Held authorities/subsystems** (`self.X = get_Y()`): `coordinator_config` (307), `circuit_breakers` (311), `perception` (340), `vision` (345), `planning` (346), **`learning` (355)**, `intrinsic_motivation` (377), `directive_system` (534), awareness layers (540-550), `constitution` (557), `threat` (ThreatSense), **`task_queue` = `get_queue_authority()` (576, the shared QueueAuthority — backlog, concurrency pool, await-jobs, idle scheduling)**, `db` (584), reasoning toolkit (691-700), `neural_bridge` (707→1048), `intelligence`/`watchdog` (721-722), cognitive toolkit (730-765), `domain_registry` (772), `universal_domain_master` (773→1049), `health_monitor` (782), `log_db` (817), `security_controller` (836), `monitoring_coordinator` (840, wires `singleton_callback=self._receive_health_event` at 846), `slack_notifier` (852); injected by main.py: `asi_self_improvement` (713), `agent_coordinator` (858); `tool_registry` (585→11012), `memory` (672/675→946).

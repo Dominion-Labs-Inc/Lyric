@@ -2,8 +2,10 @@
 
 *Living document. Part of the [substrate architecture reference](ARCHITECTURE.md);
 the authority itself is documented in [architecture/learning.md](architecture/learning.md).
-Every number here was measured against the live store on 2026-09-20 — nothing is
-estimated, and where something is a hypothesis it says so.*
+Nothing here is estimated, and where something is a hypothesis it says so. Each figure carries the date
+it was measured against the live store, from the first pass on 2026-09-20 through the latest on
+2026-11-15; an undated figure in an undated section belongs to that first pass. The machine-written record
+of every pass is in [teaching_sessions/](teaching_sessions/), 440 sessions to 2026-11-17.*
 
 ---
 
@@ -129,7 +131,7 @@ isolated: one failing never rolls back what already landed.
 |---|---|---|
 | **concept graph** | `unified.concepts`, `concept_relations`, `concept_aliases`, `concept_domains`, `concept_evidence`, `evidence_envelopes` | the node, the edge, the identity, the evidence |
 | **beliefs** | `unified.beliefs` | one posterior moved per admitted clause, at the stated quality |
-| **word classes** | semantic memory, tagged `word_class` | *(not an arm of the fan-out)* a class is TOLD through `learn_word_classes`, or DERIVED by `warm_word_classes` from the surface of a taught proposition. There is no lexicon: `data/lexicon.json` and `core/semantics/lexicon.py` are deleted, and so is the `save_lexicon` flag |
+| **word classes** | semantic memory, tagged `word_class` | *(not an arm of the fan-out)* a class is TOLD through `learn_word_classes`, or DERIVED by `warm_word_classes` from the surface of a taught proposition. There is no lexicon: `data/lexicon.json` and `core/semantics/grammar.py` are deleted, and so is the `save_lexicon` flag |
 | **memory** | semantic memory (`MemoryType.SEMANTIC`) | the claim, recallable later *by meaning* |
 | **domain** | `ensure_domain`, then an `EVIDENCE_ADMITTED` announcement | the domain is REGISTERED, and the substrate is told — which is what wakes crystallisation, expansion and discovery. `ensure_domain` alone does NOT crystallise; see §12 |
 | **metrics** | in-process counters | the learning is counted |

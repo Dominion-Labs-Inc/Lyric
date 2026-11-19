@@ -3,8 +3,7 @@
 **Dominion Labs — Cognitive Substrate Series · Engineering & Architecture Reference**
 
 *A method-by-method account of how the reasoning substrate turns a question into a
-derived, checkable conclusion — or an honest refusal. Written for two audiences at
-once: engineers who will change this code, and researchers evaluating what the
+derived, checkable conclusion, or an honest refusal. Written for a reader evaluating what the
 architecture does and does not claim. Every algorithm below is described as it is
 implemented, with file and line references, and every limitation is stated at the
 same resolution as the capability.*

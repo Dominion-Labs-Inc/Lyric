@@ -1,5 +1,9 @@
 # Memory Filtering System
 
+*Design record, written 2026-01-03. The system it describes is live: `core/memory/utils/memory_filter.py`
+and `core/memory/utils/memory_worthiness.py`. The living authority for memory as a whole is
+[../architecture/memory.md](../architecture/memory.md).*
+
 ## What It Does
 
 Prevents trivial memories from clogging up the database. Reasoning systems tag their outputs with metadata, and the memory agent decides what's worth keeping based on simple rules.

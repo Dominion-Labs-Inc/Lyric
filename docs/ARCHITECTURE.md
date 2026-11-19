@@ -1,12 +1,16 @@
-# Lyric — Architecture
+# Lyric: Architecture
 
-*The canonical architecture document. Verified against the running system
-(`experiments/systems/VERIFY-01`). This master holds the conceptual model, the subsystem
-diagram, the authority map, and the belief circulation; the **exhaustive method-by-method
-reference for every subsystem** lives in [`docs/architecture/`](architecture/) (linked per
-faculty below). Living document — update it (and the diagram / belief I/O) whenever a
-subsystem, method, or wiring changes. Supersedes `ARCHITECTURE_GRAPH.md` and
-`AUTONOMOUS_COORDINATOR_MAP.md`; the terse name+line inventory is `SUBSTRATE_SYSTEMS_MAP.md`.*
+*The engineering architecture master, and the root of the substrate reference. It holds the conceptual
+model, the subsystem diagram, the authority map and the belief circulation; the method-by-method reference
+for each subsystem is in [`architecture/`](architecture/), linked per faculty below, and the terse name and
+line inventory is [`architecture/SUBSTRATE_SYSTEMS_MAP.md`](architecture/SUBSTRATE_SYSTEMS_MAP.md).
+Verified against the running system (`experiments/systems/VERIFY-01`). A living document: it is updated,
+with the diagram and the belief inputs and outputs, whenever a subsystem, method or piece of wiring
+changes. It supersedes `archive/ARCHITECTURE_GRAPH.md` and `archive/AUTONOMOUS_COORDINATOR_MAP.md`.*
+
+*This is not the company architecture document. [`LYRIC_ARCHITECTURE_DOCUMENT.md`](LYRIC_ARCHITECTURE_DOCUMENT.md)
+is the one Dominion Labs issues, and it is the one to quote outside the engineering work; where the two
+disagree, the code decides and both are corrected.*
 
 ---
 
@@ -231,7 +235,7 @@ Each links to its exhaustive method reference.
   channel (below) like movement from any other source.
 - **Capabilities** — `core/capabilities.py` (`coord.capabilities`). What the substrate can do,
   learned from experience. A capability is a METHOD the memory agent lifted from tasks of the same
-  shape done in different pursuits (`core/memory/lift.py`, MEMORY_AGENT_MAP §10.8): their steps,
+  shape done in different pursuits (`core/agents/memory_agent.py`, `_lift` and `_lift_own`/`_lift_theirs`; MEMORY_AGENT_MAP §10.8): their steps,
   each a tool with its arguments, every value that differed made a variable. It is never declared,
   never inferred from words, and never there because a tool exists. Tools are the means: they
   perform PRIMITIVES (`tool_registry.Primitive`, the operations every person has from the first

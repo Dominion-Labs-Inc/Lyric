@@ -140,7 +140,7 @@ health metrics") but not the *sole* one (seam 4).
    `evidence_producers`, `list_synthesis` reach `get_learning_authority()`
    directly (they honor the authority, but not coordinator-as-sole-entry).
 4. **Semantics split** — write-side owned (`CognitiveIngress`); read-side fragmented (no reading
-   authority; sentence_reader/machine/registry loose; `semantics/lexicon.py` deleted).
+   authority; sentence_reader/machine/registry loose; `semantics/grammar.py` deleted).
 5. **Memory class misfiled** — `MemoryAgent` lives in `core/agents/`, not `core/memory/` (which
    holds a dead `AsyncMemoryAgent` stub); legacy aliases (`MemoryManager`/`CentralizedMemoryManager`/
    `UnifiedMemorySystem`) blur the one-name ideal.

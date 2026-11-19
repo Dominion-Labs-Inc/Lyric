@@ -1,4 +1,12 @@
-# Drift Consolidation — capability inventory and absorption plan
+# Drift Consolidation: capability inventory and absorption plan
+
+**Status: DONE.** The absorption this plan argues for is the one that ran, and this is kept as the design
+record rather than as pending work. Drift is now a faculty of the coordinator beside the Constitution:
+`DriftDetector`, `DriftSignal`, `DriftState` and `DriftSeverityBand` in
+`core/agents/autonomous/autonomous_coordinator.py`, with the statistical detector retained at
+`core/learning/drift_monitoring/`. Its evidence is the `DRIFT-01` series, and the current account is §11 of
+`LYRIC_PRODUCT_AND_SYSTEM_OVERVIEW.md`. The inventory below describes the eight places drift was computed
+**before** the absorption; it is a record of what was consolidated, not of what runs.
 
 **Purpose.** One first-class Drift faculty in the coordinator, beside the Constitution,
 so the substrate PERCEIVES ITS OWN DRIFT and can correct itself. Today drift is
