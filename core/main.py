@@ -581,6 +581,20 @@ class LyricSystem:
                 logger.info("✅ PostgreSQL unified database initialized")
                 self.stats['services_initialized'] += 1
 
+                # SAY WE ARE COMING UP, from the first moment there is anywhere
+                # to say it. Everything below this takes minutes, and the loop
+                # that writes the running heartbeat is the last thing to start,
+                # so until now the whole of boot was indistinguishable from a
+                # model that was not there. Cancelled where that loop takes
+                # over; see _system_control_loop.
+                from core.agents.autonomous.autonomous_coordinator import is_worker
+                if not is_worker():
+                    from core.health import system_control as _sc
+                    # ON A THREAD. Everything below this point runs synchronous
+                    # work on the main thread for minutes, so a task here would
+                    # never be scheduled -- measured: not one beat in 40s.
+                    self._starting_beat = _sc.start_starting_beat()
+
                 # HYDRATE EPISTEMIC STATE NOW, per load_from_db's own contract:
                 # "Call once after unified_db is initialized, before the agent
                 # loop starts."  Nothing did.
@@ -1498,6 +1512,11 @@ class LyricSystem:
         # is still observable. `_guardian_present` checks a fresh heartbeat.
         # A worker is not what the dashboard watches or controls: the Lyric it works for is.
         if not is_worker():
+            # Hand the heartbeat over: stop saying "starting" before the loop
+            # writes its first "running", so the two never both hold the pen.
+            starting = getattr(self, '_starting_beat', None)
+            if starting is not None:
+                starting.set()
             self._system_control_task = asyncio.create_task(self._system_control_loop())
 
         try:
@@ -1580,6 +1599,13 @@ class LyricSystem:
 
         self._shutdown_done = asyncio.Event()
         self._shutdown_in_progress = True
+
+        # A boot that never reaches the control loop must not leave something
+        # behind saying "starting" for ever. Stopped here as well as at the
+        # handover, because this is the path a failed boot takes.
+        starting = getattr(self, '_starting_beat', None)
+        if starting is not None:
+            starting.set()
 
         logger.info("=" * 80)
         logger.info("Lyric System Shutdown Initiated")

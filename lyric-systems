@@ -199,6 +199,56 @@ async def _components() -> dict:
         await conn.close()
 
 
+async def _concepts() -> dict:
+    """How much the model holds. One count, for the console's figures.
+
+    Here rather than in the caller because this file is the one place that
+    knows how to reach the store cheaply; the console runs in the gateway,
+    whose interpreter has no asyncpg at all.
+    """
+    conn = await _connect()
+    try:
+        return {"concepts": int(await conn.fetchval(
+            "SELECT count(*) FROM unified.concepts"))}
+    finally:
+        await conn.close()
+
+
+async def _instance() -> dict:
+    """The instance of the model that is running, and what it is called.
+
+    The identifier is what the queue joins on; the name is what a person uses.
+    It is derived from the identifier rather than stored, so the name is the
+    same here, in a log line and in the console, with no column to keep true.
+    """
+    import importlib.machinery, importlib.util
+    path = HERE / "core" / "system" / "instance_name.py"
+    spec = importlib.util.spec_from_loader(
+        "lyric_instance_name",
+        importlib.machinery.SourceFileLoader("lyric_instance_name", str(path)))
+    namer = importlib.util.module_from_spec(spec)
+    sys.modules["lyric_instance_name"] = namer
+    spec.loader.exec_module(namer)
+
+    conn = await _connect()
+    try:
+        row = await conn.fetchrow(
+            "SELECT instance_id, role, "
+            "       EXTRACT(EPOCH FROM (NOW() - heartbeat_at))::int AS beat_age, "
+            "       EXTRACT(EPOCH FROM (NOW() - started_at))::int AS up_seconds "
+            "  FROM unified.queue_instances "
+            " ORDER BY heartbeat_at DESC LIMIT 1")
+        if not row:
+            return {"instance": None}
+        return {"instance": {"id": row["instance_id"],
+                             "name": namer.name_for(row["instance_id"]),
+                             "role": row["role"],
+                             "heartbeat_age_seconds": int(row["beat_age"]),
+                             "up_seconds": int(row["up_seconds"])}}
+    finally:
+        await conn.close()
+
+
 def main() -> int:
     args = sys.argv[1:]
     try:
@@ -206,10 +256,14 @@ def main() -> int:
             out = asyncio.run(_status())
         elif args and args[0] == "--components":
             out = asyncio.run(_components())
+        elif args and args[0] == "--concepts":
+            out = asyncio.run(_concepts())
+        elif args and args[0] == "--instance":
+            out = asyncio.run(_instance())
         elif len(args) == 3 and args[0] == "--control":
             out = asyncio.run(_control(args[1], args[2]))
         else:
-            print("usage: lyric-systems --status | --components | "
+            print("usage: lyric-systems --status | --components | --concepts | "
                   "--control <system> <start|stop|restart>", file=sys.stderr)
             return 2
         print(json.dumps(out, default=str))

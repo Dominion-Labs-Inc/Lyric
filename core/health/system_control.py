@@ -237,16 +237,30 @@ async def guardian_present(db_manager: Any = None, within_seconds: int = 6) -> b
 SUBSTRATE_HEARTBEAT = "__substrate_heartbeat__"
 
 
-async def publish_substrate_heartbeat(db_manager: Any = None) -> None:
-    """Advertise that the substrate process is alive.
+#: What the heartbeat may say. STARTING is written while the model is coming
+#: up, which takes minutes: the control loop that writes RUNNING is the last
+#: thing to start, so without this the whole of boot looked exactly like a
+#: model that was not there -- a page of healthy systems beside "0 models
+#: online", with nothing to tell a reader which to believe.
+STARTING = "starting"
+
+
+async def publish_substrate_heartbeat(db_manager: Any = None,
+                                      status: str = RUNNING) -> None:
+    """Advertise that the model's process is alive, and what it is doing.
 
     Symmetric with the guardian heartbeat. Written every control-loop cycle,
-    BEFORE any deferral to the guardian, because it means "the substrate process
+    BEFORE any deferral to the guardian, because it means "this process
     exists", independent of who currently owns control. Readers in other
     processes (the health monitor) use it to tell an intentionally stopped
-    substrate apart from a subsystem that regressed: a cognitive subsystem
-    reading zero while no substrate heartbeat is fresh is expected-off, not a
-    regression.
+    model apart from a subsystem that regressed: a cognitive subsystem reading
+    zero while no heartbeat is fresh is expected-off, not a regression.
+
+    The status is written as well as the time, so a reader can tell a model
+    that is COMING UP from one that is up. Freshness alone cannot: both are
+    fresh. And the word alone cannot say anything either -- a row left by a
+    process that died still reads 'running' -- so a reader needs both, and
+    neither is meaningful without the other.
     """
     if db_manager is None:
         from core.database import get_database_manager
@@ -255,11 +269,75 @@ async def publish_substrate_heartbeat(db_manager: Any = None) -> None:
         await db_manager.execute_query(
             "INSERT INTO unified.system_control_status "
             "(name, kind, description, status, controllable, updated_at) "
-            "VALUES ($1,'substrate','substrate process','running',false,NOW()) "
-            "ON CONFLICT (name) DO UPDATE SET updated_at = NOW(), status='running'",
-            (SUBSTRATE_HEARTBEAT,), commit=True)
+            "VALUES ($1,'substrate','substrate process',$2,false,NOW()) "
+            "ON CONFLICT (name) DO UPDATE SET updated_at = NOW(), status = $2",
+            (SUBSTRATE_HEARTBEAT, status), commit=True)
     except Exception as error:
         logger.debug("substrate heartbeat failed: %s", error)
+
+
+def start_starting_beat(every: float = 2.0):
+    """Say STARTING from a thread of its own. Returns the Event that stops it.
+
+    ON A THREAD, NOT THE EVENT LOOP, AND MEASURED THAT WAY. This was an
+    asyncio task first and it did not beat once: boot runs synchronous work on
+    the main thread -- word classes, counters, `structure._chances` -- so the
+    loop is not entered for minutes at a time. Over 328 reads in 40 seconds the
+    row's `updated_at` never moved while the task sat there alive. The
+    background-work roster went on naming it the whole time, because the roster
+    is itself a thread; that line says the task has not finished, which for a
+    loop with no end is true whether or not it has ever run.
+
+    A liveness beat cannot live on the thing whose liveness it reports. This
+    one keeps its own connection for the same reason: the shared manager
+    belongs to the main loop, and reaching into it from here would be both
+    unsafe and pointless, since that loop is the thing that is stuck.
+
+    Started as soon as the database answers; stopped where the control loop
+    takes over, so nothing claims RUNNING before anything is running and the
+    two never both hold the pen.
+    """
+    import asyncio
+    import getpass
+    import os
+    import threading
+
+    stop = threading.Event()
+
+    def _settings() -> dict:
+        return {
+            'host': os.getenv('POSTGRES_HOST', 'localhost'),
+            'port': int(os.getenv('POSTGRES_PORT', '5433')),
+            'database': os.getenv('POSTGRES_DATABASE', 'lyric_db'),
+            'user': os.getenv('POSTGRES_USER') or getpass.getuser(),
+            'password': os.getenv('POSTGRES_PASSWORD') or None,
+        }
+
+    async def _beat() -> None:
+        import asyncpg
+        conn = await asyncpg.connect(**_settings())
+        try:
+            while not stop.is_set():
+                await conn.execute(
+                    "INSERT INTO unified.system_control_status "
+                    "(name, kind, description, status, controllable, updated_at) "
+                    "VALUES ($1,'substrate','substrate process',$2,false,NOW()) "
+                    "ON CONFLICT (name) DO UPDATE SET updated_at = NOW(), status = $2",
+                    SUBSTRATE_HEARTBEAT, STARTING)
+                await asyncio.sleep(every)
+        finally:
+            await conn.close()
+
+    def _run() -> None:
+        try:
+            asyncio.run(_beat())
+        except Exception as error:
+            # Never take boot down over a heartbeat. Saying nothing is a worse
+            # console; it is not a worse model.
+            logger.warning("starting heartbeat stopped: %s", error)
+
+    threading.Thread(target=_run, name="substrate-starting-beat", daemon=True).start()
+    return stop
 
 
 async def substrate_present(db_manager: Any = None, within_seconds: int = 8) -> bool:
