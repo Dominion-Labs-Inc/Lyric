@@ -3977,6 +3977,13 @@ class WordRecord:
     #: standing for the things it determines (`Words.determiner_alone`, `Grammar._unary`'s "NP/N=>NP"). The grammar
     #: counted these only from sentences ANALYSED, so a store taught words recorded whole held none of them.
     determined_alone: Tuple[Tuple[str, int, int], ...] = ()
+    #: Of each word a comma was written before, how often that comma SET OFF AN ASIDE renaming what came before it
+    #: ("Tom, the teacher, barked": the analysts' `appos`) and how often it JOINED A LIST ("Ken, Bill and Yumi":
+    #: their `conj`): (name, aside, listed), as reading weighs the two readings of the same marks
+    #: (`Words.comma_before`, `Grammar._combine`'s "apposition" against the comma's list reading). Uncounted the two
+    #: scored exactly alike and an aside was read as two things doing one doing (2026-11-19). Keyed by the word the
+    #: phrase NAMES, which is the word the analysts head it by, not by the word that takes the others.
+    comma_before: Tuple[Tuple[str, int, int], ...] = ()
     #: AS THE GRAMMAR COUNTS AN ANALYSED SENTENCE (`HeldWords`), what a word's record carries of it: each form written
     #: with a capital inside a sentence, used as which kind of word (written, kind, how often: "Wall" a NAME, of Wall
     #: Street; `Words.capitalized`); each -ing or participle form of the verb, standing as a thing, after a thing,
@@ -4046,7 +4053,9 @@ class WordRecord:
                     if self.used_before_doing or self.used_asking else {}) | (
                     {"said_alone": [list(a) for a in self.said_alone]} if self.said_alone else {}) | (
                     {"determined_alone": [list(a) for a in self.determined_alone]}
-                    if self.determined_alone else {}) | {
+                    if self.determined_alone else {}) | (
+                    {"comma_before": [list(a) for a in self.comma_before]}
+                    if self.comma_before else {}) | {
                     layer: [list(x) for x in getattr(self, layer)]
                     for layer in ("capitalized", "shapes", "said_of_doing", "said_after") if getattr(self, layer)} | (
                     {"means": [[table, cls, list(rest), list(said) if isinstance(said, tuple) else said, n]
@@ -4071,6 +4080,7 @@ class WordRecord:
                    tuple((str(u[0]), str(u[1]), int(u[2])) for u in data.get("used_asking") or ()),
                    tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("said_alone") or ()),
                    tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("determined_alone") or ()),
+                   tuple((str(a[0]), int(a[1]), int(a[2])) for a in data.get("comma_before") or ()),
                    tuple((str(c[0]), str(c[1]), int(c[2])) for c in data.get("capitalized") or ()),
                    tuple((str(s[0]), str(s[1]), int(s[2])) for s in data.get("shapes") or ()),
                    tuple((str(b[0]), int(b[1]), int(b[2])) for b in data.get("said_of_doing") or ()),
@@ -4370,7 +4380,7 @@ def _frame_places(frame: Any) -> Tuple[Tuple[str, str], ...]:
 def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache: Dict[str, Any]
                    ) -> Tuple[Dict[Tuple[str, str], int], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
                               Dict[str, Counter], Dict[str, Counter], Dict[str, Counter], Dict[str, Counter],
-                              Dict[str, Counter], Dict[str, Counter]]:
+                              Dict[str, Counter], Dict[str, Counter], Dict[str, Counter]]:
     """How UD's English treebanks used each form of a word: as which class, how often ((form, class) -> n), and as
     which use, named as the grammar's entries name their uses (form -> use -> n), counted as the grammar counts an
     analysed sentence (`grammar_words.HeldWords`, over the sentences holding a form of the word); and of those, how
@@ -4414,6 +4424,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
     asking: Dict[str, Counter] = {form: Counter() for form in written}
     alone: Dict[str, Counter] = {form: Counter() for form in written}
     determined: Dict[str, Counter] = {form: Counter() for form in written}
+    beside: Dict[str, Counter] = {form: Counter() for form in written}
     capital: Dict[str, Counter] = defaultdict(Counter)
     shapes: Dict[str, Counter] = defaultdict(Counter)
     of_doing: Dict[str, Counter] = defaultdict(Counter)
@@ -4440,6 +4451,13 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                 # words recorded whole held none of them and priced the reading at the floor for ever -- the same
                 # gap `capitalized` and `verb_shapes` were written for (lyric_dev2, 2026-10-28).
                 determined[w.lower()]["before" if relations[i] in ("det", "det:poss") else "alone"] += 1
+            of = relations[i].split(":")[0]
+            if of in ("appos", "conj") and any(words[k] == "," and k < i
+                                               and relations[k].split(":")[0] == "punct" for k in under[i]):
+                # WHAT A COMMA BEFORE THE WORD SETS OFF: a phrase renaming what came before it (`appos`) against
+                # another of a list (`conj`), as the grammar counts it from an analysed sentence
+                # (`HeldWords.beside`, `Words.comma_before`), for the same reason `determined` is counted here.
+                beside[w.lower()]["aside" if of == "appos" else "listed"] += 1
             doing[w.lower()][use] += i + 1 < len(words) and cls[i + 1] == "VERB" and words[i + 1].lower().endswith("ing")
             asking[w.lower()][use] += asks
             if i > 0 and w[:1].isupper() and words[i - 1] not in OPENS_WHAT_IS_SAID:
@@ -4451,7 +4469,7 @@ def _treebank_uses(word: str, written: Set[str], treebanks: Sequence[str], cache
                     after[words[i + 1].lower()][heads[i + 1] == i + 1 and relations[i + 1] == "compound:prt"] += 1
             if cls[i] in ("NOUN", "NAME") and not relations[i].startswith("compound"):
                 of_doing[w.lower()]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
-    return classes, uses, doing, asking, alone, determined, capital, shapes, of_doing, after
+    return classes, uses, doing, asking, alone, determined, beside, capital, shapes, of_doing, after
 
 
 #: WHAT A SENTENCE'S MEANING TEACHES A GRAMMAR OF ONE WORD (`Grammar.learn`), each table by the class of the word its
@@ -5673,7 +5691,7 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     closed_written = _closed_forms(word, treebanks, _cache) if not rest else Counter()
     written = {word} | {form for forms_of in inflected.values() for form, _ in forms_of} | \
         {form for form, _, _ in closed_written}
-    (classes, uses_of, doing_of, asking_of, alone_of, determined_of, capital_of, shapes_of, of_doing,
+    (classes, uses_of, doing_of, asking_of, alone_of, determined_of, beside_of, capital_of, shapes_of, of_doing,
      after_of) = _treebank_uses(
         word, written, treebanks, _cache)
     forms: List[WordForm] = []
@@ -5791,6 +5809,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                        if (form, "NOUN") in as_class and sum(alone_of[form].values()) > 0)
     determined_alone = tuple((form, determined_of[form]["alone"], determined_of[form]["before"])
                              for form in sorted(written) if sum(determined_of[form].values()) > 0)
+    comma_before = tuple((form, beside_of[form]["aside"], beside_of[form]["listed"])
+                         for form in sorted(written) if sum(beside_of[form].values()) > 0)
     capitalized = tuple((w, kind, n) for w in sorted(capital_of) for kind, n in sorted(
         capital_of[w].items(), key=lambda x: (-x[1], x[0])) if n > 0 and w.lower() in written)
     shapes = tuple((form, shape, n) for form in sorted(shapes_of) for shape, n in sorted(
@@ -5903,7 +5923,8 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
                       "VerbNet (University of Colorado); STREUSLE CC BY-SA 4.0", split,
                       tuple((link, names, k) for (link, names), k in sorted(joins_things.items(),
                                                                           key=lambda x: (-x[1], x[0]))),
-                      together, used_before_doing, used_asking, said_alone, determined_alone, capitalized, shapes,
+                      together, used_before_doing, used_asking, said_alone, determined_alone, comma_before,
+                      capitalized, shapes,
                       said_of_doing,
                       said_after, tuple(means), **layers)
 

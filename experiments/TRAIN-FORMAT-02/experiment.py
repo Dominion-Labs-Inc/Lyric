@@ -167,6 +167,17 @@ async def store_checks() -> int:
     EV.check("the grammar holds how often each determiner is written with nothing after it saying what of "
              "(\"all are ready\") and with the kind it determines (\"all dogs\")",
              not undetermined, str(undetermined)[:300], reads=("determined_alone",))
+    # WHAT A COMMA BEFORE THE WORD SETS OFF: an aside that renames what came before it ("Tom, the teacher, barked")
+    # against another of a list ("Ken, Bill and Yumi"). The grammar offers both readings of the same marks and,
+    # until this was counted, scored them exactly alike, so an aside was read as two things doing one doing. A word
+    # recorded whole carries the counts (`WordRecord.comma_before`) and this is what says the grammar got them.
+    unbesided = [(form, aside, listed, dict(lexicon.words.beside.get(form, {})))
+                 for w in words for form, aside, listed in w.comma_before
+                 if lexicon.words.beside.get(form, {}).get("aside", 0) < aside
+                 or lexicon.words.beside.get(form, {}).get("listed", 0) < listed]
+    EV.check("the grammar holds how often a comma before each word sets off an aside that renames what came before "
+             "it (\"Tom, the teacher, barked\") and how often it joins a list (\"Ken, Bill and Yumi\")",
+             not unbesided, str(unbesided)[:300], reads=("comma_before",))
     unjoined = [(w.word, link, n) for w in words for link, n in w.joins
                 if lexicon.learned["prep"].get((w.word, "event", "-"), {}).get(link, 0) < n]
     EV.check("the grammar holds what each preposition says joining a doing to a thing (\"for\" done_for, "

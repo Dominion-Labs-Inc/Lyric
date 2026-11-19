@@ -286,6 +286,14 @@ class HeldWords(Words):
         #: and how often with the kind it determines ("all dogs": `before`), for the reading that a determiner
         #: standing alone is the things it determines (`Grammar._unary`, "NP/N=>NP").
         self.determined: Dict[str, Counter] = defaultdict(Counter)
+        #: Each word a comma stands before: how often the comma SETS OFF AN ASIDE that renames what came before it
+        #: (`aside`: "Tom, the teacher, barked" -- the analysts' `appos`) and how often it JOINS A LIST (`listed`:
+        #: "Ken, Bill and Yumi" -- their `conj`). The two read the same marks to different meanings, one thing said
+        #: of another against two things in a group, and both rules are in the grammar; with nothing counted they
+        #: scored exactly alike (-2.485 against -2.485 on "Tom, the teacher, barked.", 2026-11-19) and which was
+        #: read was whichever the chart happened to hold first. This is what decides (`Words.comma_before`,
+        #: `Grammar._combine`'s "apposition" and the comma's list reading).
+        self.beside: Dict[str, Counter] = defaultdict(Counter)
         #: Each noun and name: how often it heads a thing said of a doing with no preposition (`modifier`: "One
         #: morning the dog ran."), and how often it is used otherwise.
         self.bare: Dict[str, Counter] = defaultdict(Counter)
@@ -328,7 +336,8 @@ class HeldWords(Words):
             self.sentences += 1
         self.alike: Dict[Tuple[str, str], Counter] = defaultdict(Counter)
         for what, table in (("uses", self.form_uses), ("forms", self.forms), ("shapes", self.shapes),
-                            ("alone", self.alone), ("alone-det", self.determined), ("bare", self.bare)):
+                            ("alone", self.alone), ("alone-det", self.determined), ("bare", self.bare),
+                            ("comma", self.beside)):
             for form, counts in table.items():
                 for ending in {form[-3:], form[-2:]}:
                     self.alike[(what, ending)].update(counts)
@@ -460,6 +469,16 @@ class HeldWords(Words):
                 # A THING SAID OF A DOING WITH NO PREPOSITION ("One morning the dog ran."): the treebank's
                 # `obl:unmarked`, `obl:tmod` and `obl:npmod` in its earlier releases.
                 self.bare[form]["modifier" if relations[i] in _BARE_OF_A_DOING else "otherwise"] += 1
+            of = relations[i].split(":")[0]
+            if of in ("appos", "conj") and any(words[k] == "," and k < i
+                                               and relations[k].split(":")[0] == "punct" for k in under[i]):
+                # WHAT A COMMA BEFORE THIS WORD SETS OFF. A phrase the analysts mark as renaming what came before
+                # it (`appos`) against one they mark as another of a list (`conj`), counted only where a comma
+                # stands before it and is held under it -- which is the one thing that tells an aside from a list
+                # of two. The marks are identical, and so, until this was counted, were the two readings' scores.
+                # Counted from the WORD's side because a mark is never reached here: the loop passes over every
+                # mark before this, so a count keyed on the comma itself was dead where it was first written.
+                self.beside[form]["aside" if of == "appos" else "listed"] += 1
             if classes[i] == "DETERMINER":
                 # Before the kind it determines, or standing for the things themselves: a determiner the analysts
                 # mark as the word a thing is said by ("all" in "all are ready") heads it rather than marking it.
@@ -706,6 +725,9 @@ class HeldWords(Words):
 
     def determiner_alone(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.determined.get(word.lower(), {}).items()}
+
+    def comma_before(self, word: str) -> Mapping[str, float]:
+        return {k: float(n) for k, n in self.beside.get(word.lower(), {}).items()}
 
     def bare_modifier(self, word: str) -> Mapping[str, float]:
         return {k: float(n) for k, n in self.bare.get(word.lower(), {}).items()}

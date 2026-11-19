@@ -443,6 +443,11 @@ class Words:
         chased both": `alone`) and with the kind it determines ("all dogs": `before`)."""
         return {}
 
+    def comma_before(self, word: str) -> Mapping[str, float]:
+        """How often a comma standing before the word sets off an ASIDE renaming what came before it ("Tom, the
+        teacher, barked": `aside`) and how often it joins the word to a LIST ("Ken, Bill and Yumi": `listed`)."""
+        return {}
+
     def bare_modifier(self, word: str) -> Mapping[str, float]:
         """How often the word, heading a thing said of a doing with no preposition before it, tells of the doing ("One
         morning the dog ran.", "We met last week.": `modifier`), and how often it is used as a noun otherwise."""
@@ -2923,6 +2928,33 @@ class Grammar:
         self._fresh += 1
         return self._fresh
 
+    def _comma_costs(self, phrase: Sign) -> Dict[str, float]:
+        """WHAT A COMMA BEFORE THIS WORD COSTS READ EACH WAY: as setting off an aside that renames what came before
+        it (`aside`: "Tom, the teacher, barked") and as joining the word to a list (`listed`: "Ken, Bill and
+        Yumi"), as often as the analysts marked a comma before the word each way (`Words.comma_before`: their
+        `appos` against their `conj`), with words spelled like it where it was seldom seen (`estimate`).
+
+        THE MARKS CANNOT TELL THEM APART. Both readings make a noun phrase of the same span from the same two, and
+        with neither weighed they scored exactly alike, so an aside was read as a list of two -- "Tom, the teacher,
+        barked." as Tom and the teacher both barking -- wherever the chart happened to hold that sign first.
+        Nothing is decided here: the word's own uses decide, as they decide every other reading the grammar offers
+        two ways.
+
+        BY THE THING THE PHRASE NAMES, NOT BY THE SIGN'S HEAD. A noun phrase's head here is the word that TAKES
+        the others, so "the teacher" is headed by "the" -- and the counts are the analysts', who head it by
+        "teacher". Keyed by the sign's head every phrase beginning with a determiner shared one meaningless key and
+        the counts never reached the reading at all: supplied 40 asides against 1 list, "Tom, the teacher, barked."
+        still read as two barkers. So the word asked after is the one the phrase's own meaning names, which is the
+        word the analysts counted."""
+        ref = phrase.cat.ref if isinstance(phrase.cat, Atom) else None
+        at = next((p[3] for p in phrase.pieces
+                   if len(p) > 3 and p[1] == ref and (p[0] == "kind" or (p[0] == "word" and p[2] == "NAME"))), None)
+        if not isinstance(at, int) or not 0 <= at < len(self._tokens):
+            return {"aside": 0.0, "listed": 0.0}
+        word = self._tokens[at]
+        return estimate(self.lexicon.words.comma_before(word),
+                        self.lexicon.words.like(word, "comma"), ("aside", "listed"))
+
     def _lexical(self, tokens: Sequence[str], i: int, end: int, entry: Entry,
                  bound: Optional[Mapping[str, Term]] = None) -> Sign:
         """A word read as one of its entries; `bound`, each of the entry's variables a meaning's term it is said of
@@ -3039,9 +3071,12 @@ class Grammar:
                 out.append(Sign(rc, right.pieces, left.score + right.score, left.start, right.end, "punct",
                                 (left, right), right.head))
             if lc.feat == "," and beside:
-                # A comma joining two in a list ("Ken, Bill and Yumi").
+                # A comma joining two in a list ("Ken, Bill and Yumi"), as often as a comma before this word joins
+                # a list rather than setting off an aside (`_comma_costs`). The aside has a rule of its own and the
+                # two were scored exactly alike, so nothing decided between them; this is the other half of that.
                 out.append(Sign(Fn(rc, "&", rc), right.pieces + (("and", ",", right.start),), left.score
-                                + right.score, left.start, right.end, "conj", (left, right), right.head))
+                                + right.score + self._comma_costs(right)["listed"],
+                                left.start, right.end, "conj", (left, right), right.head))
             return out
         # Sentences one after another are each told ("It's not blood. It's beet."): a sentence closed by its stop
         # with the next.
@@ -3164,11 +3199,27 @@ class Grammar:
                         ("word", name, "NAME", right.start, right.end), ("named", name, right.start)),
                         left.score + right.score + cost, left.start, right.end, "named", (left, right), left.head))
         # A THING AND WHAT IT IS, SAID BETWEEN COMMAS: "Tom, the teacher, is tall.".
+        #
+        # WEIGHED AGAINST THE LIST THE SAME MARKS COULD BE. This rule and the comma's list reading make a noun
+        # phrase of the same span out of the same two, and both cost nothing, so on "Tom, the teacher, barked."
+        # they scored -2.485 and -2.485 and the reading taken was whichever the chart held first -- which came out
+        # as the list, so an aside was read as two things doing the barking ("Tom AND the teacher"), and
+        # "A dog, a mammal, barked." as a dog and a mammal. A wrong meaning, not a refusal, and nothing in the
+        # grammar preferred either. Both are weighed now by how often a comma before this very word sets off an
+        # aside and how often it joins a list, as the analysts marked it (`Words.comma_before`, `appos` against
+        # `conj`): what tells them apart is not in the marks, which are identical, but in the words.
+        # BRACKETS SET OFF AN ASIDE AND NOTHING ELSE, so they are read as one at no cost: a comma may join a list
+        # and is weighed against doing so, but "A dog (a mammal) barked." is not a dog and a mammal barking in any
+        # English. Read as marks standing beside their words -- which is all they were -- the aside's words were
+        # left bare and the sentence read `done_by(?v0, mammal) & done_to(?v0, dog)`: a mammal barked the dog. One
+        # whole sign, so there was nothing else to choose, and the wrong meaning was the reading.
         if isinstance(lc, Atom) and lc.base == "NP" and isinstance(rc, Atom) and rc.base == "NP" \
-                and 0 <= right.start < right.end <= len(tokens) and tokens[right.start] == "," \
-                and tokens[right.end - 1] == "," and right.end - right.start > 2:
+                and 0 <= right.start < right.end <= len(tokens) and right.end - right.start > 2 \
+                and (tokens[right.start], tokens[right.end - 1]) in ((",", ","), ("(", ")"), ("[", "]")):
+            aside = self._comma_costs(right)["aside"] if tokens[right.start] == "," else 0.0
             out.append(Sign(lc, left.pieces + right.pieces + (("be", lc.ref, rc.ref, self._new(), right.start),),
-                            left.score + right.score, left.start, right.end, "apposition", (left, right), left.head))
+                            left.score + right.score + aside,
+                            left.start, right.end, "apposition", (left, right), left.head))
         # A measure before a quality is its degree's ("Tom is ten years old.": an oldness measured ten years).
         if isinstance(lc, Atom) and lc.base == "NP" and _verb_phrase(rc) and rc.res.feat == "adj" \
                 and any(p[0] == "count" and p[1] == lc.ref for p in left.pieces):

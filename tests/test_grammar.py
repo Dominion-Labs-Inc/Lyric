@@ -2543,3 +2543,65 @@ def test_a_determiner_with_nothing_after_it_is_the_things_it_determines(grammar)
     assert read(grammar, "The dog barked.") == (
         "tell: done_by(?v0, ?v1) & given instance_of(?v1, dog) & instance_of(?v0, bark) & precedes(?v0, ?now)")
     assert read(grammar, "All dogs barked.") == read(grammar, "all dogs barked.".capitalize())
+
+
+#: How often a comma before each word set off an aside renaming what came before it and how often it joined a list,
+#: as UD English EWT's analysts marked it (`appos` against `conj`): what `Words.comma_before` gives the grammar.
+ASIDES = {"mammal": {"aside": 40.0, "listed": 1.0}, "teacher": {"aside": 40.0, "listed": 1.0},
+          "bird": {"aside": 1.0, "listed": 40.0}}
+
+
+class Asides(Held):
+    """The same words, with a comma before some of them counted."""
+
+    def comma_before(self, word: str) -> Mapping[str, float]:
+        return ASIDES.get(word.lower(), {})
+
+
+def test_an_aside_between_commas_is_what_the_thing_is_and_not_another_thing_with_it():
+    """"Tom, the teacher, barked." is ONE barker who is the teacher, not Tom and the teacher both barking. The
+    grammar has had a rule for an aside between commas all along, and the comma also has a list reading ("Ken,
+    Bill and Yumi"); the two make a noun phrase of the same span out of the same two words, and NEITHER COST
+    ANYTHING, so on this sentence they scored -2.485 and -2.485 and the reading taken was whichever the chart
+    happened to hold first. It held the list, so an aside was read as two doers -- a wrong meaning, not a refusal,
+    with nothing in the grammar preferring either.
+
+    What tells them apart is not in the marks, which are identical, but in the words: how often a comma before
+    THIS word sets off an aside and how often it joins a list, as the analysts marked it (`Words.comma_before`,
+    their `appos` against their `conj`). Both readings are weighed by it now, so the evidence decides and nothing
+    here does."""
+    grammar = gm.Grammar(gm.Lexicon(Asides()))
+    # An aside: one doer, and what it is said of it.
+    assert read(grammar, "Tom, the teacher, barked.") == (
+        "tell: done_by(?v0, tom) & given instance_of(?v1, teacher) & instance_of(?v0, bark) & "
+        "precedes(?v0, ?now) & same_as(tom, ?v1)")
+    assert read(grammar, "A dog, a mammal, barked.") == (
+        "tell: done_by(?v0, ?v1) & instance_of(?v0, bark) & instance_of(?v1, dog) & instance_of(?v2, mammal) & "
+        "precedes(?v0, ?now) & same_as(?v1, ?v2)")
+    # A word the analysts mark as another of a list is still read as one.
+    assert read(grammar, "A dog, a bird, barked.") == (
+        "tell: done_by(?v0, ?v1) & has_member(?v1, ?v2) & has_member(?v1, ?v3) & instance_of(?v0, bark) & "
+        "instance_of(?v2, bird) & instance_of(?v3, dog) & precedes(?v0, ?now)")
+    # A list joined by a conjunction is no comma's doing and is untouched.
+    assert read(grammar, "The dog chased a cat and a bird.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & has_member(?v2, ?v3) & "
+        "has_member(?v2, ?v4) & instance_of(?v0, chase) & instance_of(?v3, bird) & instance_of(?v4, cat) & "
+        "precedes(?v0, ?now)")
+    # An order said to someone by name still is one: the comma that sets an address off is not an aside's.
+    assert read(grammar, "Chase the cat, Tom.") is not None
+
+
+def test_an_aside_in_brackets_is_what_the_thing_is_and_costs_nothing(grammar):
+    """Brackets set off an aside and nothing else, so they are read as one at no cost: a comma may join a list and
+    is weighed against doing so, but "A dog (a mammal) barked." is not a dog and a mammal barking in any English.
+
+    Read as marks standing beside their words -- which is all they were -- the aside's words were left bare and the
+    sentence read `done_by(?v0, mammal) & done_to(?v0, dog)`: A MAMMAL BARKED THE DOG. One whole sign, so there was
+    nothing else to choose, and the wrong meaning was simply the reading."""
+    assert read(grammar, "A dog (a mammal) barked.") == (
+        "tell: done_by(?v0, ?v1) & instance_of(?v0, bark) & instance_of(?v1, dog) & instance_of(?v2, mammal) & "
+        "precedes(?v0, ?now) & same_as(?v1, ?v2)")
+    assert read(grammar, "A dog [a mammal] barked.") == read(grammar, "A dog (a mammal) barked.")
+    assert read(grammar, "The dog (a mammal) chased a cat.") == (
+        "tell: done_by(?v0, ?v1) & done_to(?v0, ?v2) & given instance_of(?v1, dog) & instance_of(?v0, chase) & "
+        "instance_of(?v2, cat) & instance_of(?v3, mammal) & precedes(?v0, ?now) & same_as(?v1, ?v3)")
