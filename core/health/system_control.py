@@ -28,6 +28,7 @@ the app shows a dot and no button rather than a button that would lie.
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
@@ -338,6 +339,82 @@ def start_starting_beat(every: float = 2.0):
 
     threading.Thread(target=_run, name="substrate-starting-beat", daemon=True).start()
     return stop
+
+
+async def what_lyric_is_doing(db_manager: Any = None, *, failures_within_hours: int = 24) -> Dict[str, Any]:
+    """What the model is doing, ASKED OF THE STORE rather than read out of a log.
+
+    Every question about what the substrate had been doing was answered by grepping `logs/lyric_main.log`,
+    which had reached 852 MB. The narrative log stays -- it is where the substrate says what it is thinking,
+    and nothing replaces reading that -- but the things a person or a console actually asks for are facts the
+    substrate already writes down, and they were spread across five tables with no one place to ask:
+
+      * whether the model is up, and whether it is up or still coming up (`system_control_status`);
+      * which instances are alive, by the name a person can say (`queue_instances`, `instance_name`);
+      * what each piece of its periodic work has done, and where a resumable one is waiting to be taken up
+        from (`scheduled_jobs`) -- which used to live on a job object inside one process;
+      * the reflection in hand: its window, how far it has got, and what it has concluded (`reflections`);
+      * what has failed lately, by component (`failure_events`).
+
+    Every part is attempted separately and what cannot be read says so, because a console that shows nothing
+    because one table was missing is worse than one that shows four things and names the fifth.
+    """
+    if db_manager is None:
+        from core.database import get_database_manager
+        db_manager = get_database_manager()
+
+    async def ask(name: str, query: str, params: tuple = ()):
+        try:
+            return await db_manager.execute_query(query, params, fetch_all=True) or []
+        except Exception as error:
+            doing.setdefault("unreadable", {})[name] = f"{type(error).__name__}: {error}"
+            return []
+
+    doing: Dict[str, Any] = {"asked_at": datetime.now(timezone.utc).isoformat()}
+
+    beat = await ask("model", "SELECT status, EXTRACT(EPOCH FROM (NOW() - updated_at))::int AS age "
+                              "FROM unified.system_control_status WHERE name = $1", (SUBSTRATE_HEARTBEAT,))
+    doing["model"] = ({"status": beat[0]["status"], "said_seconds_ago": int(beat[0]["age"])}
+                      if beat else {"status": "not running", "said_seconds_ago": None})
+
+    from core.system.instance_name import name_for
+    doing["instances"] = [
+        {"name": name_for(row["instance_id"]), "id": row["instance_id"], "role": row["role"],
+         "started_at": row["started_at"], "beat_seconds_ago": int(row["age"])}
+        for row in await ask("instances",
+                             "SELECT instance_id, role, started_at, "
+                             "EXTRACT(EPOCH FROM (NOW() - heartbeat_at))::int AS age "
+                             "FROM unified.queue_instances "
+                             "WHERE heartbeat_at >= NOW() - make_interval(secs => 120) "
+                             "ORDER BY heartbeat_at DESC")]
+
+    doing["work"] = [
+        {"name": row["name"], "every_seconds": float(row["interval_s"]), "runs": int(row["runs"]),
+         "errors": int(row["errors"]), "skipped": int(row["skipped"]),
+         "stood_down": int(row["stood_down"]), "last_error": row["last_error"],
+         "waiting_to_resume_at": row["resume_at"], "last_run_at": row["last_run_at"]}
+        for row in await ask("work", "SELECT name, interval_s, runs, errors, skipped, stood_down, "
+                                     "last_error, resume_at, last_run_at FROM unified.scheduled_jobs "
+                                     "ORDER BY name")]
+
+    reflecting = await ask("reflection",
+                           "SELECT reflection, whose, window_from, window_to, position, weighed, examined, "
+                           "bore_out, questioned, did_not_hold, nothing_to_weigh, stood_down, ended_at "
+                           "FROM unified.reflections ORDER BY reflection DESC LIMIT 1")
+    doing["reflection"] = (dict(reflecting[0]) if reflecting else None)
+
+    doing["failures"] = [
+        {"component": row["component"], "times": int(row["n"]), "unrecovered": int(row["open"]),
+         "last_at": row["last_at"], "last_was": row["last_was"]}
+        for row in await ask(
+            "failures",
+            "SELECT component, count(*) AS n, count(*) FILTER (WHERE NOT recovered) AS open, "
+            "max(occurred_at) AS last_at, "
+            "(array_agg(exception_type ORDER BY occurred_at DESC))[1] AS last_was "
+            "FROM unified.failure_events "
+            "WHERE occurred_at >= NOW() - make_interval(hours => $1) GROUP BY 1 ORDER BY n DESC LIMIT 10",
+            (int(failures_within_hours),))]
+    return doing
 
 
 async def substrate_present(db_manager: Any = None, within_seconds: int = 8) -> bool:
