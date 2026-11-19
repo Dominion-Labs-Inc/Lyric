@@ -457,3 +457,48 @@ def test_a_belief_may_hold_a_decay_rate_apart_from_its_domains():
     # And an update does not overwrite what the belief was given.
     source = inspect.getsource(BayesianUncertaintySystem.update_belief)
     assert "belief.decay_rate = self.domain_volatility" not in source, "an update must not take the override away"
+
+
+def test_the_belief_graph_is_read_once_a_start_however_many_ask_for_it():
+    """THREE THINGS CALL `load_from_db` ON THE WAY UP and only one asked whether the graph was already there: the
+    boot (`main.py`), the reasoning authority as it takes ownership (`neural_bridge`), and the word-class warm.
+    It is the same process-wide singleton every time, so the second pass could only ever find what the first had
+    just read -- and a start built 1,022,193 beliefs with all their evidence, kept them, then built all
+    1,022,193 again and threw the first set away. Measured in the World Model's own log, 2026-11-19: loaded at
+    09:10:37 and loaded again at 09:10:53, and at 05:50:32 and 05:50:44 the start before.
+
+    Asked here rather than at each caller, so it holds for callers not yet written. `again=True` is for a caller
+    that means to refresh rather than to hydrate."""
+    import asyncio
+
+    class Store:
+        def __init__(self):
+            self.reads = 0
+
+        def schema_stores(self):
+            return ["main"]
+
+        def is_frozen_store(self, store):
+            return False
+
+        async def execute_query(self, query, params=None, **kw):
+            if query.strip().startswith(("ALTER", "CREATE")):
+                return None
+            self.reads += 1
+            return []
+
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    system.unified_db = Store()
+    system._beliefs_schema_ready = True
+    system.beliefs = {"b1": object()}
+    system.relationships = {}
+
+    asyncio.run(system.load_from_db())
+    assert system.unified_db.reads == 0, "a graph already up is not read again"
+
+    # And a caller that means to refresh still can.
+    try:
+        asyncio.run(system.load_from_db(again=True))
+    except Exception:
+        pass                       # the stub cannot finish a real load; it only has to have been asked
+    assert system.unified_db.reads > 0, "`again` reads the store afresh"

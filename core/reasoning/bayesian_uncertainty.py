@@ -2367,13 +2367,26 @@ class BayesianUncertaintySystem:
         except RuntimeError:
             pass
 
-    async def load_from_db(self):
+    async def load_from_db(self, *, again: bool = False):
         """Load persisted beliefs from PostgreSQL into memory at startup.
 
         Call once after unified_db is initialized, before the agent loop starts.
         Restores the belief graph so epistemic state survives process restarts.
-        """
+
+        ONCE A START, HOWEVER MANY ASK. Three things call this on the way up -- the boot
+        (`main.py`), the reasoning authority as it takes ownership (`neural_bridge`), and the word-class warm --
+        and only the warm asked whether the graph was already up. So a start built 1,022,193 beliefs with all
+        their evidence, kept them, and then built all 1,022,193 again and threw the first set away: measured
+        2026-11-19 at 09:10:37 and again at 09:10:53, and at 05:50:32 and 05:50:44 the start before. It is the
+        same singleton every time, so the second pass could only ever find what the first had just read.
+
+        Asking here rather than at each caller is what makes it true for callers not yet written. `again=True`
+        reads the store afresh over what is held, for a caller that means to refresh rather than to hydrate."""
         from core.agents.memory_agent import memory_agent
+        if self.beliefs and not again:
+            logger.info("the belief graph is already up: %d belief(s), %d edge(s); not read again",
+                        len(self.beliefs), len(self.relationships))
+            return
         try:
             await self._ensure_beliefs_schema()
             rows = await self.unified_db.execute_query(

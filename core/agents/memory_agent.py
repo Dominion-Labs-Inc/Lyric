@@ -3050,6 +3050,21 @@ class MemoryAgent(IMemoryConsolidation):
 
         from core.semantics.genericity import classes_implied_by
         from core.utils.give_way import GiveWay
+        # WHERE THE WARM'S TIME GOES, SAID BY THE WARM. It is the one thing an ordinary start pays in full --
+        # 154s of the last one, against 0s for the structure and 0s for the grammar where nothing changed -- and
+        # nothing it did said which of its dozen reads that was, so there was no way to know what caching would
+        # buy without running one. Each read is timed into `spent` and the summary says the costliest.
+        spent: Dict[str, float] = {}
+
+        def timed(what: str):
+            class _At:
+                def __enter__(self_) -> None:
+                    self_.at = time.perf_counter()
+
+                def __exit__(self_, *_) -> None:
+                    spent[what] = spent.get(what, 0.0) + time.perf_counter() - self_.at
+            return _At()
+
         # Every set read here is tens of thousands of memories, worked through in one pass. Unbroken, the pass held
         # the loop 22 s past a 30 s boot timer while the substrate was starting, and it runs again when each
         # teaching pass ends with everything live (2026-10-09).
@@ -3062,13 +3077,16 @@ class MemoryAgent(IMemoryConsolidation):
         # which there are none, since a sentence is either read or not. The
         # sentences that read supply evidence FOR a class; the ones that
         # refused because of a class supply evidence AGAINST it.
-        taught = await self._rows_tagged(self.TAUGHT_PROPOSITION_TAG)
-        unread = await self._rows_tagged(self.UNREAD_TELLING_TAG)
+        with timed("taught propositions"):
+            taught = await self._rows_tagged(self.TAUGHT_PROPOSITION_TAG)
+        with timed("tellings never read"):
+            unread = await self._rows_tagged(self.UNREAD_TELLING_TAG)
         # THE THIRD KIND OF EVIDENCE: a class the substrate was TOLD, rather
         # than one implied by a sentence it read. This is where every closed
         # class and every adverb comes from -- words that never stand in a
         # subject, relation or object slot and so can be implied by nothing.
-        stated = await self._rows_tagged(self.WORD_CLASS_TAG)
+        with timed("classes stated outright"):
+            stated = await self._rows_tagged(self.WORD_CLASS_TAG)
 
         # THE TAUGHT PATTERNS, IN THE SAME PASS, AND BEFORE ANY CLASS IS IMPLIED FROM A SENTENCE. How English says
         # things is language knowledge like a word's class, read from memory at the same events, so there is one
@@ -3091,7 +3109,8 @@ class MemoryAgent(IMemoryConsolidation):
         # therefore asks: read here with the words, not after the loop below, so a term named during the warm is
         # named from the same account of English as one named after it. Read after, "came" was `come` to the
         # reader and itself to the door, and which side of the warm a word arrived on decided what it was called.
-        forms = await self._word_form_memories()
+        with timed("word forms"):
+            forms = await self._word_form_memories()
         inventory.held_forms = forms.bases_of
         # AND THE WORDS RECORDED WHOLE, FOR THE SAME REASON AND IN THE SAME PLACE. `inventory.held_forms` IS
         # `forms.bases_of` -- the one object, not a copy -- and `_learn_word_record` holds every form of every
@@ -3117,7 +3136,8 @@ class MemoryAgent(IMemoryConsolidation):
         self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
         self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
         index: Dict[str, Dict[str, int]] = {}
-        groups = await self._word_group_memories()
+        with timed("word groups"):
+            groups = await self._word_group_memories()
         structure = await self._analysed_memories(groups)
         self._record_names, self._grammar_words, self._grammar_records = {}, {}, []
         self._word_record_ids, self._classes_apart = {}, set()
@@ -3313,6 +3333,9 @@ class MemoryAgent(IMemoryConsolidation):
         if words_arrived:
             from core.semantics.lexical_normalization import canonical_term
             canonical_term.cache_clear()
+        logger.info("the warm's time, read by read: %s",
+                    ", ".join(f"{what} {how_long:.1f}s" for what, how_long
+                              in sorted(spent.items(), key=lambda kv: -kv[1])))
         logger.info(
             "word-class view warmed: %d word(s) from %d taught memory(ies) "
             "(%d remembered but never read, %d refusal(s) counted against a "
