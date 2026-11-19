@@ -135,6 +135,12 @@ class QueuePersistence:
         #: holds it, and only a job whose owner has stopped may be taken over.
         import uuid as _uuid
         self.instance_id = instance_id or f"queue_{_uuid.uuid4().hex[:12]}"
+        #: WHAT IT IS CALLED, as against what it is keyed by. The identifier
+        #: joins; the name is what a person can hold in their head and say out
+        #: loud when two instances are side by side. Derived from the
+        #: identifier, so it is the same name everywhere and nothing is stored.
+        from core.system.instance_name import name_for
+        self.name = name_for(self.instance_id)
 
     def db(self):
         if self._db is None:
