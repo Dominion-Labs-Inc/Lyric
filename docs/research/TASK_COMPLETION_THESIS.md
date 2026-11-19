@@ -1,6 +1,6 @@
 # Task Completion as an Internal, Grounded Judgment
 
-*A living design thesis. Verified against code on 2026-09-06; updated as we build.*
+*A living design thesis. Verified against code on 2026-09-06. Re-traced 2026-11-19.*
 
 ---
 
@@ -93,7 +93,7 @@ All file:line verified 2026-09-06.
 | **Belief substrate** | `core/reasoning/bayesian_uncertainty.py` — `observe_claim:275`, `create_belief:231`, `update_belief:298` | `observe_claim` is idempotent find-or-create-by-claim + one observation; `update_belief` is Bayesian with **temporal decay** (beliefs revise, don't ossify). `BayesianBelief.posterior_probability` = the confidence. **This is the completion belief's home.** |
 | **Learning-authority belief door** | `core/learning/unified_learning_system.py` — `create_belief:2297`, `update_belief:2315` | The ONE learning path exposes create/update — **but not `observe_claim` yet** (gap: add it, so the completion belief routes through `self.learning`, not around it). |
 | **Coordinator belief access** | `autonomous_coordinator.py` — `self.learning = get_learning_authority():276` | Reachable from the completion path. |
-| **Doubt bar** | `behavior_arbiter.py:137` `verification_intensity = 0.5 + 0.5·caution`; coordinator `disposition():3709`; `_verify_bar` at `:7609` | The substrate's own standard of proof, rising with caution (interoception). Already used to raise the completion bar today. |
+| **Doubt bar** | `behavior_arbiter.py` `verification_intensity = 0.5 + 0.5·caution`; coordinator `disposition():3709`; `_verify_bar` at `:7609` | The substrate's own standard of proof, rising with caution (interoception). Already used to raise the completion bar today. |
 | **Anchor extractor** | `autonomous_coordinator.py` — `extract_state_conditions:1898`, `set_goal:1929` (carries `state_conditions`), → `planning.create_goal(state_conditions=...)` | Goal/intent → formal **state conditions**. This is the anchor derivation seam already in the system (for state-goals). |
 | **Completion decision (current)** | `_execute_and_validate_task:7489`; `verification_state` rule `:7625–7690`; uncertainty-reduction gate `:7674` | Where "done" is decided today. To be reframed: `verification_state` demotes from *authority* to *evidence*. |
 | **Re-observation** | drive/operator paths re-observe before/after world (`:10883` "contradiction is an honest failure", `:10562`); `_quantify_component_uncertainties` (used `:7688`); `_collect_system_context_for_goals:8698` | Reality contact that feeds evidence into the belief. |
@@ -181,7 +181,7 @@ All file:line verified 2026-09-06.
 
 - **Acceptance standard (no bespoke bar).** "Done" reuses the belief system's OWN
   acceptance band — `posterior > ~0.7` is "confidently true", `< 0.3` "confidently
-  false", `0.5` the reversal line (`bayesian_uncertainty.py:372,1579,1598`) —
+  false", `0.5` the reversal line (`bayesian_uncertainty.py,1579,1598`) —
   raised by the self's standing caution (`verification_intensity`). No completion-
   specific threshold constant.
 - **Mint low, observe up.** The completion belief is CREATED at a low prior
@@ -328,7 +328,7 @@ correct belief reversal lost before persistence would disappear on restart.
 - **Completion beliefs are flushed durably:** after its evidence is in,
   `_observe_completion_evidence` awaits `learning.flush_belief(belief_id)` (committed,
   not fire-and-forget), so a completion — or a SAW-contradicts-DID reversal — is on
-  disk immediately. Beliefs already reload on boot (`load_from_db`, `main.py:644`),
+  disk immediately. Beliefs already reload on boot (`load_from_db`, `main.py`),
   and the completion belief is re-locatable by its anchor claim (`belief_for_claim`)
   even independent of the task's stored id, so completion state survives restart.
 

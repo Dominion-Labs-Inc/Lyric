@@ -1,9 +1,10 @@
 # Intent — a first-class authority owned by reasoning
 
-*Design of record. Status: PHASES 1–6 BUILT AND VERIFIED (2026-09-16). What
-remains is not a phase but a widening: the learning authority consuming the
-meant-vs-happened pairing as a credit signal, and integrity's two other links
-coming off their proxies. This document was written before the code so the shape is agreed
+*Design of record. Status: PHASES 1–6 BUILT AND VERIFIED (2026-09-16); the
+widening that followed is built too — the learning authority consumes the
+meant-vs-happened pairing as a credit signal (CREDIT-01), and `Intent.from_task`
+no longer exists in `core/`, so nothing reaches intent through the proxy.
+Re-traced 2026-11-19. This document was written before the code so the shape is agreed
 and a later session cannot reconstruct a different one. When it is fully built,
 the living account moves to `docs/architecture/` and this doc keeps the
 rationale.*
@@ -40,7 +41,7 @@ intent, and three places in the code show the cost:
   it comes back untrusted.
 - **A faculty already needs it and fakes it.** Appraisal's *integrity*
   dimension is coherence across `identity → intention → action → outcome`
-  ([appraisal.py:373](../../core/agents/autonomous/appraisal.py#L373)). With no
+  ([appraisal.py](../../core/agents/autonomous/appraisal.py#L373)). With no
   real intention to read, it substitutes proxies — `identity_intention = 1.0`
   if the pursuit was self-initiated, `intention_action = 1.0` if it acted at
   all. The substrate is already trying to reason about its own intentions in
@@ -322,13 +323,28 @@ blocked by the intent work.
   formation, refresh across turns, goal parenting, anchorless-question keying, the
   content/shape split under the live path, concurrency (one intent under a race),
   latency, and restart.
-- **INTENT-03** (not built) — the learning tie: an intent whose outcome did not
-  match its aim produces a credit signal that an intent whose outcome matched does
-  not. This is the "gets smarter from its own intentions" claim, measured. Comes
-  with phases 5–6.
-- **Updated (not built):** CONSTITUTION-01/02 and GOVERNANCE-ABSORPTION-01 read
-  intent from the authority instead of `from_task`; an appraisal/integrity
-  experiment reads a real intention instead of the proxies.
+- **INTENT-03 — DONE** (run `20261023T025135Z`, on `lyric_dev`). Built, but
+  against a different question than the one planned here: **the judgments are
+  correct once acts actually run.** Porting every caller to
+  `judge(..., intent_id=...)` proved the call sites worked; it did not prove the
+  resulting judgments were right under execution. This drives the chain on the
+  real substrate and checks the world: the planner proves a route and the
+  authority records it as intent, the act that matches the proved intent is
+  allowed, an act outside it is sent back to replan, a forged intent is sent back
+  to replan, and the world reached the goal.
+- **CREDIT-01 — DONE** (run `20261023T020447Z`, on `lyric_dev`) — the learning
+  tie, which is where the planned INTENT-03 went. The finding is that the credit
+  signal worth having is **not a new number**: it is `operating_reliability`, the
+  one credit that already governs behaviour, answered by what the substrate now
+  owns. Meant-vs-happened is what answers it. Earned reliability came out at
+  **0.4365**, against **0.3057** for the same record with the two unplannable
+  goals credited as losses — which is what happened before the change — and the
+  KNOW→DO bar moved with it by the bar's own rule (0.619 at stakes 0.6). Five
+  outcome classes are denied credit altogether: `insufficient_evidence`,
+  `indeterminate`, `infrastructure_failure`, `external_failure`, `invalid_task`.
+- **Updated — DONE.** CONSTITUTION-01 and CONSTITUTION-02 read intent from the
+  authority; `Intent.from_task` is gone from `core/` entirely, so no experiment
+  reaches intent through the proxy any more.
 
 All runs are captured through `experiments/_evidence.py` (a new JSON per run plus
 its `.md` summary), and every capability number is appended to

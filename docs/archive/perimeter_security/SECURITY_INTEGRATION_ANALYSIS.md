@@ -337,8 +337,8 @@ Protection: Proactive + Reactive
 To make the integrated security system **actually useful**, implement Phase 1-3:
 
 **Files to Modify**:
-1. [core/main.py](../core/main.py) - Initialize integrated security + wire to SecurityAuditWorker
-2. [core/security/security_audit_worker.py](../core/security/security_audit_worker.py) - Add integration points + threat intel queries + auto-blocking
+1. [core/main.py](../../../core/main.py) - Initialize integrated security + wire to SecurityAuditWorker
+2. core/security/security_audit_worker.py - Add integration points + threat intel queries + auto-blocking
 
 **Lines of Code**: ~150 lines total
 **Effort**: 2-3 hours

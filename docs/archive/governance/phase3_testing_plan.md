@@ -3,9 +3,9 @@
 **Phase**: 3 of 9
 **Focus**: MEMORY_OPERATIONS and RESOURCE_ALLOCATION governance integration
 **Target Files**:
-- [core/agents/autonomous/autonomous_coordinator.py](../../core/agents/autonomous/autonomous_coordinator.py:808+) - Memory operations
-- [core/memory/__init__.py](../../core/memory/__init__.py) - Memory system hooks
-- [core/agents/autonomous/autonomous_coordinator.py](../../core/agents/autonomous/autonomous_coordinator.py:3406) - Resource allocation
+- [core/agents/autonomous/autonomous_coordinator.py](../../../core/agents/autonomous/autonomous_coordinator.py) - Memory operations
+- [core/memory/__init__.py](../../../core/memory/__init__.py) - Memory system hooks
+- [core/agents/autonomous/autonomous_coordinator.py](../../../core/agents/autonomous/autonomous_coordinator.py) - Resource allocation
 
 ---
 

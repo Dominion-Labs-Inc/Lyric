@@ -272,7 +272,7 @@ researcher role with a smaller corpus, not a general assistant.
 | 4 | 3 of 8 adversarial campaigns breached | `CONSTITUTION-03`, 2026-09-17 | any public exposure; SOC absolutely |
 | 5 | 19.6% goal-conclusion rate, unexplained | `DRIFT-01`, 2026-09-19 | any "works while you're away" claim |
 | 6 | 0 of 12 sampled domains currently operable | `OPERABILITY-BAR-01`, 2026-09-20 | any autonomy claim |
-| 7 | Semantic recall unions two tiers with `SELECT *` | `postgres_storage.py:738,856` | reliability of every role |
+| 7 | Semantic recall unions two tiers with `SELECT *` | `postgres_storage.py,856` | reliability of every role |
 
 On (7): the live defect that broke recall during `CHAT-CONCURRENCY-01` on 2026-09-20 is repaired —
 both tiers now carry 27 columns (verified 2026-09-22). But the query still `SELECT *`s across two

@@ -41,20 +41,20 @@ it replaced.
 | `sentence_machine.py` | **Step 1 (done):** the cursor machine (`SentenceMachine`, `INSTRUCTIONS`, `FLAGS`) is archived; `form_of` / `surface_of` split text into its pieces losing nothing (capitals, digits, apostrophes, marks). Still here: 13 fixed word lists, the yes/no verdict lists, the old `tokenize` | `tokenize`: `Conversation.resolve`, `_leads_on`, `subject_of`, `about_this_conversation`, `is_question`. `evaluative_verdict`: `Conversation.feedback_of`. The lists: `genericity:145, 248` | lists and verdicts deleted at step 3 (they become lessons); `tokenize` replaced by `form_of` when its callers switch |
 | `derived_reader.py` (+ `reading_registry.py`) | **Step 1 (done): rewritten into the pattern reader.** Meaning (tell/ask/request; facts in link kinds; situation variables), Pattern (exact identity), the view's index, exact `read` / `say`. The 13 pairs and 22 demonstrations written here, the procedure synthesis and the `runtime/derived_reading.pkl` cache are archived; `reading_registry.py` is archived (memory's view replaced it) | `DerivedReadingFormalizer` (`neural_bridge.py`) reads through it; boot registration removed from `core/main.py` | step 2 adds slot patterns and word entries; step 3 makes it the one reader |
 | `genericity.py` | word-kind lookups `_word_class` / `_word_classes`, `classes_implied_by`, attestation `depending` / `blame`, `_LOCATIVE_*` lists, imports the fixed lists | the reader; `Conversation._triple_sentence:22313`; **`Constitution._law_vocabulary:2790`**; `neural_bridge:38`; memory's word-kind view (`memory_agent:2721, 2850`); `Conversation.teach:21568`; `TeachingPass._read:603` | word kinds come from slot links (learned); the lookups ask that; the lists go |
-| `claim_shape.py` | `NEGATORS`, `PAST_MARKERS`, `PRESENT_MARKERS`, `ASKING` (20 words) | `read_claim`: `MemoryAgent.claim_tags:3137`, `_readable_claim:402`, `LiveRecall.harvest` (`core/memory/live_recall.py:305`). `about_the_same_thing`: `MemoryAgent._could_be_the_same_claim:1753`, `MemoryAgent.retrieve:2540` | memory's claim reading and duplicate test read through patterns |
+| `claim_shape.py` | `NEGATORS`, `PAST_MARKERS`, `PRESENT_MARKERS`, `ASKING` (20 words) | `read_claim`: `MemoryAgent.claim_tags:3137`, `_readable_claim:402`, `LiveRecall.harvest` (`core/memory/live_recall.py`). `about_the_same_thing`: `MemoryAgent._could_be_the_same_claim:1753`, `MemoryAgent.retrieve:2540` | memory's claim reading and duplicate test read through patterns |
 | `relation_types.py` | `_SPECS`: 165 English phrases mapped to link kinds ("part of" → `part_of`, "can" → `capable_of`); `classify`, `complement_class` | `Conversation._typed_relation:21679`, `TeachingPass._typed_relation:498`, `cognitive_ingress:408`, the reader `:967` | which words say which link is learned (a pattern's meaning). The link kinds (`SemanticRelation`, 39 since Step 0) **stay**: they are the domain system's own structure |
 | `cognitive_ingress.py` | `NEVER_A_TERM` (53 function words refused as terms) | admission (`normalize_term` has 7 callers, all stay) | the refusal asks learned word kinds; the list goes |
 | `lexical_normalization.py` | word shapes: 34 plural exceptions, 20 irregular singulars, 25 "-ics" words, suffix stripping, `deinflect_verb` | **concept identity** (`concept_ingestion:42`, `concept_identity:268` through `normalize_term`, `cognitive_ingress:196`), `memory_agent:1659, 1745`, `tool_discovery:78`, coordinator `match_key` `:2789, 2901, 5731, 19849`, `singularise` `:22323, 22338`, `stem()` (4 callers in `Conversation`) | word shapes are learned (§4). Identity then asks the learned shapes. **This is the most delicate switch: concept identity decides when two names are one thing** |
 | `literals.py` | `_MONTHS` (month names for dates) | `classify_literal`: `concept_ingestion:764`, `evidence_producers:748`, `cognitive_ingress:133, 496`, `lexical_normalization:180, 316` | month names become word entries; the number and date structure stays |
 | `class_induction.py` | spelling features for word kinds, switched off | **none in live code** (EDU-16 only) | **backed up** to `archive/superseded_language_2026-09-27/` (§8) |
-| `conversation.py` | a lazy re-export of `Conversation` | `talk.py:16`, EDU-15/16, PATHS-01 | stays or goes with `talk.py`; no language content |
+| `conversation.py` | a lazy re-export of `Conversation` | `talk.py`, EDU-15/16, PATHS-01 | stays or goes with `talk.py`; no language content |
 | `language_ops.py` | sentiment, name-finding, summaries, stop words | tools only (`ai_ml_tools`, `security_training_pipeline`) | **out of scope**: tools for outside systems (§9) |
 
 ### 1.2 Every live call into the reader
 
 | Caller | File:line | Reads |
 |---|---|---|
-| `Conversation.read` (builds the formalizer chain) | `autonomous_coordinator.py:20851-20872` | a sentence, for anything that needs a structured reading |
+| `Conversation.read` (builds the formalizer chain) | `autonomous_coordinator.py-20872` | a sentence, for anything that needs a structured reading |
 | `Conversation.asked` | `:20886, 20900` | a question (`_parse_goal`) |
 | `Conversation._reasoned_answers` | `:21267-21315` | a question (`_parse_goal`, `clause_parts`) |
 | `Conversation._register_domain_gap` | `:21470-21477` | a question |
@@ -63,21 +63,21 @@ it replaced.
 | `Conversation.classify` | `:22011-22012` | whether a sentence is a telling |
 | `Conversation._yes_no_property` | `:22385` | a yes/no question |
 | `AutonomousCoordinator._ingest_environment_entry` | `:10328, 10338` | text files found in the boot scan of the environment |
-| `MemoryAgent._readable_claim`, called from `store_memory:982` | `memory_agent.py:403, 428` | **every memory stored**, to decide whether it is a claim |
-| `TeachingPass._read` | `teaching.py:604, 613` | each taught sentence |
-| `ConceptExtractor._read_statements` | `concept_ingestion.py:475` | **broken and unreachable** (§8) |
-| `DeterministicExtractor.formalize` | `neural_bridge.py:558-660` | premises and questions for the solver (`_parse_goal`, `_parse_statement`, `_render_*`, `render_clause`, `_normalize`, `_singular`) |
+| `MemoryAgent._readable_claim`, called from `store_memory:982` | `memory_agent.py, 428` | **every memory stored**, to decide whether it is a claim |
+| `TeachingPass._read` | `teaching.py, 613` | each taught sentence |
+| `ConceptExtractor._read_statements` | `concept_ingestion.py` | **broken and unreachable** (§8) |
+| `DeterministicExtractor.formalize` | `neural_bridge.py-660` | premises and questions for the solver (`_parse_goal`, `_parse_statement`, `_render_*`, `render_clause`, `_normalize`, `_singular`) |
 | `DerivedReadingFormalizer._atoms` | `neural_bridge.py` | **Step 1 (done):** a taught ground statement or yes/no question, through `derived_reader.read`; atoms by `clause_atom` (same vocabulary as held graph facts) |
-| `SegmentedReadingFormalizer._atoms` | `neural_bridge.py:924-925` | prose, claim by claim |
-| `NeuralSymbolicBridge._answer_over_concept_graph` | `neural_bridge.py:2429-2433` | a question over the graph |
-| `NeuralSymbolicBridge._answer_over_held_rules`, `_held_rule_chain` | `neural_bridge.py:2642-2734` | a question over held rules |
-| `NeuralSymbolicBridge._answer_over_induced_rules` | `neural_bridge.py:2782-2783` | a question over induced rules |
-| `NeuralSymbolicBridge._answer_over_sense_taxonomy` | `neural_bridge.py:2372` | its own English question pattern (`_SUBCLASS_Q`) |
+| `SegmentedReadingFormalizer._atoms` | `neural_bridge.py-925` | prose, claim by claim |
+| `NeuralSymbolicBridge._answer_over_concept_graph` | `neural_bridge.py-2433` | a question over the graph |
+| `NeuralSymbolicBridge._answer_over_held_rules`, `_held_rule_chain` | `neural_bridge.py-2734` | a question over held rules |
+| `NeuralSymbolicBridge._answer_over_induced_rules` | `neural_bridge.py-2783` | a question over induced rules |
+| `NeuralSymbolicBridge._answer_over_sense_taxonomy` | `neural_bridge.py` | its own English question pattern (`_SUBCLASS_Q`) |
 
 Two traps the build must handle. First, memory reads every memory it stores (`store_memory` →
 `_readable_claim`), and patterns are stored as memories, so pattern memories must be tagged so they are not read
-as claims. Second, the formalizer chain (`FormalizerChain`, `neural_bridge.py:970`, built at `:2990` and
-`autonomous_coordinator.py:20863`) exists to turn English into the solver's logic. After the switch the pattern
+as claims. Second, the formalizer chain (`FormalizerChain`, `neural_bridge.py`, built at `:2990` and
+`autonomous_coordinator.py`) exists to turn English into the solver's logic. After the switch the pattern
 engine gives meaning as facts, and the chain becomes: formal input, else the pattern engine's facts.
 
 ### 1.3 The conversation's own English (module level in `autonomous_coordinator.py`)
@@ -99,10 +99,10 @@ engine gives meaning as facts, and the chain becomes: formal input, else the pat
 
 | Piece | Where | Change |
 |---|---|---|
-| `Conversation.say`, the one speech path | `autonomous_coordinator.py:22413-22726` | speaks through the same patterns run in reverse. Its fixed phrases go, including "so I'll run a more targeted search." (the give-up reply flagged earlier) |
+| `Conversation.say`, the one speech path | `autonomous_coordinator.py-22726` | speaks through the same patterns run in reverse. Its fixed phrases go, including "so I'll run a more targeted search." (the give-up reply flagged earlier) |
 | `_triple_sentence`, `_natural_claim`, `_article`, `_relation_english`, `_plural_of`, `_singular_verb`, `_render_atom`, `_yes_no_property`, `_from_the_record` | `:22245, 22344, 22185, 22224, 22241, 22336, 21004, 22379, 20774` | replaced by speaking through patterns |
 | `_COPULA_RELATIONS`, `_RELATION_ENGLISH` (28), `_ARTICLED_OBJECTS`, `_PLURAL_VERB` (24), the `article` and `spoken_verb` tables | `:22191-22240, 22285, 22330` | deleted: they are English written into the code |
-| The solver's English renderings (`_render_fact`/`_action`/`_relation`/`_conjunction`, `render_clause`) | `sentence_reader.py`, used at `neural_bridge.py:632-690` | go with the reader |
+| The solver's English renderings (`_render_fact`/`_action`/`_relation`/`_conjunction`, `render_clause`) | `sentence_reader.py`, used at `neural_bridge.py-690` | go with the reader |
 | Other fixed English the substrate says about itself (`_standing` and `why` in the coordinator; perception and appraisal wording) | several | **later phase**: after reading and conversation speaking work, in the set order |
 
 ## 3. What kind of utterance it is
@@ -111,9 +111,9 @@ engine gives meaning as facts, and the chain becomes: formal input, else the pat
 |---|---|---|
 | `Conversation.is_question` | `:21887` (`?` or a first word on `QUESTION_OPENERS`) | a pattern's meaning carries what the speaker wants (tell / ask / have something done) |
 | `Conversation.classify` → question / telling / job | `:21988` ("job" is whatever did not read) | the same learned marker. The kinds stop being "everything unread" |
-| `Conversation.feedback_of` → `evaluative_verdict` | `:21929` + `sentence_machine.py:163-178` | "no, that's wrong" learned as a verdict pattern |
+| `Conversation.feedback_of` → `evaluative_verdict` | `:21929` + `sentence_machine.py-178` | "no, that's wrong" learned as a verdict pattern |
 | `Conversation.about_this_conversation` | `:20743` (`SPEECH_ACTS`, `tokenize`) | learned patterns about the exchange ("what did I ask you?") |
-| `kinds_of_thinking_for` (114 cue phrases decide which kind of reasoning a question wants) | `reasoning_interfaces.py:105, 161`; callers `neural_bridge.py:1957, 3405, 3884` | the kind of question comes from its meaning |
+| `kinds_of_thinking_for` (114 cue phrases decide which kind of reasoning a question wants) | `reasoning_interfaces.py, 161`; callers `neural_bridge.py, 3405, 3884` | the kind of question comes from its meaning |
 
 ## 4. Word shapes
 
@@ -136,10 +136,10 @@ Otherwise two names for one thing would split into two concepts.
 |---|---|---|
 | `TaughtRecord` | `teaching.py` | **Step 1 (done):** carries `meaning` and `situation`; a meaning needs its sentence |
 | The sentence-or-triple branch | `teaching.py` `_teach` | **Step 1 (done), the first plug:** a record with a meaning is not read; its bound facts are taught (by polarity) and the pair is taught as a pattern (`learn_patterns`). **Fixed on the way:** denials read from sentences were dropped ("a denial is not an edge this path can carry"); `learn_facts` now carries polarity and they are taught. Still to come (step 3): a reading that disagrees with a given meaning counts against the pattern that produced it |
-| `TeachingPass._read`, `_typed_relation`, `_note_unread`, word-kind warm at `:314` | `teaching.py:590-644, 498, 514` | switch with the reader |
-| `ClosedClassSource`, `CLOSED_CLASSES` (222 words), `PUNCTUATION_FACTS` | `teaching_sources.py:53, 102, 118` | become lessons: word entries and sentence–meaning pairs taught through the one path, not a table in code |
-| `WordNetSource`, `ConceptNetSource`, `WikidataSource` | `teaching_sources.py:293, 174, 476` | each record carries its meaning as facts (they already have the triple) |
-| `learn_word_classes` (writes "'x' is used as a noun." memories) | `unified_learning_system.py:3195` | word kinds come from slot links; a stated kind becomes one more observation |
+| `TeachingPass._read`, `_typed_relation`, `_note_unread`, word-kind warm at `:314` | `teaching.py-644, 498, 514` | switch with the reader |
+| `ClosedClassSource`, `CLOSED_CLASSES` (222 words), `PUNCTUATION_FACTS` | `teaching_sources.py, 102, 118` | become lessons: word entries and sentence–meaning pairs taught through the one path, not a table in code |
+| `WordNetSource`, `ConceptNetSource`, `WikidataSource` | `teaching_sources.py, 174, 476` | each record carries its meaning as facts (they already have the triple) |
+| `learn_word_classes` (writes "'x' is used as a noun." memories) | `unified_learning_system.py` | word kinds come from slot links; a stated kind becomes one more observation |
 | `scripts/teach.py` | `:234` | follows the pass |
 
 ## 6. The three owners
@@ -150,7 +150,7 @@ Otherwise two names for one thing would split into two concepts.
   `warm_word_classes` / `_rebuild_word_class_view` (`:2815-2826`), warmed at boot from `initialize` (`:269`).
 - Claim reading at every store (`_readable_claim`, `:378`).
 - English keyword heuristics in `_generate_worthiness_metadata` (`:1313, 1331`); the reasoner's complexity
-  score carries the same phrase list (`neural_bridge.py:4260`). They misfire on the substrate's own words
+  score carries the same phrase list (`neural_bridge.py`). They misfire on the substrate's own words
   ("laws I cannot change" matches `i cannot`).
 
 New:
@@ -165,18 +165,18 @@ every use must name the pattern's memory.** Decay for the English domain must no
 that are rare but right.
 
 **Domain system** (`core/domain/`, `core/integration/universal_domain_master.py`):
-- Meaning facts go through the one door (`ConceptIngestionService.ingest`, `concept_ingestion.py:1612`).
+- Meaning facts go through the one door (`ConceptIngestionService.ingest`, `concept_ingestion.py`).
 - English becomes a domain (`UDM.ensure_domain`).
 - The link kinds (`relation_types.SemanticRelation`) stay: 39 since Step 0 added `done_by` / `done_to`. Checked
-  before adding them: the algebra reads each kind's properties and lists none by hand (`relation_algebra.py:60-85`),
-  and graph reasoning types a stored row by the kind's exact name (`concept_graph_reasoning.py:24, 43-55`), so a
+  before adding them: the algebra reads each kind's properties and lists none by hand (`relation_algebra.py-85`),
+  and graph reasoning types a stored row by the kind's exact name (`concept_graph_reasoning.py, 43-55`), so a
   kind that does not chain, is not inherited and has no inverse stays isolated. No store constraint limits kinds.
-- `ConceptResolver._NON_CONCEPTS` (`concept_ingestion.py:702`) holds 21 words, some of them English pointing words
+- `ConceptResolver._NON_CONCEPTS` (`concept_ingestion.py`) holds 21 words, some of them English pointing words
   (`it`, `this`, `that`); those move to learned word kinds.
 
 ## 7. The Constitution and boot
 
-- **`Constitution._law_vocabulary`** (`autonomous_coordinator.py:2754-2835`) takes the nouns in the laws'
+- **`Constitution._law_vocabulary`** (`autonomous_coordinator.py-2835`) takes the nouns in the laws'
   descriptions as the interests at stake, and asks memory which words are nouns. On the wiped store no word is a
   noun yet, so the vocabulary comes back empty: the Constitution has no bearing or stakes until word kinds exist.
   It logs a warning and recomputes. It switches to learned word kinds with the rest. BEARING-01 measures it.
@@ -191,7 +191,7 @@ capability behind it is deleted outright. Status as of Step 0 (2026-09-27):
 
 | Item | Evidence | Done / proposed |
 |---|---|---|
-| `ConceptExtractor._read_statements` called `DeterministicExtractor()._parse_statement`, which does not exist, and wrote `is_a` / `is_not_a` / `implies` as link names (not kinds; a denial folded into the name) | ran it: `AttributeError`; `ingest` does not catch it (`concept_ingestion.py:1623`) | **fixed**: reads the claims the teaching path reads (`read_all`), types each link with `classify`, carries a denial as polarity, declines conditionals. `tests/test_concept_extractor_statements.py` 4/4. Switches to the pattern engine at step 3 with every other reader |
+| `ConceptExtractor._read_statements` called `DeterministicExtractor()._parse_statement`, which does not exist, and wrote `is_a` / `is_not_a` / `implies` as link names (not kinds; a denial folded into the name) | ran it: `AttributeError`; `ingest` does not catch it (`concept_ingestion.py`) | **fixed**: reads the claims the teaching path reads (`read_all`), types each link with `classify`, carries a denial as polarity, declines conditionals. `tests/test_concept_extractor_statements.py` 4/4. Switches to the pattern engine at step 3 with every other reader |
 | `submit_research_result` (`evidence_producers.py`), the only producer of statements evidence | no caller anywhere (checked across core, scripts, tests, experiments) | **wire it in the research phase**, not delete: it is the path that gives research findings their own provenance |
 | `synonym_of` did not resolve to itself: `classify("synonym_of")` gave `related_to` | measured | **fixed**: `classify` resolves a kind's own name first; a test checks every kind |
 | 5 tests in `test_relation_types_and_algebra.py` called `derived_reader.read_typed`, removed 2026-09-04 | failing since then | **fixed**: the 3 algebra tests take typed edges directly; the 2 reading tests' seven constructions are step-3 acceptance cases. 21/21 |
@@ -202,8 +202,8 @@ capability behind it is deleted outright. Status as of Step 0 (2026-09-27):
 | `class_induction.py` | no live importer | **backed up, not deleted**: moved byte for byte to `archive/superseded_language_2026-09-27/` with a README and a restore command. Step 4's learned word shapes take its job |
 | `scripts/migrate_copular_relations.py` | a one-off migration of old copular edges; the store was wiped, so it has nothing to migrate, and it imports reader internals that go at step 3 | **backed up, not deleted**: moved to the same archive folder |
 | `derived_reader.ensure_registered` | no caller anywhere | decided with the derived reader at step 3 |
-| The comment at `teaching_sources.py:44` says the fixed lists moved to memory | they are still in `sentence_machine.py` and still used: two authorities | resolved by the build |
-| English error phrases in memory's worthiness scoring and the reasoner's complexity score (`memory_agent.py:1313`, `neural_bridge.py:4260`) | **corrected**: the map said nothing the substrate says could contain them. Wrong: it says "I am bound by … laws I cannot change" (`autonomous_coordinator.py:10649`), which matches `i cannot` | live English heuristics that misfire; replaced with memory's other English heuristics (§6), not deleted as dead |
+| The comment at `teaching_sources.py` says the fixed lists moved to memory | they are still in `sentence_machine.py` and still used: two authorities | resolved by the build |
+| English error phrases in memory's worthiness scoring and the reasoner's complexity score (`memory_agent.py`, `neural_bridge.py`) | **corrected**: the map said nothing the substrate says could contain them. Wrong: it says "I am bound by … laws I cannot change" (`autonomous_coordinator.py`), which matches `i cannot` | live English heuristics that misfire; replaced with memory's other English heuristics (§6), not deleted as dead |
 
 ## 9. Out of scope, and why
 
@@ -211,21 +211,21 @@ capability behind it is deleted outright. Status as of Step 0 (2026-09-27):
   summaries), the stop words in `academic_tools.py`.
 - **Machine interfaces, not language:**
   - tool parameter names, SQL words, file extensions, homoglyphs
-  - error categories (`tool_registry.py:42`)
-  - component status strings (`health_monitor.py:1266, 2080`)
-  - security cue lists (`security_training_pipeline.py:397`)
-- **Formal syntax:** `and`/`or`/`not` as logic operators (`logical_integration.py:98`,
+  - error categories (`tool_registry.py`)
+  - component status strings (`health_monitor.py, 2080`)
+  - security cue lists (`security_training_pipeline.py`)
+- **Formal syntax:** `and`/`or`/`not` as logic operators (`logical_integration.py`,
   `PassthroughFormalizer._FORMAL_WORDS`).
 - **Later phases** (after language, in the set order: tasks, research, domains):
-  - the planner's keyword switch and step splitting (`planning_engine.py:672, 854-872`)
-  - request-to-tool matching (`tool_discovery.py:438, 511`, `capabilities.py:677`)
-  - the knowledge-request test in task execution (`autonomous_coordinator.py:19380`)
-  - research topic keywords (`research_tools.py:45`)
-  - memory-injection triggers (`memory_injection_policy.py:74, 79`)
-  - English cue lists in other reasoners (`abstract_reasoning_engine.py:219, 1289`,
-    `formal_argumentation.py:816`, `analogy_discovery.py:692, 723`, `hierarchical_abstraction.py:2224`,
-    `capability_benchmark.py:512`, `concept_graph_reasoning.py:124`)
-  - the English reader inside the proof tool (`proof_faculty.py:46-49`, used by `code_generation_tools.py:2886`).
+  - the planner's keyword switch and step splitting (`planning_engine.py, 854-872`)
+  - request-to-tool matching (`tool_discovery.py, 511`, `capabilities.py`)
+  - the knowledge-request test in task execution (`autonomous_coordinator.py`)
+  - research topic keywords (`research_tools.py`)
+  - memory-injection triggers (`memory_injection_policy.py, 79`)
+  - English cue lists in other reasoners (`abstract_reasoning_engine.py, 1289`,
+    `formal_argumentation.py`, `analogy_discovery.py, 723`, `hierarchical_abstraction.py`,
+    `capability_benchmark.py`, `concept_graph_reasoning.py`)
+  - the English reader inside the proof tool (`proof_faculty.py-49`, used by `code_generation_tools.py`).
     That one is a second reader, so it must read through the pattern engine when the task phase comes
 
   Each stays listed by `scripts/language_map.py` until its phase.

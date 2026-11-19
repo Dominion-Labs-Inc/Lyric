@@ -4,7 +4,7 @@
 auth/permission layer must gate. NOT gated yet (by decision) — this is the map so the permission model
 knows its surface. Organized by ACCESS CLASS; most tools already carry `core.tools` `Capability`
 metadata (`READ_DATA`, filesystem/network flags) an auth layer can key on, so per-tool enumeration is
-unnecessary — gate the class.*
+unnecessary — gate the class. Re-traced 2026-11-19.*
 
 Legend — sensitivity: 🟢 low (self/metadata) · 🟡 medium (local data) · 🔴 high (external / mutating / PII).
 

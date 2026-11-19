@@ -38,7 +38,7 @@ Phase 2 successfully integrates the governance trigger system into the tool exec
 
 ### 1. Governance Integration in Tool Registry
 
-**File**: [core/tools/tool_registry.py](../../core/tools/tool_registry.py#L318-L350)
+**File**: [core/tools/tool_registry.py](../../../core/tools/tool_registry.py#L318-L350)
 
 **Changes**:
 - Added governance evaluation to `execute_tool()` method (lines 318-350)
@@ -65,7 +65,7 @@ elif evaluation.decision_tier == DecisionTier.IMPORTANT:
 
 ### 2. Helper Methods Added
 
-**File**: [core/tools/tool_registry.py](../../core/tools/tool_registry.py#L408-L464)
+**File**: [core/tools/tool_registry.py](../../../core/tools/tool_registry.py#L408-L464)
 
 **Methods**:
 - `_queue_for_governance()`: Queues CRITICAL tier tools for full governance session
@@ -82,7 +82,7 @@ ToolResult(
 
 ### 3. Governance Trigger Configuration
 
-**File**: [config/governance_triggers.json](../../config/governance_triggers.json)
+**File**: config/governance_triggers.json
 
 **Triggers Updated**:
 - `tool_exec_001`: Production chaos testing (CRITICAL)
@@ -94,7 +94,7 @@ ToolResult(
 
 ### 4. Test Suite Created
 
-**File**: [tests/governance/test_phase2_tool_integration.py](../../tests/governance/test_phase2_tool_integration.py)
+**File**: [tests/governance/test_phase2_tool_integration.py](../../../tests/governance/test_phase2_tool_integration.py)
 
 **Coverage**:
 - ✅ Dangerous tools trigger CRITICAL governance (3 tests)
@@ -135,7 +135,7 @@ The implementation correctly follows the governance philosophy:
 
 **Issue**: Governance triggers used CamelCase names (`ChaosTestingTool`) but registry uses lowercase_underscore (`chaos_testing`).
 
-**Fix**: Updated all tool names in [governance_triggers.json](../../config/governance_triggers.json) to match registry format.
+**Fix**: Updated all tool names in governance_triggers.json to match registry format.
 
 **Impact**: 0/11 tests → 10/11 tests passing after fix.
 
@@ -154,7 +154,7 @@ The implementation correctly follows the governance philosophy:
 
 ### 3. Tool Class Collision (Fixed ✅)
 
-**Issue**: [ai_ml_tools.py](../../core/tools/ai_ml_tools.py) imported `Tool` base class but then defined its own `Tool` dataclass, causing initialization errors.
+**Issue**: [ai_ml_tools.py](../../../core/tools/ai_ml_tools.py) imported `Tool` base class but then defined its own `Tool` dataclass, causing initialization errors.
 
 **Fix**: Renamed local dataclass to `AIToolDefinition`.
 
@@ -191,12 +191,12 @@ All Phase 2 tests are logged to the test database:
 
 ## Files Modified
 
-1. ✅ [core/tools/tool_registry.py](../../core/tools/tool_registry.py) - Governance integration
-2. ✅ [config/governance_triggers.json](../../config/governance_triggers.json) - Tool name fixes
-3. ✅ [core/tools/ai_ml_tools.py](../../core/tools/ai_ml_tools.py) - Tool class collision fix
-4. ✅ [tests/governance/test_phase2_tool_integration.py](../../tests/governance/test_phase2_tool_integration.py) - Test suite (NEW)
-5. ✅ [docs/governance/phase2_testing_plan.md](../../docs/governance/phase2_testing_plan.md) - Architecture clarification
-6. ✅ [planfile.md](../../planfile.md) - Phase 2 architecture clarification
+1. ✅ [core/tools/tool_registry.py](../../../core/tools/tool_registry.py) - Governance integration
+2. ✅ config/governance_triggers.json - Tool name fixes
+3. ✅ [core/tools/ai_ml_tools.py](../../../core/tools/ai_ml_tools.py) - Tool class collision fix
+4. ✅ [tests/governance/test_phase2_tool_integration.py](../../../tests/governance/test_phase2_tool_integration.py) - Test suite (NEW)
+5. ✅ docs/governance/phase2_testing_plan.md - Architecture clarification
+6. ✅ planfile.md - Phase 2 architecture clarification
 
 ---
 

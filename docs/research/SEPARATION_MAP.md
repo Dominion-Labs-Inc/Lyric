@@ -69,7 +69,7 @@ which SELF-PARTITION-01 proves. Everything below that belongs to a person but is
 
 | What | Where it is written | State |
 |---|---|---|
-| The memory of a task done for a person | `autonomous_coordinator.py:8907` (`store_memory`) | stored with no owner, holding the person's request and the result: the leak found 09-26, still open |
+| The memory of a task done for a person | `autonomous_coordinator.py` (`store_memory`) | stored with no owner, holding the person's request and the result: the leak found 09-26, still open |
 | A person's question it could not answer | `known_unknowns` (`bayesian_uncertainty.py`) | stored verbatim; the table has no owner column (09-26, still open) |
 | Facts about the speaker in a taught sentence ("This is my shoe.") | `teaching.py` → `learn_facts` | stored as the substrate's own knowledge. The meaning taught with the sentence marks who each fact is about (`?speaker`, `?listener`, `?shown`, `?previous`, or none), so the substrate can judge where it belongs without a word list |
 | Exchange records (what a person asked, what it answered) | the conversation | owned by the asker (fixed 09-26) |
@@ -711,10 +711,10 @@ organization, the work stays with it.
 | A device report | the device's name, what they set on it | what the kind of device offers (its kind fields only) |
 | "That's right", after a telling | that they confirmed it | evidence on the claim it judges |
 
-**What changes in the code.** `lift.person_terms` (`core/memory/lift.py:99`) takes every word a person supplied as
+**What changes in the code.** `lift.person_terms` (`core/memory/lift.py`) takes every word a person supplied as
 theirs, so "printer", said by a person, would make a printer lesson theirs. It becomes the person's **particulars**.
-`Part` (`core/memory/utils/interfaces.py:86`) keeps where a part came from and gains what it is about. `Origin`
-(`interfaces.py:15`) gains its context: personal, or work and the organization.
+`Part` (`core/memory/utils/interfaces.py`) keeps where a part came from and gains what it is about. `Origin`
+(`interfaces.py`) gains its context: personal, or work and the organization.
 
 ### 11.4 Is it true: the gate
 
@@ -774,18 +774,18 @@ its **quality**.
 
 ### 11.6 Every path, mapped (read in the code 2026-10-06)
 
-**The conversation path** (`Conversation`, `autonomous_coordinator.py:21170-24135`; the front door
+**The conversation path** (`Conversation`, `autonomous_coordinator.py-24135`; the front door
 `handle_user_request` → `_take_turn` → `Conversation.understand`, `:16515`):
 
 | Path today | Where | Change |
 |---|---|---|
-| Told a world fact: the reader's facts go to `learn_fact` as the person; held as an edge and a 0.9 belief in their scope, walked as true for them; lifted to the world when a different person tells the same claim, or Lyric already holds it | `teach` `:22679`, `_ingest` `:22553`; `_learn_scoped_fact` `unified_learning_system.py:4559-4647`; overlay `concept_graph_reasoning.py:78` | `teach` hands the telling to memory. Their context keeps that they said it, and any facts about them. The world claim goes to the gate. Promotion by a second teller is removed |
+| Told a world fact: the reader's facts go to `learn_fact` as the person; held as an edge and a 0.9 belief in their scope, walked as true for them; lifted to the world when a different person tells the same claim, or Lyric already holds it | `teach` `:22679`, `_ingest` `:22553`; `_learn_scoped_fact` `unified_learning_system.py-4647`; overlay `concept_graph_reasoning.py` | `teach` hands the telling to memory. Their context keeps that they said it, and any facts about them. The world claim goes to the gate. Promotion by a second teller is removed |
 | The only check on a told fact: refuses an "is a" the graph already denies | `_admissible_world_fact` `:21440` | Replaced by the gate's consistency check |
-| Told "if … then …": held as the person's scoped belief | `teach` `:22759`; `_learn_scoped_rule` `unified_learning_system.py:3877` | As a told fact |
+| Told "if … then …": held as the person's scoped belief | `teach` `:22759`; `_learn_scoped_rule` `unified_learning_system.py` | As a told fact |
 | Told a fact naming the speaker: held about them | `_learn_about_user` `:21412` | Kept, written by the memory agent, decided by the split |
 | A sentence it cannot read: kept as theirs | `remember_told` `:22710` | Kept |
 | A question with a word not held: research on by default; the first page whose title names it; its first "X is a Y" admitted as world knowledge | `understand(look_up=True)` `:23310`; `_research_phrase` `:22909`, admitted `:23066` | The research episode (question, each source, what it said) goes to memory; the gate weighs the sources and admits what they establish |
-| "That's right" / "that's wrong": moves a SHARED belief on the verdict sentence's own text | `_take_feedback` `:23155`; `learn_from_feedback` `unified_learning_system.py:1105-1213`, `:1196` | Evidence on the claim it judges, through the gate, as that person's observation |
+| "That's right" / "that's wrong": moves a SHARED belief on the verdict sentence's own text | `_take_feedback` `:23155`; `learn_from_feedback` `unified_learning_system.py-1213`, `:1196` | Evidence on the claim it judges, through the gate, as that person's observation |
 | The exchange remembered as the person's | `_answer_from_what_is_held` `:17217` | Kept |
 | A turn and a research handed to the pool | `_hand_over` `:23224` | Kept; the one door out of the conversation |
 
@@ -793,7 +793,7 @@ its **quality**.
 
 | Path today | Where | Change |
 |---|---|---|
-| A person teaches by showing or saying ("this is a printer", a word, a voice, a song): kept as theirs; recognition for everyone reads only Lyric's own lessons | `learn_word` … `learn_thing` `:8576-8629`; `lessons_taught` `memory_agent.py:4281` | Split: the example of the kind goes to the gate, and once admitted every recognition uses it. A person's voice is theirs (a particular) |
+| A person teaches by showing or saying ("this is a printer", a word, a voice, a song): kept as theirs; recognition for everyone reads only Lyric's own lessons | `learn_word` … `learn_thing` `:8576-8629`; `lessons_taught` `memory_agent.py` | Split: the example of the kind goes to the gate, and once admitted every recognition uses it. A person's voice is theirs (a particular) |
 | Recognition from a person's percept: held in their scope, never promoted | `recognise_sensed` `:15308` | Split as above |
 | A task failure: remembered as the person's only | `_execute_and_validate_task` `:16390` | The failure and what overcame it go to memory, are lifted, and reach the world through the gate |
 | A task outcome to the learner as the task's owner | `_expand_one_outcome` `:12969` | Through memory and the lift |
@@ -812,7 +812,7 @@ its **quality**.
 | `observe_claim` moves a shared belief with no source of its own | `:4019` | Every observation names its source and independence key |
 
 **Reasoning:** the abstract engine's probabilistic strategy creates a shared belief at 0.5 for each claim a person's
-question targets (`abstract_reasoning_engine.py:1611`). Measured before changing: if it is reached for a person, it
+question targets (`abstract_reasoning_engine.py`). Measured before changing: if it is reached for a person, it
 moves to their context.
 
 ### 11.7 The checks, written before building

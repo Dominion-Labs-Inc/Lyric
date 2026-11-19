@@ -6,8 +6,8 @@ must stay true.*
 *Re-traced 2026-11-19.*
 
 *File:* `core/learning/unified_learning_system.py` — 7,236 lines. `UnifiedLearningSystem` at 835: 6,052
-lines, **104 public and 44 private methods**. The singletons `get_unified_learning_system()` (6802) and
-`get_learning_authority()` (6810) return the same object, and every faculty reaches it as `coord.learning`.
+lines, **104 public and 44 private methods**. The singletons `get_unified_learning_system()` and
+`get_learning_authority()` return the same object, and every faculty reaches it as `coord.learning`.
 
 ---
 
@@ -247,7 +247,7 @@ substrate (`rule_store`, `rule_induction`, `demonstration_store`, `procedure_syn
 
 ## 15. `ActFrame` — the world an act touches
 
-`ActFrame` (6887) reads the world one act is about to touch, and reads it again after: `open` takes the
+`ActFrame` reads the world one act is about to touch, and reads it again after: `open` takes the
 before-reading or declines to watch, and `close` re-reads and returns `(before, after)` over the readings
 that were taken. This is what turns an executed act into a demonstration the learner can use.
 

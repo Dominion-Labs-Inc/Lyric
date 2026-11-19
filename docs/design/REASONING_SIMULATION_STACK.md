@@ -1,7 +1,13 @@
 # Lyric Reasoning, Simulation, and Optimization Stack
 
-This document summarizes the new industrial-grade reasoning and numerical
-capabilities added to Lyric and how to use them from code and tools.
+Status: BUILT. *Re-traced 2026-11-19.*
+
+This document describes the reasoning and numerical capabilities and how to use
+them from code and tools. All five components are in the substrate —
+`core/reasoning/advanced_proof_engine.py`, `core/reasoning/constraint_solver.py`,
+`core/optimization/optimizers.py`, `core/simulation/numerical_simulation.py` and
+`core/simulation/system_dynamics.py` — and each tool interface named below is
+registered in `core/tools/reasoning_tools.py`.
 
 ## Components
 

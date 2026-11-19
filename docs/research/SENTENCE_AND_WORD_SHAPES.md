@@ -1,7 +1,10 @@
 # Sentence and word shapes: what the substrate has, and how shapes can be learned
 
 Research note, 2026-09-26, on sentence and word shapes. It starts from the position that rules are not needed,
-memory is the one store, and the job is to plug the system correctly. Nothing here has been built; the baseline measurement is `experiments/SHAPES-BASELINE-01`.
+memory is the one store, and the job is to plug the system correctly. The baseline measurement is
+`experiments/SHAPES-BASELINE-01`. *Re-traced 2026-11-19.*
+
+Steps 1 and 2 of the change map proposed here are built and measured; §8 records both runs.
 
 ## 1. What a shape is
 
@@ -18,25 +21,25 @@ memory instead, and what that takes.
 
 | Part | Where | Written or learned |
 |---|---|---|
-| 33 patterns: 22 sentence shapes (copular fact, negated fact, subject-verb-object, comparative, modal, quantified, passive, apposition, relative clause, coordination, ditransitive, universal, conditional, yes/no questions, …) and 11 that split or clean a sentence first. Each has English words inside it: `is/are/am`, `a/an/the`, `not`, `all/every/no`, `if/then`, `do/does/did`, `by`, `than`, prepositions, modals | `core/semantics/sentence_reader.py:60-285` and below | written |
-| 13 fixed word lists (copulas, determiners, negators, 66 prepositions, 52 pronouns, relatives, quantifiers, modals, auxiliaries, conjunctions, subordinators, question openers). `teaching_sources.py:44` says they moved to memory; they are still here and still used | `core/semantics/sentence_machine.py:68-141` | written, twice |
-| The derived reader: learns how to read from 13 sentence–meaning pairs, plus 22 demonstrations of its 8 instructions, by procedure synthesis over instructions it induces. 6 procedures, live (the cached derivation matches today's code). EDU-13/14 measured its limits: it generalizes to new words, not new shapes; one word per slot; search cost grows about 6× per added rule | `core/semantics/derived_reader.py:55, 99` | learned, but its evidence is written in the code |
-| What kind of request: a question is `?` or a first word on a 23-word list; a telling is anything the reader reads; a job is everything else | `autonomous_coordinator.py:21988`, list at `:19822` | written |
-| What link words mean ("part of", "can", "is a"): 170 phrases | `core/semantics/relation_types.py:184` | written |
-| Words: the tokenizer keeps letters only, turns apostrophes into `_`, splits `U.S.` into `u`, `s`, drops the `3` of `3pm` | `sentence_machine.py:150-153` | written |
-| Plurals: 34 exceptions, 20 irregulars, 25 "-ics" words, then suffix stripping. Verb forms: strip `-ing`/`-ed`, no irregulars | `core/semantics/lexical_normalization.py:39-123, 268` | written |
-| Word kinds from spelling: induced, but not allowed to decide, after it called `valves` and `pumps` verbs (`-s` marks plural nouns and verbs alike) | `core/semantics/class_induction.py:33, 185` | learned, switched off |
+| 33 patterns: 22 sentence shapes (copular fact, negated fact, subject-verb-object, comparative, modal, quantified, passive, apposition, relative clause, coordination, ditransitive, universal, conditional, yes/no questions, …) and 11 that split or clean a sentence first. Each has English words inside it: `is/are/am`, `a/an/the`, `not`, `all/every/no`, `if/then`, `do/does/did`, `by`, `than`, prepositions, modals | `core/semantics/sentence_reader.py-285` and below | written |
+| 13 fixed word lists (copulas, determiners, negators, 66 prepositions, 52 pronouns, relatives, quantifiers, modals, auxiliaries, conjunctions, subordinators, question openers). `teaching_sources.py` says they moved to memory; they are still here and still used | `core/semantics/sentence_machine.py-141` | written, twice |
+| The derived reader: learns how to read from 13 sentence–meaning pairs, plus 22 demonstrations of its 8 instructions, by procedure synthesis over instructions it induces. 6 procedures, live (the cached derivation matches today's code). EDU-13/14 measured its limits: it generalizes to new words, not new shapes; one word per slot; search cost grows about 6× per added rule | `core/semantics/derived_reader.py, 99` | learned, but its evidence is written in the code |
+| What kind of request: a question is `?` or a first word on a 23-word list; a telling is anything the reader reads; a job is everything else | `autonomous_coordinator.py`, list at `:19822` | written |
+| What link words mean ("part of", "can", "is a"): 170 phrases | `core/semantics/relation_types.py` | written |
+| Words: the tokenizer keeps letters only, turns apostrophes into `_`, splits `U.S.` into `u`, `s`, drops the `3` of `3pm` | `sentence_machine.py-153` | written |
+| Plurals: 34 exceptions, 20 irregulars, 25 "-ics" words, then suffix stripping. Verb forms: strip `-ing`/`-ed`, no irregulars | `core/semantics/lexical_normalization.py-123, 268` | written |
+| Word kinds from spelling: induced, but not allowed to decide, after it called `valves` and `pumps` verbs (`-s` marks plural nouns and verbs alike) | `core/semantics/class_induction.py, 185` | learned, switched off |
 
 Machinery that is **not** English, and is what learning needs:
 - **Generalization from examples**: Plotkin's least general generalization, pruned by negatives, with rule states
-  CANDIDATE / SUPPORTED / VALIDATED / REFUTED (`core/learning/rule_induction.py:731`). Learned rules are kept in
-  `unified.learned_rules` (`core/learning/rule_store.py:314`).
+  CANDIDATE / SUPPORTED / VALIDATED / REFUTED (`core/learning/rule_induction.py`). Learned rules are kept in
+  `unified.learned_rules` (`core/learning/rule_store.py`).
 - **Procedure synthesis**: builds a procedure that is right on every example (used by the derived reader).
 - **Word kinds in memory**: one memory per (word, kind), with three kinds of evidence: stated, implied by a
   reading, refuted when a reading failed because of it (`MemoryAgent.warm_word_classes`).
 
 **The teaching path already carries the pairs a shape learner needs, and throws them away**
-(`core/learning/teaching.py:345-412`). A taught record can carry a sentence and what it means (subject, relation,
+(`core/learning/teaching.py-412`). A taught record can carry a sentence and what it means (subject, relation,
 object). If the sentence reads, the reading is taught; if not, the stated meaning is. Nothing compares the two, so
 no shape is ever learned from the pair, and a reading that disagrees with what the teacher said is never noticed.
 
@@ -198,17 +201,17 @@ The method chosen (Doumen, Beuls & Van Eecke 2023; extended in *Royal Society Op
 
 | The method needs | What the substrate has | State |
 |---|---|---|
-| A store for patterns that starts empty and is wiped with everything else | Memory holds structured, tagged memories, and a view is warmed from them at the events that change them. The word-kind view is a working example: `learn_word_classes` writes (`unified_learning_system.py:3195`), `warm_word_classes` reads (`memory_agent.py:2815`) | have |
-| A score per pattern that moves with use | A memory's `confidence_score` can be updated (`memory_agent.py:3225`, a protected field); beliefs move with evidence; learned rules carry states | have the pieces; the scoring rule itself (+ for use, − for competitors) is small and missing |
-| Meaning as predicates that share variables | `Fact(predicate, args)` with `?X` variables (`rule_induction.py:118`) | have |
+| A store for patterns that starts empty and is wiped with everything else | Memory holds structured, tagged memories, and a view is warmed from them at the events that change them. The word-kind view is a working example: `learn_word_classes` writes (`unified_learning_system.py`), `warm_word_classes` reads (`memory_agent.py`) | have |
+| A score per pattern that moves with use | A memory's `confidence_score` can be updated (`memory_agent.py`, a protected field); beliefs move with evidence; learned rules carry states | have the pieces; the scoring rule itself (+ for use, − for competitors) is small and missing |
+| Meaning as predicates that share variables | `Fact(predicate, args)` with `?X` variables (`rule_induction.py`) | have |
 | Each sentence arrives with its meaning | The teaching path carries a sentence and ONE subject–relation–object | partly: the meaning has to become a set of facts |
 | Matching a pattern's meaning to a meaning (speaking) and its form to a sentence (reading) | `unify`, `match_body`, `apply_substitution` (`core/reasoning/unification.py`) | have the matching step. The engine that combines patterns (fill slots, follow the slot–filler links, pick the best-scored combination) is missing, and it is the largest part to build |
-| Finding what two examples share and where they differ | Plotkin's generalizer, whose shared table records each difference (`rule_induction.py:603-716`). It is built for rules (before → action → after), not for a form paired with a meaning | partly: the core step exists. A version for form–meaning pairs that also returns the differences, and pairs the difference in the words with the difference in the meaning, is missing |
+| Finding what two examples share and where they differ | Plotkin's generalizer, whose shared table records each difference (`rule_induction.py-716`). It is built for rules (before → action → after), not for a form paired with a meaning | partly: the core step exists. A version for form–meaning pairs that also returns the differences, and pairs the difference in the words with the difference in the meaning, is missing |
 | The four learning steps: store whole; generalize into a slot pattern plus fillers; learn the uncovered rest of a partly understood sentence; add a missing slot–filler link | none | missing |
 | Slot–filler links (the word kinds that emerge) | The concept graph can hold them as edges | have the store; the links come from the learning steps |
-| Teaching calls the learner on every pair | `teaching.py:345-412` teaches the reading or the stated meaning, never compares | missing (the first plug) |
+| Teaching calls the learner on every pair | `teaching.py-412` teaches the reading or the stated meaning, never compares | missing (the first plug) |
 | Reading and speaking go through the learned patterns | The conversation uses the written patterns and fixed lists; speaking uses fixed phrases | missing (the second plug). The written patterns, fixed lists and phrases then go |
-| The text as written, nothing lost | The tokenizer drops the 3 of `3pm`, turns `'` into `_` and splits `U.S.` (`sentence_machine.py:150`) | small fix, or work on the text itself as the paper does |
+| The text as written, nothing lost | The tokenizer drops the 3 of `3pm`, turns `'` into `_` and splits `U.S.` (`sentence_machine.py`) | small fix, or work on the text itself as the paper does |
 
 **Verdict.** The foundation is there: the store, the fact language, matching, the generalizer's core step, the
 graph and scores. The method itself is not: the engine that reads and speaks by combining patterns, and the four
@@ -230,7 +233,7 @@ beliefs ("what is currently thought true"). Nothing new is stored anywhere else.
 | Part | Owner | How it fits | What to watch |
 |---|---|---|---|
 | Patterns and word entries | **Memory** | tagged, structured memories with a view warmed from them, as word kinds already are | — |
-| A pattern's score | **Beliefs** | one belief per pattern, naming the pattern's memory. `observe_claim` (`bayesian_uncertainty.py:458`) records each use as an observation for it, or against it for a failure or a competitor that lost. The same observation is never counted twice, and the update is the substrate's own odds kernel with decay | This is the first place outcomes must move beliefs (a known defect), so every use has to name the pattern's memory. The decay must not wear down patterns that are rare but right |
+| A pattern's score | **Beliefs** | one belief per pattern, naming the pattern's memory. `observe_claim` (`bayesian_uncertainty.py`) records each use as an observation for it, or against it for a failure or a competitor that lost. The same observation is never counted twice, and the update is the substrate's own odds kernel with decay | This is the first place outcomes must move beliefs (a known defect), so every use has to name the pattern's memory. The decay must not wear down patterns that are rare but right |
 | What a sentence means | **Domain system** | facts over its concepts and its relation kinds (37 then; 39 since `done_by` / `done_to` were added) (`relation_types.SemanticRelation`). Most of the first lesson fits: "This is my shoe." → `instance_of(?x, shoe)`, `owned_by(?x, speaker)`; "It is black." → `has_property(?x, black)`; "My shoe … has laces" → `has_part(?x, ?l)`, `instance_of(?l, lace)` | English itself (its patterns and word entries) becomes a domain, measured like any subject |
 
 **What the domain system cannot hold yet, and the first lesson needs:**
@@ -244,17 +247,24 @@ beliefs ("what is currently thought true"). Nothing new is stored anywhere else.
 
 **Every place that changes** is mapped, with evidence and a build order, in `docs/research/SHAPES_CHANGE_MAP.md`; re-check it with `scripts/language_map.py`.
 
-## 8. Next experiment (proposed, not built)
+## 8. What the experiments found
 
-**SHAPES-LEARN-01**, on an empty store, with no English written in:
-1. Teach kindergarten-level sentence–meaning pairs ("This is my shoe." / "This is my hat." / "That is your
-   sock." …).
-2. Measure new sentences that use known shapes with new words (vocabulary).
-3. Measure new combinations of known shapes (syntax).
-4. Measure meaning → sentence (speaking).
-5. Measure refusals of shapes never seen.
-6. Measure which word kinds appear from the places words fill, with none told.
-7. Compare against SHAPES-BASELINE-01.
+**SHAPES-LEARN-01** (run `20260927T053015Z`, 27/27) — step 1, end to end. Nine sentences were taught, each with
+what it means, through the one teaching path, on the sandbox store. Each became a pattern held by the three named
+owners: one pattern memory per sentence in memory, never merged and never read as a claim; one belief per pattern
+in beliefs, grounded in its memory; and the facts the meanings state held in the English domain's graph. Every
+taught sentence read back to its meaning, and every meaning was said back as its sentence. Nothing untaught read.
+The main store was not touched — 207 rows before and after.
+
+This is the substrate's first English that is **learned rather than written into the code**. It reads only what
+it was taught, exactly: `this is my shoe.` in lowercase and `My shoe is red.` do not read.
+
+**SHAPES-LEARN-02** (run `20260927T202516Z`, 32/32) — step 2, end to end. A kindergarten lesson of 25 sentences
+went through the one teaching path, each sentence with its meaning, one at a time. The substrate found
+constructions between them by the Leuven method (§4.2), holding them in memory and scoring them with beliefs:
+7 holophrases, 8 item-based constructions such as `This is my ?slot0.`, `The ?slot0 is ?slot1.` and
+`Is the ?slot0 ?slot1?`, 16 lexical constructions, and 30 links between slots and fillers — one memory and one
+grounded belief for each, 61 in all.
 
 ## References (checked 2026-09-26)
 

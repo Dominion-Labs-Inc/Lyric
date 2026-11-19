@@ -1309,7 +1309,7 @@ public attribute of theirs moves at runtime.
   accepted in advance. **Rows 20-34 (18:19 → 18:47) are the class-digest defect in §10**, and are the last
   rows either should produce. Lifting the standing halt is Stefan's:
   `Constitution()` → `await c.restore_halt()` → `await c.resume(authorized_by="<a human>")`, then a restart.
-- `generate_tests_from_behavior` (`core/tools/code_generation_tools.py:1161`) does
+- `generate_tests_from_behavior` (`core/tools/code_generation_tools.py`) does
   `exec(compile(tree, "<code>", "exec"), ns)` **inside the resident**. That is arbitrary in-process Python reached
   through a registered tool, and the one route by which the in-memory attribution evidence could be forged. It is
   a Law 5 containment question of its own and is untouched here.
@@ -1439,13 +1439,13 @@ only that name changed, budget 6,000:
 not, and all three say the sentence.
 
 **The mechanism, as far as it is actually established.** `?there` is a DECLARED situation variable --
-`grammar.py:2478` `_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})`
-and `derived_reader.py:106` `SITUATION_VARIABLES` the same -- and `grammar.py:6459` keeps it: the reader
+`grammar.py` `_SITUATION = frozenset({"?speaker", "?listener", "?previous", "?now", "?here", "?there"})`
+and `derived_reader.py` `SITUATION_VARIABLES` the same -- and `grammar.py` keeps it: the reader
 renumbers every unknown to `?v0`, `?v1`, ... and EXEMPTS the situation variables, so `?there` survives into
 the meaning under its own name. Saying then says nothing of it, measured, while `?p`, `?place` and `?g2`
 with the same kind all say the sentence.
 
-**I FIRST BLAMED `composition.py:291` FOR THIS AND IT WAS WRONG** (it is in a commit message too). That line
+**I FIRST BLAMED `composition.py` FOR THIS AND IT WAS WRONG** (it is in a commit message too). That line
 is inside `words_by_names`, which aligns a LESSON's meaning to its words; it has nothing to do with reading
 or saying this sentence. The behaviour it was cited for is real -- supplying the kind does not help -- but the
 line that causes it is not yet identified, and WHERE READING FIRST ASSIGNS `?there` is not identified either.
@@ -1455,7 +1455,7 @@ The experiment transcripts show `?there` appearing only on readings labelled `co
 frame read -- which is the next thing to trace, by tracing and not by grep.
 
 And `?there` is not a spare name: it is WHERE THE CONVERSATION IS. After each telling,
-`autonomous_coordinator.py:24153` runs `place = place_spoken_of(...)` and then
+`autonomous_coordinator.py` runs `place = place_spoken_of(...)` and then
 `self._last_place = situation["?there"] = place`, and `_situation` (22300) hands it to the next sentence.
 So reading files the blowhole as the place the conversation is at, and the meaning says the whale breathes
 through *where we are*. That is the fault under the empty reply, and it is a reading fault, not a saying
@@ -1623,7 +1623,7 @@ question about that phase cost a six-hour run to ask, so I reasoned where I shou
 
 ### 9. THE WHALE, AT THE ROOT: the place a sentence spoke of was turned back into `?there` in its own report
 
-Everything in §4 about `?there` being a reading fault is wrong, and so is the `composition.py:291` claim. **Reading
+Everything in §4 about `?there` being a reading fault is wrong, and so is the `composition.py` claim. **Reading
 is correct.** Asked of the reading itself rather than of the store (`Reading.composed`, the constructions, the
 meaning):
 
@@ -1828,8 +1828,8 @@ and I did not read it.
 it is handed carries a fact whose subject IS its object:
 
 ```
-autonomous_coordinator.py:25768  <genexpr>   _said(item.phrase, relation, other, ...)
-autonomous_coordinator.py:21430  _said       say(Meaning("tell", facts), ...)
+autonomous_coordinator.py  <genexpr>   _said(item.phrase, relation, other, ...)
+autonomous_coordinator.py  _said       say(Meaning("tell", facts), ...)
    facts: isa(list, list)
 ```
 
@@ -2516,8 +2516,8 @@ them -- 25 remain refused as structure words, and 2 run past `MAX_LABEL_LEN`:
 The teach that followed the renames **completed and committed its 2,119 facts, and then its review crashed**:
 
 ```
-ValueError: min() arg is an empty sequence     derived_reader.py:5094 in _supposes
-StopIteration                                  derived_reader.py:5562 in _one_thing_twice
+ValueError: min() arg is an empty sequence     derived_reader.py in _supposes
+StopIteration                                  derived_reader.py in _one_thing_twice
 ```
 
 Swept over all 146 renamed senses through the review's own path -- `dr.say(Meaning("ask", ...))`, then
@@ -2592,7 +2592,7 @@ the reading itself identical. Rules key `2a9085ea08c80043` -> `94ce4b43dd6ae53c`
 
 ```
 ValueError: only a particular thing is known: `given` says what a thing both know is (instance_of, of a variable)
-  derived_reader.py:4682 in _composed
+  derived_reader.py in _composed
 ```
 
    `given` marks what speaker and listener both know, and only of a VARIABLE (`MeaningFact.__post_init__`).
@@ -2657,7 +2657,7 @@ The 288 are WordNet definition links: `defined_with` 174, `similar_to` 92, `anto
 Exactly one of the four layers reaches no reader. `tests/test_understanding_reaches_the_reader.py` records
 `argued_sentence` in `NOT_ASKED`, and it was re-verified here rather than taken on the note's word: `argument_view`
 and `composition_view` appear ONLY in `memory_agent.py`, in neither `grammar.py` nor `derived_reader.py`.
-`CompositionView` does consult the arguments (`composition.py:771`), but nothing on the reading path consults
+`CompositionView` does consult the arguments (`composition.py`), but nothing on the reading path consults
 `CompositionView`, so the chain ends there.
 
 **The one layer that reaches no reader moved nothing. Each layer that reaches the reader moved exactly one question
@@ -2666,12 +2666,12 @@ from no reading to a wrong one.** That is the mechanism measured rather than inf
 ### The mechanism, every link read out of the code
 
 1. `derived_sentence` 0 -> 8,679 reaches `Lexicon.hear_derived`, which fills `self.derived["uses"]`
-   (`grammar.py:1583-1609`), read by `_held_evidence` at `grammar.py:1419-1423`. An EMPTY table scores every closed
+   (`grammar.py-1609`), read by `_held_evidence` at `grammar.py-1423`. An EMPTY table scores every closed
    entry at its floor, so categories the grammar needed were never considered and no derivation completed.
    `analysed_sentence` and `word_forms` do the same for the structure view and for a word memory holds nothing of.
    So the grammar now BUILDS a derivation where it built none.
 2. `COMPOSED_READINGS = 1`, so exactly one reading reaches the listener.
-3. `meant` handed one reading returns it before weighing anything (`derived_reader.py:6653`), under "the only
+3. `meant` handed one reading returns it before weighing anything (`derived_reader.py`), under "the only
    meaning the words have". Its own comment: "One meaning is not a choice ... none of the evidence below ever ran."
 4. So a sentence that read as nothing now reads as whatever the grammar's own score put first.
 
@@ -2686,7 +2686,7 @@ it as a DEFAULT: composing is also how a start reads its 251 tool descriptions (
 `_tools_by_doing`), each chart costing `how_many` squared, and at six a start that takes 29 s had not finished
 reading its tools in 20 minutes. The 2026-11-08 note retired two different objections and never addressed this one.
 
-**A trap in the same edit.** The rescue at `derived_reader.py:5660` is guarded by `COMPOSED_AGAIN > width`. Setting
+**A trap in the same edit.** The rescue at `derived_reader.py` is guarded by `COMPOSED_AGAIN > width`. Setting
 the width to 3 while `COMPOSED_AGAIN` is 3 would have made the guard false and silently removed the structure-word
 rescue altogether.
 
@@ -2718,7 +2718,7 @@ there, above the narrowest it overcharges there. The width belongs to the door, 
 
 **Not a measurement, a broken instrument.** The first verification probe reached for `_read` on the coordinator and
 raised `AttributeError` on all six sentences after a 23-minute boot. The door is `Conversation._read`
-(`autonomous_coordinator.py:21662`); `Conversation` is the class at 21537, reached through the substrate's own front
+(`autonomous_coordinator.py`); `Conversation` is the class at 21537, reached through the substrate's own front
 door for conversing, `get_conversation(..., remembers=False)`, which is also what writes nothing. The production
 edit was in the right place; only the probe asked the wrong object. A probe that cannot reach the door reports
 nothing and costs a boot, and the boot is what found the regression above, which is the only reason the hour paid
@@ -2775,7 +2775,7 @@ the largest known cost in a start, and it was invisible until the line was added
 
 ### Why the listener cannot choose: a circle, verified on both stores
 
-`listening_counts` counts a sentence only where it reads MORE THAN ONE WAY (`derived_reader.py:6783`), because what
+`listening_counts` counts a sentence only where it reads MORE THAN ONE WAY (`derived_reader.py`), because what
 it learns is which evidence told the reading meant from the readings not meant. At width 1 no composed sentence
 reads more than one way, so nothing is counted; `listening_worths` on no counts gives every level
 `ln(1) = 0` nats (Laplace on two zeros); `known`, `defined` and `fit` are multiplied by zero, leaving only the
@@ -3321,10 +3321,10 @@ readings?! how, so what is the teaching lacking."*
 ### The resident restarted, and what the old one had been doing
 
 The resident on PID 70933 was carrying the grammar from before the four fixes of 11-02, and it had been **hung for
-3.9 hours inside one answer**: over that stretch ~245 heartbeats were due (`core/main.py:1504`, one a minute) and
+3.9 hours inside one answer**: over that stretch ~245 heartbeats were due (`core/main.py`, one a minute) and
 `grep -c "System heartbeat"` returned **2**. A synchronous spin inside `_reasoned_answers` blocked the event loop.
 The profiler's "STILL INSIDE" ticks had been read as evidence the loop was alive; they are not — the nag fires from
-a `threading.Timer` (`performance_profiler.py:1087`) and says nothing about the loop. Ruled out by measurement as
+a `threading.Timer` (`performance_profiler.py`) and says nothing about the loop. Ruled out by measurement as
 the cause: the concept-graph walk (`unified.concept_relations` holds 2,318 rows, `concepts` 1,402, `isa` 201,
 `instance of` 109 — far too small to blow up) and `word_held_as_both` (~60k cheap iterations). Not pinned further:
 that needs the `trace_step` list in `autonomous_coordinator.py` widened, and editing a protected module while a
@@ -3554,7 +3554,7 @@ Three instruments were built and each paid for itself in its first use:
 
 With **zero** conditionals held, every taught sentence still read whole at sureness 1.000 and 6 of 6 well-formed
 taxonomy questions were answered right, 0 wrong. Nothing in `grammar.py` or `composition.py` reads
-`held_conditionals`; the only consumer is `neural_bridge.py:2750`. **Rules are world knowledge, not language
+`held_conditionals`; the only consumer is `neural_bridge.py`. **Rules are world knowledge, not language
 knowledge** — which answers *"But [are] rules even needed for language, understanding and reading and responding"*:
 not for reading and saying. Restoring them is deferred: no corpus supplies them (43 lessons / 3,058 records hold zero
 conditionals; the six `"condition"` hits were the English noun).
@@ -5119,7 +5119,7 @@ What the grammar words spend is kept apart in `used` and checked against `most` 
 as a requirement. Of `Tom is writing a letter.` the spendable facts are `done_by`, `done_to`, `during`, and all 102
 whole candidates spent `done_to`=0 and `during`=0; of `My parents are aged.` all 80 spent `has_property`=0. So
 saying finishes sentences that drop facts and only reading can tell it. This is Kay 1996's completeness condition --
-that the goal item cover all of the input semantics -- cited at `grammar.py:3191` and enforced for things alone.
+that the goal item cover all of the input semantics -- cited at `grammar.py` and enforced for things alone.
 
 **THE FIX IS A COVERAGE MASK OVER THE MEANING'S FACTS**, as `filled` is one over its places, a fact covered whether a
 grammar word spent it or a content word's frame carried it. NOT `used == most`: `i 'm intelligent` reads back
@@ -5146,10 +5146,10 @@ cannot say. Seven of the 28 stuck meanings hold such a fact (`I lost my sunglass
 **WHAT WAS DISPROVEN, each by measurement and none kept.**
 
 - **The frame filter of (96) is not the lever.** `roles_bound` does not refuse a thing-taking frame bound to one of
-  the meaning's doings, and it must not: `_unary`'s `ng=>NP` (`grammar.py:2969`) makes "Dick tried solving the
+  the meaning's doings, and it must not: `_unary`'s `ng=>NP` (`grammar.py`) makes "Dick tried solving the
   problem." real English, so those frames are reachable and filtering them would remove a capability.
 - **The agenda's order is not the fix.** Reversing its two keys to most-complete-first does what the loop's own
-  comment says ("the most complete, surest first", `grammar.py:3745`) against what it does, and on the widest meaning
+  comment says ("the most complete, surest first", `grammar.py`) against what it does, and on the widest meaning
   it turned 0 sentences into 4 with a chart a tenth the size (`Dick vainly attempted solving the problem.`). Over the
   108 it lost nothing said word for word and gained two -- but it unstuck 2 of 28, and it failed
   `test_a_or_an_is_said_as_the_word_after_it_is_said` and
@@ -5159,7 +5159,7 @@ cannot say. Seven of the 28 stuck meanings hold such a fact (`I lost my sunglass
 - **A tighter estimate is not the fix either.** `to_come` is admissible and is the null outside estimate for all but
   the words: nothing is charged for the grammar words, the joins or the agreement still to be paid, so a one-word
   sign is reckoned at -1.61 where a whole sentence scores -7.88, and A* must take the whole band between. Klein and
-  Manning 2003 is cited for it at `grammar.py:3578` and that paper's floor is an estimate with nothing outside it.
+  Manning 2003 is cited for it at `grammar.py` and that paper's floor is an estimate with nothing outside it.
   Charging each place what a place had cost so far (an outside estimate, Caraballo and Charniak 1998) made the widest
   meaning return on its own -- 8 read back, 228,529 items, **2,048.7 s** -- and over the 108 was identical to the
   order as it stands, unsticking nought. Reverted.
@@ -6059,7 +6059,7 @@ and three it read back otherwise.
 
 ### Finding: saying is scored through reading, so reading's accuracy caps saying's
 
-`grammar.py:3306` keeps a sentence only if `reading.meaning.canonical() == target`, the meaning handed in, verbatim.
+`grammar.py` keeps a sentence only if `reading.meaning.canonical() == target`, the meaning handed in, verbatim.
 That is the right bar — it is what "say it so it means this" has to mean — but it follows that **every sentence
 reading mis-reads is one saying must refuse, correct English or not.** On main reading gets 32 of 77 whole with
 senses aside; saying cannot exceed that, and a saying failure may be a reading defect wearing saying's clothes.
@@ -6211,7 +6211,7 @@ and spent **504 s** saying twelve of their meanings. On main, 75 s to read 77 an
 **How the stall was found, since it cost the session an hour.** The first store run was launched piped through
 `tail -40`, which holds every line until the process exits, so 44 minutes passed with an empty output file. CPU at
 100%, memory flat at 3.6 GB, its Postgres connections idle 35 minutes: computing, not blocked. `py-spy dump` (root,
-the owner ran it) put it in `Grammar.say` at `grammar.py:3356`, the chart's partner loop. **Fixed in the script, not
+the owner ran it) put it in `Grammar.say` at `grammar.py`, the chart's partner loop. **Fixed in the script, not
 in a note:** the leg now prints every meaning's cost as it lands, and `SAY_BACK` bounds **how many meanings are
 asked**, never how long the grammar may search -- a cap there would report an expensive meaning as "said nothing" and
 hide the only thing worth seeing.
@@ -10618,7 +10618,7 @@ them into one level, and the level went nowhere.
    reported all seven drives at exactly half. Now empty.
 5. *`_blend` wiped `attribution` on every PARTIAL appraisal update.* `attribution` is set only
    when an update carries an `outcome_class`, and `_blend` took it from `incoming`
-   unconditionally — so the existing partial update at `autonomous_coordinator.py:6283`
+   unconditionally — so the existing partial update at `autonomous_coordinator.py`
    (`update(epistemic=..., world_bearing=...)`) silently discarded the attribution of the
    last real outcome, and with it the `_strategy`/`_external` branches that decide replan,
    escalation and exploration damping. Pre-existing; it also blocked feeding drives in. Now
@@ -11086,7 +11086,7 @@ query filter, and promotion to shared knowledge requires a second independent ac
 **Finding — the memory-tier UNION defect: schema repaired, defect class not.** The live
 failure that broke semantic recall during `CHAT-CONCURRENCY-01` (2026-09-20, "each UNION
 query must have the same number of columns") no longer reproduces — both tiers now carry
-27 columns, measured live 2026-09-22. But `postgres_storage.py:738` and `:856` still
+27 columns, measured live 2026-09-22. But `postgres_storage.py` and `:856` still
 build UNION branches as `SELECT *` over two independently-migrated tables, so the next
 column added to one tier breaks semantic recall at runtime again. A schema was fixed; the
 code that made a schema skew fatal is unchanged.
@@ -12052,7 +12052,7 @@ act whose scope cannot be bounded is one whose affected party cannot be identifi
 
 **Corrections from the user, both of which I had wrong:**
 - **"0 beliefs is impossible."** Correct — `unified.beliefs` holds **199,569** rows. My check used a bare
-  singleton that never called `load_from_db()` (which `core/main.py:546` calls at real startup). Loaded:
+  singleton that never called `load_from_db()` (which `core/main.py` calls at real startup). Loaded:
   mean entropy 0.0547, 237 unstable (0.1%). The KnowledgeDrift fix still stands — an empty in-memory
   store now reads VACANT, not a fabricated 0.0 — but the reading itself was an artifact of my harness.
 - **"The substrate IS the body."** Correct, and it resolves the interest I said could never fire. I wrote
@@ -12903,7 +12903,7 @@ memory type (inherited from HierarchicalPlanner). Now actually scoped with `memo
 
 **An apparent regression that wasn't:** routing tool history through the learning authority made it report
 "no database", where my direct call had worked. Cause: `get_adaptive_tool_learning()` has an ADOPTION path
-and is constructed with the canonical DB in `core/main.py:1148`. My old direct call was passing the
+and is constructed with the canonical DB in `core/main.py`. My old direct call was passing the
 planner's DB — the planner silently fixing someone else's bootstrap. Production is unaffected; the
 EXPERIMENT was missing main.py's wiring, so PLANNING-01 now does that bootstrap explicitly.
 
@@ -13260,7 +13260,7 @@ match the old note; being right is not the same as being evidenced.
 **A REAL DEFECT the run then exposed — silent recall collapse (fixed).** The first full run logged
 `Memory retrieval failed: 'MemoryItem' object has no attribute 'similarity_score'` twice.
 - **Root cause:** `MemoryAgent.retrieve()` runs its strategies CONCURRENTLY and merges them. Only the
-  pgvector path sets `similarity_score` (`postgres_storage.py:853`); a memory found by WORDING
+  pgvector path sets `similarity_score` (`postgres_storage.py`); a memory found by WORDING
   (`search_by_content`) or by TAG legitimately has none. `memory_injector._retrieve_memories` read
   `result.similarity_score` DIRECTLY, so one keyword-only hit raised AttributeError, the broad
   `except` caught it and **returned `[]`** — the whole memory injection silently became "no memories".
@@ -13812,7 +13812,7 @@ unchanged: DHCM Space ⊃ Tet ⊃ inhabitant.
 **Read from source before deciding** (not assumed): DHCMSpace's 12 boundary zones + layer depth;
 `Authority`/`world/access.py` Entitlements and role policy; `World`'s five faculties; `climate.py`
 seasons that genuinely bite (real latency, injected compute failures, refused spawns); `WorldAuth`
-on Postgres; `deploy/docker-compose.yml` walls; `core/capability.py`; `autonomous_coordinator.py:1512`
+on Postgres; `deploy/docker-compose.yml` walls; `core/capability.py`; `autonomous_coordinator.py`
 `register_capability` and `max_parallel_tasks` (default 3, line 350).
 
 **Four gaps, verified absent.** (1) No world identity — `World()` reads ONE global `DHCM_WORLD_ROOT`,
@@ -14463,7 +14463,7 @@ thermal/resource stress
 
 **Cleanup + pitfalls.** Coordinator's `set_llm(self.llm)` connect-call removed; `test_intrinsic_motivation.py` (was a 381-line LLM-centric manual script) rewritten to verify the substrate — passes; no dangling refs repo-wide; DB novelty rows the test wrote cleaned. Pitfall: two removed methods held COLUMN-0 f-string prompt bodies, which broke a naive "next unindented line = class end" span remover and orphaned their tails — fixed by anchoring excision on the bracketing valid methods and recompiling after each. (A missing module getter mid-session turned out to be the user's own edit/restore, not my removal — I wrongly blamed my edit first.)
 
-**Open, user-raised: Self-ownership of motivation.** The coordinator still constructs it (`autonomous_coordinator.py:207`, residual composition-root) rather than reaching it through the Self like `reasoning()`/`learning()`/`domains()`. The Self only reads it privately (`_motivation()`). Inverting it = add public `Self.motivation()`, bring the faculty up in `Self.initialize()` with config (the singleton is first-caller-wins, so construction ownership is the real move), repoint the coordinator's goal loop. Deferred pending the user's ordering call.
+**Open, user-raised: Self-ownership of motivation.** The coordinator still constructs it (`autonomous_coordinator.py`, residual composition-root) rather than reaching it through the Self like `reasoning()`/`learning()`/`domains()`. The Self only reads it privately (`_motivation()`). Inverting it = add public `Self.motivation()`, bring the faculty up in `Self.initialize()` with config (the singleton is first-caller-wins, so construction ownership is the real move), repoint the coordinator's goal loop. Deferred pending the user's ordering call.
 
 
 
@@ -14749,26 +14749,26 @@ The result shows that the system’s uncertainty dynamics are appropriately grad
 # satisfy unknown domains 
 
 === is look_up / understand reachable from AUTONOMOUS execution (not just conversation)? ===
-core/agents/autonomous/autonomous_coordinator.py:415:        # via autonomous research tasks.
-core/agents/autonomous/autonomous_coordinator.py:478:        # Register completion callback for autonomous knowledge refresh research
-core/agents/autonomous/autonomous_coordinator.py:704:        # ── Idle knowledge refresh (web research cadence) ─────────────────
-core/agents/autonomous/autonomous_coordinator.py:2771:            if any(word in description for word in ["research", "study", "analyze", "investigate", "explore", "discover"]):
-core/agents/autonomous/autonomous_coordinator.py:2823:            elif "research" in task_type or "analysis" in task_type:
-core/agents/autonomous/autonomous_coordinator.py:4045:        or KNOWLEDGE (a declarative not-knowing — research/look_up/teach)."""
-core/agents/autonomous/autonomous_coordinator.py:5644:    # ── TIER 4: Knowledge refresh (autonomous research cadence) ───────────
-core/agents/autonomous/autonomous_coordinator.py:5647:        """Queue a periodic research task to reduce temporal knowledge gaps.
-core/agents/autonomous/autonomous_coordinator.py:5650:        - Knowledge refresh is *learning/research* (safe, non-mutating)
-core/agents/autonomous/autonomous_coordinator.py:5699:        # This prevents constant research even with a short idle interval.
-core/agents/autonomous/autonomous_coordinator.py:5721:        # Create a research task (non-mutating) that can use CONDUCT_RESEARCH tools.
-core/agents/autonomous/autonomous_coordinator.py:5738:                "Conduct research to reduce temporal knowledge gaps and update internal operational knowledge.\n"
-core/agents/autonomous/autonomous_coordinator.py:5944:        """Update knowledge refresh state when a knowledge_refresh research task completes."""
-core/agents/autonomous/autonomous_coordinator.py:7069:        (research, code analysis, multiple investigations), the executor
-core/agents/autonomous/autonomous_coordinator.py:7070:        deploys sub-agents internally — like how Claude deploys research
-core/agents/autonomous/autonomous_coordinator.py:8026:        if any(w in desc_lower for w in ['investigate', 'explore', 'discover', 'research', 'unknown']):
-core/agents/autonomous/autonomous_coordinator.py:8037:            return TaskType.RESEARCH  # Default to research for exploration
-core/agents/autonomous/autonomous_coordinator.py:8066:        research, etc.) instead of a broad linguistic category. Recall then scopes
-core/agents/autonomous/autonomous_coordinator.py:9498:        no research tool anywhere), 31,137 of a 32,768-token window went to
-core/agents/autonomous/autonomous_coordinator.py:9608:                or understanding.acquired or understanding.answers):
+core/agents/autonomous/autonomous_coordinator.py:        # via autonomous research tasks.
+core/agents/autonomous/autonomous_coordinator.py:        # Register completion callback for autonomous knowledge refresh research
+core/agents/autonomous/autonomous_coordinator.py:        # ── Idle knowledge refresh (web research cadence) ─────────────────
+core/agents/autonomous/autonomous_coordinator.py:            if any(word in description for word in ["research", "study", "analyze", "investigate", "explore", "discover"]):
+core/agents/autonomous/autonomous_coordinator.py:            elif "research" in task_type or "analysis" in task_type:
+core/agents/autonomous/autonomous_coordinator.py:        or KNOWLEDGE (a declarative not-knowing — research/look_up/teach)."""
+core/agents/autonomous/autonomous_coordinator.py:    # ── TIER 4: Knowledge refresh (autonomous research cadence) ───────────
+core/agents/autonomous/autonomous_coordinator.py:        """Queue a periodic research task to reduce temporal knowledge gaps.
+core/agents/autonomous/autonomous_coordinator.py:        - Knowledge refresh is *learning/research* (safe, non-mutating)
+core/agents/autonomous/autonomous_coordinator.py:        # This prevents constant research even with a short idle interval.
+core/agents/autonomous/autonomous_coordinator.py:        # Create a research task (non-mutating) that can use CONDUCT_RESEARCH tools.
+core/agents/autonomous/autonomous_coordinator.py:                "Conduct research to reduce temporal knowledge gaps and update internal operational knowledge.\n"
+core/agents/autonomous/autonomous_coordinator.py:        """Update knowledge refresh state when a knowledge_refresh research task completes."""
+core/agents/autonomous/autonomous_coordinator.py:        (research, code analysis, multiple investigations), the executor
+core/agents/autonomous/autonomous_coordinator.py:        deploys sub-agents internally — like how Claude deploys research
+core/agents/autonomous/autonomous_coordinator.py:        if any(w in desc_lower for w in ['investigate', 'explore', 'discover', 'research', 'unknown']):
+core/agents/autonomous/autonomous_coordinator.py:            return TaskType.RESEARCH  # Default to research for exploration
+core/agents/autonomous/autonomous_coordinator.py:        research, etc.) instead of a broad linguistic category. Recall then scopes
+core/agents/autonomous/autonomous_coordinator.py:        no research tool anywhere), 31,137 of a 32,768-token window went to
+core/agents/autonomous/autonomous_coordinator.py:                or understanding.acquired or understanding.answers):
 
 === task-type -> executor routing (how a non-drive intrinsic task runs) ===
 472:            TaskType.SECURITY_REMEDIATION,
@@ -15710,7 +15710,7 @@ nothing rather than a belief it barely credits.
 perception fan-out" from seeing 3, 2, 3 beliefs across identical runs. That was
 **my test harness**, not the system: belief writes are deferred via
 `loop.create_task` with `_pending_writes` as the buffer, and `drain_writes()`
-awaits them — which `core/main.py:1603` calls on shutdown and my ad-hoc scripts
+awaits them — which `core/main.py` calls on shutdown and my ad-hoc scripts
 did not. With the drain: 3/3, four runs out of four. The live system does not
 lose beliefs on a clean exit.
 
@@ -15752,7 +15752,7 @@ and it is the one that should carry a number.
 **2. The support reaches the belief.** Quality was attached per ENVELOPE, so all
 27 claims from one look shared a number. Widened the edge tuple to carry per-edge
 quality; `admitted_relations` became 5-tuples (one real consumer). The value was
-being lost at `concept_ingestion.py:320`, which truncated every edge to three
+being lost at `concept_ingestion.py`, which truncated every edge to three
 elements at EXTRACTION, before `_record_relations` could read a fourth.
 
 Measured: `blob2 isa circle` now enters at prior **0.896** — its own circularity
@@ -16179,8 +16179,8 @@ and without a domain that grew.
 says why: the fan-out guesses the word class "from an article that a bare
 `child isa parent` surface does not have". That author had the symptom right.
 The mechanism: `learn_facts` synthesises a surface from the triple
-(`unified_learning_system.py:2929`), and `observe_proposition` decides the
-object's class by looking for an article (`lexicon.py:224`):
+(`unified_learning_system.py`), and `observe_proposition` decides the
+object's class by looking for an article (`lexicon.py`):
 
     _record(obj, NOUN if _has_article(sentence, obj) else ADJECTIVE)
 
@@ -16199,7 +16199,7 @@ source's own POS tag — which the harvest is throwing away two files upstream, 
 a `_term()` whose docstring names the tag and discards it.
 
 **Re-teaching is not idempotent, and it has already done damage.** The door
-deduplicates against `self._seen` (`cognitive_ingress.py:223`) — a plain set on
+deduplicates against `self._seen` (`cognitive_ingress.py`) — a plain set on
 the singleton, which does not survive a restart. In a fresh process every fact
 is new again and the fan-out appends another evidence entry to the same belief.
 Measured: 3,395 beliefs re-observed >10 times (3,220 in the `tools` domain),
@@ -19248,10 +19248,10 @@ commands and most contractions will not read. Plural and past-tense reduction wi
 words that end in -es or -s without being plurals.
 
 **Found in the code:** 33 patterns in `sentence_reader.py` (22 sentence shapes, 11 splitters), each with English
-words inside them. The 13 fixed word lists in `sentence_machine.py:68-141` are still used, although
-`teaching_sources.py:44` says they moved to memory. The derived reader learns from 13 sentence–meaning pairs that
+words inside them. The 13 fixed word lists in `sentence_machine.py-141` are still used, although
+`teaching_sources.py` says they moved to memory. The derived reader learns from 13 sentence–meaning pairs that
 are written in the code. The tokenizer keeps letters only. Plurals and verb forms are reduced by suffix stripping
-plus written exception lists. **The teaching path already carries sentence–meaning pairs** (`teaching.py:345-412`),
+plus written exception lists. **The teaching path already carries sentence–meaning pairs** (`teaching.py-412`),
 but teaches either the reading or the stated meaning, never compares them, and so learns no shape from the pair.
 
 **Measured (run `20260927T034210Z`, 0/6 checks, no database opened):** statements read 9/35 (African American
@@ -22390,7 +22390,7 @@ log lines.
   - the re-read after a repair;
   - possibly `agent.note_pattern` or `observe` after each store.
 - **A sixth silence, 134 s** (08:29:33 to 08:31:47), sits between the end of english_27 and the first WordNet record.
-  `TeachingPass._harvest` (`core/learning/teaching.py:299`, called from async `run`) works out WordNet's word classes
+  `TeachingPass._harvest` (`core/learning/teaching.py`, called from async `run`) works out WordNet's word classes
   and sense names synchronously on the event loop.
 - **Consequences:**
   - 5 DB queries "failed" with EMPTY error text: a TimeoutError, whose `str()` is empty;
@@ -22406,7 +22406,7 @@ run was still going. After a stall, the system-awareness job ran several times a
 
 **3. A failed prediction check was reported as a measurement (20).**
 - The overlapping runs resolved the same prediction twice.
-- On the second, `validate_prediction` (`core/intelligence/predictive_intelligence_system.py:974–1025`) found it
+- On the second, `validate_prediction` (`core/intelligence/predictive_intelligence_system.py–1025`) found it
   gone and RETURNED accuracy 0.0 instead of failing.
 - The coordinator logged "resolved … accuracy=0.000".
 - The durable record kept the real first result (`ON CONFLICT DO NOTHING`).
@@ -22423,9 +22423,9 @@ run was still going. After a stall, the system-awareness job ran several times a
 `reduce_cache_size`).**
 - `_check_memory_health` (~2044, ~2053) issues "N failed memory operations" from a LIFETIME count. The 2 failures
   of cause 1 kept memory degraded until the process ended.
-- The memory playbook (`core/agents/autonomous/idle_work_playbook.py:185–189`) acts on process RAM, not on the
+- The memory playbook (`core/agents/autonomous/idle_work_playbook.py–189`) acts on process RAM, not on the
   memory system.
-- `recovery_manager.py:462–464` maps all three steps to CLEANUP = `gc.collect()`, which returns False by design
+- `recovery_manager.py–464` maps all three steps to CLEANUP = `gc.collect()`, which returns False by design
   (`_cleanup_component`, "not a recovery"). Each is logged as "❌ Recovery action failed" at ERROR.
 - `reduce_cache_size` and `track_memory_trend` have NO implementation of their own.
 

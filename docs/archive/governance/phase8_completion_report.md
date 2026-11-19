@@ -267,7 +267,7 @@ async def calculate_violation_rate(category)
 
 **Root Cause**: CommitmentContract is a dataclass requiring all fields at initialization, but create_contract_for_action() was calling it with only 2 arguments.
 
-**Fix** ([commitment_contract_manager.py:114-169](core/safety/commitment_contract_manager.py#L114-L169)):
+**Fix** (commitment_contract_manager.py:114-169):
 ```python
 # Create Commitment objects first
 commitments = []
@@ -301,7 +301,7 @@ contract = CommitmentContract(
 - `Qiskit with Python 3.9` deprecation
 - `numpy.core` deprecation (evidently - 2 instances)
 
-**Fix 1** - Created [pytest.ini](pytest.ini):
+**Fix 1** - Created [pytest.ini](../../../pytest.ini):
 ```ini
 [pytest]
 filterwarnings =
@@ -311,7 +311,7 @@ filterwarnings =
     ignore::DeprecationWarning:pkg_resources
 ```
 
-**Fix 2** - Suppressed qiskit import warning ([unified_quantum_reasoning_system.py:23-29](core/reasoning/unified_quantum_reasoning_system.py#L23-L29)):
+**Fix 2** - Suppressed qiskit import warning ([unified_quantum_reasoning_system.py:23-29](../../../core/reasoning/unified_quantum_reasoning_system.py#L23-L29)):
 ```python
 try:
     with warnings.catch_warnings():
@@ -328,7 +328,7 @@ except ImportError:
 
 **Problem**: Phase 8 tests use pytest, not TestBase. No MySQL logging was happening.
 
-**Fix** - Created [conftest.py](tests/governance/conftest.py) with pytest hooks:
+**Fix** - Created [conftest.py](../../../tests/governance/conftest.py) with pytest hooks:
 - `pytest_sessionstart()`: Creates test session record
 - `pytest_sessionfinish()`: Updates session with pass/fail counts
 - `pytest_runtest_logreport()`: Logs each test result with metadata
@@ -420,18 +420,18 @@ test_results (
 
 ## Files Modified During Restoration
 
-1. [core/safety/commitment_contract_manager.py:114-169](core/safety/commitment_contract_manager.py#L114-L169) - Fixed CommitmentContract initialization
-2. [core/reasoning/unified_quantum_reasoning_system.py:23-29](core/reasoning/unified_quantum_reasoning_system.py#L23-L29) - Suppressed qiskit warning
-3. [pytest.ini](pytest.ini) - Created to suppress third-party warnings
-4. [tests/governance/conftest.py](tests/governance/conftest.py) - Created for pytest MySQL logging
+1. core/safety/commitment_contract_manager.py:114-169 - Fixed CommitmentContract initialization
+2. [core/reasoning/unified_quantum_reasoning_system.py:23-29](../../../core/reasoning/unified_quantum_reasoning_system.py#L23-L29) - Suppressed qiskit warning
+3. [pytest.ini](../../../pytest.ini) - Created to suppress third-party warnings
+4. [tests/governance/conftest.py](../../../tests/governance/conftest.py) - Created for pytest MySQL logging
 
 ---
 
 ## Files Created During Restoration
 
-1. [tests/governance/conftest.py](tests/governance/conftest.py) - Pytest MySQL logging hooks (194 lines)
-2. [pytest.ini](pytest.ini) - Pytest warning suppression config
-3. [docs/governance/phase8_completion_report.md](docs/governance/phase8_completion_report.md) - This report
+1. [tests/governance/conftest.py](../../../tests/governance/conftest.py) - Pytest MySQL logging hooks (194 lines)
+2. [pytest.ini](../../../pytest.ini) - Pytest warning suppression config
+3. `docs/governance/phase8_completion_report.md` - This report
 
 ---
 

@@ -34,7 +34,7 @@ Every sentence here reads, to the meaning the lessons teach:
 What goes wrong is after reading. **The reply is chosen by whether the sentence asks or tells, not by what it
 means:**
 - **A telling is handled as something to hold.** The greeting's facts are about an act with no name (`?v0`), so the
-  telling path reports that it held nothing (`Conversation` near `autonomous_coordinator.py:22597`). The meaning says
+  telling path reports that it held nothing (`Conversation` near `autonomous_coordinator.py`). The meaning says
   an act was done *to the listener*, and nothing answers the act.
 - **A question with no held answer forgets what it asked.** `Conversation.asked` (`:21942`) builds answers from the
   question's meaning. When none is held, `say` (`:23498`) falls through to everything held about the subject, the

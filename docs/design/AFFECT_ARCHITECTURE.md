@@ -1,8 +1,25 @@
 # Affect as Grounded, Persistent Valence — Design Doc
 
-Status: PROPOSED (rev 3, 2026-08-30). Rev 3 folds persistent affect into the
-`IntrinsicMotivationSystem` (the homeostatic-affective core) — no separate affect
-authority — since motivation already owns the persistent dispositional state (§4).
+Status: BUILT (rev 3, 2026-08-30). *Re-traced 2026-11-19.*
+
+Rev 3 folds persistent affect into the `IntrinsicMotivationSystem` (the
+homeostatic-affective core) — no separate affect authority — since motivation
+already owns the persistent dispositional state (§4). That is what runs.
+`AffectState` carries the named emotion, its intensity, its cause, what it is
+about, the mood valence and arousal it sits on, the temperament baseline, and a
+`version` that increments on each affect transition, so the state has
+provenance and not just a value. It persists in `unified.affect_state` as a
+single constrained row and is rehydrated on startup through `_load_affect`, so
+the substrate resumes in doubt if it went down in doubt; no new appraisal is
+required merely because the process restarted. `update_affect` and `_fold_affect`
+move it, `affect_state()` reads it. In the coordinator, `_react_affect` is the
+one **synchronous** reaction on the event spine — affect is taken at the moment
+the event arrives rather than on a drain — with `_refresh_affect` and
+`_affect_snapshot` beside it. **AFFECT-WIRING-01** measured both disposition
+pressures changing behaviour through settings the loop already reads
+(`should_explore`, `max_goals`, `mode`): approach raises self-initiated goals,
+avoidance holds back exploration with escalation shown not firing, so avoidance
+is the cause.
 Rev 1 modelled affect as a precision-weighted
 error against set-points and had it act through a per-feeling controller. Two
 corrections make this rev:
@@ -109,7 +126,7 @@ Motivation already owns what persistent affect needs and reads what valence need
 
 | already in `IntrinsicMotivationSystem` | anchor |
 |---|---|
-| reward **baseline** (the seed of mood) | `MotivationProfile.mean_event_reward` (`intrinsic_motivation.py:121`) |
+| reward **baseline** (the seed of mood) | `MotivationProfile.mean_event_reward` (`intrinsic_motivation.py`) |
 | **temperament** weights (dispositional trait) | `MotivationWeights` (`:38`) |
 | **persistence** lifecycle (across restart) | `save_profile` / `load_profile` (`:1309/1335`) |
 | reads **uncertainty** (a fitness input) | `_quantify_component_uncertainties` (`:1656`) |
@@ -129,8 +146,8 @@ def valence(self) -> float: ...           # the felt fitness-trend, [−1,1]
 ```
 
 It READS, and reimplements none of: momentary emotion — `get_appraisal_system().current_state`
-(`appraisal.py`); competence — `rule_store.executable_rules()` (`rule_store.py:708`);
-coherence/uncertainty — `get_epistemic_engine()` (`epistemic_engine.py:748`) + its own
+(`appraisal.py`); competence — `rule_store.executable_rules()` (`rule_store.py`);
+coherence/uncertainty — `get_epistemic_engine()` (`epistemic_engine.py`) + its own
 `_quantify_component_uncertainties`; memories — `memory_agent` (charge is a field on the
 row the agent still owns).
 
@@ -178,7 +195,7 @@ conditioned on mood too.
   `(valence, arousal, baseline_valence, updated_at, event_count)`, written through
   the DB manager (`execute_query(..., commit=True)`) on every `update_affect()`.
   Mirrors the existing `MotivationProfile` persistence pattern
-  (`intrinsic_motivation.py:1309/1335`) but in Postgres, because affect is part of
+  (`intrinsic_motivation.py/1335`) but in Postgres, because affect is part of
   the persistent self.
 - `initialize()` loads it on startup, so mood and baseline survive restart. Absence
   of a row is an honest cold-start (neutral mood at the persisted baseline, or

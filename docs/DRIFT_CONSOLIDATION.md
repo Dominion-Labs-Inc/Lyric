@@ -56,9 +56,9 @@ Three things in this codebase are called "drift" and only the first consolidates
 
 Mechanisms that must NOT be folded in — folding them would delete real faculties:
 
-- `core/reasoning/bayesian_uncertainty.py:512` — unreinforced beliefs decay toward 0.5
+- `core/reasoning/bayesian_uncertainty.py` — unreinforced beliefs decay toward 0.5
   (maximum uncertainty). This is how the substrate forgets; it is an INPUT to drift.
-- `core/agents/autonomous/intrinsic_motivation.py:2159` — `_BASELINE_DRIFT = 0.01`, the
+- `core/agents/autonomous/intrinsic_motivation.py` — `_BASELINE_DRIFT = 0.01`, the
   mood trait slowly following lived mood. This is temperament forming; also an INPUT.
 
 Invariant prose (no monitoring, no action needed): `core/domain/domain_registry.py`
@@ -123,7 +123,7 @@ detector in the codebase and the richest source of capabilities.
 ### 1.4 `core/execution/iteration_controller.py` — GAIN-MODEL drift · **DELETE — PHASE OUT COMPLETELY**
 
 **Verified: it has NO consumer in the execution path.** `health_monitor` reads
-`get_stats()` for reporting; `shared_types.py:202` mentions it in a comment; the
+`get_stats()` for reporting; `shared_types.py` mentions it in a comment; the
 only things that exercise it are `tests/test_phase2_iteration_controller.py` and
 `tests/test_phase3_self_optimization.py`. Its `_recalibrate_all()` loop corrects
 parameters **nothing reads**. It self-corrects into a vacuum.
@@ -144,11 +144,11 @@ exists end to end and already reads intent:
 ```
 intent.goal_conditions (what was meant)
   → _observe_world(domain_id)            ← FRESH re-observation, not a success flag
-  → matched_aim = all(c in observed)     autonomous_coordinator.py:12399
+  → matched_aim = all(c in observed)     autonomous_coordinator.py
   → reconcile() onto the intent          :12411
-  → appraisal.integrity  (identity→intention→action→outcome)   appraisal.py:404
-  → _incoherence → caution_pressure + replan_pressure          appraisal.py:549
-  → behavior_arbiter.verification_intensity = 0.5 + 0.5·caution  behavior_arbiter.py:159
+  → appraisal.integrity  (identity→intention→action→outcome)   appraisal.py
+  → _incoherence → caution_pressure + replan_pressure          appraisal.py
+  → behavior_arbiter.verification_intensity = 0.5 + 0.5·caution  behavior_arbiter.py
   → verify_bar = 0.85·((vi − 0.5)/0.5)                         coordinator:10076
   → completion acceptance bar rises                            coordinator:9711
 ```
@@ -164,7 +164,7 @@ Properties that make it the template — each one better than iteration_controll
 | a bare `success: true` is worth 0.3 and **cannot reach the bar even accumulated** | `_EV_DECLARED` |
 | correlated evidence collapses by causal lineage — cannot multiply into false confidence | `_independent_groundings` |
 | unmeasured links are EXCLUDED, never zero-filled | `_known()`, `_integrity_terms` |
-| a faithful attempt thwarted externally leaves the link unmeasured — integrity stays intact | `appraisal.py:380` |
+| a faithful attempt thwarted externally leaves the link unmeasured — integrity stays intact | `appraisal.py` |
 | correction adjusts the completion BAR, never the law | `_decide_completion` |
 
 **Disposition: preserve and extend.** Drift becomes a second source feeding the same
@@ -238,8 +238,8 @@ question by different methods and one of them answers it badly.
 | Module | What | Disposition |
 |---|---|---|
 | `core/learning/drift_monitoring/` (Evidently 0.7.20) | PSI over reference vs current dataframes | **KEEP — this IS the one tool-system drift capability.** Statistically grounded; already exposed as `MonitorDataDriftTool` |
-| `core/tools/data_processing_tools.py:1636` `_analyze_drift` | hand-rolled: *">20% change in mean"* for numerics, ad-hoc categorical compare | **DELETE and re-route.** Reachable through the profiling tool's `compare_with` (`:1773`). The 20% threshold is a chosen constant with nothing behind it — the same defect as the constitution's drift bands. Route that tool to the PSI capability |
-| `core/tools/database_tools.py:1178` | schema hash vs expected | **KEEP SEPARATE** — structural identity, not a distribution. A different question correctly answered by a different method |
+| `core/tools/data_processing_tools.py` `_analyze_drift` | hand-rolled: *">20% change in mean"* for numerics, ad-hoc categorical compare | **DELETE and re-route.** Reachable through the profiling tool's `compare_with` (`:1773`). The 20% threshold is a chosen constant with nothing behind it — the same defect as the constitution's drift bands. Route that tool to the PSI capability |
+| `core/tools/database_tools.py` | schema hash vs expected | **KEEP SEPARATE** — structural identity, not a distribution. A different question correctly answered by a different method |
 | `core/monitoring/publishers/event_publisher.py` | `DriftEvent` → NATS | **DELETE** — verified: only reference is a re-export in `publishers/__init__.py`; nothing calls it. NATS unused ≥6 months |
 | `core/security/_disabled/firewall_manager.py` | config drift | already archived. **Correction: the `health_monitor:2985` read is guarded** — `firewall is None or isinstance(firewall, str)` sets `firewall_available = False` and returns. It degrades honestly rather than fabricating. **Leave it.** |
 

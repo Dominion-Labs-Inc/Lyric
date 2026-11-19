@@ -49,7 +49,7 @@
    ```
 
 3. **File contents verification**:
-   - [task_queue.py:1-100](core/agents/autonomous/task_queue.py#L1-L100): Basic task queue with priority management
+   - [task_queue.py:1-100](../../../core/agents/autonomous/task_queue.py#L1-L100): Basic task queue with priority management
    - No TaskSource enum
    - No bulk task detection
    - No governance integration
@@ -88,7 +88,7 @@
    ```
 
 3. **File contents verification**:
-   - [external_api_integration_manager.py:1-100](core/integration/external_api_integration_manager.py#L1-L100): Basic API integration manager
+   - external_api_integration_manager.py:1-100: Basic API integration manager
    - No APIStatus or APISafetyReason enums
    - No automated safety validation
    - No HTTPS requirement enforcement

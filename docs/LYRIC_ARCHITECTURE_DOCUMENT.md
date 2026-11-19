@@ -936,7 +936,7 @@ self-modification.
 ## 25. Health and recovery
 
 **Principal modules:** `health_monitor.py` (3,295 lines), `recovery_manager.py` (967),
-`system_control.py` (362), `ownership.py` (49).
+`system_control.py` (440), `ownership.py` (49).
 
 **The substrate grades the fifteen components it owns**, declared in one place rather than discovered:
 agents, api surface, chaos, constitution, domain, intelligence, learning, memory, optimization, quantum,

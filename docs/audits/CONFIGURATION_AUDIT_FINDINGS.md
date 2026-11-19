@@ -4,8 +4,8 @@
 
 **The perimeter this audit examines is no longer in the substrate.** Five of its modules are held
 disabled, imported by nothing, in `core/security/_disabled/` and are linked there below; three
-(`content_security.py`, `malware_sandbox.py`, `threat_intelligence.py`) were removed outright and their
-links do not resolve. Containment is Tet's, outside the substrate. The findings about `core/main.py` and
+(`content_security.py`, `malware_sandbox.py`, `threat_intelligence.py`) were removed outright and are
+named below without a link, there being nothing to open. Containment is Tet's, outside the substrate. The findings about `core/main.py` and
 about configuration precedence stand.
 **Date**: 2026-02-05
 **Audit Type**: System Integration Configuration Verification
@@ -17,7 +17,7 @@ about configuration precedence stand.
 ### 1. SecurityAuditWorker Integration
 **Status**: ✅ **CORRECT**
 
-**Wiring in** [main.py:1110-1126](../core/main.py#L1110-L1126):
+**Wiring in** [main.py-1126](../../core/main.py#L1110-L1126):
 ```python
 # ✅ All 4 integration points correctly wired:
 audit_worker.set_slack_notifier(slack_notifier)           # Line 1111
@@ -35,7 +35,7 @@ audit_worker.set_safety_framework(asi_safety)            # Line 1125
 ### 2. IntrinsicMotivation Integration
 **Status**: ✅ **CORRECT**
 
-**Wiring in** [autonomous_coordinator.py:426-433](../core/agents/autonomous/autonomous_coordinator.py#L426-L433):
+**Wiring in** [autonomous_coordinator.py-433](../../core/agents/autonomous/autonomous_coordinator.py#L426-L433):
 ```python
 # ✅ Both integration points correctly wired:
 intrinsic_motivation.set_llm(self.llm)                             # Line 427
@@ -51,7 +51,7 @@ intrinsic_motivation.set_security_audit_worker(self.security_audit_worker) # Lin
 ### 3. LearningAdapter Integration
 **Status**: ✅ **CORRECT**
 
-**Wiring in** [autonomous_coordinator.py:436-441](../core/agents/autonomous/autonomous_coordinator.py#L436-L441):
+**Wiring in** [autonomous_coordinator.py-441](../../core/agents/autonomous/autonomous_coordinator.py#L436-L441):
 ```python
 # ✅ All 3 integration points correctly wired:
 learning.set_governance_system(self.runtime_governance)         # Line 437
@@ -68,7 +68,7 @@ learning.set_monitoring_coordinator(self.monitoring_coordinator) # Line 441
 ### 4. MonitoringCoordinator Integration
 **Status**: ✅ **CORRECT**
 
-**Wiring in** [main.py:1064-1070](../core/main.py#L1064-L1070):
+**Wiring in** [main.py-1070](../../core/main.py#L1064-L1070):
 ```python
 # ✅ Both integration points correctly wired:
 monitoring_coordinator.set_slack_notifier(slack_notifier)           # Line 1066
@@ -84,7 +84,7 @@ monitoring_coordinator.set_autonomous_coordinator(autonomous_coordinator) # Line
 ### 5. AutonomousCoordinator Brain Requirement
 **Status**: ✅ **CORRECT**
 
-**lyric_brain Requirement** [autonomous_coordinator.py:107-110](../core/agents/autonomous/autonomous_coordinator.py#L107-L110):
+**lyric_brain Requirement** [autonomous_coordinator.py-110](../../core/agents/autonomous/autonomous_coordinator.py#L107-L110):
 ```python
 if lyric_brain is None:
     raise ValueError("AutonomousCoordinator requires lyric_brain - mandatory")
@@ -92,12 +92,12 @@ self.lyric_brain = lyric_brain
 self.llm = lyric_brain
 ```
 
-**Brain Passing** [main.py:1035](../core/main.py#L1035):
+**Brain Passing** [main.py](../../core/main.py#L1035):
 ```python
 coordinator = await get_autonomous_coordinator(lyric_brain=self.llm_service)
 ```
 
-**Fail-Closed Security** [main.py:286-291](../core/main.py#L286-L291):
+**Fail-Closed Security** [main.py-291](../../core/main.py#L286-L291):
 ```python
 if not self.llm_service:
     logger.error("CRITICAL FAILURE: THE BRAIN failed to initialize!")
@@ -188,11 +188,11 @@ governance = self.runtime_governance
 2. `UnifiedGovernanceTriggerSystem` (direct instantiation)
 
 **Evidence**:
-- [autonomous_coordinator.py:127](../core/agents/autonomous/autonomous_coordinator.py#L127):
+- [autonomous_coordinator.py](../../core/agents/autonomous/autonomous_coordinator.py#L127):
   ```python
   self.runtime_governance = get_runtime_governance()  # Uses RuntimeGovernance wrapper
   ```
-- [main.py:1158](../core/main.py#L1158):
+- [main.py](../../core/main.py#L1158):
   ```python
   self.governance_system = UnifiedGovernanceTriggerSystem()  # Direct instantiation
   ```
@@ -225,7 +225,7 @@ main.py creates audit_worker
 - No logging of the connection like other integrations
 - Harder to trace in codebase
 
-**Current Code** [main.py:1060](../core/main.py#L1060):
+**Current Code** [main.py](../../core/main.py#L1060):
 ```python
 self.autonomous_coordinator.security_audit_worker = self.audit_worker
 ```
@@ -257,9 +257,9 @@ if hasattr(self.autonomous_coordinator, 'set_security_audit_worker'):
 **Security Systems Architecture**:
 
 **Security TOOLS** (Utilities - Correctly Available):
-- ✅ [content_security.py](../core/security/content_security.py) - Input sanitization, XSS prevention, email/URL validation
+- ✅ content_security.py - Input sanitization, XSS prevention, email/URL validation
 - ✅ [system_security.py](../../core/security/_disabled/system_security.py) - SQL injection prevention, path traversal checks, rate limiting, password hashing
-- ✅ [malware_sandbox.py](../core/security/malware_sandbox.py) - Static/dynamic malware analysis utilities
+- ✅ malware_sandbox.py - Static/dynamic malware analysis utilities
 
 **Security SYSTEMS** (Stateful Components - Should Run Continuously):
 
@@ -269,7 +269,7 @@ if hasattr(self.autonomous_coordinator, 'set_security_audit_worker'):
 - ✅ ASISafety (line 978) - ASI safety framework
 
 **NOT INITIALIZED (Critical Gap)**:
-- ❌ **ThreatIntelligenceEngine** ([threat_intelligence.py](../core/security/threat_intelligence.py)) - Multi-source threat intel (AbuseIPDB, VirusTotal, OTX AlienVault)
+- ❌ **ThreatIntelligenceEngine** (threat_intelligence.py) - Multi-source threat intel (AbuseIPDB, VirusTotal, OTX AlienVault)
 - ❌ **RealTimeFirewallManager** ([firewall_manager.py](../../core/security/_disabled/firewall_manager.py)) - OS firewall integration (iptables/pf)
 - ❌ **CloudflareWAFManager** ([cloudflare_waf.py](../../core/security/_disabled/cloudflare_waf.py)) - Cloudflare WAF integration
 - ❌ **ThreatBlockingEngine** ([threat_blocking.py](../../core/security/_disabled/threat_blocking.py)) - Coordinated active defense system
@@ -282,7 +282,7 @@ grep -n "create_integrated_security_system" core/main.py
 # Result: No matches
 ```
 
-**The Missing Integration** ([security/__init__.py:156-206](../core/security/__init__.py#L156-L206)):
+**The Missing Integration** ([security/__init__.py-206](../../core/security/__init__.py#L156-L206)):
 ```python
 def create_integrated_security_system(
     test_mode: bool = True,

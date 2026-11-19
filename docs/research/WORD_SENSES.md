@@ -3,7 +3,7 @@
 Research note, 2026-10-01. It follows `SENTENCE_AND_WORD_SHAPES.md` (how sentence shapes are learned without a
 network) to the next problem: once a word names several things, how the substrate keeps every one of them in play and
 takes the one meant, by one mechanism, so a wrong sense is not traced and recoded case by case. What of §4 is built,
-and how it measured, is in §7.
+and how it measured, is in §7. *Re-traced 2026-11-19.*
 
 ## 1. The problem, as measured
 

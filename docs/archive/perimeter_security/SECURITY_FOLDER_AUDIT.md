@@ -16,7 +16,7 @@ Located at: `/Users/stefan/Dominion Labs/Lyric/core/security/`
 
 These are utility modules providing stateless security functions that can be called as needed:
 
-### 1. [content_security.py](../core/security/content_security.py)
+### 1. content_security.py
 **Purpose**: Input sanitization and content validation
 **Functions**:
 - `sanitize_input()` - XSS prevention
@@ -30,7 +30,7 @@ These are utility modules providing stateless security functions that can be cal
 
 ---
 
-### 2. [system_security.py](../core/security/system_security.py)
+### 2. system_security.py
 **Purpose**: Core security validation functions
 **Class**: `SystemSecurity` (singleton via `get_system_security()`)
 **Functions**:
@@ -47,7 +47,7 @@ These are utility modules providing stateless security functions that can be cal
 
 ---
 
-### 3. [malware_sandbox.py](../core/security/malware_sandbox.py)
+### 3. malware_sandbox.py
 **Purpose**: Malware analysis utilities
 **Class**: `MalwareSandbox`
 **Functions**:
@@ -67,34 +67,34 @@ These are stateful components that should be initialized and run continuously:
 
 ### **Currently Initialized** ✅
 
-#### 1. [security_audit_worker.py](../core/security/security_audit_worker.py)
+#### 1. security_audit_worker.py
 **Purpose**: Security audit and vulnerability remediation
 **Class**: `SecurityAuditWorker`
-**Initialization**: ✅ Line 1088 in [main.py](../core/main.py#L1088)
+**Initialization**: ✅ Line 1088 in [main.py](../../../core/main.py#L1088)
 **Integration Points**: 4 (Slack, AutonomousCoordinator, Governance, Safety)
 **Status**: ✅ **OPERATIONAL**
 
 ---
 
-#### 2. [security_training_pipeline.py](../core/security/security_training_pipeline.py)
+#### 2. [security_training_pipeline.py](../../../core/security/security_training_pipeline.py)
 **Purpose**: Security training and awareness
 **Class**: `SecurityTrainingPipeline`
-**Initialization**: ✅ Line 1153 in [main.py](../core/main.py#L1153)
+**Initialization**: ✅ Line 1153 in [main.py](../../../core/main.py#L1153)
 **Status**: ✅ **OPERATIONAL**
 
 ---
 
-#### 3. [asi_safety.py](../core/security/asi_safety.py)
+#### 3. asi_safety.py
 **Purpose**: ASI safety framework and constraints
 **Class**: `ASISafety`
-**Initialization**: ✅ Line 978 in [main.py](../core/main.py#L978)
+**Initialization**: ✅ Line 978 in [main.py](../../../core/main.py#L978)
 **Status**: ✅ **OPERATIONAL**
 
 ---
 
 ### **NOT Initialized** ❌ **CRITICAL GAP**
 
-#### 4. [threat_intelligence.py](../core/security/threat_intelligence.py)
+#### 4. threat_intelligence.py
 **Purpose**: Multi-source threat intelligence aggregation
 **Class**: `ThreatIntelligenceEngine`
 **Features**:
@@ -111,7 +111,7 @@ These are stateful components that should be initialized and run continuously:
 
 ---
 
-#### 5. [firewall_manager.py](../core/security/firewall_manager.py)
+#### 5. firewall_manager.py
 **Purpose**: OS firewall integration for dynamic rule management
 **Class**: `RealTimeFirewallManager`
 **Features**:
@@ -128,7 +128,7 @@ These are stateful components that should be initialized and run continuously:
 
 ---
 
-#### 6. [cloudflare_waf.py](../core/security/cloudflare_waf.py)
+#### 6. cloudflare_waf.py
 **Purpose**: Cloudflare WAF integration for web application protection
 **Class**: `CloudflareWAFManager`
 **Features**:
@@ -144,7 +144,7 @@ These are stateful components that should be initialized and run continuously:
 
 ---
 
-#### 7. [threat_blocking.py](../core/security/threat_blocking.py)
+#### 7. threat_blocking.py
 **Purpose**: Coordinated active defense system
 **Class**: `ThreatBlockingEngine`
 **Features**:
@@ -161,7 +161,7 @@ These are stateful components that should be initialized and run continuously:
 
 ---
 
-#### 8. [controller.py](../core/security/controller.py)
+#### 8. controller.py
 **Purpose**: Central security coordination and enforcement
 **Class**: `SecurityController`
 **Features**:
@@ -183,15 +183,15 @@ These are stateful components that should be initialized and run continuously:
 
 These provide data structures and interfaces:
 
-- [security_types.py](../core/security/security_types.py) - Common security type definitions
-- [active_defense_types.py](../core/security/active_defense_types.py) - Active defense type definitions
-- [service_abstractions.py](../core/security/service_abstractions.py) - Service abstraction interfaces
+- security_types.py - Common security type definitions
+- active_defense_types.py - Active defense type definitions
+- service_abstractions.py - Service abstraction interfaces
 
 ---
 
 ## 🎯 **Integration Point**
 
-The integrated security system is defined in [security/__init__.py](../core/security/__init__.py):
+The integrated security system is defined in [security/__init__.py](../../../core/security/__init__.py):
 
 ### `create_integrated_security_system()` Function
 **Purpose**: Initialize and wire together all active defense components
@@ -242,7 +242,7 @@ Lyric has a **COMPLETE ACTIVE DEFENSE GAP**:
 ## ✅ **Recommended Actions**
 
 ### **Immediate Fix** (Critical Priority)
-Add integrated security system initialization to [main.py](../core/main.py) Phase 11:
+Add integrated security system initialization to [main.py](../../../core/main.py) Phase 11:
 
 ```python
 # Phase 11.5: Initialize Integrated Security System (Active Defense)

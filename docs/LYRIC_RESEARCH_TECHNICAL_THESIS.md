@@ -136,7 +136,7 @@ The current technical overview documents 32 named experiment suites with saved r
 |---|---|---|
 | Governance | CONSTITUTION-01; CONSTITUTION- 02; GATE-01 | 39/39; 23/23 with 0/8 legitimate acts blocked; 25/25 |
 | Governance integration | GOV-ABLATION-01; GOV-CASCADE-01 | 0 unsafe acts with promotion gate vs 1 when bypassed; 0 authoritative errors at every depth in the governed condition |
-| Learning / transfer | CSP-AGI-1; EDU-07; OPERATOR- REMOVAL-01 | 96% competence, 0% false confidence, 8/8 transfers; 1 target observation with transfer vs 6 from scratch; 21/21 |
+| Learning / transfer | CSP-AGI-1; EDU-07; OPERATOR-REMOVAL-01 | 96% competence, 0% false confidence, 8/8 transfers; 1 target observation with transfer vs 6 from scratch; 21/21 |
 | Planning | PLANNING-01 | 39/39; proved plans grounded; unreachable goals yield no plan |
 | Intent / verification | INTENT-01/02; INTENT-03/04; RECONCILE-01 | 14/14 and 15/15; 13/13 and 15/15; 27/27 |
 | Epistemic knowledge | KNOW-50; DOM-KG-01 | 37 correct answers, 0 false assertions, remaining questions declined; 16/16 |

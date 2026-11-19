@@ -47,9 +47,9 @@ certification exposes divergence.* Every violation in section 2 is an instance o
 
 `clause_atom` — the function that turns a fact into the symbol a solver reasons over — exists twice:
 
-- `core/reasoning/neural_bridge.py:164` — *"the one vocabulary held rules, held facts and read meanings are
+- `core/reasoning/neural_bridge.py` — *"the one vocabulary held rules, held facts and read meanings are
   formalized into."*
-- `core/semantics/sentence_reader.py:1451` — *"This is the one vocabulary the reasoner formalizes held rules AND
+- `core/semantics/sentence_reader.py` — *"This is the one vocabulary the reasoner formalizes held rules AND
   held facts into."*
 
 Both are the sole authority. Run on the same inputs, read-only, no store
@@ -91,7 +91,7 @@ Both are the sole authority. Run on the same inputs, read-only, no store
 `clause_atom` uses the **module-level** one: `DerivedReadingFormalizer` (857), held rules (2745, 2764, 2767, 2836),
 concept-graph edges (2804), `_formal_query` (3105), `abstract_reasoning_engine._atom` (466, importing it), and
 `autonomous_coordinator._clause_atom` (20955, importing it). **`SentenceReader.clause_atom` has no live caller at
-all:** its only call site is `neural_bridge.py:967`, inside `SegmentedReadingFormalizer`, which is in no chain
+all:** its only call site is `neural_bridge.py`, inside `SegmentedReadingFormalizer`, which is in no chain
 (2.6).
 
 So the divergence is **real as code and latent in production, not actively corrupting answers today.** It is still
@@ -105,18 +105,18 @@ and section 2.8 shows what is live.
 `core/semantics/derived_reader.py` is declared *"the one reader"* at 14 sites across 10 files — the memory agent,
 the coordinator, teaching, the document reader, the tools layer, and `neural_bridge.py` itself.
 
-`core/semantics/sentence_reader.py:38` — `SentenceReader`, *"Turns a bounded slice of English into structure"* — is
+`core/semantics/sentence_reader.py` — `SentenceReader`, *"Turns a bounded slice of English into structure"* — is
 a **regex** reader: `_COPULA = r"(?:is|are|am)"`, `_FACT = re.compile(rf"^{_DETERMINER}{_SUBJ}\s+{_COPULA}\s+...")`.
 
 **An earlier draft of this plan said the reasoning authority reads queries with that regex reader. That was wrong,
 and it was wrong because the draft trusted `docs/architecture/reasoning.md` instead of the code.** The architecture
 document states that `_answer_over_concept_graph` *"reads the query to a typed (s,r,o) triple (`SentenceReader`)"*.
-The code at `neural_bridge.py:2503` says the opposite, in its own comment: *"**ONE reader, no fallback**: the
+The code at `neural_bridge.py` says the opposite, in its own comment: *"**ONE reader, no fallback**: the
 question's meaning (`question_of`), read through the same constructions the teaching path learned."* It calls
 `goal_fact(question_of(request))` — `derived_reader`. The regex reader is not in that path.
 
 Checked exhaustively: in all of `core/`, `SentenceReader` appears at exactly three lines — the import at
-`neural_bridge.py:41` and the two class attributes at 570 and 961, both inside formalizers that no chain contains
+`neural_bridge.py` and the two class attributes at 570 and 961, both inside formalizers that no chain contains
 (2.6). **It has no live production caller.** Its live existence is in tests and experiments.
 
 So the live reasoning path does use the one reader throughout. The violation here is not an active bypass; it is
@@ -127,16 +127,16 @@ exists. Both still have to go, because the next engineer reads the document — 
 
 `DerivedReadingFormalizer` is the door from read English into the solver. It declines, by explicit guard:
 
-- `neural_bridge.py:847` — `if meaning.act == "request" or meaning.asked: return None`. **Every wh-question**,
+- `neural_bridge.py` — `if meaning.act == "request" or meaning.asked: return None`. **Every wh-question**,
   however well read.
-- `neural_bridge.py:855` — `if is_variable(fact.subject) or is_variable(fact.obj): return None`. **Every fact
+- `neural_bridge.py` — `if is_variable(fact.subject) or is_variable(fact.obj): return None`. **Every fact
   holding an unknown.** The grammar mints unknowns for everything a sentence describes rather than names, so this
   refuses nearly every reading it is handed.
-- `neural_bridge.py:928` — *"A GOAL IS ONE CLAIM"*. **Every conjunctive question.** This guard is itself
+- `neural_bridge.py` — *"A GOAL IS ONE CLAIM"*. **Every conjunctive question.** This guard is itself
   duplicated: `DerivedReadingFormalizer` refuses at 928 and `DeterministicExtractor` refuses again at 1002, each
   with its own copy of the rule and its own error string. Widening the contract means finding every copy, which is
   the same defect class as 2.1 and 2.5 — so step 4 cannot be a one-line change and must not be attempted as one.
-- `neural_bridge.py:902` — an unreadable premise **declines the whole request**, so one unread sentence in a passage
+- `neural_bridge.py` — an unreadable premise **declines the whole request**, so one unread sentence in a passage
   kills every question about it. Also duplicated: the second formalizer declines the same way at 981.
 
 The reasoning authority's own documentation states the scope honestly: *"a taught ground statement or yes/no
@@ -146,7 +146,7 @@ was never widened**, so everything built since reads into a room with no entranc
 
 ### 2.4 The capability the reasoning authority lacks already exists, in the coordinator
 
-`AutonomousCoordinator._held_ways` (`autonomous_coordinator.py:22497`) does exactly what the bridge refuses:
+`AutonomousCoordinator._held_ways` (`autonomous_coordinator.py`) does exactly what the bridge refuses:
 *"EVERY WAY WHAT IS HELD MAKES ALL OF A QUESTION'S FACTS HOLD, each `{unknown: held thing}`"*. It takes conjunctive
 patterns, binds unknowns against what is held, orders the search so nothing is looked for that a fact does not lead
 to, and it uses `derived_reader.is_variable` — it speaks the reader's language natively.
@@ -159,11 +159,11 @@ and a question can only be answered by whichever of the two routes it happens to
 `core/semantics/lexical_normalization.py` is the shared layer: `normalise` (121), `singularise` (156),
 `canonical_term` (211), `canonical_label` (364). Beside it:
 
-- `core/learning/rule_induction.py:90` — its own `canonical_term`.
-- `core/domain/concept_ingestion.py:741,747` — its own `normalise` and `canonical_label`.
-- at least nine private `endswith("s")` plural folders, including `neural_bridge.py:382`, `proof_faculty.py:61`,
-  `teaching_sources.py:830`, `genericity.py:149`, `grammar_words.py:552`, `grammar.py:1504`,
-  `autonomous_coordinator.py:22015`.
+- `core/learning/rule_induction.py` — its own `canonical_term`.
+- `core/domain/concept_ingestion.py,747` — its own `normalise` and `canonical_label`.
+- at least nine private `endswith("s")` plural folders, including `neural_bridge.py`, `proof_faculty.py`,
+  `teaching_sources.py`, `genericity.py`, `grammar_words.py`, `grammar.py`,
+  `autonomous_coordinator.py`.
 
 Every atom, every concept name and every alias is built on top of these. Two components that fold plurals
 differently cannot agree on a fact's name no matter how well either of them reads.
@@ -172,8 +172,8 @@ differently cannot agree on a fact's name no matter how well either of them read
 
 Both live formalizer chains are two long and identical:
 
-- `neural_bridge.py:3093` — `FormalizerChain([PassthroughFormalizer(), DerivedReadingFormalizer()])`
-- `autonomous_coordinator.py:22372` — `FormalizerChain([PassthroughFormalizer(), DerivedReadingFormalizer()])`
+- `neural_bridge.py` — `FormalizerChain([PassthroughFormalizer(), DerivedReadingFormalizer()])`
+- `autonomous_coordinator.py` — `FormalizerChain([PassthroughFormalizer(), DerivedReadingFormalizer()])`
 
 Four formalizer classes exist: `PassthroughFormalizer` (454), `DeterministicExtractor` (537),
 `DerivedReadingFormalizer` (804), `SegmentedReadingFormalizer` (938). **Two of the four are in neither chain.**
@@ -511,7 +511,7 @@ how:
 
 | claim | how verified | result |
 |---|---|---|
-| two `clause_atom` definitions | `grep -rn "def clause_atom"` | `neural_bridge.py:164`, `sentence_reader.py:1451` |
+| two `clause_atom` definitions | `grep -rn "def clause_atom"` | `neural_bridge.py`, `sentence_reader.py` |
 | they disagree | both imported and run on 14 shared inputs, no store, no boot | **7 of 14 differ** |
 | different copular sets | read both frozensets | `{isa, instance_of, has_property}` vs 10 entries |
 | the `men`/`man` regression | run, and `SentenceReader._normalize` docstring read | `man_is_mortal` vs `men_mortal` |
@@ -525,7 +525,7 @@ how:
 | `_answer_over_concept_graph` reads with the one reader | source read at 2503 | `goal_fact(question_of(request))` |
 | the chain composition | both constructions read | `[Passthrough, DerivedReading]`, twice |
 | two formalizers unwired | `grep -rn` for each class name | Segmented: **no reference at all**; Deterministic: tests + 1 experiment |
-| `_held_ways` solves what the bridge refuses | source read | `autonomous_coordinator.py:22497` |
+| `_held_ways` solves what the bridge refuses | source read | `autonomous_coordinator.py` |
 | the coordinator is protected | `CRITICAL_MODULES` read | **line 2396, coordinator listed** |
 | lexical layer duplicated | `grep -rn "def normalise\|def canonical_term\|def canonical_label"` | 3 owners + ~9 folders |
 | 34 of 34 zero steps, 1 right of 45 | transcript parsed, then **re-derived with `grep`** | both methods agree |

@@ -281,7 +281,7 @@ belong in `docs/architecture/` beside `reasoning.md`, or linked from it.
 The rest of that set is noise worth clearing: `core/neural_bridge/` holds a `README.md` and no Python at
 all, and that README describes "a decentralized, federated learning architecture for distributed training
 across edge devices", which is not what a neural bridge is and not what the real module
-(`core/reasoning/neural_bridge.py`) does. `core/health/health_monitor.py:483` already records that
+(`core/reasoning/neural_bridge.py`) does. `core/health/health_monitor.py` already records that
 `core/neural_bridge` holds no modules. `core/agents/agent_capability_test.md` contains the text
 "## Test ##". `core/health/README.md` is an empty heading.
 
@@ -623,3 +623,99 @@ No behavioural claim in any document was verified by running anything. Every che
 read it. The documents that remain mechanically unclean are dated records — the lab notebook, the design
 decisions, the completed consolidations, the 2026-08-11 safety inventory — each of which states its date
 and its status at its head, and each of which is kept as found.
+
+---
+
+## 7. Third pass: the whole folder, counted
+
+### 7.1 The census the earlier passes worked from was short
+
+`docs/` holds 541 markdown files. 440 are teaching-session logs; **101 are documents**, 68 live and 33
+archived. The second pass read the subsystem documents and ran the checker over 66 of them. **31 live
+documents had never been read against the code** — they had the mechanical symbol-and-link check and
+nothing else. This pass read all 31.
+
+### 7.2 A status the code contradicts
+
+Three documents carried a status that was false, each because work landed after the document was written.
+
+| document | said | the code and the runs |
+|---|---|---|
+| `design/AFFECT_ARCHITECTURE.md` | `Status: PROPOSED (rev 3)` | Rev 3's design is what runs. `AffectState` persists in `unified.affect_state` as a single constrained row, rehydrated by `_load_affect`, with a `version` that increments per affect transition; `update_affect` and `_fold_affect` move it. `_react_affect` is the coordinator's one **synchronous** reaction. AFFECT-WIRING-01 measured both disposition pressures changing behaviour through `should_explore`, `max_goals` and `mode` |
+| `research/SENTENCE_AND_WORD_SHAPES.md` | "Nothing here has been built"; §8 "Next experiment (proposed, not built)" | SHAPES-LEARN-01 ran 2026-09-27, 27/27 — step 1 end to end, the substrate's first English learned rather than written into the code. SHAPES-LEARN-02 ran the same day, 32/32 — step 2, 7 holophrases, 8 item-based constructions, 16 lexical constructions, 30 slot–filler links, 61 memories and grounded beliefs |
+| `design/INTENT_AUTHORITY.md` | "**INTENT-03** (not built)"; "**Updated (not built):**" | INTENT-03 is built, against a different question — that judgments are correct once acts run. The learning tie went to CREDIT-01: earned reliability 0.4365 against 0.3057 for the same record under the old crediting, with the KNOW→DO bar moving by its own rule. `Intent.from_task` no longer exists in `core/`, so nothing reaches intent through the proxy |
+
+### 7.3 Law 3 tests five interests, not four
+
+`HARM_DEFINITION.md` opened by defining harm as touching "one of four interests", while its own §2.5
+and §8 record `DEPENDENCE` as a fifth, added after GOVERNANCE-ABSORPTION-01 reported four regressions,
+and its §2.6 records `CONTENT`. The document also carried two sections numbered 8, and its subsections
+ran 2.1, 2.2, 2.3, 2.5, 2.6, 2.4.
+
+Read against the code, `_law_3_harm` gates five interests in a fixed order — `PROTECTION`
+(`security_disable`), `BODY` (`_physical_reach`), `CONTENT` (`_content_as_directive`), `TRUTH`
+(`_deception`), `DEPENDENCE` (`_unbounded_destruction`) — and the first that answers blocks the act.
+`AUTONOMY` is enforced by `_law_1_autonomy`, not by the harm gate.
+
+**`architecture/constitution.md`, written in the second pass, had copied the error**: it listed four
+interests as `BODY`/`AUTONOMY`/`TRUTH`/`PROTECTION`. The source of the error is the docstring on
+`_law_3_harm`, which states "THE FOUR INTERESTS" and names `AUTONOMY` among them while omitting
+`DEPENDENCE` and `CONTENT`, both of which its own body gates. **The docstring is stale against the
+method it heads**; it is code and is left as found, named here.
+
+### 7.4 Two documents had no date and no status
+
+`design/REASONING_SIMULATION_STACK.md` and `security/chaos_testing.md` were written in the present tense
+with nothing to date them. Both were read against the code and both are accurate on their substance: all
+five components of the stack exist — `core/reasoning/advanced_proof_engine.py`,
+`core/reasoning/constraint_solver.py`, `core/optimization/optimizers.py`,
+`core/simulation/numerical_simulation.py`, `core/simulation/system_dynamics.py` — and each tool interface
+they name is registered in `core/tools/reasoning_tools.py`. The chaos document undercounted itself: it
+claimed 7 target adapters where there are **10** on one base, and "20+" scenarios where there are **28**
+in 10 groups.
+
+### 7.5 Line numbers are gone from the documents
+
+The second pass kept line numbers as class anchors. Within the same session three of them drifted by
+exactly 35 lines, the coordinator having grown underneath them. The checker could not catch most of the
+rest: it only reported a `file.py:LINE` citation when the line was past the end of the file, so **258
+citations across the live documents went unverified** and could be silently wrong.
+
+All 276 are now removed — 258 `file.py:LINE` citations and 18 resolved `symbol (LINE)` anchors — and the
+names are kept. The checker now reports any line citation whether or not it is currently right, so they
+cannot return.
+
+### 7.6 Links to code were never checked
+
+The earlier passes checked document-to-document links. **83 links to code files were broken.** 41 named
+a file that exists but at the wrong relative depth, so they resolved to nothing from the folder they sat
+in; 42 named a file that no longer exists. The 41 are repointed and the 42 unlinked, the file name kept
+as the record. **0 broken relative links remain across all 101 documents.**
+
+### 7.7 Where the folder stands
+
+| | |
+|---|---|
+| documents | 101 (68 live, 33 archived) |
+| broken relative links | 0 |
+| mechanical findings, all 101 | 338 |
+| mechanical findings, 68 live | 204 |
+| `docs/architecture/` | 15 documents, all clean |
+
+The 204 live findings sit almost entirely in dated records that state their date and status at the head:
+`research/LAB_NOTEBOOK.md` (80), `design/MEMORY_SEMANTICS_CONVERSATION.md` (25),
+`GOVERNANCE_SECURITY_CONSOLIDATION.md` (24), `HANDOFF.md` (15), `audits/CONFIGURATION_AUDIT_FINDINGS.md`
+(12), `security/SAFETY_ARCHITECTURE.md` (10). Where a current-state document was flagged, the flag was
+resolved: `TEACHING.md`'s six `teach_*.py` and `research/BENCHMARKS.md`'s `keylogger.py` / `backdoor.py`
+are the documents correctly naming things that are gone or were test decoys, and
+`LYRIC_ARCHITECTURE_DOCUMENT.md`'s `system_control.py` was re-measured from 362 lines to 440.
+
+### 7.8 What this pass did not do
+
+As with the second pass, no behavioural claim was verified by running anything. The dated research notes
+were read for status rather than re-derived: `research/WORD_SENSES.md` was checked in full and is exactly
+right — its §7 records the one activation as built and the walk over memory's graph as not, and the code
+still carries `held` and `related` as separate counted terms. `research/ONE_LANGUAGE_PLAN.md` still reads
+"Nothing in this plan has been applied" as of 2026-11-03, and its own certification `ONE-LANGUAGE-01`
+does not exist as an experiment; semantics work has landed since that does not map onto the plan's five
+steps, so no status is asserted for it here.

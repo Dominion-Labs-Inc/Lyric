@@ -10,7 +10,7 @@ a sentence and answers out of what the substrate holds. No model is on any path 
 means is read by the one reader, and what is said back is composed from held facts.
 
 It is reached through the body — `AutonomousCoordinator.conversation(session)` — or directly through
-`get_conversation(session)` (27233). The reader itself and the gate that admits what a turn tells are
+`get_conversation(session)`. The reader itself and the gate that admits what a turn tells are
 documented separately in [semantics-ingress.md](semantics-ingress.md); this document is the thread of talk
 and the answering.
 
@@ -85,7 +85,7 @@ nothing and asked for nothing it can name, and it is said so.
 
 ## 4. Answering
 
-`Understanding` (21996) is what the substrate made of one sentence: what was resolved, what was answered,
+`Understanding` is what the substrate made of one sentence: what was resolved, what was answered,
 what was acquired, what is unknown, and `why_not` — one entry per path that found nothing, kept where the
 person asking can be told rather than only logged.
 

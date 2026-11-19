@@ -408,8 +408,8 @@ From `planfile.md` - **These are production monitoring targets, not test require
 
 ## Files Created During Phase 9
 
-1. [tests/governance/test_phase9_deployment_validation.py](../../tests/governance/test_phase9_deployment_validation.py) - 10 deployment validation tests
-2. [data/system/phase9_baseline_metrics.json](../../data/system/phase9_baseline_metrics.json) - Production baseline metrics
+1. tests/governance/test_phase9_deployment_validation.py - 10 deployment validation tests
+2. [data/system/phase9_baseline_metrics.json](../../../data/system/phase9_baseline_metrics.json) - Production baseline metrics
 3. [docs/governance/phase9_completion_report.md](phase9_completion_report.md) - This report
 
 ---

@@ -44,6 +44,9 @@ NOT_A_SYMBOL = set(dir(_b)) | {
     "made_of", "member_of", "similar_to", "antonym_of", "defined_with", "causes",
     # Atoms a reasoning document necessarily writes out to show a derivation.
     "human", "mortal", "rained", "wet", "circle", "square", "triangle",
+    # Notation, not symbols: natural log, PropBank's roles, container methods.
+    "ln", "log", "exp", "arg0", "arg1", "arg2", "arg3", "arg4", "argm",
+    "setdefault", "glob", "items", "keys", "values", "append",
 }
 
 _defs_cache = {}
@@ -104,8 +107,14 @@ def check(doc):
     if primary:
         d, attrs = defs_of(primary)
         for name, ln in re.findall(r"`(?:async )?([A-Za-z_][A-Za-z_0-9]*)(?:\([^`]*\))?`(?:\*\*)?[^`\n(]{0,60}\((\d{3,5})\)", t):
-            if name in d and abs(d[name] - int(ln)) > 2:
+            if name not in d:
+                continue
+            if abs(d[name] - int(ln)) > 2:
                 out.append(("line", f"{name}: says {ln}, is {d[name]}"))
+            else:
+                # Right today, wrong on the next edit above it. A method's line
+                # number cannot stay true, so it is not a citation worth keeping.
+                out.append(("line", f"{name}: cited by line ({ln}) — name it instead"))
 
     # 4. every method or class named must exist somewhere
     for name in sorted(set(re.findall(r"`(?:async )?([a-z_][a-z_0-9]*)\(", t))):
@@ -121,6 +130,8 @@ def check(doc):
         n = sum(1 for _ in open(p, encoding="utf-8", errors="replace"))
         if int(ln) > n:
             out.append(("xref", f"{f}:{ln} is past the end of a {n}-line file"))
+        else:
+            out.append(("xref", f"{f}:{ln} — a line number cannot stay true; cite the name"))
     return primary, out
 
 if __name__ == "__main__":

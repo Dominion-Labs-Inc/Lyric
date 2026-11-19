@@ -172,7 +172,7 @@ The mechanism by which a human steers the agent's standing behaviour.
 
 **G1 — Directives are consumed as prompt text.** The manager writes structured, validated records
 to real tables, but the coordinator reads them back and injects them as f-strings into the LLM
-prompt. The only programmatic use is `directive_system.py:218` merging `directive_parameters` into
+prompt. The only programmatic use is `directive_system.py` merging `directive_parameters` into
 task params. Typed governance data is flattened into prose at the point of use.
 
 **G2 — The directive safety monitor is orphaned.** 761 lines, docstring *"100% COMPLETE
@@ -210,7 +210,7 @@ unified_governance.make_decision()                 ← NO CALLERS
   └─ _handle_important_tier() / _handle_critical_tier()
        └─ approval_pipeline.request_approval()
             └─ approval_manager.create_approval_request()  + Slack
-                 └─ POST /approval  (chat_server.py:173)
+                 └─ POST /approval  (chat_server.py)
                       └─ approval_manager.record_decision()
 ```
 
@@ -253,10 +253,10 @@ often *enforced*.
 
 | Mechanism | Where | Status |
 |---|---|---|
-| `ToolSafety` — SAFE / MODERATE / DANGEROUS / CRITICAL / HIGH_RISK | `tool_registry.py:1337` | **Decorative by design** |
-| `RiskLevel` — LOW / MEDIUM / HIGH / CRITICAL | `capabilities.py:332` | Branched on only by `requires_approval()` |
-| `capabilities.requires_approval()` | `capabilities.py:578` | Real logic, **zero callers** |
-| `execute_action_with_commitments` | imported at `tool_registry.py:40` | **Imported, never called** |
+| `ToolSafety` — SAFE / MODERATE / DANGEROUS / CRITICAL / HIGH_RISK | `tool_registry.py` | **Decorative by design** |
+| `RiskLevel` — LOW / MEDIUM / HIGH / CRITICAL | `capabilities.py` | Branched on only by `requires_approval()` |
+| `capabilities.requires_approval()` | `capabilities.py` | Real logic, **zero callers** |
+| `execute_action_with_commitments` | imported at `tool_registry.py` | **Imported, never called** |
 
 **E1 — Tool safety classification is explicitly not enforced.** All 371 tools carry a `ToolSafety`
 level — 261 safe, 66 moderate, **39 dangerous, 4 critical, 1 high_risk**. The enum's own docstring
@@ -285,7 +285,7 @@ execution path.
 | `quantum/asi_quantum_safety.py` | 630 | ORPHANED |
 
 **E4 — The watchdog is constructed with the wrong type and never started.**
-`autonomous_coordinator.py:319` does `SystemWatchdog(LYRIC_RESOURCE_LIMITS)`, but
+`autonomous_coordinator.py` does `SystemWatchdog(LYRIC_RESOURCE_LIMITS)`, but
 `SystemWatchdog.__init__` expects a `WatchdogConfig`. The two dataclasses share only
 `check_interval` — `ResourceLimits` has no `auto_recovery`, `max_recovery_attempts`,
 `recovery_cooldown` or `alert_on_recovery`. Since `config or WatchdogConfig()` treats the wrong

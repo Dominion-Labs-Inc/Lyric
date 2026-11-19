@@ -3,7 +3,7 @@
 **Phase**: 2
 **Status**: NOT STARTED
 **Dependencies**: Phase 1 (COMPLETE)
-**Target Files**: [core/tools/tool_registry.py](../../core/tools/tool_registry.py:275-345)
+**Target Files**: [core/tools/tool_registry.py](../../../core/tools/tool_registry.py)
 
 ---
 

@@ -79,7 +79,7 @@ misdescribe their own file** — that is itself one of the defects below.
 | `autonomous_coordinator` | **the orchestra.** Nothing happens without it. | 10,738 lines; `AutonomousCoordinator` itself declares 133 methods. `main.py` hands it learning, ASI self-improvement, intelligence, governance, health, recovery, proof engine, agent coordinator, research. |
 | the substrate | knowledge and inference, spread across four folders | `semantics` (language), `reasoning` (inference, planning, Z3), `learning` (induction, grounding, authority), `domain` (concepts, transfer) |
 | `unified_llm` | **the inference service** — one model, one queue, one place where device, timeout, prompts and logging live | Owns the runtime: attaches to a running `llama-server` or loads the GGUF in-process (*"a 25GB model loaded twice does not fit on this machine"*). Every call becomes an `_InferenceJob`; the single `_inference_worker` is *"the ONLY code that ever touches the Llama object"*, so the loop stays free for tool calls while the GPU is busy. `InferenceSpeedTracker` keeps an EWMA of tokens/sec for dynamic timeouts. **Its file header describes only the model and is stale** — see defect 08. |
-| the model | a reference the coordinator holds and may consult | `coordinator.py:446` — `self.llm = self.config.get("llm_brain")  # Lyric will pass itself`, above the comment *"Its absence is a normal operating state, not a degraded one."* |
+| the model | a reference the coordinator holds and may consult | `coordinator.py` — `self.llm = self.config.get("llm_brain")  # Lyric will pass itself`, above the comment *"Its absence is a normal operating state, not a degraded one."* |
 
 **The model is not the brain.** Before the substrate-first change it was the
 centre of the architecture; `llm_brain` is now a slot Lyric passes *itself* into.
@@ -97,7 +97,7 @@ language centre — the coordinator *drives* faculties, it does not contain them
 
 `conversation.py` is therefore **correct as its own file** — it is the single
 language faculty, not a fragment of one. The coordinator already treats it that
-way (`autonomous_coordinator.py:7130`):
+way (`autonomous_coordinator.py`):
 
 > *"DELEGATED, NOT DECIDED HERE. This used to ask a model directly while
 > `Conversation.is_question` asked a rule, and the two disagreed — a plain
@@ -181,7 +181,7 @@ counts, importance decay, `supersede` when something newer contradicts.
 
 Two consumers, for different reasons:
 
-1. **`neural_bridge`** (`neural_bridge.py:1926`) — the real one. During
+1. **`neural_bridge`** (`neural_bridge.py`) — the real one. During
    reasoning it searches memory and inserts the result into `request.context`,
    which substrate reasoning consumes. **Verified live**: a request with
    `cached_memories = None` triggers exactly 1 search; with `[]`, exactly 0.
@@ -213,7 +213,7 @@ one of twelve `EXEMPT_EVENT_TAGS` (task outcomes, safety events, governance
 decisions, learning updates, mapping verdicts, critical failures) — skips
 worthiness and is stored with `rule_matched="event_class_exemption"`.
 
-The reason is a defect that actually happened, recorded at `memory_agent.py:442`:
+The reason is a defect that actually happened, recorded at `memory_agent.py`:
 
 > *"Observations are measurements, not insights. The worthiness filter asks 'is
 > this novel / deeply reasoned / cross-domain enough to keep?' — the wrong
@@ -387,7 +387,7 @@ and queueing in front of the system's own thinking.
 
 ### The external authority already exists
 
-`AutonomousCoordinator.handle_user_request()` (`autonomous_coordinator.py:7051`)
+`AutonomousCoordinator.handle_user_request()` (`autonomous_coordinator.py`)
 is the entry-point authority, and it already has the right shape:
 
     kind = await self._request_kind(message)        → delegates to Conversation
@@ -419,7 +419,7 @@ Its docstring records the failure that produced it:
 
 **Target: delete these paths, leave one external door in front of
 `handle_user_request`.** The consolidation has already started —
-`chat_server.py:208` records a route being *removed* for exactly this reason:
+`chat_server.py` records a route being *removed* for exactly this reason:
 
 > *"That is unauthenticated remote task injection with the substrate's own tool
 > and safety authority. It was added before auth existed, which is exactly the
@@ -477,7 +477,7 @@ this myself*; the router asks *which machinery answers best per unit cost*.
 Each verified on 2026-08-24. Fix these before building on the memory path.
 
 **1. The coordinator's memory path is dead.**
-`autonomous_coordinator.py:2595` reads
+`autonomous_coordinator.py` reads
 `getattr(injected,'formatted_context') or getattr(injected,'content')`.
 `InjectedMemories` has neither — its fields are `formatted_text`, `memory_ids`,
 `total_memories`, `total_tokens`, `injection_mode`, `retrieval_time`,
@@ -510,7 +510,7 @@ not error — it behaves exactly as if no memory was found.
 See *Defect 3* near the end. Not a double fetch: the retrieval feeds the
 executor's own prompt. What was dead was `self.neural_bridge` and
 `cached_memories`, plus a start-up log claiming traces were being captured.
-`general_purpose_executor.py:1617` declares `cached_memories` with the comment
+`general_purpose_executor.py` declares `cached_memories` with the comment
 *"for passing to neural bridge (prevents double-fetching)"*. AST proof: stored
 at lines 1617 and 1685, **loaded NEVER**. `ReasoningRequest.cached_memories`
 exists and the bridge honours it, so the wire was designed and never connected.
@@ -572,7 +572,7 @@ the substrate held looked like a statement about nothing. Verified:
 **7. RESOLVED 2026-08-24 — conversation state is now held per session.**
 `Conversation` holds `_turns`, `_last_subject`, `_last_reply` and `_recall` —
 everything continuity depends on. The coordinator constructs a **fresh instance
-at every call site**: `autonomous_coordinator.py:7142` builds one to
+at every call site**: `autonomous_coordinator.py` builds one to
 `classify(message)`, and `:7156` builds *another* to `understand(message)` — two
 instances for the same message. There is no singleton and no accessor.
 
@@ -635,7 +635,7 @@ executed deterministically with no model. Six stages. Five complete.
 
 | # | Stage | Result |
 |---|---|---|
-| 1 | `coordinator.extract_state_conditions(description)` | `['AT(z, VAULT)', 'AT(z, HALL)']` — wired at `autonomous_coordinator.py:1367` |
+| 1 | `coordinator.extract_state_conditions(description)` | `['AT(z, VAULT)', 'AT(z, HALL)']` — wired at `autonomous_coordinator.py` |
 | 2 | `ground_for_problem` over the 5 validated rules | 4 operators grounded |
 | 3 | `plan_for_state_goal` | `PLAN_FOUND`, 2 steps: `MOVE(z,HALL,LAB)`, `MOVE(z,LAB,VAULT)` |
 | 4 | `state_plan_to_tasks` | 2 tasks, each carrying `learned_rule_id=rule_edbe5a8b4ad8` + `grounded_operator` |
@@ -654,7 +654,7 @@ fall through to the model, which is the property the path exists to have.
 **The cause is a missing supplier, the same shape as the last one.**
 `get_binding_registry()._bindings` holds **0 domains in a live process**. One
 production registrar exists — `SentenceMachine.register()` at
-`core/semantics/sentence_machine.py:170` — and it has **zero callers**. Every
+`core/semantics/sentence_machine.py` — and it has **zero callers**. Every
 other `register()` call in the repo is in `tests/` or `experiments/`, which is
 why the substrate execution tests pass while production has never executed a
 single grounded operator.
@@ -680,7 +680,7 @@ between concepts and rule domains: partial — `kite17` (9 concepts) and `archiv
 (4) appear in both; `warehouse`, `syllogism*` and `identity_oracle` do not.
 
 **The domain system that was verified works, and is fully wired.**
-`UniversalDomainMaster` is initialised in `core/main.py:849-862` and reached from
+`UniversalDomainMaster` is initialised in `core/main.py-862` and reached from
 the coordinator, `neural_bridge`, `intrinsic_motivation` and
 `hierarchical_abstraction`. `domain_registry` likewise. That is not in question.
 
@@ -704,8 +704,8 @@ be a legitimate rule domain and simultaneously mean nothing to the registry.
 
 ### Defect 10b — nothing supplies `domain_id` to the planner either
 
-`planning_engine.py:227` and `:258` both read `context.get("domain_id")`. Both
-production callers of `plan_for_goal` — `autonomous_coordinator.py:8786` and
+`planning_engine.py` and `:258` both read `context.get("domain_id")`. Both
+production callers of `plan_for_goal` — `autonomous_coordinator.py` and
 `:8893` — pass either no context at all or `{"system_state", "available_resources"}`.
 **No caller anywhere sets `domain_id`.** So in production every task is built
 with `domain_id=None`, and the executor's lookup becomes
@@ -766,7 +766,7 @@ semantics work is aimed at, seen from the reasoning side.
 
 ### Defect 12 — `_model_available()` did not consult the model policy — FIXED 2026-08-24
 
-`neural_bridge.py:2204` calls `model_can_serve(self.llm_service)`
+`neural_bridge.py` calls `model_can_serve(self.llm_service)`
 (`:159-172`), which checks only whether a model OBJECT is loaded — `.model is
 not None`, or `device == "remote"`. It never asks `core.model_policy`. The file
 contains **zero** references to the policy module.
@@ -809,10 +809,10 @@ asserts the substrate-first contract (`model_required is False`, plus
 
 | enum | file | members | dispatched |
 |---|---|---|---|
-| `ReasoningMode` | `reasoning_interfaces.py:33` | 3 (EPISTEMIC, ALEATORIC, BAYESIAN) | separate axis — uncertainty, not routing |
-| `ReasoningMode` | `neural_bridge.py:34` | 7 (SYMBOLIC…AUTO) | **all 7 live**, `run_mode` at `:2009` |
-| `ReasoningType` | `abstract_reasoning_engine.py:48` | 16 | **4** — DEDUCTIVE, INDUCTIVE, ABDUCTIVE, ANALOGICAL |
-| `InferenceMethod` | `abstract_reasoning_engine.py:68` | 12 | **5** |
+| `ReasoningMode` | `reasoning_interfaces.py` | 3 (EPISTEMIC, ALEATORIC, BAYESIAN) | separate axis — uncertainty, not routing |
+| `ReasoningMode` | `neural_bridge.py` | 7 (SYMBOLIC…AUTO) | **all 7 live**, `run_mode` at `:2009` |
+| `ReasoningType` | `abstract_reasoning_engine.py` | 16 | **4** — DEDUCTIVE, INDUCTIVE, ABDUCTIVE, ANALOGICAL |
+| `InferenceMethod` | `abstract_reasoning_engine.py` | 12 | **5** |
 
 Two classes named `ReasoningMode` in one package is the shadow-enum pattern that
 `tests/test_shadow_enum_guard.py` already polices for `ConceptType` and
@@ -826,7 +826,7 @@ Declared and dispatched nowhere in the repo: `ReasoningType.TEMPORAL`,
 
 ### Defect 14 — quantum reasoning is initialised, counted, and never used
 
-`unified_quantum_reasoning_system.py` is 805 lines. `core/main.py:1255-1268`
+`unified_quantum_reasoning_system.py` is 805 lines. `core/main.py-1268`
 initialises it in Phase 9 unconditionally and increments
 `stats['services_initialized']`. Every other reference in the repo is
 construction, a `get_statistics()` call, or a presence check — **no call site
@@ -834,7 +834,7 @@ reasons with it.** Quantum hardware is gone; the system still reports a service.
 
 ### Defect 15 — two health checks that could not fail — FIXED 2026-08-24
 
-`autonomous_coordinator.py:3163-3164`:
+`autonomous_coordinator.py-3164`:
 
     "abstract_reasoning": {"initialized": hasattr(self.abstract_reasoning, 'initialized')},
     "quantum_reasoning":  {"initialized": hasattr(self.quantum_reasoning, 'initialized')},
@@ -923,7 +923,7 @@ is executor-loop state, and the store is write-only.
 The machinery itself is sound — round-trip verified exact, gzip, pruning, stats.
 And it is genuinely live: `convergence_gate.check_convergence` calls
 `checkpoint_state` (`:835`), reached from the executor at
-`general_purpose_executor.py:2193` and `:3048`. `data/convergence_checkpoints/`
+`general_purpose_executor.py` and `:3048`. `data/convergence_checkpoints/`
 holds **100 files, 1.5 MB, written 14–20 Aug — exactly at the
 `max_checkpoints=100` cap**, so it is continuously pruning.
 
@@ -941,7 +941,7 @@ Two further points:
   anything.
 - `checkpoint_manager`'s DEFAULT directory `data/checkpoints/` is empty and
   always has been; the only real user overrides it. The health entry
-  (`health_monitor.py:1546`) calls `get_checkpoint_manager()`, the singleton on
+  (`health_monitor.py`) calls `get_checkpoint_manager()`, the singleton on
   the DEFAULT path — so health reports on a manager that is not the one doing
   the work.
 
@@ -953,7 +953,7 @@ cost; the false impression that state is recoverable is the risk.
 
 `load_checkpoint`'s cache-hit early return skipped `stats['total_loaded'] += 1`.
 Since `save_checkpoint` populates the cache, the ordinary save-then-restore
-sequence reported `total_loaded=0` forever — and `health_monitor.py:1546` reads
+sequence reported `total_loaded=0` forever — and `health_monitor.py` reads
 that number, so "restore has never been exercised" and "restore works and is
 warm" were the same reading. Now counted; verified 0 → 2 for two real loads.
 
@@ -971,7 +971,7 @@ structurally.
 The convergence gate and the checkpoint store were built so a model could run a
 long tool-use loop without running forever. That need does not transfer.
 
-    MODEL PATH      general_purpose_executor.py:2156
+    MODEL PATH      general_purpose_executor.py
                     `for iteration in range(max_iterations)` over a CONVERSATION.
                     Nothing proves it finishes, or that it is making progress, so
                     a gate watches the state and declares a fixpoint when it
@@ -1141,7 +1141,7 @@ something there was already a tool for."* It enumerates eager AND lazy tools,
 calls `submit_tool_capability` on each, and counts projected / no-structure /
 failed separately.
 
-**Its only caller is `experiments/verify_wiring.py:126`.** Zero production
+**Its only caller is `experiments/verify_wiring.py`.** Zero production
 callers.
 
 **But the data IS there, and this is weaker than it first looked.** An earlier
@@ -1433,7 +1433,7 @@ Found while testing the new strategies. **Every** call to
 asyncio task introspection rather than guessed:
 
     suspended frames of the reasoning task:
-      core/reasoning/abstract_reasoning_engine.py:1950 in reason
+      core/reasoning/abstract_reasoning_engine.py in reason
 
 Line 1950 is `await self._update_learning(result)`, which calls
 `UnifiedLearningSystem.learn_from_experience`.
@@ -2267,7 +2267,7 @@ whether they should exist. That was a miss, and it is recorded as one.
 ### The learned reader was not reachable from reasoning
 
 `ensure_registered()` — which derives the reading and puts it in the registry —
-is called from **exactly one place**, `conversation.py:690`. In a reasoning-only
+is called from **exactly one place**, `conversation.py`. In a reasoning-only
 process the registry is EMPTY, `DerivedReadingFormalizer` finds nothing, and the
 hand-written patterns are the only reader there is.
 

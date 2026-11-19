@@ -40,12 +40,12 @@ matched_aim = all(c in observed) ── did the world move?     coordinator:1239
         ↓
 reconcile() ─────────────────────── onto the intent         coordinator:12411
         ↓
-appraisal.integrity ─────────────── identity→intention→     appraisal.py:404
+appraisal.integrity ─────────────── identity→intention→     appraisal.py
                                      action→outcome
         ↓
-_incoherence → caution_pressure ─── verify more             appraisal.py:549
+_incoherence → caution_pressure ─── verify more             appraisal.py
         ↓
-verification_intensity = 0.5+0.5·c  behavior_arbiter.py:159
+verification_intensity = 0.5+0.5·c  behavior_arbiter.py
         ↓
 verify_bar = 0.85·((vi−0.5)/0.5) ── coordinator:10076
         ↓

@@ -7,7 +7,7 @@ must stay true.*
 
 The constitution is a faculty of the substrate, held by the coordinator (`core/agents/autonomous/autonomous_coordinator.py`,
 `Constitution` at 3573, 3,608 lines, 86 methods). The self holds its own law rather than submitting to an
-outside judge, and there is exactly one instance: `get_constitution()` (7289) is the only way anything
+outside judge, and there is exactly one instance: `get_constitution()` is the only way anything
 outside the coordinator reaches it.
 
 It has two halves, and they answer different questions.
@@ -39,7 +39,7 @@ Nothing reaches the laws except through these.
 
 | Door | Where | What it asks |
 |---|---|---|
-| `judge_act(...)` (7312) | `core/tools/tool_registry.py` — the single tool-execution path | May this concrete act happen? |
+| `judge_act(...)` | `core/tools/tool_registry.py` — the single tool-execution path | May this concrete act happen? |
 | `Constitution.may_start(task_kind)` | `AutonomousCoordinator._task_gate` | May work of this kind begin at all? |
 | `Constitution.screen_directive(text)` | `core/agents/autonomous/directive_system.py` | May this text become a standing directive? |
 
@@ -64,7 +64,7 @@ was to break it.
 
 ## 3. Four verdicts
 
-`Verdict` (629) is ordered weakest to strongest, and when several laws speak the strongest stands
+`Verdict` is ordered weakest to strongest, and when several laws speak the strongest stands
 (`_VERDICT_RANK`).
 
 | Verdict | Meaning |
@@ -114,7 +114,7 @@ traversal fault and Law 3 the injection fault from the same reading.
 
 ## 5. What an act does to the world
 
-**Consequence is measured, not asserted.** `classify_action` (2117) returns an `ActionClass` (1694) and an
+**Consequence is measured, not asserted.** `classify_action` returns an `ActionClass` and an
 irreversibility class for the specific invocation, from a table of **272 tools** (`_TOOL_CONSEQUENCE`) and
 then from the invocation's own arguments: consequence is verb times target, and the verb alone cannot tell
 you.
@@ -156,17 +156,26 @@ what it does.
 ## 6. Harm, defined
 
 Law 3 is applied against a definition rather than a proxy: see [../HARM_DEFINITION.md](../HARM_DEFINITION.md).
-An act harms when it reaches an identifiable **party**, touches one of four **interests**, through a
+An act harms when it reaches an identifiable **party**, touches an **interest**, through a
 **mechanism** the substrate can name, without that party's informed **authorisation**.
 
-| Interest | What it is |
-|---|---|
-| `BODY` | Physical safety. Capability-gated rather than pattern-matched: the registry is asked whether physical reach exists at all, so this reports honestly in a deployment with no actuators |
-| `AUTONOMY` | A person's control over their own situation — covert observation, holding their credentials, or targeted steering: using a model of their intent to move them |
-| `TRUTH` | What a person is told against what is. Reconciliation re-observes the world, so "reported something the world contradicts" is a measurement |
-| `PROTECTION` | The safety mechanisms a person relies on |
+`_law_3_harm` tests five interests, each through a named mechanism rather than a pattern. They are
+tried in this order, and the first that answers blocks the act.
 
-What the law reads a perceived subject as bearing on is `Bearing` (786) — the definition of harm turned
+| Interest | Mechanism | What it is |
+|---|---|---|
+| `PROTECTION` | the `security_disable` capability | The safety mechanisms a person relies on. Compromising one is harm by the law's own words, whatever it makes easier |
+| `BODY` | `_physical_reach` | Physical safety. Capability-gated rather than pattern-matched: the registry is asked whether physical reach exists at all, so this reports honestly in a deployment with no actuators |
+| `CONTENT` | `_content_as_directive` | Perception is unrestricted — the substrate may read anything. What is governed is influence: text arriving as data and treated as directive |
+| `TRUTH` | `_deception` | What a person is told against what is. Reconciliation re-observes the world, so "reported something the world contradicts" is a measurement |
+| `DEPENDENCE` | `_unbounded_destruction` | What people rely on, destroyed beyond a nameable bound. The discriminator is scope, not irreversibility: an act whose scope cannot be bounded is one whose affected party cannot be identified |
+
+`AUTONOMY` — a person's control over their own situation, reached by covert observation, holding their
+credentials, or targeted steering — is a fifth interest the definition names, and it is enforced by
+`_law_1_autonomy` rather than by the harm gate: Law 1 answers for a person's authority over their own
+situation, so holding their credentials is refused there.
+
+What the law reads a perceived subject as bearing on is `Bearing` — the definition of harm turned
 outward — scored through the substrate's own taught taxonomy (`_TaxonomyReader`, 7181) rather than a word
 list, against a vocabulary taken from the laws' own text (`_law_vocabulary`, `_bearing_vocabulary`).
 
@@ -190,7 +199,7 @@ re-derived without re-running the world it ran against.
 
 ## 7. The account an act must have
 
-Law 2's last gate asks whether anything explains the act at all. `Account` (642) is a **closed, declared
+Law 2's last gate asks whether anything explains the act at all. `Account` is a **closed, declared
 set of four**, which is what makes it a constitution rather than a growing pile of exceptions. These are
 not permissions: nothing here widens what may be done, and Laws 1, 3 and 5 never see them.
 
@@ -212,7 +221,7 @@ nothing can explain".
 Law 2 refuses an act on a file the substrate has not read, or has only an older reading of
 (`_law_2_unread_target`, `requires_reading`). Working from a stale reading is working from an assumption.
 
-`ReadingLedger` (903) is how it knows: one file, one identity, whatever the path is spelled like
+`ReadingLedger` is how it knows: one file, one identity, whatever the path is spelled like
 (`path_identity`), each reading recorded against `(size, mtime_ns, digest)` of the file as it was
 (`_identify`). `current()` returns the reading only if it is still the file's current state; `must_reread`
 and `why` say plainly what is no longer true, for the refusal. It also holds what this substrate itself
@@ -269,7 +278,7 @@ wrote, and `_apply_self_modification` was removed on 2026-09-15.
 
 ## 11. Judgements survive the restart
 
-`DurableJudgmentRecord` (3449) writes a row per judgement to `unified.safety_assessments`. A substrate that
+`DurableJudgmentRecord` writes a row per judgement to `unified.safety_assessments`. A substrate that
 forgets every refusal it has ever made at each restart cannot answer for itself, which is Law 2 — and Law
 2's `record_survives_restart` measurement reads this attribute, so a missing record reports itself as a
 standing constitutional finding.
@@ -304,7 +313,7 @@ capability reading applied to its own work rather than to one act.
 
 ## 13. The arguments screen
 
-`InputScreen` (1564) reads an act's arguments for values shaped to escape where they are going. It walks
+`InputScreen` reads an act's arguments for values shaped to escape where they are going. It walks
 every non-empty string at any depth (`_strings`) and labels each by where it sits (`_label`:
 `filters.where`, `query[1]`). It finds SQL injection where a value **reaches** SQL — the tool takes SQL, or
 any key above it names SQL (`reaches_sql`) — and path traversal as written or once URL-decoded, peeled a

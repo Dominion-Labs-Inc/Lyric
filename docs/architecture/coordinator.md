@@ -208,7 +208,7 @@ rather than a default when nothing has been measured.
 
 | Accessor | What it reads |
 |---|---|
-| `state()` | Composes the whole self; `SelfState` (27328) is the snapshot |
+| `state()` | Composes the whole self; `SelfState` is the snapshot |
 | `render(audience)` | The self as language, from `state()`. No model |
 | `identity_prompt(role)` | The stable identity statement |
 | `_interoception` | The measured interoceptive variables, from appraisal's current state |

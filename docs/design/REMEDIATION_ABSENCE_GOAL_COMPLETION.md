@@ -4,7 +4,7 @@
 **Found:** 2026-09-06, by the LLM side-by-side benchmark (`benchmarks/`, suite
 `completion_honesty`, task `edge_delete_absent`).
 **Area:** `core/agents/autonomous/autonomous_coordinator.py` — completion evidence
-(DID/SAW). Referenced from `docs/TASK_COMPLETION_THESIS.md`.
+(DID/SAW). Referenced from `docs/research/TASK_COMPLETION_THESIS.md`.
 
 ---
 
@@ -47,16 +47,16 @@ bar.
 ## Root cause (two parts)
 
 1. **Removals have no re-observable target.** `_INTERVENTION_TARGET_ARG`
-   (autonomous_coordinator.py:227) maps write/copy/move/create to their target
+   (autonomous_coordinator.py) maps write/copy/move/create to their target
    argument but has **no entry for `delete_file`**. So a delete step gets
-   `intervention_target = None`, and `_saw_reobserve` (7750) skips it — a removal
+   `intervention_target = None`, and `_saw_reobserve` skips it — a removal
    produces **zero** world observation.
 
 2. **Polarity is hard-coded to PRESENT.** Both channels assume the intended state
    is *existence*:
    - `_saw_reobserve` scores `os.path.exists(target)` as support and
      non-existence as against — the exact inverse of what an absence goal needs.
-   - `_gather_did_evidence` (7709) scores the tool's raw `success` flag. A
+   - `_gather_did_evidence` scores the tool's raw `success` flag. A
      `delete_file` that "fails" with *not found* has actually **achieved** the
      absence, yet it is recorded as evidence *against* (0.85).
 

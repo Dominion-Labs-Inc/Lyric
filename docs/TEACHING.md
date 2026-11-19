@@ -71,7 +71,7 @@ different *shapes of knowledge*, not different pipelines:
 
 | method | file:line | shape of knowledge |
 |---|---|---|
-| `learn_fact` | [unified_learning_system.py:2875](../core/learning/unified_learning_system.py#L2875) | one declarative triple |
+| `learn_fact` | [unified_learning_system.py](../core/learning/unified_learning_system.py#L2875) | one declarative triple |
 | `learn_facts` | [:3014](../core/learning/unified_learning_system.py#L3014) | many facts, fan-out amortised once; each may carry **the sentence it was said in** |
 | `learn_concept` | [:3114](../core/learning/unified_learning_system.py#L3114) | a node and its edges |
 | `learn_rule` | [:3147](../core/learning/unified_learning_system.py#L3147) | a told conditional → held-conditional store |

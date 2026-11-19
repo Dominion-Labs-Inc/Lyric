@@ -1,5 +1,7 @@
 # Chaos Testing Framework
 
+Status: BUILT. *Re-traced 2026-11-19.*
+
 ## What It Does
 
 Breaks things on purpose to find weaknesses before they cause real problems. Injects faults (latency, errors, resource exhaustion) into different systems and validates they handle it gracefully.
@@ -43,7 +45,7 @@ ChaosOrchestrator (main controller)
 ├── ChaosExperimentManager (CRUD, scenarios)
 ├── ChaosInjectionEngine (fault injection)
 ├── ChaosSafetyController (pre-flight, SLO monitoring, rollback)
-└── Target Adapters (7 system-specific adapters)
+└── Target Adapters (10 system-specific adapters, on one base)
 ```
 
 ### Safety Controls
@@ -118,14 +120,13 @@ Validation: Eventually saves, no data loss
 - `core/chaos/safety_controller.py` - Safety guardrails
 - `core/chaos/observability.py` - Metrics collection
 
-**Adapters** (one per system):
-- `core/chaos/adapters/memory_adapter.py`
-- `core/chaos/adapters/learning_adapter.py`
-- `core/chaos/adapters/security_adapter.py`
-- (etc.)
+**Adapters** (one per system, all on `core/chaos/adapters/base_adapter.py`):
+`agent`, `domain`, `intelligence`, `learning`, `memory`, `monitoring`,
+`reasoning`, `security`, `services` and `tool` — each
+`core/chaos/adapters/<name>_adapter.py`.
 
 **Scenarios**:
-- `core/chaos/scenarios/scenario_library.py` - 20+ pre-built scenarios
+- `core/chaos/scenarios/scenario_library.py` - 28 pre-built scenarios, in 10 groups, one per target system
 
 **Config**:
 - `config/chaos_config.json` - Framework settings

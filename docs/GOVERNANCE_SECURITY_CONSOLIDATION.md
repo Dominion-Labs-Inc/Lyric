@@ -168,7 +168,7 @@ recommendation until it is approved.
 ## 1. Where it stands
 
 **Live in the Constitution:**
-- **Tool gate:** every tool call is judged (`core/tools/tool_registry.py:2713`).
+- **Tool gate:** every tool call is judged (`core/tools/tool_registry.py`).
 - **Task gate:** three checks. Is the substrate halted? Is the task's pursuit still
   live? Has its route been withdrawn? (TASK-GATE-01 17/17, TASK-GATE-02 21/21.)
 - **Laws and verdicts:** the five laws, word for word, and four verdicts. Each

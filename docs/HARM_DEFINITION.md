@@ -18,9 +18,9 @@ undefined proxy. This document is the repair.
 
 ## 1. The definition
 
-> An act **harms** when it reaches an identifiable **party**, touches one of four
-> **interests**, through a **mechanism the substrate can name**, without that
-> party's informed authorisation.
+> An act **harms** when it reaches an identifiable **party**, touches one of the
+> **interests** below, through a **mechanism the substrate can name**, without
+> that party's informed authorisation.
 
 Four elements, all required. Drop any one and the definition either paralyses
 (Asimov) or permits (what we had).
@@ -34,10 +34,16 @@ Four elements, all required. Drop any one and the definition either paralyses
 
 ---
 
-## 2. The four interests
+## 2. The interests
 
-Each maps to a requirement the constitution already states, so this adds no new
-law — it makes the existing one testable.
+Six are named here. Each maps to a requirement the constitution already states,
+so this adds no new law — it makes the existing one testable.
+
+Five of them are tested by Law 3's harm gate (`_law_3_harm`), in this order:
+PROTECTION, BODY, CONTENT, TRUTH, DEPENDENCE. The first that answers blocks the
+act. **AUTONOMY is enforced by Law 1** (`_law_1_autonomy`), not by the harm
+gate: Law 1 answers for a person's authority over their own situation, so
+holding their credentials is refused there.
 
 ### 2.1 BODY — physical safety
 *"Directives must not enable physical harm to humans."*
@@ -86,6 +92,14 @@ says did not happen.
 Note this is the same defect the whole signal-provenance effort exists to remove —
 a number that looks like a measurement and carries none. When such a number is
 *reported to a person*, it stops being sloppiness and becomes this interest.
+
+### 2.4 PROTECTION — the safety mechanisms a person relies on
+*"Directives must not compromise safety mechanisms."*
+
+Disabling a firewall, security tooling, audit logging, or the substrate's own
+governance. Already the one requirement that was implemented (`security_disable`),
+and the one that — noted honestly — is not directly about a person at all. It
+belongs here because a protection is something a person is relying on.
 
 ### 2.5 DEPENDENCE — what people rely on, destroyed beyond a nameable bound
 *Added after the definition was implemented and run — see §8.*
@@ -153,16 +167,6 @@ is clearly disturbed or at risk. That is a real gap and it is deliberately not
 solved here: it belongs with the platform, where there is an operator to alert,
 a duty of care defined, and a path that does not itself become surveillance.
 Recorded so it is not mistaken for something the content interest covers.
-
-### 2.4 PROTECTION — the safety mechanisms a person relies on
-*"Directives must not compromise safety mechanisms."*
-
-Disabling a firewall, security tooling, audit logging, or the substrate's own
-governance. Already the one requirement that was implemented (`security_disable`),
-and the one that — noted honestly — is not directly about a person at all. It
-belongs here because a protection is something a person is relying on.
-
----
 
 ## 3. The ordering rule — not a filter
 
@@ -274,7 +278,7 @@ deletes still permitted — which the old rule could not do.
 The lesson is worth keeping: a harm definition that has not been run against real
 acts is a hypothesis. This one lost an interest on first contact.
 
-## 8. The definition turned outward — what a PERCEPT bears on
+## 9. The definition turned outward — what a PERCEPT bears on
 
 The definition above answers "may I do this". Asked of something the substrate
 has just **perceived** rather than of an act it is about to take, the same

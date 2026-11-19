@@ -89,7 +89,7 @@ Phase 1 governance infrastructure has been successfully implemented and validate
 ## Infrastructure Components
 
 ### 1. Test Base Class
-**File**: [tests/test_base.py](../../tests/test_base.py)
+**File**: [tests/test_base.py](../../../tests/test_base.py)
 
 **Features**:
 - MySQL session logging to `test_sessions` table
@@ -130,7 +130,7 @@ Phase 1 governance infrastructure has been successfully implemented and validate
 ---
 
 ### 2. Phase 1 Test Suite
-**File**: [tests/governance/test_phase1_core.py](../../tests/governance/test_phase1_core.py)
+**File**: tests/governance/test_phase1_core.py
 
 **Structure**:
 - Extends `TestBase` for MySQL logging
@@ -204,14 +204,14 @@ All 10 tests logged with:
 ## Core Files Validated
 
 ### 1. Configuration
-**File**: [config/governance_triggers.json](../../config/governance_triggers.json)
+**File**: config/governance_triggers.json
 - **Status**: ✓ Valid JSON
 - **Size**: 618 lines
 - **Categories**: 8/8 present
 - **Source of Truth**: Survived emoji crisis, authoritative
 
 ### 2. Governance Trigger System
-**File**: [core/governance/unified_governance_trigger_system.py](../../core/governance/unified_governance_trigger_system.py)
+**File**: core/governance/unified_governance_trigger_system.py
 - **Status**: ✓ Operational
 - **Size**: 706 lines
 - **API**: `evaluate_action()` method validated

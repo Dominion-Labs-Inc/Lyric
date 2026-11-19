@@ -12,7 +12,7 @@ what is true, how confident it is, and what it does not yet know. They are
 
 ---
 
-## What a belief is (`BayesianBelief`, `core/reasoning/bayesian_uncertainty.py:87`)
+## What a belief is (`BayesianBelief`, `core/reasoning/bayesian_uncertainty.py`)
 
 | Field | Meaning |
 |-------|---------|
@@ -64,7 +64,7 @@ learning from experience.
 | Source | Mechanism | Moves |
 |--------|-----------|-------|
 | **Teaching / learning** | `_fan_out_learning` → `observe_claim(claim, domain, supports, "taught")` (`unified_learning_system.py`) | a taught fact/rule/word moves its claim's posterior |
-| **Task / tool outcomes** | post-tool seam `_observe_tool_belief` → `neural_bridge.observe_tool_result` → `epistemic_engine.observe_tool_result` (`autonomous_coordinator.py`, `neural_bridge.py:1170`) | capability beliefs — the substrate learns what its tools do, from success/failure |
+| **Task / tool outcomes** | post-tool seam `_observe_tool_belief` → `neural_bridge.observe_tool_result` → `epistemic_engine.observe_tool_result` (`autonomous_coordinator.py`, `neural_bridge.py`) | capability beliefs — the substrate learns what its tools do, from success/failure |
 | **Task completion** | `_observe_completion_evidence` → DID/SAW groundings → `update_belief` on the completion belief (`autonomous_coordinator.py`) | the belief "the goal of task T holds" |
 | **Reasoning conclusions** | `epistemic_engine.apply_reasoning_output`, `hypothesis_testing`, `abstract_reasoning_engine`, `hierarchical_abstraction` — all route through the authority | beliefs concluded by inference |
 | **Research / perception / evidence** | `evidence_producers` → `fan_out_ingested` → `_fan_out_learning` | beliefs from admitted research/perception |
@@ -109,13 +109,13 @@ learning from experience.
 - **Confidence calibration** — per-domain over/under-confidence correction.
 - **Evidence independence (completion beliefs)** — correlated evidence collapses;
   only independent causal pathways (DID vs SAW) compound, so confidence cannot be
-  faked by re-counting one observation. (See `TASK_COMPLETION_THESIS.md`.)
+  faked by re-counting one observation. (See [`TASK_COMPLETION_THESIS.md`](../research/TASK_COMPLETION_THESIS.md).)
 
 ## Persistence and durability
 
 - Stored in `unified.beliefs` (PostgreSQL). The DB is boot **Phase 2**, up before
   any belief update.
-- **`load_from_db`** restores the whole belief graph on startup (`main.py:644`), so
+- **`load_from_db`** restores the whole belief graph on startup (`main.py`), so
   epistemic state survives restart; `_load_domain_volatility` restores adaptive λ.
 - **`_save_belief`** — fire-and-forget for high-frequency updates; **`flush_belief`**
   — durable, awaited (competence beliefs, and a task's completion belief once its
@@ -132,7 +132,7 @@ minted low (0.15 = not yet done), moved only by grounded, independence-checked
 DID/SAW evidence, judged done at posterior ≥ 0.95 (raised by caution), flushed
 durably, and re-locatable by its claim after restart. It is the model of "the
 substrate knows it is done" expressed entirely in the belief substrate — no
-separate completion machinery. Full design in `TASK_COMPLETION_THESIS.md`.
+separate completion machinery. Full design in [`TASK_COMPLETION_THESIS.md`](../research/TASK_COMPLETION_THESIS.md).
 
 ## Changelog
 
