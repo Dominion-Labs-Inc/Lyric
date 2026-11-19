@@ -39,7 +39,7 @@ artifacts themselves.
 | Experiment corpus | **246 experiment directories, 188 carrying machine-written run records, 2,166 run records** with 311 side records beside them, 2,477 artifacts in all. 142 validated, 43 findings, 58 directories holding a harness and no artifact. Latest run 2026-11-11. Index: [`../experiments/README.md`](../experiments/README.md) |
 | Knowledge held | **117,294 concepts**, 590,614 relations of which 97,639 are *is-a* or *instance of*, **1,022,193 beliefs**, 1,179,242 concept evidence records and 1,783,544 belief evidence records |
 | Memory held | **1,441,708 records**: 1,441,519 semantic, 150 episodic, 39 meta |
-| Language held | **443,072 learned sentence templates**, 146,732 word records, 94,683 word-class records, 3,052 taught sentences, and **497 ways of reading English with 87 pairs beside them**, all of it in memory rather than in a file |
+| Language held | **443,072 learned ways English says things** — the constructions and links memory holds — 146,732 word records, 94,683 word-class records, 3,052 taught sentences, and **497 ways of reading English with 87 pairs beside them**, all of it in memory rather than in a file |
 | Teaching record | **440 machine-written teaching sessions**, 2026-09-08 to 2026-11-17, in [`teaching_sessions/`](teaching_sessions/) |
 | Held-out evaluation data | The Parallel Meaning Bank, PropBank, the Universal Dependencies English treebanks, STREUSLE, LibriSpeech and MSWC English audio, and a vision instruction set. Held off-repository; see [Evaluation data](#evaluation-data) |
 | Canonical runtime | `./venv_lyric/bin/python3`, Python 3.11.14, real PostgreSQL, real tool registry, real rule store |

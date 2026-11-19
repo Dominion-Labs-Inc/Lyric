@@ -298,7 +298,7 @@ than calls:
 | `Drift` + five detectors | ~600 lines | How the system is changing, against declared baselines |
 | `Bearing` | ~90 lines | What something perceived touches of the interests the law protects |
 | `ReadingLedger` | ~100 lines | What has been read, and of which version |
-| Event spine | N/A | Nine typed events, eleven reactions, fourteen registrations |
+| Event spine | N/A | Nine typed events, twelve reactions, nineteen registrations |
 | `Conversation`, `SelfState` | ~2,000 lines | Turns and their scoping; the composed self-state |
 
 That these live in one module is deliberate and follows from §1.2: they are faculties of a single self
@@ -372,10 +372,11 @@ perception both embody this: the acceptance bar is disposition-derived, and the 
 
 ## 9. The event spine
 
-Subsystems react to typed events rather than polling a clock. **Nine event types are defined, and eleven
-reactions are registered against them at construction, fourteen registrations in all**, because several
+Subsystems react to typed events rather than polling a clock. **Nine event types are defined, and twelve
+reactions are registered against them at construction, nineteen registrations in all**, because several
 reactions answer to more than one event: outcome expansion runs when an outcome is observed, when evidence
-is admitted and when competence moves, and what was taught is crystallised on either of the latter two.
+is admitted and when competence moves; what was taught is crystallised on either of the latter two; and
+the developmental drive is registered on all five state-changing events, so the loop sustains itself.
 Measured from the source on 2026-11-19.
 
 | Event | Meaning |
@@ -391,10 +392,11 @@ Measured from the source on 2026-11-19.
 | `EXPECTATION_UNMET` | What happened was not what was expected |
 
 Each event carries the unit of work it concerns, so a reaction acts on that change rather than
-rescanning state, and expensive reactions run off the acting path. The reactions cover affect,
-competence change, frontier pursuit, operator induction, outcome expansion, transfer resolution,
-crystallising what was taught, governance monitoring, environment investigation, job completion,
-deficit closing, and percept handling.
+rescanning state, and expensive reactions run off the acting path. Eleven of the twelve are **deferred**
+to the reaction drain worker, which is woken by an emission and never by an interval; only the affect poke
+runs inline. The reactions cover affect, competence change, frontier pursuit, operator induction, outcome
+expansion, transfer resolution, crystallising what was taught, environment investigation, job completion,
+deficit closing, percept handling, and an expectation the world did not meet.
 
 ## 10. Idle work
 
@@ -480,7 +482,7 @@ The admission gate (§4) is the other half of this subsystem and is described th
 
 **Owns:** how conclusions are reached.
 **Principal modules:** `neural_bridge.py` (4,452 lines), `abstract_reasoning_engine.py` (2,727),
-`hierarchical_abstraction.py` (2,308), `bayesian_uncertainty.py` (2,659), `hypothesis_testing.py`
+`hierarchical_abstraction.py` (2,308), `bayesian_uncertainty.py` (2,884), `hypothesis_testing.py`
 (1,241), `temporal_reasoning.py` (1,535), plus intent authority, concept-graph reasoning, unification
 and the epistemic engine.
 
@@ -565,7 +567,7 @@ counted silently: losing a data point is recoverable, recording a false causal r
 ## 15. Memory
 
 **Owns:** what is remembered.
-**Principal modules:** `core/agents/memory_agent.py` (9,972 lines), `core/memory/live_recall.py` (465),
+**Principal modules:** `core/agents/memory_agent.py` (9,974 lines), `core/memory/live_recall.py` (465),
 `core/memory/media_store.py` (281).
 
 Memory is an active system, not a store: it decides what is worth keeping, merges repeated experience,
@@ -1047,7 +1049,7 @@ The schema split *is* the memory tiering described in §15. What is stored, meas
 | Evidence envelopes | 588,925 |
 | Memory records (hot / cold) | 1,441,708 / 0 |
 | of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
-| Learned sentence templates | 443,072 |
+| Learned ways English says things (`language_pattern`) | 443,072 |
 | Word records / word-class records | 146,732 / 94,683 |
 | Taught sentences | 3,052 |
 | Ways of reading English, held in memory | 497 |
@@ -1139,7 +1141,7 @@ described in §24.
 | Acting path and gate placement | Read directly from `tool_registry.execute_tool` |
 | Admission gate rules and thresholds | Read directly from `cognitive_ingress.py`, including the refusal strings quoted in §4 |
 | Learning fan-out reach | Read from the learning authority's fan-out method |
-| Event types, reactions, scheduled jobs | Enumerated from the coordinator's event enum, its registration calls and its scheduler table, **2026-11-19**: nine event types, eleven reactions over fourteen registrations, seven recurring jobs |
+| Event types, reactions, scheduled jobs | Enumerated from the coordinator's event enum, its registration calls and its scheduler table, **2026-11-19**: nine event types, twelve reactions over nineteen registrations, seven recurring jobs |
 | Module and line counts | Derived by scanning the current source, **2026-11-19** |
 | Tool counts | 257 `Tool` subclasses counted in the source, **2026-11-19**. The live registry additionally holds tools registered at run time, per connector and per learned procedure, so a count taken before boot undercounts: at import time only four are present |
 | Stored state, schemas, extensions, size | Queried against the live `lyric_db`, **2026-11-19**, through the system's own configuration authority, with the identity confirmed by asking the server rather than by reading configuration |

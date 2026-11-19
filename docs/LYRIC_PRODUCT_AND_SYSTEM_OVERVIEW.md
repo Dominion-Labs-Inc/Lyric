@@ -1432,7 +1432,7 @@ confirmed when asked:
 |---|---|
 | Language records in all | 1,441,510 |
 | Admitted propositions | 592,233 |
-| Sentence templates learned (`language_pattern`) | 443,072 |
+| Learned ways English says things (`language_pattern`) | 443,072 |
 | Word records | 146,732 |
 | Word-class records | 94,683 |
 | Sentences analysed / argued / derived | 12,544 / 10,495 / 8,679 |
@@ -1472,7 +1472,7 @@ the substrate was taught again from the first lesson. The figures above are what
 
 What was taught the second time was language itself: how to read a sentence, what each word is, and what
 the words of English do together. That is why beliefs doubled and memory grew eighty-fold on a store an
-eighth the size in concepts, and why the 443,072 learned sentence templates and the 497 ways of reading
+eighth the size in concepts, and why the 443,072 learned ways English says things and the 497 ways of reading
 exist at all.
 
 **Operator demonstrations, learned rules and recorded intents stand at zero or near it.** Those are

@@ -1499,7 +1499,7 @@ Measured 2026-11-19 against `lyric_db`, identity confirmed by asking the server.
 | Evidence source classes in use | 3 |
 | Memory records (hot / cold) | 1,441,708 / 0 |
 | of which semantic / episodic / meta | 1,441,519 / 150 / 39 |
-| Learned sentence templates | 443,072 |
+| Learned ways English says things (`language_pattern`) | 443,072 |
 | Word records / word-class records | 146,732 / 94,683 |
 | Taught sentences | 3,052 |
 | Ways of reading English, held in memory | 497 |
