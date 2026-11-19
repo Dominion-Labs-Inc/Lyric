@@ -1,145 +1,284 @@
 # Memory — `MemoryAgent`
 
-*Part of the [substrate architecture reference](../ARCHITECTURE.md). Living document —
-update when the authority changes. Line numbers drift; the explanations must stay true.*
+*Part of the [substrate architecture reference](../ARCHITECTURE.md). Line numbers drift; the explanations
+must stay true.*
 
-## `MemoryAgent` — the memory authority
+*Re-traced 2026-11-19.*
 
-*`core/agents/memory_agent.py` (~3,999 lines). Utilities live in `core/memory/`; the class lives in `core/agents/`.*
+*File:* `core/agents/memory_agent.py` — 9,974 lines. `MemoryAgent` at 109: 9,866 lines, **228 public and
+107 private methods**. Utilities live in `core/memory/`; the class lives in `core/agents/`.
 
-### 1. Purpose
-The **single memory authority**: owns storage, the worthiness filter (what is kept), type inference (what KIND each record is), all query/recall, and consolidation. Coordinates a hot tier (Postgres `memory_hot`, 0–60d), a cold tier (`memory_cold`, 60+d), and a pgvector index (`all-MiniLM-L6-v2`, 384-dim). Abstraction and beliefs are NOT owned here — that's *reasoning*, delegated to `NeuralSymbolicBridge` (197-207, 3762-3767).
-- **One entry:** `get_memory_agent()` (3945) — async, returns a *ready* singleton (raises if backends won't connect); callers must `await` it, never construct `MemoryAgent()` directly. `initialize_memory_agent()` (3986) is a legacy alias.
-- **Aliases:** `MemoryManager = CentralizedMemoryManager = UnifiedMemorySystem = MemoryAgent` (memory/__init__.py). Same class, legacy names.
-- **Principle:** callers pass raw content; the agent decides **worthiness** and **TYPE** itself. Pre-generating worthiness (408-410) or pre-deciding type is deprecated/discouraged.
+`get_memory_agent()` (9907) is the one entry — async, returning a **ready** singleton under a lock, and
+raising if the backends will not connect. Callers await it and never construct `MemoryAgent()` directly.
+`initialize_memory_agent()` (9961) is a legacy alias, as are the names `MemoryManager`,
+`CentralizedMemoryManager` and `UnifiedMemorySystem`.
 
-### 2. State (`__init__`, 79-147)
-`postgres_storage` (one backend, both tiers), `embedding_service` (384-dim; absent degrades search, never fails a store), `memory_cache`/`cache_enabled`, `initialized`, loop flags (`maintenance`/`abstraction`/`reflection`_loop_active — only maintenance is a timer), `abstraction_pipeline`/`bayesian_beliefs` left None (owned by reasoning), `abstraction_state` (watermark bookkeeping), `_abstraction_running`/`_new_episodic_since_abstraction`/`_abstraction_trigger_scheduled` (event-trigger state), `metrics` counters, `_write_queue` + `_pending_memories` + `_queue_worker_task` (non-blocking writes visible to recall, `recall_for`), `filter_metrics`.
+---
 
-### 3. Methods by area
+## 1. Memory is everything the substrate holds
 
-#### Lifecycle
-- **`async initialize() -> bool`** (149) — idempotent; connects Postgres (hard-fails if absent), loads embeddings, leaves belief/abstraction None; under `LYRIC_SHADOW_MODE` suppresses loops+queue worker (storage still live); else starts `start_memory_loops()` + `_write_queue_worker`.
-- **`async get_memory_agent()`** (module, 3945) — the accessor; returns the ready singleton under a lock (old contract returned an uninitialised agent).
-- **`async initialize_memory_agent()`** (module, 3986) — alias.
-- **`__del__`** (3918, the winning def) — clears cache, guards interpreter teardown.
+The memory agent is **the only writer of the substrate's memory** — not only the memories, but the concepts
+and the links between them, its beliefs, the rules it induced and the demonstrations it induced them from,
+its domains, what its reasoning produced, what it has learned to see and hear, the record of what it
+learned, and each person's context.
 
-#### Store path
-- **`enqueue_memory(content, memory_type=None, confidence_score=1.0, tags=None, source_context=None, *, origin, **kw) -> str`** (240) — **non-blocking** store; decides its importance (`importance_of`), queues + records in `_pending_memories`; returns a provisional `pending_<hex>` id immediately. An `importance_score` (or `user_id`) is refused.
-- **`importance_of(tags, *, confidence=1.0, source_context=None) -> float`** — **how important a memory is as it forms, the memory agent's alone** (2026-10-23; each producer chose its own before): by the first of its tags naming its kind (`IMPORTANCE_BY_KIND`, the values the producers chose: taught and told 0.75, gathered from teaching 0.6, work 0.7, the constitution check 1.0, a learning example 0.5), a conclusion at its confidence (`CONCLUSION_KINDS`), a goal 0.8 + 0.2 × `reward_potential`, a percept 0.6 (0.5 formed as evidence, `evidence_id`), else 0.5. Measured the same as stored for 406,241/406,254 memories on lyric_dev and 1,447,803/1,455,098 on main (lab notebook 2026-10-23 (41)). A reasoning's importance is weighed by its effort in `take_in_reasoning`.
-- **`async _write_queue_worker()`** (280) — drains `_write_queue` via `store_memory`; removes from `_pending_memories` on completion; survives per-item errors.
-- **`_readable_claim(content, source_context)`** (319) — extracts the substrate-readable CLAIM a memory asserts (from `conclusion` else `content`), strips reasoning-status prefixes, keeps only if `SentenceReader` parses it; returns claim + `ClaimShape` (polarity+tense).
-- **`@profile_performance async store_memory(content, memory_type=None, confidence_score=1.0, tags=None, source_context=None, embedding_metadata=None, related_memories=None, decay_rate=None, access_count=0, session_id=None, user_id=None, reasoning_trace=None, thinking_state=None, system_state=None, decision_factors=None, emotional_context=None, media=None, media_meta=None) -> Tuple[bool, Optional[str]]`** (376-911) — **the primary write authority.** (0) auto-init; decide its importance (`importance_of`; a producer passing one is refused, and `formed_importance` is only for a memory taken from another store, `releases`); (1) generate `MemoryWorthinessMetadata` itself; (2) worthiness filter (`get_memory_filter().evaluate`) with an event-class **exemption** (`exemption_for`) for records-that-matter-because-they-happened; (3) reject → `(False, None)`; (4) accept → write a `memory_admission` record, stamp a `belief_state` snapshot (per-domain `relevant_beliefs` via `beliefs_for_domain`, an index read) + an appraisal snapshot (from the live `AppraisalSystem`); (5) **no merge** — a memory is never folded into another, however alike they read (the merge by likeness was removed 2026-09-28: the substrate doing the same thing on two days is two memories, and merging wiped one; what repeats within one pursuit is summarized inside that pursuit's memory, and what overlaps between memories is recall's to bring together); (6) mint `mem_<hex>`, **infer type** if absent, stamp readable claim + shape tags, embed (absent embedding still stores), persist to hot, retain media, `note_episodic_stored()`. Returns `(success, memory_id)`. Attached `media` (a picture or a sound) marks the memory `has_image`/`has_video`/`has_sound` by what its bytes are, and stamps `met` = the sha256 of those bytes: the identity of the thing met.
-- **`async _retain_media(memory_id, media, media_meta, owner)`** — attaches a picture's or a sound's bytes via the media store (`MediaStore.store_media`, mime read off the bytes); isolated; called on new-store and merge paths. A sound trace's landmarks go with it (`landmarks=`), stored as their distinct hashes, so the sound can be found by the sound.
-- **Media is kept per memory.** A media row's id is the memory's and the content's together. Keyed by content alone, the same recording heard twice MOVED its row to the second memory, and the first could no longer be heard again (fixed 2026-09-29, MEMORY-SOUND-01).
-- **`async add_perception_to_pursuit(memory_id, part, *, media=None, media_meta=None, tags=None) -> str`** — a seeing or a hearing within a pursuit is a PART of that pursuit's memory: added to its experience (repeats counted), its trace or picture kept as that memory's media, its tags (a lesson's) added. Returns the pursuit memory's id, which the perception's claims then name. `pursuit_account` says it: "I heard …", "I saw …".
-- **`async get_memory_media(memory_id) -> List[Dict]`** — bytes/mime/dimensions/perceived structure of what the memory kept.
-- What a percept memory keeps: a picture's bytes and its gist; a sound's TRACE (`application/x-npz`, recognised from its bytes by `media_store.mime_of`), never the recording. The coordinator's `recollect` rebuilds either from what was kept.
-- **A lesson taught by hearing is a hearing memory like any other.** A word, a voice or a song is taught by hearing an example (`coord.learn_word` / `learn_voice` / `learn_song`); the hearing is remembered as every hearing is (EPISODIC, trace kept, never the recording), tagged `SPOKEN_WORD_TAG`/`VOICE_TAG`/`SONG_TAG` with the word, person or song in its record, and its trace archive keeps the example measured for matching (`example`: a word's measurements, a voice's voiced frames, a song's landmarks). **`async lessons_taught(tag, key)`** is the view the perception faculty reads lessons back through (word, person, song or thing -> the traces), capped by the named `TAUGHT_BY_HEARING_LIMIT`; a thing is taught by SEEING it, told what it is (`coord.learn_thing`, `THING_TAG`); there is no store beside memory.
-- **`async capture_task_outcome(task, *, result=None, success=True, confidence=1.0) -> Optional[str]`** (934) — composes up to TWO durable artifacts from a completed task: a SEMANTIC record (what was learned) + a PROCEDURAL record (the tool sequence). Model-free; each skipped honestly if empty.
-- **`async store_batch(memories: List[MemoryItem]) -> Tuple[bool, int]`** (1063) — batch store of built items with batch embeddings; bypasses per-item worthiness.
-- **`async _generate_worthiness_metadata(content, confidence_score, tags, source_context, reasoning_trace, importance_score=0.5) -> MemoryWorthinessMetadata`** (1103) — **decides worthiness from raw data**: cognition/novelty/criticality/query/outcome/temporal/justification from content heuristics + signals — never from trace *length*. `from_principal` forces HIGH consequence + SYNTHESIS; `importance_score` (the memory agent's own, `importance_of`) → `consequence_level`.
-- **`_infer_memory_type(worthiness_metadata, source_context) -> MemoryType`** (1391) — **decides TYPE**: error→EPISODIC; procedural/meta tags→PROCEDURAL/META; successful lookup or reusable new knowledge→SEMANTIC; source-system patterns (`neural_bridge`/`autonomous_coordinator`/`hypothesis_testing`→EPISODIC, `continuous_learning`→PROCEDURAL); default EPISODIC.
-- **`async bulk_import(memories, memory_type=None, generate_embeddings=True, tier="hot", batch_size=100) -> Tuple[bool, int]`** (1852) — migration path; bypasses worthiness.
-- **Merging, removed 2026-09-28.** `_find_similar_memories`, `_could_be_the_same_claim`, `_merge_memory_content`, `_cluster_by_similarity`, `_consolidate_cluster` and `consolidate_old_duplicates` are gone. Nothing merges memories.
+The parts that work out *what* to hold — the learning authority, the belief system, induction, the domain
+master, the reasoning engines, perception — hand it here, and the memory agent writes it. **Nothing else
+writes a memory table**, and `scripts/separation_map.py` fails if anything does.
 
-#### Word classes — memory IS the vocabulary
+Those writes need only the database, so they work whether or not recall, the loops and the embedding model
+have started. Every one goes through `_memory_db()`, which hands back the process's own manager behind a
+guard (`_KeylessWrites`) that keeps keys out of every concept, belief, rule and record written through it.
 
-There is no lexicon. What class a word has is knowledge the substrate holds like
-any other, so it is a memory, and a wipe takes the vocabulary with it.
+**The agent decides, the caller does not.** Callers pass raw content; the agent decides worthiness and type
+itself. Passing a pre-computed importance is refused.
 
-- **`WORD_CLASS_TAG = "word_class"`** (2588) — a memory that STATES a word's
-  class, with `{word, word_class}` in metadata. `TAUGHT_PROPOSITION_TAG`
-  (`admitted_proposition`) and `UNREAD_TELLING_TAG` (`told_but_unread`) are the
-  other two kinds of evidence.
-- **`async stated_word_classes() -> List[Tuple[str, str]]`** — every `(word,
-  CLASS)` pair already told, read exactly from metadata so a teaching pass can
-  tell what it has already said without asking a vector index whether two
-  sentences about grammar resemble each other.
-- **`async warm_word_classes() -> int`** (2707) — rebuilds the view from the
-  substrate's OWN memories, folding **three** kinds of evidence: classes
-  **stated** outright (every closed class, and every adverb); classes
-  **implied** by the surface of a taught proposition (`classes_implied_by`); and
-  classes **refuted** by a reading that failed because of them (`blamed`, which
-  counts *against*). Called at the events that change what could be in it, never
-  on a timer.
-- **`word_classes(word) -> Dict[str, int]`** (2593) — every class the word has
-  been observed to have, with net evidence. **Membership, not identity:** a word
-  is not one part of speech, and asking "what class IS this" either picks one
-  and is wrong half the time or, on even evidence, answers nothing.
-- **WordNet states every class it holds a word in** (`WordNetSource._word_classes`, 2026-10-24), and each verb
-  of several words ("'look up' is used as a verb."); it had taught each word only the class it was tagged in most,
-  so "research", "book", "order" and "list" were no verbs and requests made of them read as nothing. A store taught
-  before is taught the rest by `scripts/teach.py --source wordnet-classes`. **`_held_name(words, word_class)`**,
-  which English's grammar asks whether memory holds a verb and the word after it together, finds such a verb by
-  its class when no word of a fact says it.
-- **`WORD_CLASS_WARM_LIMIT = 400000`** (2617) — raised from 20,000, which was
-  sized for a store holding 199 words. With a reference vocabulary the old cap
-  cut it off mid-alphabet and every word past the cut read as unknown, which is
-  exactly what its own comment warned about.
+## 2. Tiers and search
 
-**What the merge once destroyed.** The merge compared only a reading's subject, so
-`'he' is used as a pronoun.` absorbed `'she'`, and a merge kept only the existing row's
-metadata: the incoming word was destroyed (247 taught → 170 stored). A stated class's
-identity is the `(word, class)` **pair**, checked by the caller before it writes, because
-`that` is a determiner AND a relative AND a subordinator. Nothing merges now.
+| | |
+|---|---|
+| Hot | PostgreSQL `memory_hot`, 0–60 days |
+| Cold | PostgreSQL `memory_cold`, 60+ days, archival |
+| Search | pgvector over `all-MiniLM-L6-v2`, 384 dimensions |
 
-**A thing met is what it was (2026-09-28).** Every memory that keeps media carries
-`met`, the sha256 of what was met: the identity of the thing, whatever its account says.
-Memories are never merged. Percept accounts are short and shaped alike, and the
-similarity merge this replaced folded three different sounds ("1.5s aiff recording,
-1 sound(s): an abrupt mid-pitched sound") into one memory, so every belief about any of
-them named that one memory. Each seeing or hearing is now its own memory, the same
-thing met twice included. Checked by HEAR-01 (seven different sounds → seven memories,
-seven digests).
+`migrate_to_cold_tier` and `retrieve_from_archive` move between them. Tiering is a storage-cost decision,
+not an epistemic one.
 
-#### Retrieve / query
-- **`async retrieve_memory(memory_id, update_access=True, tier_hint=None)`** (1940) — cache→hot→cold; increments access; caches hot.
-- **`async get_recent_memories(limit=10, memory_types=None, min_importance=None, tags=None)`** (2011) — recent hot within 7-day window.
-- **`RETRIEVAL_STRATEGIES = ("semantic","keyword","tags")`** (2063).
-- **`async retrieve(query=None, *, tags=None, memory_types=None, strategies=None, limit=10, min_similarity=0.5, min_importance=None, deduplicate=True, include_events=True, relative_to_best=None, require_named_match=False, actor=None, heard=None, seen=None, read=None)`** — **the single recall authority.** Runs applicable strategies concurrently (`semantic`, `keyword`, `tags`, and `sound`, `sight`, `text`: what was met, recalled by the sound, the picture or the words themselves — a text by its runs of words, `_recall_by_text`, deciding in reading's process that at least `reading.READ_MIN_SHARED` runs and `READ_MIN_SHARE` of the shorter text agree, `read_match.same_text` only when each text's runs are all in the other), merges by id, ranks relevance-first (similarity→corroboration→importance); a failing strategy is skipped, not emptying. `include_events=False` withholds events; `require_named_match` drops off-entity memories; `relative_to_best` self-calibrates the cutoff.
-- **Recall BY THE SOUND (`heard=`, strategy `sound`, `_recall_by_sound`).** Given a sound's landmarks, it recalls the hearings of the same sound: a recording heard again, through a room, a codec, or over other sound. Candidates come from the media store's hash index (`MediaStore.by_sound`). Each is decided by agreement on one offset, the cut measured for songs: at least 10 agreeing landmarks, and at least 0.1 of those heard while the remembered sound was sounding. The item carries `similarity_score` (that share) and `heard_match`, and the same visibility rule applies as every strategy. The coordinator asks it before each hearing is remembered (`heard_before`: in words, in the graph as `same_sound_as`, as a belief). A song taught later names the hearings of it that came before (`plays`). `recall_for(heard=...)` hands over the same sound's memories first (MEMORY-SOUND-01).
-- **`@profile_performance async search_memories(...)`** (2320) — compatibility shim over `retrieve()`; legacy `(query=/limit=)` returns `(bool, list)`, new returns a bare list (a known deliberately-unmerged return-type fork).
-- **`async query_by_tags(tags, memory_types=None, limit=100) -> Tuple[bool, List]`** (2385) — structural tag query, no time filter (the exact-count path for events).
-- **`async get_memory_by_content(content, exact_match=False, limit=10)`** (2417) — fuzzy or exact content lookup.
-- **`@staticmethod claim_tags(content)`** (2470) — polarity/tense as exact-comparable tags (what the embedding cannot carry).
-- **`async find_open(about, limit=5)`** (2487) — still-open episodes (tagged `open`) semantically related to `about`.
+A missing embedding service **degrades search and never fails a store**.
 
-#### Update / supersede / close / delete
-- **`async supersede(memory_id, content, add_tags=None, drop_tags=None, because="")`** (2495) — REPLACES what a memory says (preserving prior under `metadata.superseded`).
-- **`async close_open(about, content, because="resolved")`** (2539) — finds an open episode about `about` and supersedes it (adds `resolved`, drops `open`).
-- **`async update_memory(memory_id, updates, capability_token="", tier=None)`** (2555) — generic update; protected fields (importance/confidence/type) need a token.
-- **`async increment_access_count(memory_id, tier, increment=1)`** (2596).
-- **`async update_importance(memory_id, new_importance, capability_token, tier, reason, tier_hint=None)`** (2626) — token-gated + audit note.
-- **`async update_tags(memory_id, tags, capability_token="", tier="hot", operation="replace")`** (2665).
-- **`async add_related_memory(memory_id, related_id, tier, relationship_type)`** (2701).
-- **`async update_metadata(memory_id, metadata_updates, capability_token="", merge=True, tier="hot", tier_hint=None)`** (2731).
-- **`async delete_memory(memory_id, capability_token, reason="", tier_hint=None)`** (2771) — governance-protected soft delete.
-- **`async permanent_delete(memory_id, capability_token, confirmation=False)`** (2818) — irreversible; token AND `confirmation=True`.
+## 3. The five kinds of memory
 
-#### Tiering
-- **`async migrate_to_cold_tier(memory_id, force=False, tier_hint=None)`** (2870) · **`async retrieve_from_archive(memory_id, restore_to_hot=False)`** (2910).
+`MemoryType`: `EPISODIC` (a specific experience), `SEMANTIC` (general knowledge), `PROCEDURAL` (skills and
+procedures), `WORKING` (temporary), `META` (learning about learning).
 
-#### Maintenance / consolidation / abstraction
-- **`async start_memory_loops`** (3572) / **`async stop_memory_loops`** (3592) — only maintenance is a timer; abstraction/reflection are event-triggered.
-- **`async _maintenance_loop`** (3605) — hourly `consolidate_memories()`.
-- **`async consolidate_memories`** (3689) — clean low-importance expired rows (imp<0.2, age>180d) BEFORE migrating 60+d survivors hot→cold, then temporal decay.
-- **`note_episodic_stored(n=1)`** (3644) — write-path hook; past `ABSTRACTION_MIN_NEW_MEMORIES` (15) schedules (never runs inline) `_run_abstraction_then_reflect`.
-- **`async _run_abstraction_then_reflect`** (3666) — resets counter, `form_abstractions_if_due()`, and only if schemas formed → `reflect_on_beliefs()`.
-- **`_reasoning_authority`** (3762) — lazy `NeuralSymbolicBridge` (owner of abstraction+belief).
-- **`async form_abstractions`** (3769) — shim → `form_abstractions_if_due(force=True)`.
-- **`async form_abstractions_if_due(force=False)`** (3782) — admission gate for abstraction: checks authority, not-running, cooldown, watermark, ≥threshold new memories, then ASKS `bridge.abstract_over_memories(batch)`; advances watermark; report names *why* it declined. Deliberately off the write path.
-- **`async reflect_on_beliefs`** (3911) — asks `bridge.reflect()` (belief-graph hygiene).
+## 4. Storing a memory
 
-#### Governance (capability-token-protected deletes)
-- **`async _validate_capability_token(token)`** — validates `gov_`/`cap_`/`admin_` tokens vs `capability_tokens` (active/unexpired; honours `emergency_override`).
-- No parameter self-modification: the `modify_importance_threshold` / `modify_decay_rates` / `modify_tier_thresholds` / `modify_embedding_config` setters were removed 2026-09-15 (no callers; the substrate improves only by learning).
+`enqueue_memory` is the **non-blocking** store: it decides the memory's importance, queues the write,
+records it in `_pending_memories` so recall can already see it, and returns a provisional `pending_<hex>`
+id immediately. `_write_queue_worker` drains the queue through `store_memory` and survives per-item errors.
+`drain_writes` awaits every queued write and retires the worker, returning how many landed.
 
-#### Metrics / cache
-- **`get_metrics`** (3043) · **`async cleanup_cache(max_age_hours=24)`** (3057).
+**`store_memory` is the primary write authority.** In order it:
 
-### 4. Feeds / feeds-into
-**Called by:** cognitive ingress `_remember` (cognitive_ingress.py:417-453, `store_memory(..., SEMANTIC, 0.75)`, NOT an event); learning; coordinator + intrinsic_motivation (rich writes + `capture_task_outcome`); reasoning (`neural_bridge`, `hypothesis_testing`), cross-domain reasoner; recall surfaces (`live_recall`; `recall_for`, which also reads `_pending_memories`); health/tools/chaos/security.
-**Reads/delegates to:** beliefs (`beliefs_for_domain` to stamp `belief_state`); appraisal (`get_appraisal_system().current_state`); reasoning authority (`abstract_over_memories`/`reflect`); worthiness filter (`memory_filter`); storage/embeddings/media/queue; semantics (`claim_shape`, `sentence_reader`); governance/safety (`capability_tokens`).
+1. Decides importance itself (`importance_of`). A producer that passes one is refused.
+2. Generates the worthiness metadata itself.
+3. Runs the worthiness filter, with an **event-class exemption** for records that matter because they
+   happened.
+4. On rejection, returns without an id.
+5. On acceptance, writes an admission record and stamps a **belief-state** snapshot (the relevant beliefs
+   for the domain) and an **appraisal** snapshot from the live appraisal system.
+6. Mints `mem_<hex>`, infers the type if none was given, stamps the readable claim and its shape tags,
+   embeds, persists to hot, retains any media, and counts the episodic store.
 
-- **One moment, one memory (2026-09-30).** `store_memory(media=...)` and `add_perception_to_pursuit(media=...)` take one picture, sound or text trace with `media_meta`, or a list of `(media, perceived)` pairs — what several senses took in at one moment (`coord.perceive_moment`) — kept as that one memory's media (`_media_parts`); `met` is then the digest of all of them together. A text trace (`text_trace`, `reading.trace_bytes`) keeps a reading's runs of words, never its words, and is found by them (`_trace_keys`).
+**A memory is never folded into another, however alike they read.** The merge by likeness was removed on
+2026-09-28: the substrate doing the same thing on two days is two memories, and merging wiped one. What
+repeats within one pursuit is summarised inside that pursuit's memory, and what overlaps between memories
+is recall's to bring together. The merge had compared only a reading's subject.
+
+`importance_of` is the memory agent's alone, decided from what the memory *is* — by the first of its tags
+naming its kind, a conclusion at its confidence, a goal from its reward potential, a percept, else a
+default. Each producer used to choose its own.
+
+`_readable_claim` extracts the substrate-readable claim a memory asserts, strips reasoning-status prefixes,
+and keeps it only if the sentence reader parses it, returning the claim with its polarity and tense.
+
+`store_batch` and `bulk_import` write built items with batch embeddings, bypassing per-item worthiness.
+
+## 5. What a memory keeps of what was met
+
+A memory that carries media is marked `has_image`, `has_video` or `has_sound` **by what its bytes are**, and
+stamped `met` — the sha256 of those bytes, which is the identity of the thing met.
+
+A picture's bytes and its gist are kept. A sound's **trace** is kept, never the recording. The coordinator's
+`recollect` rebuilds either from what was kept, and `get_memory_media` returns the bytes, mime, dimensions
+and perceived structure.
+
+**Media is kept per memory.** A media row's id is the memory's and the content's together. Keyed by content
+alone, the same recording heard twice *moved* its row to the second memory and the first could no longer be
+heard again (`MEMORY-SOUND-01`).
+
+**A lesson taught by hearing is a hearing memory like any other.** A word, a voice or a song is taught by
+hearing an example; the hearing is remembered as every hearing is — episodic, trace kept, never the
+recording — tagged with what it taught, and its trace archive keeps the example measured for matching.
+`take_in_lesson` decides whether a just-remembered perceiving is a lesson; `lessons_taught` is the view the
+perception faculty reads lessons back through; `share_lesson` makes a lesson someone gave the world's.
+There is no store beside memory.
+
+`add_perception_to_pursuit` makes a seeing or hearing within a pursuit a **part** of that pursuit's memory:
+added to its experience with repeats counted, its trace or picture kept as that memory's media.
+
+## 6. Recall
+
+| | |
+|---|---|
+| `retrieve_memory` | By id, from hot or cold |
+| `retrieve` / `search_memories` | The general recall paths |
+| `recall_for` | What memory hands a request — the memories of a sound heard and a picture seen first |
+| `get_recent_memories` | Recent, from hot |
+| `query_by_tags` / `get_memory_by_content` | By tag, and by keyword or exact match |
+| `claims_of` | The facts each memory claims, by memory id |
+| `task_occurrences` / `tool_runs` | Every time the substrate did a task of its own; the tool runs a task did, by tool |
+
+## 7. Changing and forgetting
+
+`update_memory`, `update_importance` (which says **why** on the memory), `update_tags` (replace, add or
+remove), `update_metadata`, `add_related_memory`, `increment_access_count`.
+
+`supersede` replaces what a memory says **while keeping what it used to say**. `find_open` returns episodes
+still waiting on something that this might be about, and `close_open` settles one.
+
+`delete_memory` forgets a memory: its row and what it kept of what was met both go.
+
+## 8. Episodes of pursuit
+
+A pursuit is remembered as one episode that grows.
+
+| | |
+|---|---|
+| `begin_pursuit` | Form the memory of a pursuit as it is taken on, and return its id |
+| `add_to_pursuit` | Add one finished task: its record among the rest |
+| `add_parts_to_pursuit` | Add parts of an experience, repeats counted |
+| `add_perception_to_pursuit` | A seeing or hearing as a part of it |
+| `close_pursuit` | Close it with how the pursuit ended, and queue it for consolidation |
+| `pursuit_memory_id` / `acting_pursuit_memory` | The memory of a named pursuit, hot or cold; the one the current act is done under |
+
+## 9. The rest of memory
+
+Each family below is a set of write methods the owning authority hands to. The authority decides; memory
+writes.
+
+| Family | Holds |
+|---|---|
+| **Concepts and links** | `hold_concept`, `hold_concept_evidence`, `link_concepts`, `hold_alias`, `hold_surface_form`, `hold_evidence_envelope`, `hold_domain_membership`, `hold_identity_relation`, `hold_concept_vectors`, `file_concepts`, `refile_concepts`, `replace_sense_taxonomy`, `attach_waiting_links` — a link that named a surface before it was learned points at it once it is |
+| **Undoing a wrong identity** | `release_evidence`, `release_alias`, `free_links`, `release_envelope` — what identity resolution put on the wrong concept, taken off; links wait again for theirs |
+| **Beliefs** | `hold_belief` (replaced only while still at its expected update count), `belief_evidence`, `every_belief_evidence`, `settle_belief_evidence`, `drop_belief` so a reload cannot bring it back |
+| **Expectations of the world** | `hold_expectation`, `settle_expectation` (confirmed, unmet or not judgeable, once), `departed_expectations`, `confirm_late`, `pending_expectations`, `expectations_of`, `expectation_outcomes`, `forget_expectations` |
+| **Calibration** | `hold_calibration`, `calibration_records`, `hold_prediction_result`, `forget_calibration` |
+| **Known unknowns** | `hold_known_unknown` — a question held open, in its owner's store — and `add_unknown_attempts` |
+| **Rules and demonstrations** | `hold_rule`, `hold_rule_evidence`, `recount_rule_evidence`, `set_rule_status`, `refute_rule`, `hold_rule_projection`, `hold_supersession`, `forget_rules`, `record_rule_authority_change`, `hold_conditional`, `hold_demonstration`, `mark_induction_pending`, `clear_induction_pending` |
+| **Domains** | `hold_domain`, `hold_default_domain`, `hold_domain_mapping`, `hold_domain_correspondence`, `hold_knowledge_transfer`, `resolve_knowledge_transfer`, `record_mapping_use`, `record_controllability`, `record_operating_outcome`, `hold_domain_volatility` |
+| **What reasoning produced** | `hold_argument`, `hold_argument_claim`, `hold_fallacy`, `hold_temporal_proposition`, `hold_causal_link`, `hold_hypothesis`, `hold_experiment`, `hold_hypothesis_evidence`, `hold_schema`, `drop_schema`, `hold_analogy`, `hold_concept_mapping` |
+| **Perception** | `hold_vision_instance`, `drop_vision_instance`, `hold_sound_instance`, `drop_sound_instance` — a reference image's features and a reference sound's landmarks, so the instance is recognised by name |
+| **Trained recognisers** | `hold_clause_classifier`, `hold_security_training_example` |
+| **The record of what was learned** | `record_knowledge_update`, `record_knowledge_updates`, `mark_knowledge_consumed`, `mark_behaviour_change` |
+
+## 10. A person's context
+
+What a person tells the substrate is held **in that person's context**, not in the world.
+
+| | |
+|---|---|
+| `hold_for_person` | A fact about a person's own things: the link, and their belief in it |
+| `hold_scoped_relation` / `hold_scoped_belief` / `hold_scoped_rule` | A link, a belief and a rule a person told, personal or work |
+| `hold_belief_for_person` / `hold_rule_for_person` | A person's belief moved by one observation; a rule about their own things, asserting neither side |
+| `hold_belief_about_speaker` / `said_of_themselves` | What a person said about themselves, in the context it came through; a restatement replaces it |
+| `held_where` | Where something a person gave is held — owner, context, organization |
+| `shared_world_context` | The owners composed into what Lyric may reason over for an actor: Lyric's own world knowledge, plus theirs. **Composed, never stored** |
+| `ensure_work_authorizations` / `authorize_work` / `unlink_work` / `work_contexts` | Which organizations' Work Context a person is authorized for, as the identity that authenticated them says |
+
+**Working memory** holds what a conversation was told but not to remember, for as long as the process
+lives, each person's apart: `working_relations`, `working_beliefs`, `working_rules`. They are read together
+with what the store holds wherever a context is read.
+
+## 11. Taking in what it was told, split by what it is about
+
+`take_in_telling` takes in what someone told and returns, for each fact and each rule, what became of it.
+The rest of the family splits by **what the thing is about**, which is what decides where it is held:
+
+`take_in_unread` (a sentence that did not read, kept verbatim and marked unread, recallable by meaning),
+`take_in_tool` and `take_in_tool_use` (which tool, and the **names** of what it was given — never their
+values, which are the caller's), `take_in_percept`, `take_in_demonstration`, `take_in_transition`,
+`take_in_recognised`, `take_in_verdict`, `take_in_observed`, `take_in_research`, `take_in_reasoning`, and
+`take_outcome_to_learning`.
+
+`memory_type_of` decides what kind of memory a conclusion is kept as, and **unverified is never a fact**: a
+deduction the reasoning authority did not verify is not stored as one.
+
+## 12. Language lives in memory
+
+There is no lexicon file. Everything the substrate knows about English is memories, read back through
+**views** that are rebuilt from those memories and never written to disk.
+
+The word-class store was removed because it cost more than it bought: measured on the live store it held
+199 words, every one a NOUN, 197 of them asserted by a fan-out nobody taught — and a word recorded NOUN
+*destroyed* readings that worked without it. "A filter separates particles." reads when `separates` is
+unknown and stops reading once it is filed as a noun.
+
+What replaces it is a view: empty until warmed from memory, extended as something is taught, and losing
+nothing when dropped. Entries are **net** evidence — a reading that leaned on a class and succeeded counts
+for it, one that failed counts against — which is the same evidence discipline beliefs use.
+
+| View | Reads back |
+|---|---|
+| `word_class` / `word_classes` | The class a word has been observed to have, with net evidence. Synchronous |
+| `warm_word_classes` / `begin_word_class_warm` | Rebuild it, joining one already in flight |
+| `note_taught_proposition` / `note_refusal` | Fold one just-stored proposition, or a reading's blamed classes, into the view |
+| `language_view` / `taught_patterns` / `pattern_inventory` / `note_pattern` | The constructions and links memory holds |
+| `grammar_taught` / `grammar_view` | **English's grammar as the reader takes it**, built from what memory holds |
+| `keep_grammar_learning` | What the grammar learned from each sentence, kept with the sentence under the rules it was learned by |
+| `structure_view` / `argument_view` / `composition_view` / `lay_out` | Sentences as analysed, with their happenings' arguments, and as the composer reads them |
+| `word_groups` / `word_forms` | Which words keep the same company; the forms words are written in |
+| `stated_word_classes` / `stated_pronunciations` / `stated_patterns` | What has already been told |
+| `listening_memory` / `listening_evidence` / `said_selection` / `coarse_senses` | What the listener counted, and what bears on which thing a word was meant to name |
+| `tool_doings` / `remember_tool_doing` | What Lyric has read its own tools to do |
+
+The `remember_*` family writes those memories: `remember_said`, `remember_analysed`, `remember_derived`,
+`remember_grammar_rules`, `remember_grammar_pairs`, `remember_records`, `remember_word_records`,
+`remember_argued`, `remember_taught_sentences`, `remember_word_forms`, `remember_word_groups`,
+`remember_heard`. Each holds one memory per item, and one already held is not held again.
+
+**What a word may mean** is read from the words recorded whole: `word_meanings`, `word_kinds`,
+`word_senses_alike`, `word_senses_written_so`, `word_senses_any_class`, `word_senses_written_alike`,
+`word_sense_is_a_kind_of`, `word_held_as_both`, `says_a_kind`, `words_for`, `used_for`, `recorded_name`,
+`name_of`, `known_name`.
+
+`taught_language` marks a memory as **taught language** — how to read or how to say — and never a claim
+about the world.
+
+## 13. Experiences and methods
+
+`remember_experience` takes in one experience, which waits in the pool as a candidate.
+`task_experience` records a finished task, succeeded or failed, as an experience. `methods_held` is every
+method memory an owner holds, `standing_history` how a standing in a method has moved, and `person_reward`
+the mean reward a person's counted outcomes of a method carried.
+
+`capture_statistics` reports how fully the memories formed in a recent window carry what they should.
+
+## 14. Loops
+
+`start_memory_loops` and `stop_memory_loops` run the maintenance loops. Only maintenance is a **timer**;
+abstraction and reflection are triggered by new work.
+
+| | |
+|---|---|
+| `_maintenance_loop` | The one timed loop |
+| `note_episodic_stored` | Counts newly-stored episodic memories and, past the threshold, makes abstraction due |
+| `consolidate_memories` | Short-term to long-term |
+| `form_abstractions_if_due` | Runs abstraction only when there is genuinely new work |
+| `form_abstractions` | A back-compat shim — **abstraction is the reasoning authority's** |
+| `reflect_on_beliefs` | Belief-graph hygiene, which is reasoning: the memory agent asks, it does not decide |
+| `get_metrics` / `cleanup_cache` | Metrics; cache eviction |
+
+Abstraction and beliefs are not owned here. They are reasoning, delegated to the neural bridge
+([reasoning.md](reasoning.md)) and the belief authority ([beliefs.md](beliefs.md)).
+
+Under `LYRIC_SHADOW_MODE`, `initialize` suppresses the loops and the queue worker while storage stays live.
+
+## 15. Who reaches it
+
+**Callers:** the cognitive ingress; the learning authority; the coordinator and intrinsic motivation; the
+reasoning faculties (`neural_bridge`, `hypothesis_testing`) and the cross-domain reasoner; the recall
+surfaces; perception; health, tools and chaos.
+
+**Delegates to:** the belief authority (to stamp a belief state), appraisal (for the snapshot), the
+reasoning authority (abstraction and reflection), the worthiness filter, storage, embeddings, the media
+store and the write queue, and semantics (`claim_shape`, the sentence reader).
+
+## 16. Evidence
+
+| | |
+|---|---|
+| `experiments/MEMORY-SOUND-01` | A recording heard twice is two memories, each still hearable |
+| [../research/MEMORY_AGENT_MAP.md](../research/MEMORY_AGENT_MAP.md) | What is held where |
+| [../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md](../LYRIC_VALIDATION_AND_EXPERIMENT_RESULTS.md) | Results, with the negative ones |
+| [beliefs.md](beliefs.md) · [reasoning.md](reasoning.md) · [learning.md](learning.md) | The authorities that decide what memory writes |
