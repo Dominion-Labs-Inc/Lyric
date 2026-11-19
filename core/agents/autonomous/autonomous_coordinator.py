@@ -17763,14 +17763,25 @@ class AutonomousCoordinator:
 
     def _outcome_said(self, job: Dict[str, Any]) -> str:
         """How a job ended, in words: what it found, what went wrong, or that it
-        was stopped."""
+        was stopped.
+
+        WHAT WENT WRONG INSIDE IS NOT SAID TO THE PERSON. A job's `error` is written for whoever
+        reads the record: it names handlers, paths, beliefs and thresholds. Said straight through,
+        "thank you" came back as `no substrate handler for a ANALYSIS task yet; the substrate
+        declined all model-free paths and the model is not a fallback, not met: the goal of the task
+        is achieved: thank you (0.01), completion belief 0.01 < acceptance 0.98 - goal not yet
+        grounded-confident` (2026-11-19). Nothing in that is the person's to act on, and none of it
+        is lost: it stays on the job and is logged here, which is where it is read from.
+        """
         asked = job.get("asked") or ""
         status = job.get("status")
         if status == "cancelled":
             return self._with_quoted("Stopped before it finished", asked)
         if status == "failed":
-            return (self._with_quoted("I couldn't do", asked, "")
-                    + f" {str(job.get('error') or 'It failed.').strip()}")
+            error = str(job.get("error") or "").strip()
+            if error:
+                logger.info("job %s failed: %s", job.get("id") or asked[:60], error)
+            return self._with_quoted("I couldn't do", asked)
         found = self._what_it_found(job.get("result"), job.get("read"))
         head = ("Got partway through" if status == "partially_complete" else "Finished")
         return self._with_quoted(head, asked) + (f" {found}" if found else "")
@@ -18069,8 +18080,11 @@ class AutonomousCoordinator:
         # to the work path as though nothing were held.
         # A LOOK-UP UNDER WAY IS AN ANSWER TO SAY: what is not held yet, and that it is being found out. Counted as
         # nothing, the question fell through to the work path and was queued a second time, as a job.
-        if not (understanding.known or understanding.remembered
-                or understanding.acquired or understanding.answers or understanding.looking_up):
+        # AN ACT DONE BACK IS THE WHOLE OF SUCH A TURN (`Understanding.in_kind`): a greeting or a thanks holds
+        # nothing, acquires nothing and answers nothing, so every field here was empty for it and "You are
+        # welcome." -- already composed -- was thrown away and the turn queued as a job (2026-11-19).
+        if not (understanding.known or understanding.remembered or understanding.acquired
+                or understanding.answers or understanding.looking_up or understanding.in_kind):
             return None
 
         try:
@@ -21986,6 +22000,16 @@ class Acquired:
     #: the two apart, and `_said_together` rebuilt a thing the sentence had merely picked out as one it asserted --
     #: a meaning no construction says, so the whole clause said nothing.
     given: bool = False
+    #: WHY, IN THE READER'S OWN TERMS, for whoever reads the record or the log: "?v0, in what it
+    #: says of done_by". `detail` is the sentence SAID; this is never said to anybody.
+    #:
+    #: The two were one string, so the reader's terms were spoken: "hello" came back as "Part of
+    #: that is about something I have no name for yet (?v0, in what it says of done_by), so I did
+    #: not hold it" (2026-11-19). They are kept apart rather than dropped, because WHICH term has
+    #: no name is what tells a pronoun pointing at nothing (`?previous`) from a description that
+    #: found no referent, and reading the meaning by hand to find out is what writing it here
+    #: replaced.
+    account: str = ""
 
 
 @dataclass
@@ -22096,6 +22120,18 @@ class Understanding:
     #: docs/TEACHING.md §12d). Gathered in `understand()`, with the store, as
     #: `plurals` is.
     kinds: Dict[str, str] = field(default_factory=dict)
+    #: THE ACT DONE BACK, where the turn was answered in kind rather than out of knowledge
+    #: (`_answered_in_kind`): the kind of act done to the substrate, and the kind it did back
+    #: ("greet", "greet"). None where the turn was not one.
+    #:
+    #: A TURN THAT DID AN ACT BACK IS FINISHED, AND NOTHING ELSE RECORDS THAT. Such a turn holds
+    #: nothing, acquires nothing and answers nothing: the reply IS what it did. Both `answered` and
+    #: the work path ask what a turn managed by reading these fields, and neither counted a reply,
+    #: so "You are welcome." was composed for "thank you", thrown away by a field check, and the
+    #: turn fell through and was queued as a job -- "I'm on it: thank you", then a task that failed
+    #: and said its own validation text to the person (2026-11-19). The same comment stands above
+    #: that check for `looking_up`, which was the same fault one field over.
+    in_kind: Optional[Tuple[str, str]] = None
 
     @property
     def answered(self) -> bool:
@@ -22110,8 +22146,12 @@ class Understanding:
         exchange was remembered as "answered from held knowledge" while the reply
         said it held nothing for the thing asked about -- and the next asking
         recalled that record as if it were knowledge. Held phrases answer only
-        when nothing asked about is left unaccounted for."""
-        if self.answers or any(a.stored for a in self.acquired):
+        when nothing asked about is left unaccounted for.
+
+        AN ACT DONE BACK ANSWERED THE TURN (`in_kind`). "Hello." answered "Hello." is answered as
+        fully as a turn can be: it was asked nothing to find out and told nothing to hold, and the
+        act is the whole of what it owed."""
+        if self.in_kind or self.answers or any(a.stored for a in self.acquired):
             return True
         return bool(self.known) and not self.unknown
 
@@ -25647,13 +25687,18 @@ class Conversation:
                 if len(then) != 1:
                     because.append(f"what follows from it is {len(then)} propositions, not one")
                 unnamed = sorted({str(t) for f in condition + then for t in f.terms() if is_variable(t)})
+                account = ""
                 if unnamed:
-                    because.append(f"I have no name for {', '.join(unnamed)}")
+                    # WHICH TERMS, IN THE RECORD AND NOT IN THE REPLY (`Acquired.account`).
+                    because.append("there is something in it I have no name for" if len(unnamed) == 1 else
+                                   f"there are {len(unnamed)} things in it I have no name for")
+                    account = "no name for " + ", ".join(unnamed)
                 cost = len([f for f in meaning.asserted if not f.alternative])
                 detail = (f"I read that as a conditional I cannot hold -- {'; '.join(because)} -- so none of the "
                           f"{cost} thing{'' if cost == 1 else 's'} it states was held")
-                notes.append(Acquired(said, detail=detail))
-                logger.info("read but not held: %s -- %s", said[:160], detail)
+                notes.append(Acquired(said, detail=detail, account=account))
+                logger.info("read but not held: %s -- %s%s", said[:160], detail,
+                            f" ({account})" if account else "")
                 return None, notes
             if confirmed:
                 (ant,), (con,) = condition, then
@@ -25704,11 +25749,11 @@ class Conversation:
                     # a pronoun pointing at nothing (`?previous`) from a description that found no referent, and
                     # finding out which took reading the meaning by hand. The term and what was said of it name it.
                     unnamed = ", ".join(str(t) for t in (fact.subject, fact.obj) if is_variable(t))
-                    detail = (f"part of that is about something I have no name for yet ({unnamed}, in what it "
-                              f"says of {fact.relation}), so I did not hold it")
-                    notes.append(Acquired(said, detail=detail))
+                    detail = "part of that is about something I have no name for yet, so I did not hold it"
+                    account = f"{unnamed}, in what it says of {fact.relation}"
+                    notes.append(Acquired(said, detail=detail, account=account))
                     self._not_taken_in.append(said)
-                    logger.info("read but not held: %s -- %s", said[:160], detail)
+                    logger.info("read but not held: %s -- %s (%s)", said[:160], detail, account)
                     continue
                 # WHAT A KNOWN THING IS IS NOT WHAT A CORRECTION DENIES: "That's
                 # wrong." of "The printer is broken." says the printer is not
@@ -26205,7 +26250,11 @@ class Conversation:
         if not understanding.asked:
             parts += [Part("told", {"label": a.label,
                                     "relations": [list(r) for r in a.relations],
-                                    "held": a.stored, "detail": a.detail}, origin.theirs)
+                                    "held": a.stored, "detail": a.detail,
+                                    # The reader's own terms for why, where there are any
+                                    # (`Acquired.account`): recorded, never said.
+                                    **({"account": a.account} if a.account else {})},
+                                   origin.theirs)
                       for a in understanding.acquired]
         parts.append(Part("route", route, "substrate"))
         parts += [Part("answer", {"about": a.about, "relation": a.relation,
@@ -26226,9 +26275,17 @@ class Conversation:
         lessons give "Hello.": a greeting, done by the speaker, to the listener) states nothing to hold. Handled as a
         telling, it was answered "part of that is about something I have no name for yet, so I did not hold it". An
         act done to someone makes an act back relevant (Schegloff and Sacks 1973, adjacency pairs), and which act is
-        knowledge, taught and held like any other: what memory holds to FOLLOW the kind of act done ("A greeting
-        follows a greeting.", "A welcome follows thanks."). The substrate does an act of that kind back, said with
-        what it was taught to say it with (`derived_reader.say`). Nothing here names a greeting."""
+        knowledge, taught and held like any other: what memory holds to ANSWER the kind of act done ("A greeting
+        answers a greeting.", "A welcome answers thanks."). The substrate does an act of that kind back, said with
+        what it was taught to say it with (`derived_reader.say`). Nothing here names a greeting.
+
+        READ THROUGH `answers`, NOT `follows`. It was taught with the temporal relation, which is acyclic, so the
+        two pairs whose reply is the same kind of act -- a greeting and a farewell -- were the only ones the one
+        admission refused, and they were refused silently (`relation_types.ANSWERS`, 2026-11-19).
+
+        WHAT IT DID IS RECORDED ON THE UNDERSTANDING (`in_kind`). Such a turn holds nothing and answers nothing out
+        of knowledge, so every other field is empty and the work path read it as a turn that managed nothing: a
+        composed "You are welcome." was thrown away and the turn queued as a job."""
         from core.reasoning.concept_graph_reasoning import edges_into
         from core.semantics.cognitive_ingress import normalize_term
         from core.semantics.derived_reader import Meaning, MeaningFact, is_variable, say
@@ -26246,9 +26303,9 @@ class Conversation:
             return None
         db, _ = await self._services()
         held = normalize_term(kind)
-        follows = sorted({edge.subject for edge in await edges_into(db, [held], actor=self._actor)
-                          if edge.relation == SemanticRelation.FOLLOWS})
-        for back in follows:
+        answers = sorted({edge.subject for edge in await edges_into(db, [held], actor=self._actor)
+                          if edge.relation == SemanticRelation.ANSWERS})
+        for back in answers:
             said = say(Meaning("tell", (MeaningFact("instance_of", "?act", back.replace("_", " ")),
                                         MeaningFact("done_by", "?act", "?speaker"),
                                         MeaningFact("done_to", "?act", "?listener"))),
@@ -26257,6 +26314,10 @@ class Conversation:
                 continue
             understanding = Understanding(sentence=sentence, asked=False)
             understanding.reply = said[0]
+            # WHAT IT DID, SO THE TURN COUNTS AS DONE. The reply is the whole of this turn's work
+            # and no other field of an `Understanding` says so; left unsaid, a greeting answered
+            # perfectly was read as a turn that managed nothing (`Understanding.in_kind`).
+            understanding.in_kind = (str(kind), str(back))
             self._turns.append(Turn(said=sentence, asked=False, subject=self._last_subject,
                                     reply=understanding.reply))
             self._last_reply = understanding.reply
@@ -26321,6 +26382,10 @@ class Conversation:
             answers=[a for u in each for a in u.answers],
             acquired=[a for u in each for a in u.acquired],
             why_not=[w for u in each for w in u.why_not],
+            # AN ACT DONE BACK TO ANY UTTERANCE WAS DONE BY THE TURN, whichever utterance it answered:
+            # taken from the last alone, "Hello. What is a trel?" counts as having managed nothing when
+            # the question finds nothing, and falls through to the work path with a greeting already said.
+            in_kind=next((u.in_kind for u in each if u.in_kind), None),
             asked=any(u.asked for u in each))
 
     async def _understand(self, sentence: str, look_up: bool = True) -> Understanding:

@@ -149,6 +149,8 @@ class SemanticRelation(Enum):
     PRECEDES = "precedes"          # ignition PRECEDES combustion
     FOLLOWS = "follows"            # combustion FOLLOWS ignition (inverse)
     DURING = "during"              # a running DURING now: at the same time as
+    # ── what is said back ────────────────────────────────────────────────
+    ANSWERS = "answers"            # greeting ANSWERS greeting: the act done back to an act
     # ── event participants ───────────────────────────────────────────────
     DONE_BY = "done_by"            # tying DONE_BY listener: who did the event
     DONE_TO = "done_to"            # tying DONE_TO shoe: what it was done to
@@ -562,6 +564,23 @@ _SPECS: Tuple[RelationSpec, ...] = (
     RelationSpec(SemanticRelation.FOLLOWS,
                  frozenset({"follows", "comes after", "is after"}),
                  inverse=SemanticRelation.PRECEDES, generic_safe=False, transitivity=Transitivity.ALWAYS, acyclic=True),
+    # WHAT IS SAID BACK IS NOT WHAT COMES AFTER. An act done to someone makes an act back relevant
+    # (Schegloff and Sacks 1973, adjacency pairs), and which act is knowledge: "A greeting answers a
+    # greeting.", "A welcome answers thanks.". It was taught with `follows`, the TEMPORAL relation,
+    # and the two disagree on both of its properties:
+    #
+    #   ACYCLIC -- nothing comes after itself, so the one admission refused `follows(greet, greet)`
+    #     and `follows(farewell, farewell)` at depth 0 (`_would_close_a_cycle`). Those are exactly
+    #     the two adjacency pairs whose reply is the SAME kind of act, so greetings and farewells
+    #     were the only two that could not be held. Of three taught, one landed: "hello" had nothing
+    #     to say back and fell to the telling path, which spoke the reader's own note (2026-11-19).
+    #   ALWAYS-TRANSITIVE -- a welcome answers thanks and thanks may answer a gift, and a welcome
+    #     does not answer a gift. Walked transitively it would invent replies to anything.
+    #
+    # So it is a relation of its own, cyclic and not chaining, and `follows` keeps the order of
+    # events it was written for. Nothing here names a greeting: which act answers which is taught.
+    RelationSpec(SemanticRelation.ANSWERS, frozenset({"answers"}), generic_safe=False,
+                 gloss="an act done back to an act done to the one spoken to"),
     RelationSpec(SemanticRelation.DURING, frozenset(), generic_safe=False,
                  gloss="an event or state at the same time as another, or as a time"),
     # event participants. "Tie your shoe." is a tying, done by the listener, done
