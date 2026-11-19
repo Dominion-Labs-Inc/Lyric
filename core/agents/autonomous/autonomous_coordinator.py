@@ -8886,24 +8886,13 @@ class AutonomousCoordinator:
 
             logger.info("=" * 80)
 
-            # Log boosted autonomous goal generation settings
-            logger.info("=" * 80)
-            logger.info("🎯 AUTONOMOUS GOAL GENERATION - Boosted Settings")
-            logger.info("=" * 80)
-            max_goals = self.coordinator_config.max_concurrent_goals
-            intrinsic_weight = self.coordinator_config.intrinsic_motivation_weight
-            logger.info(f"   Max Concurrent Goals:      {max_goals} (baseline: 5)")
-            logger.info(f"   Intrinsic Motivation Weight: {intrinsic_weight:.2f} (baseline: 0.30)")
-            logger.info(f"   Goal Generation Frequency: Every 3 cycles (baseline: 20)")
-            logger.info(f"   Min Active Goals Threshold: 3 (baseline: 2)")
-            logger.info(f"   Min New Goals per Gen:     2 (baseline: 1)")
-            logger.info("=" * 80)
-
-            # Autonomous idle system handles all task scheduling
-            logger.info("=" * 80)
-            logger.info("🎯 AUTONOMOUS IDLE SYSTEM - Active (security / health / review on schedule)")
-            logger.info("=" * 80)
-
+            # WHAT IS ACTIVE IS SAID WHERE IT BECOMES ACTIVE, which is `start_coordination` and not here. The
+            # goal-generation settings and "IDLE SYSTEM - Active" were announced from the middle of
+            # initialization -- minutes before either was true, and before the word-class view the substrate
+            # reads with even existed. Measured on the start of 2026-11-19: "Active" at 09:49:19, the view
+            # warmed at 09:51:27, two minutes and eight seconds later. Nothing was acting that early -- the
+            # cycle is deferred and `main` awaits `ready_to_read` before starting it -- but a log that calls a
+            # thing active before it is cannot be used to tell a start that went wrong from one that did not.
             # Set system mode
             self.system_state.mode = SystemMode.AUTONOMOUS
             self.active = True
@@ -9035,6 +9024,15 @@ class AutonomousCoordinator:
             self.coordination_task = asyncio.create_task(self._coordination_cycle())
             self._start_reactive_worker()
             logger.info("🚀 Autonomous coordination cycle started%s", " (a worker)" if self.worker else "")
+            # SAID HERE BECAUSE IT IS TRUE HERE: the cycle is running, the substrate reads with a warmed view
+            # (`main` awaits `ready_to_read` before this), and goals are generated from this point and not
+            # before. Announced from inside `initialize` instead, it read as goal generation happening in the
+            # middle of the systems coming up.
+            logger.info("🎯 goal generation: at most %s goal(s) at once, intrinsic motivation weighted %.2f, "
+                        "generating every 3 cycles while fewer than 3 are active, at least 2 at a time",
+                        self.coordinator_config.max_concurrent_goals,
+                        self.coordinator_config.intrinsic_motivation_weight)
+            logger.info("🎯 the idle system is active: security, health and review on their schedules")
         elif self.coordination_task is not None:
             logger.info("Coordination cycle already running")
         else:
