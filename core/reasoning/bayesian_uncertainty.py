@@ -184,8 +184,12 @@ class BayesianBelief:
     credible_interval: Tuple[float, float] = (0.0, 1.0)  # 95% credible interval
     entropy: float = 1.0  # Information-theoretic uncertainty
 
-    # Temporal decay (prevents epistemic ossification)
-    decay_rate: float = 0.01  # Domain-adaptive λ for exp(-λΔt)
+    # TIME IS NOT EVIDENCE. A belief fades at its domain's rate unless it has a rate of ITS OWN, and None means
+    # it follows its domain. Set to 0.0 a belief does not fade at all: it is still revised by contradiction, by
+    # correction and by discovery -- what evidence says -- and simply not by the clock. This was overwritten
+    # from the domain on every update, so no belief could hold a rate apart from its domain's and the field was
+    # a shadow of it; and nothing read it, `_apply_temporal_decay` asking the domain directly.
+    decay_rate: Optional[float] = None  # λ for exp(-λΔt); None follows the domain's
     last_evidence_time: datetime = field(default_factory=datetime.now)  # When last evidence arrived
     time_since_reinforcement: float = 0.0  # Hours since last supporting evidence
 
@@ -927,8 +931,9 @@ class BayesianUncertaintySystem:
         belief.update_count += 1
         belief.confidence_history.append(posterior)
 
-        # Update decay rate from domain
-        belief.decay_rate = self.domain_volatility[belief.domain]
+        # A BELIEF'S OWN RATE IS ITS OWN. This assigned the domain's over it at every update, so a belief given a
+        # rate apart from its domain lost it at the next observation and the override could not exist. A belief
+        # with none follows its domain, which is what `None` says and what `_apply_temporal_decay` reads.
 
         # Update credible interval (simplified - using standard error)
         std_error = math.sqrt(posterior * (1 - posterior) / max(belief.update_count, 1))
@@ -949,7 +954,11 @@ class BayesianUncertaintySystem:
         logger.debug(
             f"Updated belief '{belief.claim[:50]}': "
             f"{original_prior:.3f} → {decayed_prior:.3f} (decay) → {posterior:.3f} (evidence) "
-            f"(log-odds {belief.log_odds:.2f}, entropy={belief.entropy:.3f}, λ={belief.decay_rate:.4f})"
+            # The rate it actually fades at: its own where it holds one, else its domain's. `None` is a belief
+            # that follows its domain, and is no number to print.
+            f"(log-odds {belief.log_odds:.2f}, entropy={belief.entropy:.3f}, "
+            f"λ={(belief.decay_rate if belief.decay_rate is not None else self.domain_volatility[belief.domain]):.4f}"
+            f"{' (its own)' if belief.decay_rate is not None else ''})"
         )
 
         return belief
@@ -971,8 +980,11 @@ class BayesianUncertaintySystem:
         now = datetime.now()
         time_delta = (now - belief.last_evidence_time).total_seconds() / 3600.0  # Hours
 
-        # Get domain-adaptive decay rate
-        lambda_decay = self.domain_volatility.get(belief.domain, 0.01)
+        # ITS OWN RATE BEFORE ITS DOMAIN'S. A belief may hold a rate apart from its domain -- 0.0 for one that
+        # does not fade with time at all -- and this asked the domain and never the belief, so the field existed
+        # and decided nothing. A belief with none follows its domain, as it always did.
+        lambda_decay = (belief.decay_rate if belief.decay_rate is not None
+                        else self.domain_volatility.get(belief.domain, 0.01))
 
         # Calculate decay factor
         decay_factor = 1 - math.exp(-lambda_decay * time_delta)
@@ -1017,9 +1029,18 @@ class BayesianUncertaintySystem:
         avg_change = sum(self.domain_belief_changes[domain]) / len(self.domain_belief_changes[domain])
         regime_penalty = min(self.domain_regime_shifts[domain] * 0.005, 0.05)  # Cap at 0.05
 
-        # Adaptive λ: base rate + volatility component + regime penalty
-        new_lambda = 0.01 + (avg_change * 0.1) + regime_penalty
-        new_lambda = max(0.005, min(0.1, new_lambda))  # Clamp [0.005, 0.1]
+        # HOW FAST A DOMAIN FADES IS HOW MUCH IT MOVES, and nothing else. This added a constant 0.01 an hour to
+        # every domain however settled it was, which is what turned the passage of time into evidence: `english`
+        # holds 98.9% of the World Model and its beliefs change by 0.00055 on average, yet it was fading at
+        # 0.01005 an hour -- 99.5% of that a constant that had nothing to do with English. A domain nothing moves
+        # in now reaches zero and its beliefs do not fade at all; they are still revised by contradiction, by
+        # correction and by discovery, which is what evidence is for.
+        new_lambda = (avg_change * 0.1) + regime_penalty
+        # A DOMAIN MAY REACH ZERO. The floor of 0.005 said every domain must fade, so a settled one -- English,
+        # which is 98.9% of what the World Model holds -- faded at the same least rate as a changing one, and a
+        # belief about a word would have drifted to no opinion for want of mention. What a domain's volatility
+        # measures is how much the WORLD moves under it, and for some of them the answer is not at all.
+        new_lambda = max(0.0, min(0.1, new_lambda))  # Clamp [0.0, 0.1]
 
         old_lambda = self.domain_volatility[domain]
         self.domain_volatility[domain] = new_lambda
@@ -1891,7 +1912,9 @@ class BayesianUncertaintySystem:
                                               for evidence, supports, _ in belief.unsaved_evidence]),
                     update_count=belief.update_count, last_updated=belief.last_updated,
                     expected_update_count=(-1 if belief.stored_count is None
-                                           else belief.stored_count))
+                                           else belief.stored_count),
+                    # ITS OWN RATE, where it holds one apart from its domain's.
+                    decay_rate=belief.decay_rate)
                 if row is not None:
                     belief.stored_count = int(row["update_count"])
                     belief.unsaved_evidence.clear()
@@ -2088,7 +2111,8 @@ class BayesianUncertaintySystem:
         dt_hours = (now - belief.last_updated).total_seconds() / 3600.0
         if dt_hours <= 0:
             return belief
-        lambda_decay = self.domain_volatility.get(belief.domain, belief.decay_rate)
+        lambda_decay = (belief.decay_rate if belief.decay_rate is not None
+                        else self.domain_volatility.get(belief.domain, 0.01))
         factor = 1 - math.exp(-lambda_decay * dt_hours)
         decayed = belief.log_odds * (1.0 - factor)     # toward even odds, in log-odds
         if abs(decayed - belief.log_odds) > 1e-9:
@@ -2153,6 +2177,10 @@ class BayesianUncertaintySystem:
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS supported INTEGER",
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS opposed INTEGER",
         "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP",
+        # A BELIEF'S OWN DECAY RATE, where it holds one apart from its domain's (NULL: it follows its
+        # domain). Kept, because an override that does not survive a start is no override -- which is the
+        # mistake the belief graph made for as long as it existed.
+        "ALTER TABLE unified.beliefs ADD COLUMN IF NOT EXISTS decay_rate DOUBLE PRECISION",
         # WHICH BELIEF BEARS ON WHICH, kept. Everything else the belief authority holds has a table and is read
         # back at a start -- the beliefs, their evidence, the known unknowns, each domain's volatility -- and the
         # GRAPH between them had none. It was built in memory, used by whatever process built it, and gone at the
@@ -2350,7 +2378,7 @@ class BayesianUncertaintySystem:
             await self._ensure_beliefs_schema()
             rows = await self.unified_db.execute_query(
                 "SELECT belief_id, memory_id, claim, domain, prior_probability, posterior_probability, log_odds, "
-                "uncertainty_type, entropy, update_count, last_updated "
+                "uncertainty_type, entropy, update_count, last_updated, decay_rate "
                 "FROM unified.beliefs",
                 fetch_all=True,
             ) or []
@@ -2378,6 +2406,8 @@ class BayesianUncertaintySystem:
                         evidence_against=evidence_against,
                         update_count=int(row["update_count"] or 0),
                         last_updated=row["last_updated"] if row["last_updated"] else datetime.now(),
+                        # None: it follows its domain, which is every belief that was never given one.
+                        decay_rate=(float(row["decay_rate"]) if row["decay_rate"] is not None else None),
                     )
                     b.stored_count = b.update_count
                     # WHEN EVIDENCE LAST ARRIVED, FROM THE EVIDENCE. Decay measures time since a belief was last
@@ -2389,16 +2419,19 @@ class BayesianUncertaintySystem:
                     # (lyric_db, 2026-11-19). Each observation carries the moment it was made, so the answer was
                     # in the store; where none does, when the belief was last written is the nearest truth.
                     #
-                    # NOT TURNED ON YET, AND THE MEASUREMENT IS WHY. The clock is the easy half; the decay RATE
-                    # is the half that was never under real pressure. λ is clamped to [0.005, 0.1] per hour and
-                    # 98.9% of the World Model's beliefs are in one domain, `english`. Measured 2026-11-19: the
-                    # median belief's newest observation is 287 hours old, so at the default λ the median
-                    # log-odds would fall 2.700 -> 0.153 and 842,741 beliefs (82.4%) would land in the band that
-                    # means "no opinion" -- in ONE reflection pass, the first time the clock was ever real. Even
-                    # the floor leaves 23.8%. A rate range fitted to a clock that could only ever read hours is
-                    # not a rate range for one that reads days, and "'Whales' names whale" does not become
-                    # doubtful because nobody said it for a fortnight. The rate is settled first.
-                    said_at: List[float] = []
+                    # TURNED ON ONLY ONCE TIME STOPPED BEING EVIDENCE. The clock was the easy half. The RATE was
+                    # the half that had never been under real pressure: λ was floored at 0.005, so EVERY domain
+                    # had to fade, and 98.9% of the World Model is one settled domain, `english`. Measured
+                    # 2026-11-19 with the clock real: the median belief's newest observation is 287 hours old,
+                    # the median log-odds would have fallen 2.700 -> 0.153 and 842,741 beliefs (82.4%) would have
+                    # landed at "no opinion" in ONE pass. That is not modelling uncertainty about the world; it
+                    # is introducing uncertainty because time has passed. A domain may now reach zero and a
+                    # belief may hold a rate apart from its domain's, so what does not move does not fade, and
+                    # a settled belief is still revised by contradiction, correction and discovery.
+                    said_at = [float(e["at"]) for e in (*evidence_for, *evidence_against)
+                               if isinstance(e, dict) and isinstance(e.get("at"), (int, float))]
+                    b.last_evidence_time = (datetime.fromtimestamp(max(said_at)) if said_at
+                                            else b.last_updated)
                     self._register_belief(b)
                     self.stats["beliefs_tracked"] += 1
                     loaded += 1
@@ -2766,9 +2799,10 @@ class BayesianUncertaintySystem:
                     # Calculate regime shift penalty
                     regime_penalty = min(self.domain_regime_shifts[domain] * 0.005, 0.05)
 
-                    # Update volatility (λ)
-                    new_lambda = 0.01 + (avg_change * 0.1) + regime_penalty
-                    new_lambda = max(0.005, min(new_lambda, 0.1))  # Clamp to [0.005, 0.1]
+                    # Update volatility (λ): how much the domain MOVES, with no constant added. The two places
+                    # that compute this must agree, or reflection would put the constant back.
+                    new_lambda = (avg_change * 0.1) + regime_penalty
+                    new_lambda = max(0.0, min(new_lambda, 0.1))  # Clamp to [0.0, 0.1]: a domain may not move
 
                     self.domain_volatility[domain] = new_lambda
 

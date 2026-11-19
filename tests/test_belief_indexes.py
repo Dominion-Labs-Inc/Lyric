@@ -15,6 +15,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from datetime import datetime  # noqa: E402
 from core.reasoning.bayesian_uncertainty import (  # noqa: E402
     BayesianBelief, BayesianUncertaintySystem)
 
@@ -398,3 +399,61 @@ def test_fading_is_not_refutation_and_only_what_rests_on_nothing_is_let_go():
     source = inspect.getsource(BayesianUncertaintySystem.apply_temporal_decay_to_all_beliefs)
     assert "_evidence_count == 0" in source, "a belief resting on an observation is kept, however far it fades"
     assert "_evidence_count < 3" not in source, "the old threshold would delete 97.2% of the World Model"
+
+
+def test_time_alone_is_not_evidence_so_a_settled_domain_does_not_fade():
+    """HOW FAST A DOMAIN FADES IS HOW MUCH IT MOVES, and nothing else.
+
+    A constant 0.01 an hour was added to every domain however settled it was, and λ was floored at 0.005 so no
+    domain could stop fading at all. `english` holds 98.9% of the World Model and its beliefs change by 0.00055
+    on average, yet it faded at 0.01005 an hour -- 99.5% of that a constant with nothing to do with English. With
+    the decay clock measuring real time, that constant would have taken 842,741 beliefs (82.4%) to "no opinion"
+    in one pass. That is not modelling uncertainty about the world; it is introducing uncertainty because time
+    has passed.
+
+    A settled belief stays revisable -- by contradiction, by correction, by discovery -- and simply not by the
+    clock. Measured against the World Model with each domain at what it actually moves: 842,741 -> 727."""
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    from collections import defaultdict
+    system.domain_volatility = defaultdict(lambda: 0.01)
+    system.domain_belief_changes = defaultdict(list)
+    system.domain_regime_shifts = defaultdict(int)
+    system.stats = defaultdict(int)
+
+    # A domain nothing moves in reaches ZERO, where the floor used to hold it at 0.005.
+    system.domain_belief_changes["english"] = [0.0] * 20
+    system._update_domain_volatility("english", 0.0)
+    assert system.domain_volatility["english"] == 0.0, system.domain_volatility["english"]
+
+    # One that does move still fades, in proportion to how much.
+    system.domain_belief_changes["reading"] = [0.1] * 20
+    system._update_domain_volatility("reading", 0.1)
+    assert system.domain_volatility["reading"] > 0.0
+
+
+def test_a_belief_may_hold_a_decay_rate_apart_from_its_domains():
+    """A belief's own rate decides, and `None` follows its domain. The field existed and decided nothing: it was
+    overwritten from the domain at every update, so no override could survive one observation, and the decay
+    function asked the domain directly and never the belief."""
+    import inspect
+    from collections import defaultdict
+    system = BayesianUncertaintySystem.__new__(BayesianUncertaintySystem)
+    system.domain_volatility = defaultdict(lambda: 0.02)
+    system.stats = defaultdict(int)
+
+    settled = BayesianBelief(belief_id="b1", claim="whales are mammals", domain="english",
+                             prior_probability=0.5, likelihood=0.5, posterior_probability=0.937)
+    assert settled.decay_rate is None, "a belief follows its domain unless given a rate of its own"
+    settled.last_evidence_time = datetime(2020, 1, 1)
+    held = settled.log_odds
+    settled.decay_rate = 0.0                      # this one does not fade with time at all
+    assert system._apply_temporal_decay(settled) == held, "a rate of 0.0 fades by nothing, however long it is"
+
+    drifting = BayesianBelief(belief_id="b2", claim="the queue is busy", domain="english",
+                              prior_probability=0.5, likelihood=0.5, posterior_probability=0.937)
+    drifting.last_evidence_time = datetime(2020, 1, 1)
+    assert system._apply_temporal_decay(drifting) != drifting.log_odds, "with none of its own it follows its domain"
+
+    # And an update does not overwrite what the belief was given.
+    source = inspect.getsource(BayesianUncertaintySystem.update_belief)
+    assert "belief.decay_rate = self.domain_volatility" not in source, "an update must not take the override away"

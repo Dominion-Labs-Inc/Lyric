@@ -4096,7 +4096,8 @@ class MemoryAgent(IMemoryConsolidation):
                           posterior_probability: float, log_odds: float, uncertainty_type: str,
                           entropy: float, new_evidence: str,
                           update_count: int, last_updated: Any,
-                          expected_update_count: int) -> Optional[Any]:
+                          expected_update_count: int,
+                          decay_rate: Optional[float] = None) -> Optional[Any]:
         """A belief, replaced only while it is still at `expected_update_count`
         (-1 for one never stored), with the observations made since it was last
         stored (`new_evidence`: a JSON list of `{"supports": bool, "entry": ...}`
@@ -4127,8 +4128,8 @@ class MemoryAgent(IMemoryConsolidation):
                 INSERT INTO unified.beliefs AS b
                     (belief_id, memory_id, claim, belief_text, confidence, domain,
                      prior_probability, posterior_probability,
-                     uncertainty_type, entropy, update_count, last_updated, log_odds)
-                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14)
+                     uncertainty_type, entropy, update_count, last_updated, log_odds, decay_rate)
+                VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$14,$16)
                 ON CONFLICT (belief_id) DO UPDATE SET
                     memory_id           = EXCLUDED.memory_id,
                     claim               = EXCLUDED.claim,
@@ -4141,7 +4142,8 @@ class MemoryAgent(IMemoryConsolidation):
                     entropy             = EXCLUDED.entropy,
                     update_count        = EXCLUDED.update_count,
                     last_updated        = EXCLUDED.last_updated,
-                    log_odds            = EXCLUDED.log_odds
+                    log_odds            = EXCLUDED.log_odds,
+                    decay_rate          = EXCLUDED.decay_rate
                 WHERE b.update_count = $13
                 RETURNING update_count
             ), added AS (
@@ -4157,7 +4159,7 @@ class MemoryAgent(IMemoryConsolidation):
             """,
             (belief_id, memory_id, claim, claim, posterior_probability, domain,
              prior_probability, posterior_probability, uncertainty_type, entropy,
-             update_count, last_updated, expected_update_count, log_odds, new_evidence),
+             update_count, last_updated, expected_update_count, log_odds, new_evidence, decay_rate),
             fetch_one=True,
         )
 
