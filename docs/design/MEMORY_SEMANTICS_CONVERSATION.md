@@ -1,5 +1,17 @@
 # Memory, Semantics and Conversation
 
+*Status note, 2026-11-19. A September analysis, kept as found, and the largest design record in the set.
+Its reasoning holds; three of the components it traces have since moved, and its findings about them are
+dated rather than wrong:*
+
+- *`core/semantics/reading_registry.py`, which it marks archived at line 245 but still names as the home of
+  `DerivedReading` further down, is gone. A derived reading is now formalised by `DerivedReadingFormalizer`
+  in `core/reasoning/neural_bridge.py`, and the structure side is `Derived` in `core/semantics/grammar.py`.*
+- *`core/execution/convergence_gate.py` is gone with the `execution/` subsystem; effect verification is
+  `core/intelligence/effect_verification.py`.*
+- *`general_purpose_executor.py` is gone: its state was absorbed into the coordinator, which is now the
+  substrate's body and holds execution as its own faculty.*
+
 **Verified 2026-08-24 against the live system on port 5433.** Every count and
 behaviour here was measured, not recalled. Where something is broken it says so
 and names the line.

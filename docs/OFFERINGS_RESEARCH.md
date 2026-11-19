@@ -28,7 +28,7 @@ The purpose is to see what Lyric's system can do, so that each offering can list
 | | Lyric Free | Lyric Pro | Lyric Auto |
 |---|---|---|---|
 | For | | Developers and teams | Enterprises: a dedicated Lyric instance |
-| Price | Free | $19.99 / month for the first seat, plus up to 3 more seats at $10 each | Special pricing |
+| Price | *(superseded; see the published prices in the status note above)* | *(superseded)* | *(superseded)* |
 | Billing | | Monthly, or annually at 20% off | Monthly or annual |
 | Seats | 1 | Up to 4 | One per user an admin creates; at least 10, bought ahead |
 | Context | The person's own | Each person's own, plus the team's shared context | Each person has their own, plus one organization-wide context that feeds the organization's goals and tasks |
@@ -79,8 +79,8 @@ Each offering lists what you set first, then what I drafted from the research (s
 **Set:**
 - **For:** developers and teams.
 - **Price:**
-  - Monthly: $19.99 for the first seat, plus up to 3 more seats at $10 each ($49.99 a month for 4).
-  - Annually, 20% off: $191.90 a year for the first seat (about $15.99 a month) and $96 for each added seat ($479.90 a year for 4).
+  - *Superseded. Lyric Pro is published at $20 a month, or $17 a month billed annually, and there is no
+    per-seat add-on: seats are Lyric Teams, 2 to 100 people. See the status note at the top.*
 - **Seats:** a seat's usage this period stays with the seat. Replacing a teammate doesn't reset its limits.
 - **Autonomy:** Observe and Assist. Lyric does the work you ask for, and each act waits for your yes.
 - **Context:** each person has their own, plus the team's shared context.
@@ -860,7 +860,7 @@ The three offerings above became four. The sections above are the dated record o
 | | Lyric Starter | Lyric Pro | Lyric Max | Lyric Enterprise |
 |---|---|---|---|---|
 | For | Getting started with Lyric | Individuals | Developers and teams | Organizations, on a dedicated Lyric instance |
-| Price | Free | $19.99 / month | $59.99 / month for the first seat, plus up to 2 more seats at $10 each | Custom pricing (shown publicly as Custom, with Contact sales) |
+| Price | *(superseded; see the published prices in the status note above)* | *(superseded)* | *(superseded)* | Set by agreement |
 | Autonomy | Observe | Observe and Assist | Observe, Assist and Delegate | Observe, Assist and Delegate, set by the organization's administrators |
 | Concurrent tasks | 2 | 3, plus scheduled jobs | 5 per seat, plus scheduled jobs | Custom |
 | Workflows and scheduled jobs | | ✓ | ✓ | ✓ |

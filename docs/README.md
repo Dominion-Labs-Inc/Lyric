@@ -50,6 +50,7 @@ the authority map and the belief circulation. Each faculty then has its own docu
 | | |
 |---|---|
 | [architecture/SUBSTRATE_SYSTEMS_MAP.md](architecture/SUBSTRATE_SYSTEMS_MAP.md) | Every system by name and size |
+| [architecture/world-model-and-instances.md](architecture/world-model-and-instances.md) | What the Lyric World Model is, what an instance is, and how what an instance learns reaches the World Model |
 | [architecture/coordinator.md](architecture/coordinator.md) | The coordinator, which holds the constitution, the drift faculty and the cognitive cycle |
 | [architecture/memory.md](architecture/memory.md) | What persists, in which tier, and how it is recalled |
 | [architecture/beliefs.md](architecture/beliefs.md) | How a belief forms, moves and is retired |
