@@ -9009,12 +9009,18 @@ def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
             # own, but one that alternates with it). `_as_written` keeps `pattern.meaning` while changing the
             # words, and a word said in another's place can say what the frame does not: "There was a cup on the
             # table.", read through "There is a ?slot0 on the table.", TAUGHT "There was a ?slot0 on the table."
-            # with the tenseless meaning of the frame it was read through. Four such pairs of "is" and "was" were
-            # held -- `There ____ a ?slot0 on the table.`, `Who ____ ?slot0 ?`, `?slot0 ____ ?slot1 ?slot2.` and
-            # `The ?slot0 ____ ?slot1.` -- and four is what made the two words ways of saying one thing
-            # (`synonyms_of` needs two), so "The rock was heavy." read through the "is" frame and lost its
-            # "before now" by 0.42 nats (2026-11-20). A frame already held is still read and still linked; only
-            # the teaching of a NEW one on a substitution that can change the meaning is refused.
+            # with the tenseless meaning of the frame it was read through. A frame already held is still read and
+            # still linked; only the teaching of a NEW one on a substitution that can change the meaning is
+            # refused.
+            #
+            # THIS IS NOT THE WHOLE OF WHY "The rock was heavy." LOSES ITS "before now". Four places hold "is"
+            # and "was" alike, which is what makes them ways of saying one thing (`synonyms_of` needs two), and
+            # ONE OF THE FOUR IS TAUGHT: english_27's "The report is finished." and english_12's "The ball was
+            # kicked." are both `done_to & instance_of & precedes`, so English really does put either word
+            # there. The alternation is learned PER PLACE (`_note_alternation` keys a place by its shape AND its
+            # meaning) and then asked of every place at once (`synonyms_of` is keyed by the word alone), so an
+            # alternation attested only before a past participle licensed "was" in a `has_property` frame
+            # (measured 2026-11-20).
             frame = _as_written(pattern, words, spans, form)
             if frame is not pattern and frame.key not in view \
                     and _said_for(view, pattern.form, words, spans, str.__eq__):
