@@ -1571,6 +1571,26 @@ class PatternInventory:
             self._alternation_frames.setdefault(place, {})[item.key] = word
             self._frame_places.setdefault(item.key, []).append((place, word))
 
+    def alternates_at(self, item: Union["Pattern", "Phrase"], index: int, word: str) -> Optional[bool]:
+        """Whether a word is attested where this construction's own word at `index` stands -- in THAT place, which
+        is the shape with the word held out AND the meaning (`_note_alternation`). None where the place is not
+        held, so nothing is refused on the absence of evidence.
+
+        AN ALTERNATION IS LEARNED PER PLACE AND WAS ASKED OF EVERY PLACE. `_note_alternation` keys a place by its
+        shape and its meaning, so what it records is that two words stand THERE. `synonyms_of` is keyed by the
+        word alone and `written_for` takes no construction, so one place's evidence licensed the substitution
+        everywhere: english_27's "The report is finished." and english_12's "The ball was kicked." are both
+        `done_to & instance_of & precedes`, which is "is" and "was" alternating before a past participle -- and on
+        that alone "The rock was heavy." read through `The ?slot0 is ?slot1.` meaning `has_property`, where only
+        "is" has ever stood, and lost its "before now" by 0.42 nats (2026-11-20)."""
+        form = item.form
+        if not 0 <= index < len(form) or not isinstance(form[index], Piece):
+            return None
+        meaning = item.meaning.canonical() if isinstance(item, Pattern) else item.canonical()
+        shape = tuple(("slot", e.name) if isinstance(e, Slot) else e.text for e in form)
+        here = self._alternation.get((shape[:index] + (None,) + shape[index + 1:], meaning))
+        return _fold(word) in here if here else None
+
     def twins_of(self, frame: str) -> FrozenSet[str]:
         """The frames that are this one with a word of its own written in another of its shapes ("?slot0 is an
         ?slot1." for "?slot0 is a ?slot1."): one construction, written as the word after it asks."""
@@ -5272,7 +5292,7 @@ def _adjunct_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: 
             return _slot_fillings(view, frame, slots[k], pieces, start + a, start + b, chart,  # type: ignore[arg-type]
                                   extend=True, loose=loose)
         for spans, options in _coverings(adjunct.form, words, same, missing, shaped, fill):
-            said = _said_for(view, adjunct.form, words, spans, same)
+            said = _said_for(view, adjunct, words, spans, same)
             for combo in itertools.product(*options):
                 here, held = _new_here(combo)
                 if not _anchored(here, anchors + held):
@@ -5454,7 +5474,7 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
             # A PHRASE'S WORD READ THROUGH ANOTHER SAID IN ITS PLACE is supposed, as a frame's is: "chased the ?slot0"
             # read "chased a cat" for nothing, "a" and "the" being said in each other's place where meanings do not
             # tell them apart, and tied with "The ?slot0 chased a ?slot1.", taught for it.
-            said = _said_for(view, phrase.form, words, spans, same)
+            said = _said_for(view, phrase, words, spans, same)
             if not slots:
                 out.append(_Filling(phrase.anchor, phrase.facts, (phrase,), said_for=said))
                 break
@@ -5641,7 +5661,7 @@ def _analyses(words: Tuple[str, ...], view: PatternInventory, *, pieces: Optiona
         def fill(k: int, start: int, end: int) -> List[_Filling]:
             return _slot_fillings(view, pattern, slots[k], pieces, start, end, chart, extend=extend, loose=loose)
         for spans, options in _coverings(form, words, same, missing, shaped, fill):
-            said_for = _said_for(view, form, words, spans, same)
+            said_for = _said_for(view, pattern, words, spans, same)
             for combo in itertools.product(*options):
                 here, held = _new_here(combo)
                 if not _anchored(here, anchors + held):
@@ -5858,12 +5878,21 @@ def _unsaid(view: PatternInventory, constructions: Iterable[Construction], links
     return count
 
 
-def _said_for(view: PatternInventory, form: Tuple[FormElement, ...], words: Tuple[str, ...],
+def _said_for(view: PatternInventory, item: Union["Pattern", "Phrase", "Adjunct"], words: Tuple[str, ...],
               spans: Tuple[Tuple[int, int], ...], same: Callable[[str, str], bool]) -> int:
-    """How many of a frame's own words these words read through another said in their place: a word that is not
-    the frame's, nor one of its shapes the letter after it decides."""
+    """How many of a construction's own words these words read through another said in their place: a word that is
+    not the construction's, nor one of its shapes the letter after it decides.
+
+    IT DOES NOT REFUSE, AND ASKING IT TO WAS WRONG. `alternates_at` says whether the substituted word was ever
+    said in THIS place, and refusing on that broke three saying tests at once: a refused reading drops the best
+    candidate, so the bar `say` ranks against falls and MORE sentences come back
+    (`test_a_word_is_said_where_a_word_like_it_was_heard`, 2026-11-20). A place is held as a SET of words with no
+    count of its sightings, so a place seen once cannot be told from one seen a thousand times, and the absence
+    of a word from a thin place is not evidence against it -- which is the very thing `SUBJECTS_BEFORE_REFUSING`
+    exists to guard in the grammar. The per-place question is the right one and wants counted places first."""
+    form = item.form
     count, at, slots = 0, 0, iter(spans)
-    for element in form:
+    for index, element in enumerate(form):
         if isinstance(element, Slot):
             at = next(slots)[1]
             continue
@@ -8720,6 +8749,18 @@ def _said_whole(meaning: Meaning, view: PatternInventory, *, uses: Optional[Mapp
                             if joined is None and isinstance(first, Lexical) \
                                     and view.written_against(container.key, slot, first):
                                 written = True
+                            # A PHRASE BEGINNING WITH ITS OWN WORD IS WRITTEN WHERE THE SLOT'S FILLERS BEGIN SO,
+                            # as `_said_fillers` asks of a filler ("A dog" does not go where the slot's own never
+                            # had a word that names nothing, `filler_openings`). Only the slot-headed phrase above
+                            # was asked anything, so `The ?slot0` went into the slot of "Is ?slot0 a ?slot1?",
+                            # whose own "a" stands right before it: "Is writer roberts a The writer?", and
+                            # `All of the ?slot0` the same way (2026-11-20). Asked of the slot's own fillers, so
+                            # a slot that has held one is left alone; where it has held none, nothing is refused.
+                            openings = view.filler_openings(container.key, slot)
+                            if joined is None and isinstance(head, Piece) and not _is_mark(head.text) \
+                                    and openings and True not in openings \
+                                    and view.names_nothing(head.text):
+                                written = True
                         if written:
                             continue
                         order: List[Construction] = []
@@ -9023,7 +9064,7 @@ def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
             # (measured 2026-11-20).
             frame = _as_written(pattern, words, spans, form)
             if frame is not pattern and frame.key not in view \
-                    and _said_for(view, pattern.form, words, spans, str.__eq__):
+                    and _said_for(view, pattern, words, spans, str.__eq__):
                 continue
             frame = view.get(frame.key) or frame
             new_frame = () if frame.key in view else (frame,)
