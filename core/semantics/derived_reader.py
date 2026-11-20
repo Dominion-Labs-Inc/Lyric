@@ -2092,6 +2092,33 @@ class PatternInventory:
         after = self._heard_two.get(context) if len(context) == 2 else self._heard.get(context[0])
         return _fold(word) in (after or ())
 
+    #: HOW MANY WORDS MUST HAVE BEEN HEARD AFTER A WORD before the absence of one REFUSES writing it there,
+    #: rather than only weighing against it: a word few things were ever heard after says little about the things
+    #: they were not. The same reading of the same kind of evidence as the grammar's own `SUBJECTS_BEFORE_REFUSING`
+    #: and `NOUNS_BEFORE_REFUSING`, and the same number.
+    HEARD_AFTER_BEFORE_REFUSING = 20
+
+    def never_heard_there(self, before: Sequence[str], word: str) -> bool:
+        """Whether a word was NEVER heard right after these words, where enough other words were (`heard_there`,
+        `HEARD_AFTER_BEFORE_REFUSING`): evidence AGAINST writing it there, and never the absence of evidence.
+
+        A FRAME'S OWN WORD BEFORE A SLOT DECIDES WHAT MAY OPEN IT (`_own_before`, `_said_fillers`), where
+        `heard_there` only PREFERRED a filler heard after those words and had two ways of falling back behind it.
+
+        MEMBERSHIP, WHICH ONE SIGHTING DISARMS. `_heard` holds a SET of the words heard after a word, not counts,
+        so a single adjacency anywhere makes the word heard there for good: "the" is among the 8,368 words held
+        after "a", so this refuses nothing after "a" however rare "a the" is, and does refuse after "an" (330
+        words held, "the" among none) and after "the" (1,117, likewise). Refusing by SHARE, as the grammar's
+        `_cannot_take` does (`far_rarer`: twice as rare and outside the sampling error), is what this wants and
+        what the index cannot answer while it counts nothing (measured 2026-11-20)."""
+        if not before:
+            return False
+        context = self._heard_context(before[-1], before[-2] if len(before) > 1 else None)
+        after = self._heard_two.get(context) if len(context) == 2 else self._heard.get(context[0])
+        if not after or len(after) < self.HEARD_AFTER_BEFORE_REFUSING:
+            return False
+        return _fold(word) not in after
+
     def _heard_context(self, before: str, earlier: Optional[str]) -> Tuple[str, ...]:
         """What a word right after `before` is held against: the two words, where anything was heard after them,
         else the one."""
@@ -8360,6 +8387,19 @@ def _said_fillers(view: PatternInventory, pattern: Union[Pattern, Phrase], slot:
                     for lx in view.fillers(pattern.key, slot))
         return [(written, link(pattern, slot, written), "kind" if alike else "new")]
     linked = [lx for lx in held if view.link_between(pattern.key, slot, lx.key) is not None and fits(lx)]
+    # A WORD NEVER HEARD AFTER THE FRAME'S OWN WORDS IS NOT WRITTEN THERE (`never_heard_there`: evidence against,
+    # never its absence, as the grammar's `_disagrees` and `_cannot_take` refuse while it is saying). `heard_there`
+    # only PREFERRED a filler heard there and had two ways of falling back behind it, so a word nothing was ever
+    # heard to follow with was written there whenever nothing better was linked.
+    #
+    # REFUSED, THE SLOT ASKS ITS KIND NEXT, as it does for a concept no filler of its own is linked for: that is
+    # the cascade this function already is -- a filler linked to the slot, else one of the slot's learned kind,
+    # else the concept's own name -- so the thing is still said, in a word that may stand where it stands.
+    #
+    # THIS DOES NOT YET REACH "Is writer roberts a The writer?" (2026-11-20). That slot offers only the bare
+    # `('writer',)`, of its kind and linked to nothing, and no filler `('The', 'writer')` is held for the concept
+    # at all, so the "The" is written by something other than this cascade and is still to be found.
+    linked = [lx for lx in linked if not view.never_heard_there(after, lx.words[0])]
     if linked:
         placed = ([lx for lx in linked if view.heard_there(after, lx.words[0])]
                   or [lx for lx in linked if in_shape(lx)] or linked)
@@ -8516,18 +8556,27 @@ def say(meaning: Meaning, inventory: Optional[PatternInventory] = None, *,
     sentence for the meaning puts none so. `heard`: not even then, for a speaker with more than one meaning for what
     it says: an event held at no time, asked of at one, is said "The kelt might chase the fip.", at none, before "The
     kelt did might chase the fip.", at the time asked."""
-    if inventory is None:
-        # SAID BY THE GRAMMAR IT IS READ BY (`GrammarView.say`), as memory holds it: every sentence the grammar makes
-        # of the meaning's words that reads back to exactly it. The constructions taught say what it does not yet say,
-        # until it says all they do.
+    view = inventory if inventory is not None else _live_inventory()
+    said = _said_whole(meaning, view, uses=uses, named=named, framed=framed, apart=apart, heard=heard)
+    if not said and inventory is None:
+        # SAID BY THE GRAMMAR IT IS READ BY (`GrammarView.say`), as memory holds it: every sentence the grammar
+        # makes of the meaning's words that reads back to exactly it. Asked WHERE THE CONSTRUCTIONS TAUGHT SAY
+        # NOTHING, so that it says what they do not yet say and never instead of what they do.
+        #
+        # THE GRAMMAR SPOKE ON EXISTENCE AND NOT ON RANK. This ran FIRST and returned whatever it had at all
+        # (`if by_grammar: return by_grammar`), so `_said_whole` was never reached while the grammar had
+        # anything: asked `isa(nazi party, party)`, the grammar said "Nazi party's a political party?", "Nazi
+        # party's political parties?" and "Nazi party's a political parties?" -- the last with a surety of
+        # 1.000, because surety is the share of a sentence's readings that are this meaning and a sentence
+        # malformed enough has only the one -- while the frames said "Is a nazi party a party?" and three more,
+        # and not one of them was ever offered (2026-11-20). A sentence read back is asked whether it MEANS
+        # this and never whether it is English, and the reader that answers must forgive a learner's English
+        # (`Grammar._saying`: what reading forgives, saying does not produce); a frame's sentence was taught,
+        # and supposes less (`_best_first`).
         from core.agents import memory_agent as _memory
         grammar = getattr(_memory._memory_agent, "grammar_view", None)
         if grammar is not None:
-            by_grammar = tuple(grammar().say(meaning, named=named))
-            if by_grammar:
-                return by_grammar
-    view = inventory if inventory is not None else _live_inventory()
-    said = _said_whole(meaning, view, uses=uses, named=named, framed=framed, apart=apart, heard=heard)
+            said = tuple(grammar().say(meaning, named=named))
     if said or not meaning.unasserted:
         return said
     # WHAT SOMEONE SAID, WHERE NO SENTENCE SAYS IT WHOLE ("Tom said that the dog barked." does): the sentence around
@@ -8952,8 +9001,24 @@ def item_based_lexical(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
         if not view.counts(pattern):
             continue
         for spans in _chunkings(pattern.form, words, shaped=shaped):
-            # Read through a frame whose word it writes in another shape, the sentence teaches that frame as written.
+            # Read through a frame whose word it writes in another SHAPE, the sentence teaches that frame as
+            # written ("An ocelot" for the "A" of "A ?slot0 is a ?slot1."): two spellings of one word say one
+            # thing, so the frame written the other way means what this one means.
+            #
+            # NEVER WHERE A WORD WAS SAID IN ANOTHER'S PLACE (`_said_for`: a word that is no shape of the frame's
+            # own, but one that alternates with it). `_as_written` keeps `pattern.meaning` while changing the
+            # words, and a word said in another's place can say what the frame does not: "There was a cup on the
+            # table.", read through "There is a ?slot0 on the table.", TAUGHT "There was a ?slot0 on the table."
+            # with the tenseless meaning of the frame it was read through. Four such pairs of "is" and "was" were
+            # held -- `There ____ a ?slot0 on the table.`, `Who ____ ?slot0 ?`, `?slot0 ____ ?slot1 ?slot2.` and
+            # `The ?slot0 ____ ?slot1.` -- and four is what made the two words ways of saying one thing
+            # (`synonyms_of` needs two), so "The rock was heavy." read through the "is" frame and lost its
+            # "before now" by 0.42 nats (2026-11-20). A frame already held is still read and still linked; only
+            # the teaching of a NEW one on a substitution that can change the meaning is refused.
             frame = _as_written(pattern, words, spans, form)
+            if frame is not pattern and frame.key not in view \
+                    and _said_for(view, pattern.form, words, spans, str.__eq__):
+                continue
             frame = view.get(frame.key) or frame
             new_frame = () if frame.key in view else (frame,)
             # A frame held and no longer believed is one this pair supports again: given to `_repair`, it is revived.
