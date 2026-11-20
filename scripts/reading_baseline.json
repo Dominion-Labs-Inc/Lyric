@@ -4,103 +4,103 @@
       "cells": 132,
       "charts": 2,
       "doing": "add",
-      "rss_gb": 11.29,
-      "seconds": 20.0,
-      "signs": 5236
+      "rss_gb": 13.82,
+      "seconds": 13.7,
+      "signs": 5999
     },
     "Add or improve docstrings for Python functions and classes.": {
       "cells": 55,
       "charts": 1,
       "doing": "add",
-      "rss_gb": 11.29,
-      "seconds": 0.4,
+      "rss_gb": 13.82,
+      "seconds": 0.3,
       "signs": 2669
     },
     "Add strategic logging statements to code using AST analysis.": {
       "cells": 55,
       "charts": 1,
       "doing": "add",
-      "rss_gb": 11.31,
-      "seconds": 2.0,
+      "rss_gb": 13.82,
+      "seconds": 1.4,
       "signs": 1763
     },
     "Add type hints to Python functions by static inference over the AST (literal defaults and return expressions).": {
-      "cells": 186,
+      "cells": 190,
       "charts": 1,
       "doing": "add",
-      "rss_gb": 11.35,
-      "seconds": 14.9,
-      "signs": 7322
+      "rss_gb": 13.94,
+      "seconds": 12.4,
+      "signs": 7436
     },
     "Aggregate data by grouping and applying operations.": {
       "cells": 36,
       "charts": 1,
       "doing": "come aggregate",
-      "rss_gb": 11.35,
-      "seconds": 0.3,
+      "rss_gb": 13.94,
+      "seconds": 0.2,
       "signs": 970
     },
     "Analyze Python code quality (complexity, maintainability).": {
       "cells": 51,
       "charts": 1,
       "doing": "analyze",
-      "rss_gb": 11.35,
-      "seconds": 0.5,
+      "rss_gb": 13.94,
+      "seconds": 0.4,
       "signs": 1003
     },
     "Analyze Python code structure (imports, functions, classes, etc.).": {
       "cells": 116,
       "charts": 1,
       "doing": "analyze",
-      "rss_gb": 11.35,
-      "seconds": 0.7,
+      "rss_gb": 13.94,
+      "seconds": 0.5,
       "signs": 2324
     },
     "Apply transformations to data (select fields, rename, etc.).": {
       "cells": 101,
       "charts": 1,
       "doing": "use",
-      "rss_gb": 11.35,
-      "seconds": 0.4,
+      "rss_gb": 13.94,
+      "seconds": 0.3,
       "signs": 2094
     },
     "Detect anomalous behavior patterns in traffic, access patterns, and user activity.": {
       "cells": 105,
       "charts": 1,
       "doing": "detect",
-      "rss_gb": 11.35,
-      "seconds": 1.1,
+      "rss_gb": 13.94,
+      "seconds": 0.8,
       "signs": 4447
     },
     "Find TODO, FIXME, HACK, and XXX comments in code.": {
       "cells": 182,
       "charts": 2,
       "doing": "discover",
-      "rss_gb": 11.35,
-      "seconds": 2.1,
+      "rss_gb": 13.94,
+      "seconds": 1.4,
       "signs": 12029
     },
     "Generate Architecture Decision Records.": {
       "cells": 12,
       "charts": 1,
       "doing": "generate",
-      "rss_gb": 11.35,
-      "seconds": 0.2,
+      "rss_gb": 13.94,
+      "seconds": 0.1,
       "signs": 46
     },
     "Generate cryptographically secure random password.": {
       "cells": 42,
       "charts": 2,
       "doing": "generate",
-      "rss_gb": 11.35,
-      "seconds": 0.4,
+      "rss_gb": 13.94,
+      "seconds": 0.3,
       "signs": 1062
     },
     "Sort data by field.": {
       "cells": 15,
       "charts": 1,
       "doing": "choose screen",
-      "rss_gb": 11.35,
+      "rss_gb": 13.94,
       "seconds": 0.2,
       "signs": 441
     },
@@ -108,7 +108,7 @@
       "cells": 8,
       "charts": 1,
       "doing": "confirm validate",
-      "rss_gb": 11.35,
+      "rss_gb": 13.94,
       "seconds": 0.2,
       "signs": 31
     },
@@ -116,29 +116,31 @@
       "cells": 8,
       "charts": 1,
       "doing": "confirm validate",
-      "rss_gb": 11.35,
-      "seconds": 0.2,
+      "rss_gb": 13.94,
+      "seconds": 0.1,
       "signs": 31
     },
     "Validate YAML data.": {
       "cells": 8,
       "charts": 1,
       "doing": "confirm validate",
-      "rss_gb": 11.35,
-      "seconds": 0.2,
+      "rss_gb": 13.94,
+      "seconds": 0.1,
       "signs": 31
     }
   },
   "long": {
     "Depending on the intensity, rain can be described as a drizzle (very light, sporadic rainfall), a shower (brief, moderate rainfall), a cloudburst (brief heavy rainfall) or a downpour (prolonged heavy or \u201ctorrential\u201d rainfall).": {
-      "built": [],
-      "cells": 811,
+      "built": [
+        "tell: about(?v0, ?v1) & done_by(?v0, ?v10) & done_by(?v11, ?v12) & done_by(?v11, ?v2) & done_to(?v11, ?v3) & either has_property(?v4, heavy) & either has_property(?v4, torrential) & given instance_of(?v5, intensity) & has_member(?v12, ?v6) & has_member(?v12, ?v7) & has_member(?v2, ?v5) & has_member(?v2, ?v8) & has_property(?v1, brief) & has_property(?v1, cloudburst) & has_property(?v1, heavy) & has_property(?v4, drawn-out) & has_property(?v6, sporadic) & has_property(?v9, moderate) & instance_of(?v0, instruct brief) & instance_of(?v1, rain) & instance_of(?v10, rain shower) & instance_of(?v11, describe) & instance_of(?v2, conditional contingent) & instance_of(?v3, drizzle) & instance_of(?v4, downpour) & instance_of(?v4, rain) & instance_of(?v6, rain) & instance_of(?v7, very light) & instance_of(?v8, rain) & instance_of(?v9, rain) & precedes(?v0, ?now) & precedes(?v11, ?now) & received_by(?v0, ?v9)"
+      ],
+      "cells": 1022,
       "charts": 1,
-      "read": null,
-      "readings": 0,
-      "rss_gb": 4.84,
-      "seconds": 58.8,
-      "signs": 45858,
+      "read": "tell: about(?v0, ?v1) & done_by(?v0, ?v10) & done_by(?v11, ?v12) & done_by(?v11, ?v2) & done_to(?v11, ?v3) & either has_property(?v4, heavy) & either has_property(?v4, torrential) & given instance_of(?v5, intensity) & has_member(?v12, ?v6) & has_member(?v12, ?v7) & has_member(?v2, ?v5) & has_member(?v2, ?v8) & has_property(?v1, brief) & has_property(?v1, cloudburst) & has_property(?v1, heavy) & has_property(?v4, drawn-out) & has_property(?v6, sporadic) & has_property(?v9, moderate) & instance_of(?v0, instruct brief) & instance_of(?v1, rain) & instance_of(?v10, rain shower) & instance_of(?v11, describe) & instance_of(?v2, conditional contingent) & instance_of(?v3, drizzle) & instance_of(?v4, downpour) & instance_of(?v4, rain) & instance_of(?v6, rain) & instance_of(?v7, very light) & instance_of(?v8, rain) & instance_of(?v9, rain) & precedes(?v0, ?now) & precedes(?v11, ?now) & received_by(?v0, ?v9)",
+      "readings": 1,
+      "rss_gb": 14.15,
+      "seconds": 76.0,
+      "signs": 57493,
       "utterances": 1,
       "words": 33
     },
@@ -150,9 +152,9 @@
       "charts": 1,
       "read": "tell: done_by(?v0, ?v1) & done_by(?v10, ?v2) & done_by(?v3, ?v2) & done_to(?v0, ?v4) & either has_member(?v5, ?v6) & either has_member(?v5, ?v7) & either instance_of(?v6, fresh water rain) & either instance_of(?v7, fresh water rain) & has_property(?v4, atmospheric) & has_property(?v8, atmospheric) & instance_of(?v0, compose) & instance_of(?v1, droplet) & instance_of(?v10, condense) & instance_of(?v2, water aerosol) & instance_of(?v3, fall) & instance_of(?v4, weather precipitation) & instance_of(?v5, form) & instance_of(?v8, water vapor) & instance_of(?v9, gravity) & moves_from(?v10, ?v8) & moves_to(?v3, ?v9) & precedes(?v10, ?now) & word_of(?v1, ?v2) & word_of(?v5, ?v4)",
       "readings": 1,
-      "rss_gb": 11.8,
-      "seconds": 27.3,
-      "signs": 26939,
+      "rss_gb": 14.13,
+      "seconds": 19.1,
+      "signs": 26986,
       "utterances": 1,
       "words": 26
     }
@@ -166,7 +168,7 @@
       "cells": 0,
       "charts": 0,
       "read": "ask: antonym_of(able, unable)",
-      "rss_gb": 11.35,
+      "rss_gb": 13.94,
       "seconds": 0.1,
       "signs": 0
     },
@@ -176,12 +178,12 @@
         "ask: antonym_of(abstraction absolute, ?v0) & instance_of(?v0, person relative)",
         "ask: antonym_of(\u27e83\u27e8absolute, \u27e82\u27e8relative)"
       ],
-      "cells": 24,
+      "cells": 27,
       "charts": 1,
       "read": "ask: antonym_of(absolute, relative)",
-      "rss_gb": 11.35,
+      "rss_gb": 13.94,
       "seconds": 0.1,
-      "signs": 191
+      "signs": 209
     },
     "Is big the opposite of small?": {
       "answered": true,
@@ -191,8 +193,8 @@
       "cells": 0,
       "charts": 0,
       "read": "ask: antonym_of(big, small)",
-      "rss_gb": 11.35,
-      "seconds": 0.2,
+      "rss_gb": 13.94,
+      "seconds": 0.1,
       "signs": 0
     },
     "Is good the opposite of bad?": {
@@ -203,7 +205,7 @@
       "cells": 0,
       "charts": 0,
       "read": "ask: antonym_of(good, bad)",
-      "rss_gb": 11.35,
+      "rss_gb": 13.94,
       "seconds": 0.1,
       "signs": 0
     }
@@ -211,22 +213,22 @@
   "paragraph": {
     "Rain or rainfall is a form of atmospheric precipitation comp": {
       "built": [
-        "ask: about(?v0, ?v1) & given instance_of(?v1, fresh water) & given instance_of(?v2, water) & has_degree(?v0, ?v3) & has_degree(?v4, ?v5) & has_member(rain, ?v6) & has_property(?v3, most) & has_property(?v5, most) & has_property(rain, better major) & instance_of(?v0, causative responsible) & instance_of(?v3, fasten lodge) & instance_of(?v5, on earth) & instance_of(?v6, hertz) & isa(rain, component) & word_of(rain, ?v2)",
+        "ask: about(?v0, ?v1) & given instance_of(?v1, fresh water) & given instance_of(?v2, water) & has_degree(?v0, ?v3) & has_member(rain, ?v4) & has_property(?v3, most) & has_property(rain, major) & instance_of(?v0, causative responsible) & instance_of(?v3, fasten lodge) & instance_of(?v4, hertz) & isa(rain, component) & word_of(rain, ?v2)",
         "request: done_by(?v0, ?listener) & done_by(?v1, ?listener) & done_to(?v0, ?v2) & instance_of(?v0, sandstorm) & instance_of(?v1, precipitate sleet) & instance_of(?v2, dust rain)",
-        "tell: about(?v0, ?v1) & about(?v2, ?v0) & given instance_of(?v1, fresh water) & given instance_of(?v3, water cycle) & greatest_of(?v4, deposit) & has_degree(?v0, ?v4) & has_property(?v2, major) & has_property(?v2, responsible) & has_property(?v5, on earth) & instance_of(?v0, deposit) & instance_of(?v2, and) & instance_of(?v2, component) & instance_of(?v4, most) & isa(rain, component) & word_of(?v2, ?v3)",
+        "tell: about(?v0, ?v1) & about(?v2, ?v0) & given instance_of(?v1, fresh water) & given instance_of(?v3, water cycle) & greatest_of(?v4, deposit) & has_degree(?v0, ?v4) & has_property(?v2, major) & has_property(?v2, responsible) & instance_of(?v0, deposit) & instance_of(?v2, and) & instance_of(?v2, component) & instance_of(?v4, most) & isa(rain, component) & word_of(?v2, ?v3)",
+        "tell: about(?v0, ?v1) & done_by(?v0, ?v10) & done_by(?v11, ?v12) & done_by(?v11, ?v2) & done_to(?v11, ?v3) & either has_property(?v4, heavy) & either has_property(?v4, torrential) & given instance_of(?v5, intensity) & has_member(?v12, ?v6) & has_member(?v12, ?v7) & has_member(?v2, ?v5) & has_member(?v2, ?v8) & has_property(?v1, brief) & has_property(?v1, cloudburst) & has_property(?v1, heavy) & has_property(?v4, drawn-out) & has_property(?v6, sporadic) & has_property(?v9, moderate) & instance_of(?v0, instruct brief) & instance_of(?v1, rain) & instance_of(?v10, rain shower) & instance_of(?v11, describe) & instance_of(?v2, conditional contingent) & instance_of(?v3, drizzle) & instance_of(?v4, downpour) & instance_of(?v4, rain) & instance_of(?v6, rain) & instance_of(?v7, very light) & instance_of(?v8, rain) & instance_of(?v9, rain) & precedes(?v0, ?now) & precedes(?v11, ?now) & received_by(?v0, ?v9)",
         "tell: done_by(?v0, ?v1) & done_by(?v10, ?v2) & done_by(?v3, ?v2) & done_to(?v0, ?v4) & either has_member(?v5, ?v6) & either has_member(?v5, ?v7) & either instance_of(?v6, fresh water rain) & either instance_of(?v7, fresh water rain) & has_property(?v4, atmospheric) & has_property(?v8, atmospheric) & instance_of(?v0, compose) & instance_of(?v1, droplet) & instance_of(?v10, condense) & instance_of(?v2, water aerosol) & instance_of(?v3, fall) & instance_of(?v4, weather precipitation) & instance_of(?v5, form) & instance_of(?v8, water vapor) & instance_of(?v9, gravity) & moves_from(?v10, ?v8) & moves_to(?v3, ?v9) & precedes(?v10, ?now) & word_of(?v1, ?v2) & word_of(?v5, ?v4)"
       ],
-      "cells": 2802,
+      "cells": 3013,
       "charts": 8,
       "left_unread": [
-        "Depending on the intensity, rain can be described as a drizzle (very light, spor",
         "It is also often accompanied by other weather phenomena such as strong wind (rai"
       ],
-      "readings": 4,
-      "rss_gb": 11.32,
-      "seconds": 291.4,
-      "signs": 236436,
-      "unread": 2,
+      "readings": 5,
+      "rss_gb": 13.62,
+      "seconds": 267.1,
+      "signs": 270922,
+      "unread": 1,
       "utterances": 5,
       "words": 110
     }
@@ -236,14 +238,14 @@
       "built": [
         "tell: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, hole vent) & moves_through(?v0, ?v2)"
       ],
-      "cells": 3952,
-      "charts": 293,
+      "cells": 5299,
+      "charts": 363,
       "read": "tell: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air) & instance_of(?v2, hole vent) & moves_through(?v0, ?v2)",
       "readings": 1,
       "reply": "",
-      "rss_gb": 11.71,
-      "seconds": 46.9,
-      "signs": 93371
+      "rss_gb": 14.53,
+      "seconds": 35.2,
+      "signs": 129877
     },
     "Do whales breathe air?": {
       "built": [
@@ -251,28 +253,28 @@
         "ask: done_by(?v0, whale) & done_to(?v0, \u27e82\u27e8air) & instance_of(?v0, \u27e81\u27e8breathe)",
         "ask: done_by(?v0, whale) & instance_of(?v0, \u27e81\u27e8breathe) & received_by(?v0, \u27e82\u27e8air)"
       ],
-      "cells": 4994,
-      "charts": 257,
+      "cells": 4859,
+      "charts": 250,
       "read": "ask: done_by(?v0, whale) & done_to(?v0, ?v1) & instance_of(?v0, breathe) & instance_of(?v1, air)",
       "readings": 3,
       "reply": "Yes.",
-      "rss_gb": 11.72,
-      "seconds": 21.7,
-      "signs": 107935
+      "rss_gb": 14.14,
+      "seconds": 24.4,
+      "signs": 118701
     },
     "Does sorted return a new list?": {
       "built": [
         "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v2, new) & if done_to(?v3, ?v1) & if instance_of(?v1, doe) & if instance_of(?v3, choose screen) & instance_of(?v0, return) & instance_of(?v2, list)",
-        "ask: done_by(?v0, tax return) & done_to(?v1, tax return) & has_member(tax return, ?v2) & instance_of(?v0, enumerate list) & instance_of(?v1, choose screen) & instance_of(?v2, new)"
+        "ask: done_by(?v0, tax return) & done_to(?v1, tax return) & instance_of(?v0, enumerate list) & instance_of(?v1, choose screen) & instance_of(?v2, new)"
       ],
-      "cells": 4850,
-      "charts": 281,
+      "cells": 5080,
+      "charts": 296,
       "read": "ask: done_by(?v0, ?v1) & done_to(?v0, ?v2) & has_property(?v2, new) & if done_to(?v3, ?v1) & if instance_of(?v1, doe) & if instance_of(?v3, choose screen) & instance_of(?v0, return) & instance_of(?v2, list)",
       "readings": 2,
       "reply": "A choose screen's a choose.\nDoes are eutherians.\nA list's a database.",
-      "rss_gb": 11.74,
-      "seconds": 36.4,
-      "signs": 81556
+      "rss_gb": 14.14,
+      "seconds": 25.3,
+      "signs": 90024
     },
     "The note was long.": {
       "built": [
@@ -283,24 +285,25 @@
       "cells": 0,
       "charts": 0,
       "read": "tell: given instance_of(?v0, musical notation note) & instance_of(?v1, long) & precedes(?v1, ?now) & state_of(?v1, ?v0)",
-      "readings": 4,
+      "readings": 5,
       "reply": "I did not take that as a fact - insufficient support: quality 0.455 < floor 0.5. If I am wrong, correct me and I will we",
-      "rss_gb": 11.74,
-      "seconds": 1.8,
+      "rss_gb": 14.14,
+      "seconds": 1.3,
       "signs": 0
     },
     "The rock was heavy.": {
       "built": [
+        "tell: given instance_of(?v0, \u27e81\u27e8rock) & has_property(?v0, \u27e82\u27e8heavy)",
         "tell: given instance_of(?v0, \u27e81\u27e8rock) & instance_of(?v1, \u27e82\u27e8heavy) & precedes(?v1, ?now) & state_of(?v1, ?v0)"
       ],
-      "cells": 0,
-      "charts": 0,
-      "read": "tell: given instance_of(?v0, material rock) & instance_of(?v1, heavy) & precedes(?v1, ?now) & state_of(?v1, ?v0)",
-      "readings": 2,
-      "reply": "Noted - The rock was heavy.",
-      "rss_gb": 11.74,
-      "seconds": 2.7,
-      "signs": 0
+      "cells": 7818,
+      "charts": 374,
+      "read": "tell: given instance_of(?v0, material rock) & has_property(?v0, heavy)",
+      "readings": 6,
+      "reply": "Noted - The rock is heavy.",
+      "rss_gb": 14.14,
+      "seconds": 6.8,
+      "signs": 83644
     }
   }
 }

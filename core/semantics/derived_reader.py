@@ -7096,21 +7096,53 @@ def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: Patter
 class Weighed(NamedTuple):
     """One reading as the listener weighs it (`weighed`): what memory knows of its facts (`known`: 2 held of the things
     themselves, 1 of what they are kinds of), what their definitions say (`defined`: 2 one written with the other, 1
-    with what it is a kind of), how much it supposed past its words (`fit`: its links proposed, words read through
-    another, misfits and fillers apart, `Reading.supposed`), its activation in nats (how often its own senses were
-    met, `ln(1 + uses)`, what the other words select of them and what the rest raises), and how probable its
-    structure is (`_derivation`, ln)."""
+    with what it is a kind of), how many links it had to suppose (`proposed`) and how badly what it put in a slot
+    fits that slot (`misplaced`), its activation in nats (how often its own senses were met, `ln(1 + uses)`, what
+    the other words select of them and what the rest raises), and how probable its structure is (`_derivation`, ln).
+
+    TWO QUESTIONS, NOT ONE SUM. These were a single `fit`, `sum(Reading.supposed[2:])` -- the links proposed, the
+    fillers written otherwise than the slot's own, and the held fillers that never stood beside them, added
+    together. `supposed` compares those three IN ORDER and never adds them, because they are different kinds of
+    supposition, and adding them made one `apart` buy one `proposed`: "Are Psalms part of Old Testament?" read
+    through the taught `part of` frame and the taught name supposes (2, 0, 1) and the reading that takes
+    "Testament" for a will supposes (3, 0, 0), so both came to 3 and the listener could not tell them apart at
+    all (2026-11-19).
+
+    AND THE SUM SATURATED WHERE EVERY REAL SENTENCE LIVES. `fit` had four levels, so everything from 3 upward was
+    one level: of 20,442 readings of 235 lesson sentences that read more than one way, 74.1% sat on it. Three
+    quarters of what the listener was shown carried the same mark. Split, `proposed` spreads 1.6 / 11.0 / 28.2 /
+    32.8 / 23.2 with a 3.2% tail, and `misplaced` 51.9 / 32.6 / 15.5."""
     reading: Reading
     known: int
     defined: int
-    fit: int
+    proposed: int
+    misplaced: int
     activation: float
     derivation: float
 
 
 #: The listener's evidence it weighs by what it was measured to be worth, with how many levels each has (the last
-#: holding all above it): what memory knows, what definitions say, and how much a reading supposed past its words.
-LISTENING_LEVELS = {"known": 3, "defined": 3, "fit": 4}
+#: holding all above it): what memory knows, what definitions say, how many links a reading had to suppose, and how
+#: badly what it put in a slot fits that slot.
+#:
+#: HOW MANY LEVELS EACH NEEDS IS MEASURED, over every reading of the 235 of 300 sampled lesson sentences that read
+#: more than one way -- which is the only sentence `listening_counts` counts, so it is the distribution this
+#: channel is learned on (2026-11-19):
+#:
+#:     proposed   0: 1.6%   1: 11.0%   2: 28.2%   3: 32.8%   4: 23.2%   5 or more: 3.2%
+#:     misplaced  0: 51.9%  1: 32.6%   2: 15.5%
+#:
+#: So six and three: 96.8% of readings land on a level of their own rather than in the one that holds the rest.
+#: The `fit` these replace had four, and 74.1% of all readings sat on its top one.
+#:
+#: RENAMED RATHER THAN RESHAPED, because the counts held against the old names measure a different quantity -- the
+#: three added together -- and `listening_worths` smooths with Laplace, so a level with no count of its own beside
+#: levels that have one is given a POSITIVE worth: an unseen level would read as evidence FOR. With no counts at
+#: all for either name, every level comes out `ln(1) = 0` ("a listener that has counted nothing weighs every level
+#: at nothing"), so these say nothing until they are counted (`--source listening`) and cannot say anything wrong
+#: before then. The beliefs held under "a reading heard with fit at N ..." measure the summed quantity and nothing
+#: reads them now.
+LISTENING_LEVELS = {"known": 3, "defined": 3, "proposed": 6, "misplaced": 3}
 
 #: HOW MANY READINGS THE COUNTING PASS ASKS FOR (`listening_counts`), which is not how many anything else asks for
 #: (`composing_width`).
@@ -7216,8 +7248,12 @@ def weighed(readings: Sequence[Reading], inventory: Optional[PatternInventory] =
         base = sum(math.log1p(_met(view, c)) for c in reading.constructions if naming(c, own))
         activation = base + sum(selected.get(held_key(f), 0.0) for f in facts) + \
             sum(related.get(term, 0.0) for term in senses.get(key, ()))
+        # THE THREE KINDS OF SUPPOSITION ARE NOT ADDED (`Weighed`): the links proposed are one question, and how
+        # the fillers sit in their slots is another. `Reading.supposed` is (loose, new words, proposed, misfits,
+        # apart).
         out.append(Weighed(reading, sum(held.get(held_key(f), 0) for f in facts),
-                           sum(defined.get(held_key(f), 0) for f in facts), sum(reading.supposed[2:]),
+                           sum(defined.get(held_key(f), 0) for f in facts),
+                           reading.supposed[2], reading.supposed[3] + reading.supposed[4],
                            activation, _derivation(reading, view)))
     return out
 
@@ -7285,14 +7321,16 @@ def _always(reading: Reading, terms: FrozenSet[str], view: PatternInventory, lis
 
 class _Weighing(NamedTuple):
     """A reading as the listener weighs it, its packed words' senses still to choose (`_choices`): what does not turn
-    on them, in nats and in the evidence counted in levels (known, defined, fit), and, for each packed word, each
-    sense's own share and the facts it shares with another."""
+    on them, in nats and in the evidence counted in levels (known, defined, proposed, misplaced), and, for each
+    packed word, each sense's own share and the facts it shares with another.
+
+    `own`: per sense, its share in nats and what it adds to the two counted suppositions."""
     reading: Reading
     words: Tuple[str, ...]
     options: Tuple[Tuple[Tuple[Sense, Tuple[int, int, int]], ...], ...]
     fixed: float
-    counted: Tuple[int, int, int]
-    own: Tuple[Tuple[Tuple[float, int], ...], ...]
+    counted: Tuple[int, int, int, int]
+    own: Tuple[Tuple[Tuple[float, int, int], ...], ...]
     facts: Tuple[Tuple[Tuple[int, ...], Dict[Tuple[int, ...], Tuple[float, int, int]]], ...]
 
 
@@ -7355,20 +7393,26 @@ def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: 
             if stand_in in listened_words and value not in shared:
                 share += related.get(value, 0.0)
             share += _derivation_of((sense.link,), (), view) if sense.held else _derivation_of((), (sense.link,), view)
-            shares.append((share, sum(cost)))
+            # `cost` is (proposed, misfits, apart) for taking this sense here; the last two are one question.
+            shares.append((share, cost[0], cost[1] + cost[2]))
         own.append(tuple(shares))
-    fit = (len(reading.proposed) + reading.said_for + reading.misfits + reading.apart
-           + (_composed_supposes(reading) if reading.composed else 0))
-    return _Weighing(reading, words, options, fixed, (known, defined_count, fit), tuple(own), tuple(facts))
+    proposed_links = (len(reading.proposed) + reading.said_for
+                      + (_composed_supposes(reading) if reading.composed else 0))
+    misplaced = reading.misfits + reading.apart
+    return _Weighing(reading, words, options, fixed, (known, defined_count, proposed_links, misplaced),
+                     tuple(own), tuple(facts))
 
 
 #: How many of each count of the listener's evidence tell apart, as its levels do (`LISTENING_LEVELS`): known,
-#: defined, fit.
-_LEVELS = (LISTENING_LEVELS["known"] - 1, LISTENING_LEVELS["defined"] - 1, LISTENING_LEVELS["fit"] - 1)
+#: defined, proposed, misplaced. The state `_choices` carries is these four, each capped, so what the best choice
+#: of senses is can be worked out part by part.
+_LEVELS = (LISTENING_LEVELS["known"] - 1, LISTENING_LEVELS["defined"] - 1,
+           LISTENING_LEVELS["proposed"] - 1, LISTENING_LEVELS["misplaced"] - 1)
+_Counted = Tuple[int, int, int, int]
 
 
-def _levelled(a: Tuple[int, int, int], b: Tuple[int, int, int]) -> Tuple[int, int, int]:
-    return (min(a[0] + b[0], _LEVELS[0]), min(a[1] + b[1], _LEVELS[1]), min(a[2] + b[2], _LEVELS[2]))
+def _levelled(a: _Counted, b: _Counted) -> _Counted:
+    return tuple(min(x + y, cap) for x, y, cap in zip(a, b, _LEVELS))
 
 
 def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
@@ -7377,16 +7421,17 @@ def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
     (score, the sense each word takes). Found word by word over the facts that join them (variable elimination: each
     word's senses weighed against the words it shares facts with, then set aside), never every choice crossed: what
     the listener weighs is a sum over words and over facts between two, and what it counts in levels is a small
-    state (known, defined, fit, each capped at its last level), so the best of the whole is made of the best of its
+    state (known, defined, proposed, misplaced, each capped at its last level), so the best of the whole is made
     parts for each state. A few kept for each state, so ties are found and asked about."""
     n = len(weighing.words)
     # A factor: its words, and for each choice of their senses, a few (score, counted, the senses of words set aside).
-    Entry = Tuple[float, Tuple[int, int, int], Tuple[Tuple[int, int], ...]]
+    Entry = Tuple[float, _Counted, Tuple[Tuple[int, int], ...]]
     factors: List[Tuple[Tuple[int, ...], Dict[Tuple[int, ...], List[Entry]]]] = []
     for k, shares in enumerate(weighing.own):
-        factors.append(((k,), {(x,): [(share, (0, 0, min(fit, _LEVELS[2])), ())] for x, (share, fit) in enumerate(shares)}))
+        factors.append(((k,), {(x,): [(share, (0, 0, min(proposed, _LEVELS[2]), min(misplaced, _LEVELS[3])), ())]
+                               for x, (share, proposed, misplaced) in enumerate(shares)}))
     for scope, table in weighing.facts:
-        factors.append((scope, {choice: [(value, (min(h, _LEVELS[0]), min(d, _LEVELS[1]), 0), ())]
+        factors.append((scope, {choice: [(value, (min(h, _LEVELS[0]), min(d, _LEVELS[1]), 0, 0), ())]
                                 for choice, (value, h, d) in table.items()}))
 
     def kept(entries: Iterable[Entry]) -> List[Entry]:
@@ -7414,20 +7459,21 @@ def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
             gathered: List[Entry] = []
             for x in range(len(weighing.options[word])):
                 given[word] = x
-                entries: List[Entry] = [(0.0, (0, 0, 0), ((word, x),))]
+                entries: List[Entry] = [(0.0, (0, 0, 0, 0), ((word, x),))]
                 for s, t in touching:
                     entries = joined(entries, t[tuple(given[j] for j in s)])
                 gathered.extend(entries)
             table[rest] = kept(gathered)
         factors.append((scope, table))
-    entries: List[Entry] = [(weighing.fixed, (min(weighing.counted[0], _LEVELS[0]), min(weighing.counted[1], _LEVELS[1]),
-                                               min(weighing.counted[2], _LEVELS[2])), ())]
+    entries: List[Entry] = [(weighing.fixed,
+                             tuple(min(n, cap) for n, cap in zip(weighing.counted, _LEVELS)), ())]
     for _, t in factors:
         entries = joined(entries, t[()])
     scored = []
     for value, counted, chosen in entries:
         score = round(value + worths.get(("known", counted[0]), 0.0) + worths.get(("defined", counted[1]), 0.0)
-                      + worths.get(("fit", counted[2]), 0.0), 6)
+                      + worths.get(("proposed", counted[2]), 0.0)
+                      + worths.get(("misplaced", counted[3]), 0.0), 6)
         senses = dict(chosen)
         scored.append((score, tuple(senses[k] for k in range(n))))
     return sorted(scored, key=lambda pair: -pair[0])[:best]
@@ -7436,14 +7482,16 @@ def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
 def _score_at(weighing: _Weighing, chosen: Sequence[int], worths: Mapping[Tuple[str, int], float]) -> float:
     """The listener's score of a reading with these senses chosen for its packed words (`_choices`)."""
     value = weighing.fixed + sum(weighing.own[k][x][0] for k, x in enumerate(chosen))
-    known, defined, fit = weighing.counted
-    fit += sum(weighing.own[k][x][1] for k, x in enumerate(chosen))
+    known, defined, proposed, misplaced = weighing.counted
+    proposed += sum(weighing.own[k][x][1] for k, x in enumerate(chosen))
+    misplaced += sum(weighing.own[k][x][2] for k, x in enumerate(chosen))
     for scope, table in weighing.facts:
         selected, held, said = table[tuple(chosen[k] for k in scope)]
         value, known, defined = value + selected, known + held, defined + said
     return round(value + worths.get(("known", min(known, _LEVELS[0])), 0.0)
                  + worths.get(("defined", min(defined, _LEVELS[1])), 0.0)
-                 + worths.get(("fit", min(fit, _LEVELS[2])), 0.0), 6)
+                 + worths.get(("proposed", min(proposed, _LEVELS[2])), 0.0)
+                 + worths.get(("misplaced", min(misplaced, _LEVELS[3])), 0.0), 6)
 
 
 def _made(weighing: _Weighing, chosen: Sequence[int], view: PatternInventory) -> Optional[Reading]:
@@ -7568,7 +7616,8 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
             # of 0.2 nats and a margin of 20 are the same decision from the outside and are not the same decision.
             "margin": margin,
             "weighed": [{"meaning": w.reading.meaning.canonical(), "known": w.known, "defined": w.defined,
-                         "fit": w.fit, "activation": round(w.activation, 4), "structure": round(w.derivation, 4),
+                         "proposed": w.proposed, "misplaced": w.misplaced,
+                         "activation": round(w.activation, 4), "structure": round(w.derivation, 4),
                          "total": total, "composed": w.reading.composed,
                          "worth": {evidence: round((worths or {}).get((evidence, level), 0.0), 4)
                                    for evidence, level in listening_levels(w).items()}}
@@ -7592,9 +7641,10 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
     worth = {evidence: (worths or {}).get((evidence, level), 0.0) for evidence, level in listening_levels(w).items()}
     moved = sum(worth.values())
     logger.info("listening: %d readings, %s by %.2f nats over the next of %d (known %d worth %.2f, defined %d worth "
-                "%.2f, fit %d worth %.2f, met+raised %.2f, structure %.2f%s; %s): %s",
+                "%.2f, proposed %d worth %.2f, misplaced %d worth %.2f, met+raised %.2f, structure %.2f%s; %s): %s",
                 given, how, rows[0][1] - rows[1][1], len(rows), w.known, worth.get("known", 0.0), w.defined,
-                worth.get("defined", 0.0), w.fit, worth.get("fit", 0.0), w.activation, w.derivation,
+                worth.get("defined", 0.0), w.proposed, worth.get("proposed", 0.0),
+                w.misplaced, worth.get("misplaced", 0.0), w.activation, w.derivation,
                 "" if moved else " — NOTHING MEMORY KNOWS IS WORTH ANYTHING YET", memory, said)
 
 
