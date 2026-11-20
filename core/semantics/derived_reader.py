@@ -1275,7 +1275,12 @@ class PatternInventory:
         self._saying_words: set = set()
         # Words that alternate in one place of frames otherwise the same and meaning the same (`variants_of`): each
         # frame with one of its words left out, and the words held there; and how often two words alternate.
-        self._alternation: Dict[Tuple[Tuple[Any, ...], str], set] = {}
+        #: Of each place a construction's own word stands in -- its shape with that word held out, and its
+        #: meaning (`_note_alternation`) -- each word held there and HOW MANY CONSTRUCTIONS hold it there. The
+        #: count is what tells a place one construction attests from a place many do: held as a set alone, a place
+        #: seen once could not be told from a place seen a thousand times, so the absence of a word from a thin
+        #: place looked like evidence against it and was not (2026-11-20).
+        self._alternation: Dict[Tuple[Tuple[Any, ...], str], Dict[str, int]] = {}
         # Each word's shapes (`variants_of`), known until a letter after a word, or an alternation, is added.
         self._shapes_known: Dict[str, FrozenSet[str]] = {}
         self._alternates: Dict[str, Dict[str, int]] = {}
@@ -1559,15 +1564,15 @@ class PatternInventory:
             if not isinstance(element, Piece) or _is_mark(element.text):
                 continue
             place = (shape[:index] + (None,) + shape[index + 1:], meaning)
-            words = self._alternation.setdefault(place, set())
+            words = self._alternation.setdefault(place, {})
             word = _fold(element.text)
             self._shapes_known.clear()
             self._use_letters_moved = True
-            for other in words - {word}:
+            for other in set(words) - {word}:
                 for one, two in ((word, other), (other, word)):
                     counts = self._alternates.setdefault(one, {})
                     counts[two] = counts.get(two, 0) + 1
-            words.add(word)
+            words[word] = words.get(word, 0) + 1
             self._alternation_frames.setdefault(place, {})[item.key] = word
             self._frame_places.setdefault(item.key, []).append((place, word))
 
@@ -1583,13 +1588,27 @@ class PatternInventory:
         `done_to & instance_of & precedes`, which is "is" and "was" alternating before a past participle -- and on
         that alone "The rock was heavy." read through `The ?slot0 is ?slot1.` meaning `has_property`, where only
         "is" has ever stood, and lost its "before now" by 0.42 nats (2026-11-20)."""
+        here = self.sightings_at(item, index)
+        return _fold(word) in here if here else None
+
+    #: WHAT THE COUNTS SHOWED, AND WHY THERE IS NO THRESHOLD HERE. A place is keyed by a shape AND a meaning,
+    #: which is so particular that it is attested once: of 31,209 places held, 30,945 have ONE sighting, 218 have
+    #: two, and exactly ONE reaches twenty. An alternation IS a place with two sightings. So the absence of a word
+    #: from a place can never be backed by volume the way the grammar's `SUBJECTS_BEFORE_REFUSING` backs a form's
+    #: subjects, and a threshold of that kind would refuse nothing at all. Nor do the counts tell a taught
+    #: alternation from an accident: all four places holding "is" and "was" hold them `{is: 1, was: 1}` alike,
+    #: the taught one (english_27's "The report is finished." beside english_12's "The ball was kicked.") among
+    #: them (measured 2026-11-20).
+
+    def sightings_at(self, item: Union["Pattern", "Phrase"], index: int) -> Dict[str, int]:
+        """Each word held where this construction's own word at `index` stands, and how many constructions hold it
+        there (`_alternation`). Empty where the place is not held."""
         form = item.form
         if not 0 <= index < len(form) or not isinstance(form[index], Piece):
-            return None
+            return {}
         meaning = item.meaning.canonical() if isinstance(item, Pattern) else item.canonical()
         shape = tuple(("slot", e.name) if isinstance(e, Slot) else e.text for e in form)
-        here = self._alternation.get((shape[:index] + (None,) + shape[index + 1:], meaning))
-        return _fold(word) in here if here else None
+        return dict(self._alternation.get((shape[:index] + (None,) + shape[index + 1:], meaning)) or {})
 
     def twins_of(self, frame: str) -> FrozenSet[str]:
         """The frames that are this one with a word of its own written in another of its shapes ("?slot0 is an
