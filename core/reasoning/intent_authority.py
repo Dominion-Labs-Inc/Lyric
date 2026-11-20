@@ -52,7 +52,11 @@ def _blob(value: Any) -> Any:
     if isinstance(value, str):
         try:
             return json.loads(value)
-        except ValueError:
+        except ValueError as e:
+            # AN INTENT'S CONTENT, GONE. This reads the JSONB columns an intent is made of; None here means
+            # the intent comes back with that part empty, which reads as "it was never recorded".
+            logger.warning("a stored intent's JSON COULD NOT BE READ and that part of it comes back EMPTY, "
+                           "which cannot be told from never having been recorded: %s", e)
             return None
     return value
 
@@ -858,7 +862,10 @@ def get_carrying_out() -> Optional[str]:
 def reset_carrying_out(token) -> None:
     try:
         _carrying_out.reset(token)
-    except Exception:
+    except (ValueError, LookupError):
+        # Same reasoning as `reset_acting_intent` below, which this did not share: a token from another
+        # context is not this context's to reset and losing the reset is harmless, but a broad `except
+        # Exception: pass` also swallowed every real error, so only these two are caught.
         pass
 
 

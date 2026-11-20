@@ -334,7 +334,10 @@ class AnalogyDiscovery:
                 self.concepts.setdefault(concept.domain, {})[concept.name] = concept
                 restored += 1
             except Exception as row_error:
-                logger.debug(f"Skipping malformed concept row: {row_error}")
+                from core.structural_defects import raise_if_structural
+                raise_if_structural(row_error, "analogy_discovery._load_concepts_from_store (row)")
+                logger.warning("a stored concept COULD NOT BE READ BACK and is LOST to this run, so no "
+                               "analogy can reach it: %s", row_error)
 
         if restored:
             self.stats['concepts_indexed'] += restored
@@ -674,7 +677,13 @@ class AnalogyDiscovery:
             return similarity > 0.7
 
         except Exception as e:
-            logger.debug(f"Embedding similarity failed, using heuristics: {e}")
+            # A NAMED FALLBACK: the measured comparison fails and word overlap answers in its place, with
+            # the caller told nothing. The heuristics below decide whether two attributes are "similar",
+            # which decides whether an analogy is found at all.
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(e, "analogy_discovery._attributes_similar")
+            logger.warning("embedding similarity COULD NOT BE MEASURED for %r vs %r, so the answer below "
+                           "comes from word overlap instead of from the embeddings: %s", attr1, attr2, e)
 
         attr1_lower = attr1.lower().replace('_', ' ')
         attr2_lower = attr2.lower().replace('_', ' ')

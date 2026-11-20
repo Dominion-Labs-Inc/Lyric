@@ -167,10 +167,13 @@ class EpistemicEngine:
 
     @staticmethod
     def _parse_relation(relation: str):
+        # A RELATION THIS SYSTEM DOES NOT NAME is an honest None. A FAILED IMPORT is broken wiring, and
+        # catching the two together meant that if `bayesian_uncertainty` ever failed to import, EVERY
+        # relation read as unnamed and the epistemic engine quietly stopped parsing any of them.
+        from core.reasoning.bayesian_uncertainty import RelationType
         try:
-            from core.reasoning.bayesian_uncertainty import RelationType
             return RelationType[relation.upper()]
-        except (KeyError, ImportError):
+        except KeyError:
             return None
 
     # ------------------------------------------------------------------
@@ -914,7 +917,11 @@ def summarize_epistemic_mutations(
         try:
             delta = float(getattr(m, "delta", 0.0) or 0.0)
             mtype = getattr(m, "mutation_type", "")
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as e:
+            # A MUTATION LEFT OUT OF THE SUMMARY. This function's whole output is how much entropy was
+            # removed and added, so one dropped here makes that total quietly wrong.
+            logger.warning("a belief mutation's delta COULD NOT BE READ (%r), so it is missing from the "
+                           "entropy totals this summary reports: %s", getattr(m, "delta", None), e)
             continue
         if delta > 0:
             positive += delta

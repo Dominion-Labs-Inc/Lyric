@@ -320,7 +320,10 @@ class FormalArgumentationSystem:
                     origin=Origin.of(argument.claim.owner if argument else None, "argument"))
             self._let_go_of_theirs()
         except Exception as error:
-            logger.debug("argumentation persist skipped (non-fatal): %s", error)
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(error, "formal_argumentation.persist")
+            logger.warning("arguments and fallacies WERE NOT PERSISTED, so what was judged here is not "
+                           "held for the next process: %s", error)
 
     def forget(self, argument: "Argument") -> None:
         """Drop one argument, with its claim and fallacies, without keeping it."""
@@ -376,10 +379,17 @@ class FormalArgumentationSystem:
                         strength=ArgumentStrength(r["strength"]),
                         validity=bool(r["validity"]), soundness=bool(r["soundness"]),
                         refuted_by=r["refuted_by"])
-                except Exception:
+                except Exception as row_error:
+                    from core.structural_defects import raise_if_structural
+                    raise_if_structural(row_error, "formal_argumentation.load (row)")
+                    logger.warning("a stored argument COULD NOT BE READ BACK and is LOST to this run: %s",
+                                   row_error)
                     continue
         except Exception as error:
-            logger.debug("argumentation load skipped (non-fatal): %s", error)
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(error, "formal_argumentation.load")
+            logger.warning("prior arguments WERE NOT LOADED, so nothing judged before this process bears "
+                           "on what it judges now: %s", error)
 
     def _initialize_fallacy_patterns(self) -> Dict[FallacyType, List[str]]:
         """Initialize regex patterns for fallacy detection"""

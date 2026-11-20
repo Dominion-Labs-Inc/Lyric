@@ -32,6 +32,14 @@ logger = logging.getLogger(__name__)
 
 #: The proof was requested from a backend that is not present. NOT a refutation.
 CAPABILITY_UNAVAILABLE = "capability_unavailable"
+
+# SAID ONCE, AT IMPORT, IF THE SMT BACKEND IS NOT THERE. The import handler above is silent, so the only way
+# to learn that proving had no backend was to notice that it never proved anything -- and
+# `CAPABILITY_UNAVAILABLE` is reported honestly per request, which makes one missing dependency look like an
+# ordinary property of each question asked.
+if not _Z3_AVAILABLE:
+    logger.warning("the SMT backend (z3) IS NOT PRESENT, so no theorem can be proved by it in this process; "
+                   "every SMT proof will report %s", CAPABILITY_UNAVAILABLE)
 #: A negative from natural deduction, which is sound but incomplete (it has no
 #: case split). "I could not derive it" is not "it does not follow".
 NEGATIVE_NOT_AUTHORITATIVE = "negative_not_authoritative"

@@ -378,7 +378,13 @@ class TemporalReasoningSystem:
             for prop_id in [i for i, prop in self.propositions.items() if prop.owner]:
                 del self.propositions[prop_id]
         except Exception as error:
-            logger.debug("temporal persist skipped (non-fatal): %s", error)
+            # NON-FATAL IS NOT THE SAME AS UNIMPORTANT. The lines above DELETE each owned link and
+            # proposition from memory once held; a failure part-way means causal knowledge the substrate
+            # formed is neither in the store nor in this process any more. Said at warning from 2026-11-20.
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(error, "temporal_reasoning.persist")
+            logger.warning("temporal knowledge WAS NOT PERSISTED, so the causal links formed in this "
+                           "process may be lost: %s", error)
 
     async def load(self, limit: int = 1000):
         """Bring the substrate's own prior temporal knowledge into memory so
@@ -416,7 +422,10 @@ class TemporalReasoningSystem:
                         necessary=bool(r["necessary"]), sufficient=bool(r["sufficient"]),
                         observations=int(r["observations"] or 0))
         except Exception as error:
-            logger.debug("temporal load skipped (non-fatal): %s", error)
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(error, "temporal_reasoning.load")
+            logger.warning("prior temporal knowledge WAS NOT LOADED, so this process reasons about time "
+                           "without the causal links it already learned: %s", error)
     
     # ==================================================================================
     # TEMPORAL LOGIC

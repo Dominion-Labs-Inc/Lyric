@@ -24,6 +24,20 @@ from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Sequence, Set, Tuple
 from enum import Enum
 
+# A STRATEGY THAT CRASHED IS NOT A STRATEGY THAT FOUND NOTHING.
+#
+# This file is the door to the whole reasoning system, and it held 59 broad handlers and NOT ONE use of this
+# guard -- the exact state `structural_defects` was written against ("the capability was dark, not absent --
+# the worst state to be in"). Every answering strategy below absorbed AttributeError, TypeError and
+# ImportError into `return None`, which the caller reads as "this path does not apply": a misspelled
+# attribute or a moved function made a strategy silently stop answering for as long as the typo lived, and
+# `_reasoned_answers` recited definitions instead of saying anything had failed.
+#
+# Called first in every handler here. A wiring defect is re-raised; an operational failure (the database
+# down, a refused connection) falls through to be reported as it was -- but at WARNING, not debug, because a
+# strategy that could not run is not an ordinary negative and an ordinary log must show it.
+from core.structural_defects import raise_if_structural
+
 from .arithmetic_reading import read as read_equation
 from .arithmetic_reading import read_sequence
 # READING BELONGS TO SEMANTICS.
@@ -1400,7 +1414,9 @@ class NeuralSymbolicBridge:
             from core.reasoning.epistemic_engine import get_epistemic_engine
             return await get_epistemic_engine().assess_uncertainty(request)
         except Exception as e:
-            logger.debug("uncertainty assessment unavailable: %s", e)
+            raise_if_structural(e, "neural_bridge.assess_uncertainty")
+            logger.warning("the epistemic engine COULD NOT BE REACHED, so how unsettled the substrate's own "
+                           "knowledge is went unmeasured for this question: %s", e)
             return {"uncertainty": None, "confidence": None, "basis": str(e)}
 
     async def apply_reasoning_output(self, outputs: Dict[str, Any]) -> int:
@@ -1450,7 +1466,9 @@ class NeuralSymbolicBridge:
             signal["subjects"] = self._subjects_of(mutations)
             return signal
         except Exception as e:
-            logger.debug("epistemic affect signal unavailable: %s", e)
+            raise_if_structural(e, "neural_bridge.epistemic_affect_signal")
+            logger.warning("the epistemic affect signal COULD NOT BE TAKEN, so this turn moved nothing in "
+                           "how the substrate feels about what it knows: %s", e)
             return {}
 
     #: Relations whose OBJECT is what the belief is about. `report mentions
@@ -1591,7 +1609,9 @@ class NeuralSymbolicBridge:
                 tool_name, parameters, output, success)
             return len(muts)
         except Exception as e:
-            logger.debug("observe_tool_result routing failed: %s", e)
+            raise_if_structural(e, "neural_bridge.observe_tool_result")
+            logger.warning("a tool's result COULD NOT BE ROUTED into the beliefs, so what it observed "
+                           "changed nothing the substrate holds: %s", e)
             return 0
 
     def __init__(self, config: Dict[str, Any] = None):
@@ -1894,7 +1914,9 @@ class NeuralSymbolicBridge:
             if kinds:
                 self.record_reasoning(kinds, _time.monotonic() - _t0)
         except Exception as _e:
-            logger.debug("reasoning telemetry not recorded: %s", _e)
+            raise_if_structural(_e, "neural_bridge.reason (telemetry)")
+            logger.warning("this call's kinds and cost WERE NOT RECORDED, so the telemetry the strategy "
+                           "chooser learns from is missing a call: %s", _e)
         # FORMAL ARGUMENTATION runs here as a fallacy check on the settled answer
         # — the live home for the argumentation engine (previously reachable only
         # via a test-only HYBRID mode). Honest ANNOTATION: it flags a detected
@@ -1907,7 +1929,9 @@ class NeuralSymbolicBridge:
                     md["fallacy_warning"] = fallacy
                     result.metadata = md
         except Exception as _fe:
-            logger.debug("fallacy check skipped: %s", _fe)
+            raise_if_structural(_fe, "neural_bridge.reason (fallacy annotation)")
+            logger.warning("the fallacy annotation WAS NOT MADE, so this answer carries no record of "
+                           "whether its argument is sound: %s", _fe)
         # EPISTEMIC uncertainty: annotate the result with how unsettled the
         # substrate's OWN knowledge is about this query (belief-graph entropy).
         # The epistemic engine, routed through the authority — a reading, not a
@@ -1920,7 +1944,9 @@ class NeuralSymbolicBridge:
                     md["epistemic_uncertainty"] = unc["uncertainty"]
                     result.metadata = md
         except Exception as _ue:
-            logger.debug("uncertainty annotation skipped: %s", _ue)
+            raise_if_structural(_ue, "neural_bridge.reason (uncertainty annotation)")
+            logger.warning("the epistemic uncertainty annotation WAS NOT MADE, so this answer does not say "
+                           "how unsettled the substrate's knowledge of it is: %s", _ue)
         # WHAT WAS ASKED OF REASONING AND WHAT CAME BACK, in one line, every time. Each part of the way said
         # something of its own -- what would not formalize, which kinds were not allowed, which declined -- and
         # nothing said what the whole call came to, so a question answered and a question abandoned looked the
@@ -2092,11 +2118,22 @@ class NeuralSymbolicBridge:
                     request, ["substrate", "kinds_of_thinking", "unsettled"]))
 
         except Exception as e:
-            logger.error(f"Reasoning failed: {e}")
+            # THE WHOLE OF REASONING FUNNELS THROUGH HERE, and every exception in it became this one
+            # sentence: no stack, no kind, no route, and an "answer" in the `answer` field that a caller
+            # reading `result.answer` sees as truthy. A misspelled attribute deep in a strategy and a
+            # database refusing a connection were reported identically.
+            raise_if_structural(e, "neural_bridge._reason_impl")
+            logger.error("REASONING FAILED for %r and nothing was settled: %s: %s",
+                         str(getattr(request, "query", ""))[:120], type(e).__name__, e, exc_info=True)
             return ReasoningResult(
                 answer="Error: Reasoning failed",
                 confidence=0.0,
-                mode_used=request.mode
+                mode_used=request.mode,
+                # SAYS IT FAILED, so a caller can tell this from a question no strategy fitted. `verified`
+                # was already absent and read as false, so nothing downstream changes; it is now on the
+                # record instead of being inferred from a missing key.
+                metadata={"verified": False, "failed": f"{type(e).__name__}: {e}",
+                          "route": ["reason_impl", "failed"]}
             )
 
     def _extract_reasoning_steps(self, response: str) -> List[str]:
@@ -2229,7 +2266,9 @@ class NeuralSymbolicBridge:
             else:
                 system.forget(argument)
         except Exception as e:
-            logger.debug(f"Fallacy detection unavailable: {e}")
+            raise_if_structural(e, "neural_bridge._check_argument_fallacies")
+            logger.warning("the argumentation engine COULD NOT BE REACHED, so this answer went out without "
+                           "a fallacy check: %s", e)
             return None
 
         if not fallacies:
@@ -2265,7 +2304,9 @@ class NeuralSymbolicBridge:
                 answer, list(request.context or [])
             )
         except Exception as e:
-            logger.debug(f"Formalizability check unavailable: {e}")
+            raise_if_structural(e, "neural_bridge._check_formalizability")
+            logger.warning("the formalizer COULD NOT BE REACHED, so whether this question can be put to a "
+                           "solver at all was never decided: %s", e)
             return None
 
         if formalization.succeeded:
@@ -2327,7 +2368,9 @@ class NeuralSymbolicBridge:
             return None
 
         except Exception as e:
-            logger.debug(f"Formal constraint check unavailable: {e}")
+            raise_if_structural(e, "neural_bridge._check_formal_constraints")
+            logger.warning("the constraint check COULD NOT RUN, so this answer was not tested against the "
+                           "constraints it must satisfy: %s", e)
             return None
 
     def _solve_equation(self, equation) -> ReasoningResult:
@@ -2523,7 +2566,11 @@ class NeuralSymbolicBridge:
                 await db.initialize()
             sense = await is_subclass(db, child, parent)
         except Exception as e:
-            logger.debug("sense-taxonomy query failed: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_sense_taxonomy")
+            # NOT "not this path": the query itself could not run, so whether the taxonomy would have
+            # answered is unknown. Said at WARNING so an ordinary log shows that a strategy was lost.
+            logger.warning("sense-taxonomy COULD NOT RUN for %r vs %r, so it answered nothing: %s",
+                           child, parent, e)
             return None
         if not sense.recognized:
             return None                       # common-sense: let the concept graph decide
@@ -2556,7 +2603,11 @@ class NeuralSymbolicBridge:
             from core.reasoning.concept_graph_reasoning import answer_over_graph
             from core.reasoning.relation_algebra import TRUE, FALSE, UNKNOWN
         except Exception as e:
-            logger.debug("concept-graph deps unavailable: %s", e)
+            # THESE ARE FIRST-PARTY MODULES. An ImportError here is broken wiring, not an absent
+            # dependency, and `raise_if_structural` raises it rather than letting the concept graph go
+            # dark behind the same `None` this path returns when a question simply is not its shape.
+            raise_if_structural(e, "neural_bridge._answer_over_concept_graph (deps)")
+            logger.warning("concept-graph deps COULD NOT LOAD, so the concept graph answered nothing: %s", e)
             return None
         # ONE reader, no fallback: the question's meaning (`question_of`), read
         # through the same constructions the teaching path learned, so a name
@@ -2630,7 +2681,12 @@ class NeuralSymbolicBridge:
             ans = await answer_over_graph(db, subj, relation, obj, max_hops=4,
                                           actor=actor, not_taken_in=not_taken_in)
         except Exception as e:
-            logger.debug("concept-graph query failed: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_concept_graph (query)")
+            # THE DOCSTRING SAYS `None` MEANS "not this path, and that is no failure". It meant that AND
+            # "the graph crashed", which is why a question the graph holds the answer to came back recited:
+            # the caller cannot tell the two apart, so the log must.
+            logger.warning("concept-graph COULD NOT RUN for %s %s %s, so it answered nothing: %s",
+                           subj, relation.value, obj, e)
             return None
         if ans.verdict == UNKNOWN and relation.value in ("isa", "instance_of"):
             # The cleaned, bounded concept graph could not derive it. Before
@@ -2685,7 +2741,9 @@ class NeuralSymbolicBridge:
                                           "model_available": self._model_available(),
                                           "route": ["scoped", "belief", "held"]})
             except Exception as e:
-                logger.debug("belief consult failed: %s", e)
+                raise_if_structural(e, "neural_bridge._answer_over_concept_graph (belief consult)")
+                logger.warning("the belief store COULD NOT BE CONSULTED for %s isa %s, so a fact that may "
+                               "be held at high posterior went unused: %s", subj, obj, e)
             # THE WORDS RECORDED WHOLE, before abstaining. The graph holds ONE
             # name per word and so one sense's kinds -- whichever was written --
             # while the word recorded whole holds every sense with its own. The
@@ -2719,7 +2777,9 @@ class NeuralSymbolicBridge:
                                       "sense": sense,
                                       "route": ["substrate", "words", "sense"]})
             except Exception as e:
-                logger.debug("words-recorded-whole consult failed: %s", e)
+                raise_if_structural(e, "neural_bridge._answer_over_concept_graph (words recorded whole)")
+                logger.warning("the words recorded whole COULD NOT BE CONSULTED for %s isa %s, so the "
+                               "senses the graph does not hold went unasked: %s", subj, obj, e)
             return None  # not taught, not derivable — honest fall-through
         if ans.verdict == UNKNOWN:
             return None  # never told, not derivable — honest fall-through
@@ -2760,8 +2820,9 @@ class NeuralSymbolicBridge:
                 from core.memory import knowledge_ledger as _ledger
                 await _ledger.mark_consumed_by_evidence(db, used_evidence, "reasoning")
             except Exception as error:
-                logger.debug("reasoning's use of %d fact(s) not recorded: %s",
-                             len(used_evidence), error)
+                raise_if_structural(error, "neural_bridge._answer_over_concept_graph (ledger)")
+                logger.warning("reasoning's use of %d fact(s) WAS NOT RECORDED in the ledger, so what this "
+                               "answer was built from cannot be traced: %s", len(used_evidence), error)
         return ReasoningResult(
             answer=f"{'Yes' if yes else 'No'}: {subj} {relation.value} {obj}",
             confidence=0.95 if ans.basis == "observed" else 0.85,
@@ -2812,7 +2873,9 @@ class NeuralSymbolicBridge:
             from core.reasoning.concept_graph_reasoning import load_subgraph
             from core.database import get_database_manager
         except Exception as e:
-            logger.debug("held-rule deps unavailable: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_held_rules (deps)")
+            logger.warning("held-rule deps COULD NOT LOAD, so the rules the substrate was TAUGHT answered "
+                           "nothing: %s", e)
             return None
 
         fact = goal_fact(question_of(request))
@@ -2869,7 +2932,9 @@ class NeuralSymbolicBridge:
             edges = await load_subgraph(
                 db, sorted(s for s in subjects if s), max_hops=1, actor=actor)
         except Exception as e:
-            logger.debug("held-rule fact load failed: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_held_rules (facts)")
+            logger.warning("held-rule facts COULD NOT BE LOADED, so a taught rule had nothing to fire on "
+                           "and answered nothing: %s", e)
             return None
 
         wanted = rule_atoms | {_unsigned(goal_atom)}
@@ -2953,7 +3018,9 @@ class NeuralSymbolicBridge:
                 observed_instance_features)
             from core.database import get_database_manager
         except Exception as e:
-            logger.debug("induced-rule deps unavailable: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_induced_rules (deps)")
+            logger.warning("induced-rule deps COULD NOT LOAD, so what the substrate induced for itself "
+                           "answered nothing: %s", e)
             return None
 
         fact = goal_fact(question_of(request))
@@ -2977,7 +3044,9 @@ class NeuralSymbolicBridge:
             observed, _evidence = await observed_instance_features(db, subject)
             feats = [p for p in (predicate_name(f) for f in observed) if p]
         except Exception as e:
-            logger.debug("induced-rule feature load failed: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_induced_rules (features)")
+            logger.warning("the observed features of %r COULD NOT BE LOADED, so no induced rule could be "
+                           "matched against it: %s", subject, e)
             return None
         if not feats:
             return None  # nothing is known about the instance to reason from
@@ -2987,7 +3056,9 @@ class NeuralSymbolicBridge:
             # was filed under -- the query names a category, not a domain.
             stored = await get_rule_store().load()
         except Exception as e:
-            logger.debug("induced-rule load failed: %s", e)
+            raise_if_structural(e, "neural_bridge._answer_over_induced_rules (rule store)")
+            logger.warning("the rule store COULD NOT BE READ, so every induced rule was unavailable and "
+                           "this path answered nothing: %s", e)
             return None
         # THE ONE NAMING AUTHORITY decides. The agreement discipline, the version
         # spaces and the confidences live in `core.learning.rule_naming`, because
@@ -3314,7 +3385,9 @@ class NeuralSymbolicBridge:
                                 logic_type=LogicType.PROPOSITIONAL),
                         timeout=self.SYMBOLIC_PROOF_TIMEOUT)
                 except Exception as _neg_e:
-                    logger.debug("negation proof attempt failed: %s", _neg_e)
+                    raise_if_structural(_neg_e, "neural_bridge._symbolic_reasoning (negation proof)")
+                    logger.warning("the NEGATION proof COULD NOT BE ATTEMPTED for %r, so a provable 'no' "
+                                   "was not looked for: %s", negated_goal, _neg_e)
             if neg_proof is not None and getattr(neg_proof, "proved", False):
                 reasoning_steps = [
                     f"{s.step_number}. {s.statement}  [{s.justification}]"
@@ -3422,7 +3495,9 @@ class NeuralSymbolicBridge:
             from core.reasoning.bayesian_uncertainty import get_uncertainty_system
             uncertainty_sys = get_uncertainty_system()
         except Exception as e:
-            logger.debug(f"Bayesian uncertainty not available: {e}")
+            raise_if_structural(e, "neural_bridge._neural_reasoning (beliefs)")
+            logger.warning("the belief store COULD NOT BE REACHED, so nothing was reasoned from what the "
+                           "substrate has learned: %s", e)
             return None
 
         # Content-word overlap only. Matching on question words like "what"
@@ -3492,7 +3567,9 @@ class NeuralSymbolicBridge:
             from core.learning.rule_induction import (
                 Fact, TrainingExample, get_rule_inducer)
         except Exception as e:
-            logger.debug(f"rule induction unavailable: {e}")
+            raise_if_structural(e, "neural_bridge._induce_from_demonstrations")
+            logger.warning("rule induction COULD NOT BE REACHED, so no rule was induced from the "
+                           "demonstrations given: %s", e)
             return None
 
         def _fact(item):
@@ -3582,7 +3659,9 @@ class NeuralSymbolicBridge:
             from core.reasoning.bayesian_uncertainty import get_uncertainty_system
             uncertainty_sys = get_uncertainty_system()
         except Exception as e:
-            logger.debug(f"Bayesian uncertainty not available: {e}")
+            raise_if_structural(e, "neural_bridge._hybrid_reasoning (beliefs)")
+            logger.warning("the belief store COULD NOT BE REACHED, so this answer was settled without what "
+                           "the substrate has learned bearing on it: %s", e)
 
         # NOTE: the reason()-side temporal-consistency check was removed. Temporal
         # reasoning is live where it belongs — the executor's planner
@@ -3871,10 +3950,18 @@ class NeuralSymbolicBridge:
                         consistency_scores.append(consistency)
                         candidate['consistency'] = consistency
                 else:
+                    # THE SOLVER IS ABSENT, SO NOTHING WAS VERIFIED. Consistency is weighted 30% of the
+                    # final score below, so handing every candidate 1.0 adds a flat +0.3 of "verified
+                    # consistent" to every answer this path produces -- a confidence that was never earned.
+                    # Said plainly here; the arbitration still has to stop spending the term it did not measure.
+                    logger.warning("the constraint solver is ABSENT, so no candidate's consistency was "
+                                   "verified and every one is scored as though it had been")
                     consistency_scores = [1.0] * len(candidate_answers)
-            
+
             except Exception as e:
-                logger.debug(f"Constraint solver not available: {e}")
+                raise_if_structural(e, "neural_bridge._neuro_symbolic_reasoning (consistency)")
+                logger.warning("the constraint solver COULD NOT RUN, so no candidate's consistency was "
+                               "verified and every one is scored as though it had been: %s", e)
                 consistency_scores = [1.0] * len(candidate_answers)
             
             # Phase 4: WEIGHTED ARBITRATION
@@ -4136,7 +4223,9 @@ class NeuralSymbolicBridge:
             from core.reasoning.abstract_reasoning_engine import (
                 ReasoningContext, ReasoningPremise, create_abstract_reasoning_engine)
         except Exception as error:
-            logger.debug("kind-based reasoning unavailable: %s", error)
+            raise_if_structural(error, "neural_bridge._reason_by_kind")
+            logger.warning("the abstract reasoning engine COULD NOT BE REACHED, so NO kind of thinking ran "
+                           "for this question: %s", error)
             return None
 
         kinds, asked_for = self._kinds_for(request)

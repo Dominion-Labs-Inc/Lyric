@@ -2386,7 +2386,11 @@ class BayesianUncertaintySystem:
             loop = asyncio.get_running_loop()
             loop.create_task(_write())
         except RuntimeError:
-            pass
+            # NOT BUFFERED, UNLIKE ITS SIBLINGS. `_save_belief`, `_save_known_unknown` and
+            # `_save_relationship` all stash the value first and say the next durable flush writes it; this
+            # one holds nothing, so with no running loop the calibration is simply LOST. Said so here.
+            logger.warning("calibration for %s was NOT STORED and is not buffered anywhere: there is no "
+                           "running loop to write it", domain)
 
     async def load_from_db(self, *, again: bool = False):
         """Load persisted beliefs from PostgreSQL into memory at startup.

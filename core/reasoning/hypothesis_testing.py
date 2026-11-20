@@ -1231,11 +1231,18 @@ def get_hypothesis_system() -> HypothesisTestingSystem:
     global _hypothesis_system
     
     if _hypothesis_system is None:
+        # A BARE `except:` CAUGHT KeyboardInterrupt AND SystemExit TOO, and then built the system WITHOUT
+        # the belief store -- so a hypothesis system that cannot see what the substrate believes was
+        # indistinguishable from one that can, for the life of the process, with nothing logged.
         try:
             from core.reasoning.bayesian_uncertainty import get_uncertainty_system
             uncertainty = get_uncertainty_system()
             _hypothesis_system = HypothesisTestingSystem(uncertainty_system=uncertainty)
-        except:
+        except Exception as e:
+            from core.structural_defects import raise_if_structural
+            raise_if_structural(e, "hypothesis_testing.get_hypothesis_system")
+            logger.warning("the belief store COULD NOT BE REACHED, so the hypothesis system is being built "
+                           "WITHOUT it and will test hypotheses against nothing held: %s", e)
             _hypothesis_system = HypothesisTestingSystem()
     
     return _hypothesis_system

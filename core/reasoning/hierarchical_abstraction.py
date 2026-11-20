@@ -25,6 +25,11 @@ from types import SimpleNamespace
 from enum import Enum
 import re
 
+# 37 broad handlers and NOT ONE use of this guard, the same state `neural_bridge` was in: a misspelled
+# attribute or a moved function in the abstraction pipeline was absorbed as an ordinary "found no pattern",
+# which is exactly what this pipeline reports when it legitimately finds none.
+from core.structural_defects import raise_if_structural
+
 logger = logging.getLogger(__name__)
 
 
@@ -482,7 +487,12 @@ class AbstractionPipeline:
             if k in ("formation_time", "last_reinforced") and isinstance(v, str):
                 try:
                     kwargs[k] = datetime.fromisoformat(v)
-                except ValueError:
+                except ValueError as e:
+                    # A SCHEMA FORMED LONG AGO, LOADED AS THOUGH FORMED NOW. `formation_time` and
+                    # `last_reinforced` drive decay and reinforcement, so this makes a stale schema look
+                    # fresh every time it is read back. Silent until 2026-11-20.
+                    logger.warning("schema field %s could not be read from %r and is being set to NOW, so "
+                                   "this schema's age and reinforcement are wrong: %s", k, v, e)
                     kwargs[k] = datetime.now()
             elif k == "last_stress_test" and isinstance(v, str):
                 # Written as ISO text like the other times and read back as text,
@@ -491,7 +501,9 @@ class AbstractionPipeline:
                 # 'str'". Unreadable, it was never stress-tested.
                 try:
                     kwargs[k] = datetime.fromisoformat(v)
-                except ValueError:
+                except ValueError as e:
+                    logger.warning("schema field last_stress_test could not be read from %r and is being "
+                                   "set to None, so this schema reads as never stress-tested: %s", v, e)
                     kwargs[k] = None
             elif k == "confidence_interval" and isinstance(v, list):
                 kwargs[k] = tuple(v)
@@ -546,7 +558,11 @@ class AbstractionPipeline:
                     self.active_schemas[schema.schema_id] = schema
                     loaded += 1
                 except Exception as row_err:
-                    logger.debug("load_schemas: skipping malformed row: %s", row_err)
+                    raise_if_structural(row_err, "hierarchical_abstraction.load_schemas_from_db (row)")
+                    # A SCHEMA THAT WAS LEARNED AND IS NOW DROPPED. Said at warning, because the line below
+                    # reports how many were restored and nothing said how many were lost on the way.
+                    logger.warning("a stored schema COULD NOT BE READ BACK and is LOST to this run: %s",
+                                   row_err)
             if loaded:
                 logger.info("restored %d schema(s) from PostgreSQL", loaded)
             return loaded
@@ -773,7 +789,11 @@ class AbstractionPipeline:
             return min(1.0, coherence)
 
         except Exception as e:
-            logger.debug(f"Domain coherence assessment failed: {e}")
+            # 0.5 IS A FALLBACK, and it is indistinguishable from a measured 0.5. Logged honestly here;
+            # the number itself still has to go.
+            raise_if_structural(e, "hierarchical_abstraction._assess_domain_coherence")
+            logger.warning("domain coherence COULD NOT BE ASSESSED and is being reported as 0.5, which no "
+                           "caller can tell from a real measurement of 0.5: %s", e)
             return 0.5
 
     async def _assess_motivation_outcomes(self, cluster: List[Any]) -> float:
@@ -816,8 +836,13 @@ class AbstractionPipeline:
             return boost
 
         except Exception as e:
-            logger.debug(f"Motivation outcome assessment failed: {e}")
-            return 1.0  # Neutral on error
+            # 1.0 IS NOT NEUTRAL -- it is the value a domain with a HIGH success rate does not even reach
+            # (the boost above caps at 1.2 and drops to 0.8 when outcomes are poor). A crash here scores the
+            # schema as though its outcomes had been checked and found fine.
+            raise_if_structural(e, "hierarchical_abstraction._assess_motivation_outcomes")
+            logger.warning("motivation outcomes COULD NOT BE ASSESSED and the schema weight is being left "
+                           "at 1.0 as though they had been checked: %s", e)
+            return 1.0
 
     async def update_schema_outcomes(self, schema_id: str) -> None:
         """
@@ -882,7 +907,9 @@ class AbstractionPipeline:
             )
 
         except Exception as e:
-            logger.debug(f"Failed to update schema outcomes for {schema_id}: {e}")
+            raise_if_structural(e, "hierarchical_abstraction.update_schema_outcomes")
+            logger.warning("schema %s's OUTCOMES WERE NOT RECORDED, so what using it led to did not move "
+                           "its weight: %s", schema_id, e)
 
     def _calculate_dynamic_threshold(self) -> float:
         """Calculate dynamic threshold based on system state"""
@@ -1466,7 +1493,9 @@ class AbstractionPipeline:
                         discovered_by="abstraction",
                     )
                 except Exception as e:
-                    logger.debug(f"Could not mirror {relation_type} relation: {e}")
+                    raise_if_structural(e, "hierarchical_abstraction._mirror_relations_to_beliefs")
+                    logger.warning("a %s relation WAS NOT MIRRORED into the beliefs, so what abstraction "
+                                   "found is not held where reasoning reads it: %s", relation_type, e)
 
     async def stress_test_schema(self, schema: ProbabilisticSchema) -> float:
         """
@@ -1592,13 +1621,23 @@ class AbstractionPipeline:
         if isinstance(value, (int, float)):
             try:
                 return datetime.fromtimestamp(value)
-            except (OverflowError, OSError, ValueError):
+            except (OverflowError, OSError, ValueError) as e:
+                # A TIME THAT WAS NEVER OBSERVED. `now` makes the memory look as though it arrived this
+                # instant, and the docstring says age calculations subtract these and read `.days`, so a
+                # memory whose timestamp would not parse is scored as brand new -- the freshest thing in the
+                # batch. Silent until 2026-11-20; three sites in this function did it.
+                logger.warning("a memory's timestamp %r COULD NOT BE READ and is being treated as NOW, so "
+                               "its age is wrong for every calculation below: %s", value, e)
                 return datetime.now()
         if isinstance(value, str) and value.strip():
             try:
                 return datetime.fromisoformat(value)
-            except ValueError:
+            except ValueError as e:
+                logger.warning("a memory's timestamp %r COULD NOT BE READ and is being treated as NOW, so "
+                               "its age is wrong for every calculation below: %s", value, e)
                 return datetime.now()
+        logger.warning("a memory carries NO timestamp (%r) and is being treated as NOW, so its age is "
+                       "wrong for every calculation below", value)
         return datetime.now()
 
     def _normalize_memories(self, memories: List[Any]) -> List[Any]:
@@ -1626,8 +1665,13 @@ class AbstractionPipeline:
                 if _created is not None and not isinstance(_created, datetime):
                     try:
                         item.created_at = self._coerce_timestamp(_created)
-                    except (AttributeError, TypeError):
-                        pass  # frozen/slotted objects keep their own value
+                    except (AttributeError, TypeError) as e:
+                        # frozen/slotted objects keep their own value -- and so the raw, un-normalised
+                        # `created_at` goes downstream, which this docstring records as having broken "every
+                        # arithmetic reader in turn". Silent until 2026-11-20.
+                        logger.warning("memory %d's created_at could NOT be normalised and goes downstream "
+                                       "as %r, which the age readers cannot subtract: %s",
+                                       index, _created, e)
                 normalized.append(item)
                 continue
 
@@ -1962,7 +2006,9 @@ class AbstractionPipeline:
                 return DomainType.ABSTRACT.value
 
         except Exception as e:
-            logger.debug(f"Domain inference from cluster failed: {e}")
+            raise_if_structural(e, "hierarchical_abstraction._infer_domain_from_cluster")
+            logger.warning("the domain of a cluster COULD NOT BE INFERRED and is being filed as 'abstract', "
+                           "which is also a domain this function returns on purpose: %s", e)
             return "abstract"  # Fallback default
 
     #: Bounds on optional model-backed enrichment. Deterministic analogy has
@@ -2094,8 +2140,11 @@ class AbstractionPipeline:
             await self._escalate_enrichment_to_model(schema)
 
         except Exception as e:
-            # Enrichment is advisory. Its failure must never invalidate a schema.
-            logger.debug(f"Cross-domain enrichment skipped for {schema.schema_id}: {e}")
+            # Enrichment is advisory. Its failure must never invalidate a schema -- but advisory is not a
+            # reason to be silent: the schema stands, with less in it than it should have, and says so.
+            raise_if_structural(e, "hierarchical_abstraction._enrich_schema_with_cross_domain_mappings")
+            logger.warning("schema %s WAS NOT ENRICHED across domains and stands with what it already had: "
+                           "%s", schema.schema_id, e)
 
     async def _find_analogical_mappings(self, schema: ProbabilisticSchema) -> List[Dict[str, Any]]:
         """Find cross-domain mappings using the deterministic analogy engine.
@@ -2107,7 +2156,9 @@ class AbstractionPipeline:
         try:
             from core.reasoning.analogy_discovery import get_analogy_discovery
         except Exception as e:
-            logger.debug(f"Analogy discovery unavailable: {e}")
+            raise_if_structural(e, "hierarchical_abstraction._find_analogical_mappings (deps)")
+            logger.warning("analogy discovery COULD NOT BE REACHED, so NO analogical mapping was looked "
+                           "for: %s", e)
             return []
 
         engine = get_analogy_discovery()
@@ -2130,7 +2181,9 @@ class AbstractionPipeline:
                 try:
                     analogy = await engine.find_analogy(concept, domain, min_similarity=0.5)
                 except Exception as e:
-                    logger.debug(f"Analogy lookup failed for {concept}->{domain}: {e}")
+                    raise_if_structural(e, "hierarchical_abstraction._find_analogical_mappings (lookup)")
+                    logger.warning("the analogy from %r to %r COULD NOT BE LOOKED UP, so whether one holds "
+                                   "is unknown rather than absent: %s", concept, domain, e)
                     continue
 
                 if analogy:
@@ -2182,7 +2235,9 @@ class AbstractionPipeline:
                 ReasoningStrategy
             )
         except Exception as e:
-            logger.debug(f"Domain master unavailable: {e}")
+            raise_if_structural(e, "hierarchical_abstraction._escalate_enrichment_to_model (domain master)")
+            logger.warning("the domain master COULD NOT BE REACHED, so this enrichment was abandoned "
+                           "rather than escalated: %s", e)
             return
 
         domain_master = get_universal_domain_master()
@@ -2191,6 +2246,12 @@ class AbstractionPipeline:
         try:
             source_domain = DomainType(schema_domain)
         except ValueError:
+            # THE SCHEMA'S OWN RECORDED DOMAIN, UNREADABLE AND REPLACED. `source_domain` decides which
+            # domains are tried below (every one except itself), so a schema filed under a domain this
+            # enum does not name is enriched against the wrong set, silently.
+            logger.warning("schema %s records its domain as %r, which is not a domain this system names; "
+                           "it is being enriched as 'abstract' instead",
+                           schema.schema_id, schema_domain)
             source_domain = DomainType.ABSTRACT
 
         # Capped candidate set. The previous implementation queried every
@@ -2222,7 +2283,9 @@ class AbstractionPipeline:
             )
             return
         except Exception as e:
-            logger.debug(f"Model enrichment failed for {schema.schema_id}: {e}")
+            raise_if_structural(e, "hierarchical_abstraction._escalate_enrichment_to_model")
+            logger.warning("schema %s's enrichment FAILED at the escalation step and nothing was added: "
+                           "%s", schema.schema_id, e)
             return
 
         if getattr(result, 'success', False) and getattr(result, 'mappings', None):

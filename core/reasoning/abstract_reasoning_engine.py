@@ -359,7 +359,12 @@ class DeductiveReasoningStrategy(ReasoningStrategy):
             return None
         try:
             return Atom.parse(text)
-        except Exception:
+        except Exception as e:
+            # TEXT WITH NO "(" ALREADY RETURNED ABOVE, so reaching here means this LOOKS like an atom and
+            # would not parse -- a different thing from "not an atom", and it was reported as the same.
+            raise_if_structural(e, "abstract_reasoning_engine._as_atom")
+            logger.warning("%r looks like an atom but COULD NOT BE PARSED, so it bears on nothing: %s",
+                           text, e)
             return None
 
     def _split_rule(self, rule: str) -> Optional[Tuple[List[Atom], Atom]]:
@@ -578,7 +583,9 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
             try:
                 await self._register_best_as_hypothesis(conclusions[0], context)
             except Exception as e:
-                logger.debug(f"Hypothesis registration unavailable: {e}")
+                raise_if_structural(e, "abstract_reasoning_engine._register_best_as_hypothesis")
+                logger.warning("the best abduced conclusion WAS NOT REGISTERED as a hypothesis, so nothing "
+                               "will ever test it: %s", e)
 
         return conclusions
 
@@ -603,19 +610,26 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
 
     def _parsed_rules(self, context: ReasoningContext):
         """Rules of the form C → O. Anything else cannot support abduction."""
-        rules, unusable = [], 0
+        # A RULE THAT WOULD NOT PARSE IS NOT A RULE THAT IS NOT AN IMPLICATION. Both were counted as
+        # `unusable` and reported as "not implications", so a malformed rule -- which is a defect in whatever
+        # wrote it -- read as an ordinary filter doing its job.
+        rules, not_implications, unparsable = [], 0, []
         for text in context.rules:
             try:
                 node = self.parser.parse_ast(text)
-            except Exception:
-                unusable += 1
+            except Exception as e:
+                raise_if_structural(e, "abstract_reasoning_engine._parsed_rules")
+                unparsable.append(f"{text!r}: {e}")
                 continue
             if node[0] != "implies":
-                unusable += 1
+                not_implications += 1
                 continue
             rules.append((node[1], node[2], text))
-        if unusable:
-            logger.debug(f"Abduction ignored {unusable} rule(s) that are not implications")
+        if not_implications:
+            logger.debug("Abduction ignored %d rule(s) that are not implications", not_implications)
+        if unparsable:
+            logger.warning("Abduction could NOT PARSE %d of %d rule(s), so they bore on nothing: %s",
+                           len(unparsable), len(context.rules), "; ".join(unparsable[:5]))
         return rules
 
     def _polarity(self, observations: List[str]):
@@ -624,7 +638,11 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
         for text in observations:
             try:
                 node = self.parser.parse_ast(text)
-            except Exception:
+            except Exception as e:
+                # AN OBSERVATION DROPPED IN SILENCE. What the observations assert and deny is the whole
+                # input to abduction, so one lost here changes what can be explained, with no trace.
+                raise_if_structural(e, "abstract_reasoning_engine._polarity")
+                logger.warning("an observation COULD NOT BE READ and bears on nothing (%r): %s", text, e)
                 continue
             if node[0] == "not":
                 denied |= self.parser.formula_atoms(node[1])

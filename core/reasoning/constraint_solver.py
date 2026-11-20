@@ -28,10 +28,15 @@ try:
     )  # type: ignore
 
     _Z3_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _z3_error:  # pragma: no cover - optional dependency
     Solver = Optimize = None  # type: ignore
     Int = Real = Bool = And = Or = Not = Sum = If = sat = None  # type: ignore
     _Z3_AVAILABLE = False
+    # SAID ONCE, AT IMPORT. `available` is reported honestly to each caller, but nothing ever said WHY it
+    # was false, so an absent solver and a solver that failed to load looked the same from every call site.
+    logging.getLogger(__name__).warning(
+        "the constraint solver's backend (z3) COULD NOT BE LOADED, so no equation or constraint will be "
+        "solved in this process: %s: %s", type(_z3_error).__name__, _z3_error)
 
 
 @dataclass
