@@ -7192,6 +7192,7 @@ class Weighed(NamedTuple):
     defined: int
     proposed: int
     misplaced: int
+    said_for: int
     activation: float
     derivation: float
 
@@ -7217,7 +7218,7 @@ class Weighed(NamedTuple):
 #: at nothing"), so these say nothing until they are counted (`--source listening`) and cannot say anything wrong
 #: before then. The beliefs held under "a reading heard with fit at N ..." measure the summed quantity and nothing
 #: reads them now.
-LISTENING_LEVELS = {"known": 3, "defined": 3, "proposed": 6, "misplaced": 3}
+LISTENING_LEVELS = {"known": 3, "defined": 3, "proposed": 6, "misplaced": 3, "said_for": 2}
 
 #: HOW MANY READINGS THE COUNTING PASS ASKS FOR (`listening_counts`), which is not how many anything else asks for
 #: (`composing_width`).
@@ -7328,7 +7329,8 @@ def weighed(readings: Sequence[Reading], inventory: Optional[PatternInventory] =
         # apart).
         out.append(Weighed(reading, sum(held.get(held_key(f), 0) for f in facts),
                            sum(defined.get(held_key(f), 0) for f in facts),
-                           reading.supposed[2], reading.supposed[3] + reading.supposed[4],
+                           reading.supposed[2] - reading.said_for,
+                           reading.supposed[3] + reading.supposed[4], reading.said_for,
                            activation, _derivation(reading, view)))
     return out
 
@@ -7471,10 +7473,11 @@ def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: 
             # `cost` is (proposed, misfits, apart) for taking this sense here; the last two are one question.
             shares.append((share, cost[0], cost[1] + cost[2]))
         own.append(tuple(shares))
-    proposed_links = (len(reading.proposed) + reading.said_for
-                      + (_composed_supposes(reading) if reading.composed else 0))
+    # SAYING A WORD IN ANOTHER'S PLACE IS ITS OWN SUPPOSITION, not a link proposed (`Weighed`).
+    proposed_links = len(reading.proposed) + (_composed_supposes(reading) if reading.composed else 0)
     misplaced = reading.misfits + reading.apart
-    return _Weighing(reading, words, options, fixed, (known, defined_count, proposed_links, misplaced),
+    return _Weighing(reading, words, options, fixed,
+                     (known, defined_count, proposed_links, misplaced, reading.said_for),
                      tuple(own), tuple(facts))
 
 
@@ -7482,8 +7485,9 @@ def _weighing(reading: Reading, view: PatternInventory, heard: "Heard", common: 
 #: defined, proposed, misplaced. The state `_choices` carries is these four, each capped, so what the best choice
 #: of senses is can be worked out part by part.
 _LEVELS = (LISTENING_LEVELS["known"] - 1, LISTENING_LEVELS["defined"] - 1,
-           LISTENING_LEVELS["proposed"] - 1, LISTENING_LEVELS["misplaced"] - 1)
-_Counted = Tuple[int, int, int, int]
+           LISTENING_LEVELS["proposed"] - 1, LISTENING_LEVELS["misplaced"] - 1,
+           LISTENING_LEVELS["said_for"] - 1)
+_Counted = Tuple[int, int, int, int, int]
 
 
 def _levelled(a: _Counted, b: _Counted) -> _Counted:
@@ -7496,21 +7500,25 @@ def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
     (score, the sense each word takes). Found word by word over the facts that join them (variable elimination: each
     word's senses weighed against the words it shares facts with, then set aside), never every choice crossed: what
     the listener weighs is a sum over words and over facts between two, and what it counts in levels is a small
-    state (known, defined, proposed, misplaced, each capped at its last level), so the best of the whole is made
-    parts for each state. A few kept for each state, so ties are found and asked about."""
+    state (known, defined, proposed, misplaced, said_for, each capped at its last level), so the best of the whole
+    is made parts for each state. A few kept for each state, so ties are found and asked about.
+
+    `said_for` is the reading's own and turns on no word's sense, so it is counted in `_Weighing.counted` and is
+    nothing here."""
     n = len(weighing.words)
     # A factor: its words, and for each choice of their senses, a few (score, counted, the senses of words set aside).
     Entry = Tuple[float, _Counted, Tuple[Tuple[int, int], ...]]
     factors: List[Tuple[Tuple[int, ...], Dict[Tuple[int, ...], List[Entry]]]] = []
     for k, shares in enumerate(weighing.own):
-        factors.append(((k,), {(x,): [(share, (0, 0, min(proposed, _LEVELS[2]), min(misplaced, _LEVELS[3])), ())]
+        factors.append(((k,), {(x,): [(share, (0, 0, min(proposed, _LEVELS[2]),
+                                                min(misplaced, _LEVELS[3]), 0), ())]
                                for x, (share, proposed, misplaced) in enumerate(shares)}))
     for scope, table in weighing.facts:
-        factors.append((scope, {choice: [(value, (min(h, _LEVELS[0]), min(d, _LEVELS[1]), 0, 0), ())]
+        factors.append((scope, {choice: [(value, (min(h, _LEVELS[0]), min(d, _LEVELS[1]), 0, 0, 0), ())]
                                 for choice, (value, h, d) in table.items()}))
 
     def kept(entries: Iterable[Entry]) -> List[Entry]:
-        by_state: Dict[Tuple[int, int, int], List[Entry]] = {}
+        by_state: Dict[_Counted, List[Entry]] = {}
         for entry in entries:
             by_state.setdefault(entry[1], []).append(entry)
         return [e for group in by_state.values() for e in sorted(group, key=lambda e: -e[0])[:best]]
@@ -7557,7 +7565,7 @@ def _choices(weighing: _Weighing, worths: Mapping[Tuple[str, int], float],
 def _score_at(weighing: _Weighing, chosen: Sequence[int], worths: Mapping[Tuple[str, int], float]) -> float:
     """The listener's score of a reading with these senses chosen for its packed words (`_choices`)."""
     value = weighing.fixed + sum(weighing.own[k][x][0] for k, x in enumerate(chosen))
-    known, defined, proposed, misplaced = weighing.counted
+    known, defined, proposed, misplaced, said_for = weighing.counted
     proposed += sum(weighing.own[k][x][1] for k, x in enumerate(chosen))
     misplaced += sum(weighing.own[k][x][2] for k, x in enumerate(chosen))
     for scope, table in weighing.facts:
@@ -7566,7 +7574,8 @@ def _score_at(weighing: _Weighing, chosen: Sequence[int], worths: Mapping[Tuple[
     return round(value + worths.get(("known", min(known, _LEVELS[0])), 0.0)
                  + worths.get(("defined", min(defined, _LEVELS[1])), 0.0)
                  + worths.get(("proposed", min(proposed, _LEVELS[2])), 0.0)
-                 + worths.get(("misplaced", min(misplaced, _LEVELS[3])), 0.0), 6)
+                 + worths.get(("misplaced", min(misplaced, _LEVELS[3])), 0.0)
+                 + worths.get(("said_for", min(said_for, _LEVELS[4])), 0.0), 6)
 
 
 def _made(weighing: _Weighing, chosen: Sequence[int], view: PatternInventory) -> Optional[Reading]:
@@ -7691,7 +7700,7 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
             # of 0.2 nats and a margin of 20 are the same decision from the outside and are not the same decision.
             "margin": margin,
             "weighed": [{"meaning": w.reading.meaning.canonical(), "known": w.known, "defined": w.defined,
-                         "proposed": w.proposed, "misplaced": w.misplaced,
+                         "proposed": w.proposed, "misplaced": w.misplaced, "said_for": w.said_for,
                          "activation": round(w.activation, 4), "structure": round(w.derivation, 4),
                          "total": total, "composed": w.reading.composed,
                          "worth": {evidence: round((worths or {}).get((evidence, level), 0.0), 4)
@@ -7716,10 +7725,12 @@ def _listening_said(given: int, rows: Optional[Sequence[Tuple["Weighed", float]]
     worth = {evidence: (worths or {}).get((evidence, level), 0.0) for evidence, level in listening_levels(w).items()}
     moved = sum(worth.values())
     logger.info("listening: %d readings, %s by %.2f nats over the next of %d (known %d worth %.2f, defined %d worth "
-                "%.2f, proposed %d worth %.2f, misplaced %d worth %.2f, met+raised %.2f, structure %.2f%s; %s): %s",
+                "%.2f, proposed %d worth %.2f, misplaced %d worth %.2f, said-for %d worth %.2f, met+raised %.2f, "
+                "structure %.2f%s; %s): %s",
                 given, how, rows[0][1] - rows[1][1], len(rows), w.known, worth.get("known", 0.0), w.defined,
                 worth.get("defined", 0.0), w.proposed, worth.get("proposed", 0.0),
-                w.misplaced, worth.get("misplaced", 0.0), w.activation, w.derivation,
+                w.misplaced, worth.get("misplaced", 0.0), w.said_for, worth.get("said_for", 0.0),
+                w.activation, w.derivation,
                 "" if moved else " — NOTHING MEMORY KNOWS IS WORTH ANYTHING YET", memory, said)
 
 
