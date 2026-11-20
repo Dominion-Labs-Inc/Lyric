@@ -854,8 +854,11 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
 
         # Initialize components
         self.memory_system = None  # Will be injected by main.py
-        meta_db_path = config.get('meta_learning_db_path', 'meta_learning.db') if config else 'meta_learning.db'
-        # Use global MetaLearner singleton so meta-learning is shared
+        # Use global MetaLearner singleton so meta-learning is shared.
+        # A `meta_db_path` local was read from config here ('meta_learning.db')
+        # and NEVER USED -- the line below ignores it entirely. It was the only
+        # reader of `meta_learning_db_path` in the whole tree, so that config
+        # key named a SQLite file nothing ever opened.
         self.meta_learning = get_meta_learner(config=self.config.get("meta_learning_config"))
 
         # Domain knowledge integration for transfer learning (use singletons)

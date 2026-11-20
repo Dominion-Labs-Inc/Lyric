@@ -220,13 +220,15 @@ class FormalArgumentationSystem:
     Elevates debate beyond rhetoric to formal logic.
     """
     
-    def __init__(self, db_path: Optional[str] = None):
-        # Use unified database instead of separate argumentation.db
-        # Argumentation knowledge persists to the unified PostgreSQL
-        # database like the rest of the system -- no SQLite file.
+    def __init__(self):
+        # Argumentation knowledge persists to the one Lyric World Model, like
+        # the rest of the system. There is no SQLite file and no second store.
+        # A `db_path: Optional[str] = None` parameter stood here and was NEVER
+        # READ: its own comment said it "defaults to argumentation.db in
+        # workspace", advertising a store this system does not have. Nothing
+        # ever passed it -- every call site constructs with no arguments -- so
+        # a caller handing it a path would have been silently ignored.
         self.unified_db = LyricUnifiedDatabase()
-
-        # Store db_path (defaults to argumentation.db in workspace)
 
         # Argument database
         self.claims: Dict[str, Claim] = {}

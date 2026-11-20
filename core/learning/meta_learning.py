@@ -1515,9 +1515,13 @@ class MetaLearningSystem(MetaLearner):
     MetaLearner's implementation.
     """
 
-    def __init__(self, memory_db_path: str = "meta_learning.db", **config: Any) -> None:
+    def __init__(self, **config: Any) -> None:
+        # A `memory_db_path: str = "meta_learning.db"` parameter stood here and
+        # was seeded into the config dict. `initialize` records what became of
+        # it: "accepted as config and never opened". Strategy statistics live in
+        # the one Lyric World Model. Nothing in the tree constructs this class,
+        # so nothing passed it either.
         full_config: Dict[str, Any] = dict(config)
-        full_config.setdefault("memory_db_path", memory_db_path)
 
         logger.warning(
             "MetaLearningSystem is deprecated – use MetaLearner or get_meta_learner() "

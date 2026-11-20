@@ -285,10 +285,13 @@ class TemporalReasoningSystem:
     - Counterfactual temporal reasoning
     """
     
-    def __init__(self, db_path: Optional[str] = None):
-        # Temporal knowledge is persisted to the unified PostgreSQL database
-        # like the rest of the system -- no separate SQLite file. The parameter
-        # is kept for signature compatibility and ignored.
+    def __init__(self):
+        # Temporal knowledge is persisted to the one Lyric World Model like the
+        # rest of the system -- no separate SQLite file, no second store.
+        # A `db_path: Optional[str] = None` parameter stood here, documented as
+        # "kept for signature compatibility and ignored". Nothing passed it, so
+        # the only thing the compatibility bought was a caller's belief that a
+        # path could redirect this system's persistence. It could not.
         self.unified_db = LyricUnifiedDatabase()
         
         # Temporal knowledge

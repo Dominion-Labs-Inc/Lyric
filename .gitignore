@@ -279,3 +279,12 @@ experiments/GRAMMAR-01/results/word_records.jsonl
 # The DELPH-IN tools: ACE (MIT, a compiled binary) and the English Resource Grammar image (286 MB).
 # Downloaded, never pushed.
 tools/delphin/
+
+# There is ONE store: the Lyric World Model, PostgreSQL on 5433. No SQLite, no
+# second store. Twelve .db files were tracked here -- LLM-era residue from 2025
+# and test fixtures named test_math/test_physics -- and nothing in the codebase
+# read any of them. A SQLite file in this tree is a second store and must not
+# become one again.
+*.db
+*.sqlite
+*.sqlite3

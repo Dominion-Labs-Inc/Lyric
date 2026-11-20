@@ -432,8 +432,11 @@ class BayesianUncertaintySystem:
     #: resolved. 0.7 bits ~ a posterior outside (0.28, 0.72).
     UNSTABLE_ENTROPY: float = 0.7
 
-    def __init__(self, db_path: Optional[str] = None):
-        # All persistence goes through the unified PostgreSQL database.
+    def __init__(self):
+        # All persistence goes through the one Lyric World Model. A
+        # `db_path: Optional[str] = None` parameter stood here with no comment
+        # at all and was never read -- nothing passed it, and a caller that did
+        # would have had its path silently ignored.
         self.unified_db = LyricUnifiedDatabase()
         
         # Bayesian beliefs

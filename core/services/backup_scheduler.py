@@ -389,8 +389,29 @@ class BackupScheduler:
             record.file_path = backup_file
             record.file_size = os.path.getsize(backup_file)
             record.checksum = checksum
-            record.status = BackupStatus.COMPLETED
             record.end_time = datetime.now()
+
+            # A TARGET THAT ARCHIVED NOTHING IS NOT A COMPLETED BACKUP. A tar
+            # opens, a target contributes no bytes, and the record still carried
+            # COMPLETED with a size and a checksum -- so `successful_backups`
+            # counted a backup of something that was never in the archive.
+            # The archive is kept and catalogued, because the targets that did
+            # archive are real; only the claim of completeness is withdrawn.
+            unarchived = record.metadata.get("targets_archived_nothing") or []
+            if unarchived:
+                record.status = BackupStatus.FAILED
+                record.error_message = (
+                    "archived nothing for " + "; ".join(unarchived)
+                    + ". The archive holds only the targets that did archive.")
+                await self._persist_record(record)
+                await self._cleanup_old_backups(config)
+                self.stats['failed_backups'] += 1
+                logger.error("Backup %s IS NOT A BACKUP of %s (%s bytes archived): %s",
+                             record_id, "; ".join(unarchived), record.file_size,
+                             record.error_message)
+                return
+
+            record.status = BackupStatus.COMPLETED
 
             # Record the completed backup in the catalog
             await self._persist_record(record)
@@ -435,7 +456,7 @@ class BackupScheduler:
             # Backup each target
             for target in config.targets:
                 if target == BackupTarget.DATABASE:
-                    await self._backup_database(tar)
+                    await self._backup_database(tar, record)
                 elif target == BackupTarget.FILES:
                     await self._backup_files(tar)
                 elif target == BackupTarget.CONFIGURATION:
@@ -445,17 +466,46 @@ class BackupScheduler:
                 elif target == BackupTarget.MODELS:
                     await self._backup_models(tar)
                 elif target == BackupTarget.ALL:
-                    await self._backup_database(tar)
+                    await self._backup_database(tar, record)
                     await self._backup_files(tar)
                     await self._backup_configuration(tar)
 
         return backup_path
 
-    async def _backup_database(self, tar: tarfile.TarFile):
-        """Backup database files"""
-        db_path = os.path.join(self.data_dir, 'databases')
-        if os.path.exists(db_path):
-            tar.add(db_path, arcname='databases')
+    async def _backup_database(self, tar: tarfile.TarFile, record: BackupRecord):
+        """Archive the Lyric World Model.
+
+        THIS BACKED UP NO DATABASE. It tarred `<data_dir>/databases`, a folder of
+        SQLite files, while the model lives in PostgreSQL on 5433 and was never in
+        that folder. What it did archive was test residue from the reasoning
+        modules' own demo blocks -- "rain" -> "wet ground", "The server is
+        running", "Vaccines are unsafe" with warrant "anecdote", every confidence
+        a hardcoded 0.5 -- so a BackupTarget.DATABASE backup reported COMPLETED,
+        with a size and a checksum, holding none of the model.
+
+        It archives nothing now and says so on the record, which `_execute_backup`
+        turns into BackupStatus.FAILED. It does NOT raise: the targets run inside
+        one open tar, so raising here would abort the files and configuration
+        archives that do work.
+
+        What a real archive needs: `core.database.releases` already runs pg_dump,
+        and `PostgresConfig.databases()` names every database of the line. The
+        model measured 10.62 GB on 2026-11-20 against 70 GiB free, so the dump,
+        its compression and `retention_days` are a disk decision to be taken
+        deliberately rather than switched on inside a defect fix.
+        """
+        from core.database.postgres_config import PostgresConfig
+
+        config = PostgresConfig.resolve()
+        named = ", ".join(sorted(set(config.databases().values())))
+        logger.error(
+            "BACKUP ARCHIVED NO DATABASE: the Lyric World Model is PostgreSQL at "
+            "%s:%s (%s) and no dump is wired here, so this archive holds none of it. "
+            "Previously this tarred %s, a folder of dead SQLite files, and the backup "
+            "was reported as completed.",
+            config.host, config.port, named, os.path.join(self.data_dir, 'databases'))
+        record.metadata.setdefault("targets_archived_nothing", []).append(
+            f"database (Lyric World Model at {config.host}:{config.port}: {named})")
 
     async def _backup_files(self, tar: tarfile.TarFile):
         """Backup data files"""
