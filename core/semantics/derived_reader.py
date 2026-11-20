@@ -2269,6 +2269,30 @@ class PatternInventory:
         classes = {c: n for c, n in (self.word_classes.get(word) or {}).items() if n > 0}
         return bool(classes) and max(classes, key=lambda c: (classes[c], c)) in self.NAMING_CLASSES
 
+    def holds_a_building_class(self, word: str) -> bool:
+        """Whether the class memory MOST holds this word as is one English BUILDS SENTENCES FROM: DETERMINER,
+        PREPOSITION, AUXILIARY, PARTICLE, CONJUNCTION, PRONOUN -- the other side of the same cut
+        `holds_a_naming_class` makes, and read off the same counts.
+
+        EVIDENCE FOR, NOT THE ABSENCE OF EVIDENCE, which is why this is not `not holds_a_naming_class(word)`:
+        that answers True for a word memory holds NO class of, and a view built from a handful of lessons holds
+        none of any word. Asked that way, every word written in two frames of a thirteen-lesson view became a
+        word that names nothing -- "cut", which those lessons name the concept `cut` with -- and
+        "Tom cut himself." stopped reading at all (`tests/test_derived_reading.py`, 2026-11-19). Where memory
+        holds no class this says nothing, and `names_nothing` is left with the tests it had.
+
+        WHAT IT IS FOR. `is_structure` fails on ONE sighting of a word as a filler, and WordNet gave a sense to
+        most of the words English builds its sentences from, so of the twenty-five most structural words in the
+        store thirteen were held to name things -- "is" (1,337 shapes of sentence against one filler), "to"
+        (728/2), "a" (591/9), "are" (242/1), "on", "with", "for", "not", "no", "all", "some", "every", "or" --
+        while every word that passed ("the", "of", "in", "and", "was", "at", "by") had no filler at all. A slot's
+        openings are read through `names_nothing`, so "A dog" and "dog" were one opening and the rule they are
+        for -- "a filler begun by a word that names nothing does not go where the slot's own fillers never had
+        one" -- could not see English's article (2026-11-19)."""
+        word = _fold(word)
+        classes = {c: n for c, n in (self.word_classes.get(word) or {}).items() if n > 0}
+        return bool(classes) and max(classes, key=lambda c: (classes[c], c)) not in self.NAMING_CLASSES
+
     def builds_more_than_it_names(self, word: str) -> bool:
         """Whether held frames are written with this word more often than it is held naming things: "a", in 158
         frames and naming seven things (the ampere, the angstrom, adenine ...), is English's article first. A
@@ -2330,9 +2354,18 @@ class PatternInventory:
         change (`written_in_shape`) from the name of a concept a taught meaning holds: "jumped", held only inside
         "The ?slot0 jumped onto the ?slot1." and "The ?slot0 jumped over the ?slot1.", names `jump`. A change
         merely shown by two words is a list of words, and applies to no other: taken so, "of" was "o" written with
-        "f", "is" was "i" with "s", and "with" was "wit" with "h"."""
+        "f", "is" was "i" with "s", and "with" was "wit" with "h".
+
+        OR MEMORY HOLDS IT AS A WORD ENGLISH BUILDS SENTENCES FROM (`holds_a_building_class`), which is evidence
+        from outside the circle `is_structure` reasons in: that one fails on ONE sighting of the word as a filler,
+        and WordNet gave a sense to most of English's structure words, so "is", "to", "a", "are", "on", "with",
+        "for", "not", "no", "all", "some", "every" and "or" were all held to name things. What that cost is
+        written there."""
         word = _fold(word)
-        if not (self.is_structure(word) and word not in self._named and self._shapes.get(word, 0) > 1):
+        if not ((self.is_structure(word) and word not in self._named)
+                or self.holds_a_building_class(word)):
+            return False
+        if self._shapes.get(word, 0) <= 1:
             return False
         if self._shape_counts is None:
             self._shapes_found()
@@ -3073,10 +3106,17 @@ class PatternInventory:
                     out.append(base)
         return out
 
-    def holding(self, word: str) -> Tuple[Lexical, ...]:
-        """The fillers held for a word: those written as it, case aside; with none, those of the concept it names, a
-        concept's own name being a way to write it, as saying writes it ("fox", where only "Foxes" is held)."""
-        return self.lexicals_with_words((_fold(word),), loose=True) or self.lexicals_with_value(_fold(word))
+    def holding(self, word: Union[str, Sequence[str]]) -> Tuple[Lexical, ...]:
+        """The fillers held for a word, or for a RUN of words: those written as it, case aside; with none, those of
+        the concept it names, a concept's own name being a way to write it, as saying writes it ("fox", where only
+        "Foxes" is held).
+
+        A RUN BECAUSE A NAME OF SEVERAL WORDS IS A WORD TO LOOK UP ("Old Testament", "writer roberts"): the loose
+        index is keyed by a filler's whole run of words (`_lexical_loose`), so one word was the only question that
+        could be asked of it, and the one caller that asks how many senses a run has (`_share_among_senses`) could
+        not ask it at all."""
+        run = _loose((word,) if isinstance(word, str) else tuple(word))
+        return self.lexicals_with_words(run, loose=True) or self.lexicals_with_value(_fold(" ".join(run)))
 
     def said_shapes(self) -> Tuple[Dict[Tuple[str, str], Tuple[int, int]], FrozenSet[Tuple[str, str]]]:
         """Every change the held fillers show, scored as saying uses it, and those productive so. Yang (2016) counts
@@ -6938,16 +6978,39 @@ def _derivation(reading: Reading, view: PatternInventory) -> float:
         # weighed against and the price changes nothing ("A whale breathes air through a blowhole.").
         total = reading.structure
         for construction in reading.constructions:
-            if not isinstance(construction, Lexical) or len(construction.words) != 1:
+            # EVERY WORD IT NAMES A THING WITH, a name of several words as much as one: the same question asked
+            # of a frame's proposed link (`_derivation_of`). Only one-word fillers were charged here, so a
+            # composed reading naming a thing with a taught two-word name paid NOTHING under this head while a
+            # frame proposing the same name paid the vocabulary's price (2026-11-19).
+            #
+            # A PACKED WORD IS CHARGED HERE AS ANY OTHER IS, which is what the one-word test it replaced did.
+            # Left out as `_weighing` leaves it out -- rightly there, where its senses are priced one by one --
+            # every packed word in a composed reading became free, and "The rock was heavy." took a packed
+            # reading of `rock` and `heavy` saying the rock IS heavy over the one taught for "was" (`state_of`
+            # with `precedes(?now)`), and said it back as "The rock is heavy." (`scripts/check_reading.py`
+            # against its 11-18 baseline, 2026-11-19).
+            if not isinstance(construction, Lexical):
                 continue
-            total += math.log(_share_among_senses(view, construction.words[0]))
+            total += math.log(_share_among_senses(view, construction.words))
         return total
     return _derivation_of(reading.links, reading.proposed, view)
 
 
-def _share_among_senses(view: PatternInventory, word: str) -> float:
+def _share_among_senses(view: PatternInventory, words: Union[str, Sequence[str]]) -> float:
     """How much of everything this word was met naming is this sense's, smoothed by one: "of all the things THIS
     WORD names, why this one?".
+
+    ASKED OF A RUN OF WORDS AS IT IS OF ONE ("Old Testament", "political party", "writer roberts"), because the
+    sentence hands the reader the run as surely as it hands it a word -- the words are there, in that order. Asked
+    only where the filler was written as ONE word, every taught name of several words fell to `_share_of` instead
+    and was charged the price of picking a thing out of a 155,767-word vocabulary, while a reading that took the
+    same words SEPARATELY paid the cheap per-word price once each. So taking a run as the one taught name it is
+    cost more than not taking it, which is the opposite of what the reader supposes of the two
+    (`Reading.supposed`): "Are Psalms part of Old Testament?" read through the taught `part of` frame and the
+    taught name "Old Testament" supposed 2 and was charged -10.21 for its structure, and lost by ten nats to a
+    reading that split the name, supposed 3, and was charged -4.38 -- `Old` a property and `Testament` a will
+    (2026-11-19). Charging a run again for being a run is the same double-count this head was already found to be
+    making of a single word's senses, which is what the rest of this says.
 
     THE WORD IS GIVEN; THE SENSE IS THE CHOICE. Asked over everything met where things of its part stand
     (`_share_of`) instead, naming one word cost about eleven nats -- the price of picking a thing out of a
@@ -6979,7 +7042,7 @@ def _share_among_senses(view: PatternInventory, word: str) -> float:
     "Bats are clubs." fill the one slot from the one word, and `isa(bat club, club)` was charged -14.49 against
     `isa(bat, club)`'s -8.63 for no structural reason -- which lost the sense memory holds a fact about
     (tests/test_derived_reading.py, 2026-11-12)."""
-    return 1.0 / (len(view.holding(word)) + 1)
+    return 1.0 / (len(view.holding(words)) + 1)
 
 
 def _composed_supposes(reading: Reading) -> int:
@@ -7018,7 +7081,13 @@ def _derivation_of(links: Iterable[Link], proposed: Iterable[Link], view: Patter
         # Pricing composing at eleven nats a word matched that figure and hid it; it cost every imperative
         # instead, since an imperative is read by composing and names every word it has.
         stood = str(link.lexical_surface or "").strip()
-        share = (_share_among_senses(view, stood) if stood and len(stood.split()) == 1
+        # ASKED OF THE WHOLE RUN THE SENTENCE WROTE, however many words it is (`_share_among_senses`). The
+        # question is "which of the things these words name stands here", and the sentence hands the reader
+        # "Old Testament" exactly as it hands it "Psalms". Asked only of a one-word filler, a taught name of
+        # several words fell to `_share_of` -- the price of picking a thing out of the whole vocabulary -- so a
+        # frame reading using the taught name lost to one that split it into words it could price cheaply.
+        # `_share_of` is left for a link with no written surface at all, where there is no run to ask about.
+        share = (_share_among_senses(view, stood.split()) if stood
                  else _share_of(view, filler, (view._taken_at(link.pattern, link.slot) or ("thing",))[0]))
         total += math.log((k + fillers * share) / (uses + fillers)) if uses + fillers else math.log(share)
     return total
