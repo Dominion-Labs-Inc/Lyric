@@ -885,11 +885,23 @@ class Lexicon:
         #: nothing ever said so: the model could be empty while reading went on as though it were full. There is no
         #: second place a grammar may come from now, and a caller with none fails here saying so.
         self.words = words
-        if not grammar or "words" not in grammar or "classes" not in grammar:
+        #: EVERY PART THIS REQUIRES, NAMED HERE. The guard asked for `words` and `classes`
+        #: and the four lines below then take `verbs` and `linking` with `[]`, so a grammar
+        #: holding the first two and not the others passed the guard and died on
+        #: `KeyError: 'linking'` -- an opaque crash in place of the message written right
+        #: here to explain exactly this. Measured 2026-11-21: the eleven-paths benchmark
+        #: reported `deductive FAIL reason() raised KeyError: 'linking'`, which reads as a
+        #: defect in deduction and is a partially taught grammar. `data/grammar/english.json`
+        #: holds all four; a store taught only some of it does not.
+        missing = [part for part in ("words", "classes", "verbs", "linking")
+                   if part not in (grammar or {})]
+        if missing:
             raise ValueError(
-                "English's grammar was not given. It is taught into memory like everything else "
-                "(`teaching_sources.EnglishGrammarSource`, from `data/grammar/english.json`), and a store that has "
-                "not been taught it reads nothing: there is no second grammar to fall back on.")
+                "English's grammar was not given in full: " + ", ".join(missing) + " "
+                + ("is" if len(missing) == 1 else "are") + " missing. It is taught into memory "
+                "like everything else (`teaching_sources.EnglishGrammarSource`, from "
+                "`data/grammar/english.json`), and a store that has not been taught it reads "
+                "nothing: there is no second grammar to fall back on.")
         self.grammar = dict(grammar)
         self.closed: Dict[str, List[Mapping[str, Any]]] = {w.lower(): list(v) for w, v in
                                                            self.grammar["words"].items()}

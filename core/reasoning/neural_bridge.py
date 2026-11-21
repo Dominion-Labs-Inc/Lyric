@@ -3531,11 +3531,19 @@ class NeuralSymbolicBridge:
         return ReasoningResult(
             answer=f"P({belief.claim}) = {belief.posterior_probability:.3f}",
             confidence=confidence,
+            # THE BELIEF, NOT THE SEARCH FOR IT. The first step here was
+            # "consulted N learned belief(s)" -- how many were looked at, which says
+            # nothing about the claim and is no step of any reasoning.
+            #
+            # `answer` KEEPS ITS "P(claim) = x" FORM ON PURPOSE. It reads as machinery,
+            # but `Conversation._grounded` detects exactly this shape --
+            # `answer.startswith("P(")` -- to stop a belief that merely shares a word
+            # with the question becoming a spoken answer, which this path flags
+            # `verified` True. Rewording it here would silently defeat that guard, so
+            # the two have to change together.
             reasoning_steps=[
-                f"consulted {len(uncertainty_sys.beliefs)} learned belief(s)",
-                f"most relevant: {belief.claim[:80]!r} "
-                f"(posterior={belief.posterior_probability:.3f}, "
-                f"entropy={belief.entropy:.3f})",
+                f"{belief.claim} is held at {belief.posterior_probability:.3f}, "
+                f"with {belief.entropy:.3f} still unsettled",
             ],
             mode_used=ReasoningMode.NEURAL,
             metadata={
@@ -3808,13 +3816,30 @@ class NeuralSymbolicBridge:
             if k not in by_kind or c.confidence > by_kind[k].confidence:
                 by_kind[k] = c
 
+        # EACH CANDIDATE KEEPS WHAT IT REASONED, AND WHETHER IT VOUCHES FOR IT.
+        #
+        # `verified` was the literal True on every candidate. The ensemble is
+        # deductive / INDUCTIVE / ABDUCTIVE, and `_FACT_YIELDING_KINDS` is
+        # {deductive, logical, causal}: an induction or an abduction PROPOSES. So an
+        # inductive guess that won the arbitration came back marked verified, which is
+        # the one flag `_reasoned_answers` gates on -- it was accepted and told to the
+        # person as an established fact. `_reason_by_kind` sets this from the contract
+        # twenty lines below; this path asserted it.
+        #
+        # The conclusion's own `reasoning_steps` and `supporting_premises` were dropped
+        # here too, and the result's steps rebuilt as "Evaluated N parallel reasoning
+        # paths" -- the arbitration describing itself, in place of what the winning kind
+        # actually reasoned. They are carried now and the winner's are what it answers
+        # with.
         candidate_answers = [
             {
                 "path": k,
                 "answer": c.statement,
                 "full_response": c.statement,
-                "verified": True,
+                "verified": k in _FACT_YIELDING_KINDS,
                 "base_confidence": c.confidence,
+                "steps": list(c.reasoning_steps or ()),
+                "support": list(c.supporting_premises or ()),
             }
             for k, c in by_kind.items()
         ]
@@ -4001,8 +4026,11 @@ class NeuralSymbolicBridge:
                 },
                 "argument_strength": winner.get('argument_strength', 0.0),
                 "consistency": winner.get('consistency', 1.0),
-                # substrate-first credit-assignment contract
-                "verified": True,
+                # substrate-first credit-assignment contract -- the WINNING KIND's, not
+                # this path's own assertion. See the candidate list above.
+                "verified": bool(winner.get("verified")),
+                "kind": winner.get("path"),
+                "support": winner.get("support") or [],
                 "formalized": False,
                 KEY_SUBSTRATE_FORMALIZED: False,
                 "reason": REASON_DERIVED_BY_KIND,
@@ -4014,12 +4042,7 @@ class NeuralSymbolicBridge:
             return ReasoningResult(
                 answer=winner['answer'],
                 confidence=winner['final_score'],
-                reasoning_steps=[
-                    f"Evaluated {len(candidate_answers)} parallel reasoning paths",
-                    f"Formal arbitration selected {winner['path']} path",
-                    f"Argument strength: {winner.get('argument_strength', 0):.2f}",
-                    f"Logical consistency: {winner.get('consistency', 1):.2f}"
-                ],
+                reasoning_steps=list(winner.get("steps") or ()),
                 mode_used=ReasoningMode.NEURO_SYMBOLIC,
                 full_response=winner['full_response'],
                 metadata=metadata
@@ -4396,9 +4419,12 @@ class NeuralSymbolicBridge:
         return ReasoningResult(
             answer=insights_text,
             confidence=confidence,
-            reasoning_steps=[
-                f"grounded {len(result.mappings)} mapping(s) across "
-                f"{getattr(result, 'domains_queried', 0)} domain(s)"],
+            # THE MAPPINGS, NOT THE COUNT OF THEM. This said "grounded N mapping(s)
+            # across M domain(s)": two numbers about the search, naming neither what
+            # was mapped to what nor which domains it crossed.
+            reasoning_steps=[str(m) for m in (result.mappings or ())]
+                            or [f"nothing mapped across "
+                                f"{getattr(result, 'domains_queried', 0)} domain(s)"],
             mode_used=ReasoningMode.CROSS_DOMAIN,
             metadata={
                 "verified": True,
