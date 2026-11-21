@@ -10353,12 +10353,25 @@ class MemoryAgent(IMemoryConsolidation):
 
     async def _examine_what_was_learned(self, held: Dict[str, Any], counts: Dict[str, int],
                                         at: str, give_way, page: Optional[int]) -> None:
-        """Walk the window's memories oldest first, weigh each by what came of it, and record the ones that
-        did not hold up.
+        """Walk the window's memories oldest first, weigh each by what came of it, and record WHAT WAS
+        CONCLUDED ABOUT EACH -- on the knowledge itself, beside the admission that let it in.
 
-        ONLY A FINDING IS WRITTEN BACK. Marking every piece of knowledge `fine` would rewrite the whole store
-        to say what the reflection's own counts already say, and nothing would ever read it. What needs to be
-        on the knowledge itself is the verdict somebody has to look at."""
+        EVERY VERDICT IS WRITTEN, NOT ONLY THE FAILURES. This recorded QUESTIONED and DID NOT HOLD alone, on
+        the reasoning that "marking every piece of knowledge `fine` would rewrite the whole store to say what
+        the reflection's own counts already say". The consequence was that a reflection could only ever be
+        asked HOW MANY: a sitting on 2026-11-21 reported 568 examined and 453 borne out, and there was no way
+        to ask WHICH 568, or whether any particular thing taught that morning had been reflected on at all.
+        Three claims taught an hour earlier fell inside its window and nothing on them says so.
+
+        A reflection's conclusion is part of what the substrate knows, so it belongs on the knowledge whatever
+        the conclusion was. `nothing to weigh` is worth writing for the same reason the rest of this substrate
+        says why it found nothing: it is the difference between "reflection looked and no evidence had
+        accumulated" and "reflection never reached this".
+
+        THE COST IS THE WINDOW, NOT THE STORE. One update per piece examined in this window -- 568 in that
+        sitting. The "whole store" this guarded against is the FIRST reflection, which covers everything ever
+        learned (`_earliest_learned`): that one ran on 2026-11-19 over 1,441,713 pieces and will not run
+        again, because a window starts where the last one ended."""
         from core.database.releases import SUBSTRATE_OWNERS
         db = self._memory_db()
         many = int(page or self.REFLECTION_PAGE)
@@ -10392,9 +10405,8 @@ class MemoryAgent(IMemoryConsolidation):
                     counts[{self.BORE_OUT: "bore_out", self.QUESTIONED: "questioned",
                             self.DID_NOT_HOLD: "did_not_hold",
                             self.NOTHING_TO_WEIGH: "nothing_to_weigh"}[verdict]] += 1
-                    if verdict in (self.QUESTIONED, self.DID_NOT_HOLD):
-                        await self._record_verdict(memory_id, held["reflection"], verdict,
-                                                   borne, against, beliefs)
+                    await self._record_verdict(memory_id, held["reflection"], verdict,
+                                               borne, against, beliefs)
                     since, last = made_at, memory_id
                     await give_way(f"{store}|{made_at.isoformat()}|{memory_id}")
                 await self._reflection_reached(
@@ -10442,7 +10454,11 @@ class MemoryAgent(IMemoryConsolidation):
 
         MERGED, NEVER REPLACED. `memory_admission` is the memory filter's record of why this was worth
         keeping at all; a reflection has no business overwriting it. It is written under `reflected`, so a
-        piece of knowledge carries both what admitted it and what examining it concluded."""
+        piece of knowledge carries both what admitted it and what examining it concluded.
+
+        Written for EVERY verdict, including `bore out` and `nothing to weigh`. See
+        `_examine_what_was_learned`: recording only the failures left a reflection answerable in counts
+        alone, so nothing could be asked about the knowledge a teaching session actually produced."""
         await self.update_memory(memory_id, {"memory_admission": {"reflected": {
             "at": datetime.now().isoformat(), "reflection": int(reflection), "verdict": verdict,
             "borne_out": borne, "contradicted": against, "beliefs": beliefs}}})
