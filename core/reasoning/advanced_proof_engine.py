@@ -22,10 +22,14 @@ try:
     # Optional SMT backend for industrial-strength proving/constraints
     from z3 import Solver, Bool, And, Or, Not, Implies, sat  # type: ignore
     _Z3_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _no_z3:  # pragma: no cover - optional dependency
     Solver = None  # type: ignore
     Bool = And = Or = Not = Implies = sat = None  # type: ignore
     _Z3_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "z3 is not available (%s: %s): nothing can be proved by satisfiability, "
+        "so this engine falls back to natural deduction alone",
+        type(_no_z3).__name__, _no_z3)
 
 logger = logging.getLogger(__name__)
 
@@ -650,6 +654,8 @@ class AdvancedProofEngine:
                 return direct
             reductio = await self._proof_by_contradiction(theorem, max_steps)
         except FormulaSyntaxError as error:
+            logger.info("theorem %s was not attempted: its formula does not "
+                        "parse (%s)", theorem.theorem_id, error)
             return Proof(theorem_id=theorem.theorem_id, proved=False,
                          method=ProofMethod.DIRECT, confidence=0.0,
                          error=f"formula could not be parsed: {error}")
@@ -750,6 +756,8 @@ class AdvancedProofEngine:
                 premises = {parser.parse_ast(p) for p in theorem.premises}
                 goal = parser.parse_ast(theorem.statement)
         except FormulaSyntaxError as error:
+            logger.info("a derivation could not be checked: the theorem does "
+                        "not parse (%s)", error)
             return ProofVerification(False, f"the theorem could not be parsed: {error}")
 
         established: Dict[int, Any] = {}
@@ -760,7 +768,9 @@ class AdvancedProofEngine:
             rule = (step.rule_applied or "").lower()
             try:
                 node = BOTTOM if step.statement.strip() == "⊥" else parser.parse_ast(step.statement)
-            except FormulaSyntaxError:
+            except FormulaSyntaxError as error:
+                logger.info("a derivation fails at step %d: %r is not a formula "
+                            "(%s)", n, step.statement[:80], error)
                 return ProofVerification(False, f"step {n} is not a formula", failed_step=n)
             cited = list((step.metadata or {}).get("from") or [])
             if any(c not in established for c in cited):

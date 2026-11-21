@@ -345,6 +345,8 @@ class CognitiveIngress:
         try:
             source_type = EvidenceSourceType[provenance.source_type]
         except KeyError:
+            logger.warning("evidence REFUSED: %r is not a source type this "
+                           "substrate knows", provenance.source_type)
             result.refusals.append(
                 f"unknown evidence source {provenance.source_type!r}; "
                 f"expected one of {[e.name for e in EvidenceSourceType]}")
@@ -435,6 +437,8 @@ class CognitiveIngress:
         try:
             source_type = EvidenceSourceType[provenance.source_type]
         except KeyError:
+            logger.warning("evidence REFUSED: %r is not a source type this "
+                           "substrate knows", provenance.source_type)
             result.refusals.append(f"unknown evidence source {provenance.source_type!r}")
             return result
 
@@ -675,7 +679,9 @@ class CognitiveIngress:
         # `related_to` licenses no inference, so it states no fact a memory could claim.
         try:
             facts = [MeaningFact(told[1], told[0], told[2], positive).to_list()]
-        except ValueError:
+        except ValueError as error:
+            logger.debug("what was told does not make a fact (%s): the memory "
+                         "is held without its meaning facts", error)
             facts = None
         result.memories = await self._remember(
             result.proposition, surface, provenance, result,

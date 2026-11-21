@@ -67,7 +67,10 @@ def _vector_literal(embeddings):
         if len(embeddings) == 0:
             return None
         return "[" + ",".join(repr(float(x)) for x in embeddings) + "]"
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as error:
+        logger.warning("an embedding could not be written as a vector (%s): "
+                       "this memory is stored without one, so it cannot be "
+                       "found by similarity", type(error).__name__)
         return None
 
 
@@ -76,14 +79,18 @@ def _json_field(row, key):
     import json as _json
     try:
         v = row[key]
-    except (KeyError, TypeError, IndexError):
+    except (KeyError, TypeError, IndexError) as error:
+        logger.debug("a row holds no %r (%s): that field comes back as None",
+                     key, type(error).__name__)
         return None
     if v is None:
         return None
     if isinstance(v, str):
         try:
             return _json.loads(v)
-        except ValueError:
+        except ValueError as error:
+            logger.warning("the %r field of a memory row is not valid JSON "
+                           "(%s): what it held comes back as None", key, error)
             return None
     return v
 
@@ -1546,8 +1553,10 @@ class PostgresStorage:
         try:
             if isinstance(status, str) and status.upper().startswith("UPDATE"):
                 return int(status.split()[-1])
-        except (ValueError, IndexError):
-            pass
+        except (ValueError, IndexError) as error:
+            logger.warning("how many rows an UPDATE affected could not be read "
+                           "from %r (%s): it is reported as 0, which reads as "
+                           "nothing written", status, type(error).__name__)
         return 0
 
     def _row_to_memory_item(

@@ -464,8 +464,11 @@ class RecoveryManager:
                         severity="info",
                         metadata={"component": component, "actions": actions_taken, "successful_count": self.statistics['successful_recoveries']}
                     )
-                except:
-                    pass
+                except BaseException as notify_error:
+                    logger.warning("a successful recovery of %s was not "
+                                   "announced (%s: %s): the recovery stands, "
+                                   "the notification did not go out", component,
+                                   type(notify_error).__name__, notify_error)
             else:
                 self.statistics['failed_recoveries'] += 1
 
@@ -477,8 +480,11 @@ class RecoveryManager:
                         severity="error",
                         metadata={"component": component, "failed_count": self.statistics['failed_recoveries']}
                     )
-                except:
-                    pass
+                except BaseException as notify_error:
+                    logger.warning("a FAILED recovery of %s was not announced "
+                                   "(%s: %s): nobody was told it failed",
+                                   component, type(notify_error).__name__,
+                                   notify_error)
 
             failure_event.recovery_actions = actions_taken
 
@@ -582,8 +588,11 @@ class RecoveryManager:
                 try:
                     if hasattr(monitor, "stop_monitoring"):
                         await monitor.stop_monitoring()
-                except Exception:
-                    pass
+                except Exception as error:
+                    logger.warning("the health monitor did not stop cleanly "
+                                   "before restart (%s: %s): it is started "
+                                   "again anyway, which may leave two loops",
+                                   type(error).__name__, error)
 
                 await monitor.start_monitoring()
                 return True
@@ -595,8 +604,11 @@ class RecoveryManager:
                 try:
                     if hasattr(db, "close"):
                         await db.close()
-                except Exception:
-                    pass
+                except Exception as error:
+                    logger.warning("the database did not close cleanly before "
+                                   "restart (%s: %s): it is initialised again "
+                                   "anyway, which may leave the old pool open",
+                                   type(error).__name__, error)
 
                 if hasattr(db, "initialize"):
                     return bool(await db.initialize())

@@ -114,6 +114,8 @@ class _DatabasePool:
         try:
             running = asyncio.get_running_loop()
         except RuntimeError:
+            logger.debug("no running loop here, so this pool cannot be matched "
+                         "to one and is treated as another loop's")
             return False
         if self.loop is None:
             return True          # created before this tracking existed
@@ -930,8 +932,13 @@ class LyricUnifiedDatabasePostgres:
                 q = (query or "").lstrip().lower()
                 if q.startswith("select") or q.startswith("with") or q.startswith("show") or q.startswith("explain"):
                     fetch_all = True
-        except Exception:
-            pass
+        except Exception as error:
+            # Without this the query runs with whatever fetch mode was asked
+            # for, which for a SELECT means its rows are not returned.
+            logger.warning(
+                "the shape of this query could not be read (%s: %s): it runs "
+                "with the fetch mode as given, so a SELECT may return nothing",
+                type(error).__name__, error)
 
         try:
             async with self._acquire(pool, _tier_schema(use_hot_tier, use_cold_tier)) as conn:
@@ -1349,6 +1356,9 @@ class LyricUnifiedDatabasePostgres:
                             fetch_one=True, store=store)
                         own[key] = result is not None
                     except Exception as e:
+                        logger.warning("%s: the %s connection test failed (%s: "
+                                       "%s)", database, key.replace("_ok", ""),
+                                       type(e).__name__, e)
                         health['errors'].append(f"{database}: {key.replace('_ok', '')} test failed: {e}")
                 try:
                     async with self._acquire(pool, 'unified') as conn:
@@ -1357,6 +1367,9 @@ class LyricUnifiedDatabasePostgres:
                         )
                         own['pgvector_available'] = result is not None
                 except Exception as e:
+                    logger.warning("%s: pgvector is not usable (%s: %s): "
+                                   "anything that searches by embedding cannot "
+                                   "run", database, type(e).__name__, e)
                     health['errors'].append(f"{database}: pgvector test failed: {e}")
             for key in ('unified_connection_ok', 'hot_connection_ok', 'cold_connection_ok',
                         'pgvector_available'):

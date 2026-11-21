@@ -381,6 +381,9 @@ class ExperienceEvaluator:
             _add("competence", "competence", await im.calculate_competence_reward(
                 skill_name=task_type, performance=outcome_quality, success=success))
         except Exception as e:
+            logger.warning("competence reward not computed (%s: %s): it is "
+                           "skipped, so this experience's intrinsic reward is "
+                           "made of fewer parts", type(e).__name__, e)
             components["skipped"]["competence"] = f"error: {e}"
 
         # ── NOVELTY: distance from recent experience ─────────────────────────
@@ -392,6 +395,9 @@ class ExperienceEvaluator:
                 "tool_results_count": float(action.get("tool_results_count", 0) or 0),
             }))
         except Exception as e:
+            logger.warning("novelty reward not computed (%s: %s): it is "
+                           "skipped, so this experience's intrinsic reward is "
+                           "made of fewer parts", type(e).__name__, e)
             components["skipped"]["novelty"] = f"error: {e}"
 
         # ── AUTONOMY: self-initiated action with a real choice ───────────────
@@ -408,6 +414,9 @@ class ExperienceEvaluator:
                 "exploration_ratio": _ratio,
             }))
         except Exception as e:
+            logger.warning("autonomy reward not computed (%s: %s): it is "
+                           "skipped, so this experience's intrinsic reward is "
+                           "made of fewer parts", type(e).__name__, e)
             components["skipped"]["autonomy"] = f"error: {e}"
 
         # ── CURIOSITY: deliberately NOT computed here ────────────────────────
@@ -441,6 +450,9 @@ class ExperienceEvaluator:
                     "mutation_count": context.get("mutation_count", 0),
                 }
             except Exception as e:
+                logger.warning("curiosity reward not computed (%s: %s): it is "
+                               "skipped, so this experience's intrinsic reward "
+                               "is made of fewer parts", type(e).__name__, e)
                 components["skipped"]["curiosity"] = f"error: {e}"
 
         if not contributions:

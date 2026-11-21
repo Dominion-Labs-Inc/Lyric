@@ -231,7 +231,12 @@ async def guardian_present(db_manager: Any = None, within_seconds: int = 6) -> b
             "FROM unified.system_control_status WHERE name = $1",
             ("__guardian_heartbeat__",), fetch_all=True)
         return bool(rows) and int(rows[0]["age"]) <= within_seconds
-    except Exception:
+    except Exception as error:
+        # False reads as "the guardian is not running", which is what a caller
+        # acts on -- so an unreadable heartbeat looks like a dead guardian.
+        logger.warning("whether the guardian is running could not be "
+                       "established (%s: %s): it is reported as NOT running",
+                       type(error).__name__, error)
         return False
 
 
@@ -367,6 +372,9 @@ async def what_lyric_is_doing(db_manager: Any = None, *, failures_within_hours: 
         try:
             return await db_manager.execute_query(query, params, fetch_all=True) or []
         except Exception as error:
+            logger.warning("what Lyric is doing: %r could not be read (%s: %s), "
+                           "so that part of the answer is missing rather than "
+                           "empty", name, type(error).__name__, error)
             doing.setdefault("unreadable", {})[name] = f"{type(error).__name__}: {error}"
             return []
 
@@ -434,7 +442,10 @@ async def substrate_present(db_manager: Any = None, within_seconds: int = 8) -> 
             "FROM unified.system_control_status WHERE name = $1",
             (SUBSTRATE_HEARTBEAT,), fetch_all=True)
         return bool(rows) and int(rows[0]["age"]) <= within_seconds
-    except Exception:
+    except Exception as error:
+        logger.warning("whether the substrate is running could not be "
+                       "established (%s: %s): it is reported as NOT running",
+                       type(error).__name__, error)
         return False
 
 

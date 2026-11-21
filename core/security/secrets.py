@@ -215,7 +215,13 @@ class SecretsAuthority:
         or any `.env*` file under the guarded root other than an example."""
         try:
             resolved = Path(os.path.realpath(os.path.expanduser(str(path))))
-        except Exception:
+        except Exception as error:
+            # False means "this is not a key file", so a path that could not be
+            # resolved is treated as safe to touch.
+            logger.warning(
+                "%r could not be resolved (%s: %s): it is treated as NOT a key "
+                "file, which is the permissive answer",
+                path, type(error).__name__, error)
             return False
         known = {Path(os.path.realpath(f)) for f in self._files}
         if resolved in known:
@@ -227,6 +233,8 @@ class SecretsAuthority:
             resolved.relative_to(Path(os.path.realpath(self._root)))
             return True
         except ValueError:
+            logger.debug("%s is outside the key root, so it is not a key file",
+                         resolved)
             return False
 
     def scrubbed_env(self, env: Optional[Mapping[str, str]] = None) -> Dict[str, str]:
@@ -306,6 +314,10 @@ def install_log_redaction() -> None:
         try:
             message = record.getMessage()
         except Exception:
+            # NOTHING IS SAID ABOUT THIS ONE, deliberately: this runs INSIDE
+            # logging, so a log call here would recurse through the same
+            # handler. The record passes through unredacted, which is the only
+            # reason this is caught at all.
             message = None
         if message is not None and authority.find(message):
             record.msg, record.args = authority.redact(message), ()

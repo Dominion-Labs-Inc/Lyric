@@ -66,7 +66,12 @@ class IntrinsicReward:
 def _clamp(value: Any, low: float = 0.0, high: float = 1.0) -> float:
     try:
         return max(low, min(high, float(value)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as error:
+        # The FLOOR, which is a real value a caller will act on -- so a number
+        # that could not be read looks like the lowest real reading.
+        logger.warning("%r is not a number (%s): it is clamped to the floor "
+                       "%.3f, which reads as a real measurement",
+                       value, type(error).__name__, low)
         return low
 
 
@@ -382,12 +387,21 @@ class IntrinsicMotivationSystem:
         # does not converge to identical goal distributions across restarts.
         try:
             self._boot_entropy_seed = int(hashlib.sha256(self._boot_entropy.encode()).hexdigest()[:8], 16)
-        except Exception:
+        except Exception as error:
+            # A random seed instead of the derived one means this boot's
+            # exploration is not reproducible from its own entropy string.
+            logger.warning(
+                "the boot entropy seed could not be derived (%s: %s): a random "
+                "seed is used, so this run's exploration cannot be reproduced",
+                type(error).__name__, error)
             self._boot_entropy_seed = random.randint(0, 2**32 - 1)
         self._entropy_rng = random.Random(self._boot_entropy_seed)
         try:
             self._entropy_np_rng = np.random.default_rng(self._boot_entropy_seed)
-        except Exception:
+        except Exception as error:
+            logger.warning("numpy's generator could not be seeded (%s: %s): "
+                           "anything that needed it falls back to the standard "
+                           "one", type(error).__name__, error)
             self._entropy_np_rng = None
 
         # 3. EXPLORATION DECAY: Theme-based decay tracking
@@ -659,7 +673,13 @@ class IntrinsicMotivationSystem:
                 return 0.0
 
             return float(dot_product / (norm_a * norm_b))
-        except Exception:
+        except Exception as error:
+            # 0.0 is "not alike at all", which is a real similarity -- so a
+            # comparison that could not be made reads as maximum novelty.
+            logger.warning(
+                "two things could not be compared (%s: %s): their similarity "
+                "is reported 0.0, which reads as completely unalike and so as "
+                "maximum novelty", type(error).__name__, error)
             return 0.0
 
     async def _calculate_exploration_decay(self, theme: str, base_weight: float = 1.0) -> float:
