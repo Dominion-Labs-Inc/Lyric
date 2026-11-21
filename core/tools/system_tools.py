@@ -62,7 +62,9 @@ def detect_clipboard_backend() -> Tuple[str, Optional[str]]:
             try:
                 import pyperclip
                 return ("pyperclip", "pyperclip")
-            except ImportError:
+            except ImportError as error:
+                logger.info("no clipboard backend on this system (%s): nothing "
+                            "can be copied or pasted", error)
                 return ("none", None)
 
     elif system == "Windows":
@@ -74,7 +76,9 @@ def detect_clipboard_backend() -> Tuple[str, Optional[str]]:
         try:
             import pyperclip
             return ("pyperclip", "pyperclip")
-        except ImportError:
+        except ImportError as error:
+            logger.info("no clipboard backend on this system (%s): nothing can "
+                        "be copied or pasted", error)
             return ("none", None)
 
 

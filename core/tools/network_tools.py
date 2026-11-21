@@ -449,10 +449,14 @@ class CheckURLStatusTool(Tool):
 
         except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as e:
             # Network failures ARE the finding: the check ran, the URL is not
-            # reachable. Narrowed from `except Exception` because that also
-            # caught defects in this tool and reported them as an unreachable
-            # URL -- a bug in the checker was indistinguishable from a site
-            # being down.
+            # reachable. Said at INFO rather than as a failure for exactly that
+            # reason -- this tool succeeded, and what it found is that the URL
+            # did not answer.
+            logger.info("%s is not reachable (%s: %s): the check ran and this "
+                        "is its finding", url, type(e).__name__, e)
+            # Narrowed from `except Exception` because that also caught defects
+            # in this tool and reported them as an unreachable URL -- a bug in
+            # the checker was indistinguishable from a site being down.
             return ToolResult(
                 success=True,
                 output={

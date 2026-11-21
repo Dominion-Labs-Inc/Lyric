@@ -59,9 +59,12 @@ try:  # Optional Z3 import for structured constraint expressions
     from z3 import Int, Real, Bool, And, Or, Not  # type: ignore
 
     _Z3_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _no_z3:  # pragma: no cover - optional dependency
     Int = Real = Bool = And = Or = Not = None  # type: ignore
     _Z3_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "z3 is not available (%s: %s): the constraint and satisfiability tools "
+        "cannot run", type(_no_z3).__name__, _no_z3)
 
 
 logger = logging.getLogger(__name__)

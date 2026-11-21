@@ -56,7 +56,11 @@ import aiohttp
 
 try:
     from core.utils.env_loader import get_github_token as _get_github_token
-except ImportError:
+except ImportError as _no_env_loader:
+    logging.getLogger(__name__).info(
+        "the env loader is unavailable (%s): the GitHub token is read straight "
+        "from the environment", _no_env_loader)
+
     def _get_github_token():  # type: ignore
         return os.getenv("GITHUB_TOKEN")
 

@@ -202,6 +202,9 @@ async def read_system(paths: Sequence[str]) -> SystemReading:
         try:
             read = read_document(str(path))
         except Exception as error:
+            logger.warning("%s could not be read (%s: %s): the system is "
+                           "described without it", path, type(error).__name__,
+                           error)
             out.documents.append({"document": name, "path": str(path), "error": str(error)})
             continue
         form = read["kind"] if read["kind"] != "text" else (Path(path).suffix.lower().lstrip(".") or "text")

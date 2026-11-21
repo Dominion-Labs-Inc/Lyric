@@ -141,7 +141,10 @@ class SmartPathResolver:
                     item.name + ("/" if item.is_dir() else "")
                     for item in parent.iterdir()
                 ])[:15]
-            except PermissionError:
+            except PermissionError as error:
+                logger.debug("the parent directory could not be listed for this "
+                             "error message (%s): the message says so",
+                             error)
                 parent_contents = ["<permission denied>"]
 
         # Build error message
@@ -553,7 +556,11 @@ class WriteFileTool(Tool):
             if write_mode == 'a' and path.exists():
                 try:
                     intended = path.read_text(encoding='utf-8') + content
-                except UnicodeDecodeError:
+                except UnicodeDecodeError as error:
+                    logger.warning(
+                        "%s is not UTF-8 text (%s): what the file WOULD hold "
+                        "after this append cannot be worked out, so the write "
+                        "goes ahead without that check", path, error.reason)
                     intended = None
             with open(path, write_mode, encoding='utf-8') as f:
                 f.write(content)
@@ -1490,8 +1497,9 @@ class AtomicWriteFileTool(Tool):
                 # Clean up temp file on error
                 try:
                     os.unlink(temp_path)
-                except:
-                    pass
+                except BaseException as cleanup_error:
+                    logger.warning("the temporary file %s was left behind (%s)",
+                                   temp_path, type(cleanup_error).__name__)
                 raise e
 
         except Exception as e:

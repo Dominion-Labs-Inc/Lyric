@@ -1399,7 +1399,10 @@ class ToolRegistry:
         for name in sorted(set(list(self.tools) + list(self.tool_factories))):
             try:
                 tool = self.get_tool(name)
-            except Exception:
+            except Exception as error:
+                logger.warning("tool %r could not be read for projection (%s: "
+                               "%s): it contributes no operator",
+                               name, type(error).__name__, error)
                 counts["failed"] += 1
                 continue
             if tool is None:
@@ -2352,6 +2355,8 @@ def _coerce(value: str, declared) -> Any:
         try:
             return int(value) if kind == "integer" or value.isdigit() else float(value)
         except ValueError:
+            logger.debug("%r was asked for as %s and is not one: it is passed "
+                         "to the tool as the text it is", value, kind)
             return value
     return value
 
@@ -2451,7 +2456,10 @@ def encounter(tool_name: str, parameters: Dict[str, Any]) -> Optional[str]:
         return None
     try:
         action_class, _ = classify_action(tool_name, parameters or {})
-    except Exception:
+    except Exception as error:
+        logger.warning("%s could not be classified (%s: %s): this invocation is "
+                       "not recorded as an encounter, so nothing learns from it",
+                       tool_name, type(error).__name__, error)
         return None
     if getattr(action_class, "value", str(action_class)) not in ACTING_CLASSES:
         return None

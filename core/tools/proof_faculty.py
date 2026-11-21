@@ -11,15 +11,21 @@ authority — the capability lives here, in the tool layer.
 """
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+logger = logging.getLogger(__name__)
+
 try:
     import z3
     _HAVE_Z3 = True
-except Exception:  # pragma: no cover - environment without z3
+except Exception as _no_z3:  # pragma: no cover - environment without z3
     _HAVE_Z3 = False
+    logging.getLogger(__name__).warning(
+        "z3 is not available (%s: %s): nothing can be proved here",
+        type(_no_z3).__name__, _no_z3)
 
 
 @dataclass
@@ -220,6 +226,8 @@ def prove(goal: str, premises: Optional[List[str]] = None) -> ProofResult:
         prem_formulas = [prover.to_formula(p) for p in premises]
         goal_formula = prover.to_formula(goal)
     except Exception as e:
+        logger.info("the goal could not be put into a formula (%s: %s): "
+                    "nothing is proved", type(e).__name__, e)
         result.error = f"could not formalize: {e}"
         return result
 

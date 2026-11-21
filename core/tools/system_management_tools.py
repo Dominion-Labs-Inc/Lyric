@@ -40,6 +40,9 @@ def _is_substrates_own(path: Path) -> bool:
         Path(path).expanduser().resolve().relative_to(_SUBSTRATE_ROOT)
         return True
     except ValueError:
+        # Not under the substrate's own tree, so this path is somebody else's.
+        logger.debug("%s is not the substrate's own, so acts on it are not "
+                     "treated as self-management", path)
         return False
 
 
@@ -293,7 +296,10 @@ class ModifyConfigFileTool(Tool):
             try:
                 parsed_value = json.loads(value)
                 current[keys[-1]] = parsed_value
-            except:
+            except BaseException as error:
+                logger.debug("%r was not parsed as a typed value (%s): it is "
+                             "written as the text it is", value,
+                             type(error).__name__)
                 current[keys[-1]] = value
 
             # Write back
@@ -640,8 +646,10 @@ class ManageDockerTool(Tool):
                             containers.append(json.loads(line))
                     output_data['containers'] = containers
                     output_data['count'] = len(containers)
-                except:
-                    pass
+                except BaseException as error:
+                    logger.warning("the container list could not be counted "
+                                   "(%s): this result carries no count",
+                                   type(error).__name__)
 
             return ToolResult(
                 success=result.returncode == 0,

@@ -15,8 +15,13 @@ from collections import OrderedDict
 
 try:
     import httpx
-except Exception:
+except Exception as _no_httpx:
     httpx = None
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "httpx is not available (%s: %s): no notification can be published "
+        "over HTTP, so anything that relies on one being sent will not be told",
+        type(_no_httpx).__name__, _no_httpx)
 
 logger = logging.getLogger(__name__)
 

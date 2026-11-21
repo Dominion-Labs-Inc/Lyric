@@ -12,8 +12,11 @@ numbers, and strings. It widens by adding candidates here.
 """
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, List, Optional, Sequence, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 def _is_num(x) -> bool:
@@ -87,7 +90,9 @@ def synthesize(examples: Sequence[Any], function_name: str = "synthesized_functi
         try:
             if not applies(first_input):
                 continue
-        except Exception:
+        except Exception as error:
+            logger.debug("a candidate program could not be built (%s): it is "
+                         "not offered", type(error).__name__)
             continue
         ok = True
         for inp, out in pairs:
@@ -95,7 +100,9 @@ def synthesize(examples: Sequence[Any], function_name: str = "synthesized_functi
                 if fn(inp) != out:
                     ok = False
                     break
-            except Exception:
+            except Exception as error:
+                logger.debug("a candidate program raised on an example (%s): it "
+                             "does not explain the pair", type(error).__name__)
                 ok = False
                 break
         if ok:

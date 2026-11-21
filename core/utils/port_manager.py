@@ -131,7 +131,11 @@ class PortManager:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 s.bind(('', port))
                 return True
-        except OSError:
+        except OSError as error:
+            # False is "taken", which is what the allocator acts on -- so a
+            # port that could not be tested reads as one already in use.
+            logger.debug("port %s could not be bound to test it (%s: %s): it is "
+                         "treated as taken", port, type(error).__name__, error)
             return False
 
     def release_port(self, service: str) -> bool:
