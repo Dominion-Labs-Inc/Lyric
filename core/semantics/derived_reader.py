@@ -589,7 +589,9 @@ def _renamed(meaning: Meaning, names: Mapping[str, str]) -> Optional[Meaning]:
     try:
         return Meaning(meaning.act, tuple(f.renamed(names) for f in meaning.facts),
                        tuple(names.get(v, v) for v in meaning.asked))
-    except ValueError:
+    except ValueError as error:
+        logger.debug("renaming makes this no meaning (%s): the renamed reading "
+                     "is dropped", error)
         return None
 
 
@@ -1047,7 +1049,10 @@ def _adjunct_of(shorter: Pattern, longer: Pattern, start: int, end: int) -> Opti
     try:
         small = Meaning(shorter.meaning.act, tuple(f.renamed(dict(zip(shorter.slots, outside)))
                                                      for f in shorter.meaning.facts), shorter.meaning.asked)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the shorter reading does not hold as a meaning of its own "
+                     "(%s): it is not taken as an adjunct of the longer",
+                     error)
         return None
     names = _embedding(small, longer.meaning)
     if names is None:
@@ -5157,7 +5162,9 @@ def _composed_meaning(meaning: Meaning, fillings: Mapping[str, _Filling]) -> Opt
         return None
     try:
         return Meaning(meaning.act, composed[1], meaning.asked)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the composed facts do not make a meaning (%s): this "
+                     "filling composes to nothing", error)
         return None
 
 
@@ -5476,7 +5483,9 @@ def _phrase_fillings(view: PatternInventory, pieces: Tuple[Piece, ...], start: i
                 for relation, subject, obj, positive in sorted(says))
             try:
                 made = Phrase(span, anchor, facts)
-            except ValueError:
+            except ValueError as error:
+                logger.debug("%r is not a phrase (%s): it is not offered as a "
+                             "filling", span, error)
                 continue
             out.append(_Filling(anchor, facts, (made, word), like=held) if word is not None else
                        _Filling(anchor, facts, (made,), new=(Lexical(span, name),), like=held))
@@ -5770,7 +5779,9 @@ def _with_tail(pattern: Pattern, meaning: Meaning, tail: Sequence[Tuple[Adjunct,
         facts.extend(f.renamed(names) for f in said.facts if f.renamed(names) not in facts)
     try:
         return Meaning(meaning.act, tuple(facts), meaning.asked)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the tail does not join this meaning (%s): the reading "
+                     "stands without it", error)
         return None
 
 
@@ -5856,7 +5867,9 @@ def with_senses(reading: Reading, chosen: Mapping[str, Sense], view: PatternInve
         return None
     try:
         meaning = Meaning(reading.meaning.act, facts, reading.meaning.asked)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the senses chosen do not make a meaning together (%s): "
+                     "this reading is dropped", error)
         return None
     constructions = tuple(chosen[c.value].lexical if _stand_in(c) else c for c in reading.constructions)
     senses = []
@@ -6271,7 +6284,9 @@ def quoted_pairs(sentence: str, meaning: Meaning, *rest: Any) -> List[Tuple[Any,
     try:
         return [(surface_of(around), Meaning(meaning.act, outright, meaning.asked), *rest),
                 (surface_of(quoted), Meaning("ask" if quoted[-1].text == "?" else "tell", inner), *rest)]
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the quotation does not split into two meanings (%s): the "
+                     "sentence stands whole", error)
         return [(sentence, meaning, *rest)]
 
 
@@ -6297,7 +6312,9 @@ def _with_quotation(utterance: "Utterance", quoted: Tuple["Utterance", ...],
                                      f.condition, f.alternative, True, f.given) for f in said.meaning.facts)
         try:
             meaning = Meaning(reading.meaning.act, tuple(facts), reading.meaning.asked)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("the quoted facts do not make a meaning (%s): this "
+                         "reading of the quotation is dropped", error)
             continue
         parts = (reading,) + tuple(taken)
         readings.append(Reading(
@@ -6550,7 +6567,9 @@ def _said_by_words(read: Any) -> Tuple["Lexical", ...]:
             continue
         try:
             out[(words, str(p[1]))] = Lexical(tuple((w, True) for w in words), str(p[1]))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("%r is not a lexical item for %r (%s): it is not "
+                         "offered", words, p[1], error)
             continue
     return tuple(out.values())
 
@@ -8169,6 +8188,8 @@ def _of_any_part(relation: str) -> bool:
     try:
         return get_spec(SemanticRelation(relation)).of_any_part
     except ValueError:
+        logger.debug("relation %r has no spec, so it is not taken to hold of "
+                     "any part", relation)
         return False
 
 
@@ -8852,7 +8873,9 @@ def _said_with_quotation(meaning: Meaning, view: PatternInventory, **how: Any) -
         quoted = Meaning("tell", tuple(MeaningFact(f.relation, f.subject, f.obj, f.positive, f.condition, f.alternative,
                                                    given=f.given)
                                        for f in meaning.unasserted))
-    except ValueError:
+    except ValueError as error:
+        logger.debug("what is only supposed here does not make a meaning to "
+                     "quote (%s): nothing is said with a quotation", error)
         return ()
     arounds = [s for s in say(around, view, **how) if QUOTED in s]
     quotes = say(quoted, view, **how)
@@ -9269,7 +9292,9 @@ def _substitution(held: Meaning, observed: Meaning) -> Optional[Tuple[Meaning, s
                                      original.alternative, original.unasserted, original.given))
         try:
             shared = Meaning(held.act, tuple(facts), held.asked)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("the two readings share no meaning that holds (%s): "
+                         "no substitution is learned from them", error)
             continue
         return shared, concept[a], concept[b]
     return None
@@ -9505,7 +9530,9 @@ def _phrase_repair(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFac
         names = {lx.value: slot_name(i) for i, (_, _, lx) in enumerate(chosen)}
         try:
             general = Phrase(tuple(elements), names.get(anchor, anchor), tuple(f.renamed(names) for f in facts))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("the generalised phrase does not hold (%s): the repair "
+                         "falls back to the phrase as written", error)
             general = None
         if general is not None:
             gives = _composed(general.facts, general.anchor,
@@ -9520,7 +9547,9 @@ def _phrase_repair(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFac
                                                                    for slot, lx in fillers.items())
     try:
         whole = Phrase(form, anchor, facts)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the repaired phrase does not hold (%s): nothing is "
+                     "repaired here", error)
         return None
     return whole, (whole,), ()
 
@@ -9542,7 +9571,9 @@ def _node_of(part: _Filling, facts: Tuple[MeaningFact, ...], values: Mapping[str
         return None
     try:
         names = _embedding(Meaning("tell", part.facts), Meaning("tell", facts))
-    except ValueError:
+    except ValueError as error:
+        logger.debug("this part does not embed in the whole as a meaning (%s): "
+                     "it is not taken as a node of it", error)
         return None
     if names is None or part.anchor not in names or names[part.anchor] in taken or names[part.anchor] == anchor:
         return None
@@ -9622,7 +9653,9 @@ def _joined(form: Tuple[Piece, ...], anchor: str, facts: Tuple[MeaningFact, ...]
                 elements.extend(form[at:])
                 try:
                     joining = Phrase(tuple(elements), anchor, own)
-                except ValueError:
+                except ValueError as error:
+                    logger.debug("the joining phrase does not hold (%s): these "
+                                 "parts are not joined", error)
                     continue
                 gives = _composed(joining.facts, joining.anchor,
                                   {slot_name(i): part for i, part in enumerate(combo)})
@@ -9677,7 +9710,9 @@ def _phrase_substitution(general: Phrase, fillers: Mapping[str, Lexical], view: 
                 next((lx for lx in view.lexicals_with_words((piece.text,)) if lx.value == concept and view.counts(lx)),
                      None) or Lexical((piece,), concept)
                 for piece, concept in ((held.form[at], was), (general.form[at], now)))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("the widened phrase does not hold (%s): no phrase "
+                         "substitution is learned here", error)
             continue
         links = tuple(link(widened, names[slot], lx) for slot, lx in fillers.items()) \
             + tuple(link(widened, names[_HERE], lx) for lx in pair)
@@ -9771,7 +9806,9 @@ def substitution(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInvento
             pattern = Pattern(held.form[:prefix] + (Slot(slot_name(0), mine[-1].space_after),)
                               + held.form[len(held.form) - suffix:], generalized)
             fillers = (Lexical(mine, concept_held), Lexical(theirs, concept_observed))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("this substitution does not make a pattern (%s): "
+                         "nothing is learned from the pair", error)
             continue
         if not (_gives(pattern, {slot_name(0): concept_held}, held.meaning)
                 and _gives(pattern, {slot_name(0): concept_observed}, meaning)):
@@ -9850,7 +9887,10 @@ def _frame_substitution(form: Tuple[Piece, ...], meaning: Meaning, view: Pattern
                                   if lx.value == concept and view.counts(lx)), None) or Lexical(pieces, concept)
                             for pieces, concept in (((held.form[i],), concept_held),
                                                     (form[start:end], concept_observed)))
-                    except ValueError:
+                    except ValueError as error:
+                        logger.debug("this frame substitution does not make a "
+                                     "pattern (%s): nothing is learned from it",
+                                     error)
                         continue
                     given = {slots[s]: v for s, v in values.items()}
                     if not (_gives(pattern, {**given, slots[_HERE]: concept_observed}, meaning)
@@ -9897,7 +9937,9 @@ def addition(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, 
             pattern = Pattern(form[:start] + (Slot(slot_name(0), form[end - 1].space_after),) + form[end:],
                               generalized)
             filler = Lexical(form[start:end], value)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("this addition does not make a pattern (%s): nothing "
+                         "is learned from it", error)
             continue
         if not _gives(pattern, {slot_name(0): value}, meaning):
             continue
@@ -9926,7 +9968,9 @@ def deletion(form: Tuple[Piece, ...], meaning: Meaning, view: PatternInventory, 
                               + held.form[end:], generalized)
             filler = Lexical(held.form[start:end], value)
             whole = Pattern(form, meaning)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("this deletion does not make a pattern (%s): nothing "
+                         "is learned from it", error)
             continue
         if not _gives(pattern, {slot_name(0): value}, held.meaning):
             continue
@@ -10059,7 +10103,10 @@ def lexical_item_based(form: Tuple[Piece, ...], meaning: Meaning, view: PatternI
         return None
     try:
         pattern = Pattern(tuple(elements), generalized)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the lexical-item-based generalisation does not make a "
+                     "pattern (%s): nothing is learned from this sentence",
+                     error)
         return None
     if not _gives(pattern, {slot_name(i): lx.value for i, (_, _, lx) in enumerate(chosen)}, meaning):
         return None

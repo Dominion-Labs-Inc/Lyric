@@ -1189,8 +1189,14 @@ class HealthMonitor:
                 age = (datetime.now() - datetime.fromisoformat(str(last))).total_seconds()
                 if age > cadence * 3:
                     return 'STALLED'
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as error:
+                # Whether this loop has stalled cannot be told, and the state
+                # falls through to whatever the metrics below say -- so a
+                # stalled component can read as running.
+                logger.warning(
+                    "%s: cannot tell whether its loop has stalled — its last "
+                    "iteration time %r could not be read (%s)",
+                    component, last, type(error).__name__)
         for key, value in (metrics or {}).items():
             if key.endswith(('_backlog', '_queue_depth', '_pending')) and isinstance(value, int):
                 if value > 0:
@@ -1425,6 +1431,8 @@ class HealthMonitor:
             if metrics['recovery_escalations'] > 0:
                 issues.append(f"{metrics['recovery_escalations']} failure(s) escalated beyond automatic recovery")
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the health system's own self-check", type(e).__name__, e)
             metrics['health_system_available'] = False
             issues.append(f"Health system self-check error: {e}")
         return metrics, issues
@@ -1481,6 +1489,8 @@ class HealthMonitor:
             if metrics['topology_spof'] > 0:
                 issues.append(f"{metrics['topology_spof']} single point(s) of failure in the topology")
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the system-awareness check", type(e).__name__, e)
             metrics['system_awareness_available'] = False
             issues.append(f"System awareness health check error: {e}")
         return metrics, issues
@@ -1497,6 +1507,8 @@ class HealthMonitor:
             metrics['predictive_history'] = len(getattr(pi, 'prediction_history', []) or [])
             metrics['predictive_accuracy_tracked'] = len(getattr(pi, 'accuracy_metrics', {}) or {})
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the intelligence check", type(e).__name__, e)
             metrics['intelligence_available'] = False
             issues.append(f"Intelligence health check error: {e}")
         return metrics, issues
@@ -1521,6 +1533,8 @@ class HealthMonitor:
                 issues.append('Prometheus exporter produces no series — '
                               'the substrate is not externally observable')
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the metrics-export check", type(e).__name__, e)
             metrics['prometheus_available'] = False
             issues.append(f"Metrics export health check error: {e}")
         return metrics, issues
@@ -1678,6 +1692,9 @@ class HealthMonitor:
                             if asyncio.iscoroutine(result):
                                 await result
                         except Exception as e:
+                            logger.debug("%s: persisted state could not be "
+                                         "loaded (%s: %s)", sub,
+                                         type(e).__name__, e)
                             metrics[f"{sub}_initialized"] = False
                             issues.append(f"{sub}: could not load state ({type(e).__name__})")
                             continue
@@ -1722,6 +1739,8 @@ class HealthMonitor:
             except Exception as e:
                 # A sub-component that cannot be probed is reported, not skipped:
                 # silence here would read as "this part is fine".
+                logger.debug("%s: probe raised (%s: %s)", sub,
+                             type(e).__name__, e)
                 metrics[f"{sub}_available"] = False
                 issues.append(f"{sub}: probe failed ({type(e).__name__}: {str(e)[:60]})")
         return metrics, issues
@@ -1754,6 +1773,12 @@ class HealthMonitor:
                 metrics[f"{package}_{mod.rsplit('.', 1)[-1]}_symbols"] = len(
                     [x for x in dir(m) if not x.startswith('_')])
             except Exception as e:
+                # Each name is counted into the importability rate below; this
+                # says WHY, which a rate cannot.
+                logger.warning("%s cannot be imported (%s: %s): the capability "
+                               "it carries is unavailable, and it counts "
+                               "against %s's importability",
+                               mod, type(e).__name__, e, package)
                 broken.append(f"{mod} ({type(e).__name__})")
         metrics[f'{package}_modules_declared'] = len(modules)
         metrics[f'{package}_modules_loaded'] = loaded
@@ -1835,6 +1860,8 @@ class HealthMonitor:
             self._declared_metrics['tools'] = declared
 
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the tool-registry check", type(e).__name__, e)
             metrics['tools_available'] = False
             issues.append(f"Tool registry health check error: {e}")
 
@@ -1917,6 +1944,8 @@ class HealthMonitor:
                     f"validation loop is not closing")
 
         except Exception as e:
+            logger.debug("%s raised (%s: %s); it reaches the verdict as an "
+                         "issue", "the domain check", type(e).__name__, e)
             metrics['domain_available'] = False
             issues.append(f"Domain health check error: {e}")
 
@@ -1966,6 +1995,8 @@ class HealthMonitor:
             metrics['databases'] = per_database
 
         except Exception as e:
+            logger.debug("the database check raised (%s: %s); it reaches the "
+                         "verdict as an issue", type(e).__name__, e)
             issues.append(f'Database health check error: {str(e)}')
             metrics['error'] = str(e)
 
@@ -2062,6 +2093,8 @@ class HealthMonitor:
                 issues.append('High memory count - consider cleanup')
 
         except Exception as e:
+            logger.debug("the memory check raised (%s: %s); it reaches the "
+                         "verdict as an issue", type(e).__name__, e)
             issues.append(f'Memory health check error: {str(e)}')
             metrics['error'] = str(e)
 
@@ -2179,6 +2212,9 @@ class HealthMonitor:
                 issues.append(f"Low reasoning confidence: {metrics['reasoning_avg_confidence']:.0%} average over {metrics['reasoning_total_requests']} requests")
 
         except Exception as _bridge_err:
+            logger.debug("the reasoning bridge could not be reached (%s: %s); "
+                         "it reaches the verdict as an issue",
+                         type(_bridge_err).__name__, _bridge_err)
             metrics['neural_bridge_available'] = False
             issues.append(f"Neural bridge unavailable: {_bridge_err}")
 
@@ -2300,6 +2336,8 @@ class HealthMonitor:
                     logger.debug('directive metrics unavailable: %s', _de)
 
         except Exception as e:
+            logger.debug("the agents check raised (%s: %s); it reaches the "
+                         "verdict as an issue", type(e).__name__, e)
             issues.append(f"Agents health check error: {str(e)}")
             metrics['error'] = str(e)
 
@@ -2443,6 +2481,8 @@ class HealthMonitor:
                 issues.append(f"WARNING: Disk usage at {disk.percent}%")
 
         except Exception as e:
+            logger.debug("the storage check raised (%s: %s); it reaches the "
+                         "verdict as an issue", type(e).__name__, e)
             issues.append(f"Storage health check error: {str(e)}")
             metrics['error'] = str(e)
 
@@ -2510,7 +2550,11 @@ class HealthMonitor:
             if denominator is None or float(denominator) <= 0:
                 return None
             return float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "a rate could not be computed from value %r over denominator "
+                "%r (%s): it counts as missing evidence, not as zero",
+                value, denominator, type(error).__name__)
             return None
 
     @staticmethod
@@ -2532,14 +2576,21 @@ class HealthMonitor:
                 metrics[key] = None
                 metrics.setdefault('_not_applicable', []).append(key)
                 return
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
             # A denominator that is not a number is a broken reading, not an
             # empty one -- it stays missing evidence.
+            logger.warning(
+                "%s not recorded: its denominator %r is not a number (%s), so "
+                "it stays missing evidence rather than becoming a zero",
+                key, denominator, type(error).__name__)
             metrics[key] = None
             return
         try:
             metrics[key] = float(value)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "%s not recorded: its value %r is not a number (%s), so it "
+                "stays missing evidence", key, value, type(error).__name__)
             metrics[key] = None
 
     async def _storage_roundtrip_probe(self) -> tuple:
@@ -2571,6 +2622,10 @@ class HealthMonitor:
                 return False, "value written was not read back"
             return True, None
         except Exception as e:
+            logger.warning(
+                "the storage round trip FAILED (%s: %s): the substrate cannot "
+                "confirm that what it writes can be read back",
+                type(e).__name__, e)
             return False, f"{type(e).__name__}: {str(e)[:80]}"
 
     async def _check_network_health(self) -> tuple[Dict[str, Any], List[str]]:
@@ -2603,6 +2658,10 @@ class HealthMonitor:
                 normalized=lower_is_better(err_rate, fail=0.01, healthy=0.0),
                 weight=0.2))
         except Exception as e:
+            logger.warning(
+                "network interface counters unavailable (%s: %s): the interface "
+                "error rate is not measured this pass, so it cannot grade",
+                type(e).__name__, e)
             issues.append(f"Interface counters unavailable: {e}")
 
         # Required paths. Each names itself in the reason code so a failure
@@ -2652,6 +2711,10 @@ class HealthMonitor:
                         metrics[f'path_{name}_slow'] = True
             except Exception as e:
                 ok = False
+                logger.warning(
+                    "required path %s is UNREACHABLE (%s: %s): this is a "
+                    "critical gate, so the component cannot grade healthy",
+                    name, type(e).__name__, e)
                 issues.append(f"required_dependency_unreachable:{name} ({type(e).__name__})")
 
             probed += 1
@@ -2991,13 +3054,21 @@ class HealthMonitor:
         tree = [psutil.Process()]
         try:
             tree += tree[0].children(recursive=True)
-        except psutil.Error:
-            pass
+        except psutil.Error as error:
+            # The substrate's own CPU is then measured over this process alone,
+            # so work done in its children does not count as its own.
+            logger.warning(
+                "the substrate's child processes could not be listed (%s: %s): "
+                "its CPU share is measured over this process only",
+                type(error).__name__, error)
         psutil.cpu_percent(None)
         for process in tree:
             try:
                 process.cpu_percent(None)
-            except psutil.Error:
+            except psutil.Error as error:
+                logger.debug("no CPU baseline for pid %s (%s): it is left out "
+                             "of the substrate's share",
+                             getattr(process, "pid", "?"), type(error).__name__)
                 continue
         time.sleep(seconds)
         machine = psutil.cpu_percent(None)
@@ -3005,7 +3076,11 @@ class HealthMonitor:
         for process in tree:
             try:
                 used += process.cpu_percent(None)
-            except psutil.Error:
+            except psutil.Error as error:
+                logger.debug("no CPU reading for pid %s (%s): its share is not "
+                             "counted, so the substrate's own CPU is reported "
+                             "lower than it is",
+                             getattr(process, "pid", "?"), type(error).__name__)
                 continue
         return machine, round(used / (psutil.cpu_count() or 1), 1)
 
@@ -3036,7 +3111,10 @@ class HealthMonitor:
                 for _child in _proc.children(recursive=True):
                     try:
                         substrate_bytes += _child.memory_info().rss
-                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    except (psutil.NoSuchProcess, psutil.AccessDenied) as error:
+                        logger.debug("a child process is not counted toward the "
+                                     "substrate's footprint (%s)",
+                                     type(error).__name__)
                         continue
             except Exception as error:
                 # ZERO IS NOT A MEASUREMENT. Memory health is graded on this
@@ -3207,7 +3285,7 @@ class HealthMonitor:
             try:
                 await self.monitor_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("the monitoring loop was cancelled, as asked")
 
         logger.info("Health monitoring stopped")
 
@@ -3231,6 +3309,8 @@ class HealthMonitor:
                 await asyncio.sleep(self.check_interval)
 
             except asyncio.CancelledError:
+                logger.info("health monitoring loop cancelled: no component "
+                            "will be checked again until it is started")
                 break
             except Exception as e:
                 logger.error(f"Monitoring loop error: {e}")
