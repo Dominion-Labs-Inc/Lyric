@@ -964,10 +964,24 @@ class CausalReasoningStrategy(ReasoningStrategy):
         # one: turning "A prevents B" into "A causes B" would assert the opposite of what
         # is held. It is left for a strategy that can carry prevention rather than
         # inverted into a claim the store denies.
-        _REVERSED_HELD = ("caused_by", "requires")
+        #
+        # NEITHER IS `requires`, AND THAT COST A FABRICATION. `THINKING_FOR_LINK_KIND`
+        # maps it to CAUSAL, which is right for ROUTING -- a question about what
+        # something needs is a question for causal thinking. It is NOT a licence to
+        # state "A causes B". What the World Model holds under `requires` is WordNet
+        # verb ENTAILMENT: `operate fly requires fly`, `eat requires chew`. To
+        # operate-fly you must fly; flying does not cause operating-fly.
+        #
+        # Measured through the door 2026-11-21, after this strategy was first given
+        # held structure to read: asked "Can a bird fly?" the causal kind settled it
+        # with `answer='fly causes operate fly'` and `verified=True` -- causal is a
+        # fact-yielding kind, so that went out as established. A relation this strategy
+        # cannot state without misstating it is one it does not take.
+        _REVERSED_HELD = ("caused_by",)
+        _NOT_CAUSATION = ("prevents", "requires", "required_by")
         for subject, relation, obj, held, premise in _held_in(
                 context.premises, _relations_meaning(ReasoningType.CAUSAL)):
-            if not held or relation == "prevents":
+            if not held or relation in _NOT_CAUSATION:
                 continue
             confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
             cause, effect = ((obj, subject) if relation in _REVERSED_HELD
