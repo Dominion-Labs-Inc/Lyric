@@ -443,6 +443,10 @@ class TestingValidationTools:
             return is_valid, error_msg
 
         except Exception as e:
+            logger.warning(
+                "output validation could not be run (%s: %s): the output is "
+                "reported INVALID because the CHECK failed, not because the "
+                "output was wrong", type(e).__name__, e)
             return False, f"Validation error: {e}"
 
     async def benchmark_function(
@@ -969,6 +973,8 @@ class CheckSyntaxTool(Tool):
             ast.parse(code)
             return ToolResult(success=True, output={"valid": True})
         except SyntaxError as e:
+            logger.info("python syntax check: INVALID (line %s: %s)",
+                        e.lineno, e.msg)
             return ToolResult(success=True, output={"valid": False, "error": str(e)})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
@@ -1005,6 +1011,8 @@ class ValidateJSONTool(Tool):
             json.loads(json_data)
             return ToolResult(success=True, output={"valid": True})
         except json.JSONDecodeError as e:
+            logger.info("JSON check: INVALID at line %s column %s: %s",
+                        e.lineno, e.colno, e.msg)
             return ToolResult(success=True, output={"valid": False, "error": str(e)})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
@@ -1041,6 +1049,7 @@ class ValidateYAMLTool(Tool):
             yaml.safe_load(yaml_data)
             return ToolResult(success=True, output={"valid": True})
         except yaml.YAMLError as e:
+            logger.info("YAML check: INVALID (%s)", str(e).replace("\n", " ")[:200])
             return ToolResult(success=True, output={"valid": False, "error": str(e)})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
@@ -1297,7 +1306,12 @@ class RunCoverageTool(Tool):
                     # Clean up
                     os.remove("/tmp/coverage_temp.json")
             except Exception as e:
-                pass  # JSON output optional
+                # The percentage is still parsed out of the text report below,
+                # so the measurement survives; the per-file detail does not.
+                logger.info(
+                    "coverage JSON not read (%s: %s): the total is taken from "
+                    "the text report instead, with no per-file breakdown",
+                    type(e).__name__, e)
 
             # Parse coverage percentage from report
             coverage_percent = 0.0
@@ -1407,6 +1421,7 @@ class ValidateXMLTool(Tool):
             ET.fromstring(xml_data)
             return ToolResult(success=True, output={"valid": True})
         except ET.ParseError as e:
+            logger.info("XML check: INVALID (%s)", e)
             return ToolResult(success=True, output={"valid": False, "error": str(e)})
         except Exception as e:
             return ToolResult(success=False, output=None, error=str(e))
@@ -1555,6 +1570,8 @@ class LoadTestTool(Tool):
                                 })
 
                     except asyncio.TimeoutError:
+                        logger.debug("load test: a request timed out after %ss "
+                                     "and is counted as failed", timeout)
                         elapsed = timeout * 1000
                         response_times.append(elapsed)
                         failed_requests += 1
@@ -1563,6 +1580,9 @@ class LoadTestTool(Tool):
                             "error": "Request timeout"
                         })
                     except Exception as e:
+                        logger.debug("load test: a request failed (%s: %s) and "
+                                     "is counted as failed",
+                                     type(e).__name__, e)
                         elapsed = (time.time() - start_time) * 1000
                         response_times.append(elapsed)
                         failed_requests += 1
@@ -1765,8 +1785,13 @@ class IntegrationTestRunnerTool(Tool):
                 try:
                     process.kill()
                     await process.wait()
-                except:
-                    pass
+                except BaseException as kill_error:
+                    logger.warning(
+                        "the timed-out test process could not be killed (%s: "
+                        "%s): it may still be running after this tool returns",
+                        type(kill_error).__name__, kill_error)
+                logger.warning("tests exceeded their %ss timeout and were "
+                               "killed; no results were read", timeout)
                 return ToolResult(success=False, output=None, error=f"Tests exceeded timeout of {timeout} seconds")
 
             end_time = datetime.now()
@@ -1820,11 +1845,17 @@ class IntegrationTestRunnerTool(Tool):
                     # Clean up report file
                     try:
                         os.remove(report_file)
-                    except:
-                        pass
+                    except BaseException as remove_error:
+                        logger.debug("the test report %s was left on disk (%s: "
+                                     "%s)", report_file,
+                                     type(remove_error).__name__, remove_error)
 
             except Exception as e:
                 # Fallback: Parse stdout for basic counts
+                logger.warning(
+                    "the test report could not be read (%s: %s): counts are "
+                    "scraped from stdout instead, so per-test detail is lost",
+                    type(e).__name__, e)
                 test_results["parse_error"] = f"Could not parse JSON report: {str(e)}"
 
                 # Try to extract basic info from stdout
@@ -2080,6 +2111,8 @@ class FuzzTestingTool(Tool):
                         successful_runs += 1
 
                     except asyncio.TimeoutError:
+                        logger.info("fuzz iteration %d TIMED OUT: recorded as "
+                                    "an edge case", i)
                         edge_cases.append({
                             "iteration": i,
                             "inputs": [str(inp)[:100] for inp in fuzz_inputs],
@@ -2088,6 +2121,8 @@ class FuzzTestingTool(Tool):
                         })
 
                     except MemoryError:
+                        logger.warning("fuzz iteration %d ran out of MEMORY: "
+                                       "recorded as a crash", i)
                         crashes.append({
                             "iteration": i,
                             "inputs": [str(inp)[:100] for inp in fuzz_inputs],
@@ -2096,6 +2131,8 @@ class FuzzTestingTool(Tool):
                         })
 
                     except RecursionError:
+                        logger.warning("fuzz iteration %d hit the RECURSION "
+                                       "limit: recorded as a crash", i)
                         crashes.append({
                             "iteration": i,
                             "inputs": [str(inp)[:100] for inp in fuzz_inputs],
@@ -2105,6 +2142,8 @@ class FuzzTestingTool(Tool):
 
                     except Exception as e:
                         # Track unique exceptions
+                        logger.info("fuzz iteration %d raised %s: %s", i,
+                                    type(e).__name__, str(e)[:160])
                         exception_type = type(e).__name__
                         exception_msg = str(e)[:200]
 
@@ -2117,6 +2156,10 @@ class FuzzTestingTool(Tool):
 
                 except Exception as e:
                     # Outer exception (should be rare)
+                    logger.warning("fuzzing itself failed on iteration %d (%s: "
+                                   "%s): recorded as a crash, though it may be "
+                                   "the harness rather than the target",
+                                   i, type(e).__name__, e)
                     crashes.append({
                         "iteration": i,
                         "crash_type": "UnexpectedError",
@@ -2412,6 +2455,8 @@ class MutationTestingTool(Tool):
                             })
 
                     except asyncio.TimeoutError:
+                        logger.info("mutation %d timed out and was killed: the "
+                                    "tests did not settle it", idx)
                         process.kill()
                         mutation_results.append({
                             "mutation_id": idx,
@@ -2667,6 +2712,10 @@ class GoldenTestHarnessTool(Tool):
 
                 except Exception as e:
                     # Test execution failed
+                    logger.warning(
+                        "golden test %r could not be RUN (%s: %s): it counts as "
+                        "failed, though nothing was compared",
+                        test_name, type(e).__name__, e)
                     failed += 1
                     test_results.append({
                         "test_name": test_name,

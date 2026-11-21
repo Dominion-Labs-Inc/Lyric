@@ -105,7 +105,9 @@ class SemanticSearchTool(Tool):
                     content = file.read_text(encoding='utf-8')
                     file_contents.append(content[:2000])  # First 2000 chars
                     file_paths.append(str(file.relative_to(workspace)))
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 file, type(_skipped).__name__, _skipped)
                     continue
 
             if not file_contents:
@@ -610,7 +612,9 @@ class AnalyzeDependenciesTool(Tool):
                                 elif isinstance(node, ast.ImportFrom):
                                     if node.module:
                                         imports_count[node.module.split('.')[0]] += 1
-                    except:
+                    except BaseException as _skipped:
+                        logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                     py_file, type(_skipped).__name__, _skipped)
                         continue
 
                 result['imports'] = dict(sorted(imports_count.items(), key=lambda x: x[1], reverse=True))
@@ -709,7 +713,9 @@ class FindDeadCodeTool(Tool):
                         elif isinstance(node, ast.Name):
                             import_usage.add(node.id)
 
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             # Find unused
@@ -842,7 +848,9 @@ class SecurityScanTool(Tool):
                                                 'description': f'Hardcoded secret in variable: {target.id}',
                                                 'code': ast.unparse(node) if hasattr(ast, 'unparse') else ''
                                             })
-            except:
+            except BaseException as _skipped:
+                logger.debug("a step of this analysis was skipped (%s: %s), so its counts are lower than the tree holds",
+                             type(_skipped).__name__, _skipped)
                 pass
 
             # Sort by severity
@@ -941,7 +949,9 @@ class FindTodosTool(Tool):
                                             'message': message,
                                             'code': line.strip()
                                         })
-                    except:
+                    except BaseException as _skipped:
+                        logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                     file, type(_skipped).__name__, _skipped)
                         continue
 
             # Group by tag
@@ -1056,7 +1066,9 @@ class CountLinesTool(Tool):
                         stats[ext]['blank'] += blank
                         stats[ext]['files'] += 1
 
-                    except:
+                    except BaseException as _skipped:
+                        logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                     file, type(_skipped).__name__, _skipped)
                         continue
 
             # Convert to regular dict and calculate totals
@@ -1435,7 +1447,9 @@ class TraceDependenciesTool(Tool):
                             if node.module:
                                 dependencies[module_name].add(node.module)
 
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             # Calculate metrics
@@ -1536,7 +1550,9 @@ class FindCircularImportsTool(Tool):
                             if node.module and node.module.startswith(project.name):
                                 graph[module_name].add(node.module)
 
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             # Detect cycles using DFS
@@ -1874,7 +1890,9 @@ class CheckCodeStyleConsistencyTool(Tool):
                         if re.match(r'^\s*class\s+([a-z_]\w*)\s*[\(:]', line):
                             style_issues['class_name_lowercase'] += 1
 
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             total_issues = sum(style_issues.values())
@@ -2052,9 +2070,13 @@ class ASTSearchTool(Tool):
                                         'value_type': type(node.value).__name__
                                     })
 
-                except SyntaxError:
+                except SyntaxError as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
-                except Exception:
+                except Exception as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             return ToolResult(
@@ -2164,7 +2186,9 @@ class BuildDependencyGraphTool(Tool):
                                     if not imp_name.startswith(project.name):
                                         external_deps.add(imp_name)
 
-                except:
+                except BaseException as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             # Second pass: build reverse dependencies
@@ -2307,9 +2331,13 @@ class ExtractCallGraphTool(Tool):
                                         called_func = subnode.func.id
                                         call_graph[func_name].add(called_func)
 
-                except SyntaxError:
+                except SyntaxError as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
-                except Exception:
+                except Exception as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 py_file, type(_skipped).__name__, _skipped)
                     continue
 
             # Build reverse call graph (called_by relationships)
@@ -2524,7 +2552,9 @@ class SearchSecretsAndPIITool(Tool):
                                         'context': line.strip()[:100]
                                     })
 
-                except Exception:
+                except Exception as _skipped:
+                    logger.debug("skipped %s: %s: %s — this analysis covers one file less than the tree holds",
+                                 file_path, type(_skipped).__name__, _skipped)
                     continue
 
             # Group findings by severity
