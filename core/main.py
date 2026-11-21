@@ -496,8 +496,10 @@ class LyricSystem:
                         message=f"**{self.stats['services_failed']} services failed to initialize**\n\n**Initialized:** {self.stats['services_initialized']}\n**Failed:** {self.stats['services_failed']}\n\n**Action Required:** Review logs for initialization errors.",
                         severity="warning"
                     )
-                except:
-                    pass
+                except BaseException as error:
+                    logger.warning("a startup step did not complete (%s: %s): "
+                                   "the substrate comes up without it",
+                                   type(error).__name__, error)
 
             # Send startup notification using notification_publisher
             try:
@@ -1591,6 +1593,8 @@ class LyricSystem:
                 await sc.publish_status(live, db)
                 await sc.drain_commands(live, db)
             except asyncio.CancelledError:
+                logger.info("the system control loop was cancelled: commands "
+                            "sent to this substrate will no longer be drained")
                 break
             except Exception as error:
                 logger.error("system control loop error: %s", error)

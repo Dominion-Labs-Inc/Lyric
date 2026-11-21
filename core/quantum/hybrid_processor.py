@@ -164,7 +164,11 @@ class QuantumClassicalBridge:
             x = np.random.uniform(-10, 10, problem_size)
             try:
                 v = float(objective_function(x))
-            except Exception:
+            except Exception as error:
+                logger.debug("the objective could not be evaluated at one point "
+                             "(%s): that point is skipped, so the benchmark "
+                             "covers fewer than it claims",
+                             type(error).__name__)
                 continue
             if v < best:
                 best = v
@@ -216,7 +220,10 @@ class QuantumClassicalBridge:
                 'quantum_advantage': None
             }
             
-        except ImportError:
+        except ImportError as error:
+            logger.warning("scipy is unavailable (%s): classical optimisation "
+                           "falls back to plain gradient descent, which is a "
+                           "different method and not the one asked for", error)
             # Fallback: simple gradient descent
             import numpy as np
             x = np.random.uniform(-10, 10, problem_size)

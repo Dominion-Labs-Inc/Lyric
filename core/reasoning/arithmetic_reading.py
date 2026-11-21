@@ -33,6 +33,7 @@ NOTHING HERE EVALUATES TEXT AS CODE: the tree is built token by token.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple
@@ -597,7 +598,10 @@ def read_formula(text: str, *, letters_multiply: bool = False) -> Optional[Formu
     parser = _Parser(tokens)
     try:
         formula = parser.formula()
-    except (ValueError, IndexError):
+    except (ValueError, IndexError) as error:
+        logging.getLogger(__name__).debug(
+            "this is not a formula (%s: %s): it is not read as arithmetic",
+            type(error).__name__, error)
         return None
     if parser.at != len(tokens):
         return None

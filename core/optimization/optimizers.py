@@ -21,17 +21,24 @@ try:  # PuLP for LP/MILP
     import pulp  # type: ignore
 
     _PULP_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _no_pulp:  # pragma: no cover - optional dependency
     pulp = None  # type: ignore
     _PULP_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "pulp is not available (%s: %s): no linear program can be solved here",
+        type(_no_pulp).__name__, _no_pulp)
 
 try:  # SciPy for black-box optimization
     from scipy import optimize  # type: ignore
 
     _SCIPY_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _no_scipy:  # pragma: no cover - optional dependency
     optimize = None  # type: ignore
     _SCIPY_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "scipy.optimize is not available (%s: %s): numerical optimisation "
+        "falls back to what this module can do alone",
+        type(_no_scipy).__name__, _no_scipy)
 
 
 # ---------------------------------------------------------------------------

@@ -299,7 +299,10 @@ class AnalogyDiscovery:
                 return value
             try:
                 return _json.loads(value)
-            except Exception:
+            except Exception as error:
+                logger.warning("a stored analogy field is not valid JSON (%s): "
+                               "it is restored as its default, so part of this "
+                               "analogy is lost", type(error).__name__)
                 return default
 
         restored = 0

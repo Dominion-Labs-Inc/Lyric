@@ -18,10 +18,14 @@ from collections import defaultdict, deque
 try:
     from core.health.health_monitor import HealthMonitor
     from data.databases.health_monitoring import HealthDatabase
-except ImportError:
+except ImportError as _no_health:
     # Fallback in case of import issues
     HealthMonitor = None
     HealthDatabase = None
+    import logging as _logging
+    _logging.getLogger(__name__).warning(
+        "the health monitor and health database could not be imported (%s): "
+        "quantum monitoring records nothing to them", _no_health)
 
 # Import quantum components
 from .quantum_factory import get_quantum_capabilities, quantum_health_check

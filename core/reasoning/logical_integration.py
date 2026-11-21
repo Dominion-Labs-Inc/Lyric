@@ -232,7 +232,8 @@ class LogicalFormulaParser:
         try:
             self.parse_ast(formula_text)
             return True
-        except FormulaSyntaxError:
+        except FormulaSyntaxError as error:
+            logger.debug("%r is not a formal formula (%s)", text[:80], error)
             return False
 
     def _tokenize(self, text: str) -> List[Tuple[str, str, int]]:

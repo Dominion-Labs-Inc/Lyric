@@ -939,12 +939,18 @@ class AbstractionPipeline:
             if isinstance(raw, str):
                 try:
                     parsed = [float(x) for x in raw.strip().strip('[]').split(',') if x.strip()]
-                except ValueError:
+                except ValueError as error:
+                    logger.warning("a stored vector could not be read from its "
+                                   "text (%s): this thing has no vector, so it "
+                                   "cannot be compared with any other", error)
                     return None
                 return np.array(parsed, dtype=float) if parsed else None
             try:
                 arr = np.asarray(raw, dtype=float)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as error:
+                logger.warning("a value could not be read as a vector (%s): "
+                               "this thing cannot be compared with any other",
+                               type(error).__name__)
                 return None
             return arr if arr.ndim == 1 and arr.size else None
 
@@ -2217,7 +2223,13 @@ class AbstractionPipeline:
         """
         try:
             value = float(schema.calculate_probability())
-        except Exception:
+        except Exception as error:
+            # False means "do not escalate", so a probability that could not be
+            # computed reads as a schema that does not need enriching.
+            logger.warning(
+                "a schema's probability could not be computed (%s: %s): it is "
+                "not escalated for enrichment, which reads as not needing it",
+                type(error).__name__, error)
             return False
 
         stress = float(getattr(schema, 'stress_test_score', 0.0) or 0.0)

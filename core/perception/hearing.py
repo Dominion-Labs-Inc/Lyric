@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import logging
 import math
 import subprocess
 from collections import defaultdict
@@ -124,7 +125,11 @@ def probe(path: str) -> Dict[str, Any]:
              "-show_format", "-show_streams", str(path)],
             capture_output=True, text=True, timeout=60)
         meta = json.loads(out.stdout or "{}")
-    except Exception:
+    except Exception as error:
+        logging.getLogger(__name__).warning(
+            "ffprobe told us nothing about this sound (%s: %s): it is heard "
+            "with no declared format, sample rate or duration",
+            type(error).__name__, error)
         return {}
     if out.returncode != 0 or not (meta.get("streams") or meta.get("format")):
         return {}

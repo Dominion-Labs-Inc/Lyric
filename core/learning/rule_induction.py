@@ -1642,6 +1642,8 @@ def from_constant(ident: str) -> str:
                 index += 3
                 continue
             except ValueError:
+                # Not an escape after all: the two characters are read as
+                # themselves, which is what the loop below does.
                 pass
         buffer.append(ord(body[index]))
         index += 1

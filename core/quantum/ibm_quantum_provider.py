@@ -31,8 +31,11 @@ try:
     from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
     from qiskit.providers import Backend, JobStatus
     QISKIT_AVAILABLE = True
-except ImportError:
+except ImportError as _no_qiskit:
     QISKIT_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "qiskit is not installed (%s): no real quantum backend can be reached, "
+        "and the stand-in classes below are what callers get", _no_qiskit)
     # Fallback definitions
     class QiskitRuntimeService:
         pass
@@ -405,8 +408,10 @@ class IBMQuantumProvider(QuantumProvider):
                     info['operational'] = status.operational
                     info['pending_jobs'] = status.pending_jobs
                     info['status_msg'] = status.status_msg
-                except:
-                    pass
+                except BaseException as error:
+                    logger.debug("this backend's status message could not be "
+                                 "read (%s): the backend is described without "
+                                 "it", type(error).__name__)
 
             return info
 
@@ -533,6 +538,9 @@ class IBMQuantumProvider(QuantumProvider):
                         'available': True
                     }
                 except Exception as e:
+                    logger.warning("backend %s is reported unavailable because "
+                                   "it could not be asked (%s: %s)",
+                                   backend_name, type(e).__name__, e)
                     return {'name': backend_name, 'available': False, 'error': str(e)}
             else:
                 return {'name': backend_name, 'available': False, 'reason': 'Qiskit not available'}

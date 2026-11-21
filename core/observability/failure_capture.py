@@ -161,8 +161,16 @@ class FailureCaptureHandler(logging.Handler):
 
         except Exception:
             # A capture handler that raises breaks logging for the whole
-            # process. There is nowhere safe to report this to.
-            pass
+            # process, so there is nowhere safe to LOG this -- a log call here
+            # re-enters the handler that is already failing.
+            #
+            # IT IS STILL COUNTED, which is the one report available from
+            # inside logging: `snapshot()` carries it, so a capture handler
+            # quietly dropping every failure is visible instead of invisible.
+            try:
+                self.stats["capture_failed"] += 1
+            except Exception:
+                pass
 
     def _ensure_draining(self) -> None:
         try:
@@ -170,7 +178,9 @@ class FailureCaptureHandler(logging.Handler):
         except RuntimeError:
             # Logged outside an event loop. The record stays queued and is
             # written by whichever loop drains next; if none ever does, it is
-            # counted below rather than silently forgotten.
+            # COUNTED below rather than silently forgotten -- and counting is
+            # the whole report here, because logging from inside a logging
+            # handler re-enters it.
             with self._lock:
                 self.stats["dropped_no_loop"] += 1
             return
@@ -202,6 +212,9 @@ class FailureCaptureHandler(logging.Handler):
                     else:
                         self.stats["write_failed"] += 1
             except Exception:
+                # Counted, not logged: this drains records produced BY logging,
+                # and an error line here would queue another record behind the
+                # one that just failed. `snapshot()` is where it is read.
                 with self._lock:
                     self.stats["write_failed"] += 1
             await asyncio.sleep(0)          # yield; never monopolise the loop

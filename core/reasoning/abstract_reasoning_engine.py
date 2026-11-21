@@ -682,8 +682,12 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
         """Canonical form, so 'A→B' and 'A → B' compare equal."""
         try:
             text = self.parser.render(self.parser.parse_ast(text))
-        except Exception:
-            pass
+        except Exception as error:
+            # The key falls back to the raw text, so two formulas that are the
+            # same thing written differently no longer collide.
+            logger.debug("%r could not be put in canonical form (%s): its key "
+                         "is the text as written", text[:80],
+                         type(error).__name__)
         return "".join(text.split()).lower()
 
     def _parsed_rules(self, context: ReasoningContext):
@@ -697,6 +701,8 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
                 node = self.parser.parse_ast(text)
             except Exception as e:
                 raise_if_structural(e, "abstract_reasoning_engine._parsed_rules")
+                logger.info("rule %r does not parse (%s): it takes no part in "
+                            "this reasoning", text[:80], e)
                 unparsable.append(f"{text!r}: {e}")
                 continue
             if node[0] != "implies":

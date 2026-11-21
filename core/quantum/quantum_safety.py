@@ -272,6 +272,10 @@ class QuantumCircuitValidator:
                 rule_errors = rule(circuit)
                 errors.extend(rule_errors)
             except Exception as e:
+                logger.warning("a safety rule could not be applied (%s: %s): it "
+                               "is recorded as an error, so validation fails "
+                               "rather than passing unchecked",
+                               type(e).__name__, e)
                 errors.append(f"Validation rule failed: {e}")
         
         is_valid = len(errors) == 0

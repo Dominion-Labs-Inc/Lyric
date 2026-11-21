@@ -506,6 +506,9 @@ def derive_domain(domain_id: str, *,
         try:
             action_class, _ = classify_action(tool_name, {})
         except Exception as e:
+            logger.warning("%s is unclassifiable (%s: %s): it contributes no "
+                           "operator to this domain", tool_name,
+                           type(e).__name__, e)
             refused.append({"tool": tool_name, "why": f"unclassifiable: {e}"})
             continue
         kind = getattr(action_class, "value", str(action_class))

@@ -133,6 +133,9 @@ class ASIQuantumSafetyIntegration:
                     validation_passed = safety_report.approved_for_execution
                     validation_issues.extend([v.value for v in safety_report.violations])
                 except Exception as e:
+                    logger.warning("the circuit could not be validated (%s: "
+                                   "%s): validation FAILS rather than passing "
+                                   "unchecked", type(e).__name__, e)
                     validation_passed = False
                     validation_issues.append(f"Circuit validation failed: {e}")
             
@@ -150,6 +153,9 @@ class ASIQuantumSafetyIntegration:
                         validation_passed = False
                         validation_issues.extend([v.value for v in params_report.violations])
                 except Exception as e:
+                    logger.warning("the parameters could not be validated (%s: "
+                                   "%s): validation FAILS rather than passing "
+                                   "unchecked", type(e).__name__, e)
                     validation_passed = False
                     validation_issues.append(f"Parameter validation failed: {e}")
             
@@ -160,6 +166,9 @@ class ASIQuantumSafetyIntegration:
             }
             
         except Exception as e:
+            logger.error("quantum validation could not be run at all (%s: %s): "
+                         "it is reported as NOT passed",
+                         type(e).__name__, e)
             return {
                 'validation_passed': False,
                 'validation_issues': [f"Validation error: {e}"],

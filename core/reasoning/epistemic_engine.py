@@ -174,6 +174,8 @@ class EpistemicEngine:
         try:
             return RelationType[relation.upper()]
         except KeyError:
+            logger.debug("%r is not a relation type, so no relationship is "
+                         "recorded from it", relation)
             return None
 
     # ------------------------------------------------------------------
