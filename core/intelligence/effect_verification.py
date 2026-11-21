@@ -397,6 +397,25 @@ def verify_effects(
         observation_id=observation.observation_id, verifications=verifications,
     )
     evidence.detail = _describe(evidence, observation)
+    # DID THE WORLD DO WHAT THE RULE SAID. This module is the one place that
+    # answers it, writes a full account of the answer into `evidence.detail`,
+    # and had no logger at all in 765 lines -- so every runtime confirmation and
+    # every runtime contradiction of a learned rule happened in silence, and a
+    # production run could only be told afterwards, by a status change, that
+    # some observation somewhere had disagreed.
+    #
+    # A CONTRADICTION IS NOT AN ERROR. The world disagreeing with a rule is this
+    # system working: it is how an overgeneral rule is found. WARNING because it
+    # is the line worth stopping on, not because anything is broken.
+    logger.log(
+        logging.WARNING if outcome is RuntimeOutcome.CONTRADICTION
+        else logging.INFO,
+        "%s of %s by %s: %d predicted effect(s) confirmed, %d contradicted, "
+        "%d unobservable — %s",
+        outcome.value, rule_id or "an unidentified rule",
+        operator or observation.tool_name or "an unnamed operator",
+        len(evidence.confirmed), len(evidence.contradicted),
+        len(evidence.unknown), evidence.detail or "nothing to report")
     return evidence
 
 
@@ -538,12 +557,27 @@ def attribute(
     state, and recording it as rule evidence would let the substrate revise a
     correct rule because a tool was misbound.
     """
+    def charged(attribution: Attribution, why: str) -> Tuple[Attribution, str]:
+        """Say who the outcome was charged to, and hand it back unchanged.
+
+        THE MOST CONSEQUENTIAL DECISION IN THIS FILE, and it was made in
+        silence: RULE_EVIDENCE revises what the substrate believes about its own
+        action model, while EXECUTION_FAILURE and EXTERNAL_FAILURE deliberately
+        protect a correct rule from a broken tool. Which one happened is the
+        difference between a rule losing authority and a rule being spared, and
+        the only trace was whichever of those followed.
+        """
+        logger.info("%s charged to %s: %s", evidence.outcome.value,
+                    attribution.value, why)
+        return attribution, why
+
     if evidence.outcome is RuntimeOutcome.INDETERMINATE:
-        return Attribution.INDETERMINATE, evidence.detail or "nothing was established"
+        return charged(Attribution.INDETERMINATE,
+                       evidence.detail or "nothing was established")
 
     unmet = context.unmet()
     if not unmet:
-        return (
+        return charged(
             Attribution.RULE_EVIDENCE,
             "every authority condition held independently, so the world's "
             "disagreement is about the action model",
@@ -551,21 +585,21 @@ def attribute(
 
     if not context.invocation_occurred or not context.arguments_verified \
             or not context.action_matches_rule:
-        return (
+        return charged(
             Attribution.EXECUTION_FAILURE,
             f"the action was not carried out as the rule specifies: {unmet}",
         )
     if not context.observer_available or not context.post_state_observed:
-        return (
+        return charged(
             Attribution.INDETERMINATE,
             f"the world could not be read well enough to judge: {unmet}",
         )
     if context.external_interference:
-        return (
+        return charged(
             Attribution.EXTERNAL_FAILURE,
             "the world was changed by something other than this action",
         )
-    return Attribution.INDETERMINATE, f"unresolved conditions: {unmet}"
+    return charged(Attribution.INDETERMINATE, f"unresolved conditions: {unmet}")
 
 
 def outcome_class_for(evidence: RuntimeEvidence, attribution: Attribution):
@@ -709,6 +743,18 @@ def verify_expectation(expectation: Expectation, reading: WorldReading) -> Expec
         detail = "did not happen by " + expectation.due.isoformat() + ": " + ", ".join(
             f"{v.polarity.value} {v.predicted_effect}" for v in verifications
             if v.verdict is EffectVerdict.CONTRADICTED)
+    # AN EXPECTATION THE WORLD DID NOT MEET is the substrate finding out that a
+    # regularity it learned does not hold -- the whole point of holding
+    # expectations -- and it settled without a word. PENDING stays at DEBUG: an
+    # expectation that is merely not due yet is said every time its world is
+    # read, and that is the one outcome here that carries no news.
+    logger.log(
+        logging.WARNING if outcome is ExpectationOutcome.CONTRADICTION
+        else logging.DEBUG if outcome is ExpectationOutcome.PENDING
+        else logging.INFO,
+        "%s for %s over %d predicted effect(s) — %s",
+        outcome.value, expectation.rule_id or "an unidentified regularity",
+        len(verifications), detail)
     return ExpectationEvidence(outcome=outcome, expectation=expectation,
                                reading_id=reading.reading_id,
                                verifications=verifications, detail=detail)
@@ -737,29 +783,36 @@ def attribute_expectation(
             INDETERMINATE.
 
     Fails toward INDETERMINATE, like `attribute`."""
+
+    def charged(attribution: Attribution, why: str) -> Tuple[Attribution, str]:
+        """Say who a settled expectation was charged to. See `attribute`."""
+        logger.info("%s charged to %s: %s", evidence.outcome.value,
+                    attribution.value, why)
+        return attribution, why
+
     outcome = evidence.outcome
     if outcome in (ExpectationOutcome.PENDING, ExpectationOutcome.INDETERMINATE):
-        return Attribution.INDETERMINATE, evidence.detail or "nothing was established"
+        return charged(Attribution.INDETERMINATE, evidence.detail or "nothing was established")
     if acted:
         if outcome is ExpectationOutcome.CONFIRMATION:
-            return (Attribution.INDETERMINATE,
+            return charged(Attribution.INDETERMINATE,
                     "the substrate acted in this domain while it waited; what happened "
                     "may be its own doing")
-        return (Attribution.EXECUTION_FAILURE,
+        return charged(Attribution.EXECUTION_FAILURE,
                 "the substrate acted in this domain while the expectation stood; what "
                 "did not happen may be its own doing")
     if outcome is ExpectationOutcome.CONFIRMATION:
-        return (Attribution.RULE_EVIDENCE,
+        return charged(Attribution.RULE_EVIDENCE,
                 "the world did what the regularity says, with nothing of the "
                 "substrate's in between")
     if separable is None:
-        return (Attribution.INDETERMINATE,
+        return charged(Attribution.INDETERMINATE,
                 "whether this case differs from the regularity's confirmations "
                 "could not be judged")
     if separable:
-        return (Attribution.RULE_EVIDENCE,
+        return charged(Attribution.RULE_EVIDENCE,
                 "something observed tells this case apart from every confirmation: "
                 "the regularity is too broad, and the substrate was wrong")
-    return (Attribution.EXTERNAL_FAILURE,
+    return charged(Attribution.EXTERNAL_FAILURE,
             "nothing observed tells this case apart from the confirmations: the "
             "world did not do what it does")

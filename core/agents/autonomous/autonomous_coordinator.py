@@ -4957,7 +4957,17 @@ class Constitution:
             named.append(raw)
             try:
                 resolved = os.path.realpath(os.path.expanduser(raw))
-            except Exception:
+            except Exception as error:
+                # THE LAWS MATCH ON WHAT THIS LIST HOLDS. The raw string is
+                # already in it, but without the resolved form a law written
+                # against a real location cannot see a path that reaches it by
+                # a link or a `~`. A judgement made on a narrower list is still
+                # returned as a judgement, so this cannot stay quiet.
+                logger.warning(
+                    "path %r could not be resolved (%s: %s): the laws are "
+                    "applied to the name as written, so a law matching its "
+                    "real location will not see it",
+                    raw[:200], type(error).__name__, error)
                 continue
             if resolved and resolved != raw:
                 named.append(resolved)
@@ -5005,8 +5015,17 @@ class Constitution:
             excluded.add(raw)
             try:
                 excluded.add(os.path.realpath(os.path.expanduser(raw)))
-            except Exception:
-                pass
+            except Exception as error:
+                # A SOURCE THAT IS NOT EXCLUDED IS JUDGED AS A DESTINATION.
+                # Law 2 is about what a write DESTROYS, so a move's source has
+                # to come out of the list; failing to resolve it leaves only
+                # the name as written, and the same file reached another way
+                # reads as a destination that is about to be overwritten.
+                logger.warning(
+                    "source path %r could not be resolved (%s: %s): only the "
+                    "name as written is excluded, so Law 2 may judge the same "
+                    "file as a destination",
+                    raw[:200], type(error).__name__, error)
         return [path for path in cls._paths_named(params) if path not in excluded]
 
     def _files_needing_a_reading(self, action_name: str, params: Dict[str, Any],
@@ -5612,7 +5631,13 @@ class Constitution:
                 import subprocess
                 done = subprocess.run(["git", "-C", str(root), *args],
                                       capture_output=True, text=True, timeout=30)
-            except Exception:
+            except Exception as error:
+                # Informational only -- it takes no part in the judgement, so a
+                # failure costs a human the diff's claimed author and nothing
+                # else. DEBUG, with the reason, rather than nothing.
+                logger.debug("git %s failed (%s: %s): no claimed author for "
+                             "this diff", " ".join(args), type(error).__name__,
+                             error)
                 return None
             return done.stdout.strip() if done.returncode == 0 else None
 
@@ -6868,22 +6893,42 @@ class Constitution:
         import os
         capabilities: Set[str] = set()
         read = 0
+        # WHY EACH FILE WAS SKIPPED, counted. The returned detail already said
+        # "removed, too large, or not text" as a list of possibilities -- three
+        # guesses where the loop knew the answer for every path it passed over,
+        # and a partial scan (read some, skipped forty) reported no gap at all.
+        gone = too_large = unreadable = 0
         for path in paths:
             try:
                 if not os.path.isfile(path):
+                    gone += 1
                     continue
                 if os.path.getsize(path) > self._AUTHORED_SCAN_MAX_BYTES:
+                    too_large += 1
+                    logger.debug("authored file not scanned, over %d bytes: %s",
+                                 self._AUTHORED_SCAN_MAX_BYTES, path)
                     continue
                 with open(path, "r", encoding="utf-8", errors="replace") as fh:
                     content = fh.read(self._AUTHORED_SCAN_MAX_BYTES)
-            except OSError:
+            except OSError as error:
+                unreadable += 1
+                logger.warning("authored file could not be read (%s: %s): %s",
+                               type(error).__name__, error, path)
                 continue
             read += 1
             capabilities |= act_capabilities({}, extra_payload=content)
+        skipped = (f"{gone} gone, {too_large} over the scan limit, "
+                   f"{unreadable} unreadable")
         if read == 0:
+            logger.warning(
+                "standing capability reading took NOTHING: %d authored path(s) "
+                "recorded and not one could be read (%s)", len(paths), skipped)
             return None, 0, (f"{len(paths)} authored path(s) recorded, none readable "
-                             f"now (removed, too large, or not text)")
-        return capabilities, read, f"{read} authored file(s) read"
+                             f"now ({skipped})")
+        logger.info("standing capability reading: %d of %d authored file(s) "
+                    "read (%s), %d capability name(s) found",
+                    read, len(paths), skipped, len(capabilities))
+        return capabilities, read, f"{read} of {len(paths)} authored file(s) read ({skipped})"
 
     #: Authored files above this are not scanned for the standing capability
     #: reading. A data file is not what this question is about, and reading an
@@ -8291,8 +8336,18 @@ class AutonomousCoordinator:
         try:
             from core.system.active_discovery import register_active_discovery
             register_active_discovery(self.discovery)
-        except Exception:
-            pass
+        except Exception as error:
+            # NAME WHAT IS LOST, not just what was raised. Without this
+            # registration the security audit has no inventory of Lyric's own
+            # services, so every listening port it finds reads as an
+            # unidentified process -- the audit still runs and is quietly
+            # wrong about its own machine.
+            raise_if_structural(error, "autonomous_coordinator.register_active_discovery")
+            logger.warning(
+                "active discovery not published to the security audit "
+                "(%s: %s): the audit cannot tell Lyric's own services from an "
+                "unidentified process listening",
+                type(error).__name__, error)
         self.behavioral = BehavioralAnalysis()
         self.topology = InfrastructureTopology()
 
@@ -8662,9 +8717,17 @@ class AutonomousCoordinator:
             from core.agents.autonomous.runtime_registry import register_autonomous_coordinator
 
             register_autonomous_coordinator(self)
-        except Exception:
-            # Registry is best-effort; never block startup.
-            pass
+        except Exception as error:
+            # Best-effort still has a cost, and it is sayable: without the
+            # registration the tools cannot reach the runtime's counters, so
+            # every statistic they would have updated stays at whatever it was.
+            # Startup is not blocked -- it is just no longer a mystery.
+            raise_if_structural(error, "autonomous_coordinator.register_runtime")
+            logger.warning(
+                "this coordinator is not registered as the active runtime "
+                "(%s: %s): tools cannot update runtime-owned counters, so "
+                "those statistics will not move",
+                type(error).__name__, error)
         # Idle detection for boredom-driven goal generation
         self._last_requests_processed: int = 0
         self._idle_cycles: int = 0
@@ -10949,7 +11012,14 @@ class AutonomousCoordinator:
             literal = f"{match.group(1)}({match.group(2).strip()})"
             try:
                 Fact.parse(literal)          # the parser decides, not the regex
-            except Exception:
+            except Exception as error:
+                # A DECISION, NOT A FAILURE: the regex found something that
+                # looks like a state literal and the parser declined it, which
+                # is the parser doing its job. Said at DEBUG so a goal that
+                # came back DESCRIPTIVE can be traced to the literal that was
+                # turned down rather than looking like nothing was found.
+                logger.debug("goal literal %r declined by the parser (%s: %s)",
+                             literal, type(error).__name__, error)
                 continue
             if literal not in found:
                 found.append(literal)
@@ -13088,7 +13158,18 @@ class AutonomousCoordinator:
                 f"[THROTTLE] thinking interval set to {self._throttled_thinking_interval_idle_cycles} idle cycles "
                 f"for {duration_s}s. {reason or ''}".strip()
             )
-        except Exception:
+        except Exception as error:
+            # THE CALLER BELIEVED THIS WORKED. RecoveryManager applies a
+            # throttle to bring a struggling substrate back, and a swallowed
+            # failure here left it thinking the throttle was in force while
+            # thinking ran at full rate -- recovery acting on a state that was
+            # never entered.
+            raise_if_structural(error, "autonomous_coordinator.apply_throttle")
+            logger.error(
+                "THROTTLE NOT APPLIED (%s: %s): thinking still runs at its "
+                "usual interval, and whatever asked for the throttle "
+                "(%s) has not got it",
+                type(error).__name__, error, reason or "no reason given")
             return
 
     async def _refresh_motivation_signals(self) -> bool:
@@ -15561,7 +15642,16 @@ class AutonomousCoordinator:
                 continue
             try:
                 exists = os.path.exists(target)  # FRESH syscall — not the tool's report
-            except Exception:
+            except Exception as error:
+                # EVIDENCE DROPPED, AND THE DROP IS THE NEWS. This loop builds
+                # what the substrate SAW for itself rather than what the tool
+                # claimed; a syscall that fails here removes one observation
+                # from that set, so an outcome gets judged on less evidence and
+                # nothing said the evidence was missing.
+                raise_if_structural(error, "autonomous_coordinator._saw_effects")
+                logger.warning(
+                    "no independent observation of %s (%s: %s): this outcome "
+                    "is judged without it", target, type(error).__name__, error)
                 continue
             # Polarity: a removal's satisfied state is that the target is GONE, so
             # absence is support and presence is against — the mirror of a
@@ -15738,7 +15828,18 @@ class AutonomousCoordinator:
         A distinct channel from the reasoning that produced the answer."""
         try:
             belief = self.learning.belief_for_claim(claim)
-        except Exception:
+        except Exception as error:
+            # A VERIFICATION CHANNEL THAT FAILS IS NOT A VERIFICATION THAT SAID
+            # NO. This is the independent check that an answer is actually held
+            # in the store, and a swallowed failure here returns the same None
+            # as "the store genuinely cannot settle it" -- so the channel went
+            # dark and the count of verified answers simply went down, with
+            # nothing to say the check itself had broken.
+            raise_if_structural(error, "autonomous_coordinator._saw_memory_holds")
+            logger.warning(
+                "independent check of %r could not run (%s: %s): this answer "
+                "is unverified because the CHECK failed, not because the store "
+                "disagreed", claim[:120], type(error).__name__, error)
             return None
         if belief is None:
             return None
@@ -25015,7 +25116,17 @@ class Conversation:
         for other in others:
             try:
                 hops = await self.resolve_name(other)
-            except Exception:
+            except Exception as error:
+                # ONE HOP LOST IS PART OF AN ANSWER LOST. This walk follows each
+                # relation out to the concept it names, so a failure here means
+                # the reply is built from a smaller neighbourhood than the store
+                # actually holds -- and a thinner answer is indistinguishable
+                # from a store that holds less.
+                raise_if_structural(error, "autonomous_coordinator._neighbourhood")
+                logger.warning(
+                    "could not follow %r out from this concept (%s: %s): the "
+                    "answer is built without what it holds",
+                    str(other)[:80], type(error).__name__, error)
                 continue
             if hops.known:
                 for relation, o2 in hops.relations:
