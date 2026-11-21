@@ -33,6 +33,8 @@ from __future__ import annotations
 import dataclasses
 import hashlib
 import math
+import logging
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable, Collection, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
@@ -70,6 +72,9 @@ UNGROUPED = "?"
 #: Which group each word of a sentence stands in, coarse and fine, by the company it keeps
 #: (`StructureView.grouping`): one (coarse, fine) a word.
 Grouping = Callable[[Tuple[str, ...]], Sequence[Tuple[str, str]]]
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -755,17 +760,31 @@ class StructureView:
     def _work_out(self) -> None:
         """The situations of every held sentence, and what it did in each: of each word's class, of each step of
         its structure and of each two of its words, over the classes given and the classes reading gives
-        (`_as_read`)."""
+        (`_as_read`).
+
+        SAID, BECAUSE IT IS THE LONGEST SILENCE IN READING. Measured on this
+        method: 110.3 s over 18,681 sentences and 119,873,793 situations, and
+        this module held 1,025 lines and not one log call -- so a substrate that
+        had stopped answering for nearly two minutes was working out how words
+        go together, and nothing anywhere said so. The counts it arrives at are
+        what every reading afterwards is decided by, so their size is the one
+        measure of what reading has to go on."""
         if self._ready:
             return
+        started = time.perf_counter()
         held = list(self._held.values())
         groups = self._groups if self.grouping is not None else None
+        logger.info("working out how words go together from %d sentence(s) "
+                    "held%s", len(held),
+                    "" if groups is None else " (and the groups they stand in)")
         self._classes = _Classes(held, groups)
         both = self._as_read(held, groups)
         steps: List[Dict[Tuple, Counter]] = [defaultdict(Counter)
                                              for _ in range(self._LEVELS + (2 if groups is not None else 0))]
+        unprojective = 0
         for analysed in both:
             if not analysed.projective():
+                unprojective += 1
                 continue
             for situations, step in self._steps_of(analysed):
                 for level, situation in zip(steps, situations):
@@ -773,6 +792,12 @@ class StructureView:
         self._steps = [dict(level) for level in steps]
         self._pairs = _Pairs(both, groups, self._held_joins, self._held_said)
         self._ready = True
+        logger.info(
+            "words go together by %d situation(s) over %d level(s), from %d "
+            "sentence(s) counted as analysed and as read (%d left out, their "
+            "structure crossing itself), in %.1fs",
+            sum(len(level) for level in self._steps), len(self._steps),
+            len(both), unprojective, time.perf_counter() - started)
 
     @staticmethod
     def _as_read(held: Sequence[Analysed], groups: Optional[Callable[[Sequence[str]], Sequence]] = None

@@ -41,6 +41,8 @@ so is an adjective with its noun where memory knows the two as one name ("blue w
 from __future__ import annotations
 
 import hashlib
+import logging
+import time
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Tuple
@@ -87,6 +89,8 @@ GRAMMAR_MET = 3
 #: deny, met at least `GRAMMAR_MET` times.
 DENIES = 0.6
 
+
+logger = logging.getLogger(__name__)
 
 @dataclass(frozen=True)
 class Laid:
@@ -573,10 +577,21 @@ class CompositionView:
     def _work_out(self) -> None:
         if self._ready:
             return
+        started = time.perf_counter()
+        waiting = len(self._waiting)
+        unread = 0
         if self._waiting and self.lay_out is not None:
             for taught in self._waiting:
                 laid = self.lay_out(taught.sentence)
                 if laid is None:
+                    # A TAUGHT SENTENCE THAT NEVER REACHED COMPOSITION. It was
+                    # taught with its meaning and the structure reader could not
+                    # lay it out, so nothing of it is ever counted -- and that
+                    # was indistinguishable from never having been taught.
+                    unread += 1
+                    logger.debug("taught sentence not laid out, so its meaning "
+                                 "is counted nowhere: %r",
+                                 taught.sentence[:160])
                     continue
                 if taught.anchors:
                     self.learn(laid, taught.meaning, words_by_anchors(laid, taught.sentence, taught.anchors))
@@ -633,6 +648,18 @@ class CompositionView:
                                 if met["none"] >= 2 and met["none"] * 3 >= sum(met.values())}
         self._kinds_denied, self._flags, self._acts = dict(kinds_denied), dict(flags), dict(acts)
         self._ready = True
+        # WHAT COMPOSING HAS TO GO ON, and what it cost to work out. Every
+        # meaning composed afterwards is decided by these counts, and this module
+        # held 933 lines with no log call at all -- so the one number that says
+        # how much the substrate has been taught about meaning was never stated.
+        logger.info(
+            "composing from %d aligned sentence(s) (%d taught this pass, %d "
+            "could not be laid out): %d word situation(s), %d link "
+            "situation(s), %d grammar term(s), %d verb(s) whose subject stands "
+            "for nothing, in %.1fs",
+            len(self._held), waiting, unread, len(self._stands),
+            len(self._links), len(self._grammar), len(self._empty_subjects),
+            time.perf_counter() - started)
 
     def _denying_words(self) -> Set[str]:
         """THE WORDS THAT DENY WHAT THEIR CLAUSE SAYS: a word under a word whose facts are not so, where no word found
@@ -775,10 +802,19 @@ class CompositionView:
         to a meaning."""
         laid = self.lay_out(sentence) if self.lay_out is not None else None
         if laid is None or not len(laid):
+            logger.debug("nothing composed from %r: %s", sentence[:160],
+                         "there is no structure reader to lay it out"
+                         if self.lay_out is None else
+                         "its words could not be laid out")
             return None
         try:
             return self.compose(laid)
-        except ValueError:
+        except ValueError as error:
+            # The reason is known here and the caller gets only None. Said at
+            # DEBUG because a sentence composing to nothing is ordinary for what
+            # has been taught so far, and the count of them is what matters --
+            # which is reported by the caller that reads a whole text.
+            logger.debug("nothing composed from %r: %s", sentence[:160], error)
             return None
 
     def _argument(self, laid: Laid, stands: Mapping[int, str], v: int, c: int) -> Optional[str]:
