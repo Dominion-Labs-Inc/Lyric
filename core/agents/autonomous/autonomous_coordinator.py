@@ -25185,19 +25185,49 @@ class Conversation:
                            others=(fact.obj,), verdict=(affirmed == fact.positive),
                            support=support, conclusion=claim)]
 
+        # EACH OF THESE THREE EXITS SAYS WHY IT STOPPED. They are the only places
+        # in answering that returned without recording anything, so a question
+        # the reasoner could not settle named no reason at all and `why_not` came
+        # back empty -- which read as "nothing to settle" rather than "settled
+        # nothing". Measured 2026-11-20 on 8 questions read correctly: the
+        # reasoner ran on all 8, verified none, did nothing at all on 5, and 7 of
+        # the 8 carried no `reasoned` line at all. `_what_a_kind_is` is still
+        # what is returned, because it answers an identity question; the record
+        # is cleared by `_understand` if it does.
         if not premises:
+            self._found_nothing("reasoned", "nothing held was gathered to reason over",
+                                asked=len(meaning.asked or ()))
             return self._what_a_kind_is(meaning, asked_of)
         result = await bridge.reason(ReasoningRequest(
             query=sentence, context=premises, reading=reading,
             task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
                            "remembers": self._remembers}))
         if not (result.metadata or {}).get("verified") or not result.answer:
+            # TOLD APART: a reasoner that derived nothing, and one that derived
+            # something it does not vouch for. Both arrive here and they want
+            # opposite fixes -- the first is a question no kind of thinking could
+            # act on, the second a conclusion the credit-assignment contract
+            # refused to call verified.
+            steps = len(getattr(result, "reasoning_steps", ()) or ())
+            said = str(getattr(result, "answer", "") or "")
+            self._found_nothing(
+                "reasoned",
+                ("the reasoner derived nothing from what was gathered" if not said
+                 else "the reasoner answered but does not vouch for it"),
+                premises=len(premises), steps=steps,
+                kind=(result.metadata or {}).get("kind"),
+                tried=(result.metadata or {}).get("kinds_considered"),
+                answered=said[:120] or None)
             return self._what_a_kind_is(meaning, asked_of)
         support = self._support_used(premises, result.reasoning_steps,
                                      result.metadata)
         # Same grounding guard for an open question: a word-overlap belief (its
         # answer is a bare "P(claim) = x") is not an answer to "what is X".
         if not self._grounded(result, support):
+            self._found_nothing("reasoned",
+                                "the reasoner answered from nothing the question stands on",
+                                premises=len(premises), support=len(support or ()),
+                                answered=str(getattr(result, "answer", "") or "")[:120] or None)
             return self._what_a_kind_is(meaning, asked_of)
         return [Answer(about="", relation="", others=(), verdict=None,
                        support=support, conclusion=self._render_atom(result.answer))]

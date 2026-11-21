@@ -33,7 +33,8 @@ from core.reasoning.unification import Atom, apply_substitution, match_body
 # members this file used and the five the interfaces module used are one list of
 # fifteen.
 from core.reasoning.reasoning_interfaces import (  # noqa: E402
-    CLASSICAL_REASONING_TYPES, InferenceMethod, InferenceStrategy, ReasoningType)
+    CLASSICAL_REASONING_TYPES, THINKING_FOR_LINK_KIND, InferenceMethod,
+    InferenceStrategy, ReasoningType)
 
 logger = logging.getLogger(__name__)
 
@@ -476,6 +477,69 @@ def _atom(subject: str, relation: str, obj: str) -> Optional[str]:
     return clause_atom(subject, relation, obj)
 
 
+def _relations_meaning(kind: "ReasoningType") -> frozenset:
+    """The LINK KINDS a question about them asks this kind of thinking for.
+
+    One source of truth: `THINKING_FOR_LINK_KIND` already states that `causes` and
+    `requires` mean causal thinking, `located_in` spatial, `precedes` temporal. A second
+    list here would drift from it.
+    """
+    return frozenset(rel for rel, k in THINKING_FOR_LINK_KIND.items() if k is kind)
+
+
+def _held_in(premises: List["ReasoningPremise"], relations: frozenset
+             ) -> List[Tuple[str, str, str, bool, Any]]:
+    """Held facts whose RELATION is one of `relations`, as (subject, relation, object, held, premise).
+
+    THE STRATEGIES WERE BLIND TO EVERYTHING THE STORE HOLDS. Causal, spatial, temporal,
+    fuzzy and counterfactual each read `premise.statement` as English -- searching for
+    " causes ", " located in ", " before " -- while `statement` carries the ATOM a held
+    fact is reasoned over. `clause_atom` also singularises the relation and drops
+    `has_property` entirely, so "smoking causes cancer" arrives as `smoking_cause_cancer`
+    and "the cup is small" as `cup_small`: a text search for " causes " cannot match either.
+
+    Measured 2026-11-21 on premises built exactly as `_held_premises.hold_relation` builds
+    them -- a causal fact, a spatial fact, a temporal fact and a graded one -- `_held_facts`
+    saw the structure of all four and causal, spatial, temporal, fuzzy and counterfactual
+    each answered `is_applicable` False. They were not short of material; they could not
+    see it. The store holds 204 `causes` relations the causal strategy has never read.
+
+    This is the same defect `neural_bridge._is_implication` records and fixed for rules
+    ("ASK THE PREMISE, NOT ITS TEXT ... so `rules` came back EMPTY on every question ever
+    asked"), left unfixed for the kinds of thinking. `predicates` carries the relation
+    unsingularised, so structure answers it exactly where text cannot.
+    """
+    out: List[Tuple[str, str, str, bool, Any]] = []
+    for premise in premises or ():
+        predicates = list(getattr(premise, "predicates", ()) or ())
+        constants = list(getattr(premise, "constants", ()) or ())
+        if len(predicates) != 1 or len(constants) != 2:
+            continue
+        relation = str(predicates[0])
+        if relation not in relations:
+            continue
+        subject, obj = (str(c) for c in constants)
+        out.append((subject, relation, obj,
+                    not str(getattr(premise, "statement", "")).startswith("~"), premise))
+    return out
+
+
+def _premise_said(premise: Any) -> str:
+    """A PREMISE AS A PERSON READS IT, for a step that states what was stated.
+
+    `statement` is what is reasoned over -- for a held fact, its atom (`bird_vertebrate`) --
+    and `said` is the same premise in words, which is what the field exists for ("HOW THE
+    PREMISE READS, for saying why"). A reasoning step built by formatting the machinery's
+    own walk says nothing about the subject: "traced 3 step(s) back", "link strength 0.90",
+    "Evaluated 5 parallel reasoning paths". Those are not reasoning, and they do not stay
+    in the log -- `causal_feedback_analyzer` stores a result's steps as a CausalLink's
+    `mechanism` and `evidence`, so machinery self-description was being written into the
+    World Model as the mechanism of a cause. Every step built from a premise comes through
+    here instead.
+    """
+    return str(getattr(premise, "said", None) or getattr(premise, "statement", "") or "")
+
+
 class InductiveReasoningStrategy(ReasoningStrategy):
     """Induction: from the instances of a kind held, what holds of the kind (specific to general).
 
@@ -593,7 +657,10 @@ class AbductiveReasoningStrategy(ReasoningStrategy):
 
     def _observations(self, context: ReasoningContext) -> List[str]:
         seen, observations = set(), []
-        for text in [p.statement for p in context.premises] + list(context.facts):
+        # AN OBSERVATION AS IT WAS OBSERVED. `p.statement` is the atom for a held fact,
+        # so the explanations abduction scores were being scored against atoms rather
+        # than against what was actually seen.
+        for text in [_premise_said(p) for p in context.premises] + list(context.facts):
             statement = (text or "").strip()
             if statement and statement.lower() not in seen:
                 seen.add(statement.lower())
@@ -855,10 +922,47 @@ class CausalReasoningStrategy(ReasoningStrategy):
     def get_strategy_name(self) -> str:
         return self.strategy_name
 
-    def _causal_pairs(self, context) -> List[Tuple[str, str, float]]:
-        """(cause, effect, confidence) for every premise stating a causal claim."""
+    def _causal_pairs(self, context) -> List[Tuple[str, str, float, Any]]:
+        """(cause, effect, confidence, premise) for every premise stating a causal claim.
+
+        THE PREMISE TRAVELS WITH THE PAIR. This returned the three strings alone, so a
+        conclusion drawn from a premise could not name the premise it came from:
+        `supporting_premises` fell back to `cause_text in p.statement`, the content-word
+        match that `ReasoningPremise`'s own docstring calls "a heuristic standing in for a
+        link that had been thrown away three frames earlier". It was thrown away here.
+        Carrying it also gives the conclusion the premise's `said` -- the fact as a person
+        reads it -- so a step can state what was stated instead of describing the walk.
+        """
         pairs = []
+        taken: set = set()
+
+        # HELD CAUSAL FACTS, READ AS STRUCTURE (`_held_in`). Everything below reads
+        # English wording out of `statement`, which carries an atom for every fact the
+        # store holds -- so the 204 `causes` relations in the World Model were invisible
+        # here. Direction comes from the relation, not from word order:
+        #   causes / enables / required_by   cause is the SUBJECT
+        #   caused_by / requires             cause is the OBJECT ("A requires B" makes B
+        #                                    what A needs, so B is upstream of A)
+        # `prevents` IS DELIBERATELY NOT A PAIR. It is a causal relation, but a negative
+        # one: turning "A prevents B" into "A causes B" would assert the opposite of what
+        # is held. It is left for a strategy that can carry prevention rather than
+        # inverted into a claim the store denies.
+        _REVERSED_HELD = ("caused_by", "requires")
+        for subject, relation, obj, held, premise in _held_in(
+                context.premises, _relations_meaning(ReasoningType.CAUSAL)):
+            if not held or relation == "prevents":
+                continue
+            confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
+            cause, effect = ((obj, subject) if relation in _REVERSED_HELD
+                             else (subject, obj))
+            if cause and effect:
+                pairs.append((cause.replace("_", " "), effect.replace("_", " "),
+                              confidence, premise))
+                taken.add(id(premise))
+
         for premise in context.premises:
+            if id(premise) in taken:
+                continue
             text = f" {str(getattr(premise, 'statement', '') or '').lower()} "
             confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
             for form in self.CAUSAL_FORMS:
@@ -867,7 +971,7 @@ class CausalReasoningStrategy(ReasoningStrategy):
                     cause = text[:index].strip()
                     effect = text[index + len(form):].strip()
                     if cause and effect:
-                        pairs.append((cause, effect, confidence))
+                        pairs.append((cause, effect, confidence, premise))
                     break
             else:
                 for form in self.REVERSED_FORMS:
@@ -876,7 +980,7 @@ class CausalReasoningStrategy(ReasoningStrategy):
                         effect = text[:index].strip()
                         cause = text[index + len(form):].strip()
                         if cause and effect:
-                            pairs.append((cause, effect, confidence))
+                            pairs.append((cause, effect, confidence, premise))
                         break
         return pairs
 
@@ -932,12 +1036,12 @@ class CausalReasoningStrategy(ReasoningStrategy):
             known[text] = made
             return made
 
-        for cause_text, effect_text, confidence in pairs:
+        for cause_text, effect_text, confidence, premise in pairs:
             cause = proposition(cause_text, TimePoint.PAST, confidence)
             effect = proposition(effect_text, TimePoint.PRESENT, confidence)
             link = engine.establish_causal_link(
                 cause=cause, effect=effect, strength=confidence,
-                evidence=[f"premise: {cause_text} -> {effect_text}"])
+                evidence=[_premise_said(premise)])
             effect_ids[effect.prop_id] = effect_text
             # KEYED BY EDGE, NOT BY NODE.
             #
@@ -958,10 +1062,15 @@ class CausalReasoningStrategy(ReasoningStrategy):
                 origin="derived",
                 reasoning_type=ReasoningType.CAUSAL,
                 inference_method=InferenceMethod.FORWARD_CHAINING,
-                supporting_premises=[p.premise_id for p in context.premises
-                                     if cause_text in str(p.statement).lower()],
-                reasoning_steps=[f"stated: {cause_text} -> {effect_text}",
-                                 f"link strength {confidence:.2f}"],
+                # THE PREMISE THAT STATED IT, NAMED AND SAID. This cited premises by
+                # matching `cause_text` into their text -- so two premises sharing those
+                # words both counted as support when one was used -- and its steps were
+                # "stated: X -> Y" and "link strength 0.90": arrow notation plus a number
+                # already carried by `confidence` three fields below. Neither said what
+                # was stated. `causal_feedback_analyzer` keeps these as a CausalLink's
+                # `mechanism` and `evidence` in the World Model.
+                supporting_premises=[premise.premise_id],
+                reasoning_steps=[_premise_said(premise)],
                 logical_validity=confidence,
                 evidence_strength=confidence,
                 coherence_score=confidence))
@@ -969,6 +1078,10 @@ class CausalReasoningStrategy(ReasoningStrategy):
         # ROOT CAUSES. The chains are what the premises could not state
         # individually -- A->B and B->C only become "A explains C" once
         # something composes them, and that composition is the engine's.
+        def _stated_as(node: str) -> str:
+            """What a node of the chain SAYS, as the proposition holding it states it."""
+            return str(getattr(engine.propositions.get(node, None), "statement", node))
+
         for effect_id, effect_text in effect_ids.items():
             for chain in engine.trace_causal_chain(effect_id) or []:
                 if len(chain) < 2:
@@ -977,15 +1090,32 @@ class CausalReasoningStrategy(ReasoningStrategy):
                 # least-supported step -- and the steps are the EDGES actually
                 # walked. `trace_causal_chain` returns nodes effect-first, so
                 # consecutive pairs (chain[i+1] -> chain[i]) are the links.
-                walked = [strengths[(chain[i + 1], chain[i])]
-                          for i in range(len(chain) - 1)
-                          if (chain[i + 1], chain[i]) in strengths]
-                if not walked:
+                walked_links = [(chain[i + 1], chain[i])
+                                for i in range(len(chain) - 1)
+                                if (chain[i + 1], chain[i]) in strengths]
+                if not walked_links:
                     continue
-                chain_confidence = min(walked)
+                chain_confidence = min(strengths[pair] for pair in walked_links)
                 root = chain[-1]
-                root_text = getattr(engine.propositions.get(root, None),
-                                    "statement", root)
+                root_text = _stated_as(root)
+                # THE CHAIN IT WALKED, AS THE LINKS IT IS MADE OF.
+                #
+                # This said "traced N step(s) back" and "weakest link 0.42" -- the
+                # engine describing its own walk, naming neither what causes what
+                # nor why. It is not a log line either: `causal_feedback_analyzer`
+                # stores these as a CausalLink's `mechanism` and `evidence`, so the
+                # recorded mechanism of a cause in the World Model read
+                # "traced 3 step(s) back; weakest link 0.42".
+                #
+                # AND IT CITED NOTHING. `supporting_premises` was omitted here
+                # while the stated-link conclusion above sets it, so the one
+                # conclusion this strategy actually DERIVES -- A->B and B->C
+                # composed into "A explains C", which the comment above calls
+                # "the engine's" own composition -- rested on no named premise.
+                # Both are the same defect: the composition was never said.
+                links_said = [f"{_stated_as(cause)} causes {_stated_as(effect)}"
+                              for cause, effect in walked_links]
+                causes_said = {_stated_as(cause).lower() for cause, _e in walked_links}
                 conclusions.append(ReasoningConclusion(
                     conclusion_id=str(uuid.uuid4()),
                     statement=f"root cause of {effect_text}: {root_text}",
@@ -993,8 +1123,10 @@ class CausalReasoningStrategy(ReasoningStrategy):
                     origin="derived",
                     reasoning_type=ReasoningType.CAUSAL,
                     inference_method=InferenceMethod.BACKWARD_CHAINING,
-                    reasoning_steps=[f"traced {len(chain)} step(s) back",
-                                     f"weakest link {chain_confidence:.2f}"],
+                    supporting_premises=[
+                        p.premise_id for p in context.premises
+                        if any(c in str(p.statement).lower() for c in causes_said)],
+                    reasoning_steps=links_said,
                     logical_validity=chain_confidence,
                     evidence_strength=chain_confidence,
                     coherence_score=chain_confidence))
@@ -1057,7 +1189,9 @@ class CounterfactualReasoningStrategy(ReasoningStrategy):
         """(alternative, confidence) for each premise posing a counterfactual."""
         found = []
         for premise in context.premises:
-            text = str(getattr(premise, "statement", "") or "").lower()
+            # SUPPOSING IS WORDING TOO ("had it fired", "what if"), and no link kind
+            # states it, so this reads `said` for the same reason fuzzy does.
+            text = _premise_said(premise).lower()
             confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
             for form in self.COUNTERFACTUAL_FORMS:
                 index = text.find(form)
@@ -1214,6 +1348,17 @@ class SpatialReasoningStrategy(ReasoningStrategy):
     CONVERSE = {"inside": "contains", "contains": "inside",
                 "above": "below", "below": "above"}
 
+    #: A HELD LINK KIND, AS THE RELATION THIS STRATEGY COMPOSES IT AS. `RELATIONS` above
+    #: lists English WORDINGS, matched against `premise.statement` -- which carries an atom
+    #: for every fact the store holds (`bird_located_in_nest`), so no held spatial fact
+    #: ever matched and this strategy answered `is_applicable` False on premises that
+    #: plainly state where something is. The link kinds come from
+    #: `THINKING_FOR_LINK_KIND`'s spatial entries, plus this strategy's own four, which
+    #: it composes but that table does not name.
+    HELD_AS = {"located_in": "inside", "located_at": "inside", "within": "inside",
+               "inside": "inside", "contains": "contains", "adjacent_to": "near",
+               "near": "near", "above": "above", "below": "below"}
+
     def __init__(self, neural_bridge=None):
         self.strategy_name = "spatial_reasoning"
         self.neural_bridge = neural_bridge
@@ -1222,9 +1367,24 @@ class SpatialReasoningStrategy(ReasoningStrategy):
         return self.strategy_name
 
     def _stated(self, context) -> List[Tuple[str, str, str, float]]:
-        """(relation, subject, object, confidence) for each spatial premise."""
+        """(relation, subject, object, confidence) for each spatial premise, from the
+        premise's STRUCTURE where it has some and from its wording otherwise."""
         found = []
+        taken: set = set()
+        for subject, relation, obj, held, premise in _held_in(
+                context.premises, frozenset(self.HELD_AS)):
+            taken.add(id(premise))
+            # A DENIED PLACE IS NOT A PLACE. "the bird is not in the nest" states where it
+            # is not, and the graph below composes only what holds, so a denial is not
+            # added as though it held.
+            if not held:
+                continue
+            found.append((self.HELD_AS[relation], subject.replace("_", " "),
+                          obj.replace("_", " "),
+                          float(getattr(premise, "confidence", 1.0) or 1.0)))
         for premise in context.premises:
+            if id(premise) in taken:
+                continue
             text = f" {str(getattr(premise, 'statement', '') or '').lower().strip()} "
             confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
             for relation, (forms, _t, _s) in self.RELATIONS.items():
@@ -1391,7 +1551,13 @@ class FuzzyReasoningStrategy(ReasoningStrategy):
         """(claim, truth_degree, confidence) for each hedged premise."""
         graded = []
         for premise in context.premises:
-            words = str(getattr(premise, "statement", "") or "").lower().split()
+            # A HEDGE IS WORDING, SO IT IS READ WHERE THE WORDING IS. This split
+            # `premise.statement`, which carries the ATOM for a held fact
+            # (`cup_small`) -- a hedge cannot survive that form, so a hedged fact
+            # arriving as a held premise read as sharp. `said` is the same premise
+            # in words and falls back to `statement` where there is none, so this
+            # is never worse and is right for a held fact.
+            words = _premise_said(premise).lower().split()
             confidence = float(getattr(premise, "confidence", 1.0) or 1.0)
             degree = None
             exponent = 1.0
@@ -1724,6 +1890,14 @@ class TemporalReasoningStrategy(ReasoningStrategy):
     def get_strategy_name(self) -> str:
         return self.strategy_name
 
+    #: A HELD LINK KIND, AS THE TEMPORAL OPERATOR IT STATES. `OPERATOR_WORDS` matches
+    #: surface WORDS against `premise.statement`, which carries an atom for every fact the
+    #: store holds -- "rain precedes flood" arrives as `rain_precede_flood`, with no
+    #: spaces and the relation singularised -- so no held temporal fact was ever read and
+    #: this strategy answered `is_applicable` False on premises that state an order
+    #: outright. The kinds are `THINKING_FOR_LINK_KIND`'s temporal entries.
+    HELD_AS = {"precedes": "BEFORE", "follows": "AFTER", "during": "DURING"}
+
     def _operator_of(self, text: str) -> Optional[str]:
         lowered = f" {text.lower()} "
         for word, operator in self.OPERATOR_WORDS.items():
@@ -1731,9 +1905,16 @@ class TemporalReasoningStrategy(ReasoningStrategy):
                 return operator
         return None
 
+    def _operator_for(self, premise: Any) -> Optional[str]:
+        """The operator a premise states, from its STRUCTURE where it carries some and
+        from its wording otherwise."""
+        predicates = list(getattr(premise, "predicates", ()) or ())
+        if len(predicates) == 1 and str(predicates[0]) in self.HELD_AS:
+            return self.HELD_AS[str(predicates[0])]
+        return self._operator_of(str(getattr(premise, "statement", "") or ""))
+
     def is_applicable(self, context) -> bool:
-        return any(self._operator_of(str(getattr(p, "statement", "") or ""))
-                   for p in context.premises)
+        return any(self._operator_for(p) for p in context.premises)
 
     async def reason(self, context) -> List[ReasoningConclusion]:
         from core.reasoning.temporal_reasoning import TemporalOperator, TimePoint
@@ -1759,7 +1940,7 @@ class TemporalReasoningStrategy(ReasoningStrategy):
         conclusions: List[ReasoningConclusion] = []
         for premise, proposition in zip(context.premises, timeline):
             text = str(getattr(premise, "statement", "") or "")
-            name = self._operator_of(text)
+            name = self._operator_for(premise)
             if name is None:
                 continue
             operator = getattr(TemporalOperator, name, None)
@@ -1779,10 +1960,15 @@ class TemporalReasoningStrategy(ReasoningStrategy):
                 reasoning_type=ReasoningType.TEMPORAL,
                 inference_method=InferenceMethod.FORWARD_CHAINING,
                 supporting_premises=[p.premise_id for p in context.premises],
-                reasoning_steps=[
-                    f"operator {name} read from the premise's wording",
-                    f"evaluated against a timeline of {len(timeline)} proposition(s)",
-                    f"result: {holds}"],
+                # WHAT IT CHECKED, AND AGAINST WHAT. This said "operator X read from the
+                # premise's wording", "evaluated against a timeline of N proposition(s)"
+                # and "result: True" -- three lines naming the machinery's own actions and
+                # not one naming a proposition. The steps are the premise whose order was
+                # checked, then the propositions it was checked against, each as a person
+                # reads it; the verdict is the conclusion's `statement` already.
+                reasoning_steps=[_premise_said(premise)] + [
+                    _premise_said(other) for other in context.premises
+                    if other is not premise],
                 logical_validity=confidence,
                 evidence_strength=confidence,
                 coherence_score=confidence))
