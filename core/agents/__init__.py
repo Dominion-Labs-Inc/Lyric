@@ -17,9 +17,13 @@ try:
     from .autonomous import AutonomousCoordinator, create_autonomous_system
     AutonomousAgent = AutonomousCoordinator
     create_autonomous_agent = create_autonomous_system
-except ImportError:
+except ImportError as _no_autonomy:
     AutonomousAgent = None
     create_autonomous_agent = None
+    import logging as _logging
+    _logging.getLogger(__name__).error(
+        "the autonomous agent could not be imported (%s): nothing can create "
+        "one, so every caller that asks for autonomy gets None", _no_autonomy)
 
 from .agents import AgentCoordinator, get_agent_coordinator
 

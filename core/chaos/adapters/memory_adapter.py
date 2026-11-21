@@ -306,8 +306,10 @@ class MemorySystemAdapter(TargetSystemAdapter):
             try:
                 reasoning_metrics = await self.get_reasoning_trace_metrics()
                 metrics.update(reasoning_metrics)
-            except:
-                pass
+            except BaseException as error:
+                logger.warning("reasoning metrics were not collected (%s: %s): "
+                               "this health reading covers memory only",
+                               type(error).__name__, error)
 
         # For chaos testing, we consider the system healthy if we can collect metrics
         # Even if the agent isn't fully initialized, we can still inject chaos

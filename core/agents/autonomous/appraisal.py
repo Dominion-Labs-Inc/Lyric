@@ -59,7 +59,10 @@ def _clamp(value: Any, low: float = 0.0, high: float = 1.0) -> Optional[float]:
         return None
     try:
         return max(low, min(high, float(value)))
-    except (TypeError, ValueError):
+    except (TypeError, ValueError) as error:
+        logger.debug("%r is not a number (%s): this pressure is left unset "
+                     "rather than clamped to a value nothing measured",
+                     value, type(error).__name__)
         return None
 
 

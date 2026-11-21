@@ -5,6 +5,7 @@ Essential data structures
 """
 
 import hashlib
+import logging as _logging
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, Sequence, Set
@@ -285,6 +286,12 @@ class Task:
                 try:
                     self.priority = Priority[self.priority.upper()]
                 except (KeyError, AttributeError):
+                    # MEDIUM is a real priority, so an unreadable one is
+                    # indistinguishable from a deliberate middling one.
+                    _logging.getLogger(__name__).warning(
+                        "priority %r is not one of %s: this task is held at "
+                        "MEDIUM", self.priority,
+                        ", ".join(p.name for p in Priority))
                     self.priority = Priority.MEDIUM
             else:
                 # Default fallback
@@ -330,6 +337,11 @@ class Goal:
             try:
                 setattr(self, field_name, float(value))
             except (TypeError, ValueError):
+                # 0.5 is a real reading, so a number that would not parse looks
+                # like a deliberate middle value.
+                _logging.getLogger(__name__).warning(
+                    "%s was given %r, which is not a number: it is held at 0.5, "
+                    "which reads as a real measurement", field_name, value)
                 setattr(self, field_name, 0.5)
 
 

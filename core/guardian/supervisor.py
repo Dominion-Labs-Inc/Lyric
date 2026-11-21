@@ -176,7 +176,7 @@ class Guardian:
             try:
                 await asyncio.wait_for(self._stopping.wait(), timeout=2.0)
             except asyncio.TimeoutError:
-                pass
+                pass          # the ordinary tick: nothing asked it to stop
 
     async def _heartbeat(self) -> None:
         """Mark that a guardian is alive, so the substrate defers control to it."""
@@ -223,8 +223,10 @@ class Guardian:
         for sig in (signal.SIGINT, signal.SIGTERM):
             try:
                 loop.add_signal_handler(sig, self._stopping.set)
-            except (NotImplementedError, RuntimeError):
-                pass
+            except (NotImplementedError, RuntimeError) as error:
+                logger.warning("the guardian cannot listen for %s (%s): it will "
+                               "not shut down cleanly on that signal",
+                               getattr(sig, "name", sig), type(error).__name__)
         logger.info("Guardian up: %d system(s) hosted", len(self._live))
         await self._control_loop()
         await self._shutdown()
@@ -237,8 +239,10 @@ class Guardian:
         # launch agent brings the guardian back.
         try:
             await sc.publish_status(self._live, self._db)
-        except Exception:
-            pass
+        except Exception as error:
+            logger.warning("the guardian's final status was not published (%s: "
+                           "%s): what it was hosting at shutdown is not "
+                           "recorded", type(error).__name__, error)
 
 
 async def main() -> int:

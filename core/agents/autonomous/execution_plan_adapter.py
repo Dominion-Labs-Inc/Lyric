@@ -144,8 +144,13 @@ def state_plan_to_tasks(
                 return []
             params = binding.parameters(fact.args)
             needed = get_constitution().requires_reading(binding.tool_name, params)
-        except Exception:
+        except Exception as error:
             # The planner never fabricates a preparatory step it cannot justify.
+            logger.warning(
+                "whether %s needs a reading first could not be established "
+                "(%s: %s): no preparatory step is planned, so the act may run "
+                "without the reading a law requires",
+                binding.tool_name, type(error).__name__, error)
             return []
 
         built: List[Task] = []

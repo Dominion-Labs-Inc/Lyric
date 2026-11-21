@@ -770,7 +770,9 @@ class SlackNotifier:
                 try:
                     slack_channel = SlackChannel[slack_channel.upper()]
                 except KeyError:
-                    # Fall back to activity channel
+                    logger.warning("%r is not a known channel: this "
+                                   "notification goes to ACTIVITY instead",
+                                   slack_channel)
                     slack_channel = SlackChannel.ACTIVITY
 
             # Optional metadata → Slack fields

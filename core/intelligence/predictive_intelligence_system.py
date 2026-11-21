@@ -633,7 +633,14 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
                 resource_data['storage_usage'] = storage_usage
                 resource_data['storage_available'] = 1.0 - storage_usage
                 
-            except Exception:
+            except Exception as error:
+                # NUMBERS NOTHING MEASURED. 0.4 and 0.6 are a plausible-looking
+                # pair that every prediction downstream then rests on.
+                logger.warning(
+                    "storage could not be measured (%s: %s): the fabricated "
+                    "pair 0.4/0.6 stands in for it, and any prediction made "
+                    "from this reading rests on numbers nothing measured",
+                    type(error).__name__, error)
                 resource_data['storage_usage'] = 0.4
                 resource_data['storage_available'] = 0.6
             

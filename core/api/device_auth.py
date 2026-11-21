@@ -137,8 +137,11 @@ class DeviceChannel:
         tmp.replace(self.state_path)
         try:
             os.chmod(self.state_path, 0o600)
-        except OSError:
-            pass
+        except OSError as error:
+            logger.warning("the device binding file %s could not be made "
+                           "owner-only (%s: %s): it may be readable by other "
+                           "users on this machine",
+                           self.state_path, type(error).__name__, error)
 
     # ----------------------------------------------------------- enrollment
 
@@ -224,8 +227,11 @@ class DeviceChannel:
         try:
             if self.state_path.exists():
                 self.state_path.unlink()
-        except OSError:
-            pass
+        except OSError as error:
+            logger.warning("the device binding file %s could not be removed "
+                           "(%s: %s): the binding is cleared in memory and the "
+                           "file remains on disk",
+                           self.state_path, type(error).__name__, error)
         logger.warning("device binding cleared — channel closed until re-enrolled")
 
     # --------------------------------------------------------- verification

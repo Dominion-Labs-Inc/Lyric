@@ -117,7 +117,11 @@ def code_identity(root: Path = ROOT) -> Dict[str, Any]:
     def git(*args: str) -> Optional[str]:
         try:
             done = subprocess.run(["git", "-C", str(root), *args], capture_output=True, text=True, timeout=30)
-        except (OSError, subprocess.SubprocessError):
+        except (OSError, subprocess.SubprocessError) as error:
+            logger.warning("git %s could not be run (%s: %s): this release "
+                           "carries no code identity, so what ran cannot later "
+                           "be tied to a commit",
+                           " ".join(args), type(error).__name__, error)
             return None
         return done.stdout.strip() if done.returncode == 0 else None
 
@@ -661,8 +665,9 @@ async def take(config: PostgresConfig, environment: str, agent) -> Dict[str, Any
             content = row["content"]
             try:
                 content = json.loads(content)
-            except (TypeError, ValueError):
-                pass
+            except (TypeError, ValueError) as error:
+                logger.debug("a release row's content is not JSON (%s): it is "
+                             "taken as the text it is", error)
             tags = row["tags"] if isinstance(row["tags"], list) else json.loads(row["tags"] or "[]")
             image = await learning.fetchrow(
                 "SELECT bytes, perceived FROM unified.memory_media WHERE memory_id = $1 LIMIT 1", row["memory_id"])

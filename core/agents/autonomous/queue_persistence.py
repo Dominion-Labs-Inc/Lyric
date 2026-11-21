@@ -523,5 +523,8 @@ class QueuePersistence:
         # asyncpg returns e.g. "DELETE 12"
         try:
             return int(str(status).split()[-1])
-        except (ValueError, IndexError, AttributeError):
+        except (ValueError, IndexError, AttributeError) as error:
+            logger.warning("how many finished rows were pruned could not be "
+                           "read from %r (%s): reported as 0, which reads as "
+                           "nothing pruned", status, type(error).__name__)
             return 0

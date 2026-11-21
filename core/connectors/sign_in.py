@@ -54,12 +54,16 @@ async def _first_json(http: httpx.AsyncClient, addresses: List[str]) -> Optional
     for address in addresses:
         try:
             response = await http.get(address, headers={"Accept": "application/json"})
-        except httpx.HTTPError:
+        except httpx.HTTPError as error:
+            logger.debug("%s did not answer (%s): trying the next address",
+                         address, type(error).__name__)
             continue
         if response.status_code == 200:
             try:
                 found = response.json()
-            except ValueError:
+            except ValueError as error:
+                logger.debug("%s answered with something that is not JSON (%s): "
+                             "trying the next address", address, error)
                 continue
             if isinstance(found, dict):
                 return found
@@ -142,6 +146,8 @@ async def _token(http: httpx.AsyncClient, sign_in: Dict[str, Any], client: Dict[
             said = response.json()
             reason = said.get("error_description") or said.get("error") or response.text
         except ValueError:
+            logger.debug("the sign-in refusal is not JSON: its text is used as "
+                         "the reason")
             reason = response.text
         raise ConnectorError(f"{sign_in['issuer']} refused the sign-in: {str(reason)[:300]}")
     token = response.json()

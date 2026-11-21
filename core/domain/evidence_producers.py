@@ -866,7 +866,10 @@ def _named(items: Any) -> List[Tuple[str, Optional[float]]]:
         if label:
             try:
                 conf = float(conf) if conf is not None else None
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as error:
+                logger.debug("%r is not a confidence (%s): this item is offered "
+                             "with none, so the envelope's own quality stands",
+                             conf, type(error).__name__)
                 conf = None
             out.append((label, conf))
     return out

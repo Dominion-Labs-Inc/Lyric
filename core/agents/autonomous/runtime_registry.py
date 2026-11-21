@@ -23,8 +23,12 @@ def register_autonomous_coordinator(coordinator: Any) -> None:
     global _autonomous_coordinator_ref
     try:
         _autonomous_coordinator_ref = weakref.ref(coordinator)
-    except Exception:
+    except Exception as error:
         # Weakref can fail for some objects; fall back to strong ref.
+        logger.warning(
+            "the coordinator cannot be held weakly (%s: %s): a strong "
+            "reference is kept instead, so it will not be collected while this "
+            "registry lives", type(error).__name__, error)
         _autonomous_coordinator_ref = lambda: coordinator  # type: ignore[assignment]
     logger.debug("Registered AutonomousCoordinator in runtime registry")
 
@@ -35,7 +39,10 @@ def get_autonomous_coordinator() -> Optional[Any]:
         return None
     try:
         return _autonomous_coordinator_ref()
-    except Exception:
+    except Exception as error:
+        logger.warning("the registered coordinator could not be read back (%s: "
+                       "%s): callers are told there is none",
+                       type(error).__name__, error)
         return None
 
 

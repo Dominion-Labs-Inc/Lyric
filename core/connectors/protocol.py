@@ -141,9 +141,11 @@ class Session:
         try:
             if self.session_id and self._http is not None:
                 await self._http.delete(self.url, headers=self._headers())
-        except httpx.HTTPError:
+        except httpx.HTTPError as error:
             # The session ends on the connector's side by itself; nothing of Lyric's waits on this.
-            pass
+            logger.debug("the connector session could not be closed from here "
+                         "(%s): it will end on the connector's own side",
+                         type(error).__name__)
         finally:
             if self._own_http and self._http is not None:
                 await self._http.aclose()
@@ -268,8 +270,9 @@ class LegacySession:
             self._reader.cancel()
             try:
                 await self._reader
-            except BaseException:
-                pass
+            except BaseException as error:
+                logger.debug("the connector's reader ended with %s while "
+                             "closing", type(error).__name__)
             self._reader = None
         for waiting in self._waiting.values():
             if not waiting.done():

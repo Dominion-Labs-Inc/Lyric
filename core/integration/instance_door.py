@@ -121,7 +121,7 @@ class InstanceDoor:
         try:
             self.record.unlink()
         except FileNotFoundError:
-            pass
+            logger.debug("this instance's record was already gone at close")
 
     def _environment(self) -> Dict[str, Any]:
         db = getattr(self._system, "db_manager", None)
@@ -255,6 +255,9 @@ def running_instances() -> Dict[str, Dict[str, Any]]:
     for record in sorted(INSTANCES.glob("*.json")):
         try:
             found[record.stem] = json.loads(record.read_text())
-        except (OSError, ValueError):
+        except (OSError, ValueError) as error:
+            logger.warning("instance record %s could not be read (%s: %s): that "
+                           "instance is left out of the list of what is running",
+                           record.name, type(error).__name__, error)
             continue
     return found
