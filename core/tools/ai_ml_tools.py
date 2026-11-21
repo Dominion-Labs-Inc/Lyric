@@ -509,6 +509,8 @@ class AIMLTools:
                 }
 
             except SyntaxError as e:
+                logger.info("the code under analysis does not parse (line %s: "
+                            "%s): recorded as a syntax issue", e.lineno, e.msg)
                 issues.append({"type": "syntax", "message": f"Syntax error: {str(e)}"})
 
         return {
@@ -677,6 +679,8 @@ class AIMLTools:
                         result["accessible"] = response.status < 400
                         result["status_code"] = response.status
             except Exception as e:
+                logger.info("%s is reported inaccessible (%s: %s)",
+                            result.get("url", "a URL"), type(e).__name__, e)
                 result["accessible"] = False
                 result["error"] = str(e)
 
@@ -702,6 +706,8 @@ class AIMLTools:
             }
 
         except Exception as e:
+            logger.info("%r could not be calculated (%s: %s)", expression,
+                        type(e).__name__, e)
             return {
                 "expression": expression,
                 "error": str(e)

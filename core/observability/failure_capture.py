@@ -170,7 +170,7 @@ class FailureCaptureHandler(logging.Handler):
             try:
                 self.stats["capture_failed"] += 1
             except Exception:
-                pass
+                pass          # the counter itself: there is nothing left to try
 
     def _ensure_draining(self) -> None:
         try:

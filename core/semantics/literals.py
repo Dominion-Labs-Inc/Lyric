@@ -23,10 +23,13 @@ to the sentence machine); the VALUE is derived from it.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 #: A quantity -- how many, how much. The store holds it so a count or a measure
 #: can be a term without being mistaken for a word.
@@ -132,6 +135,8 @@ def _valid_date(year: int, month: int, day: int) -> Optional[date]:
     try:
         return date(year, month, day)
     except ValueError:                       # 2026-02-31 is not a day
+        logger.debug("%04d-%02d-%02d is not a day, so it is not read as a date",
+                     year, month, day)
         return None
 
 
@@ -168,6 +173,8 @@ def classify_literal(term: str) -> Optional[Literal]:
         try:
             moment = datetime(*(int(g) for g in m.groups()), tzinfo=timezone.utc)
         except ValueError:                   # 2026-09-29T25:00:00Z is no moment
+            logger.debug("%r has the shape of a moment but is not one, so it is "
+                         "not read as one", surface)
             return None
         return Literal(MOMENT, moment.strftime("%Y-%m-%dT%H:%M:%SZ"), moment, surface)
 

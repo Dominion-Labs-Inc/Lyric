@@ -23,12 +23,15 @@ predicates to WordNet's senses, and that is more than this table.
 """
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Dict, List, Mapping, NamedTuple, Optional, Sequence, Set, Tuple
 
 from core.semantics.derived_reader import Meaning, MeaningFact
 from core.semantics.pmb_meanings import Said
 from core.semantics.relation_types import worded
+
+logger = logging.getLogger(__name__)
 
 #: An open-class predicate: `_lemma_pos` and what else the ERG writes after it (`_dog_n_1`, `_in_p_loc`,
 #: `_book_n_of`). A multi-word lemma is joined by `+` (`_ice+cream_n_1`).
@@ -197,7 +200,10 @@ def _possesses(word: str) -> str:
     """The link a possessive makes with a thing of this word: `part_of` for a part of a body, else `owned_by`."""
     try:
         from nltk.corpus import wordnet as wn
-    except Exception:
+    except Exception as error:
+        logger.warning("WordNet is unavailable (%s: %s): every possession reads "
+                       "as the general `owned_by` rather than the kind the word "
+                       "names", type(error).__name__, error)
         return "owned_by"
     for sense in wn.synsets(word.replace(" ", "_"), "n")[:1]:
         return POSSESSED.get(sense.lexname(), "owned_by")
@@ -209,7 +215,10 @@ def _comes_from(word: str) -> Optional[str]:
     quality, where what it pertains to is a location."""
     try:
         from nltk.corpus import wordnet as wn
-    except Exception:
+    except Exception as error:
+        logger.warning("WordNet is unavailable (%s: %s): where a thing comes "
+                       "from cannot be read from its word",
+                       type(error).__name__, error)
         return None
     for sense in wn.synsets(word.replace(" ", "_"), "a"):
         for lemma in sense.lemmas():
@@ -748,4 +757,5 @@ def meaning_of(graph: Any) -> Said:
     try:
         return Said(Meaning(act, tuple(kept), tuple(sorted(asked))), ())
     except ValueError as problem:
+        logger.debug("this ERG analysis is not a meaning (%s)", problem)
         return Said(None, (f"not a meaning: {problem}",))

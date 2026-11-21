@@ -254,6 +254,11 @@ def _subject_and_complement(sentence: str,
     try:
         at = lowered.index(target)
     except ValueError:
+        # Position 0 is a real position, so a target that is not in the
+        # sentence is read as its first word.
+        logger.debug("%r is not among these words: it is read as though it "
+                     "stood first, so the determiner test looks at the wrong "
+                     "word", target)
         at = 0
 
     determiner = (words[at - 1] if at > 0 and lowered[at - 1] in DETERMINERS

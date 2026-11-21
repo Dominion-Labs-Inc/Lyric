@@ -26,8 +26,11 @@ try:
         warnings.filterwarnings("ignore", category=DeprecationWarning)
         from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
     QISKIT_AVAILABLE = True
-except ImportError:
+except ImportError as _no_qiskit:
     QISKIT_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "qiskit is not installed (%s): this reasoning runs classically only",
+        _no_qiskit)
 
 
 logger = logging.getLogger(__name__)

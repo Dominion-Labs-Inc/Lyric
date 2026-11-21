@@ -1110,6 +1110,9 @@ class FormalizerChain(IFormalizer):
             try:
                 result = await formalizer.formalize(query, context)
             except Exception as e:
+                logger.info("%s could not formalize this question (%s: %s): "
+                            "trying the next formalizer",
+                            formalizer.name, type(e).__name__, e)
                 failures.append(f"{formalizer.name}: {e}")
                 continue
 
@@ -2675,6 +2678,9 @@ class NeuralSymbolicBridge:
         try:
             relation = _SR(fact.relation)
         except ValueError:
+            logger.debug("%r is not one of the typed relations: this path says "
+                         "nothing about it, which is not an error",
+                         fact.relation)
             # A LINK THE TYPED RELATIONS DO NOT NAME is not this path, as this says above: a link held as the word it
             # was said with (`relation_types.worded`, "Is the Eiffel Tower in Paris?" read `word_in`) raised here,
             # and the whole question was answered "Error: Reasoning failed" (UNDERSTANDS-PROSE-01, 2026-10-20).

@@ -92,8 +92,10 @@ class ParseJSONTool(Tool):
                                 'source': 'file'
                             }
                         )
-                except:
-                    pass  # Fall through to string parsing
+                except BaseException as error:
+                    logger.debug("this input is not a file to read (%s): it is "
+                                 "parsed as a string instead",
+                                 type(error).__name__)
 
             # Try parsing as JSON string
             data = json.loads(input)
@@ -170,8 +172,10 @@ class ParseYAMLTool(Tool):
                                 'source': 'file'
                             }
                         )
-                except:
-                    pass  # Fall through to string parsing
+                except BaseException as error:
+                    logger.debug("this input is not a file to read (%s): it is "
+                                 "parsed as a string instead",
+                                 type(error).__name__)
 
             # Try parsing as YAML string
             data = yaml.safe_load(input)
@@ -1131,8 +1135,11 @@ class SchemaInferenceTool(Tool):
                         if numeric_values:
                             field_schema["minimum"] = min(numeric_values)
                             field_schema["maximum"] = max(numeric_values)
-                    except (TypeError, ValueError):
-                        pass
+                    except (TypeError, ValueError) as error:
+                        logger.debug("no numeric range inferred for this field "
+                                     "(%s): its schema is written without "
+                                     "minimum and maximum",
+                                     type(error).__name__)
 
                 # For strings, infer enum if low cardinality
                 elif types[0] == "string":

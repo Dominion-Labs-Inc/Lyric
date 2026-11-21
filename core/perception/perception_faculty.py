@@ -1586,7 +1586,9 @@ def get_acting_percept() -> Optional[Dict[str, Any]]:
 def reset_acting_percept(token) -> None:
     try:
         _acting_percept.reset(token)
-    except (ValueError, LookupError):
+    except (ValueError, LookupError) as error:
+        logger.debug("a percept binding from another context was not reset "
+                     "(%s): that context ends on its own", type(error).__name__)
         # A token from another context is not this context's to reset; losing the
         # reset is harmless (the context ends), silently ignoring a real error is
         # not, so only these two are caught.

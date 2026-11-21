@@ -25,9 +25,12 @@ try:  # SciPy is required for ODE integration
     from scipy.integrate import solve_ivp  # type: ignore
 
     _SCIPY_AVAILABLE = True
-except Exception:  # pragma: no cover - optional dependency
+except Exception as _no_scipy:  # pragma: no cover - optional dependency
     solve_ivp = None  # type: ignore
     _SCIPY_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "scipy's solve_ivp is unavailable (%s: %s): no differential equation "
+        "can be integrated here", type(_no_scipy).__name__, _no_scipy)
 
 
 # ---------------------------------------------------------------------------

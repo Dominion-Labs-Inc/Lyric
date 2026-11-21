@@ -98,8 +98,10 @@ class AnalyzeResearchPaperTool(Tool):
                 if paper_path.exists() and paper_path.is_file():
                     with open(paper_path, 'r', encoding='utf-8', errors='ignore') as f:
                         text = f.read()
-            except OSError:
-                pass
+            except OSError as error:
+                logger.warning("the paper could not be read (%s: %s): its "
+                               "sections are extracted from nothing",
+                               type(error).__name__, error)
 
             # Extract sections using patterns
             sections = {
@@ -641,7 +643,10 @@ class AnalyzeResearchDataTool(Tool):
                 if isinstance(values, list):
                     try:
                         numeric_data[key] = [float(v) for v in values if v is not None]
-                    except (ValueError, TypeError):
+                    except (ValueError, TypeError) as error:
+                        logger.debug("column %r is not numeric (%s): it is left "
+                                     "out of this analysis", key,
+                                     type(error).__name__)
                         continue
 
             if not numeric_data:
@@ -1593,6 +1598,8 @@ class ValidateBibliographyTool(Tool):
                         if year < 1900 or year > datetime.now().year + 1:
                             entry_issues.append(f"Invalid year: {year}")
                     except (ValueError, TypeError):
+                        logger.debug("a bibliography entry's year is not a "
+                                     "number: recorded as an issue")
                         entry_issues.append(f"Year must be a number")
 
                 # Validate DOI format if present

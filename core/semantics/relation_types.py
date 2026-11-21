@@ -777,7 +777,10 @@ def _observed(evidence, word_class: str) -> bool:
     if getter is not None:
         try:
             return float(getter(word_class, 0) or 0) > 0
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.debug("the evidence for class %r is not a number (%s): its "
+                         "mere presence is taken as the answer",
+                         word_class, type(error).__name__)
             return word_class in evidence
     return word_class in evidence
 

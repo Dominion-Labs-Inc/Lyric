@@ -53,7 +53,10 @@ class OutsideDatabaseRefused(Exception):
 def _machine_addresses() -> set:
     try:
         return set(socket.gethostbyname_ex(socket.gethostname())[2])
-    except OSError:
+    except OSError as error:
+        logger.warning("this machine's own addresses could not be read (%s: "
+                       "%s): an empty set means no host will be recognised as "
+                       "local", type(error).__name__, error)
         return set()
 
 
@@ -63,7 +66,9 @@ def _addresses(host: Optional[str]) -> set:
         return {"local"}
     try:
         infos = socket.getaddrinfo(str(host), None)
-    except socket.gaierror:
+    except socket.gaierror as error:
+        logger.debug("%r does not resolve (%s): it is compared by name alone",
+                     host, error)
         return {str(host).lower()}
     here = _machine_addresses()
     out = set()

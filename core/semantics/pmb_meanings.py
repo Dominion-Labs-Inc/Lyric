@@ -27,6 +27,7 @@ proposition another clause holds, a degree, a rate, a comparison of amounts, and
 """
 from __future__ import annotations
 
+import logging
 import re
 from collections import Counter
 from dataclasses import dataclass
@@ -36,6 +37,8 @@ from typing import Callable, Dict, Iterable, Iterator, List, Mapping, NamedTuple
 from core.semantics.derived_reader import Meaning, MeaningFact
 from core.semantics.grammar import Derived, _number
 from core.semantics.relation_types import worded
+
+logger = logging.getLogger(__name__)
 
 #: A concept line's sense: `movie.n.01`.
 _SENSE = re.compile(r"^(?P<lemma>.+)\.(?P<part>[nvars])\.(?P<number>\d+)$")
@@ -493,7 +496,9 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
         holds = k not in negated or part(concepts[k]) == "n" or happening
         try:
             fact = MeaningFact(relation, subject, obj, holds, given=given)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("no fact made from %r %r %r (%s): it is recorded as a "
+                         "gap in this lesson", subject, relation, obj, error)
             gaps.append(f"fact:{relation}")
             return
         if fact not in facts:
@@ -817,6 +822,7 @@ def meaning_of(document: Document, name_of: Callable[[str], Optional[str]]) -> S
         return Said(Meaning(act, tuple(facts), asked_now if act == "ask" else ()), (),
                     {t: tuple(sorted(at)) for t, at in anchors.items()})
     except ValueError as error:
+        logger.debug("this PMB line does not make a meaning (%s)", error)
         return Said(None, (f"meaning:{str(error)[:60]}",))
 
 

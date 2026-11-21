@@ -350,7 +350,10 @@ class BackupScheduler:
 
             return datetime.now() >= next_run and (datetime.now() - last_backup.start_time).total_seconds() > 3600
 
-        except ImportError:
+        except ImportError as error:
+            logger.warning("the usual backup-due check is unavailable (%s): "
+                           "falling back to a flat 24-hour window, which is a "
+                           "different rule from the one configured", error)
             cutoff = datetime.now() - timedelta(hours=24)
             recent_backups = [
                 r for r in self.backup_records

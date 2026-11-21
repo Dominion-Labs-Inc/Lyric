@@ -926,7 +926,11 @@ class CompositionView:
                 Meaning("tell", tuple(facts) + (fact,))
             except ValueError as error:
                 if "condition alone" not in str(error):
+                    logger.debug("this fact does not join the meaning (%s): the "
+                                 "composition stops here", error)
                     return
+                logger.debug("a condition stands alone for now (%s): the fact "
+                             "is kept and the rest follows", error)
             facts.append(fact)
         asked: List[str] = []
         for i, standing in stands.items():

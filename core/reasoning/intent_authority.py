@@ -886,7 +886,9 @@ def get_carrying_out() -> Optional[str]:
 def reset_carrying_out(token) -> None:
     try:
         _carrying_out.reset(token)
-    except (ValueError, LookupError):
+    except (ValueError, LookupError) as error:
+        logger.debug("a carrying-out binding from another context was not reset "
+                     "(%s): that context ends on its own", type(error).__name__)
         # Same reasoning as `reset_acting_intent` below, which this did not share: a token from another
         # context is not this context's to reset and losing the reset is harmless, but a broad `except
         # Exception: pass` also swallowed every real error, so only these two are caught.
@@ -896,7 +898,10 @@ def reset_carrying_out(token) -> None:
 def reset_acting_intent(token) -> None:
     try:
         _acting_intent.reset(token)
-    except (ValueError, LookupError):
+    except (ValueError, LookupError) as error:
+        logger.debug("an acting-intent binding from another context was not "
+                     "reset (%s): that context ends on its own",
+                     type(error).__name__)
         # A token from another context is not this context's to reset; losing the
         # reset is harmless (the context ends), silently ignoring a real error is
         # not, so only these two are caught.
