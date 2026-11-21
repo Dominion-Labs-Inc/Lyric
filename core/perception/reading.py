@@ -20,10 +20,15 @@ from __future__ import annotations
 
 import hashlib
 import io
+import logging
 import re
 import zlib
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
+
+#: This module runs inside the reading sense's own process; its records reach
+#: the substrate's log through `senses.SenseProcess._overheard`.
+logger = logging.getLogger(__name__)
 
 #: WHAT A DOCUMENT IS, the file says, not its name: its first bytes where they
 #: declare a format. Eight files in one real folder were misnamed; one was 292
@@ -76,7 +81,13 @@ def is_text(raw: bytes) -> bool:
         head.decode("utf-8")
         return True
     except UnicodeDecodeError as error:
-        return error.start >= len(head) - 3
+        # A break in the last few bytes is a character cut by the sniff window,
+        # not binary content -- so it still reads as text.
+        cut = error.start >= len(head) - 3
+        logger.debug("the first bytes are %s (%s at %d of %d)",
+                     "text, cut mid-character" if cut else "not text",
+                     error.reason, error.start, len(head))
+        return cut
 
 
 def kind_of(path: str) -> Optional[str]:
@@ -88,7 +99,9 @@ def kind_of(path: str) -> Optional[str]:
     try:
         with open(p, "rb") as f:
             raw = f.read(_SNIFF_BYTES)
-    except OSError:
+    except OSError as error:
+        logger.warning("%s could not be sniffed (%s: %s): its kind is taken "
+                       "from its NAME alone", p, type(error).__name__, error)
         return named
     declared = declared_kind(raw)
     if declared == "zip":
@@ -206,7 +219,10 @@ def read_document(path: str) -> Dict[str, Any]:
         # mission document is a wrong reading and should be visible.
         try:
             pages = [raw.decode("utf-8")]
-        except UnicodeDecodeError:
+        except UnicodeDecodeError as error:
+            logger.warning("this document is not valid UTF-8 (%s at byte %d): "
+                           "it is read with replacement characters, so what was "
+                           "read is marked lossy", error.reason, error.start)
             pages, lossy = [raw.decode("utf-8", errors="replace")], True
         # A .csv declares nothing in its bytes; its name is the evidence that its
         # lines are rows of comma-separated cells. The file is its one table, so
@@ -274,7 +290,10 @@ def trace_keys(data: bytes):
             if "shingles" not in archive.files:
                 return None
             return np.asarray(archive["shingles"], np.int32)
-    except Exception:
+    except Exception as error:
+        logger.warning("a kept reading's trace could not be read back (%s: %s): "
+                       "this text cannot be compared with what was read before",
+                       type(error).__name__, error)
         return None
 
 

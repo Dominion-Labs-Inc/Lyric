@@ -163,7 +163,8 @@ class SenseProcess:
                     try:
                         proc.kill()
                     except ProcessLookupError:
-                        pass
+                        logger.debug("the %s process was already gone",
+                                     self.sense)
                     logger.error("the %s process (pid %s) had died (exit %s); started again "
                                  "for this perception", self.sense, proc.pid, await proc.wait())
         if not ok:
@@ -175,7 +176,7 @@ class SenseProcess:
             try:
                 self._proc.kill()
             except ProcessLookupError:
-                pass
+                logger.debug("the %s process was already gone", self.sense)
         self._proc = None
 
     def close(self) -> None:
@@ -213,17 +214,31 @@ def _serve() -> None:
         try:
             reply = (True, work[name](*args))
         except Exception as error:
+            # Handed back to the substrate, which raises it as the perception's
+            # own failure -- and said here too, because this process knows which
+            # work it was and the substrate only sees the exception.
+            logging.getLogger("core.perception.senses").warning(
+                "%s FAILED in this sense's process (%s: %s)",
+                name, type(error).__name__, error)
             reply = (False, error)
         try:
             data = pickle.dumps(reply, protocol=pickle.HIGHEST_PROTOCOL)
         except Exception as error:
+            logging.getLogger("core.perception.senses").error(
+                "%s found something that cannot be sent back (%s: %s): the "
+                "perception is lost between the sense and the substrate",
+                name, type(error).__name__, error)
             data = pickle.dumps((False, RuntimeError(f"{name} found something that could "
                                                      f"not be sent back: {error}")))
         try:
             replies.write(_LENGTH.pack(len(data)) + data)
             replies.flush()
         except BrokenPipeError:
-            return          # the substrate is gone; so is its sense
+            # the substrate is gone; so is its sense
+            logging.getLogger("core.perception.senses").info(
+                "this sense is shutting down: the substrate is no longer "
+                "reading its replies")
+            return
 
 
 # ── hearing ─────────────────────────────────────────────────────────────────
@@ -451,7 +466,10 @@ def look(path: str, instances: Dict[str, Any]) -> Dict[str, Any]:
             for name, ref in instances.items():
                 try:
                     pairs = matcher.knnMatch(des, ref, k=2)
-                except cv2.error:
+                except cv2.error as error:
+                    logging.getLogger("core.perception.senses").debug(
+                        "a known instance could not be matched against this "
+                        "picture (%s): it cannot be recognised here", error)
                     continue
                 good = sum(1 for pr in pairs if len(pr) == 2
                            and pr[0].distance < INSTANCE_RATIO * pr[1].distance)

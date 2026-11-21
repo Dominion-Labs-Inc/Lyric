@@ -311,7 +311,10 @@ def _ear(source: str) -> None:
             try:
                 _send(events, message)
             except BrokenPipeError:
-                os._exit(0)                 # the substrate is gone; so is its ear
+                # the substrate is gone; so is its ear
+                logger.info("the ear is shutting down: the substrate is no "
+                            "longer reading what it hears")
+                os._exit(0)
 
     ear = Ear(heard=lambda u: emit(("heard", u)), passed=lambda s: emit(("passed", s)),
               status=lambda t: emit(("status", t)))
@@ -359,7 +362,10 @@ def _ears() -> None:
             try:
                 _send(events, message)
             except BrokenPipeError:
-                os._exit(0)                 # the substrate is gone; so are its ears
+                # the substrate is gone; so are its ears
+                logger.info("the ears are shutting down: the substrate is no "
+                            "longer reading what they hear")
+                os._exit(0)
 
     ears: Dict[str, Ear] = {}
     libraries: Dict[str, Dict[str, Any]] = {}
@@ -445,6 +451,8 @@ def _eye(source: str) -> None:
         try:
             _send(replies, reply)
         except BrokenPipeError:
+            logger.info("the eye is shutting down: the substrate is no longer "
+                        "reading what it sees")
             return
 
 
@@ -687,7 +695,9 @@ class LiveSenses:
                     program.stdin.write(_LENGTH.pack(len(data)) + data)
                     await program.stdin.drain()
                     await asyncio.wait_for(program.wait(), 3.0)
-                except (BrokenPipeError, ConnectionResetError, asyncio.TimeoutError):
+                except (BrokenPipeError, ConnectionResetError, asyncio.TimeoutError) as error:
+                    logger.warning("a live sense did not stop when asked (%s): "
+                                   "it was killed", type(error).__name__)
                     program.kill()
         shutil.rmtree(self._dir, ignore_errors=True)
         logger.info("👂👁 live senses off")
@@ -880,7 +890,9 @@ class DeviceEars:
             try:
                 await self._send(("stop",))
                 await asyncio.wait_for(self._program.wait(), 3.0)
-            except (BrokenPipeError, ConnectionResetError, asyncio.TimeoutError):
+            except (BrokenPipeError, ConnectionResetError, asyncio.TimeoutError) as error:
+                logger.warning("the device's ears did not stop when asked (%s): "
+                               "killed", type(error).__name__)
                 self._program.kill()
         shutil.rmtree(self._dir, ignore_errors=True)
 
@@ -903,9 +915,11 @@ if __name__ == "__main__":
             _ears()
         else:
             {"ear": _ear, "eye": _eye}[which](source)
-    except BaseException:
+    except BaseException as error:
         import traceback
         traceback.print_exc()
+        logger.error("the live sense program is ending on %s: %s",
+                     type(error).__name__, error)
         code = 1
     # LEAVE WITHOUT THE INTERPRETER'S SHUTDOWN. A thread still waiting on the
     # substrate holds standard input's lock; Python's own shutdown then tried
@@ -914,6 +928,7 @@ if __name__ == "__main__":
     # program had to say has been written; it exits here.
     try:
         sys.__stdout__.flush()
-    except Exception:
-        pass
+    except Exception as error:
+        logger.debug("the live sense's output could not be flushed on the way "
+                     "out (%s: %s)", type(error).__name__, error)
     os._exit(code)

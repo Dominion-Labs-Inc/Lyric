@@ -583,7 +583,10 @@ class PerceptionFaculty:
         try:
             with open(path, "rb") as f:
                 mime = mime_of(f.read(96))
-        except OSError:
+        except OSError as error:
+            logger.warning("%s could not be opened to tell what kind of file it "
+                           "is (%s: %s): no sense will be offered it",
+                           path, type(error).__name__, error)
             return None
         said = mime.split("/", 1)[0] if mime else None
         if said in ("image", "audio", "video"):
@@ -1740,7 +1743,9 @@ def sense(kind: str, value: str) -> Optional[FrozenSet[Fact]]:
     name = sensed.identify(value)
     try:
         entry = sensed.perceive(name)
-    except OSError:
+    except OSError as error:
+        logger.warning("%r could not be sensed (%s: %s): the world comes back "
+                       "without it", name, type(error).__name__, error)
         return None
     subject = as_constant(name)
     if entry is None:
@@ -1793,6 +1798,8 @@ class ToolObservedWorld:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            logger.debug("no running loop here, so this observation is taken "
+                         "synchronously")
             loop = None
         if loop is not None and loop.is_running():
             # An async caller should be using `observe_async` (the binding
@@ -1965,7 +1972,10 @@ def observer_index(*, rebuild: bool = False) -> Dict[str, List[Tuple[str, str]]]
     for name in sorted(set(list(registry.tools) + list(registry.tool_factories))):
         try:
             tool = registry.get_tool(name)
-        except Exception:
+        except Exception as error:
+            logger.warning("tool %r could not be read from the registry (%s: "
+                           "%s): it is left out of what the substrate can be "
+                           "pointed at", name, type(error).__name__, error)
             continue
         if tool is None:
             continue
@@ -1974,7 +1984,10 @@ def observer_index(*, rebuild: bool = False) -> Dict[str, List[Tuple[str, str]]]
             continue
         try:
             action_class, _ = classify_action(name, {})
-        except Exception:
+        except Exception as error:
+            logger.warning("tool %r could not be classified (%s: %s): it is "
+                           "left out of the observation index whether or not it "
+                           "observes", name, type(error).__name__, error)
             continue
         if getattr(action_class, "value", str(action_class)) != OBSERVING_CLASS:
             continue
@@ -2129,7 +2142,10 @@ class EncounteredWorld(ToolObservedWorld):
                 continue
             try:
                 entry = sensed.perceive(value)
-            except OSError:
+            except OSError as error:
+                logger.debug("%r could not be sensed for practice (%s: %s): it "
+                             "is left out of what may be practised on",
+                             value, type(error).__name__, error)
                 continue
             if entry is None:
                 continue
