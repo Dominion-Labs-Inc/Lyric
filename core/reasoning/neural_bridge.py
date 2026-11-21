@@ -357,6 +357,58 @@ REASON_INTERNAL_FAULT = "internal_fault"
 _IMPLICATION_ARROWS = ("->", "=>", "\u2192")
 
 
+def _read_into_premise(premise_id: str, text: str) -> "ReasoningPremise":
+    """A caller's context sentence as a premise THAT CARRIES ITS STRUCTURE where it has any.
+
+    A plain string became `ReasoningPremise(statement=text)` and nothing else: no `said`,
+    no `predicates`, no `constants`. `_held_facts` -- which is the whole of what induction
+    and analogy read -- requires one predicate and two constants, so a caller's English
+    premise was structurally invisible to them and they declined every time.
+
+    Measured 2026-11-21 on `tests/reasoning/test_eleven_paths_real.py`'s own inductive case
+    ("raven one is black", "raven two is black", "raven three is black"): every premise
+    carried `predicates=[] constants=[]`, `_held_facts` saw 0 of 3, and both kinds answered
+    is_applicable False. They were asked a question made for them and could not see it.
+
+    The reader the substrate already uses for a recalled memory's claim answers this
+    (`autonomous_coordinator._claim_facts`, `derived_reader.read_text`), so nothing new
+    reads anything: a sentence that reads to ONE fact between two named things gets that
+    fact's structure, in the same shape `_held_premises.hold_relation` builds. A sentence
+    that reads to none, to several, or to a fact naming a variable keeps the string-only
+    premise it had -- which is honest, not a guess at a structure it does not have.
+    """
+    from core.reasoning.abstract_reasoning_engine import ReasoningPremise
+
+    said = text
+    predicates: List[str] = []
+    constants: List[str] = []
+    try:
+        from core.agents.autonomous.autonomous_coordinator import _claim_facts
+        from core.semantics.derived_reader import is_variable
+
+        facts = _claim_facts(text)
+        if len(facts) == 1:
+            fact = facts[0]
+            subject, relation, obj = fact.subject, fact.relation, fact.obj
+            if (subject and relation and obj
+                    and not is_variable(subject) and not is_variable(obj)):
+                predicates = [str(relation).replace(" ", "_")]
+                constants = [str(subject).lower().replace(" ", "_"),
+                             str(obj).lower().replace(" ", "_")]
+    except Exception as error:
+        raise_if_structural(error, "neural_bridge._read_into_premise")
+        # A SENTENCE THAT COULD NOT BE READ IS STILL A PREMISE, as the string it is.
+        # Reading is not required for the text-reading kinds (causal, spatial, fuzzy,
+        # temporal, counterfactual) and its absence is why the structure-reading ones
+        # decline -- which is the honest outcome, not a reason to invent structure.
+        logger.warning("a context premise COULD NOT BE READ into facts, so induction and "
+                       "analogy will not see it: %r: %s", text[:120], error)
+
+    return ReasoningPremise(premise_id=premise_id, statement=text, confidence=1.0,
+                            source="request_context", said=said,
+                            predicates=predicates, constants=constants)
+
+
 def _is_implication(item: Any) -> bool:
     """Whether this context item states a rule rather than a fact.
 
@@ -4151,8 +4203,7 @@ class NeuralSymbolicBridge:
             # honestly rather than guessing one.
             premises=[
                 item if isinstance(item, ReasoningPremise) else
-                ReasoningPremise(premise_id=f"ctx{i}", statement=str(item),
-                                 confidence=1.0, source="request_context")
+                _read_into_premise(f"ctx{i}", str(item))
                 for i, item in enumerate(request.context or ())
                 # THE ITEM, NOT ITS TEXT. `str(item)` on a `ReasoningPremise` returns its statement alone
                 # (`__str__`), so asking the string what it came from always answered None and the split fell back

@@ -524,6 +524,17 @@ def _held_in(premises: List["ReasoningPremise"], relations: frozenset
     return out
 
 
+def _chain_nodes(links: List[str]) -> Set[str]:
+    """The things a chain of composed facts runs through, for citing the premises that
+    stated them rather than every premise in the context."""
+    nodes: Set[str] = set()
+    for link in links:
+        for part in str(link).split():
+            if len(part) > 2:
+                nodes.add(part.lower())
+    return nodes
+
+
 def _premise_said(premise: Any) -> str:
     """A PREMISE AS A PERSON READS IT, for a step that states what was stated.
 
@@ -1453,6 +1464,11 @@ class SpatialReasoningStrategy(ReasoningStrategy):
             if not transitive or relation not in edges:
                 continue
             graph = edges[relation]
+            #: For each DERIVED edge, the node its composition went through, so the
+            #: conclusion can say the facts it is made of. Without it the steps could
+            #: only announce that the relation is transitive, which is a property of
+            #: the relation and not a step of this derivation.
+            via: Dict[Tuple[str, str], str] = {}
             # Closure by repeated composition. Bounded by the node count, so a
             # cycle in the premises terminates instead of looping.
             for _ in range(len(graph) + 1):
@@ -1465,9 +1481,17 @@ class SpatialReasoningStrategy(ReasoningStrategy):
                             step = min(first, second)
                             if step > graph[subject].get(end, 0.0):
                                 graph[subject][end] = step
+                                via[(subject, end)] = middle
                                 grew = True
                 if not grew:
                     break
+
+            def composed_of(a: str, b: str, depth: int = 0) -> List[str]:
+                """The facts a derived edge is composed of, in order, each as it reads."""
+                middle = via.get((a, b))
+                if middle is None or depth > len(graph):
+                    return [f"{a} {relation} {b}"]
+                return composed_of(a, middle, depth + 1) + composed_of(middle, b, depth + 1)
 
             for subject, reach in graph.items():
                 for obj, confidence in reach.items():
@@ -1480,10 +1504,18 @@ class SpatialReasoningStrategy(ReasoningStrategy):
                         origin="derived",
                         reasoning_type=ReasoningType.SPATIAL,
                         inference_method=InferenceMethod.FORWARD_CHAINING,
-                        supporting_premises=[p.premise_id for p in context.premises],
-                        reasoning_steps=[
-                            f"{relation} composes transitively",
-                            f"weakest step {confidence:.2f}"],
+                        # THE FACTS IT COMPOSED, AND THE PREMISES THEY CAME FROM.
+                        # The steps were "inside composes transitively" and "weakest
+                        # step 1.00" -- a property of the relation and a number already
+                        # carried by `confidence` two fields below, naming neither of
+                        # the facts that were put together. And every premise in the
+                        # context was cited as support, including ones this chain never
+                        # touched.
+                        supporting_premises=[
+                            p.premise_id for p in context.premises
+                            if any(node in _premise_said(p).lower()
+                                   for node in _chain_nodes(composed_of(subject, obj)))],
+                        reasoning_steps=composed_of(subject, obj),
                         logical_validity=confidence,
                         evidence_strength=confidence,
                         coherence_score=confidence))
