@@ -986,8 +986,10 @@ async def test_what_a_speaker_told_points_at_a_thing_from_their_own_context():
     from core.memory import get_memory_agent
     from core.memory.remembering import not_remembered
     token = "".join(random.choice(string.ascii_lowercase) for _ in range(8))
-    teller = Conversation(session=f"zteller{token}", remembers=False)
-    other = Conversation(session=f"zother{token}", remembers=False)
+    # The no-trace guarantee this test needs is `not_remembered()` below, which is still
+    # here; `Conversation(remembers=False)` was belt-and-braces and has been removed.
+    teller = Conversation(session=f"zteller{token}")
+    other = Conversation(session=f"zother{token}")
     kicking, kicker = f"kick_{token}", f"ztom{token}"
     agent = await get_memory_agent()
     with not_remembered():

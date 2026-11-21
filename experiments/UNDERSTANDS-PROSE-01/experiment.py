@@ -19,7 +19,11 @@ WHAT EACH WAS READ AS, AND WHY EACH ANSWER WAS GIVEN, is kept in the transcript:
 composed), and what the reasoner was asked and said for each question. A sentence or question that
 stops the conversation is kept with what stopped it, counted apart, and the run goes on.
 
-ASKED WITHOUT BEING REMEMBERED, SO IT RUNS ON MAIN: each conversation is held with `remembers=False`, keeps what it
+AS RUN, this asked without being remembered, which is why it was safe on main.
+`remembers=False` HAS SINCE BEEN REMOVED (2026-11-21): it wrapped the whole turn in
+`not_remembered()`, so a thread could not use what it had just been told. RE-RUNNING THIS
+NOW REMEMBERS what it asks, so it is no longer free to run against the World Model.
+As it ran: each conversation is held with `remembers=False`, keeps what it
 is told for as long as it lasts, and writes nothing to the store; the server's own counters before and after say so.
 
 UNDERSTANDS-PROSE-02 runs this same harness (`main`) on texts of its own, held out from all of this.
@@ -308,7 +312,7 @@ async def main(experiment="UNDERSTANDS-PROSE-01", here=HERE, claim=CLAIM, start=
         if only is not None and n + 1 not in only:
             continue
         say(f"\n=== {text['name']} ({text['kind']})")
-        conversation = get_conversation(f"{experiment.lower().replace('-', '_')}_{n}", remembers=False)
+        conversation = get_conversation(f"{experiment.lower().replace('-', '_')}_{n}")
         kind = by_kind.setdefault(text["kind"], {"read": 0, "of": 0, "right": 0, "asked": 0, "wrong": 0})
         for sentence in text["text"]:
             started = time.perf_counter()

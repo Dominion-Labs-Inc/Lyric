@@ -65,7 +65,7 @@ async def main() -> int:
     for name in names:
         text = next(t for t in texts if t["name"] == name)
         say(f"\n========== {name}")
-        conversation = get_conversation(f"trace_question_{name}", remembers=False)
+        conversation = get_conversation(f"trace_question_{name}")
 
         # ── each step, watched, not changed ──────────────────────────────────────────────────────────────────────────
         incoming_of, resolve_name = conversation._incoming_relations, conversation.resolve_name

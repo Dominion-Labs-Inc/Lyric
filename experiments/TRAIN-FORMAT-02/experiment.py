@@ -293,7 +293,7 @@ async def store_checks() -> int:
     # The yes of each question below is scored through the front door (`texts.json`, "kinds"); here, that reasoning
     # is handed the words' meanings as premises, and what must NOT follow does not.
     from core.agents.autonomous.autonomous_coordinator import get_conversation
-    told = get_conversation("tf02_reasoning_wall", remembers=False)
+    told = get_conversation("tf02_reasoning_wall")
     with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
         await told.understand("Roy painted the wall.", look_up=False)
         premises = await told._held_premises("Is a wall a structure?", await told.resolve("Is a wall a structure?"),
@@ -325,7 +325,7 @@ async def store_checks() -> int:
     replies = [(await asked(told, q)).reply for q in ("Did Roy coat the wall?", "Is a structure a wall?")]
     EV.check("no reply says it holds nothing of a word taught", not any("nothing for" in r for r in replies),
              repr(replies))
-    painted = get_conversation("tf02_reasoning_picture", remembers=False)
+    painted = get_conversation("tf02_reasoning_picture")
     await asked(painted, "Roy painted a picture.")
     u = await asked(painted, "Did Roy coat the picture?")
     EV.check("told \"Roy painted a picture.\", \"Did Roy coat the picture?\" is no yes (painting a picture is a "

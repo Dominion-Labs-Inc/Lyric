@@ -293,7 +293,7 @@ async def prose() -> Dict[str, Any]:
     empty for all five of these."""
     from core.agents.autonomous.autonomous_coordinator import get_conversation
     from core.semantics import derived_reader as dr
-    talk = get_conversation("check_reading", remembers=False)
+    talk = get_conversation("check_reading")
     out: Dict[str, Any] = {}
     for said in PROSE:
         at, since = time.time(), dict(_COST)

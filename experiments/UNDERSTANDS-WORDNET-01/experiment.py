@@ -24,7 +24,11 @@ ancestors; a pair is a NEGATIVE only when no sense of either word reaches the ot
   P7 OPPOSITES   "Is X the opposite of Y?" from WordNet's antonyms, and unrelated  YES / not yes
   P8 WHAT IS     "What is a X?": the class it names must be an ancestor of X      right / wrong / none
 
-ASKED WITHOUT BEING REMEMBERED, SO IT RUNS ON MAIN. Each conversation is held with `remembers=False`: it reads,
+AS RUN, this asked without being remembered, which is why it was safe on main.
+`remembers=False` HAS SINCE BEEN REMOVED (2026-11-21): it wrapped the whole turn in
+`not_remembered()`, so a thread could not use what it had just been told. RE-RUNNING THIS
+NOW REMEMBERS what it asks, so it is no longer free to run against the World Model.
+As it ran: it reads,
 recalls and answers as any other, and stores no turn and takes in nothing it is told. No substrate is started (its
 own loops write), only memory, the beliefs and the language view are loaded. The store's write counters
 (`pg_stat_user_tables`) are read before and after; any table written to while the questions were asked is reported,
@@ -338,7 +342,7 @@ async def main() -> int:
         logging.getLogger("UNDERSTANDS-WORDNET-01").info("question %d (%s): %s", asked_count[0], probe, sentence)
         if asked_count[0] % 25 == 0:
             say(f"    {time.strftime('%H:%M:%S')}  {asked_count[0]} questions asked")
-        conversation = get_conversation(f"understands_wordnet_01_{asked_count[0]}", remembers=False)
+        conversation = get_conversation(f"understands_wordnet_01_{asked_count[0]}")
         started = time.perf_counter()
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             understanding = await conversation.understand(sentence, look_up=False)

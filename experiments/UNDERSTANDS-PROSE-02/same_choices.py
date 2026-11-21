@@ -115,7 +115,7 @@ async def main():
         "cool Earth's troposphere.",
     ]
     for n, said in enumerate([s for t in texts for s in t["text"]] + volcano):
-        conversation = get_conversation(f"same_choices_{n}", remembers=False)
+        conversation = get_conversation(f"same_choices_{n}")
         with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
             await conversation.understand(said, look_up=False)
     print(json.dumps(tally, indent=1))

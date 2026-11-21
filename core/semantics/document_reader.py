@@ -147,7 +147,11 @@ async def passages_stated(passages: Sequence[Tuple[str, str]], *, document: str,
     yields between passages: a question asked while it reads is not held behind the last page."""
     from core.agents.autonomous.shared_types import TaskSource
     from core.semantics.conversation import Conversation
-    reading = Conversation(session=f"reading:{document}", source=TaskSource.SYSTEM, remembers=False,
+    # A DOCUMENT READ IS REMEMBERED. This held the reading `remembers=False`, which put
+    # the whole of it inside `not_remembered()` -- so a document was read and nothing of
+    # it was kept, and the reading could not use its own earlier passages as premises for
+    # a later one.
+    reading = Conversation(session=f"reading:{document}", source=TaskSource.SYSTEM,
                            within=document)
     found: List[Dict[str, Any]] = []
     for passage, at in passages:

@@ -105,7 +105,7 @@ async def _measure(system, coord, args, quiet) -> int:
         try:
             with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
                 try:
-                    understood = await get_conversation(session, remembers=False).understand(
+                    understood = await get_conversation(session).understand(
                         row["said"], look_up=False)
                 finally:
                     end_conversation(session)

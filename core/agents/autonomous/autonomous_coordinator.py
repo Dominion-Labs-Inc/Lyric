@@ -23744,7 +23744,7 @@ class Conversation:
 
     def __init__(self, db=None, identity=None, session="default",
                  actor_identity=None, source: Optional[TaskSource] = None,
-                 remembers: bool = True, within: str = ""):
+                 within: str = ""):
         self._db = db
         self._identity = identity
         #: WHAT IT IS TOLD IN, where that is not this conversation alone: a document read (`stated`), which each
@@ -23754,15 +23754,16 @@ class Conversation:
         #: WHY NOTHING WAS ANSWERED for the question being understood now, one entry per path that found nothing
         #: (`_found_nothing`). Emptied as each question starts and carried out on its `Understanding`.
         self._why_not: List[Dict[str, Any]] = []
-        #: WHETHER THIS THREAD IS REMEMBERED. A conversation remembers every
-        #: turn (`_hand_over`) and takes in what it is told (`teach`). One held
-        #: with `remembers=False` remembers no turn, and holds what it is told
-        #: in memory's working memory only, as the premises of what it is asked
-        #: next: it reads, recalls, reasons and answers as any other does, and
-        #: writes nothing, so the substrate can be asked about what it holds on
-        #: the store it holds it in without the asking becoming part of it
-        #: (UNDERSTANDS-WORDNET-01, UNDERSTANDS-PROSE-01, on main).
-        self._remembers = remembers
+        # A CONVERSATION REMEMBERS WHAT IT IS TOLD. There is no longer a
+        # `remembers=False`: it held the whole turn inside `not_remembered()`, which
+        # "leaves no trace anywhere", and the thread then could not use what it had just
+        # been told. Measured through the door 2026-11-21 on lyric_db: told "Every human
+        # is mortal." and "Socrates is a human.", then asked "Is Socrates mortal?", the
+        # reply recited held store facts ("Socrates is a philosopher.") and nine of
+        # eleven kinds of thinking reported `unsupported_input` -- the premises were
+        # never delivered, so the questions were asked over nothing. A thread that
+        # cannot keep what it was told cannot be taught, which is the whole of how this
+        # substrate learns.
         #: WHOSE WORK THIS THREAD IS — the same TaskSource the task queue uses,
         #: so the internal/external line is drawn by the ONE rule (`actor_for`)
         #: and not a second time here. MANUAL/API is a person talking and can
@@ -25346,7 +25347,7 @@ class Conversation:
         from core.reasoning.neural_bridge import ReasoningMode, ReasoningRequest, get_neural_bridge
         result = await get_neural_bridge().reason(ReasoningRequest(
             query=sentence, reading=meaning, mode=ReasoningMode.SYMBOLIC, cached_memories=[],
-            task_metadata={"actor": self._actor, "remembers": self._remembers}))
+            task_metadata={"actor": self._actor}))
         worked = (result.metadata or {}).get("worked")
         understanding = Understanding(sentence=sentence, asked=True)
         if worked is None or not worked.ok:
@@ -25603,8 +25604,8 @@ class Conversation:
             affirmative = Meaning("ask", (MeaningFact(fact.relation, fact.subject, fact.obj),))
             result = await bridge.reason(ReasoningRequest(
                 query=sentence, context=premises, reading=affirmative,
-                task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
-                               "remembers": self._remembers}))
+                task_metadata={"actor": self._actor,
+                               "not_taken_in": tuple(self._not_taken_in)}))
             if not (result.metadata or {}).get("verified") or not result.answer:
                 return await self._held_as_both(fact) or self._found_nothing(
                     "reasoned", "the reasoner settled nothing, and nothing held is both of the two",
@@ -25658,8 +25659,8 @@ class Conversation:
             return self._what_a_kind_is(meaning, asked_of)
         result = await bridge.reason(ReasoningRequest(
             query=sentence, context=premises, reading=reading,
-            task_metadata={"actor": self._actor, "not_taken_in": tuple(self._not_taken_in),
-                           "remembers": self._remembers}))
+            task_metadata={"actor": self._actor,
+                           "not_taken_in": tuple(self._not_taken_in)}))
         if not (result.metadata or {}).get("verified") or not result.answer:
             # TOLD APART: a reasoner that derived nothing, and one that derived
             # something it does not vouch for. Both arrive here and they want
@@ -25997,8 +25998,6 @@ class Conversation:
             # Not remembered, it is not kept.
             detail = _read_in_part(utterances)
             self._not_taken_in.append(sentence)
-            if not self._remembers:
-                return [Acquired(sentence, detail=detail)]
             try:
                 await memory_agent().take_in_unread(sentence, origin=self._origin("conversation"))
                 detail += " I have remembered what you said."
@@ -26749,8 +26748,6 @@ class Conversation:
         the memory agent whole. It waits in the pool as a candidate, in its
         owner's store. A store that fails is reported and does not cost the
         speaker their reply; a fault in the code is raised."""
-        if not self._remembers:
-            return None
         from core.memory import get_memory_agent
         try:
             agent = await get_memory_agent()
@@ -26848,13 +26845,8 @@ class Conversation:
         return None
 
     async def understand(self, sentence: str, look_up: bool = True) -> Understanding:
-        """Understand what was said and reply (`_understand_each`); a conversation that does not remember does it
-        leaving no trace anywhere (`core.memory.remembering`)."""
-        if self._remembers:
-            return await self._understand_each(sentence, look_up)
-        from core.memory.remembering import not_remembered
-        with not_remembered():
-            return await self._understand_each(sentence, look_up)
+        """Understand what was said and reply (`_understand_each`)."""
+        return await self._understand_each(sentence, look_up)
 
     async def _understand_each(self, text: str, look_up: bool) -> Understanding:
         """A TEXT OF SEVERAL UTTERANCES IS UNDERSTOOD ONE UTTERANCE AT A TIME, and answered one at a time.
@@ -27890,8 +27882,7 @@ MAX_HELD_CONVERSATIONS = 64
 
 def get_conversation(session: str, *, db=None, identity=None,
                      actor_identity=None,
-                     source: Optional[TaskSource] = None,
-                     remembers: bool = True) -> "Conversation":
+                     source: Optional[TaskSource] = None) -> "Conversation":
     """The held conversation for `session`, created on first use.
 
     `session` identifies a THREAD OF TALK, not a person -- two windows belong
@@ -27934,8 +27925,7 @@ def get_conversation(session: str, *, db=None, identity=None,
     held = _conversations.get(key)
     if held is None:
         held = Conversation(db=db, identity=identity, session=key,
-                            actor_identity=actor_identity, source=source,
-                            remembers=remembers)
+                            actor_identity=actor_identity, source=source)
         _conversations[key] = held
     elif actor_identity is not None:
         held._actor_identity = actor_identity

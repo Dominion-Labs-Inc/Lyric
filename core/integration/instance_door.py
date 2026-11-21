@@ -164,7 +164,7 @@ class InstanceDoor:
         for question in said.get("questions") or CHECKS:
             session = f"door-check:{self.instance}:{time.time_ns()}"
             try:
-                understanding = await get_conversation(session, remembers=False).understand(question, look_up=False)
+                understanding = await get_conversation(session).understand(question, look_up=False)
             finally:
                 end_conversation(session)
             # EVERY PART'S VERDICT, AND A VERDICT FOR THE WHOLE ONLY WHERE EVERY PART HAS ONE. This gathered the

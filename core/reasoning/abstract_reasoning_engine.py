@@ -183,11 +183,13 @@ class ReasoningContext:
     #: their work for it: what it writes down is then the organization's Work
     #: Context (docs/research/SEPARATION_MAP.md §11.13).
     organization: Optional[str] = None
-    #: WHETHER WHAT THIS REASONING WRITES DOWN IS KEPT. A conversation held not to
-    #: remember (`Conversation(remembers=False)`) writes nothing, its reasoning
-    #: included: neither the memory of it nor the learning from it. Its questions'
-    #: reasoning wrote nine memories, with their learning, to main during
-    #: UNDERSTANDS-PROSE-02 (2026-10-21/22).
+    #: WHETHER WHAT THIS REASONING WRITES DOWN IS KEPT. Work held inside
+    #: `not_remembered()` writes nothing, its reasoning included: neither the memory of
+    #: it nor the learning from it. Reasoning wrote nine memories, with their learning,
+    #: to main during UNDERSTANDS-PROSE-02 (2026-10-21/22), which is what that guard is
+    #: for. `Conversation(remembers=False)`, named here before, has been removed: it
+    #: silenced a whole turn, so a thread could not reason over what it had just been
+    #: told (2026-11-21).
     remembered: bool = True
 
     def origin(self, through: str):
