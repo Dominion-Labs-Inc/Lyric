@@ -266,6 +266,15 @@ class SubstrateExplorer:
 
         before = await observe_world_async(domain_id)
         if before is None:
+            # EXPLORATION THAT DOES NOTHING AT ALL. Every other outcome of this
+            # cycle reports itself (see the summary line at the end), and the
+            # one case where not a single action is tried returned a dict and
+            # said nothing -- so a substrate whose world had become unreadable
+            # looked exactly like a substrate that was not exploring.
+            logger.warning(
+                "exploration of %s did not start: its world could not be read, "
+                "so no action was tried and no evidence was gathered",
+                domain_id)
             return {"status": "unobservable",
                     "detail": f"the world of domain {domain_id!r} could not be read"}
 
@@ -595,7 +604,14 @@ def _proposer_for(domain_id: str, world: "ToolObservedWorld") -> Callable[[], Li
                 return False
             try:
                 return sensed.perceive(place) is None
-            except OSError:
+            except OSError as error:
+                # UNREADABLE IS NOT OCCUPIED, and this returns the same False
+                # for both: a place the substrate cannot sense is treated as
+                # taken, so it is never practised on and the operator that
+                # needs it is never learned. Said so the gap is attributable.
+                logger.debug("cannot tell whether %r is free (%s: %s): treating "
+                             "it as taken, so nothing will be practised there",
+                             place, type(error).__name__, error)
                 return False
 
         # What may be practised here, and on what.
@@ -668,13 +684,24 @@ def _proposer_for(domain_id: str, world: "ToolObservedWorld") -> Callable[[], Li
                 thing = things[turn % len(things)]
                 try:
                     measured = sensed.perceive(thing) or {}
-                except OSError:
+                except OSError as error:
+                    # With no measurements of `thing`, `differs` compares
+                    # everything against an empty reading, so every other place
+                    # looks different and the choice of what to practise on
+                    # becomes arbitrary. That is worth a line.
+                    logger.debug("no measurements of %r (%s: %s): what to "
+                                 "practise on is chosen without them", thing,
+                                 type(error).__name__, error)
                     measured = {}
 
                 def differs(place: str) -> bool:
                     try:
                         entry = sensed.perceive(place)
-                    except OSError:
+                    except OSError as error:
+                        logger.debug(
+                            "cannot compare %r with %r (%s: %s): it is left out "
+                            "of what may be practised on", place, thing,
+                            type(error).__name__, error)
                         return False
                     return entry is not None and any(
                         entry.get(m) != measured.get(m) for m in DESCRIBING_MEASURES)

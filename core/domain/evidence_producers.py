@@ -116,8 +116,35 @@ async def _ingest_and_learn(service: Any, envelope: "EvidenceEnvelope", *,
     # door's judgement (`consider_envelope`), and what the world holds against
     # stays out (docs/research/SEPARATION_MAP.md §11.4).
     from core.learning.unified_learning_system import get_unified_learning_system
-    return await get_unified_learning_system().consider_envelope(
+    result = await get_unified_learning_system().consider_envelope(
         service, envelope, domain=domain, quality=quality, memory_id=memory_id)
+    # EVERY PRODUCER PASSES THROUGH HERE, so this is where evidence entering the
+    # substrate becomes visible: thirteen submit_* functions across 1,471 lines
+    # wrote nothing, and `IngestionResult` -- whose every field is an observed
+    # count, including the extractor failures it carries precisely so a caller
+    # can tell an empty observation from a broken extractor -- was handed back
+    # and never read. Learning starving and learning being fed nothing looked
+    # the same.
+    #
+    # AN EXTRACTION FAILURE IS A DEFECT, not a quiet zero, and it is the one
+    # thing here said at WARNING.
+    failures = list(getattr(result, "extraction_failures", ()) or ())
+    logger.log(
+        logging.WARNING if failures else logging.INFO,
+        "evidence %s from %s into %s at quality %.2f: %d candidate(s), "
+        "%d created, %d reinforced, %d rejected, %d relation(s) admitted%s",
+        getattr(result, "evidence_id", "?"),
+        getattr(getattr(envelope, "source_type", None), "value",
+                getattr(envelope, "source_type", "an unnamed source")),
+        domain, quality, getattr(result, "candidates", 0),
+        len(getattr(result, "created", ()) or ()),
+        len(getattr(result, "reinforced", ()) or ()),
+        len(getattr(result, "rejected", ()) or ()),
+        len(getattr(result, "admitted_relations", ()) or ()),
+        "" if not failures else
+        " — COULD NOT BE READ by %s" % "; ".join(
+            "%s (%s)" % (name, reason) for name, reason in failures))
+    return result
 
 
 

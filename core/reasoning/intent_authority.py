@@ -630,6 +630,17 @@ class IntentAuthority:
             continuity_key=continuity_key, parent_intent_id=parent_intent_id,
             shape=dict(shape or {}), content=dict(content or {}),
             history=[], status="forming", version=1)
+        # WHAT THE SUBSTRATE IS TRYING TO DO, said the moment it decides it.
+        # This authority is the substrate's own account of its pursuits and it
+        # wrote nothing when one opened, closed or reopened -- so "what is it
+        # doing" could only be answered by inferring it from the acts that
+        # followed. These are per-engagement events, not per-step, so they cost
+        # one line each.
+        logger.info("intent OPENED %s (%s) for %s on %r%s: %s",
+                    intent.intent_id, origin_kind, actor, continuity_key,
+                    "" if not parent_intent_id
+                    else " under %s" % parent_intent_id,
+                    intent.aim or intent.topic or "no aim stated yet")
         try:
             return await self.store.create(intent)
         except asyncpg.UniqueViolationError:
@@ -683,6 +694,13 @@ class IntentAuthority:
             earlier.append({"status": current.status, "outcome": current.outcome,
                             "version": current.version})
             current.shape["earlier_attempts"] = earlier
+            logger.info(
+                "intent REOPENED %s: it had ended %s%s and the substrate has "
+                "returned to it — this is attempt %d",
+                intent_id, current.status,
+                "" if not current.outcome
+                else " (%s)" % str(current.outcome)[:160],
+                len(earlier) + 1)
             current.status = "active"
             current.outcome = None
         if shape:
@@ -726,6 +744,12 @@ class IntentAuthority:
                         status: str = "fulfilled") -> None:
         """The act completed: attach what actually happened, so learning and
         integrity can read meant-vs-happened. The outcome is substrate-wide."""
+        # MEANT AGAINST HAPPENED, which is the only reason this record exists.
+        # It was written to the database and never said, so a pursuit's end --
+        # fulfilled, abandoned, halted by the constitution -- left no trace in
+        # the log at all.
+        logger.info("intent %s %s: %s", intent_id, status,
+                    str(outcome)[:400] if outcome else "no outcome recorded")
         await self.store.set_outcome(intent_id, outcome, status)
 
     async def standing(self, stale_after_hours: int = 24) -> Dict[str, Any]:
