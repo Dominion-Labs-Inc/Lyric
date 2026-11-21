@@ -3442,7 +3442,13 @@ class CodeAdoption:
                 delattr(owner, attr)
                 done["removals"] += 1
             except AttributeError:
-                pass
+                # The plan asked for something to be removed that the live
+                # module does not have. Adoption still succeeds -- the end state
+                # is what was asked for -- but a plan built against a different
+                # version of this code is worth knowing about, and `done` would
+                # otherwise just report one fewer removal than was planned.
+                logger.info("adoption: %s was already absent, nothing removed",
+                            qualname)
         return {"adopted": True, "why": "", "done": done}
 
 
@@ -8937,12 +8943,27 @@ class AutonomousCoordinator:
                     logger.info("✅ Health Monitor ready (no initialization required)")
                 # Register core Lyric services so the health monitor tracks them
                 _core_components = ["database", "memory", "learning", "reasoning", "security", "storage"]
+                _unregistered = []
                 for _comp in _core_components:
                     try:
                         await self.health_monitor.check_component_health(_comp)
-                    except Exception:
-                        pass
-                logger.info(f"✅ Registered {len(_core_components)} core health components")
+                    except Exception as error:
+                        # A COMPONENT THAT NEVER REGISTERED IS NEVER WATCHED, and
+                        # the line below counted it as registered regardless --
+                        # so the log said six core components were being
+                        # monitored while the health monitor had never heard of
+                        # one of them. An unwatched component cannot go
+                        # unhealthy, which reads as healthy forever.
+                        _unregistered.append(f"{_comp} ({type(error).__name__}: {error})")
+                if _unregistered:
+                    logger.error(
+                        "%d of %d core component(s) are NOT registered with the "
+                        "health monitor and will never be reported on: %s",
+                        len(_unregistered), len(_core_components),
+                        "; ".join(_unregistered))
+                logger.info("✅ Registered %d of %d core health components",
+                            len(_core_components) - len(_unregistered),
+                            len(_core_components))
             else:
                 logger.error("❌ CRITICAL: Health Monitor is None - this should never happen!")
                 raise RuntimeError("Health Monitor is REQUIRED but is None - Singleton cannot operate without health monitoring")
@@ -12479,6 +12500,9 @@ class AutonomousCoordinator:
         if not root or not _os.path.isdir(root):
             return entries
         seen: set = set()
+        unreadable_dirs: list = []
+        unreadable_entries = 0
+        vanished = 0
         q: deque = deque([(_os.path.realpath(root), 0)])
         while q and len(entries) < max_entries:
             d, depth = q.popleft()
@@ -12488,8 +12512,13 @@ class AutonomousCoordinator:
             seen.add(rp)
             try:
                 names = sorted(_os.listdir(d))
-            except OSError:
-                continue                 # permission / vanished — honest skip, not a guess
+            except OSError as error:
+                # An honest skip, not a guess -- but how MUCH was skipped is
+                # part of what this scan found, and it was never reported. A
+                # world of 40 entries where 4,000 were unreadable is a different
+                # world from one that holds 40 things.
+                unreadable_dirs.append(f"{d} ({type(error).__name__})")
+                continue
             for name in names:
                 if len(entries) >= max_entries:
                     break
@@ -12497,13 +12526,27 @@ class AutonomousCoordinator:
                 try:
                     entry = perceive_entry(full)
                 except OSError:
+                    unreadable_entries += 1
                     continue
                 if entry is None:
+                    vanished += 1
                     continue             # gone between listing it and looking at it
                 entry["depth"] = depth
                 entries.append(entry)
                 if entry["kind"] == "dir" and depth < max_depth:
                     q.append((full, depth + 1))
+        if unreadable_dirs or unreadable_entries or vanished:
+            logger.info(
+                "scanned %s: %d entry(ies) perceived, %d directory(ies) could "
+                "not be listed, %d entry(ies) could not be read, %d vanished "
+                "while looking%s",
+                root, len(entries), len(unreadable_dirs), unreadable_entries,
+                vanished,
+                "" if not unreadable_dirs else
+                " — first unreadable: %s" % unreadable_dirs[0])
+        if len(entries) >= max_entries:
+            logger.info("scan of %s STOPPED at its %d-entry limit: the world "
+                        "beyond that was not perceived", root, max_entries)
         return entries
 
     async def _ingest_environment_entry(self, entry: Dict[str, Any], domain: str, prov) -> int:
@@ -18431,8 +18474,22 @@ class AutonomousCoordinator:
                             }
                         })
                         self._last_drift_alert_at = datetime.now()
-                except Exception:
-                    pass
+                except Exception as error:
+                    # CONSTITUTIONAL DRIFT WAS DETECTED AND NOBODY WAS TOLD.
+                    # The assessment stands either way; what failed is the
+                    # notification, and swallowing it meant the one event this
+                    # branch exists to raise disappeared.
+                    raise_if_structural(error, "autonomous_coordinator._drift_alert")
+                    logger.error(
+                        "constitutional drift was detected and the alert could "
+                        "NOT be raised (%s: %s): severity %s, alignment %.1f%%, "
+                        "%d violation(s) — the finding stands, the notification "
+                        "did not go out",
+                        type(error).__name__, error,
+                        getattr(getattr(assessment, "drift_severity", None),
+                                "value", "unknown"),
+                        100.0 * getattr(assessment, "average_compliance", 0.0),
+                        len(getattr(assessment, "violations", ()) or ()))
                 
                 # Log all violations
                 for v_detail in violation_details:

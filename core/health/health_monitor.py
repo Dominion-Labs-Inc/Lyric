@@ -1622,7 +1622,14 @@ class HealthMonitor:
         import importlib
         try:
             module = importlib.import_module(module_path)
-        except Exception:
+        except Exception as error:
+            # A PROBE THAT CANNOT LOOK IS NOT A COMPONENT THAT IS NOT THERE.
+            # None here reads downstream as "nothing is bound", so an import
+            # error made a live component report as absent.
+            logger.warning(
+                "cannot look for %s in %s (%s: %s): it will be read as not "
+                "running, whether or not it is", " or ".join(names),
+                module_path, type(error).__name__, error)
             return None
         for name in names:
             instance = getattr(module, name, None)
@@ -2881,8 +2888,21 @@ class HealthMonitor:
                         issues.append(f"Backup stale: last run {age_hours:.0f}h ago")
                     elif age_hours > 24:
                         issues.append(f"Backup overdue: last run {age_hours:.0f}h ago")
-                except Exception:
-                    pass
+                except Exception as error:
+                    # THE STALENESS GATE NEVER RAN. Every other finding in this
+                    # check reaches the verdict through `issues`; this one
+                    # swallowed the failure and added nothing, so a backup whose
+                    # timestamp could not be read came back as a backup with
+                    # nothing wrong with it -- the one shape of silence a health
+                    # check must never have.
+                    issues.append(
+                        f"Backup age UNKNOWN: its last run time "
+                        f"{str(last_backup)!r} could not be read "
+                        f"({type(error).__name__}) — staleness was not checked")
+                    logger.warning(
+                        "backup staleness not checked: last run time %r could "
+                        "not be read (%s: %s)", str(last_backup),
+                        type(error).__name__, error)
             else:
                 metrics['backup_last_run'] = None
 
@@ -3018,7 +3038,17 @@ class HealthMonitor:
                         substrate_bytes += _child.memory_info().rss
                     except (psutil.NoSuchProcess, psutil.AccessDenied):
                         continue
-            except Exception:
+            except Exception as error:
+                # ZERO IS NOT A MEASUREMENT. Memory health is graded on this
+                # number, and a failure here reported the substrate as using no
+                # memory at all -- which grades as perfectly healthy. A
+                # measurement that did not happen must not read as the best
+                # possible result.
+                logger.warning(
+                    "the substrate's own memory footprint COULD NOT BE "
+                    "MEASURED (%s: %s): it is reported as 0, which grades as "
+                    "healthy — treat this check's memory verdict as untaken",
+                    type(error).__name__, error)
                 substrate_bytes = 0
             substrate_memory_percent = round(
                 (substrate_bytes / memory.total * 100.0) if memory.total else 0.0, 1)
