@@ -53,6 +53,11 @@ ROUTES: Tuple[Tuple[str, str], ...] = (
     ("core.domain",         SUBSTRATE),
     ("core.memory",         SUBSTRATE),
     ("core.semantics",      SUBSTRATE),
+    # THE SENSES ARE THE SUBSTRATE PERCEIVING, and this prefix was missing
+    # entirely, so sight, hearing and reading fell to SYSTEM by the default --
+    # onto the panel where asyncpg's connection churn lives, not the one that
+    # holds the substrate's own activity.
+    ("core.perception",     SUBSTRATE),
     ("core.agents",         SUBSTRATE),
     ("core.intelligence",   SUBSTRATE),
     ("core.tools.execution_tools", SUBSTRATE),

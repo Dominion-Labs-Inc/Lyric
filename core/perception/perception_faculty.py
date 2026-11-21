@@ -41,6 +41,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+import time
 from collections import deque
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -609,6 +610,38 @@ class PerceptionFaculty:
                          "%s — this perception is BLIND to instances and sounds it "
                          "has been taught", error)
 
+    def _sensed(self, modality: str, content: Dict[str, Any], path: "Path",
+                started: float) -> tuple:
+        """Say what was taken in, and hand the percept back unchanged.
+
+        THE SENSES WORKED IN SILENCE. This faculty is where pixels, sound and
+        written words enter the substrate, and in 2,365 lines it logged nothing
+        at all -- so a picture with nothing in it, a recording the ear found no
+        word in, and a sense that never ran were one undifferentiated absence.
+        Honest failures already RAISE from `sense` (an unreadable file, a lesson
+        that cannot be taught); this is the other half, which is what was
+        perceived when nothing went wrong.
+        """
+        found = []
+        for key, what in (("regions", "region"), ("detections", "recognised"),
+                          ("sounds", "sound"), ("words", "word"),
+                          ("pages", "page"), ("codes", "code"),
+                          ("colours", "colour"), ("shapes", "shape")):
+            items = content.get(key)
+            if items:
+                found.append("%d %s(s)" % (len(items), what))
+        named = [d.get("label") for d in (content.get("detections") or ())
+                 if isinstance(d, dict) and d.get("label")]
+        logger.info(
+            "sensed %s by %s in %.0fms: %s%s%s",
+            modality, "+".join(content.get("senses") or ("no sense",)),
+            (time.perf_counter() - started) * 1000.0,
+            ", ".join(found) or "no structure found in it",
+            "" if not named else " — knew again: %s" % ", ".join(
+                str(n) for n in named[:8]),
+            " [%s]" % path.name)
+        return modality, content
+
     async def sense(self, path: str, *, source: Optional[str] = None,
                     lesson: Optional[Dict[str, Any]] = None) -> Optional[tuple]:
         """Take in one real image, video, sound or document by every sense that
@@ -635,6 +668,7 @@ class PerceptionFaculty:
         matching rides in its trace (`hold_lesson` takes it in once
         remembered). A lesson that cannot be taught is refused here, before
         anything is remembered."""
+        started = time.perf_counter()
         p = Path(path)
         label = source or p.stem
         modality = self.modality_of(str(p))
@@ -644,8 +678,9 @@ class PerceptionFaculty:
             raise ValueError(f"a lesson about {'what is seen is taught by a picture' if needs == 'image' else 'what is heard is taught by a recording'}; "
                              f"{p.name} is {modality or 'no kind of file the substrate reads'}")
         if modality == "document":
-            return "document", self._document_content(
-                await self._reading.run(senses.read, str(p)), p, label)
+            return self._sensed("document", self._document_content(
+                await self._reading.run(senses.read, str(p)), p, label),
+                p, started)
         if modality is None:
             raise ValueError(
                 f"nothing in {p.name} can be seen, heard or read: the substrate has "
@@ -662,7 +697,7 @@ class PerceptionFaculty:
                 # GIVEN AS THEIRS: a person's own wake phrase, said to set up Listening, is taught for their ears
                 # alone and never taken as the world's (`MemoryAgent.take_in_lesson`).
                 content["lesson"]["theirs"] = True
-            return "audio", content
+            return self._sensed("audio", content, p, started)
         if modality == "video":
             # A clip is seen and heard AT ONCE, each sense in its own process.
             seen, track = await asyncio.gather(
@@ -675,7 +710,7 @@ class PerceptionFaculty:
             content = self._video_content(seen, subject)
             self._add_soundtrack(track, str(p), content, subject)
             content["senses"] = ["sight", "hearing"]
-            return "video", content
+            return self._sensed("video", content, p, started)
 
         looked = await self._sight.run(senses.look, str(p), dict(self._instances))
         subject = _percept_subject(label, looked["desc"].get("sha256"))
@@ -698,7 +733,7 @@ class PerceptionFaculty:
                 {"label": _term(name), "confidence": round(score, 2)}
                 for name, score in looked["known"])
         content["senses"] = ["sight"]
-        return "image", content
+        return self._sensed("image", content, p, started)
 
     def _hearing_library(self) -> Dict[str, Any]:
         """What hearing matches against, as this faculty holds it, for the

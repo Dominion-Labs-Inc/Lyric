@@ -17,10 +17,20 @@ reasoned about on its own.
 from __future__ import annotations
 
 import io
+import logging
 import math
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+#: A DESCRIBER THAT FAILS MUST NOT LOOK LIKE A PICTURE WITH NOTHING IN IT.
+#: Each detector below swallowed its own failure and returned an empty result,
+#: so "no regions", "no circles", "no QR code", "no camera metadata" each meant
+#: either that the picture held none or that the detector had crashed -- the
+#: silent negative this substrate names as a defect everywhere else. This module
+#: runs inside a sense process, whose records reach the substrate's log through
+#: `senses.SenseProcess._overheard`.
+logger = logging.getLogger(__name__)
 
 import cv2
 import numpy as np
@@ -866,8 +876,10 @@ def _regions(img, gray, *, lit=None, cast: float = 0.0, max_regions: int = 10,
         mser.setMaxArea(int(0.9 * W * H))
         points, _ = mser.detectRegions(gray)
         candidates.extend(cv2.convexHull(p.reshape(-1, 1, 2)) for p in points)
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning("MSER found no regions because it FAILED (%s: %s): the "
+                       "regions reported for this picture are only the ones "
+                       "contours found", type(error).__name__, error)
 
     usable = [c for c in candidates if cv2.contourArea(c) >= min_area]
     described = [_describe_contour(c, img, gray, W, H, lit, cast)
@@ -1009,8 +1021,10 @@ def _geometry(gray) -> Dict[str, int]:
                                  minDist=max(10, gray.shape[0] // 8),
                                  param1=100, param2=45, minRadius=0, maxRadius=0)
         circles = 0 if found is None else int(found.shape[1])
-    except Exception:
-        pass
+    except Exception as error:
+        logger.warning("circle detection FAILED (%s: %s): this picture is "
+                       "reported with 0 circles, which is not a measurement",
+                       type(error).__name__, error)
     return {"lines": n_lines, "horizontal_lines": horiz, "vertical_lines": vert,
             "diagonal_lines": diag, "circles": circles}
 
@@ -1075,8 +1089,10 @@ def _decode_codes(img) -> List[str]:
             text, _pts, _ = cv2.QRCodeDetector().detectAndDecode(img)
             if text:
                 out.append(text)
-        except Exception:
-            pass
+        except Exception as second:
+            logger.warning("QR decoding FAILED both ways (%s: %s): no code is "
+                           "reported for this picture whether or not it holds "
+                           "one", type(second).__name__, second)
     return out
 
 
@@ -1102,8 +1118,9 @@ def _exif(pil_image) -> Dict[str, Any]:
             info["orientation"] = int(tags["Orientation"])
         if tags.get("GPSInfo"):
             info["has_gps"] = True
-    except Exception:
-        pass
+    except Exception as error:
+        logger.debug("no camera metadata read (%s: %s): the picture is "
+                     "described without it", type(error).__name__, error)
     return info
 
 
@@ -1220,7 +1237,10 @@ def _ffprobe(path: str) -> Dict[str, Any]:
             capture_output=True, text=True, timeout=60)
         import json
         meta = json.loads(out.stdout or "{}")
-    except Exception:
+    except Exception as error:
+        logger.warning("ffprobe gave nothing for %s (%s: %s): this video is "
+                       "described with no codec, resolution, duration or frame "
+                       "count", path, type(error).__name__, error)
         return {}
     v = next((s for s in meta.get("streams", [])
               if s.get("codec_type") == "video"), {})
@@ -1302,7 +1322,11 @@ def describe_video(path: str, *, sample: int = 24) -> Dict[str, Any]:
                             "view_fidelity": kview,
                             "view_category": _view_category(kview),
                             "dominant_colors": _dominant_colors(frame)}
-            except Exception:
+            except Exception as error:
+                logger.warning("the keyframe of this video could not be "
+                               "described (%s: %s): it is reported with no "
+                               "keyframe regions or colours",
+                               type(error).__name__, error)
                 keyframe = None
     cap.release()
 

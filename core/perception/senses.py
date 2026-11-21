@@ -77,8 +77,61 @@ class SenseProcess:
             self._proc = await asyncio.create_subprocess_exec(
                 sys.executable, "-m", "core.perception.senses", self.sense,
                 stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
                 cwd=str(_ROOT), env=env)
+            # A SENSE COULD NOT BE HEARD AT ALL. The comment on `_serve` says
+            # "anything a describer prints goes where the substrate's own
+            # logging goes" -- and it went to an inherited stderr, which for a
+            # detached resident is nowhere. So sight measuring a frame, hearing
+            # finding no word, a describer failing inside the work: none of it
+            # could reach the log, and adding log calls in the describers would
+            # have written them into a process with no handlers.
+            #
+            # PIPED AND RE-EMITTED HERE rather than letting each sense process
+            # open the channel files itself: a RotatingFileHandler in four
+            # processes rotates four times and loses what the others were
+            # writing. The child says it once, the parent enters it on the
+            # stream under the sense's own name.
+            #
+            # THE DRAIN IS NOT OPTIONAL. An undrained stderr pipe fills and the
+            # child blocks inside its own perception.
+            asyncio.ensure_future(self._overheard(self._proc))
         return self._proc
+
+    async def _overheard(self, proc: asyncio.subprocess.Process) -> None:
+        """Put everything this sense's process says onto the substrate's log.
+
+        Ends on EOF, which is the process ending, so a restarted sense gets a
+        new reader and the old one does not outlive its process.
+        """
+        child = logging.getLogger(f"core.perception.{self.sense}")
+        try:
+            while True:
+                line = await proc.stderr.readline()
+                if not line:
+                    return
+                said = line.decode("utf-8", errors="replace").rstrip()
+                if not said:
+                    continue
+                # The child states its own level; anything that is not one of
+                # ours (a library writing to stderr, a traceback) is INFO,
+                # because discarding it is how this was invisible to begin with.
+                level = logging.INFO
+                for name, value in (("CRITICAL", logging.CRITICAL),
+                                    ("ERROR", logging.ERROR),
+                                    ("WARNING", logging.WARNING),
+                                    ("INFO", logging.INFO),
+                                    ("DEBUG", logging.DEBUG)):
+                    if said.startswith(name):
+                        level, said = value, said[len(name):].lstrip(" |:")
+                        break
+                child.log(level, "%s", said)
+        except (asyncio.CancelledError, ConnectionResetError):
+            raise
+        except Exception as error:
+            child.warning("stopped listening to the %s process (%s: %s): its "
+                          "own lines will not reach this log until it restarts",
+                          self.sense, type(error).__name__, error)
 
     async def run(self, work: Callable[..., Any], *args: Any) -> Any:
         """Do `work(*args)` in this sense's process and hand back what it found.
@@ -136,7 +189,22 @@ def _serve() -> None:
     # Replies are the only thing written to the reply channel; anything a
     # describer prints goes where the substrate's own logging goes.
     sys.stdout = sys.stderr
+    # EVERY RECORD THIS PROCESS MAKES, ON ITS WAY TO THE SUBSTRATE'S LOG.
+    # Without this the describers' own lines went to logging's last resort,
+    # which drops anything below WARNING -- so a sense could only ever be heard
+    # when it was already failing. The level name leads each line because the
+    # parent reads it back off the front (`_overheard`).
+    logging.basicConfig(level=logging.INFO, stream=sys.stderr, force=True,
+                        format="%(levelname)s %(name)s | %(message)s")
     work = {fn.__name__: fn for fn in _WORK}
+    # A SENSE COMING UP IS NEWS. The parent already says when one DIED and was
+    # started again; this is the other end of that, and it is also the line
+    # that proves this process's voice reaches the substrate's log at all.
+    # NOT `__name__`: this program runs as `-m`, so its own module name here is
+    # `__main__`, which names nothing a reader can place.
+    logging.getLogger("core.perception.senses").info(
+        "the %s process is up (pid %d), ready for one perception at a time",
+        sys.argv[1] if len(sys.argv) > 1 else "unnamed", os.getpid())
     while True:
         head = requests.read(_LENGTH.size)
         if len(head) < _LENGTH.size:
