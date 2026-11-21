@@ -786,6 +786,14 @@ class RuleStore:
                 f"it was induced from those observations"
             )
         if not held_out_roots:
+            # NOTHING WAS JUDGED, AND THAT IS NOT A PASS. A validation asked for
+            # with no independent observations leaves the rule exactly where it
+            # was, and returning the unchanged status silently is how a rule sits
+            # at CANDIDATE forever while something upstream believes it has been
+            # put to the test.
+            logger.info(
+                "rule %s not judged: no independent observations supplied, so "
+                "it stays %s", record.rule_id, record.status.value)
             return ValidationOutcome(
                 status=record.status,
                 detail="no independent observations supplied; status unchanged",
@@ -828,6 +836,11 @@ class RuleStore:
             # for one of the act's two cases was demoted because the latest
             # success held back was of the other, and a goal it reached went
             # unplanned until a later success restored it.
+            logger.info(
+                "rule %s stays validated: %d independent observation(s) "
+                "supplied, none of them exercised it, and what says nothing "
+                "about a rule takes nothing from it",
+                record.rule_id, len(held_out_roots))
             return ValidationOutcome(
                 record.status, 0, 0, held_out_roots,
                 "independent evidence supplied but none exercised the rule; "
@@ -838,6 +851,18 @@ class RuleStore:
                 "independent evidence supplied but none exercised the rule",
             )
 
+        # THE JUDGEMENT, WITH WHAT IT WAS MADE ON. `_set_status` below announces
+        # the transition, but only when the status actually moves -- a candidate
+        # judged SUPPORTED out of CANDIDATE by evidence that never exercised it,
+        # or a rule re-confirmed in the state it was already in, changed nothing
+        # and so said nothing, in exactly the runs where "why is this rule not
+        # executable yet" is the question being asked.
+        logger.info(
+            "rule %s judged %s against %d independent observation(s): "
+            "%d confirmed it, %d contradicted it%s",
+            record.rule_id, outcome.status.value, len(held_out_roots),
+            confirmed, contradicted,
+            "" if not outcome.detail else " — %s" % outcome.detail)
         # Only an observation that judged the rule is attached to it as
         # validation evidence; one it says nothing about is evidence of nothing.
         await self._attach(
@@ -867,6 +892,10 @@ class RuleStore:
         the status as it is.
         """
         if record.status is not EpistemicStatus.VALIDATED:
+            logger.debug(
+                "rule %s not re-judged: only a rule with execution authority "
+                "can lose it, and this one is %s",
+                record.rule_id, record.status.value)
             return None
         guard_learning("rule re-judgement")
         await self.ensure_schema()
@@ -878,6 +907,14 @@ class RuleStore:
             and judged_by(record.rule, example) is False
         ]
         if not contradicting:
+            # A RULE THAT HELD IS A SUCCESS, and it was the quietest thing in
+            # this file: the always-online learner re-judges a validated rule
+            # against every fresh demonstration of its act, so this is the line
+            # that says the substrate is still being held to what it learned.
+            logger.info(
+                "rule %s held against %d observation(s) made after it was "
+                "validated: none contradicted it",
+                record.rule_id, len(observations))
             return None
 
         outcome = ValidationOutcome(
@@ -899,9 +936,14 @@ class RuleStore:
         evidence still supports, and the act would never be learned in a world
         where a right act sometimes fails."""
         if record.status is not EpistemicStatus.VALIDATED:
+            logger.debug(
+                "rule %s: nothing to withhold, it is %s and holds no execution "
+                "authority to take", record.rule_id, record.status.value)
             return None
         guard_learning("rule authority withheld")
         await self.ensure_schema()
+        logger.info("rule %s: execution authority WITHHELD (validated -> "
+                    "supported, not refuted) — %s", record.rule_id, detail)
         outcome = ValidationOutcome(EpistemicStatus.SUPPORTED, 0, 0, [], detail)
         await self._set_status(record, outcome)
         return outcome

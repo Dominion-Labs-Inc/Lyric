@@ -34,6 +34,7 @@ from __future__ import annotations
 import itertools
 import logging
 import re
+import time
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Dict, FrozenSet, Iterable, List, Optional, Sequence, Set, Tuple
@@ -933,6 +934,49 @@ class RuleInducer:
     #: 16 keeps the enumeration at 65_536 subsets, which is affordable.
     MAX_BODY_LITERALS = 16
 
+    #: Verdicts that are findings about the EVIDENCE rather than ordinary
+    #: outcomes of looking. Contradictory demonstrations mean two teachings
+    #: disagree, which is worth noticing the moment it happens rather than when
+    #: something downstream fails to find a rule.
+    _VERDICT_LEVEL = {
+        InductionStatus.CONTRADICTORY_EVIDENCE: logging.WARNING,
+    }
+
+    def _said(self, result: "InductionResult", started: float,
+              examples: Sequence["TrainingExample"]) -> "InductionResult":
+        """Say what the evidence supported, and return it unchanged.
+
+        EVERY EXIT OF `induce` CARRIES A WRITTEN REASON -- nine of them, each a
+        sentence naming exactly which way the evidence fell short -- and not one
+        of them reached a log. This module held 1,633 lines, 21 importers and a
+        logger it never used, so a substrate that induced nothing all night and
+        a substrate nobody asked to induce produced identical silence.
+
+        The detail is not re-derived here. It is the one the result already
+        carries to its caller, said at the moment it is decided.
+        """
+        took_ms = (time.perf_counter() - started) * 1000.0
+        level = self._VERDICT_LEVEL.get(result.status, logging.INFO)
+        learned = result.rule
+        logger.log(
+            level,
+            "induction %s from %d demonstration(s) (%d positive, %d negative) "
+            "in %.1fms%s%s",
+            result.status.value, len(examples),
+            sum(1 for e in examples if e.positive),
+            sum(1 for e in examples if not e.positive), took_ms,
+            "" if learned is None else ": %s" % learned.to_formula(),
+            "" if not result.detail else " — %s" % result.detail)
+        # THE RIVALS ARE THE ANSWER when several stand, and a count of them is
+        # not. Said at DEBUG because a tie is already reported above with the
+        # request that would break it; this is for when that request is being
+        # worked out.
+        if len(result.candidates) > 1:
+            for candidate in result.candidates:
+                logger.debug("induction hypothesis stands: %s",
+                             candidate.to_formula())
+        return result
+
     def induce(
         self,
         examples: Sequence[TrainingExample],
@@ -942,33 +986,38 @@ class RuleInducer:
         """`cases`: where no rule fits, a rule given as cases may (`_by_cases`);
         asked by a caller that records and validates each case."""
         guard_learning("rule induction")
+        # WHAT INDUCTION COST, measured from here so every verdict carries it.
+        # Plotkin's LGG is multiplicative: one fold ran eleven minutes on the
+        # loop thread and then ran out of memory (see MAX_BODY_LITERALS), and
+        # the only sign of it was a substrate that had stopped answering.
+        started = time.perf_counter()
 
         positives = [e for e in examples if e.positive]
         negatives = [e for e in examples if not e.positive]
 
         if len(positives) < 2:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.INSUFFICIENT_EVIDENCE,
                 detail=(
                     f"{len(positives)} positive demonstration(s); generalization "
                     f"needs at least 2 to have anything to align"
                 ),
                 supporting_evidence=self._ids(positives),
-            )
+            ), started, examples)
 
         seeds, conflict = self._seed_rules(positives, target_predicate)
         if conflict:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.CONTRADICTORY_EVIDENCE,
                 detail=conflict,
                 supporting_evidence=self._ids(positives),
-            )
+            ), started, examples)
         if not seeds:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.NO_RULE,
                 detail="no demonstration produced an effect to explain",
                 supporting_evidence=self._ids(positives),
-            )
+            ), started, examples)
 
         # THE BODY BOUND IS APPLIED WHILE THE BODY GROWS, NOT AFTER.
         #
@@ -998,7 +1047,7 @@ class RuleInducer:
         for folded, seed in enumerate(seeds[1:], 1):
             floor = sum(1 for f in lgg.body if f.signature in signatures_ahead[folded])
             if floor > self.MAX_BODY_LITERALS:
-                return InductionResult(
+                return self._said(InductionResult(
                     status=InductionStatus.INSUFFICIENT_EVIDENCE,
                     detail=(
                         f"generalization retains at least {floor} literals "
@@ -1007,21 +1056,21 @@ class RuleInducer:
                         f"the rule from its examples"
                     ),
                     supporting_evidence=self._ids(positives),
-                )
+                ), started, examples)
             generalized = generalize(lgg, seed)
             if generalized is None:
-                return InductionResult(
+                return self._said(InductionResult(
                     status=InductionStatus.CONTRADICTORY_EVIDENCE,
                     detail=(
                         f"demonstrations assert different consequents "
                         f"({lgg.to_formula()} vs {seed.to_formula()})"
                     ),
                     supporting_evidence=self._ids(positives),
-                )
+                ), started, examples)
             lgg = generalized
 
         if len(lgg.body) > self.MAX_BODY_LITERALS:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.INSUFFICIENT_EVIDENCE,
                 detail=(
                     f"generalization retained {len(lgg.body)} literals — the "
@@ -1029,7 +1078,7 @@ class RuleInducer:
                     f"rule from its examples"
                 ),
                 supporting_evidence=self._ids(positives),
-            )
+            ), started, examples)
 
         # WHERE DID THAT VALUE COME FROM? An effect may carry a term no body
         # literal binds because the action COMPUTED it. Which computation is
@@ -1039,7 +1088,7 @@ class RuleInducer:
         lgg = self._carried_values(lgg)
         lgg, ambiguous = self._explain_outputs(lgg, positives)
         if ambiguous:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.MULTIPLE_HYPOTHESES,
                 candidates=[],
                 positive_coverage=len(positives),
@@ -1048,7 +1097,7 @@ class RuleInducer:
                     f"{variable} is explained equally well by "
                     + " and ".join(str(o) for o in options)
                     for variable, options in ambiguous),
-            )
+            ), started, examples)
 
         # RANGE RESTRICTION IS CHECKED HERE, ON THE WHOLE GENERALIZATION,
         # because its failure has a cause worth naming. Every subset of a body
@@ -1067,7 +1116,7 @@ class RuleInducer:
         if not lgg.is_range_restricted:
             bound = set().union(*(f.variables for f in lgg.body)) if lgg.body else set()
             unbound = sorted(lgg.effects.variables - bound)
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.NO_RULE,
                 detail=(
                     f"the generalization concludes about {', '.join(unbound)}, "
@@ -1076,7 +1125,7 @@ class RuleInducer:
                     f"function-free rule cannot predict a value it must compute"),
                 supporting_evidence=self._ids(positives),
                 positive_coverage=len(positives),
-            )
+            ), started, examples)
 
         surviving = self._minimal_hypotheses(lgg, positives, negatives)
         if not surviving:
@@ -1084,9 +1133,9 @@ class RuleInducer:
         if not surviving and cases:
             by_cases = self._by_cases(positives, negatives, target_predicate)
             if by_cases is not None:
-                return by_cases
+                return self._said(by_cases, started, examples)
         if not surviving:
-            return InductionResult(
+            return self._said(InductionResult(
                 status=InductionStatus.NO_RULE,
                 detail=(
                     "every generalization of these demonstrations also covers a "
@@ -1095,7 +1144,7 @@ class RuleInducer:
                 supporting_evidence=self._ids(positives),
                 contradicting_evidence=self._ids(negatives),
                 negative_coverage=len(negatives),
-            )
+            ), started, examples)
 
         status = (
             InductionStatus.RULE_LEARNED if len(surviving) == 1
@@ -1115,7 +1164,7 @@ class RuleInducer:
         deciding = None if len(surviving) == 1 else self._separating_request(surviving)
         if deciding:
             detail = f"{detail}: {deciding}"
-        return InductionResult(
+        return self._said(InductionResult(
             status=status,
             candidates=surviving,
             positive_coverage=len(positives),
@@ -1124,7 +1173,7 @@ class RuleInducer:
             contradicting_evidence=self._ids(negatives),
             detail=detail,
             deciding_request=deciding,
-        )
+        ), started, examples)
 
     @staticmethod
     def _separating_request(surviving: Sequence[CandidateRule]) -> Optional[str]:

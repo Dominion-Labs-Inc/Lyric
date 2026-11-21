@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.semantics import lexical_normalization as _lexical
@@ -454,6 +455,22 @@ class SentenceReader:
         with depending() as leaned_on:
             return self._read_statement(text)
 
+    def _refused(self, sentence: str, why: str) -> None:
+        """Say why this sentence read to nothing.
+
+        A reading that fails returns None, and None carries no reason -- so
+        every caller up the stack could see only that nothing was read, never
+        which of a dozen refusals it was. The reason is known HERE, at the point
+        of refusal, and nowhere above it, so it is said here.
+
+        At DEBUG because refusing is ordinary for a reader covering a bounded
+        slice of English: an untaught verb is not a defect
+        (docs: UNTAUGHT is not a defect). `read_all` reports the COUNT at the
+        installed level, so a run always says how much it refused even when the
+        individual reasons are turned down.
+        """
+        logger.debug("read nothing from %r: %s", sentence, why)
+
     def _read_statement(self, text: str) -> Optional[Dict[str, Any]]:
         """The reading itself. Wrapped by `_parse_statement`, which attests it."""
         sentence = text.strip().rstrip(".")
@@ -463,6 +480,8 @@ class SentenceReader:
         # A QUESTION is not a statement: refuse it here so it is never read as a
         # fact (see `_INTERROGATIVE`). The query path reads it through `_parse_goal`.
         if text.strip().endswith("?") or self._INTERROGATIVE.match(sentence):
+            self._refused(sentence, "a question, not a statement; the query "
+                                    "path reads it through _parse_goal")
             return None
 
         match = self._CONDITIONAL.match(sentence)
@@ -470,6 +489,8 @@ class SentenceReader:
             antecedent = self._parse_statement(match.group("antecedent"))
             consequent = self._parse_statement(match.group("consequent"))
             if not antecedent or not consequent:
+                self._refused(sentence, "a conditional whose %s did not read" %
+                              ("antecedent" if not antecedent else "consequent"))
                 return None
             # A conditional relates two CLAIMS, and a claim need not be copular:
             # "if the pump runs then the tank overflows" has an action on each
@@ -479,6 +500,12 @@ class SentenceReader:
             # grammar cannot carry is not a rule it can reason with.
             if self.render_clause(antecedent) is None or \
                     self.render_clause(consequent) is None:
+                self._refused(
+                    sentence,
+                    "a conditional whose %s reads but cannot be carried as a "
+                    "single atom, so it is not a rule to reason with" %
+                    ("antecedent" if self.render_clause(antecedent) is None
+                     else "consequent"))
                 return None
             return {"kind": "conditional", "antecedent": antecedent, "consequent": consequent}
 
@@ -510,6 +537,9 @@ class SentenceReader:
                 inner = dict(inner)
                 inner["quantifier"] = match.group("quant").lower()
                 return inner
+            self._refused(sentence, "quantified by %r, but the claim under the "
+                                    "quantifier did not read" %
+                                    match.group("quant").lower())
             return None
 
         # A COMPARATIVE, before `_FACT` swallows `than` into the complement.
@@ -585,12 +615,19 @@ class SentenceReader:
         # lexicon carries. Nothing here guesses: a sentence whose middle word
         # has no established class produces NO reading, which is the honest
         # answer for a word the substrate has not learned.
+        unread_verbs: List[Tuple[str, str]] = []
         for pattern, kind in ((self._SVO, "svo"), (self._SV, "sv")):
             match = pattern.match(sentence)
             if not match:
                 continue
             verb = match.group("verb").lower()
             if not self._reads_as_verb(match.group("subject"), verb):
+                # THE MOST USEFUL REFUSAL THERE IS, and it was the quietest: the
+                # sentence has the shape of a claim and the substrate simply has
+                # not learned the word standing in its verb slot. Naming the word
+                # is what tells an untaught store apart from a reader defect --
+                # the two look identical from a None.
+                unread_verbs.append((verb, kind))
                 continue
             groups = match.groupdict()
             if kind == "svo":
@@ -598,6 +635,20 @@ class SentenceReader:
                         "verb": verb, "object": groups["object"]}
             return {"kind": "sv", "subject": groups["subject"], "verb": verb}
 
+        if unread_verbs:
+            # EACH SHAPE NAMES ITS OWN WORD. "the pump failed" matches SVO with
+            # `pump` in the verb slot and SV with `failed` there, so both words
+            # are reported with the shape that put them there -- which of the two
+            # the store is missing is the whole question for a store this is
+            # meant to measure.
+            self._refused(sentence,
+                          "reads as a claim, but no established class to read "
+                          "as the action: " +
+                          ", ".join("%r (%s)" % (verb, kind)
+                                    for verb, kind in unread_verbs))
+        else:
+            self._refused(sentence, "matched no sentence shape this reader "
+                                    "carries")
         return None
     def _reads_as_verb(self, subject: str, verb: str) -> bool:
         """Whether the word in the verb slot may be read as the action.
@@ -1161,8 +1212,17 @@ class SentenceReader:
         that does not read is dropped, not forced, so a tangled sentence yields
         the claims it can and no invented ones. Multiple sentences are read each
         in turn."""
+        started = time.perf_counter()
         out: List[Dict[str, Any]] = []
         seen = set()
+        #: Every clause this reader was handed and could not read. Counted so the
+        #: line below can say how much of the text was dropped -- "a segment that
+        #: does not read is dropped, not forced" is the right behaviour and was
+        #: also, until now, completely unobservable: a page that read to nothing
+        #: and a page nobody passed in produced the same empty list and the same
+        #: silence.
+        refused: List[str] = []
+        attempted = 0
         # A SPACE BEFORE PUNCTUATION MEANS NOTHING IN ENGLISH, and extracted text
         # is full of it: a fetched page arrives as "A peristaltic pump , also
         # known as a roller pump , is ...", and every comma-set structure below
@@ -1191,6 +1251,7 @@ class SentenceReader:
                               self._distribute_tail_coordination):
                     candidates = [d for c in candidates for d in split(c)]
                 for candidate in candidates:
+                  attempted += 1
                   node = self._parse_statement(candidate)
                   if not node:
                     # ONE ADVERB SHOULD NOT COST A CLAIM. Tried only after the
@@ -1200,6 +1261,7 @@ class SentenceReader:
                     node = (self._parse_statement(stripped)
                             if stripped != candidate else None)
                   if not node:
+                    refused.append(candidate)
                     continue
                   for cp in self._expand_conjuncts(node):
                     # A CLASSIFICATION names a KIND, not a paragraph.
@@ -1210,6 +1272,19 @@ class SentenceReader:
                     if key not in seen:
                         seen.add(key)
                         out.append(cp)
+        # WHAT THE READING COST AND WHAT IT PRODUCED, every call. This module
+        # held 1,483 lines, a logger it never used, and was the one stage between
+        # a text arriving and claims existing -- so a text that read to nothing
+        # was indistinguishable from a text nobody read, in a log that showed
+        # neither. The counts are the measurement: clauses in, claims out, and
+        # the gap between them is what was dropped.
+        if attempted:
+            took_ms = (time.perf_counter() - started) * 1000.0
+            logger.info("read %d claim(s) from %d clause(s) in %.1fms; "
+                        "%d clause(s) read to nothing%s",
+                        len(out), attempted, took_ms, len(refused),
+                        "" if not refused else
+                        " (first: %r)" % refused[0][:120])
         return out
 
     #: Post-modifiers that continue a description but are not part of a class

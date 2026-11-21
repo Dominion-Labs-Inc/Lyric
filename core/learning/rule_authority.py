@@ -143,10 +143,17 @@ async def record_authority_change(db, event: RuleAuthorityChanged) -> RuleAuthor
         lost_authority=stamped.lost_authority, cause=stamped.cause.value,
         observation_id=stamped.observation_id, task_id=stamped.task_id,
         plan_id=stamped.plan_id, goal_id=stamped.goal_id, detail=stamped.detail)
+    # A VERDICT MUST CARRY ITS REASONS. The detail -- "confirmed by 3
+    # independent observation(s)", "2 independent observation(s) contradict the
+    # rule", "none exercised the rule" -- is computed by the store, written to
+    # the durable record above, and was left out of the one line anybody reads.
+    # So the log said a rule had lost execution authority and never why, which
+    # is the whole question when a plan stops being available.
     logger.info(
-        "rule authority changed: %s %s -> %s (%s)%s",
+        "rule authority changed: %s %s -> %s (%s)%s%s",
         stamped.rule_id, stamped.old_status.value, stamped.new_status.value,
         stamped.cause.value, " [LOST EXECUTION AUTHORITY]" if stamped.lost_authority else "",
+        "" if not stamped.detail else " — %s" % stamped.detail,
     )
 
     # A RULE THAT CAN NO LONGER BE EXECUTED IS A CAPABILITY LOST.

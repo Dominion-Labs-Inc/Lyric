@@ -457,6 +457,50 @@ def classes_implied_by(surface: str, subject: str, relation: str,
     return implied
 
 
+#: Whether the absence of a memory agent has already been said. The condition
+#: is asked once per WORD, so saying it every time would be thousands of
+#: identical lines; saying it never is how a substrate reads nothing all night
+#: and reports only that nothing read.
+_SAID_NO_AGENT = False
+
+
+def _observing_agent():
+    """The live memory agent, or None -- and SAY SO when there is none.
+
+    Both readers below treat a missing agent as "no word has an observed
+    class", which is honest (nothing is guessed in its place) and was totally
+    silent. It is also the single most consequential state the reader can be
+    in: with no agent, `_reads_as_verb` finds no verb, so every SVO and SV
+    sentence in the entire input refuses, and the only trace is a run that read
+    nothing. A reader reading nothing because the store is empty and a reader
+    reading nothing because memory never came up are the same None and, until
+    now, the same silence.
+
+    Said ONCE per transition in each direction, so the log carries the window
+    rather than one line per word.
+    """
+    global _SAID_NO_AGENT
+    from core.agents import memory_agent as _memory
+
+    # The live agent, WITHOUT awaiting one into existence. Reading happens
+    # synchronously inside a parse; there is no place to await here, and a
+    # reader that blocked on memory coming up would deadlock its own boot.
+    agent = _memory._memory_agent
+    if agent is None:
+        if not _SAID_NO_AGENT:
+            _SAID_NO_AGENT = True
+            logger.warning(
+                "no memory agent: no word has an observed class, so every "
+                "reading answers from sentence structure alone and nothing "
+                "matching SVO or SV can read as an action")
+        return None
+    if _SAID_NO_AGENT:
+        _SAID_NO_AGENT = False
+        logger.info("memory agent is up: word classes are being read from it "
+                    "again")
+    return agent
+
+
 def _word_classes(word: str) -> frozenset:
     """Every class this word has been OBSERVED to have. Possibly several.
 
@@ -474,9 +518,7 @@ def _word_classes(word: str) -> frozenset:
     Empty means "never observed", and callers answer that from the sentence's
     own structure rather than guessing a class here.
     """
-    from core.agents import memory_agent as _memory
-
-    agent = _memory._memory_agent
+    agent = _observing_agent()
     if agent is None:
         return frozenset()
 
@@ -512,12 +554,7 @@ def _word_class(word: str) -> Optional[str]:
     A lookup inside a `depending()` scope is RECORDED, because a reading that
     took this answer is a reading that depends on it.
     """
-    from core.agents import memory_agent as _memory
-
-    # The live agent, WITHOUT awaiting one into existence. Reading happens
-    # synchronously inside a parse; there is no place to await here, and a
-    # reader that blocked on memory coming up would deadlock its own boot.
-    agent = _memory._memory_agent
+    agent = _observing_agent()
     if agent is None:
         return None
 
