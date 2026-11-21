@@ -511,7 +511,10 @@ class DNSLookupTool(Tool):
             try:
                 aaaa_records = await resolver.query(domain, 'AAAA')
                 ipv6 = [r.host for r in aaaa_records]
-            except:
+            except BaseException as error:
+                logger.debug("no AAAA records read for this name (%s): it is "
+                             "reported with no IPv6, which is not the same as "
+                             "having none", type(error).__name__)
                 ipv6 = []
 
             return ToolResult(
@@ -633,7 +636,9 @@ class PortScanTool(Tool):
             if isinstance(ports, str):
                 try:
                     ports = json.loads(ports)
-                except ValueError:
+                except ValueError as error:
+                    logger.debug("the port list is not JSON (%s): it is split "
+                                 "on commas instead", error)
                     ports = ports.strip("[]() ").split(",")
             if not isinstance(ports, (list, tuple)):
                 ports = [ports]
@@ -643,6 +648,8 @@ class PortScanTool(Tool):
                 try:
                     n = int(str(p).strip().strip("'\""))
                 except (TypeError, ValueError):
+                    logger.info("%r is not a port number: it is reported as "
+                                "bad input rather than scanned", p)
                     bad.append(p)
                     continue
                 (wanted if 1 <= n <= 65535 else bad).append(n if 1 <= n <= 65535 else p)
@@ -665,7 +672,10 @@ class PortScanTool(Tool):
                 try:
                     result = sock.connect_ex((host, port))
                     results[port] = result == 0  # 0 means port is open
-                except OSError:
+                except OSError as error:
+                    logger.debug("port %s could not be probed (%s: %s): it is "
+                                 "reported CLOSED, which is not the same as "
+                                 "unprobed", port, type(error).__name__, error)
                     results[port] = False
                 finally:
                     sock.close()
@@ -890,7 +900,9 @@ class APICallTool(Tool):
                 ) as response:
                     try:
                         content = await response.json()
-                    except:
+                    except BaseException as error:
+                        logger.debug("the response is not JSON (%s): it is "
+                                     "returned as text", type(error).__name__)
                         content = await response.text()
 
                     return ToolResult(

@@ -24,12 +24,15 @@ times a trillion is 10^24, not a float.
 """
 from __future__ import annotations
 
+import logging
 import math
 from dataclasses import dataclass, field
 from decimal import Decimal
 from typing import Callable, Dict, List, Optional, Sequence, Tuple
 
 import sympy as sp
+
+logger = logging.getLogger(__name__)
 
 from core.reasoning.arithmetic_reading import (
     CONSTANT, DERIVATIVE, DIFFERENCE, FACTORIAL, FUNCTION, INTEGRAL, LIMIT, NEGATIVE, NUMBER, PERCENT, POWER,
@@ -245,7 +248,10 @@ def written(value) -> str:
     result with no written form here (a piecewise answer), which is still the result it computed."""
     try:
         return render(term_of(value))
-    except (ValueError, TypeError, AttributeError):
+    except (ValueError, TypeError, AttributeError) as error:
+        logger.debug("a value could not be written in the substrate's own form "
+                     "(%s): it is written as the algebra system prints it",
+                     type(error).__name__)
         return sp.sstr(value)
 
 
@@ -399,7 +405,10 @@ def _evaluation_steps(term: Term, decimals: bool) -> Tuple[List[str], Term]:
         node = path[-1]
         try:
             value = sp.nsimplify(to_sympy(node)) if node.op == PERCENT else to_sympy(node)
-        except (ValueError, ZeroDivisionError, TypeError):
+        except (ValueError, ZeroDivisionError, TypeError) as error:
+            logger.debug("a working step could not be evaluated (%s): the "
+                         "working stops here and what is shown is partial",
+                         type(error).__name__)
             break
         if value.has(sp.zoo, sp.nan) or not value.is_Rational:
             break
@@ -455,6 +464,8 @@ def calculate(text_or_formula) -> Worked:
         value = (to_sympy(term) if term.op in (DERIVATIVE, INTEGRAL, LIMIT) or not term.unknowns()
                  else sp.simplify(to_sympy(term)))
     except (ValueError, TypeError, ZeroDivisionError, NotImplementedError) as error:
+        logger.info("%r was not worked out: %s: %s", shown,
+                    type(error).__name__, error)
         return _failed("calculate", shown, f"the algebra system could not work it out: {error}")
     if value.has(sp.zoo) or value is sp.nan or value.has(sp.nan):
         return Worked(task="calculate", formula=shown, answer=["undefined"],
@@ -629,6 +640,8 @@ def solve(text_or_formulas, unknowns: Optional[Sequence[str]] = None) -> Worked:
             return _solve_one(read[0], names[0], shown, decimals)
         return _solve_system(read, names, shown, decimals)
     except (NotImplementedError, ValueError, TypeError, sp.PolynomialError) as error:
+        logger.info("%r was not solved: %s: %s", shown, type(error).__name__,
+                    error)
         return _failed("solve", shown, f"the algebra system could not solve it: {error}")
 
 
@@ -756,7 +769,9 @@ def _solving(left: sp.Expr, right: sp.Expr, x: sp.Symbol, decimals: bool
         return steps + more, roots, done
     try:
         roots = sp.solve(sp.Eq(left, right), x)
-    except NotImplementedError:
+    except NotImplementedError as error:
+        logger.debug("this equation is beyond the algebra system's solver (%s): "
+                     "no roots are offered", error)
         return steps, None, None
     if not roots:
         return steps, None, None
@@ -783,7 +798,9 @@ def _numeric_roots(expression: sp.Expr, x: sp.Symbol) -> List[sp.Float]:
     for start in (0, 1, -1, 2, -2, 5, -5, 10, -10, 0.5, -0.5):
         try:
             root = sp.nsolve(expression, x, start)
-        except (ValueError, ZeroDivisionError, TypeError):
+        except (ValueError, ZeroDivisionError, TypeError) as error:
+            logger.debug("no numeric root found from %r (%s)", start,
+                         type(error).__name__)
             continue
         if not root.is_real or abs(sp.N(expression.subs(x, root))) > 1e-9:
             continue
@@ -1084,7 +1101,9 @@ def _numeric(value) -> Optional[str]:
     try:
         if getattr(value, "is_number", False):
             return str(sp.N(value))
-    except Exception:
+    except Exception as error:
+        logger.debug("a value has no decimal form (%s: %s)",
+                     type(error).__name__, error)
         return None
     return None
 
@@ -1122,6 +1141,8 @@ def compute(expression: str,
             target = _parse(expression)
             free_expr = target
     except Exception as e:
+        logger.info("%r does not parse as an expression (%s: %s)", expression,
+                    type(e).__name__, e)
         res.ok = False
         res.error = f"could not parse {expression!r}: {e}"
         return res
@@ -1166,6 +1187,8 @@ def compute(expression: str,
         else:  # unreachable given the guard above
             raise RuntimeError(operation)
     except Exception as e:
+        logger.info("the algebra system could not %s (%s: %s)", operation,
+                    type(e).__name__, e)
         res.ok = False
         res.error = f"CAS could not perform {operation}: {e}"
         return res
@@ -1570,6 +1593,8 @@ def _single(work: str, target: Term) -> Worked:
         else:
             return _failed(work, shown, f"{work} is not something done here")
     except (NotImplementedError, ValueError, TypeError) as error:
+        logger.info("%r was not %sd: %s: %s", shown, work,
+                    type(error).__name__, error)
         return _failed(work, shown, f"the algebra system could not {work} it: {error}")
     worked.answer = [written(out)]
     worked.exact = out

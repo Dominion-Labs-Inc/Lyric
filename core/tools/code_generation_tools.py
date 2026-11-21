@@ -62,8 +62,13 @@ def _validate_python_syntax(code: str) -> Tuple[bool, Optional[str]]:
         ast.parse(code)
         return True, None
     except SyntaxError as e:
+        logger.info("generated code does not parse (line %s: %s)", e.lineno,
+                    e.msg)
         return False, f"{e.__class__.__name__}: {e}"
     except Exception as e:
+        logger.warning("generated code could not be CHECKED for syntax (%s: "
+                       "%s): it is reported invalid because the check failed, "
+                       "not because the code is wrong", type(e).__name__, e)
         return False, f"ParseError: {e}"
 
 
@@ -79,8 +84,12 @@ def _maybe_format_with_black(code: str, line_length: int = 88) -> Tuple[str, Opt
         mode = black.Mode(line_length=line_length)
         return black.format_str(code, mode=mode), None
     except ImportError:
+        logger.info("black is not installed: generated code is returned "
+                    "unformatted")
         return code, "black not installed"
     except Exception as e:
+        logger.warning("black could not format this code (%s: %s): it is "
+                       "returned as written", type(e).__name__, e)
         return code, f"black formatting error: {e}"
 
 
@@ -973,6 +982,8 @@ class FixLintingErrorsTool(Tool):
                 )
                 fixes_applied.append("removed unused imports and variables")
             except ImportError:
+                logger.info("autoflake is not installed: unused imports and "
+                            "variables are left in place")
                 dependency_status["autoflake"] = "missing"
 
             # Fix 2: Format with autopep8
@@ -983,6 +994,8 @@ class FixLintingErrorsTool(Tool):
                 fixed_code = autopep8.fix_code(fixed_code, options={'max_line_length': line_length})
                 fixes_applied.append("applied autopep8 formatting")
             except ImportError:
+                logger.info("autopep8 is not installed: formatting is left as "
+                            "written")
                 dependency_status["autopep8"] = "missing"
 
             # Fix 3: Sort imports
@@ -993,6 +1006,8 @@ class FixLintingErrorsTool(Tool):
                 fixed_code = isort_module.code(fixed_code)
                 fixes_applied.append("sorted imports")
             except ImportError:
+                logger.info("isort is not installed: imports are left in the "
+                            "order they were written")
                 dependency_status["isort"] = "missing"
 
             # Write back if changed
@@ -1103,8 +1118,12 @@ class GenerateTestTool(Tool):
             seen.add(inputs)
             try:
                 result = fn(*inputs)
-            except Exception:
-                continue  # a raising probe is a wrong-typed guess, not a spec
+            except Exception as error:
+                # a raising probe is a wrong-typed guess, not a spec
+                logger.debug("probe %r raised (%s): it tells us nothing about "
+                             "the function and is not made into a case",
+                             inputs, type(error).__name__)
+                continue
             if not isinstance(result, self._SIMPLE):
                 continue
             observed.append((inputs, result))
@@ -1808,7 +1827,10 @@ class OptimizeCodeTool(Tool):
                             new_node = ast.Constant(value=result)
                             ast.copy_location(new_node, node)
                             return new_node
-                        except:
+                        except BaseException as error:
+                            logger.debug("this expression could not be folded "
+                                         "(%s): it is left as written",
+                                         type(error).__name__)
                             return node
 
                     return node
@@ -2174,7 +2196,9 @@ class ExtractMethodTool(Tool):
             # Parse the extracted block to analyze variables
             try:
                 block_tree = ast.parse(extracted_block)
-            except SyntaxError:
+            except SyntaxError as error:
+                logger.debug("the extracted block does not parse on its own "
+                             "(%s): trying it wrapped in a function", error.msg)
                 # Try to wrap in a function to parse as valid Python
                 try:
                     block_tree = ast.parse(f"def _temp():\n" + '\n'.join('    ' + line for line in extracted_block.splitlines()))
@@ -3489,6 +3513,8 @@ class CompileTypecheckGateTool(Tool):
                 syntax_valid = True
                 syntax_error = None
             except SyntaxError as e:
+                logger.info("this code does not parse (line %s: %s)", e.lineno,
+                            e.msg)
                 syntax_valid = False
                 syntax_error = str(e)
 
@@ -3521,8 +3547,11 @@ class CompileTypecheckGateTool(Tool):
                 # Cleanup
                 Path(temp_file).unlink()
 
-            except (subprocess.SubprocessError, FileNotFoundError):
+            except (subprocess.SubprocessError, FileNotFoundError) as error:
                 # mypy not available
+                logger.info("mypy could not be run (%s): types are NOT checked, "
+                            "which is reported as None rather than as passing",
+                            type(error).__name__)
                 type_check_result = {'passed': None, 'message': 'mypy not available'}
 
             return ToolResult(

@@ -136,6 +136,8 @@ async def run_in_disposable_copy(command: str, working_directory: Optional[str],
         try:
             exit_code = await asyncio.wait_for(process.wait(), timeout=limit)
         except asyncio.TimeoutError:
+            logger.warning("the disposable copy exceeded %ss and was killed: "
+                           "its exit code is unknown, not zero", limit)
             os.killpg(process.pid, signal.SIGKILL)
             await process.wait()
             exit_code = None
@@ -256,8 +258,9 @@ class RunPythonTool(Tool):
                 from core.tools.pylance_integration import run_python_code
                 result = await run_python_code(code, timeout, working_directory)
                 return result
-            except ImportError:
-                pass  # Fall back to subprocess execution
+            except ImportError as error:
+                logger.info("in-process execution is unavailable (%s): the code "
+                            "runs in a subprocess instead", error)
             
             # Create temporary file for code
             with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as f:
@@ -527,7 +530,9 @@ class ListProcessesTool(Tool):
                     if len(processes) >= limit:
                         break
 
-                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                except (psutil.NoSuchProcess, psutil.AccessDenied) as error:
+                    logger.debug("a process is left out of the listing (%s)",
+                                 type(error).__name__)
                     continue
 
             return ToolResult(
@@ -599,6 +604,8 @@ class KillProcessTool(Tool):
             try:
                 process.wait(timeout=5)
             except psutil.TimeoutExpired:
+                logger.warning("the process did not exit within 5s of the "
+                               "signal")
                 if not force:
                     process.kill()
                     process.wait(timeout=5)
@@ -1277,7 +1284,8 @@ class ExecuteWithTimeoutTool(Tool):
                     try:
                         os.killpg(os.getpgid(process.pid), signal.SIGTERM)
                     except ProcessLookupError:
-                        pass
+                        logger.debug("the process group was already gone when "
+                                     "the soft timeout fired")
 
                     # Wait for hard timeout
                     remaining = hard_timeout - soft_timeout
@@ -1304,18 +1312,23 @@ class ExecuteWithTimeoutTool(Tool):
                                 error=f"Soft timeout ({soft_timeout}s) reached, process terminated gracefully"
                             )
                         except asyncio.TimeoutError:
-                            pass  # Fall through to hard kill
+                            logger.warning("the process did not stop on SIGTERM "
+                                           "within its grace period: going to "
+                                           "SIGKILL")
 
                 # Hard timeout - SIGKILL to process group
                 try:
                     os.killpg(os.getpgid(process.pid), signal.SIGKILL)
                 except ProcessLookupError:
-                    pass
+                    logger.debug("the process group was already gone when the "
+                                 "hard timeout fired")
 
                 try:
                     await asyncio.wait_for(process.wait(), timeout=1)
-                except:
-                    pass
+                except BaseException as error:
+                    logger.warning("the killed process was not reaped (%s): it "
+                                   "may remain as a zombie",
+                                   type(error).__name__)
 
                 if temp_file:
                     Path(temp_file).unlink(missing_ok=True)

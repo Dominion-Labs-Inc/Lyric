@@ -1554,7 +1554,9 @@ class BayesianUncertaintySystem:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return   # kept; the next durable flush writes it
+            logger.debug("no running loop: this resolution attempt is kept in "
+                         "memory and written by the next durable flush")
+            return
         task = loop.create_task(self._write_unknown_attempts(unknown_id))
         self._write_tasks.add(task)
         task.add_done_callback(self._write_tasks.discard)
@@ -1959,6 +1961,9 @@ class BayesianUncertaintySystem:
         except RuntimeError:
             # No running loop (e.g. tests): buffer for the next durable flush /
             # startup replay rather than silently dropping the write.
+            logger.debug("no running loop: belief %s is buffered for the next "
+                         "durable flush rather than written now",
+                         belief.belief_id)
             self._pending_writes[belief.belief_id] = belief
 
     async def drain_writes(self) -> int:
@@ -2291,7 +2296,9 @@ class BayesianUncertaintySystem:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return   # buffered; the next durable flush / startup load writes it
+            logger.debug("no running loop: this known-unknown is buffered for "
+                         "the next durable flush")
+            return
         task = loop.create_task(self._write_known_unknown(unknown))
         self._write_tasks.add(task)
         task.add_done_callback(lambda t: (
@@ -2639,7 +2646,10 @@ class BayesianUncertaintySystem:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            return                      # no loop: the edge stands in this process, as every edge used to
+            # no loop: the edge stands in this process, as every edge used to
+            logger.debug("no running loop: this relationship stands in memory "
+                         "until the next flush")
+            return
         task = loop.create_task(_write())
         self._write_tasks.add(task)
         task.add_done_callback(self._write_tasks.discard)

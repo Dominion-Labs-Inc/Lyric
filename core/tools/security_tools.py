@@ -114,7 +114,9 @@ def validate_url(url: str) -> bool:
         from urllib.parse import urlparse
         result = urlparse(url)
         return all([result.scheme, result.netloc]) and result.scheme in ['http', 'https']
-    except Exception:
+    except Exception as error:
+        logger.debug("%r is not a valid URL (%s: %s)", url,
+                     type(error).__name__, error)
         return False
 
 
@@ -715,7 +717,10 @@ class ScanSecretsTool(Tool):
                                         'severity': 'LOW' if is_comment else 'HIGH',
                                         'is_comment': is_comment
                                     })
-                    except:
+                    except BaseException as error:
+                        logger.debug("a file is left out of this scan (%s): its "
+                                     "findings are not in the result",
+                                     type(error).__name__)
                         continue
 
             # Sort by severity
@@ -3824,6 +3829,9 @@ class DetectZeroDayTool(Tool):
                         })
 
                 except Exception as e:
+                    logger.warning("network traffic was NOT analysed (%s: %s): "
+                                   "it is reported as unchecked, not as clean",
+                                   type(e).__name__, e)
                     not_checked.append({"scope": "network_traffic", "error": str(e)})
 
             if analysis_scope in ["memory_patterns", "comprehensive"]:
@@ -3860,6 +3868,9 @@ class DetectZeroDayTool(Tool):
                         })
 
                 except Exception as e:
+                    logger.warning("memory patterns were NOT analysed (%s: %s): "
+                                   "they are reported as unchecked, not as "
+                                   "clean", type(e).__name__, e)
                     not_checked.append({"scope": "memory_patterns", "error": str(e)})
 
             zero_day_suspected = len(detections) > 0
