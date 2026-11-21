@@ -1479,6 +1479,26 @@ class ToolRegistry:
         
         self.usage_log.append(log_entry)
 
+        # EVERY ACT THE SUBSTRATE TAKES, ON THE STREAM. This method is the one
+        # seam every one of the ~384 tools passes through, and it filed each
+        # execution -- what ran, whether it worked, how long it took, and the
+        # tool's own error text -- into a list in this process and nowhere else.
+        # The only reader of that list is a chaos adapter looking at the last
+        # hundred entries, so acting was the least visible thing the substrate
+        # did: a failing tool returned `success=False` to its caller, wrote a row
+        # to unified.tool_error_events, and left no line anywhere a person
+        # watching a run would look.
+        #
+        # A TOOL'S OWN FAILURE IS NOT AN EXCEPTION, which is why the handler at
+        # the end of `execute` never covered this: the tool returned normally
+        # and said it had not worked.
+        logger.log(
+            logging.INFO if result.success else logging.WARNING,
+            "tool %s %s in %.3fs%s",
+            tool.name, "ran" if result.success else "FAILED",
+            float(result.execution_time or 0.0),
+            "" if result.success else ": %s" % (result.error or "no reason given"))
+
     def _suggest_tools(self, requested_name: str, max_suggestions: int = 5) -> List[str]:
         """Suggest similar tool names for TOOL_NOT_FOUND errors.
 

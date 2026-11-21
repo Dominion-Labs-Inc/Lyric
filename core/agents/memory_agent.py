@@ -488,9 +488,19 @@ class MemoryAgent(IMemoryConsolidation):
         # Put onto the queue (non-blocking — Queue has no size limit by default)
         try:
             self._write_queue.put_nowait(entry)
-        except Exception:
-            # If event loop isn't running yet, drop gracefully — caller used wrong method
+        except Exception as error:
+            # A MEMORY ASKED FOR AND NEVER WRITTEN, with an id handed back as
+            # though it had been. The caller holds `pending_id` and has every
+            # reason to believe this is remembered; nothing is, and nothing
+            # said so. "Drop gracefully" is the one thing memory must not do
+            # quietly -- a store that silently loses what it was asked to keep
+            # cannot be told from one that was never asked.
             del self._pending_memories[pending_id]
+            logger.error(
+                "MEMORY DROPPED, NOT WRITTEN (%s: %s): %r was handed the id %s "
+                "and will never be stored — the write queue could not take it "
+                "(no running loop reaches this method)",
+                type(error).__name__, error, content[:160], pending_id)
         return pending_id
 
     async def _write_queue_worker(self):

@@ -2117,7 +2117,14 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             if isinstance(metadata, str):
                 try:
                     metadata = json.loads(metadata)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as error:
+                    # The row is still returned, without what it carried. Said
+                    # because an experience that comes back with none of its
+                    # metadata reads as an experience that never had any.
+                    logger.warning(
+                        "experience %s comes back WITHOUT its metadata (%s: "
+                        "%s): what it carried could not be read",
+                        row["log_id"], type(error).__name__, error)
                     metadata = {}
             out.append({"log_id": row["log_id"], "message": row["message"],
                         "recorded_at": row["created_at"], **(metadata or {})})
@@ -4735,7 +4742,16 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                 made = claims.get(belief.memory_id) or []
                 try:
                     facts = tuple(dr.MeaningFact.from_list(f) for f in made)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as error:
+                    # A BELIEF SKIPPED BECAUSE IT COULD NOT BE READ is not a
+                    # belief with nothing to review. Both arrived at the same
+                    # `skipped` count below, so a store whose claims had become
+                    # unreadable reviewed nothing and reported only that it had
+                    # skipped things.
+                    logger.warning(
+                        "belief %s skipped: what it claims could not be read "
+                        "back (%s: %s)", belief.memory_id,
+                        type(error).__name__, error)
                     facts = ()
                 if len(facts) != 1:
                     counts["skipped"] += 1

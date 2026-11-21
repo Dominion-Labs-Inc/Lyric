@@ -222,6 +222,12 @@ class _ScheduledJob:
 class QueueAuthority:
     """One authority for the substrate's queued, awaited, and scheduled work."""
 
+    #: The last reason the reasoning authority could not be asked how hard a
+    #: kind of reasoning is (`_reasoning_difficulty`), so the warning is said
+    #: once per cause rather than once per job. A CLASS default, because a live
+    #: instance adopting that method must find the attribute already there.
+    _difficulty_unreachable: Optional[str] = None
+
     def __init__(self, config: Optional[Dict[str, Any]] = None):
         self.config = {
             'max_queue_size': 1000,
@@ -1123,7 +1129,24 @@ class QueueAuthority:
                 from core.reasoning.neural_bridge import get_neural_bridge
                 self._reasoning = get_neural_bridge()
             return float(self._reasoning.reasoning_difficulty(reasoning_type))
-        except Exception:
+        except Exception as error:
+            # THE DOCSTRING'S PROMISE ONLY HOLDS IF SOMEBODY SAYS SO. A neutral
+            # 1.0 for "no reasoning type given" is honest; the same 1.0 because
+            # the reasoning authority could not be reached is a MEASUREMENT THAT
+            # DID NOT HAPPEN, and the two were indistinguishable -- so every
+            # job's timeout was computed from a neutral factor and the log said
+            # nothing at all.
+            #
+            # Said once per cause, because this is asked per job: a line per
+            # job would bury the one fact it carries.
+            why = f"{type(error).__name__}: {error}"
+            if self._difficulty_unreachable != why:
+                self._difficulty_unreachable = why
+                logger.warning(
+                    "reasoning difficulty UNMEASURED (%s): every job is sized "
+                    "with a neutral 1.0 until the reasoning authority answers "
+                    "again, so timeouts do not reflect how hard the work is",
+                    why)
             return 1.0
 
     def timeout_for(self, *, reasoning_type: Any = None, task_type: Any = None,
