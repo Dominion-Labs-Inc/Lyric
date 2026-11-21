@@ -88,7 +88,9 @@ def _row(record) -> FailureRecord:
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning("a failure row's metadata is not valid JSON (%s): "
+                           "the failure is returned without it", error)
             raw = {}
     return FailureRecord(
         failure_id=record["failure_id"], component=record["component"],

@@ -176,7 +176,10 @@ class MetaMetricsMonitor:
         if isinstance(value, str) and value:
             try:
                 return json.loads(value)
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as error:
+                logger.warning("a stored metric is not valid JSON (%s): it is "
+                               "read as empty, which reads as a metric with no "
+                               "detail rather than an unreadable one", error)
                 return {}
         return {}
 

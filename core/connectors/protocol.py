@@ -314,6 +314,9 @@ class LegacySession:
         except asyncio.CancelledError:
             raise
         except BaseException as broke:
+            logger.warning("%s stopped answering (%s: %s): everything waiting "
+                           "on it is failed with that reason", self.url,
+                           type(broke).__name__, broke)
             failure = broke if isinstance(broke, ConnectorError) else ConnectorError(f"{self.url}: {broke}")
             if not self._ready.done():
                 self._ready.set_exception(failure)

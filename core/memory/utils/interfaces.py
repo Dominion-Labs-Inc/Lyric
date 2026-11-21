@@ -2,12 +2,15 @@
 Memory system interfaces for storage and context management
 """
 
+import logging
 import uuid
 from abc import ABC, abstractmethod
 from typing import Dict, Any, FrozenSet, List, Optional, Set, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -367,7 +370,9 @@ def task_outcome_from_memory(memory: Any) -> "TaskOutcomeRecord | None":
             continue
         try:
             return TaskOutcomeRecord.from_dict(candidate)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("a stored occurrence is not a task outcome (%s): "
+                         "looking at the next one", error)
             continue
 
     return None
@@ -394,7 +399,9 @@ def task_outcomes_from_memory(memory: Any) -> List["TaskOutcomeRecord"]:
     for occurrence in task_occurrences(record):
         try:
             out.append(TaskOutcomeRecord.from_dict(occurrence))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("a stored occurrence is not a task outcome (%s): it is "
+                         "left out of the outcomes read back", error)
             continue
     return out
 

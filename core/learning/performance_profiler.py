@@ -264,6 +264,11 @@ class PerformanceProfiler:
             else:
                 result = func(*args, **kwargs)
         except BaseException as error:
+            # Re-raised below after the timing is recorded; said here so the
+            # profile and the failure are in the log together.
+            logger.warning("%s raised while being profiled (%s: %s)",
+                           getattr(func, "__qualname__", func),
+                           type(error).__name__, error)
             failure = error
         finally:
             end_time = time.time()
@@ -527,7 +532,9 @@ class PerformanceProfiler:
             if isinstance(details, str):
                 try:
                     details = json.loads(details)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as error:
+                    logger.warning("a profile row's details are not JSON (%s): "
+                                   "that row is read without them", error)
                     details = {}
             details = details or {}
             # A row written before the memory fix holds process RSS in

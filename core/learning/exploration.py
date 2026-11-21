@@ -622,7 +622,10 @@ def _proposer_for(domain_id: str, world: "ToolObservedWorld") -> Callable[[], Li
                 continue
             try:
                 _class, irreversibility = classify_action(binding.tool_name, {})
-            except Exception:
+            except Exception as error:
+                logger.warning("%s could not be classified (%s: %s): it is not "
+                               "practised, so its operator stays unlearned",
+                               binding.tool_name, type(error).__name__, error)
                 continue
             if getattr(irreversibility, "value", str(irreversibility)) not in PRACTISABLE:
                 continue

@@ -123,6 +123,8 @@ class Connectors:
         try:
             tools, server = await self._read(url, None)
         except SignInNeeded as needed:
+            logger.info("%s needs a sign-in before it will answer: starting one",
+                        url)
             given, client = await self._client(url, needed)
             link, verifier, state = sign_in.begin(given, client)
             name = name or name_of(url)

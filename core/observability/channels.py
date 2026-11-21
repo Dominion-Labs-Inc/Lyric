@@ -527,7 +527,10 @@ def watch_background_work(level: int = logging.INFO, *,
     try:
         arm(asyncio.get_running_loop())
     except RuntimeError:
-        pass                      # no loop yet; the policy below catches it
+        # no loop yet; the policy below catches it
+        logging.getLogger("core.system.loop").debug(
+            "no running loop to arm yet: the event-loop policy below will arm "
+            "whichever loop is built next")
 
     # Bound onto the LIVE policy rather than swapping in a new instance: the
     # policy holds the current loop association, and a fresh one would drop it.

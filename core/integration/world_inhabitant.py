@@ -66,7 +66,9 @@ def _tet():
     try:
         from Tet.walls._config import operator_private_key
         from Tet.walls.lyric_main import Attachment, serve_messages
-    except ImportError:
+    except ImportError as error:
+        logger.debug("Tet is not on the path (%s): looking for it beside the "
+                     "substrate", error)
         sys.path.insert(0, str(_BESIDE))
         from Tet.walls._config import operator_private_key
         from Tet.walls.lyric_main import Attachment, serve_messages

@@ -4066,6 +4066,8 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
                     if not form:
                         raise ValueError("an empty sentence says nothing")
                 except (TypeError, ValueError) as refusal:
+                    logger.info("sentence %d was not learned: %s", index,
+                                refusal)
                     refused_at.add(index)
                     updates.append(_ledger.KnowledgeUpdate(
                         subject_kind="language_pattern", subject_id=str(sentence)[:500],

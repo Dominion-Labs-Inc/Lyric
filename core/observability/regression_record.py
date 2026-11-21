@@ -95,7 +95,9 @@ def _row(record) -> RegressionEvent:
     if isinstance(raw, str):
         try:
             raw = json.loads(raw)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning("a regression row's metadata is not valid JSON (%s): "
+                           "the regression is returned without it", error)
             raw = {}
     return RegressionEvent(
         regression_id=record["regression_id"], subject=record["subject"],

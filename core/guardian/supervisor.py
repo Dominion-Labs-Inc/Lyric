@@ -176,7 +176,8 @@ class Guardian:
             try:
                 await asyncio.wait_for(self._stopping.wait(), timeout=2.0)
             except asyncio.TimeoutError:
-                pass          # the ordinary tick: nothing asked it to stop
+                # the ordinary tick: nothing asked it to stop
+                logger.debug("guardian tick: nothing has asked it to stop")
 
     async def _heartbeat(self) -> None:
         """Mark that a guardian is alive, so the substrate defers control to it."""

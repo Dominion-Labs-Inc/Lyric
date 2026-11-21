@@ -81,6 +81,9 @@ def summarize_drift(result_json: dict) -> dict:
         drift_block = next(m for m in metrics if "DataDriftTable" in str(m.get("metric")) or "DataDriftPreset" in str(m.get("metric", "")) or m.get("type") == "DataDriftTable")
     except StopIteration:
         # Evidently JSON schema may change; fall back to scanning
+        logger.warning(
+            "no DataDriftTable in this report: the first metric block is read "
+            "instead, so the drift summary may describe something else")
         drift_block = metrics[0] if metrics else {}
 
     # Try common fields

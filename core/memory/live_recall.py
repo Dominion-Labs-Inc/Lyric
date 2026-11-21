@@ -366,7 +366,11 @@ class LiveRecall:
             def stored_shape(recalled: Recalled) -> ClaimShape:
                 try:
                     facts = tuple(MeaningFact.from_list(f) for f in recalled.facts)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as error:
+                    logger.warning("a recalled claim's facts could not be read "
+                                   "back (%s): its shape comes back empty, "
+                                   "which reads as a claim about nothing",
+                                   type(error).__name__)
                     return ClaimShape()
                 return shape_of(Meaning("tell", facts)) if facts else ClaimShape()
 

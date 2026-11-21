@@ -10551,6 +10551,9 @@ class MemoryAgent(IMemoryConsolidation):
 
             _logging.getLogger(__name__).debug("MemoryAgent cleanup")
         except Exception:
+            # NOTHING CAN BE SAID HERE and it is not an oversight: this runs
+            # during interpreter shutdown, where the logging module's own
+            # globals may already be gone -- which is what the try covers.
             pass
 
 

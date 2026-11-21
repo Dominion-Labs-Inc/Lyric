@@ -5623,7 +5623,10 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
             for key in (member.get("wn") or "").split():
                 try:
                     classes_of.setdefault(cid, set()).add(wn.lemma_from_key(key.lstrip("?") + "::").synset().name())
-                except Exception:
+                except Exception as error:
+                    logger.debug("a VerbNet member key could not be read (%s): "
+                                 "that member is not taught with this class",
+                                 type(error).__name__)
                     continue
         for role in vc.iter("THEMROLE"):
             restrictions[(cid, str(role.get("type")).lower())] = tuple(

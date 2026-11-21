@@ -224,8 +224,12 @@ class ChaosSafetyController:
                 reason=None
             )
 
-        except ImportError:
+        except ImportError as error:
             # psutil not available, skip check
+            logger.warning(
+                "resource availability cannot be checked (%s): this pre-flight "
+                "check is reported as skipped, so an experiment may start on a "
+                "machine with nothing left", error)
             return PreFlightCheck(
                 name="resource_availability",
                 passed=True,

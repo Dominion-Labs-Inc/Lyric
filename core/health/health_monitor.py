@@ -2692,7 +2692,10 @@ class HealthMonitor:
                         async with httpx.AsyncClient(timeout=5.0) as client:
                             resp = await client.get(f"{url.rstrip('/')}/v1/models")
                             ok = resp.status_code < 500
-                    except (httpx.ReadTimeout, httpx.PoolTimeout):
+                    except (httpx.ReadTimeout, httpx.PoolTimeout) as error:
+                        logger.info("%s is BUSY, not unreachable (%s): it is "
+                                    "graded reachable and marked slow",
+                                    name, type(error).__name__)
                         # BUSY IS NOT UNREACHABLE. llama-server serves one
                         # request at a time, so /v1/models queues behind an
                         # in-flight generation and blows a 5s budget whenever

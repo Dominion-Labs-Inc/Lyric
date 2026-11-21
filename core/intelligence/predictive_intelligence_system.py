@@ -1025,6 +1025,8 @@ class PredictiveIntelligenceSystem(IOutcomePrediction):
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
+            logger.debug("no running loop: this reading is not attended to, so "
+                         "nothing is predicted from it")
             return
         task = loop.create_task(self.attend(reading))
         self._attending.add(task)

@@ -119,7 +119,9 @@ def _rewritten_identity(source_rule: CandidateRule,
             body=body,
             effects=RuleEffects(add=frozenset(adds), delete=frozenset(deletes)),
             action=action, outputs=source_rule.outputs))
-    except ValueError:
+    except ValueError as error:
+        logger.debug("the rewritten rule does not hold (%s): nothing is "
+                     "projected across this analogy", error)
         return None
 
 

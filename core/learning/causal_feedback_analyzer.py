@@ -42,8 +42,11 @@ from enum import Enum
 try:
     import numpy as np
     NUMPY_AVAILABLE = True
-except ImportError:
+except ImportError as _no_numpy:
     NUMPY_AVAILABLE = False
+    logging.getLogger(__name__).warning(
+        "numpy is not available (%s): causal analysis falls back to whatever "
+        "it can do without it", _no_numpy)
 
 logger = logging.getLogger(__name__)
 
