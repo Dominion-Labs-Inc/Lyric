@@ -23915,22 +23915,46 @@ class Conversation:
         snargle" lives on `wibbling`, and a reverse question ("what causes
         snargle") never names the subject that holds it. This finds the concepts
         whose relations name THIS one as their object, so the fact reaches the
-        reasoner as a premise. Text-matched then checked exactly: an extra
-        premise the proof does not need is harmless, a missing one is not.
+        reasoner as a premise.
+
+        THE OBJECT IS MATCHED AS AN OBJECT, not as a substring of the row's JSON.
+        This was `relationships::text ILIKE '%name%'`, on the stated assumption
+        that "an extra premise the proof does not need is harmless, a missing one
+        is not". BOTH HALVES WERE WRONG, measured 2026-11-20 on lyric_db:
+
+          TOO WIDE. The pattern matches any text anywhere in the row, including
+          inside longer words. `%fly%` matches the word "chiefly", so asking
+          "Which bird flew?" returned 845 concepts and handed the reasoner
+          sodium_chloride, fortissimo, geraniaceae and petty_apartheid as
+          premises -- each because its definition says "chiefly". The extra
+          premises are NOT harmless: 64-140 of them per question is what the
+          reply recites back when nothing is settled, and every kind of thinking
+          declines a context made of them.
+
+          TOO NARROW. Objects are stored with underscores, so a multi-word name
+          never matched its own rows: `%killer whale%` found 0, while the object
+          is `killer_whale`. The missing-premise case the docstring warned about
+          was happening to every multi-word concept.
+
+        Matching the object element exactly, with the same normalisation the
+        loop below applies, costs the same 0.21s and returns what was asked for:
+        fly 845 -> 50, cup 613 -> 16, bring 281 -> 15, killer whale 0 -> 1.
         """
         import json
         db, _ = await self._services()
+        target = name.replace("_", " ").strip().lower()
         try:
             rows = await db.execute_query(
                 "SELECT name, relationships FROM unified.concepts "
-                "WHERE relationships::text ILIKE $1",
-                (f"%{name}%",), fetch_all=True)
+                "WHERE jsonb_typeof(relationships) = 'array' "
+                "  AND EXISTS (SELECT 1 FROM jsonb_array_elements(relationships) e "
+                "              WHERE btrim(lower(replace(e->>1, '_', ' '))) = $1)",
+                (target,), fetch_all=True)
         except Exception as error:
             from core.structural_defects import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._incoming_relations")
             return []
 
-        target = name.replace("_", " ").strip().lower()
         facts: List[Tuple[str, str, str, bool]] = []
         for row in rows or ():
             subject = row.get("name")
