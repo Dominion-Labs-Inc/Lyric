@@ -793,7 +793,10 @@ def _taken_in(derived: Derived) -> Tuple[Dict[int, List[int]], Set[int]]:
         f, a = (0, 1) if rule in ("fa", "fc", "fxc", "gfc") else (1, 0)
         try:
             functor = _without_taken(bank_category(category(kids[f])))
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as error:
+            logger.debug("the functor's category could not be read for rule %r "
+                         "(%s): the head is taken from the functor side "
+                         "without checking it", rule, type(error).__name__)
             return heads[f]
         if rule in ("fa", "ba"):
             if heads[f] is not None and heads[a] is not None:
@@ -1714,7 +1717,9 @@ class Lexicon:
             return None
         try:
             said = _there(bank_category(text))
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as error:
+            logger.debug("category %r does not read, so nothing derived is "
+                         "used from it (%s)", text, type(error).__name__)
             return None
         if isinstance(said, Atom) and said.base == "PR":
             # A verb's particle ("picked it up"), as the treebank's `compound:prt` is counted.
@@ -2331,7 +2336,9 @@ def _formula(word: str) -> bool:
     from core.reasoning.arithmetic_reading import read_expression
     try:
         return read_expression(word) is not None
-    except Exception:
+    except Exception as error:
+        logger.debug("%r could not be read as arithmetic (%s: %s): it is not "
+                     "treated as a formula", word, type(error).__name__, error)
         return False
 
 
@@ -2345,6 +2352,7 @@ def _number(word: str) -> Optional[str]:
     try:
         value = float(text)
     except ValueError:
+        logger.debug("%r is not a number, so it is not said as one", text)
         return None
     if not math.isfinite(value):
         return text
@@ -3447,8 +3455,11 @@ class Grammar:
             kept = {}
             try:
                 setattr(words, "_agreeing_of_words", kept)
-            except (AttributeError, TypeError):
+            except (AttributeError, TypeError) as error:
                 # Words that will not hold it fall back to the sentence's own: correct, and as slow as before.
+                logger.debug("these words will not hold their own agreement "
+                             "table (%s): the sentence's own is used, which is "
+                             "correct and slower", type(error).__name__)
                 return self._agreeing
         return kept
 
@@ -4132,7 +4143,12 @@ class Grammar:
             for end, entry in self.lexicon.entries(tokens, i):
                 try:
                     sign = self._lexical(tokens, i, end, entry)
-                except (ValueError, IndexError):
+                except (ValueError, IndexError) as error:
+                    logger.debug("lexical entry %r at %d..%d does not make a "
+                                 "sign (%s): it is left out of the chart, so no "
+                                 "reading can use it",
+                                 getattr(entry, "value", entry), i, end,
+                                 type(error).__name__)
                     continue
                 if keep(sign):
                     for u in self._unary(sign):
@@ -4407,6 +4423,11 @@ class Grammar:
             try:
                 reading.meaning = self._spell_out(sign, tokens, reading)
             except ValueError as error:
+                # `why` carries it to the caller; said here because a reading
+                # that spells out to nothing is the difference between "no
+                # reading" and "a reading whose meaning would not form".
+                logger.debug("a reading of %r does not spell out: %s",
+                             " ".join(map(str, tokens))[:120], error)
                 reading.why = str(error)
             key = reading.meaning.canonical() if reading.meaning is not None else None
             if not out:
@@ -4990,7 +5011,10 @@ class Grammar:
         def nothing_says(fact: MeaningFact) -> bool:
             try:
                 one = Meaning(meaning.act, (fact,))
-            except ValueError:
+            except ValueError as error:
+                logger.debug("this fact does not stand as a meaning on its own "
+                             "(%s), so it is not treated as one nothing says",
+                             error)
                 return False
             return not any(_piece_says(piece, one, self.lexicon.linking)
                            for entry in offered for piece in entry.sem)
@@ -5824,7 +5848,9 @@ class Grammar:
         lexicon = self.lexicon
         try:
             category = bank_category(d.categories[k])
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as error:
+            logger.debug("a derived category could not be read (%s): its "
+                         "places are not counted", type(error).__name__)
             return False
         taken: List[Cat] = []
         c = category
@@ -6405,7 +6431,9 @@ def spell_out(lexicon: Lexicon, sign: Sign, tokens: Sequence[str], reading: Read
         try:
             fact = MeaningFact(relation, term(a), term(b), positive, condition=condition, alternative=either,
                                unasserted=untold, given=given_)
-        except ValueError:
+        except ValueError as error:
+            logger.debug("no fact made from %r %r %r (%s): it is left out of "
+                         "the meaning", a, relation, b, error)
             return None
         if fact not in facts:
             facts.append(fact)

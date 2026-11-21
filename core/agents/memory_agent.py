@@ -2899,7 +2899,11 @@ class MemoryAgent(IMemoryConsolidation):
             data = meta.get(kind if kind in ("lexical", "link", "phrase") else "pattern") or {}
             try:
                 item = item_from(kind, data)
-            except (KeyError, TypeError, ValueError):
+            except (KeyError, TypeError, ValueError) as error:
+                logger.debug("a %s construction memory could not be read back "
+                             "(%s: %s): it is counted as unreadable and left "
+                             "out of the language view",
+                             kind, type(error).__name__, error)
                 unreadable += 1
                 continue
             if item.key != meta.get("pattern_key"):
@@ -3281,9 +3285,24 @@ class MemoryAgent(IMemoryConsolidation):
         # everything after this point may ask for the view memory reads with (`grammar_view`), which now requires
         # the grammar because there is no file to fall back on. Read where the other grammar memories were read,
         # most of a warm later, a reader that asked early got nothing and said the store had never been taught.
+        # BOTH, OR NEITHER. These were assigned one at a time, so between the two awaits
+        # `_grammar_rules` was full while `_grammar_pairs` was still empty -- and
+        # `grammar_taught` returns a grammar as soon as EITHER holds anything. A reader
+        # that asked in that window got a grammar built from the rules alone: `words`,
+        # `classes` and `verbs` present, and every PAIR table missing (`linking`,
+        # `phrases`, `numbers`, `number_scales`, `wordnet_frames`). `Lexicon` takes
+        # `linking` with `[]`, so that reader died on `KeyError: 'linking'` on a store
+        # holding all 87 pairs -- which is the intermittent
+        # `deductive FAIL reason() raised KeyError: 'linking'` the eleven-paths benchmark
+        # reported, passing on the next run with nothing changed.
+        #
+        # The comment above fixed a reader that asked EARLY and got nothing. This is the
+        # same reader asking in the middle and getting half, which is worse: nothing says
+        # so. Built into locals and assigned together, so no reader sees half a grammar.
         with timed("English's grammar"):
-            self._grammar_rules = {r.key(): r for r in await self._grammar_rule_memories()}
-            self._grammar_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
+            taught_rules = {r.key(): r for r in await self._grammar_rule_memories()}
+            taught_pairs = {p.key(): p for p in await self._grammar_pair_memories()}
+            self._grammar_rules, self._grammar_pairs = taught_rules, taught_pairs
         index: Dict[str, Dict[str, int]] = {}
         with timed("word groups"):
             groups = await self._word_group_memories()
@@ -6771,6 +6790,13 @@ class MemoryAgent(IMemoryConsolidation):
         try:
             counted = is_credit_eligible(OutcomeClass(verdict.get("outcome_class")))
         except ValueError:
+            # Not one of the outcome classes credit is defined over, so this
+            # occurrence earns nothing either way -- which is also what an
+            # ineligible outcome gets, so the two were indistinguishable.
+            logger.warning(
+                "outcome class %r is not one credit is defined over: this "
+                "occurrence counts toward nothing",
+                verdict.get("outcome_class"))
             counted = False
         return counted, bool(verdict.get("success"))
 
@@ -8866,6 +8892,9 @@ class MemoryAgent(IMemoryConsolidation):
             try:
                 return get_spec(SemanticRelation(relation)).symmetric
             except ValueError:
+                logger.debug("relation %r has no spec, so it is not treated as "
+                             "symmetric and the reverse fact is not looked for",
+                             relation)
                 return False
 
         rows = await self._memory_db().execute_query(
@@ -9799,7 +9828,7 @@ class MemoryAgent(IMemoryConsolidation):
             try:
                 await worker
             except asyncio.CancelledError:
-                pass
+                logger.debug("the memory write worker stopped, as asked")
         self._queue_worker_task = None
         return outstanding
 
@@ -9823,7 +9852,7 @@ class MemoryAgent(IMemoryConsolidation):
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.debug("the memory maintenance loop stopped, as asked")
             except Exception as e:
                 logger.warning("maintenance loop ended with an error: %s", e)
         self._maintenance_task = None
@@ -9833,7 +9862,7 @@ class MemoryAgent(IMemoryConsolidation):
             try:
                 await pool
             except asyncio.CancelledError:
-                pass
+                logger.debug("the memory pool worker stopped, as asked")
             except Exception as e:
                 logger.warning("pool worker ended with an error: %s", e)
         self._pool_task = None
@@ -9845,7 +9874,7 @@ class MemoryAgent(IMemoryConsolidation):
             try:
                 await warm
             except asyncio.CancelledError:
-                pass
+                logger.debug("the warming loop stopped, as asked")
 
         logger.info("✅ Memory loops stopped")
 
@@ -10063,6 +10092,10 @@ class MemoryAgent(IMemoryConsolidation):
         try:
             memories = await self.get_recent_memories(limit=self.ABSTRACTION_BATCH_SIZE)
         except Exception as e:
+            logger.warning(
+                "no abstractions formed this pass: recent memories could not be "
+                "read (%s: %s), so nothing was looked at rather than nothing "
+                "being found", type(e).__name__, e)
             report['reason'] = f'memory_fetch_failed: {e}'
             state['last_skip_reason'] = 'memory_fetch_failed'
             return report
@@ -10081,7 +10114,13 @@ class MemoryAgent(IMemoryConsolidation):
                 return v.timestamp()
             try:
                 return float(v)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as error:
+                # None is the watermark unknown, so the next pass reconsiders
+                # everything rather than resuming where it stopped.
+                logger.warning(
+                    "the abstraction watermark %r could not be read as a time "
+                    "(%s): this pass starts from the beginning instead of "
+                    "resuming", v, type(error).__name__)
                 return None
 
         watermark = _epoch(state.get('last_processed_created_at'))

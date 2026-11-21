@@ -26,8 +26,15 @@ from enum import Enum
 
 try:
     import httpx
-except ImportError:
+except ImportError as _no_httpx:
+    # A CAPABILITY THAT IS NOT THERE, said once at import. Without httpx, HTTP
+    # fingerprinting and health-endpoint discovery cannot run at all, so every
+    # web service found looks like an unidentified open port.
     httpx = None
+    logging.getLogger(__name__).warning(
+        "httpx is not installed (%s): discovered services cannot be "
+        "fingerprinted over HTTP and no health endpoint will be found",
+        _no_httpx)
 
 logger = logging.getLogger(__name__)
 
@@ -250,7 +257,12 @@ class ActiveDiscovery:
             writer.close()
             await writer.wait_closed()
             return True
-        except (asyncio.TimeoutError, ConnectionRefusedError, OSError):
+        except (asyncio.TimeoutError, ConnectionRefusedError, OSError) as error:
+            # A CLOSED PORT IS THE ANSWER, NOT A FAILURE. Kept at DEBUG on
+            # purpose: reporting these as failures once wrote 20 false rows onto
+            # the canonical failure record in a single teaching run.
+            logger.debug("port %s is not listening (%s)", port,
+                         type(error).__name__)
             return False
 
     async def _fingerprint_service(self, port: int) -> DiscoveredService:
@@ -318,15 +330,20 @@ class ActiveDiscovery:
 
                     return result
 
-                except httpx.HTTPStatusError:
+                except httpx.HTTPStatusError as error:
                     # Service responded but with error - still HTTP
+                    logger.debug("port %s answered HTTP with %s: it is HTTP, "
+                                 "and unnamed", port, error)
                     return {
                         'server': None,
                         'response_time_ms': None,
                         'is_healthy': False
                     }
 
-        except (httpx.ConnectError, httpx.TimeoutException):
+        except (httpx.ConnectError, httpx.TimeoutException) as error:
+            logger.debug("port %s did not answer HTTP (%s): it is left "
+                         "unidentified rather than guessed at", port,
+                         type(error).__name__)
             return None
 
     async def _find_health_endpoint(self, port: int, client: httpx.AsyncClient) -> Optional[str]:
@@ -337,7 +354,9 @@ class ActiveDiscovery:
                 resp = await client.get(url, timeout=1.0)
                 if resp.status_code == 200:
                     return endpoint
-            except:
+            except BaseException as error:
+                logger.debug("%s is not a health endpoint on port %s (%s)",
+                             endpoint, port, type(error).__name__)
                 continue
         return None
 
@@ -366,8 +385,10 @@ class ActiveDiscovery:
                 return 'prometheus'
             elif 'grafana' in text:
                 return 'grafana'
-        except:
-            pass
+        except BaseException as error:
+            logger.debug("port %s could not be named from its HTTP response "
+                         "(%s): it stays unnamed rather than guessed",
+                         port, type(error).__name__)
 
         return None
 
@@ -388,11 +409,15 @@ class ActiveDiscovery:
                 await writer.wait_closed()
                 return len(data) > 0  # Databases typically send greeting
             except asyncio.TimeoutException:
+                logger.debug("port %s sent no greeting in time: not taken for a "
+                             "database", port)
                 writer.close()
                 await writer.wait_closed()
                 return False
 
-        except (ConnectionRefusedError, OSError):
+        except (ConnectionRefusedError, OSError) as error:
+            logger.debug("port %s refused the database probe (%s)", port,
+                         type(error).__name__)
             return False
 
     def _infer_database_type(self, port: int) -> str:

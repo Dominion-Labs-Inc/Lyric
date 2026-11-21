@@ -1492,7 +1492,10 @@ class WordNetSource:
                     continue
                 try:
                     labels[wn.synset(row["sense_synset"])] = use
-                except (WordNetError, ValueError, KeyError):
+                except (WordNetError, ValueError, KeyError) as error:
+                    logger.debug("sense %r has no synset to label (%s): that "
+                                 "use is not taught", row.get("sense_synset"),
+                                 type(error).__name__)
                     continue
         self.__dict__["_becl_labels"] = labels
         return labels
@@ -2863,7 +2866,9 @@ def propbank_roles_of_frames(frames: str) -> Dict[Tuple[str, str], Tuple[str, Tu
     for path in Path(frames).glob("*.xml"):
         try:
             tree = ET.parse(path)
-        except ET.ParseError:
+        except ET.ParseError as error:
+            logger.warning("PropBank frame file %s does not parse (%s): the "
+                           "roles it declares are not taught", path, error)
             continue
         for roleset in tree.iter("roleset"):
             for role in roleset.iter("role"):
@@ -3051,7 +3056,9 @@ class PMBSource:
         def name_of(sense: str) -> Optional[str]:
             try:
                 return names.get(wn.synset(sense)) or None
-            except Exception:
+            except Exception as error:
+                logger.debug("sense %r has no name (%s: %s)", sense,
+                             type(error).__name__, error)
                 return None
         from pathlib import Path
         root = Path(self.data) / "data" / "en" / self.part
@@ -3543,7 +3550,9 @@ def record_of_pmb(derived: Any, taught: Any, split: str = "train") -> SentenceRe
     def category(text: str) -> Optional[Any]:
         try:
             return gm.bank_category(text)
-        except (ValueError, IndexError):
+        except (ValueError, IndexError) as error:
+            logger.debug("category %r does not read (%s): this word is taught "
+                         "without one", text, type(error).__name__)
             return None
     for w in words:
         cls = _PENN_CLASS.get(w["tag"])
@@ -5278,7 +5287,9 @@ def _propbank_joins(cache: Dict[str, Any]) -> Dict[str, Counter]:
         for path in sorted((Path(SYNTAX_DATA) / "propbank-frames" / "frames").glob("*.xml")):
             try:
                 tree = ET.parse(path)
-            except ET.ParseError:
+            except ET.ParseError as error:
+                logger.warning("PropBank frame file %s does not parse (%s): the "
+                               "joins it declares are not taught", path, error)
                 continue
             for roleset in tree.iter("roleset"):
                 tags = {"ARG" + str(r.get("n")).upper(): str(r.get("f") or "").upper() for r in roleset.iter("role")}
@@ -5318,7 +5329,10 @@ def _rolesets(frame_file) -> "Iterator[Any]":
     import xml.etree.ElementTree as ET
     try:
         return list(ET.parse(frame_file).iter("roleset"))
-    except ET.ParseError:
+    except ET.ParseError as error:
+        logger.warning("frame file %s does not parse (%s): it contributes no "
+                       "rolesets, which reads the same as a frame file with "
+                       "none", frame_file, error)
         return []
 
 
@@ -5388,7 +5402,11 @@ def records_written(_cache: Dict[str, str] = {}) -> str:
                         path = os.path.join(base, name)
                         try:
                             said = os.stat(path)
-                        except OSError:
+                        except OSError as error:
+                            logger.debug("%s is not counted into the corpus "
+                                         "stamp (%s): a change to it will not "
+                                         "be noticed", path,
+                                         type(error).__name__)
                             continue
                         digest.update(f"{path}|{said.st_size}|{said.st_mtime_ns}".encode("utf-8"))
         _cache["stamp"] = digest.hexdigest()[:16]
@@ -5560,7 +5578,10 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
     restrictions: Dict[Tuple[str, str], Tuple[str, ...]] = {}
     try:
         class_ids = verbnet.classids(lemma_name)
-    except Exception:
+    except Exception as error:
+        logger.debug("VerbNet has no classes for %r (%s: %s): the record is "
+                     "built without them", lemma_name, type(error).__name__,
+                     error)
         class_ids = []
     # EACH CLASS'S FRAMES, the ways its verbs are said ("NP V NP PP.instrument"), with those of the classes it is
     # part of: (the class whose frame it is, its primary and secondary description, its example, what each of its
@@ -5571,7 +5592,10 @@ def word_record_of(word: str, treebanks: Sequence[str] = ("ewt", "gum"), split: 
         while up:
             try:
                 frames_of = verbnet.vnclass(up).find("FRAMES")
-            except Exception:
+            except Exception as error:
+                logger.debug("VerbNet class %r could not be read (%s: %s): the "
+                             "walk up its parents stops here", up,
+                             type(error).__name__, error)
                 break
             for frame in (frames_of.findall("FRAME") if frames_of is not None else ()):
                 described = frame.find("DESCRIPTION")

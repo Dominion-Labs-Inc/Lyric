@@ -73,8 +73,12 @@ def workspace_bytes(actor: str) -> int:
         for name in files:
             try:
                 total += os.lstat(os.path.join(folder, name)).st_size
-            except OSError:
-                pass
+            except OSError as error:
+                # The total comes back smaller than the workspace really is,
+                # and the total is what a size limit is judged against.
+                logger.debug("%s not counted toward the workspace size (%s: "
+                             "%s): the total is lower than the truth",
+                             name, type(error).__name__, error)
     return total
 
 
@@ -503,10 +507,13 @@ class QueueAuthority:
             try:
                 return self.queue.get_nowait()
             except asyncio.QueueEmpty:
+                logger.debug("no work waiting: the queue is empty")
                 return None
         try:
             return await asyncio.wait_for(self.queue.get(), timeout=timeout)
         except asyncio.TimeoutError:
+            logger.debug("no work arrived within %ss: the wait expired, which "
+                         "is the answer and not a failure", timeout)
             return None
 
     async def get_next_task(self, timeout: float = None,
@@ -567,6 +574,7 @@ class QueueAuthority:
             try:
                 item = self.queue.get_nowait()
             except asyncio.QueueEmpty:
+                logger.debug("the queue is drained: nothing more to draw")
                 break
             if item[2].status != TaskStatus.CANCELLED:
                 items.append(item)
@@ -1387,6 +1395,8 @@ class QueueAuthority:
                    "result": result, "error": None}
         except Exception as e:
             self._await_metrics["failed"] += 1
+            logger.warning("awaited job %s (%s) FAILED: %s: %s", job_id,
+                           meta.get("name"), type(e).__name__, e)
             out = {"job_id": job_id, "name": meta.get("name"),
                    "result": None, "error": str(e)}
         self._await_jobs.pop(job_id, None)
@@ -1406,6 +1416,8 @@ class QueueAuthority:
                               "result": task.result(), "error": None})
                 self._await_metrics["completed"] += 1
             except Exception as e:
+                logger.warning("job %s (%s) FAILED: %s: %s", jid,
+                               meta.get("name"), type(e).__name__, e)
                 ready.append({"job_id": jid, "name": meta.get("name"),
                               "result": None, "error": str(e)})
                 self._await_metrics["failed"] += 1
@@ -1641,6 +1653,8 @@ class QueueAuthority:
                     job.last_run = now
                     job.next_due = now + job.interval_s
             except asyncio.CancelledError:
+                logger.info("the scheduler loop was cancelled: no scheduled job "
+                            "will run again until it is started")
                 break
             except Exception as e:
                 logger.error("scheduler loop error: %s", e)
@@ -1660,7 +1674,7 @@ class QueueAuthority:
             try:
                 await self._scheduler_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("the scheduler task stopped, as asked")
         # WHAT IS STILL RUNNING ENDS BEFORE THIS RETURNS. A scheduled run already
         # under way, or a job still owed its result, went on after the queue
         # stopped -- and met the database closing behind it: a meta-learning pass
