@@ -2597,7 +2597,10 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             from core.domain.domain_registry import UnresolvedDomainReference
             try:
                 resolved = registry.resolve_domain_reference(domain, require_concepts=True)
-            except UnresolvedDomainReference:
+            except UnresolvedDomainReference as error:
+                logger.debug("domain reference %r does not resolve to concepts "
+                             "(%s): learning goes on without domain context",
+                             domain, error)
                 resolved = []
             if not resolved:
                 logger.info(
@@ -5824,6 +5827,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             try:
                 await emit(payload)
             except Exception as error:
+                logger.warning("the caller's own emitter raised (%s: %s): this "
+                               "evidence was not announced to it",
+                               type(error).__name__, error)
                 unheard(f"caller's emitter raised {type(error).__name__}: {error}")
             return
 
@@ -5837,6 +5843,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
         try:
             await coordinator.announce_evidence(payload)
         except Exception as error:
+            logger.warning("evidence was not announced to the coordinator (%s: "
+                           "%s): nothing that reacts to it will run",
+                           type(error).__name__, error)
             unheard(f"{type(error).__name__}: {error}")
 
     async def record_demonstration(self, example, *, domain_id: str, owner: Optional[str] = None) -> bool:
@@ -6787,6 +6796,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             )
         except Exception as e:
             raise_if_structural(e, "unified_learning_system.contribute")
+            logger.warning("a contribution from %s was NOT recorded (%s: %s): "
+                           "it is refused rather than silently lost",
+                           contribution.contributor, type(e).__name__, e)
             admission = Admission(False, f"could not record proposal: {e}",
                                   contribution.contributor, contribution.kind)
             self._admissions.append(admission)
@@ -6837,6 +6849,9 @@ class UnifiedLearningSystem(ILearningAuthority, ILearningSystem):
             stored = await self.store.record_projection(projection, rule_kind=rule_kind)
         except Exception as e:
             raise_if_structural(e, "unified_learning_system.admit_projection")
+            logger.warning("a projection from %s was NOT recorded (%s: %s): it "
+                           "is refused rather than silently lost",
+                           contributor, type(e).__name__, e)
             admission = Admission(False, f"could not record projection: {e}",
                                   contributor, ContributionKind.HYPOTHESIS)
             self._admissions.append(admission)

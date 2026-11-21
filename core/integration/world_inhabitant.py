@@ -123,8 +123,10 @@ class Allowance:
         if self._link is not None:
             try:
                 self._link.close()
-            except OSError:
-                pass
+            except OSError as error:
+                logger.warning("the link to the world did not close cleanly "
+                               "(%s: %s): it is dropped either way",
+                               type(error).__name__, error)
         self._link = None
 
 
@@ -311,6 +313,7 @@ class WorldInhabitant:
             return {"shared_learning": await authority.set_shared_learning(
                 owner, setting == "on", by=identity, category=category or None)}
         except ValueError as refused:
+            logger.info("shared learning not changed for %s: %s", owner, refused)
             return {"shared_learning": await authority.shared_learning(owner), "refused": str(refused)}
 
     async def _hearing(self, identity: str, payload: str) -> Dict[str, Any]:
@@ -328,7 +331,9 @@ class WorldInhabitant:
             return {"refused": "Lyric is not listening in this process"}
         try:
             said = json.loads(payload or "")
-        except ValueError:
+        except ValueError as error:
+            logger.warning("a device's hearing report was refused: it is not "
+                           "JSON (%s)", error)
             return {"refused": "what a device hears comes as a JSON object"}
         if not isinstance(said, dict):
             return {"refused": "what a device hears comes as a JSON object"}
@@ -350,6 +355,8 @@ class WorldInhabitant:
             return await self._ears.hear(person=identity, stream=stream, pcm=sound, rate=rate,
                                          attend=bool(said.get("attend")))
         except (ValueError, RuntimeError) as refused:
+            logger.info("what %s's device heard was refused: %s", identity,
+                        refused)
             return {"refused": str(refused)}
 
     async def _device(self, identity: str, payload: str) -> Dict[str, Any]:
@@ -360,7 +367,9 @@ class WorldInhabitant:
             return {"refused": "Lyric is not taking in devices in this process"}
         try:
             said = json.loads(payload or "{}")
-        except ValueError:
+        except ValueError as error:
+            logger.warning("a device's report was refused: it is not JSON (%s)",
+                           error)
             return {"refused": "a device's report is JSON"}
         if not isinstance(said, dict):
             return {"refused": "a device's report is a JSON object"}
@@ -375,6 +384,7 @@ class WorldInhabitant:
                     origin=Origin.of(identity, "device"))
                 return {"received": True}
         except ValueError as refused:
+            logger.info("%s's device report was refused: %s", identity, refused)
             return {"refused": str(refused)}
         return {"refused": "a device sends a report or a location"}
 

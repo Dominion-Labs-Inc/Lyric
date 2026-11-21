@@ -25,8 +25,12 @@ from pathlib import Path
 
 try:
     import httpx
-except ImportError:
+except ImportError as _no_httpx:
     httpx = None
+    logging.getLogger(__name__).warning(
+        "httpx is not installed (%s): no service health endpoint can be "
+        "checked, so every service is graded on whether its PORT is open",
+        _no_httpx)
 
 logger = logging.getLogger(__name__)
 
@@ -185,7 +189,12 @@ class EnvironmentState:
                 sock.settimeout(0.5)
                 result = sock.connect_ex((host, port))
                 return result == 0
-        except Exception:
+        except Exception as error:
+            # False reads as "the port is closed", which is what the caller
+            # grades on.
+            logger.debug("port %s on %s could not be probed (%s: %s): it is "
+                         "reported closed", port, host,
+                         type(error).__name__, error)
             return False
 
     async def _check_health(self, port: int, endpoint: str) -> tuple:
@@ -210,8 +219,13 @@ class EnvironmentState:
             else:
                 return ServiceStatus.DEGRADED, response_time, f"HTTP {resp.status_code}"
         except httpx.TimeoutException:
+            logger.info("the health endpoint %s on port %s timed out: graded "
+                        "DEGRADED", endpoint, port)
             return ServiceStatus.DEGRADED, None, "Timeout"
         except Exception as e:
+            logger.info("the health endpoint %s on port %s could not be read "
+                        "(%s: %s): graded DEGRADED", endpoint, port,
+                        type(e).__name__, e)
             return ServiceStatus.DEGRADED, None, str(e)
 
     async def _update_network_state(self):
@@ -229,7 +243,10 @@ class EnvironmentState:
                 own = psutil.Process().net_connections(kind='inet')
                 self.active_connections = len(
                     [c for c in own if c.status == 'ESTABLISHED'])
-            except Exception:
+            except Exception as error:
+                # None is the honest unknown; the warning below says it once.
+                logger.debug("this process's connections could not be counted "
+                             "(%s: %s)", type(error).__name__, error)
                 self.active_connections = None
             if not getattr(self, '_net_access_denied_logged', False):
                 logger.warning(

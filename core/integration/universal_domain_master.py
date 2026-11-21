@@ -1789,7 +1789,9 @@ class UniversalDomainMaster:
             missing = deficit.evidence.get("missing_precondition")
             try:
                 relation = Fact.parse(str(missing)).predicate if missing else deficit.target_predicate
-            except ValueError:
+            except ValueError as error:
+                logger.debug("%r does not parse (%s): the deficit's own target "
+                             "predicate is used instead", missing, error)
                 relation = deficit.target_predicate
             result = await self.transfer_relation(domain, relation)
             if result.get("transferred"):
@@ -2910,7 +2912,10 @@ class UniversalDomainMaster:
             raw = row["relationships"]
             try:
                 links = _json.loads(raw) if isinstance(raw, str) else (raw or [])
-            except Exception:
+            except Exception as error:
+                logger.warning("a concept's taxonomic links could not be read "
+                               "(%s: %s): it takes no part in crystallising a "
+                               "domain", type(error).__name__, error)
                 continue
             for link in links or []:
                 if not isinstance(link, (list, tuple)) or len(link) < 2:
@@ -3048,8 +3053,14 @@ class UniversalDomainMaster:
                                 try:
                                     await identity.add_membership(
                                         concept_id, subject, source="taxonomy")
-                                except Exception:
-                                    pass   # never fatal; the home is recorded
+                                except Exception as error:
+                                    # never fatal; the home is recorded
+                                    logger.warning(
+                                        "%s was not recorded as a member of %s "
+                                        "(%s: %s): its home domain stands, its "
+                                        "membership does not",
+                                        subject, concept_id,
+                                        type(error).__name__, error)
                     outcome["status"] = "crystallized"
                     from core.memory import knowledge_ledger as _ledger
                     try:
@@ -3150,7 +3161,11 @@ class UniversalDomainMaster:
             if isinstance(rels, str):
                 try:
                     rels = json.loads(rels or "[]")
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as error:
+                    logger.warning("a concept's relations could not be read "
+                                   "(%s): it is treated as having none while "
+                                   "domains are discovered",
+                                   type(error).__name__)
                     rels = []
             names: List[str] = []
             for rel in (rels or ()):
@@ -3203,7 +3218,11 @@ class UniversalDomainMaster:
             if isinstance(erels, str):
                 try:
                     erels = json.loads(erels or "[]")
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as error:
+                    logger.warning("an entity's relations could not be read "
+                                   "(%s): it is treated as having none while "
+                                   "domains are discovered",
+                                   type(error).__name__)
                     erels = []
             for rel in (erels or ()):
                 if isinstance(rel, (list, tuple)) and len(rel) >= 2:
@@ -4179,7 +4198,7 @@ class UniversalDomainMaster:
             try:
                 await self._embedding_backfill
             except asyncio.CancelledError:
-                pass
+                logger.debug("the embedding backfill stopped, as asked")
         # Database connection is managed by LyricUnifiedDatabase singleton
         # No need to close here
         logger.info("Universal Domain Master shutdown complete")

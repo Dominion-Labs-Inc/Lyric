@@ -244,6 +244,13 @@ class DomainRegistry:
         try:
             domain_type = DomainType(key)
         except ValueError:
+            # ABSTRACT is where an unrecognised kind lands, and it is also a
+            # real kind -- so a domain whose type was not understood is
+            # indistinguishable from one genuinely abstract.
+            logger.warning("domain %s declares kind %r, which is not one of "
+                           "%s: it is held as ABSTRACT",
+                           domain_id, key,
+                           ", ".join(t.value for t in DomainType))
             domain_type = DomainType.ABSTRACT
         return Domain(
             domain_id=domain_id,
@@ -272,6 +279,9 @@ class DomainRegistry:
             try:
                 domain = self._domain_from_row(dict(row))
             except Exception as e:
+                logger.warning("domain %s could not be loaded (%s: %s): the "
+                               "registry comes up without it",
+                               row["domain_id"], type(e).__name__, e)
                 failed.append(f"{row['domain_id']} ({type(e).__name__}: {e})")
                 continue
             self.domains[domain.domain_id] = domain
@@ -737,6 +747,8 @@ class DomainRegistry:
             try:
                 as_category = DomainType(key)
             except ValueError:
+                logger.debug("%r is not a domain kind, so it is not resolved as "
+                             "a category of domains", key)
                 as_category = None
             if as_category is not None:
                 members = list(children)
@@ -920,6 +932,9 @@ class DomainRegistry:
                 else:
                     mapping = self._mapping_from_row(row)
             except Exception as e:
+                logger.warning("cross-domain mapping %s could not be loaded "
+                               "(%s: %s): nothing will transfer along it",
+                               row["mapping_id"], type(e).__name__, e)
                 failed.append(f"{row['mapping_id']} ({type(e).__name__}: {e})")
                 continue
             self.cross_domain_mappings[mapping.mapping_id] = mapping
@@ -1186,7 +1201,12 @@ class DomainRegistry:
         """Rows touched by a write, from asyncpg's 'INSERT 0 1' status string."""
         try:
             return int(str(status).strip().split()[-1])
-        except (ValueError, IndexError, AttributeError):
+        except (ValueError, IndexError, AttributeError) as error:
+            # 0 reads as "nothing was written", which is what a caller checking
+            # whether the write landed will believe.
+            logger.warning("how many rows a write affected could not be read "
+                           "from %r (%s): it is reported as 0, which reads as "
+                           "nothing written", status, type(error).__name__)
             return 0
 
     async def _usage_count(self, mapping_id: str) -> int:
