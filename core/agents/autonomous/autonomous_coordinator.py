@@ -963,7 +963,10 @@ class ReadingLedger:
         import os
         try:
             st = os.stat(path)
-        except OSError:
+        except OSError as error:
+            logger.debug("no identity for %s (%s: %s): the reading ledger "
+                         "cannot tell whether this file has changed",
+                         path, type(error).__name__, error)
             return None
         h = hashlib.sha256()
         try:
@@ -975,7 +978,10 @@ class ReadingLedger:
                         break
                     h.update(chunk)
                     remaining -= len(chunk)
-        except OSError:
+        except OSError as error:
+            logger.debug("no identity for %s (%s: %s): it could be seen but "
+                         "not read, so the ledger holds no digest of it",
+                         path, type(error).__name__, error)
             return None
         h.update(str(st.st_size).encode())
         return int(st.st_size), int(st.st_mtime_ns), h.hexdigest()
@@ -1105,7 +1111,9 @@ def perceive_entry(path: str, *, content: bool = False) -> Optional[Dict[str, An
     import stat as _stat
     try:
         status = os.lstat(path)
-    except (FileNotFoundError, NotADirectoryError):
+    except (FileNotFoundError, NotADirectoryError) as error:
+        logger.debug("nothing at %s to perceive (%s): it is absent, which is "
+                     "not the same as unreadable", path, type(error).__name__)
         return None
     mode = status.st_mode
     if _stat.S_ISLNK(mode):
@@ -1146,7 +1154,10 @@ def content_digest(path: str, size: Optional[int] = None) -> Optional[str]:
             for chunk in iter(lambda: f.read(1 << 20), b""):
                 digest.update(chunk)
         return "sha256:" + digest.hexdigest()[:16]
-    except OSError:
+    except OSError as error:
+        logger.debug("no content digest for %s (%s: %s): a write to it cannot "
+                     "be checked against what it holds",
+                     path, type(error).__name__, error)
         return None
 
 
@@ -1666,6 +1677,9 @@ class InputScreen:
             return None
         except _Unscreenable as e:
             self.stats["unscreenable"] += 1
+            logger.warning("input %r could not be screened: %s — the act is "
+                           "faulted rather than passed unscreened",
+                           e.parameter, e.reason)
             return InputFault(3, e.parameter, e.reason, "unscreenable")
         except Exception as e:
             self.stats["screen_faults"] += 1
@@ -2172,6 +2186,10 @@ def _escalate(irreversibility: str) -> str:
     try:
         return order[min(order.index(irreversibility) + 1, len(order) - 1)]
     except ValueError:
+        logger.warning(
+            "cannot escalate irreversibility %r: it is not one of %s, so the "
+            "act keeps the standing it came with instead of the stronger one "
+            "this call asked for", irreversibility, ", ".join(order))
         return irreversibility
 
 
@@ -2286,7 +2304,14 @@ def _shell_removals(args: Dict[str, Any]) -> List[Tuple[Optional[str], bool]]:
     for part in re.split(r"&&|\|\||[;|\n]", command):
         try:
             words = shlex.split(part, comments=True)
-        except ValueError:
+        except ValueError as error:
+            # The command is no longer read exactly, and `exact` False is what
+            # tells the caller so -- said here because WHICH part defeated the
+            # split is the only way to know what the law was applied to.
+            logger.warning(
+                "shell command part %r could not be split (%s): the removals "
+                "this act names are read inexactly from here on",
+                part[:120], error)
             exact = False
             continue
         while words and re.match(r"^\w+=", words[0]):
@@ -2584,7 +2609,15 @@ class IntegrityBaseline:
                     # moves this, and a value whose contents change does not,
                     # because nothing was substituted when it did.
                     parts.append(f"{name}=v")
-            except Exception:
+            except Exception as error:
+                # "unreadable" in the digest means this member cannot take part
+                # in telling the class apart from a changed one, so a change to
+                # it can never move the fingerprint. Which member, and why.
+                logger.warning(
+                    "%s.%s is unreadable (%s: %s): a change to it cannot move "
+                    "this class's fingerprint, so adoption will not see it",
+                    getattr(klass, "__qualname__", klass), name,
+                    type(error).__name__, error)
                 parts.append(f"{name}=unreadable")
         bases = ",".join(getattr(b, "__qualname__", str(b))
                          for b in getattr(klass, "__mro__", ())[1:])
@@ -2614,7 +2647,15 @@ class IntegrityBaseline:
                         f"{getattr(value, '__qualname__', repr(value))}")
             return (f"{cls.VERSION}:value:"
                     f"{hashlib.sha256(repr(value).encode()).hexdigest()[:16]}")
-        except Exception:
+        except Exception as error:
+            # Every unreadable value fingerprints ALIKE, so two different
+            # unreadable values compare equal and a substitution between them
+            # is invisible to the integrity check.
+            logger.warning(
+                "a watched value could not be fingerprinted (%s: %s): it is "
+                "recorded as 'unreadable', and every unreadable value compares "
+                "equal, so a substitution here would not be seen",
+                type(error).__name__, error)
             return f"{cls.VERSION}:unreadable"
 
     def freeze(self) -> Tuple[str, ...]:
@@ -2697,6 +2738,9 @@ class IntegrityBaseline:
             try:
                 data = Path(path).read_bytes()
             except FileNotFoundError:
+                logger.warning("watched module %s is GONE from disk (%s): the "
+                               "integrity baseline holds a digest for a file "
+                               "that no longer exists", name, path)
                 moved.append({"module": name, "path": path, "was": digest,
                               "now": "", "gone": "1"})
                 continue
@@ -2736,6 +2780,10 @@ class IntegrityBaseline:
         try:
             data = Path(path).read_bytes()
         except Exception as error:
+            logger.warning("%s NOT refrozen: its file could not be read (%s: "
+                           "%s), so the baseline still holds the old digest "
+                           "and the next verify will report a violation",
+                           name, type(error).__name__, error)
             return {"refrozen": False, "why": f"{path} could not be read: {error}"}
         digest = hashlib.sha256(data).hexdigest()
         if name in self._files:
@@ -2798,6 +2846,10 @@ class IntegrityBaseline:
                 try:
                     actual = hashlib.sha256(Path(path).read_bytes()).hexdigest()
                 except Exception as error:
+                    logger.warning(
+                        "integrity: the source of %s could not be read (%s: "
+                        "%s), so whether it changed on disk is UNKNOWN, not no",
+                        name, type(error).__name__, error)
                     violations.append({"type": "source_unreadable",
                                        "module": name, "severity": "HIGH",
                                        "locus": "disk", "path": path,
@@ -2813,12 +2865,17 @@ class IntegrityBaseline:
             try:
                 actual = hashlib.sha256((root / rel).read_bytes()).hexdigest()
             except FileNotFoundError:
+                logger.error("integrity: watched data file %s is GONE", rel)
                 violations.append({"type": "data_file_removed", "module": rel,
                                    "severity": "CRITICAL", "locus": "disk",
                                    "path": str(root / rel),
                                    "detail": f"{rel} is gone"})
                 continue
             except Exception as error:
+                logger.warning(
+                    "integrity: watched data file %s could not be read (%s: "
+                    "%s), so whether it changed is UNKNOWN, not no",
+                    rel, type(error).__name__, error)
                 violations.append({"type": "source_unreadable", "module": rel,
                                    "severity": "HIGH", "locus": "disk",
                                    "path": str(root / rel), "detail": str(error)})
@@ -2972,7 +3029,12 @@ class CodeAdoption:
         """
         try:
             tree = ast.parse(source, path)
-        except SyntaxError:
+        except SyntaxError as error:
+            # Not an error: a half-written file caught mid-save is a file to
+            # look at again next sweep. Said so a file that never gets adopted
+            # can be told from one that is never looked at.
+            logger.debug("%s does not parse (line %s: %s): nothing adopted "
+                         "from it this sweep", path, error.lineno, error.msg)
             return None
         functions: Dict[str, Any] = {}
         classes: Dict[str, Any] = {}
@@ -3148,7 +3210,12 @@ class CodeAdoption:
         guessed at."""
         try:
             return True, ast.literal_eval(node)
-        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError):
+        except (ValueError, TypeError, SyntaxError, MemoryError, RecursionError) as error:
+            logger.debug(
+                "adoption: %s is not a literal (%s) and is refused rather "
+                "than guessed at",
+                ast.unparse(node)[:80] if hasattr(ast, "unparse") else "a value",
+                type(error).__name__)
             return False, None
 
     # ── the plan ─────────────────────────────────────────────────────────────
@@ -4034,7 +4101,14 @@ class Constitution:
                 parents = await reader.parents(key)
             except Exception as e:
                 raise_if_structural(e, "Constitution._bearing_vocabulary")
-                continue        # unreadable: withhold rather than assume narrow
+                # Withheld rather than assumed narrow -- and a law's vocabulary
+                # quietly short of a term is a law that judges less than it
+                # should, so the term is named.
+                logger.warning(
+                    "law vocabulary: %r withheld because memory could not be "
+                    "read for it (%s: %s), so no law bears on it this pass",
+                    key, type(e).__name__, e)
+                continue
             if children is None or children > self._LAW_VOCAB_MAX_CHILDREN:
                 continue
             # SENSE SAFETY, AND IT IS THE FILTER THAT MATTERS.
@@ -4096,6 +4170,11 @@ class Constitution:
                     parents = await reader.parents(node)
                 except Exception as e:
                     raise_if_structural(e, "Constitution.bearing")
+                    logger.warning(
+                        "bearing: cannot read what %r is under (%s: %s), so "
+                        "this branch of the walk stops and a law that bears "
+                        "through it will not be found",
+                        node, type(e).__name__, e)
                     continue
                 for parent in parents or ():
                     any_parent = True
@@ -4114,6 +4193,10 @@ class Constitution:
                             continue
                     except Exception as e:
                         raise_if_structural(e, "Constitution.bearing")
+                        logger.warning(
+                            "bearing: cannot tell whether %r is a hub (%s: "
+                            "%s), so the walk does not go through it",
+                            parent, type(e).__name__, e)
                         continue
                     nxt.append((parent, path + (parent,)))
             if not nxt:
@@ -4263,7 +4346,15 @@ class Constitution:
             elif op in (">", ">=", "<", "<="):
                 try:
                     v, a = float(value), float(arg)
-                except (TypeError, ValueError):
+                except (TypeError, ValueError) as error:
+                    # A COMPARISON THAT COULD NOT BE MADE IS NOT A CONDITION
+                    # THAT FAILED, and both return False -- so a law's
+                    # condition reads as not holding when its operands were
+                    # never numbers.
+                    logger.warning(
+                        "condition %r %s %r not judged (%s): neither side is a "
+                        "number, so the condition is taken as NOT holding",
+                        value, op, arg, type(error).__name__)
                     return False
                 if not {">": v > a, ">=": v >= a, "<": v < a, "<=": v <= a}[op]:
                     return False
@@ -4925,7 +5016,14 @@ class Constitution:
         try:
             with open(str(path), "r", errors="ignore") as f:
                 return f.read(ReadingLedger._DIGEST_MAX_BYTES)
-        except OSError:
+        except OSError as error:
+            # EMPTY READS AS "THE FILE HOLDS NOTHING", which is what Law 2 asks
+            # about: what a write would destroy. An unreadable file returning ""
+            # says there is nothing there to destroy.
+            logger.warning(
+                "%s could not be read (%s: %s): the constitution judges this "
+                "act as though the file held nothing",
+                path, type(error).__name__, error)
             return ""
 
     @staticmethod
@@ -5557,6 +5655,9 @@ class Constitution:
         try:
             current = Path(path).read_bytes().decode("utf-8")
         except Exception as error:
+            logger.warning("code NOT adopted from %s (%s: %s): the running "
+                           "process keeps the version it already holds",
+                           path, type(error).__name__, error)
             return {"adopted": False, "why": f"{path} could not be read: {error}"}
         plan = CodeAdoption.plan(module, self.integrity.frozen_source(module_name),
                                  current)
@@ -5620,6 +5721,11 @@ class Constitution:
             from core.database.releases import code_identity
             return code_identity()
         except Exception as error:
+            logger.warning(
+                "what code this is cannot be established (%s: %s): a judgement "
+                "recorded now carries no release identity, so it cannot later "
+                "be tied to the code that made it",
+                type(error).__name__, error)
             return {"unavailable": str(error)}
 
     @staticmethod
@@ -6265,7 +6371,13 @@ class Constitution:
                 (bs_match.group(2) or "").lower(), 1)
         try:
             return int(count.group(1)) * block
-        except (ValueError, OverflowError):
+        except (ValueError, OverflowError) as error:
+            # None means "how much this writes is unknown", and a law that caps
+            # a write by size cannot judge an unknown size.
+            logger.warning(
+                "how many bytes this command writes could not be worked out "
+                "(count=%r, block=%d, %s): any law judging it by size has no "
+                "size to judge", count.group(1), block, type(error).__name__)
             return None
 
     #: CONTENT SPEAKING TO THE SUBSTRATE AS THOUGH IT WERE ITS OPERATOR.
@@ -6615,7 +6727,15 @@ class Constitution:
         if destination.exists():
             try:
                 stamp = source.stat().st_mtime_ns
-            except OSError:
+            except OSError as error:
+                # 0 makes the recoverable name stable but no longer distinct
+                # per version, so a second removal of the same name would
+                # overwrite the first copy this law exists to keep.
+                logger.warning(
+                    "%s could not be stamped for its recoverable copy (%s: "
+                    "%s): the name falls back to 0, so a second removal of this "
+                    "file would overwrite the copy kept for the first",
+                    source, type(error).__name__, error)
                 stamp = 0
             destination = recoverable / f"{source.stem}.{stamp}{source.suffix}"
         return {
@@ -7056,6 +7176,10 @@ class Constitution:
             goals = await get_intent_authority().standing()
         except Exception as e:
             goals = None
+            logger.warning(
+                "Law 4 cannot be measured: what the substrate is pursuing could "
+                "not be read (%s: %s), so that standing is marked untaken "
+                "rather than compliant", type(e).__name__, e)
             add(4, "goals_readable", None,
                 f"the intent authority could not be read: {e}", taken=False)
         if goals is not None:
@@ -7586,7 +7710,12 @@ class DriftDetector:
         """
         try:
             return abs(float(observed) - float(self.baseline.expected))
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "drift %s: distance from the baseline could not be computed "
+                "(observed %r against expected %r, %s) — graded CRITICAL rather "
+                "than shrugged at", self.name, observed,
+                self.baseline.expected, type(error).__name__)
             return None
 
     async def observe(self) -> DriftSignal:
@@ -7597,6 +7726,10 @@ class DriftDetector:
             if inspect.isawaitable(observed):
                 observed = await observed
         except Exception as e:
+            logger.warning(
+                "drift detector %s is BLIND (%s: %s): it took no reading this "
+                "pass, so nothing it watches is being watched",
+                self.name, type(e).__name__, e)
             return DriftSignal(
                 detector=self.name, state=DriftState.BLIND,
                 expected=self.baseline.expected, magnitude=None,
@@ -7718,7 +7851,12 @@ class CalibrationDrift(DriftDetector):
     def deviation(self, observed: Any) -> Optional[float]:
         try:
             shortfall = float(self.baseline.expected) - float(observed)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError) as error:
+            logger.warning(
+                "drift %s: shortfall against the baseline could not be "
+                "computed (observed %r against expected %r, %s) — graded "
+                "CRITICAL rather than shrugged at", self.name, observed,
+                self.baseline.expected, type(error).__name__)
             return None
         return max(0.0, shortfall)
 
@@ -8542,7 +8680,14 @@ class AutonomousCoordinator:
                 if _cap_raw is not None
                 else int(self.config.get("intrinsic_exploration_cap", 1))
             )
-        except Exception:
+        except Exception as error:
+            logger.warning(
+                "intrinsic exploration cap %r could not be read (%s): the "
+                "substrate will start at most 1 self-directed exploration at a "
+                "time, which may not be what was configured",
+                _cap_raw if _cap_raw is not None
+                else self.config.get("intrinsic_exploration_cap"),
+                type(error).__name__)
             self._intrinsic_exploration_cap = 1
         if self._intrinsic_exploration_cap < 0:
             self._intrinsic_exploration_cap = 0
@@ -8948,6 +9093,9 @@ class AutonomousCoordinator:
                     try:
                         await self.health_monitor.check_component_health(_comp)
                     except Exception as error:
+                        logger.debug("core component %s did not register with "
+                                     "the health monitor (%s: %s)", _comp,
+                                     type(error).__name__, error)
                         # A COMPONENT THAT NEVER REGISTERED IS NEVER WATCHED, and
                         # the line below counted it as registered regardless --
                         # so the log said six core components were being
@@ -9632,6 +9780,10 @@ class AutonomousCoordinator:
                 reading = await self.constitution.bearing(str(subject))
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._bearing_of_moved")
+                logger.warning(
+                    "what the moved knowledge bears on could not be read (%s: "
+                    "%s): this subject is left out, so a law that bears on it "
+                    "will not be felt", type(e).__name__, e)
                 continue
             if reading.borne:
                 borne += 1
@@ -9703,8 +9855,13 @@ class AutonomousCoordinator:
             return
         try:
             setattr(self, attr, asyncio.create_task(work()))
-        except RuntimeError:
-            pass
+        except RuntimeError as error:
+            # No running loop to start it on. The reaction simply does not
+            # happen, and the substrate goes on as though it had.
+            logger.warning(
+                "reaction %s NOT started (%s): there is no running loop to "
+                "start it on, so whatever it would have reacted to passes "
+                "unanswered", attr, error)
 
     async def _stop_reactions(self) -> None:
         """Stop every single-flight reaction, before anything they read closes:
@@ -9721,7 +9878,7 @@ class AutonomousCoordinator:
             try:
                 await task
             except asyncio.CancelledError:
-                pass
+                logger.debug("%s stopped for shutdown", attr)
             except Exception as error:
                 logger.error("%s had failed before shutdown: %s", attr, error,
                              exc_info=error)
@@ -10433,6 +10590,10 @@ class AutonomousCoordinator:
                             origin=origin)
                     except Exception as error:
                         raise_if_structural(error, f"autonomous_coordinator.{t.door}")
+                        logger.warning(
+                            "what was perceived through %s was not judged (%s: "
+                            "%s): the percept stands and nothing was decided "
+                            "about it", t.door, type(error).__name__, error)
             finally:
                 reset_acting_percept(token)
             judged_all.append(judged)
@@ -11421,7 +11582,14 @@ class AutonomousCoordinator:
         if self.neural_bridge is not None:
             try:
                 difficulty = float(self.neural_bridge.reasoning_difficulty(reasoning_type))
-            except Exception:
+            except Exception as error:
+                # The same 1.0 as "no reasoning type given", and here it decides
+                # how many agents the work gets: a measurement that did not
+                # happen sizes the crew at the floor of 2.
+                logger.warning(
+                    "how hard this reasoning is could not be measured (%s: %s): "
+                    "the agent allowance falls to the neutral 1.0, so this work "
+                    "gets the smallest crew", type(error).__name__, error)
                 difficulty = 1.0
         # difficulty 1.0 -> 2 agents, 2.0 -> 4, 2.5 -> 5, clamped [2, 6].
         return max(2, min(6, round(2.0 * difficulty)))
@@ -12152,6 +12320,11 @@ class AutonomousCoordinator:
             regions = get_epistemic_engine().get_unstable_regions()
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator._intrinsic_pursuits")
+            logger.warning(
+                "what the substrate does not know could not be read (%s: %s): "
+                "this pass ranks what is worth pursuing from developmental "
+                "pressure alone, with no epistemic gaps in it",
+                type(e).__name__, e)
             regions = []
         # WHAT I CAN ALREADY DO, per domain — the signal that tells one gap from
         # another. Read from the rule store's validated operators; None when
@@ -12193,6 +12366,10 @@ class AutonomousCoordinator:
                 bearings[subject] = await self.constitution.bearing(subject)
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._intrinsic_pursuits")
+                logger.warning(
+                    "what %r bears on could not be read (%s: %s): this pursuit "
+                    "is ranked without knowing whether one of the substrate's "
+                    "own laws turns on it", subject, type(e).__name__, e)
         pursuits = self._score_pursuits(
             regions, growth,
             (competence or {}).get("operators_by_domain"),
@@ -12321,6 +12498,10 @@ class AutonomousCoordinator:
             rules = await get_rule_store().executable_rules(domain_id)
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator._domain_stakes")
+            logger.warning(
+                "the operators of this domain could not be read (%s: %s): its "
+                "stakes are returned as the neutral 0.5 over 0 operators, which "
+                "is not a measurement of them", type(e).__name__, e)
             rules = []
         stakes = None
         resolved = 0
@@ -12376,6 +12557,11 @@ class AutonomousCoordinator:
             similar = await udm.similar_domains(domain_id, threshold=self._BORROW_REL_MIN)
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator._borrowed_satisfaction")
+            logger.warning(
+                "what this domain borrows from its neighbours could not be "
+                "read (%s: %s): it is reported as borrowing nothing, so a "
+                "domain satisfied through its kin reads as unsatisfied",
+                type(e).__name__, e)
             return {"borrowed": 0.0, "from": []}
         contributions: List[float] = []
         lenders: List[Dict[str, Any]] = []
@@ -12458,7 +12644,13 @@ class AutonomousCoordinator:
         def _s(fn):
             try:
                 return fn()
-            except Exception:
+            except Exception as error:
+                # Each fact of the environment is read on its own, and None is
+                # an honest unknown for that one fact -- named so a picture of
+                # the environment full of blanks can be accounted for.
+                logger.debug("environment fact from %s is unknown (%s: %s)",
+                             getattr(fn, "__name__", fn),
+                             type(error).__name__, error)
                 return None
 
         cwd = _s(_os.getcwd) or ""
@@ -12517,6 +12709,8 @@ class AutonomousCoordinator:
                 # part of what this scan found, and it was never reported. A
                 # world of 40 entries where 4,000 were unreadable is a different
                 # world from one that holds 40 things.
+                logger.debug("cannot list %s (%s: %s)", d,
+                             type(error).__name__, error)
                 unreadable_dirs.append(f"{d} ({type(error).__name__})")
                 continue
             for name in names:
@@ -12525,7 +12719,9 @@ class AutonomousCoordinator:
                 full = _os.path.join(d, name)
                 try:
                     entry = perceive_entry(full)
-                except OSError:
+                except OSError as error:
+                    logger.debug("cannot perceive %s (%s: %s)", full,
+                                 type(error).__name__, error)
                     unreadable_entries += 1
                     continue
                 if entry is None:
@@ -12575,6 +12771,10 @@ class AutonomousCoordinator:
                     learned += 1
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._ingest_environment_entry")
+                logger.warning(
+                    "observed fact %r %r %r NOT taken in (%s: %s): the "
+                    "environment holds it and the store does not",
+                    str(s), r, str(o), type(e).__name__, e)
 
         _KIND_ISA = {"dir": "directory", "file": "file", "link": "link", "special": "device"}
         await hold(domain, "contains", name, 0.9)
@@ -12598,6 +12798,10 @@ class AutonomousCoordinator:
             learned += 1
         except Exception as e:
             raise_if_structural(e, "autonomous_coordinator._ingest_environment_entry.take_in")
+            logger.warning(
+                "%s was found in the environment and NOT taken in (%s: %s): it "
+                "is in the world the substrate can see and not in what it "
+                "holds", entry.get("path"), type(e).__name__, e)
         return learned
 
     async def _situate(self) -> Optional[Dict[str, Any]]:
@@ -12653,6 +12857,10 @@ class AutonomousCoordinator:
                     origin=origin))
             except Exception as e:
                 raise_if_structural(e, f"autonomous_coordinator.{origin}.emit")
+                logger.error(
+                    "ENVIRONMENT_ENCOUNTERED for %s was not emitted (%s: %s): "
+                    "the environment is registered and nothing that reacts to "
+                    "meeting it will run", domain_id, type(e).__name__, e)
         return domain_id, novel
 
     #: What makes a kind of device the kind it is: what it is (`form`: phone, tablet, desktop, TV), what
@@ -12735,7 +12943,11 @@ class AutonomousCoordinator:
         try:
             from core.database import get_database_manager
             deployment = getattr(get_database_manager(), "database", None)
-        except Exception:
+        except Exception as error:
+            logger.warning(
+                "the substrate cannot say which deployment it is in (%s: %s): "
+                "the self it perceives for the laws carries no deployment",
+                type(error).__name__, error)
             deployment = None
         return {
             "root": facts.get("root"),
@@ -12752,6 +12964,10 @@ class AutonomousCoordinator:
                 env = await self._situate()
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._situation")
+                logger.warning(
+                    "the substrate could not establish where it is (%s: %s): "
+                    "it has no situation this pass, so anything that reads one "
+                    "gets nothing", type(e).__name__, e)
                 return None
         if not env:
             return None
@@ -12800,6 +13016,10 @@ class AutonomousCoordinator:
                     learned += 1
             except Exception as e:
                 raise_if_structural(e, "autonomous_coordinator._react_investigate_environment")
+                logger.warning(
+                    "investigated fact %r %r %r NOT taken in (%s: %s): what "
+                    "the investigation found is not in what the substrate "
+                    "holds", subject, relation, str(obj), type(e).__name__, e)
 
         # what this place is: every fact observed to know it (a host's platform, release, machine,
         # hostname, user, root and python; a device's platform, release, machine, form, manufacturer)
@@ -13689,8 +13909,10 @@ class AutonomousCoordinator:
         if unknown_id is not None:
             try:
                 grounds = await self.learning.resolve_known_unknown(unknown_id)
-            except LookupError:
-                grounds = None               # already resolved elsewhere
+            except LookupError as error:
+                logger.debug("known-unknown %s was already resolved elsewhere "
+                             "(%s)", unknown_id, error)
+                grounds = None
             if grounds is not None:
                 logger.info("[DEFICIT] known-unknown %s %s: %s", unknown_id,
                             "resolved" if grounds.satisfied else "left open",
@@ -14510,7 +14732,9 @@ class AutonomousCoordinator:
             try:
                 fields = registry.resolve_domain_reference(
                     domain, require_concepts=True)
-            except UnresolvedDomainReference:
+            except UnresolvedDomainReference as error:
+                logger.debug("task outcomes for domain %r left out: it does not "
+                             "resolve to concepts (%s)", domain, error)
                 continue
             record = {"at": row["created_at"], "ok": row["outcome"] == "success",
                       "task_id": row["task_id"]}
@@ -15392,7 +15616,11 @@ class AutonomousCoordinator:
         if not conds:
             try:
                 conds = self.extract_state_conditions(getattr(task, "description", "") or "")
-            except Exception:
+            except Exception as error:
+                logger.warning(
+                    "no completion anchor derived for this task (%s: %s): "
+                    "whether it is finished cannot be judged against stated "
+                    "conditions", type(error).__name__, error)
                 conds = None
         if conds:
             joined = " and ".join(str(c).strip() for c in conds if str(c).strip())
@@ -15723,7 +15951,14 @@ class AutonomousCoordinator:
             try:
                 with open(path, "r", encoding="utf-8") as fresh_file:
                     matches = fresh_file.read() == content
-            except (OSError, UnicodeDecodeError):
+            except (OSError, UnicodeDecodeError) as error:
+                # False is recorded as evidence AGAINST the outcome -- so a file
+                # that merely could not be re-read counts against the act that
+                # read it.
+                logger.warning(
+                    "%s could not be re-read (%s: %s): this counts as evidence "
+                    "AGAINST the reading, though nothing was observed either "
+                    "way", path, type(error).__name__, error)
                 matches = False
             saw.append(Evidence(r.get("outcome") or f"read:{path}", matches,
                                 self._EV_EFFECT if matches else self._EV_AGAINST,
@@ -16445,6 +16680,11 @@ class AutonomousCoordinator:
                 origin=origin, confidence=float(posterior))
         except Exception as error:
             raise_if_structural(error, "autonomous_coordinator.perceive")
+            logger.warning(
+                "recognition of %s was decided (%s) and NOT noted as a percept "
+                "(%s: %s): the decision still governs behaviour, but there is "
+                "no record of having perceived it", instance_id,
+                out.decision, type(error).__name__, error)
         # The decision GOVERNS behaviour through the event spine, not by the caller
         # re-reading the return: every perceive — from any of the many recognition
         # sites — fans one decision to `_react_percept`.
@@ -18666,7 +18906,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             try:
                 await self.coordination_task
             except asyncio.CancelledError:
-                pass
+                logger.debug("a task was cancelled for shutdown, as asked")
 
         # Cancel the reactive drain worker
         if self._reactive_worker:
@@ -18674,7 +18914,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             try:
                 await self._reactive_worker
             except asyncio.CancelledError:
-                pass
+                logger.debug("a task was cancelled for shutdown, as asked")
 
         # Stop hearing its workers.
         if self._hearing_workers:
@@ -18682,7 +18922,7 @@ The substrate must realign with its constitutional responsibilities immediately.
             try:
                 await self._hearing_workers
             except asyncio.CancelledError:
-                pass
+                logger.debug("a task was cancelled for shutdown, as asked")
 
         await self._stop_reactions()
 
@@ -19988,6 +20228,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         try:
             action = Fact.parse(operator_name)
         except ValueError as e:
+            logger.warning("operator %r refused: it does not parse (%s)",
+                           operator_name, e)
             return refuse(f"operator {operator_name!r} does not parse: {e}")
         if action.signature != rule.action.signature:
             return refuse(f"{action.predicate}/{action.arity} does not match the rule's action")
@@ -20537,6 +20779,8 @@ The substrate must realign with its constitutional responsibilities immediately.
         except ModelFrozenError:
             # A frozen release does not move what it believes, its calibration
             # included; the refusal is counted where it is raised.
+            logger.debug("calibration outcome not recorded: this release is "
+                         "frozen and does not move what it believes")
             return
         except Exception as e:
             # Never fails the task it is describing; never silent either.
@@ -21202,7 +21446,11 @@ The substrate must realign with its constitutional responsibilities immediately.
         from core.semantics.derived_reader import Meaning, is_variable
         try:
             meaning = Meaning.from_dict(requested)
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError) as error:
+            logger.warning(
+                "no tools offered for this request: what was asked could not be "
+                "read back as a meaning (%s: %s), so nothing is planned for it",
+                type(error).__name__, error)
             return []
         facts = meaning.facts
         offered = await self._tools_by_doing()
@@ -21780,6 +22028,10 @@ The substrate must realign with its constitutional responsibilities immediately.
                 # FAIL-CLOSED, like the gate one layer in. A boundary that could
                 # not be asked whether work may begin has not established that it
                 # may.
+                logger.error(
+                    "the constitution could not be asked whether work may begin "
+                    "(%s: %s): the task is REFUSED, which is the safe answer and "
+                    "not a decision about the task", type(error).__name__, error)
                 return refused(f"whether work may begin could not be established "
                                f"({type(error).__name__}: {error}); not starting")
             if halted is not None:
@@ -22480,6 +22732,9 @@ class _Held:
         try:
             other = inverse(_SemanticRelation(relation))
         except ValueError:
+            logger.debug("relation %r has no place in the algebra, so it cannot "
+                         "be turned round and a reverse question about it goes "
+                         "unanswered", relation)
             return None
         return other.value if other is not None else None
 
@@ -22620,7 +22875,11 @@ class _Held:
         try:
             composed = compose(_SemanticRelation(so_far), _SemanticRelation(kind))
         except ValueError:
-            return None          # a link held as its word composes with nothing
+            # A link held as its word composes with nothing, so the chain stops
+            # here and whatever it would have reached is not found.
+            logger.debug("chain %r + %r does not compose: this chain goes no "
+                         "further", so_far, kind)
+            return None
         return composed[0].value if composed is not None else None
 
     @staticmethod
@@ -22632,6 +22891,8 @@ class _Held:
         try:
             goal = _SemanticRelation(relation)
         except ValueError:
+            logger.debug("relation %r has no place in the algebra: no chain is "
+                         "looked for that could answer it", relation)
             return frozenset()
         leads = {goal}
         grew = True
@@ -22933,7 +23194,9 @@ def _said(subject: str, relation: str, obj: str, positive: bool = True,
         fact = MeaningFact(text.replace(" ", "_"), str(subject).replace("_", " ").strip(),
                            str(obj).replace("_", " ").strip(), positive)
         facts = as_known((fact,), spaced) if spaced.keys() & set(fact.terms()) else (fact,)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("nothing said of %r %r %r: it does not make a meaning (%s)",
+                     subject, text, obj, error)
         return None
     # A KNOWN THING'S OWN KIND SAYS NOTHING OF IT. Said as a known thing is said, `instance_of(air_adbc9a63, air)`
     # is `given instance_of(?k0, air)` and nothing else: `as_known` drops the fact itself, because being an air is
@@ -23131,7 +23394,9 @@ def _said_together(items: Sequence["Acquired"], named: Optional[Dict[str, str]] 
                 facts.append(MeaningFact(relation, names[at], said_as, True))
         try:
             meaning = Meaning("tell", tuple(dict.fromkeys(facts)))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("these facts do not make a meaning, so nothing is "
+                         "said of them together (%s)", error)
             continue
         sentences = say(meaning, named=named, framed=framed)
         if sentences:
@@ -23159,7 +23424,9 @@ def _said_rule(rule, named: Optional[Dict[str, str]] = None, framed: FrozenSet[s
             for at, (subject, relation, obj, positive) in enumerate(rule))
         terms = {t for f in facts for t in f.terms()}
         meaning = Meaning("tell", as_known(facts, spaced) if spaced.keys() & terms else facts)
-    except ValueError:
+    except ValueError as error:
+        logger.debug("a rule of %d fact(s) is not said: it does not make a "
+                     "meaning (%s)", len(rule), error)
         return None
     sentences = say(meaning, named=named, framed=framed)
     return sentences[0] if sentences else None
@@ -23211,8 +23478,11 @@ def _not_known(meaning, named: Optional[Dict[str, str]] = None,
         if not meaning.asked:
             facts += [replace(fact, positive=True, alternative=True), replace(fact, positive=False, alternative=True)]
         told = Meaning("tell", tuple(facts))
-    except ValueError:
+    except ValueError as error:
         # Nothing taught says it either way: a fact only naming a known thing ("given") is not one that holds or not.
+        logger.debug("cannot say that this is not known: the fact only names a "
+                     "known thing, so there is nothing to hold or deny (%s)",
+                     error)
         return None
     sentences = say(told, named=named, framed=framed)
     return sentences[0] if sentences else None
@@ -23238,7 +23508,10 @@ def _worked_said(meaning, worked) -> str:
                     MeaningFact(f.relation, f.subject, worked.correction if f is compared[0] else f.obj, f.positive)
                     for f in meaning.facts if not f.condition))
                 sentences = say(corrected)
-            except ValueError:
+            except ValueError as error:
+                logger.debug("the corrected answer could not be made a meaning "
+                             "(%s): what was worked out is given as plain text "
+                             "instead", error)
                 sentences = ()
             if sentences:
                 return sentences[0]
@@ -23256,7 +23529,10 @@ def _worked_said(meaning, worked) -> str:
                 MeaningFact(f.relation, value if f.subject == wanted else f.subject,
                             value if f.obj == wanted else f.obj, f.positive)
                 for f in meaning.facts if not f.condition))
-        except ValueError:
+        except ValueError as error:
+            logger.debug("the answer %r could not be put back into the "
+                         "question's meaning (%s): it is given as the value "
+                         "alone", value, error)
             answer = None
         sentences = say(answer) if answer is not None else ()
         said = sentences[0] if sentences else value + "."
@@ -24111,6 +24387,10 @@ class Conversation:
         except Exception as error:
             from core.structural_defects import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._incoming_relations")
+            logger.warning(
+                "the facts naming this concept as their object could not be "
+                "read (%s: %s): reverse questions about it are answered from "
+                "the forward store alone", type(error).__name__, error)
             return []
 
         facts: List[Tuple[str, str, str, bool]] = []
@@ -24120,7 +24400,11 @@ class Conversation:
             if isinstance(rels, str):
                 try:
                     rels = json.loads(rels)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as error:
+                    logger.warning(
+                        "a row's incoming relations could not be read as JSON "
+                        "(%s: %s): what it names about this concept is left out "
+                        "of the answer", type(error).__name__, error)
                     continue
             for entry in (rels or ()):
                 if not isinstance(entry, (list, tuple)) or len(entry) < 2:
@@ -24826,7 +25110,9 @@ class Conversation:
                                         for f in meaning.facts if timed or f.obj != "?now")
                                   + tuple(MeaningFact("has_property", happening, q) for happening, q in qualities))
                     tellings.append(Meaning("tell", as_known(told_facts, kinds)))
-                except ValueError:
+                except ValueError as error:
+                    logger.debug("an event is not told: its facts do not make a "
+                                 "meaning (%s)", error)
                     continue
             for heard in ((True, False) if len(tellings) > 1 else (False,)):
                 said = next((s for s in (say(told, named=self._named, framed=self._framed, heard=heard)
@@ -25224,6 +25510,10 @@ class Conversation:
         except Exception as error:
             from core.structural_defects import raise_if_structural
             raise_if_structural(error, "autonomous_coordinator._held_premises.broad_recall")
+            logger.warning(
+                "the broad recall of what is held could not be read (%s: %s): "
+                "the reasoner is given only the premises the narrower reads "
+                "found", type(error).__name__, error)
 
         # A FACT HELD BOTH WAYS goes to the reasoner the way the belief in it
         # stands, as `asked` answers it: a weaker source that denied it dents the
@@ -26033,7 +26323,14 @@ class Conversation:
                 return {}
             try:
                 return agent.word_classes(word)
-            except Exception:
+            except Exception as error:
+                # Empty reads as "this word has no observed class", which is how
+                # a relation gets classified without the evidence that would
+                # have decided it.
+                logger.warning(
+                    "the classes of %r could not be read (%s: %s): this "
+                    "relation is classified as though the word had none",
+                    word, type(error).__name__, error)
                 return {}
 
         return classify(rel, object_word_class=complement_class(
@@ -26147,6 +26444,9 @@ class Conversation:
             result = await registry.execute_tool(
                 "web_search", {"query": query, "max_results": 5})
         except Exception as error:
+            logger.warning("research of %r failed (%s: %s): the phrase is "
+                           "recorded as unacquired", phrase,
+                           type(error).__name__, error)
             parts.append(Part("error", str(error), "world"))
             return await researched(Acquired(phrase, origin="research",
                                              detail=f"research failed: {error}"), "failed")
